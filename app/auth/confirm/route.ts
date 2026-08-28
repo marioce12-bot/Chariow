@@ -8,5 +8,6 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     await supabase.auth.exchangeCodeForSession(code);
   }
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+  const next = url.searchParams.get("next");
+  return NextResponse.redirect(new URL(next === "/reset-password" ? "/reset-password" : "/dashboard", request.url));
 }
