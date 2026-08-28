@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 
+const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
+
 const bars = [32, 44, 39, 55, 48, 65, 57, 71, 64, 82, 74, 91, 79, 96];
 
 type StoreData = {
@@ -47,9 +49,16 @@ export function Dashboard() {
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
   const [userName, setUserName] = useState("créateur");
 
+  const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
+  const freeUsed = subscription?.free_messages_used ?? 0;
+  const freeLimit = subscription?.free_messages_limit ?? 3;
+  const used = subscription?.messages_used_this_month ?? 0;
+  const limit = subscription?.messages_limit ?? 400;
+  const remainingAiThisMonth = freeUsed < freeLimit ? Math.max(0, freeLimit - freeUsed) : Math.max(0, limit - used);
+
   const links = [
     ["Vue d’ensemble", LayoutDashboard],
-    ["Mon analyste IA", MessageSquare],
+    ["Vendeo AI", MessageSquare],
     ["Mes boutiques", Store],
     ["Rapports", BarChart3],
     ["Abonnement", CreditCard],
@@ -136,13 +145,18 @@ export function Dashboard() {
             <p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>Passe au Pro pour débloquer les rapports.</p>
             <button className="btn btn-dark" style={{ fontSize: 10, padding: "8px 10px", width: "100%" }}>Passer au Pro</button>
           </div>
+
+          <div className="side-usage">
+            <div className="side-usage-label">Usage IA ce mois</div>
+            <div className="side-usage-value">{remainingAiThisMonth.toLocaleString("fr-FR")} messages disponibles</div>
+          </div>
         </aside>
         <section className="app-main">
           {loadingData ? (
             <div className="app-card">Chargement de ton espace…</div>
           ) : stores.length === 0 && active !== "Mes boutiques" ? (
             <StoreOnboarding />
-          ) : active === "Mon analyste IA" ? (
+          ) : active === "Vendeo AI" ? (
             <ChatView />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} onStoresChange={setStores} />
@@ -151,20 +165,26 @@ export function Dashboard() {
           ) : active === "Rapports" ? (
             <Reports stores={stores} analytics={analytics} />
           ) : (
-            <Overview stores={stores} subscription={subscription} analytics={analytics} />
+            <Overview
+              stores={stores}
+              subscription={subscription}
+              analytics={analytics}
+              userFirstName={userFirstName}
+              onGoToAI={() => setActive("Vendeo AI")}
+            />
           )}
         </section>
       </div>
 
-      <nav className="mobile-nav" aria-label="Navigation mobile">
+       <nav className="mobile-nav" aria-label="Navigation mobile">
         <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
           <LayoutDashboard size={18} />
           <span>Accueil</span>
         </button>
-        <button type="button" className={`nav-btn ${active === "Mon analyste IA" ? "active" : ""}`} onClick={() => setActive("Mon analyste IA")}>
-          <MessageSquare size={18} />
-          <span>IA</span>
-        </button>
+         <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
+           <MessageSquare size={18} />
+           <span>IA</span>
+         </button>
         <button type="button" className={`nav-btn ${active === "Mes boutiques" ? "active" : ""}`} onClick={() => setActive("Mes boutiques")}>
           <Store size={18} />
           <span>Boutiques</span>
@@ -216,155 +236,338 @@ function StoreOnboarding() {
   );
 }
 
-function Overview({ stores, subscription, analytics }: { stores: StoreData[]; subscription: SubscriptionData | null; analytics: AnalyticsData }) {
-  const freeUsed = subscription?.free_messages_used ?? 0;
-  const freeLimit = subscription?.free_messages_limit ?? 3;
-  const used = subscription?.messages_used_this_month ?? 0;
-  const limit = subscription?.messages_limit ?? 400;
-  const percent = freeUsed < freeLimit ? Math.round((freeUsed / freeLimit) * 100) : Math.min(100, Math.round((used / limit) * 100));
+function Overview({
+  stores,
+  subscription,
+  analytics,
+  userFirstName,
+  onGoToAI,
+}: {
+  stores: StoreData[];
+  subscription: SubscriptionData | null;
+  analytics: AnalyticsData;
+  userFirstName: string;
+  onGoToAI: () => void;
+}) {
+  const isChariowConnected = stores?.[0]?.connection_status === "connected";
 
-  const storeStatus = stores?.[0]?.connection_status ?? "pending";
+  const catalogProducts = analytics?.products ?? [];
+  const productsTotal = catalogProducts.length;
+  const publishedProducts = catalogProducts
+    .filter((p) => {
+      const status = (p.status ?? "").toString().toLowerCase();
+      return status.includes("published") || status.includes("publié") || status.includes("publiée");
+    })
+    .map((p) => ({
+      title: p.name,
+      priceAvailable: p.price !== null && p.price !== "" && p.price !== undefined,
+    }));
 
-  const periodFrom = analytics?.kpis.period.from;
-  const periodTo = analytics?.kpis.period.to;
+  const publishedCount = publishedProducts.length;
+  const firstPublishedTitle = publishedProducts[0]?.title ?? "";
+  const firstPublishedPriceAvailable = publishedProducts[0]?.priceAvailable ?? false;
 
-  const monthNames = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
-  const formatFrenchDate = (d: string) => {
-    const dt = new Date(d);
-    if (Number.isNaN(dt.getTime())) return d;
-    const day = dt.getDate();
-    const month = monthNames[dt.getMonth()] ?? "";
-    const year = dt.getFullYear();
-    return `${day} ${month} ${year}`;
+  const visitsTotal = analytics?.kpis?.visits ?? 0;
+  const salesCount = analytics?.kpis?.sales ?? 0;
+  const revenueFormatted = analytics?.kpis?.revenue?.formatted ?? "0";
+  const conversionFormatted = analytics?.kpis?.conversionRate ?? "0 %";
+  const customersTotal = analytics?.kpis?.customers ?? 0;
+  const productsSold = analytics?.kpis?.productsSold ?? 0;
+
+  const summaryText = (() => {
+    if (isChariowConnected && publishedCount >= 1 && visitsTotal === 0) {
+      return "Ta boutique est bien connectée et ton premier produit est publié. Ton principal défi est maintenant d’attirer tes premiers visiteurs. Concentre-toi cette semaine sur la promotion de ton produit auprès d’une audience précise.";
+    }
+    if (!isChariowConnected) return "Connecte ta boutique Chariow pour recevoir des recommandations personnalisées.";
+    if (publishedCount < 1) return "Publie ton premier produit pour que Vendeo puisse proposer des actions concrètes.";
+    if (visitsTotal > 0 && salesCount === 0) return "Tu as déjà des visites. L’enjeu maintenant est d’améliorer la page produit et la promesse pour favoriser la première vente.";
+    return "Ta boutique est connectée. Continue tes actions de promotion et observe l’impact sur les visites et les ventes.";
+  })();
+
+  const buildPrompt = (kind: "tiktok" | "whatsapp" | "productPage" | "salesPlan") => {
+    const title = firstPublishedTitle || "mon produit";
+    const map = {
+      tiktok: "Crée un script TikTok court et convaincant pour promouvoir mon produit : ${product.title}. Mon objectif est d’obtenir mes premières visites et mes premières ventes.",
+      whatsapp: "Crée une publication WhatsApp courte et convaincante pour promouvoir mon produit : ${product.title}. Mon objectif est d’obtenir mes premières visites et mes premières ventes.",
+      productPage: "Aide-moi à améliorer la page de vente de mon produit ${product.title}. Propose une promesse forte, une description claire, les bénéfices, une structure de page et un appel à l’action.",
+      salesPlan: "Crée un plan d’action simple sur 7 jours pour obtenir mes premières visites et ma première vente pour mon produit ${product.title}. Je cible les créateurs et entrepreneurs francophones.",
+    } as const;
+    return map[kind].replace(/\$\{product\.title\}/g, title);
   };
-  const periodLabel = periodFrom && periodTo ? `${formatFrenchDate(periodFrom)} – ${formatFrenchDate(periodTo)}` : "";
 
-  const catalogueCount = analytics?.products.length ?? 0;
-  const salesCount = analytics?.kpis.sales ?? 0;
-  const salesValueFormatted = analytics?.kpis.revenue.formatted ?? "0";
-  const productsSold = analytics?.kpis.productsSold ?? 0;
-  const visitsTotal = analytics?.kpis.visits ?? 0;
-  const conversionFormatted = analytics?.kpis.conversionRate ?? "0 %";
-  const customersTotal = analytics?.kpis.customers ?? 0;
-  const health = getStoreHealth(analytics);
-
-  const connectionCopy: Record<string, string> = {
-    connected: "✅ Boutique Chariow connectée",
-    pending: "Connexion à Chariow en cours…",
-    failed: "❌ Impossible de connecter la boutique. Réessaie.",
-    expired: "⚠️ La connexion Chariow a expiré. Reconnecte ta boutique.",
-    revoked: "Boutique déconnectée",
+  const openAIWithPrompt = (prompt: string) => {
+    sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt);
+    onGoToAI();
   };
+
+  const primaryPublished = publishedCount >= 1;
+  const priceAvailable = firstPublishedPriceAvailable;
+
+  const card1 = (() => {
+    if (visitsTotal === 0) {
+      return {
+        title: "Obtiens tes premiers visiteurs",
+        body: "Ta boutique est prête. La prochaine étape est d’attirer tes premiers visiteurs.",
+        primaryAction: { label: "TikTok", promptKind: "tiktok" as const },
+        secondaryAction: { label: "WhatsApp", promptKind: "whatsapp" as const },
+      };
+    }
+    return {
+      title: "Obtiens tes premiers visiteurs",
+      body: "Tu as déjà des visites. Continue la promotion pour créer des signaux vers ta première vente.",
+      primaryAction: { label: "TikTok", promptKind: "tiktok" as const },
+      secondaryAction: { label: "WhatsApp", promptKind: "whatsapp" as const },
+    };
+  })();
+
+  const card2 = (() => {
+    if (!primaryPublished) {
+      return {
+        title: "Renforce ta page de vente",
+        body: "Ton produit n’est pas encore publié. Publie-le pour que Vendeo puisse affiner les recommandations sur ta page de vente.",
+        primaryAction: { label: "Améliorer ma page produit", promptKind: "productPage" as const },
+      };
+    }
+    if (!priceAvailable) {
+      return {
+        title: "Renforce ta page de vente",
+        body: "Ton produit est publié, mais son prix n’est pas disponible dans les données synchronisées. Vérifie que son prix, sa promesse et ses bénéfices sont clairement affichés…",
+        primaryAction: { label: "Améliorer ma page produit", promptKind: "productPage" as const },
+      };
+    }
+    return {
+      title: "Renforce ta page de vente",
+      body: "Ton produit est publié. On va optimiser la page pour que la promesse et les bénéfices soient immédiatement clairs.",
+      primaryAction: { label: "Améliorer ma page produit", promptKind: "productPage" as const },
+    };
+  })();
+
+  const card3 = (() => {
+    if (productsTotal === 1 && primaryPublished) {
+      return {
+        title: "Prépare ton premier objectif",
+        body: "Objectif : obtenir premières visites + première vente cette semaine.",
+        primaryAction: { label: "Créer mon plan de vente", promptKind: "salesPlan" as const },
+      };
+    }
+    return {
+      title: "Prépare ton premier objectif",
+      body: "Crée un objectif simple basé sur tes signaux actuels. (V1 prudente : une action de plan quand un produit est publié.)",
+      primaryAction: { label: "Créer mon plan de vente", promptKind: "salesPlan" as const },
+    };
+  })();
+
+  const productCard = (() => {
+    const product = catalogProducts.find((p) => {
+      const status = (p.status ?? "").toString().toLowerCase();
+      return status.includes("published") || status.includes("publié") || status.includes("publiée");
+    }) ?? catalogProducts[0];
+
+    if (!product) return null;
+    const status = (product.status ?? "").toString().toLowerCase();
+    const isPublished = status.includes("published") || status.includes("publié") || status.includes("publiée");
+    const priceAvailable = product.price !== null && product.price !== "" && product.price !== undefined;
+    const priceText = priceAvailable
+      ? `${product.price}${product.currency ? ` ${product.currency}` : ""}`
+      : "Prix non disponible dans les données synchronisées.";
+
+    return {
+      title: product.name,
+      statusLabel: isPublished ? "Publié" : "Non publié",
+      priceText,
+    };
+  })();
+
+  const performanceMessage = (() => {
+    if (visitsTotal === 0) return "Ta priorité cette semaine : attirer tes premiers visiteurs pour déclencher des signaux utiles.";
+    if (salesCount === 0) return "Tu as des visites : concentre-toi sur une page produit claire et une promesse forte pour obtenir ta première vente.";
+    return "Continue l’optimisation : teste des variations et observe l’évolution des visites et des ventes.";
+  })();
+
+  const progress = [
+    { label: "Boutique Chariow connectée", done: isChariowConnected },
+    { label: "Produit publié", done: primaryPublished },
+    { label: "Premiers visiteurs", done: visitsTotal > 0 },
+    { label: "Première vente", done: salesCount > 0 },
+  ];
+
+  const greeting = (userFirstName || "créateur").trim().split(/\s+/)[0] || "créateur";
+
+  if (!stores.length) {
+    return (
+      <>
+        <div className="vendeo-overview-header">
+          <div>
+            <h1>Bonjour {greeting} 👋</h1>
+            <p>Voici ce que Vendeo recommande pour faire avancer ton business cette semaine.</p>
+          </div>
+          <div className="vendeo-badge">✅ Boutique Chariow connectée</div>
+        </div>
+        <div className="empty-state" style={{ marginTop: 12 }}>Connecte ta boutique Chariow pour voir tes recommandations.</div>
+      </>
+    );
+  }
+
+  if (!analytics || !isChariowConnected) {
+    const badgeText = stores?.[0]?.connection_status === "connected" ? "✅ Boutique Chariow connectée" : "⏳ Connexion Chariow requise";
+    return (
+      <>
+        <div className="vendeo-overview-header">
+          <div>
+            <h1>Bonjour {greeting} 👋</h1>
+            <p>Voici ce que Vendeo recommande pour faire avancer ton business cette semaine.</p>
+          </div>
+          <div className="vendeo-badge">{badgeText}</div>
+        </div>
+        <div className="empty-state" style={{ marginTop: 12 }}>Connecte ta boutique Chariow pour afficher tes recommandations.</div>
+      </>
+    );
+  }
 
   return (
     <>
-      <div className="page-top">
+      <div className="vendeo-overview-header">
         <div>
-          <h1>Vue d'ensemble</h1>
-          <p>{periodLabel ? `Période analysée : ${periodLabel}` : "Période analysée : période en cours"}</p>
+          <h1>Bonjour {greeting} 👋</h1>
+          <p>Voici ce que Vendeo recommande pour faire avancer ton business cette semaine.</p>
         </div>
-        <button className="btn btn-dark" onClick={() => document.querySelector<HTMLButtonElement>(".side-link:nth-of-type(4)")?.click()}>
-          <Plus size={16} /> Boutique
-        </button>
+        <div className="vendeo-badge">✅ Boutique Chariow connectée</div>
       </div>
 
-      <div style={{ marginBottom: 18 }}>
-        <div className="app-card">
-          <div style={{ fontWeight: 800, color: "#234d3d" }}>
-            {stores.length === 0 ? "Connecte ta boutique Chariow pour voir tes statistiques." : (connectionCopy[storeStatus] ?? "Connecte ta boutique Chariow pour voir tes statistiques.")}
+      <section className="vendeo-section" aria-label="Priorités">
+        <div className="vendeo-section-head">
+          <div className="vendeo-section-icon">🎯</div>
+          <h2>🎯 Tes priorités cette semaine</h2>
+        </div>
+
+        <div className="vendeo-priorities-grid">
+          <div className="vendeo-priority-card">
+            <h3>{card1.title}</h3>
+            <p className="vendeo-muted">{card1.body}</p>
+            <div className="vendeo-card-actions">
+              <button className="btn btn-lime" onClick={() => openAIWithPrompt(buildPrompt(card1.primaryAction.promptKind))}>
+                Créer un script TikTok
+              </button>
+              <button className="btn btn-ghost" onClick={() => openAIWithPrompt(buildPrompt(card1.secondaryAction.promptKind))}>
+                Créer une publication WhatsApp
+              </button>
+            </div>
+          </div>
+
+          <div className="vendeo-priority-card">
+            <h3>{card2.title}</h3>
+            <p className="vendeo-muted">{card2.body}</p>
+            <div className="vendeo-card-actions">
+              <button className="btn btn-lime" onClick={() => openAIWithPrompt(buildPrompt(card2.primaryAction.promptKind))}>
+                {card2.primaryAction.label}
+              </button>
+            </div>
+          </div>
+
+          <div className="vendeo-priority-card">
+            <h3>{card3.title}</h3>
+            <p className="vendeo-muted">{card3.body}</p>
+            <div className="vendeo-card-actions">
+              <button className="btn btn-lime" onClick={() => openAIWithPrompt(buildPrompt(card3.primaryAction.promptKind))}>
+                {card3.primaryAction.label}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {stores.length === 0 || storeStatus !== "connected" ? (
-        <div className="empty-state" style={{ marginTop: 10 }}>
-          {stores.length === 0
-            ? "Connecte ta boutique Chariow pour voir tes statistiques."
-            : connectionCopy[storeStatus] ?? "Connecte ta boutique Chariow pour voir tes statistiques."}
+      <section className="vendeo-section" aria-label="Résumé">
+        <div className="vendeo-section-head">
+          <div className="vendeo-section-icon">🧠</div>
+          <h2>🧠 Ce que Vendeo a compris</h2>
         </div>
-      ) : (
-        <>
-          {!analytics ? (
-            <div className="empty-state" style={{ marginTop: 10 }}>
-              Les statistiques de ta boutique ne sont pas encore disponibles. Réessaie plus tard.
-            </div>
-          ) : (
+        <div className="vendeo-resume-card">{summaryText}</div>
+      </section>
+
+      <section className="vendeo-section" aria-label="Performance">
+        <div className="vendeo-section-head">
+          <div className="vendeo-section-icon">📈</div>
+          <h2>📈 Performance de ta boutique</h2>
+        </div>
+
+        <div className="vendeo-kpi-grid">
+          <div className="vendeo-kpi">
+            <small>Chiffre d’affaires</small>
+            <strong>{revenueFormatted}</strong>
+          </div>
+          <div className="vendeo-kpi">
+            <small>Ventes</small>
+            <strong>{salesCount}</strong>
+          </div>
+          <div className="vendeo-kpi">
+            <small>Visites</small>
+            <strong>{visitsTotal}</strong>
+          </div>
+          <div className="vendeo-kpi">
+            <small>Conversion</small>
+            <strong>{conversionFormatted}</strong>
+          </div>
+          <div className="vendeo-kpi">
+            <small>Clients</small>
+            <strong>{customersTotal}</strong>
+          </div>
+          <div className="vendeo-kpi vendeo-kpi-wide">
+            <small>Produits du catalogue</small>
+            <strong>{productsTotal}</strong>
+          </div>
+        </div>
+
+        <p className="vendeo-muted" style={{ margin: "12px 0 0" }}>{performanceMessage}</p>
+      </section>
+
+      <section className="vendeo-section" aria-label="Produit">
+        <div className="vendeo-section-head">
+          <div className="vendeo-section-icon">🛍️</div>
+          <h2>🛍️ Ton produit à promouvoir</h2>
+        </div>
+
+        <div className="vendeo-product-card">
+          {productCard ? (
             <>
-            <div className="overview-grid">
-              <div className="metric">
-                <small>Chiffre d’affaires ce mois</small>
-                <strong>{salesValueFormatted}</strong>
+              <div className="vendeo-product-row">
+                <div>
+                  <div className="vendeo-muted">Nom</div>
+                  <div className="vendeo-product-title">{productCard.title}</div>
+                </div>
+                <div>
+                  <div className="vendeo-muted">Statut</div>
+                  <div className="vendeo-product-status">{productCard.statusLabel}</div>
+                </div>
+                <div>
+                  <div className="vendeo-muted">Prix</div>
+                  <div className="vendeo-product-price">{productCard.priceText}</div>
+                </div>
               </div>
-              <div className="metric">
-                <small>Ventes réalisées</small>
-                <strong>{salesCount}</strong>
-              </div>
-              <div className="metric">
-                <small>Produits du catalogue</small>
-                <strong>{catalogueCount}</strong>
-              </div>
-              <div className="metric">
-                <small>Produits vendus ce mois</small>
-                <strong>{productsSold}</strong>
-              </div>
-              <div className="metric">
-                <small>Visites de la boutique</small>
-                <strong>{visitsTotal}</strong>
-              </div>
-              <div className="metric">
-                <small>Taux de conversion</small>
-                <strong>{conversionFormatted}</strong>
-              </div>
-              <div className="metric">
-                <small>Clients</small>
-                <strong>{customersTotal}</strong>
-              </div>
-            </div>
-      <div className="app-card" style={{ marginTop: 18 }}>
-              <strong>{salesCount === 0 && visitsTotal === 0 ? "Aucune vente ni visite n’a été enregistrée pour cette période." : "Ton activité sur cette période"}</strong>
-              {catalogueCount > 0 && <p style={{ margin: "8px 0 0", color: "#607268", fontSize: 12 }}>Tu as {catalogueCount} produit{catalogueCount > 1 ? "s" : ""} dans ton catalogue.</p>}
-              {salesCount === 0 && <p style={{ margin: "8px 0 0", color: "#607268", fontSize: 12 }}>Aucune vente enregistrée pour cette période.</p>}
-              {visitsTotal === 0 && <p style={{ margin: "8px 0 0", color: "#607268", fontSize: 12 }}>Aucune visite enregistrée pour cette période.</p>}
-            </div>
-            <ProductCatalog products={analytics.products} />
-            <BusinessSignals analytics={analytics} health={health} />
+              {!firstPublishedPriceAvailable ? (
+                <div className="vendeo-product-hint">Prix non disponible dans les données synchronisées.</div>
+              ) : null}
             </>
+          ) : (
+            <div className="empty-state compact">Aucun produit trouvé dans ta boutique Chariow.</div>
           )}
-        </>
-      )}
-
-      <div style={{ marginTop: 18 }}>
-        <div className="app-card">
-          <div className="card-head">
-            <div>
-              <h2>Votre suivi Vendeo</h2>
-              <p>Votre progression d’utilisation cette période.</p>
-            </div>
-          </div>
-          <div style={{ borderTop: "1px solid #dfe5de", paddingTop: 18, marginTop: 15 }}>
-            <div className="eyebrow" style={{ fontSize: 9 }}>
-              {freeUsed < freeLimit ? "Essai gratuit Vendeo" : "Usage IA ce mois"}
-            </div>
-            <div className="usage">
-              <div className="ring">
-                <strong>{freeUsed < freeLimit ? freeUsed : used}</strong>
-              </div>
-              <div className="usage-copy">
-                <strong>{freeUsed < freeLimit ? `${freeUsed} / ${freeLimit}` : `${used} / ${limit}`}</strong>
-                <span>{freeUsed < freeLimit ? "requêtes gratuites" : "messages utilisés"}</span>
-              </div>
-            </div>
-            <div className="progress">
-              <i style={{ width: `${percent}%` }} />
-            </div>
-            <p style={{ color: "#809087", fontSize: 10 }}>
-              {freeUsed < freeLimit
-                ? `Il te reste ${freeLimit - freeUsed} requêtes gratuites.`
-                : `Il te reste ${Math.max(0, limit - used)} messages ce mois-ci.`}
-            </p>
-          </div>
         </div>
-      </div>
+      </section>
+
+      <section className="vendeo-section" aria-label="Chemin">
+        <div className="vendeo-section-head">
+          <div className="vendeo-section-icon">🚀</div>
+          <h2>🚀 Ton chemin vers ta première vente</h2>
+        </div>
+
+        <div className="vendeo-progress">
+          {progress.map((step) => (
+            <div key={step.label} className="vendeo-progress-step">
+              <span className="vendeo-step-check">{step.done ? "✅" : "○"}</span>
+              <span>{step.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
     </>
   );
 }
@@ -489,6 +692,15 @@ function ChatView() {
   const [plansRequired, setPlansRequired] = useState(false);
 
   useEffect(() => {
+    // Prefill from Overview actions without leaking the prompt in the URL.
+    const pending = sessionStorage.getItem(SESSION_STORAGE_PROMPT_KEY);
+    if (pending && typeof pending === "string") {
+      setInput(pending);
+      sessionStorage.removeItem(SESSION_STORAGE_PROMPT_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
     fetch("/api/chat")
       .then((r) => (r.ok ? r.json() : { messages: [] }))
       .then((data) => setMessages(data.messages ?? []));
@@ -523,7 +735,7 @@ function ChatView() {
     <>
       <div className="page-top">
         <div>
-          <span className="eyebrow">Ton analyste IA</span>
+          <span className="eyebrow">Vendeo AI</span>
           <h1>On regarde ça ensemble ?</h1>
           <p>Pose une question sur tes ventes, tes produits ou ta stratégie.</p>
         </div>
