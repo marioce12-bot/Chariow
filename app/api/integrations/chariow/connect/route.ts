@@ -101,7 +101,10 @@ export async function GET(request: Request) {
     code_verifier_encrypted: encryptSecret(codeVerifier),
     expires_at: expiresAt.toISOString(),
   });
-  if (attemptErr) return NextResponse.json({ error: attemptErr.message }, { status: 500 });
+  if (attemptErr) {
+    await supabase.from("stores").update({ is_active: false, connection_status: "failed", connection_error: "Impossible de préparer la connexion Chariow" }).eq("id", storeId).eq("user_id", user.id);
+    return NextResponse.json({ error: "Impossible de préparer la connexion Chariow" }, { status: 500 });
+  }
 
   const url = new URL("https://mcp.chariow.com/public/oauth/authorize");
   url.searchParams.set("response_type", "code");

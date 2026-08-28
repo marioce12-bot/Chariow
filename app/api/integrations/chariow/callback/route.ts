@@ -25,6 +25,7 @@ export async function GET(request: Request) {
   const redirectUri = process.env.CHARIOW_OAUTH_REDIRECT_URI;
   const clientId = process.env.CHARIOW_OAUTH_CLIENT_ID;
   if (!clientId || !redirectUri) {
+    console.error("Chariow OAuth production variables are missing");
     return redirectToDashboard("chariow=failed");
   }
 
@@ -42,6 +43,7 @@ export async function GET(request: Request) {
   const storeId = attempt?.store_id ? String(attempt.store_id) : null;
 
   if (attemptErr || !storeId) {
+    console.error("Chariow OAuth attempt lookup failed", attemptErr?.message ?? "missing store_id");
     return redirectToDashboard("chariow=failed");
   }
 
@@ -73,6 +75,7 @@ export async function GET(request: Request) {
       .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
       .eq("id", storeId)
       .eq("user_id", user.id);
+    if (oauthError !== "access_denied") console.error("Chariow OAuth authorization failed", message);
     return redirectToDashboard("chariow=failed");
   }
 
@@ -110,6 +113,7 @@ export async function GET(request: Request) {
         .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
         .eq("id", storeId)
         .eq("user_id", user.id);
+      console.error("Chariow OAuth token exchange failed", tokenResp.status, message);
       return redirectToDashboard("chariow=failed");
     }
 
@@ -176,6 +180,7 @@ export async function GET(request: Request) {
     return redirectToDashboard("chariow=connected");
   } catch (e) {
     const message = e instanceof Error ? sanitizeErrorMessage(e.message) : "Connexion Chariow impossible";
+    console.error("Chariow OAuth callback failed", message);
     if (storeId) {
       await supabase
         .from("stores")

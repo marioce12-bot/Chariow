@@ -662,7 +662,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
               <div className="store-info">
                 <strong>{store.store_name}</strong>
                 <span>
-                  {store.platform} · {status}
+                  {store.platform} · {status === "failed" ? (store.connection_error ?? "Connexion échouée") : status}
                 </span>
               </div>
               <span className="status">● {status}</span>
