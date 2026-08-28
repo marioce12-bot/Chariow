@@ -480,6 +480,7 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .profit-form { align-self:start; display:grid; gap:11px; }
 .profit-form .card-head { margin-bottom:4px; }
 .profit-field { color:var(--muted); display:flex; flex-direction:column; font-size:10px; gap:5px; }
+.profit-field-label { align-items:center; display:flex; gap:6px; }
 .profit-field div { align-items:center; background:#f8faff; border:1px solid var(--line); border-radius:7px; display:flex; overflow:hidden; }
 .profit-field input { background:transparent; border:0; color:var(--ink); min-width:0; outline:0; padding:9px 10px; width:100%; }
 .profit-field small { color:#8290a7; font-size:10px; padding-right:9px; }

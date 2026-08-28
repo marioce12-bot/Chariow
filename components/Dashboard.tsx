@@ -751,9 +751,20 @@ function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
 
   const recommendation = getProfitRecommendation(result);
   const currency = product?.currency ?? "FCFA";
+  const hasPrice = inputs.price > 0;
+  const fieldDescriptions: Record<keyof ProfitabilityInputs, string> = {
+    price: "Prix payé par le client pour une vente de ton produit.",
+    productCost: "Coût directement lié à la fabrication, la livraison ou la mise à disposition d’une unité du produit.",
+    platformFees: "Frais prélevés par Chariow, le moyen de paiement ou une autre plateforme pour chaque vente.",
+    otherVariableCosts: "Autres coûts qui augmentent avec chaque vente, par exemple une commission ou un service externe.",
+    adSpend: "Montant total que tu prévois de dépenser en publicité pendant la période analysée.",
+    conversionRate: "Pourcentage de visiteurs qui deviennent des acheteurs. Exemple : 3 signifie 3 %.",
+    refundRate: "Pourcentage des ventes qui sont ensuite remboursées. Exemple : 2 signifie 2 %.",
+    targetProfitPerSale: "Bénéfice minimum que tu veux conserver après tous les coûts pour chaque vente.",
+  };
   const field = (key: keyof ProfitabilityInputs, label: string, suffix = "") => (
     <label className="profit-field" key={key}>
-      <span>{label}</span>
+      <span className="profit-field-label">{label}<button type="button" className="metric-help" aria-label={`Explication : ${label}`} title={fieldDescriptions[key]} onClick={(event) => { event.preventDefault(); event.stopPropagation(); window.alert(fieldDescriptions[key]); }}>?</button></span>
       <div><input type="number" min="0" step="any" value={key === "conversionRate" || key === "refundRate" ? (inputs[key] as number) * 100 : inputs[key] as number} onChange={(event) => update(key, event.target.value)} />{suffix && <small>{suffix}</small>}</div>
     </label>
   );
@@ -762,10 +773,6 @@ function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
     <>
       <div className="page-top">
         <div><span className="eyebrow">Copilote de rentabilité</span><h1>Assistant de profit</h1><p>Réponds à la question la plus importante : combien puis-je investir sans perdre d’argent ?</p></div>
-      </div>
-      <div className="profit-hero">
-        <div><span className="eyebrow">Lecture instantanée</span><h2>{recommendation.title}</h2><p>{recommendation.description}</p></div>
-        <div className={`profit-status ${recommendation.tone}`}><ShieldAlert size={18} /><strong>{result.status === "profitable" ? "Rentable" : result.status === "break_even" ? "Point mort" : "À corriger"}</strong></div>
       </div>
       <div className="profit-layout">
         <form className="app-card profit-form" onSubmit={runSimulation}>
@@ -777,7 +784,7 @@ function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
           {field("adSpend", "Budget publicitaire", currency)}
           {field("conversionRate", "Taux de conversion", "%")}
           {field("refundRate", "Taux de remboursement", "%")}
-          <p className="profit-help">Entre les taux sous forme décimale : 3% = 0,03.</p>
+          <p className="profit-help">Les taux sont à saisir en pourcentage : écris 3 pour 3 %.</p>
           <button className="btn btn-dark" disabled={saving} type="submit">{saving ? "Calcul…" : "Analyser la rentabilité"} <ArrowRight size={15} /></button>
         </form>
         <section className="profit-results">
@@ -787,8 +794,9 @@ function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
             <div className="vendeo-kpi"><MetricHelp label="Retour publicitaire au point mort" description="Niveau de retour publicitaire à partir duquel tes revenus couvrent exactement tes coûts, sans bénéfice ni perte." /><strong>{result.breakEvenRoas === null ? "Non disponible" : `${result.breakEvenRoas.toFixed(2)}x`}</strong></div>
             <div className="vendeo-kpi"><MetricHelp label="Bénéfice estimé" description="Bénéfice prévu après les coûts variables et le budget publicitaire renseigné." /><strong className={result.expectedProfit < 0 ? "profit-negative" : ""}>{formatMoney(result.expectedProfit, currency)}</strong></div>
           </div>
-          <div className="app-card profit-explanation"><div className="card-head"><div><span className="eyebrow">Décision</span><h2>Ce que tu dois faire</h2></div><Lightbulb size={18} color="#d28b3d" /></div><p>{recommendation.description}</p><div className="profit-equation"><span>Budget</span><strong>{formatMoney(inputs.adSpend, currency)}</strong><span>→</span><span>Ventes nécessaires</span><strong>{Math.ceil(result.expectedSales).toLocaleString("fr-FR")}</strong></div></div>
-          <div className="app-card"><div className="card-head"><div><span className="eyebrow">Simulation IA</span><h2>Trois niveaux de risque</h2></div><TrendingUp size={18} color="#103ef8" /></div><div className="scenario-grid">{scenarios.length ? scenarios.map((scenario) => <div className={`scenario-card ${scenario.name}`} key={scenario.name}><strong>{scenario.name}</strong><span>{formatMoney(scenario.expectedProfit, currency)} de profit</span><small>{Math.round(scenario.expectedSales)} vente{Math.round(scenario.expectedSales) > 1 ? "s" : ""} · {formatMoney(scenario.assumptions.budget, currency)} de budget</small></div>) : <p className="profit-help">Lance une simulation pour comparer les scénarios conservateur, central et agressif.</p>}</div></div>
+          <div className="app-card profit-explanation"><div className="card-head"><div><span className="eyebrow">Décision</span><h2>Ce que tu dois faire</h2></div><Lightbulb size={18} color="#d28b3d" /></div><p>{hasPrice ? recommendation.description : "Renseigne d’abord le prix de vente pour obtenir une recommandation de rentabilité fiable."}</p><div className="profit-equation"><span>Budget</span><strong>{formatMoney(inputs.adSpend, currency)}</strong><span>→</span><span>Ventes prévues</span><strong>{Math.ceil(result.expectedSales).toLocaleString("fr-FR")}</strong></div></div>
+           <div className="app-card"><div className="card-head"><div><span className="eyebrow">Simulation IA</span><h2>Trois niveaux de risque</h2></div><TrendingUp size={18} color="#103ef8" /></div><div className="scenario-grid">{scenarios.length ? scenarios.map((scenario) => <div className={`scenario-card ${scenario.name}`} key={scenario.name}><strong>{scenario.name}</strong><span>{formatMoney(scenario.expectedProfit, currency)} de bénéfice</span><small>{Math.round(scenario.expectedSales)} vente{Math.round(scenario.expectedSales) > 1 ? "s" : ""} · {formatMoney(scenario.assumptions.budget, currency)} de budget</small></div>) : <p className="profit-help">Lance une simulation pour comparer les scénarios conservateur, central et agressif.</p>}</div></div>
+           <div className="profit-hero"><div><span className="eyebrow">Lecture instantanée</span><h2>{hasPrice ? recommendation.title : "Prix de vente manquant"}</h2><p>{hasPrice ? recommendation.description : "Ajoute le prix de vente et les coûts du produit pour savoir si ta publicité peut être rentable."}</p></div><div className={`profit-status ${hasPrice ? recommendation.tone : "warning"}`}><ShieldAlert size={18} /><strong>{hasPrice ? (result.status === "profitable" ? "Rentable" : result.status === "break_even" ? "Point mort" : "À corriger") : "À compléter"}</strong></div></div>
         </section>
       </div>
     </>
