@@ -65,11 +65,29 @@ export async function POST(request: Request) {
       }
     }
   }
+
+  // Imole peut refuser les payloads trop volumineux (400).
+  // On tronque de façon conservatrice le contexte + l'historique.
+  const MAX_CONTEXT_CHARS = 12_000;
+  const MAX_MESSAGE_CHARS = 4_000;
+  const MAX_HISTORY_MESSAGES = 10;
+
+  const safeContext = context.length > MAX_CONTEXT_CHARS ? `${context.slice(0, MAX_CONTEXT_CHARS)}\n[... contexte tronqué ...]` : context;
   let answer: string;
   try {
+    const safeHistory = (history ?? [])
+      .reverse()
+      .slice(0, MAX_HISTORY_MESSAGES)
+      .map((item) => ({
+        role: item.role as "user" | "assistant",
+        content: typeof item.content === "string" ? (item.content.length > MAX_MESSAGE_CHARS ? `${item.content.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : item.content) : "",
+      }));
+
+    const systemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}`.slice(0, 18_000);
+
     answer = await askImole([
-      { role: "system", content: `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${context}` },
-      ...(history ?? []).reverse().map((item) => ({ role: item.role as "user" | "assistant", content: item.content })),
+      { role: "system", content: systemContent },
+      ...safeHistory,
     ]);
   } catch (error) {
     console.error("Imole chat error", error instanceof Error ? error.message : error);
