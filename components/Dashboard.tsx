@@ -451,7 +451,7 @@ function Overview({
       <section className="vendeo-section" aria-label="Priorités">
         <div className="vendeo-section-head">
           <div className="vendeo-section-icon">🎯</div>
-          <h2>🎯 Tes priorités cette semaine</h2>
+          <h2>Tes priorités cette semaine</h2>
         </div>
 
         <div className="vendeo-priorities-grid">
@@ -493,7 +493,7 @@ function Overview({
       <section className="vendeo-section" aria-label="Résumé">
         <div className="vendeo-section-head">
           <div className="vendeo-section-icon">🧠</div>
-          <h2>🧠 Ce que Vendeo a compris</h2>
+          <h2>Ce que Vendeo a compris</h2>
         </div>
         <div className="vendeo-resume-card">{summaryText}</div>
       </section>
@@ -501,7 +501,7 @@ function Overview({
       <section className="vendeo-section" aria-label="Performance">
         <div className="vendeo-section-head">
           <div className="vendeo-section-icon">📈</div>
-          <h2>📈 Performance de ta boutique</h2>
+          <h2>Performance de ta boutique</h2>
         </div>
 
         <div className="vendeo-kpi-grid">
@@ -537,7 +537,7 @@ function Overview({
       <section className="vendeo-section" aria-label="Produit">
         <div className="vendeo-section-head">
           <div className="vendeo-section-icon">🛍️</div>
-          <h2>🛍️ Ton produit à promouvoir</h2>
+          <h2>Ton produit à promouvoir</h2>
         </div>
 
         <div className="vendeo-product-card">
@@ -570,7 +570,7 @@ function Overview({
       <section className="vendeo-section" aria-label="Chemin">
         <div className="vendeo-section-head">
           <div className="vendeo-section-icon">🚀</div>
-          <h2>🚀 Ton chemin vers ta première vente</h2>
+          <h2>Ton chemin vers ta première vente</h2>
         </div>
 
         <div className="vendeo-progress">
