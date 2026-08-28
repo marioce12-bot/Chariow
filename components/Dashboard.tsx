@@ -694,6 +694,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
 function SubscriptionView({ subscription }: { subscription: SubscriptionData | null }) {
   const plan = subscription?.plan ?? "starter";
   const trial = subscription?.trial_active ?? true;
+  const isStarter = plan === "starter";
 
   async function changePlan(nextPlan: "starter" | "pro") {
     const response = await fetch("/api/subscription/checkout", {
@@ -720,7 +721,7 @@ function SubscriptionView({ subscription }: { subscription: SubscriptionData | n
       </div>
       <div className="pricing-wrap" style={{ maxWidth: 800 }}>
         <article className="price-card">
-          <span className="eyebrow">{!trial && plan === "starter" ? "Plan actuel" : "Plan disponible"}</span>
+          <span className="eyebrow">{trial && isStarter ? "Essai gratuit" : !trial && isStarter ? "Plan actuel" : "Plan disponible"}</span>
           <h3>Starter</h3>
           <div className="price">3 000 F <small>/ mois</small></div>
           <ul>
@@ -728,8 +729,13 @@ function SubscriptionView({ subscription }: { subscription: SubscriptionData | n
             <li>✓ 1 boutique connectée</li>
             <li>✓ Support standard</li>
           </ul>
-          <button className="btn btn-ghost" disabled={plan === "starter"} onClick={() => changePlan("starter")} style={{ width: "100%" }}>
-            {!trial && plan === "starter" ? "Plan actuel" : "Choisir Starter"}
+          <button
+            className="btn btn-ghost"
+            disabled={isStarter}
+            onClick={() => changePlan("starter")}
+            style={{ width: "100%" }}
+          >
+            {trial && isStarter ? "Essai gratuit en cours" : "Plan actuel"}
           </button>
         </article>
         <article className="price-card pro">
