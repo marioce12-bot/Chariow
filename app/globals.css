@@ -451,6 +451,9 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .side-usage-label { font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#64748b; margin-bottom:6px; }
 .side-usage-value { font-size:12px; font-weight:900; color:#103ef8; }
 
+.side-notice { margin-top:14px; padding:12px 12px; border-radius:12px; border:1px solid rgba(214,225,215,.75); background:linear-gradient(135deg,rgba(255,255,255,.8),rgba(219,234,254,.55)); color:var(--ink); position:relative; }
+.side-notice-close { position:absolute; right:10px; top:8px; background:transparent; border:0; color:var(--muted); font-size:18px; line-height:1; padding:0; }
+
 @media (max-width: 900px) {
   .vendeo-overview-header { flex-direction:column; align-items:flex-start; }
   .vendeo-priorities-grid { grid-template-columns:1fr; }

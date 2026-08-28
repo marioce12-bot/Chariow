@@ -48,6 +48,7 @@ export function Dashboard() {
   const [loadingData, setLoadingData] = useState(true);
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
   const [userName, setUserName] = useState("créateur");
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
 
   const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
   const freeUsed = subscription?.free_messages_used ?? 0;
@@ -135,9 +136,22 @@ export function Dashboard() {
           <div className="side-label" style={{ marginTop: 28 }}>
             Compte
           </div>
-          <button className="side-link">
+          <button
+            className="side-link"
+            type="button"
+            onClick={() => setSettingsNotice("Paramètres bientôt disponibles.")}
+          >
             <Settings size={16} />Paramètres
           </button>
+
+          {settingsNotice ? (
+            <div className="side-notice" role="status" aria-live="polite">
+              {settingsNotice}
+              <button className="side-notice-close" type="button" onClick={() => setSettingsNotice(null)}>
+                ×
+              </button>
+            </div>
+          ) : null}
           <div style={{ background: "linear-gradient(135deg,#ede9fe,#e0f2fe)", borderRadius: 10, margin: "35px 4px 0", padding: 14 }}>
             <span className="eyebrow" style={{ fontSize: 9 }}>
               Plan {subscription?.plan === "pro" ? "Pro" : "Starter"}
