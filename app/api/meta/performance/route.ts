@@ -67,8 +67,10 @@ export async function GET(request: Request) {
   }, []);
 
   const totalSpend = sum(insightRows as Array<Record<string, unknown>>, "spend");
-  const totalConversions = sum(insightRows as Array<Record<string, unknown>>, "conversions");
-  const attributedRevenue = sum(insightRows as Array<Record<string, unknown>>, "conversion_value");
-  const profitability = calculateProfitability({ price: productPrice, productCost: 0, platformFees: 0, otherVariableCosts: 0, adSpend: totalSpend, conversionRate: totalSpend > 0 ? totalConversions / totalSpend : 0, refundRate: 0 });
-  return NextResponse.json({ currency, period: { from, to }, overview: { spend: totalSpend, conversions: totalConversions, revenue: revenue || attributedRevenue, sales, cpa: totalConversions > 0 ? totalSpend / totalConversions : null, cac: sales > 0 ? totalSpend / sales : null, roas: totalSpend > 0 ? (revenue || attributedRevenue) / totalSpend : null }, profitability, performances });
+  const totalConversions = sum(campaignRows, "conversions");
+  const metaReportedRevenue = sum(campaignRows, "conversion_value");
+  const { data: attributions } = store ? await supabase.from("meta_attributions").select("meta_campaign_id,attribution_confidence").eq("user_id", user.id).eq("store_id", store.id).gte("attributed_at", `${from}T00:00:00.000Z`).lte("attributed_at", `${to}T23:59:59.999Z`) : { data: [] };
+  const attributedRevenue = 0;
+  const profitability = calculateProfitability({ price: productPrice, productCost: 0, platformFees: 0, otherVariableCosts: 0, adSpend: totalSpend, conversionRate: totalConversions, refundRate: 0 });
+  return NextResponse.json({ currency, period: { from, to }, overview: { spend: totalSpend, chariowRevenue: revenue, metaReportedRevenue, attributedRevenue, conversions: totalConversions, sales, cpa: totalConversions > 0 ? totalSpend / totalConversions : null, cac: sales > 0 ? totalSpend / sales : null, metaRoas: totalSpend > 0 ? metaReportedRevenue / totalSpend : null, realRoas: totalSpend > 0 && attributedRevenue > 0 ? attributedRevenue / totalSpend : null, attributionCoverage: attributions?.length ?? 0 }, profitability, performances });
 }

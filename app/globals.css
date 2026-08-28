@@ -487,6 +487,7 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .meta-table-row { border-bottom:1px solid var(--line); font-size:11px; padding:13px 0; }
 .meta-table-row:last-child { border-bottom:0; }
 .meta-status { font-size:10px; font-weight:800; }.meta-status.profitable { color:#15803d; }.meta-status.loss { color:#c2414b; }.meta-status.warning { color:#b96f20; }
+.meta-attribution-note { background:#fff8e7; border:1px solid #f4dfad; border-radius:9px; color:#86621e; font-size:11px; line-height:1.5; margin:0 0 16px; padding:11px 13px; }
 
 .side-notice { margin-top:14px; padding:12px 12px; border-radius:12px; border:1px solid rgba(214,225,215,.75); background:linear-gradient(135deg,rgba(255,255,255,.8),rgba(219,234,254,.55)); color:var(--ink); position:relative; }
 .side-notice-close { position:absolute; right:10px; top:8px; background:transparent; border:0; color:var(--muted); font-size:18px; line-height:1; padding:0; }

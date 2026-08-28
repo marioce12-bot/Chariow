@@ -1,9 +1,10 @@
 import type { MetaInsight } from "./types";
 
-const GRAPH_VERSION = process.env.META_GRAPH_VERSION ?? "v23.0";
+export const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION ?? "v23.0";
+export const META_GRAPH_BASE_URL = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
 
 function graphUrl(path: string, params: Record<string, string>) {
-  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/${path}`);
+  const url = new URL(`${META_GRAPH_BASE_URL}/${path}`);
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
   return url;
 }
