@@ -217,9 +217,69 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 @media (max-width:800px) { .nav-links { display:none; } .hero { padding-top:125px; } .hero-grid,.feature-grid,.content-grid { grid-template-columns:1fr; } .dashboard-preview { margin-top:10px; transform:none; } .how-grid { grid-template-columns:repeat(2,1fr); } .pricing-wrap { grid-template-columns:1fr; } .section { padding:75px 0; } .section-head { display:block; } .section-head p { margin-top:20px; } .logos { flex-wrap:wrap; gap:16px; } .app-layout { grid-template-columns:1fr; } .sidebar { display:none; } .app-main { grid-column:1; padding:24px 18px; } .overview-grid { grid-template-columns:repeat(2,1fr); } .app-header { padding:0 18px; } .app-user > span:first-child { display:none; } .cta { padding:45px 22px; } }
 @media (max-width:480px) { .container { width:min(100% - 28px,1160px); } .hero-actions { flex-direction:column; } .hero-actions .btn { width:100%; } .how-grid { grid-template-columns:1fr; } .footer-row { align-items:start; flex-direction:column; gap:20px; } .footer-links { flex-wrap:wrap; } .overview-grid { gap:8px; } .metric { padding:12px; } .metric strong { font-size:21px; } .onboarding-card { padding:24px 18px; } .onboarding-card h1 { font-size:30px; } .mcp-steps { grid-template-columns:1fr; } }
 
+@media (max-width:800px) {
+  .container { width:calc(100% - 28px); }
+  .marketing-nav { padding:14px 0; }
+  .marketing-header .brand-name { display:none; }
+  .marketing-header .brand-logo { height:34px; width:128px; }
+  .marketing-header .btn { font-size:11px; padding:10px 13px; }
+  .hero { min-height:auto; padding:112px 0 58px; }
+  .hero-copy h1 { font-size:clamp(42px,12vw,62px); }
+  .hero-copy p { font-size:15px; }
+  .hero-note { line-height:1.8; }
+  .dashboard-preview { margin:26px 4px 0; transform:none; }
+  .preview-body { grid-template-columns:82px 1fr; min-height:280px; }
+  .preview-side { padding:12px 6px; }
+  .preview-side div { font-size:8px; padding:8px 5px; }
+  .preview-main { padding:18px 12px; }
+  .preview-stats { gap:4px; }
+  .preview-stat { padding:7px 5px; }
+  .preview-stat strong { font-size:11px; }
+  .preview-stat small { font-size:7px; }
+  .chart { gap:4px; height:82px; padding:0 4px; }
+  .preview-chat { font-size:8px; margin-top:10px; padding:9px; }
+  .logos { gap:14px; justify-content:center; padding:16px 12px; }
+  .logos span { font-size:9px; }
+  .section { padding:68px 0; }
+  .section-head h2 { font-size:42px; }
+  .how-grid { grid-template-columns:1fr 1fr; }
+  .step-card { min-height:190px; padding:16px; }
+  .step-card h3 { font-size:16px; margin-top:40px; }
+  .feature-card { min-height:270px; padding:24px; }
+  .pricing-wrap { grid-template-columns:1fr; }
+  .price-card { padding:27px 22px; }
+  .cta { padding:46px 20px; }
+  .footer-row { gap:16px; }
+  .app-header { height:60px; padding:0 14px; }
+  .app-header .brand-name { display:none; }
+  .app-header .brand-logo { height:32px; width:120px; }
+  .app-layout { padding-top:60px; }
+  .app-main { padding:24px 14px; }
+  .page-top { display:block; margin-bottom:22px; }
+  .page-top h1 { font-size:30px; }
+  .page-top .btn { margin-top:18px; width:100%; }
+  .app-card { padding:16px; }
+  .content-grid { gap:12px; }
+  .store-row { align-items:flex-start; flex-wrap:wrap; }
+  .store-row .status { margin-left:auto; }
+  .store-row .btn { margin-left:42px; }
+  .chat-bubble { max-width:90%; }
+  .onboarding-wrap { min-height:auto; padding:4px 0 20px; }
+  .onboarding-card { padding:24px 18px; }
+}
+
+@media (max-width:430px) {
+  .how-grid { grid-template-columns:1fr; }
+  .overview-grid { grid-template-columns:1fr 1fr; }
+  .metric strong { font-size:19px; }
+  .app-user { gap:8px; }
+  .app-user button { font-size:10px !important; }
+  .mcp-steps { grid-template-columns:1fr; }
+}
+
 /* Vendeo identity */
 :root { --ink:#000c2e; --muted:#64748b; --paper:#f8faff; --line:#dce4f3; --green:#103ef8; --lime:#029bfc; --purple:#8f2afb; --blue:#4c21f6; --vendeo-gradient:linear-gradient(135deg,#8f2afb 0%,#103ef8 55%,#029bfc 100%); }
-.brand-logo { border-radius:9px; display:block; height:34px; object-fit:contain; width:34px; }
+.brand-logo { border-radius:9px; display:block; height:40px; object-fit:contain; object-position:left center; width:150px; }
 .btn-dark,.btn-lime { background:var(--vendeo-gradient); color:white; box-shadow:0 8px 18px rgba(16,62,248,.22); }
 .btn-ghost { background:rgba(255,255,255,.62); border-color:var(--line); color:var(--ink); }
 .marketing-header { background:rgba(0,12,46,.58); border-bottom-color:rgba(255,255,255,.14); }
