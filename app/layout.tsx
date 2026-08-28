@@ -5,6 +5,7 @@ import { PwaRegister } from "./PwaRegister";
 export const metadata: Metadata = {
   title: "Vendeo | Ton business, enfin lisible",
   description: "L'analyste IA connecté aux ventes des créateurs de produits digitaux.",
+  icons: { icon: "/icons/vendeo-app-icon.svg", apple: "/icons/vendeo-app-icon.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
