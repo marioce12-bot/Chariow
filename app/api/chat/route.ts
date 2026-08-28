@@ -67,28 +67,36 @@ export async function POST(request: Request) {
   }
 
   // Imole peut refuser les payloads trop volumineux (400).
-  // On tronque de façon conservatrice le contexte + l'historique.
-  const MAX_CONTEXT_CHARS = 12_000;
-  const MAX_MESSAGE_CHARS = 4_000;
-  const MAX_HISTORY_MESSAGES = 10;
+  // On tronque de façon plus agressive le contexte + l'historique.
+  const MAX_CONTEXT_CHARS = 6_000;
+  const MAX_MESSAGE_CHARS = 1_500;
+  const MAX_HISTORY_MESSAGES = 4;
+  const MAX_SYSTEM_CONTENT_CHARS = 9_000;
 
-  const safeContext = context.length > MAX_CONTEXT_CHARS ? `${context.slice(0, MAX_CONTEXT_CHARS)}\n[... contexte tronqué ...]` : context;
+  const safeContext =
+    context.length > MAX_CONTEXT_CHARS
+      ? `${context.slice(0, MAX_CONTEXT_CHARS)}\n[... contexte tronqué ...]`
+      : context;
   let answer: string;
   try {
-    const safeHistory = (history ?? [])
-      .reverse()
-      .slice(0, MAX_HISTORY_MESSAGES)
-      .map((item) => ({
-        role: item.role as "user" | "assistant",
-        content: typeof item.content === "string" ? (item.content.length > MAX_MESSAGE_CHARS ? `${item.content.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : item.content) : "",
-      }));
+    const reversedHistory = (history ?? []).reverse();
+    const rawSystemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}`;
+    const systemContent = rawSystemContent.length > MAX_SYSTEM_CONTENT_CHARS ? `${rawSystemContent.slice(0, MAX_SYSTEM_CONTENT_CHARS)}[...system tronqué...]` : rawSystemContent;
 
-    const systemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}`.slice(0, 18_000);
+    // Garde-fou : si le system est déjà gros, on enlève l'historique.
+    const shouldIncludeHistory = systemContent.length < 7_500;
 
-    answer = await askImole([
-      { role: "system", content: systemContent },
-      ...safeHistory,
-    ]);
+    const safeHistory = shouldIncludeHistory
+      ? reversedHistory
+          .slice(0, MAX_HISTORY_MESSAGES)
+          .map((item) => {
+            const raw = typeof item.content === "string" ? item.content : "";
+            const content = raw.length > MAX_MESSAGE_CHARS ? `${raw.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : raw;
+            return { role: item.role as "user" | "assistant", content };
+          })
+      : [];
+
+    answer = await askImole([{ role: "system", content: systemContent }, ...safeHistory]);
   } catch (error) {
     console.error("Imole chat error", error instanceof Error ? error.message : error);
     return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
