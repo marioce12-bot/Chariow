@@ -14,7 +14,14 @@ async function fedapayRequest<T>(path: string, init: RequestInit = {}) {
   return data as T;
 }
 
-type TransactionResponse = { v1?: { id?: number; reference?: string; status?: string; payment_url?: string }; id?: number; reference?: string; status?: string };
+type AnyRecord = Record<string, unknown>;
+
+type TransactionResponse = AnyRecord & {
+  v1?: { id?: number; reference?: string; status?: string; payment_url?: string };
+  id?: number;
+  reference?: string;
+  status?: string;
+};
 type TokenResponse = { token?: string; url?: string };
 
 type FedaPayTransaction = {
@@ -28,11 +35,40 @@ type FedaPayTransaction = {
 export async function createPayment(plan: PaidPlan, customer: { email?: string; name?: string }, metadata: { userId: string; plan: PaidPlan }) {
   const callbackUrl = process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?payment=success` : undefined;
   const transaction = await fedapayRequest<TransactionResponse>("/transactions", { method: "POST", body: JSON.stringify({ description: `Vendeo ${plan === "pro" ? "Pro" : "Starter"} - abonnement mensuel`, amount: planAmount(plan), currency: { iso: "XOF" }, callback_url: callbackUrl, custom_metadata: metadata, customer: { email: customer.email, firstname: customer.name || "Créateur" } }) });
-  const id = transaction.id || transaction.v1?.id;
-  if (!id) throw new Error("FedaPay did not return a transaction id");
-  const payment = await fedapayRequest<TokenResponse>(`/transactions/${id}/token`, { method: "POST" });
-  if (!payment.url) throw new Error("FedaPay did not return a payment URL");
-  return { id, reference: transaction.reference || transaction.v1?.reference, url: payment.url };
+  const keys = transaction && typeof transaction === "object" ? Object.keys(transaction) : [];
+  // Diagnostic limité (pas de body brut, pas de secrets)
+  console.info("FedaPay /transactions response keys", keys);
+
+  const tx = transaction as AnyRecord;
+  const data = (tx?.data && typeof tx.data === "object" ? tx.data as AnyRecord : undefined) as AnyRecord | undefined;
+  const v1 = (tx?.v1 && typeof tx.v1 === "object" ? tx.v1 as AnyRecord : undefined) as AnyRecord | undefined;
+  const extractedId =
+    (typeof tx.id === "number" ? tx.id : null) ||
+    (v1 && typeof v1.id === "number" ? v1.id : null) ||
+    (typeof tx.transaction_id === "number" ? tx.transaction_id : null) ||
+    (typeof tx.transactionId === "number" ? tx.transactionId : null) ||
+    (data && typeof data.id === "number" ? data.id : null);
+
+  if (!extractedId) {
+    // On tente aussi de récupérer un id numérique depuis des chemins courants
+    const candidate = (v1 && typeof v1.id !== "undefined" ? v1.id : tx.id) as unknown;
+    throw new Error(`FedaPay did not return a transaction id (candidate type: ${typeof candidate})`);
+  }
+
+  const payment = await fedapayRequest<AnyRecord>(`/transactions/${extractedId}/token`, { method: "POST" });
+  const p = payment as AnyRecord;
+  const pV1 = (p?.v1 && typeof p.v1 === "object" ? p.v1 as AnyRecord : undefined) as AnyRecord | undefined;
+  const paymentUrl =
+    (typeof p.url === "string" ? p.url : null) ||
+    (typeof p.payment_url === "string" ? p.payment_url : null) ||
+    (pV1 && typeof pV1.url === "string" ? pV1.url : null);
+  if (!paymentUrl) throw new Error("FedaPay did not return a payment URL");
+
+  return {
+    id: extractedId,
+    reference: (typeof transaction.reference === "string" ? transaction.reference : transaction.v1?.reference) || null,
+    url: paymentUrl,
+  };
 }
 
 export async function getTransaction(id: number) {
