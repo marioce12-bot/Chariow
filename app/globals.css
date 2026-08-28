@@ -190,6 +190,7 @@ button { cursor:pointer; }
 .manual-divider { align-items:center; color:#97a49b; display:flex; font-size:10px; gap:10px; margin:24px 0 12px; text-transform:uppercase; }
 .manual-divider:before,.manual-divider:after { background:var(--line); content:''; flex:1; height:1px; }
 code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'DM Mono',monospace; font-size:10px; padding:2px 4px; }
+.analytics-preview { background:#000c2e; border-radius:8px; color:#bae6fd; font-family:'DM Mono',monospace; font-size:10px; line-height:1.6; max-height:240px; overflow:auto; padding:14px; white-space:pre-wrap; }
 .onboarding-wrap { align-items:center; display:flex; justify-content:center; min-height:calc(100vh - 145px); padding:24px 0; }
 .onboarding-card { background:white; border:1px solid var(--line); border-radius:16px; max-width:650px; padding:34px; width:100%; }
 .onboarding-icon { align-items:center; background:#dcebd4; border-radius:12px; color:var(--green); display:flex; height:52px; justify-content:center; margin-bottom:22px; width:52px; }
