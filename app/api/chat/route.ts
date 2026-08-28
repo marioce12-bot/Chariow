@@ -54,8 +54,15 @@ export async function POST(request: Request) {
       const snapshot = await getChariowSnapshot(selectedStore);
       context = `Données réelles de la boutique ${selectedStore.store_name} pour la période du mois en cours :\n${serializeChariowContext(snapshot)}`;
     } catch (error) {
-      console.error("Chariow MCP error", error instanceof Error ? error.message : error);
-      context = `La boutique ${selectedStore.store_name} est connectée mais ses données MCP sont momentanément indisponibles. Ne fabrique aucun chiffre.`;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("Chariow MCP error", message);
+      // Token expired: MCP returns 401.
+      if (message.includes("401")) {
+        await supabase.from("stores").update({ connection_status: "expired", connection_error: null, last_verified_at: new Date().toISOString() }).eq("id", selectedStore.id).eq("user_id", user.id);
+        context = `La connexion Chariow de ${selectedStore.store_name} a expiré. Reconnecte ta boutique Chariow pour continuer. Ne fabrique aucun chiffre.`;
+      } else {
+        context = `La boutique ${selectedStore.store_name} est connectée mais ses données MCP sont momentanément indisponibles. Ne fabrique aucun chiffre.`;
+      }
     }
   }
   let answer: string;

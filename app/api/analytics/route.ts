@@ -14,7 +14,12 @@ export async function GET(request: Request) {
     const snapshot = await getChariowSnapshot(store);
     return NextResponse.json({ store: { id: store.id, name: store.store_name }, snapshot });
   } catch (analyticsError) {
-    console.error("Chariow analytics error", analyticsError instanceof Error ? analyticsError.message : analyticsError);
+    const message = analyticsError instanceof Error ? analyticsError.message : String(analyticsError);
+    console.error("Chariow analytics error", message);
+    if (message.includes("401")) {
+      await supabase.from("stores").update({ connection_status: "expired", connection_error: null, last_verified_at: new Date().toISOString() }).eq("id", store.id).eq("user_id", user.id);
+      return NextResponse.json({ error: "La connexion Chariow a expiré" }, { status: 401 });
+    }
     return NextResponse.json({ error: "Les données Chariow sont momentanément indisponibles" }, { status: 502 });
   }
 }

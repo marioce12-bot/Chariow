@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { encryptSecret } from "@/lib/crypto";
 import { getChariowSnapshot } from "@/lib/chariow/analytics";
 
 const platforms = ["chariow", "selar", "gumroad"] as const;
@@ -21,8 +20,11 @@ export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
   const body = await request.json().catch(() => null);
-  const { platform, store_name, mcp_url, access_token } = body ?? {};
-  if (!platforms.includes(platform) || !store_name?.trim() || (!mcp_url && !access_token)) return NextResponse.json({ error: "platform, store_name et une URL MCP ou clé d'accès sont requis" }, { status: 400 });
+  const { platform, store_name, mcp_url } = body ?? {};
+  // MVP Chariow: pas de token séparé à copier; l'URL MCP complète doit suffire.
+  if (!platforms.includes(platform) || !store_name?.trim() || !mcp_url) {
+    return NextResponse.json({ error: "platform, store_name et une URL MCP sont requis" }, { status: 400 });
+  }
   if (mcp_url && !String(mcp_url).startsWith("https://")) return NextResponse.json({ error: "L'URL MCP doit utiliser HTTPS" }, { status: 400 });
   const { count } = await supabase.from("stores").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("is_active", true);
   const { data: subscription } = await supabase.from("subscriptions").select("plan").eq("user_id", user.id).single();
@@ -35,7 +37,8 @@ export async function POST(request: Request) {
       platform,
       store_name: store_name.trim(),
       mcp_url: mcp_url || null,
-      access_token_encrypted: access_token ? encryptSecret(access_token) : null,
+      // Ne stocke rien côté token pour le MVP Chariow.
+      access_token_encrypted: null,
       connection_status: "pending",
     })
     .select("id, platform, store_name, mcp_url, connection_status, is_active, connected_at")
@@ -46,7 +49,7 @@ export async function POST(request: Request) {
   try {
     const snapshot = await getChariowSnapshot({
       mcp_url: data.mcp_url,
-      access_token_encrypted: (access_token ? encryptSecret(access_token) : null) as any,
+      access_token_encrypted: null,
     });
     void snapshot; // snapshot sert uniquement à valider l'accès.
 
