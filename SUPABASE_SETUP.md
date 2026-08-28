@@ -56,6 +56,26 @@ Routes disponibles :
 - `/api/chat` : historique et messages avec quota
 - `/api/subscription` : consulter et changer de plan
 
-## 5. Limites actuelles
+## 5. Configuration du fournisseur IA Imole
 
-La route `/api/chat` persiste les messages et applique le quota, mais renvoie encore une réponse temporaire. L’orchestrateur LLM et les appels MCP Chariow doivent être branchés ensuite dans cette route ou dans un module de service dédié.
+Dans Vercel et dans `.env.local`, ajoute :
+
+```env
+IMOLE_API_KEY=ta-cle-api-imole
+IMOLE_API_URL=https://api.imole.app/v1
+IMOLE_MODEL=GPT-5.6 Luna
+```
+
+`IMOLE_API_KEY` ne doit jamais être préfixée par `NEXT_PUBLIC_`. Elle est utilisée uniquement par `/api/chat` côté serveur.
+
+La route utilise l’endpoint compatible OpenAI :
+
+```text
+POST https://api.imole.app/v1/chat/completions
+```
+
+Après toute modification dans Vercel, redéploie l’application pour charger les variables.
+
+## 6. Limites actuelles
+
+La route `/api/chat` persiste les messages, applique le quota et appelle Imole avec GPT-5.6 Luna. Les données commerciales Chariow doivent encore être ajoutées dans le connecteur MCP pour fournir à l’IA des ventes et produits réels.
