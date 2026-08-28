@@ -576,11 +576,14 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  async function connectChariow() {
+  async function connectChariow(storeId?: string) {
     setError("");
     setSaving(true);
     try {
-      window.location.href = "/api/integrations/chariow/connect";
+      const target = storeId
+        ? `/api/integrations/chariow/connect?store_id=${encodeURIComponent(storeId)}`
+        : "/api/integrations/chariow/connect";
+      window.location.href = target;
     } finally {
       setSaving(false);
     }
@@ -614,7 +617,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
           <h1>Mes boutiques</h1>
           <p>Une source de vérité pour toutes tes ventes.</p>
         </div>
-        <button className="btn btn-dark" onClick={connectChariow} disabled={saving}>
+        <button className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}>
           <Plus size={16} /> {saving ? "Connexion…" : "Connecter ma boutique Chariow"}
         </button>
       </div>
@@ -640,7 +643,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
                   Déconnecter
                 </button>
               ) : (
-                <button className="btn btn-ghost" onClick={connectChariow} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
+                  <button className="btn btn-ghost" onClick={() => connectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
                   {status === "failed" || status === "expired" ? "Reconnecter Chariow" : "Connecter ma boutique Chariow"}
                 </button>
               )}

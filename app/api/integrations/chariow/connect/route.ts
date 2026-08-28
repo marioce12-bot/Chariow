@@ -20,25 +20,43 @@ function generatePkce() {
   return { codeVerifier, codeChallenge };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
 
   const redirectUri = process.env.CHARIOW_OAUTH_REDIRECT_URI;
   const clientId = process.env.CHARIOW_OAUTH_CLIENT_ID;
+  const requestedStoreId = new URL(request.url).searchParams.get("store_id");
+  let existing: { id: string } | null = null;
+
+  // A connection without store_id always starts a new store. Reconnection is explicit.
+  if (requestedStoreId) {
+    const { data, error: findErr } = await supabase
+      .from("stores")
+      .select("id")
+      .eq("id", requestedStoreId)
+      .eq("user_id", user.id)
+      .eq("platform", "chariow")
+      .maybeSingle();
+    if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 });
+    existing = data;
+    if (!existing) return NextResponse.json({ error: "Boutique Chariow introuvable" }, { status: 404 });
+  } else {
+    const { count } = await supabase
+      .from("stores")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_active", true);
+    const { data: subscription } = await supabase.from("subscriptions").select("plan").eq("user_id", user.id).maybeSingle();
+    const maxStores = subscription?.plan === "pro" ? 3 : 1;
+    if ((count ?? 0) >= maxStores) {
+      return NextResponse.json({ error: `Ton plan autorise ${maxStores} boutique(s). Reconnecte une boutique existante ou passe au plan Pro.` }, { status: 403 });
+    }
+  }
+
   if (!clientId || !redirectUri) {
     return NextResponse.json({ error: "Chariow OAuth n'est pas configuré" }, { status: 500 });
   }
-
-  // Create/update a single Chariow store row for this user.
-  const { data: existing, error: findErr } = await supabase
-    .from("stores")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("platform", "chariow")
-    .eq("is_active", true)
-    .maybeSingle();
-  if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 });
 
   let storeId: string;
   if (existing?.id) {
