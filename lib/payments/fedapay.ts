@@ -42,9 +42,12 @@ export async function createPayment(plan: PaidPlan, customer: { email?: string; 
   const tx = transaction as AnyRecord;
   const data = (tx?.data && typeof tx.data === "object" ? tx.data as AnyRecord : undefined) as AnyRecord | undefined;
   const v1 = (tx?.v1 && typeof tx.v1 === "object" ? tx.v1 as AnyRecord : undefined) as AnyRecord | undefined;
+  const v1Transaction = (tx?.["v1/transaction"] && typeof tx["v1/transaction"] === "object" ? tx["v1/transaction"] as AnyRecord : undefined) as AnyRecord | undefined;
+  const idSource = v1Transaction ?? v1;
+
   const extractedId =
     (typeof tx.id === "number" ? tx.id : null) ||
-    (v1 && typeof v1.id === "number" ? v1.id : null) ||
+    (idSource && typeof idSource.id === "number" ? idSource.id : null) ||
     (typeof tx.transaction_id === "number" ? tx.transaction_id : null) ||
     (typeof tx.transactionId === "number" ? tx.transactionId : null) ||
     (data && typeof data.id === "number" ? data.id : null);
@@ -58,15 +61,21 @@ export async function createPayment(plan: PaidPlan, customer: { email?: string; 
   const payment = await fedapayRequest<AnyRecord>(`/transactions/${extractedId}/token`, { method: "POST" });
   const p = payment as AnyRecord;
   const pV1 = (p?.v1 && typeof p.v1 === "object" ? p.v1 as AnyRecord : undefined) as AnyRecord | undefined;
+  const pV1Token = (p?.["v1/token"] && typeof p["v1/token"] === "object" ? p["v1/token"] as AnyRecord : undefined) as AnyRecord | undefined;
   const paymentUrl =
     (typeof p.url === "string" ? p.url : null) ||
     (typeof p.payment_url === "string" ? p.payment_url : null) ||
-    (pV1 && typeof pV1.url === "string" ? pV1.url : null);
+    (pV1 && typeof pV1.url === "string" ? pV1.url : null) ||
+    (pV1Token && typeof pV1Token.url === "string" ? pV1Token.url : null);
   if (!paymentUrl) throw new Error("FedaPay did not return a payment URL");
 
   return {
     id: extractedId,
-    reference: (typeof transaction.reference === "string" ? transaction.reference : transaction.v1?.reference) || null,
+    reference:
+      (typeof tx.reference === "string" ? tx.reference : null) ||
+      (idSource && typeof idSource.reference === "string" ? idSource.reference : null) ||
+      (v1Transaction && typeof v1Transaction.reference === "string" ? v1Transaction.reference : null) ||
+      null,
     url: paymentUrl,
   };
 }
