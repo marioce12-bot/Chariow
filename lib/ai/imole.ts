@@ -13,13 +13,17 @@ type ImoleResponse = {
 const DEFAULT_BASE_URL = "https://api.imole.app/v1";
 const DEFAULT_MODEL = "GPT-5.6 Luna";
 
+export function getAiModel() {
+  return process.env.IMOLE_MODEL?.trim() || DEFAULT_MODEL;
+}
+
 function getConfig() {
   const apiKey = process.env.IMOLE_API_KEY;
   if (!apiKey) throw new Error("IMOLE_API_KEY is not configured");
   return {
     apiKey,
     baseUrl: (process.env.IMOLE_API_URL || DEFAULT_BASE_URL).replace(/\/$/, ""),
-    model: process.env.IMOLE_MODEL || DEFAULT_MODEL,
+    model: getAiModel(),
   };
 }
 

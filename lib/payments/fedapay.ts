@@ -17,6 +17,14 @@ async function fedapayRequest<T>(path: string, init: RequestInit = {}) {
 type TransactionResponse = { v1?: { id?: number; reference?: string; status?: string; payment_url?: string }; id?: number; reference?: string; status?: string };
 type TokenResponse = { token?: string; url?: string };
 
+type FedaPayTransaction = {
+  id?: number;
+  status?: string;
+  amount?: number;
+  currency?: { iso?: string };
+  custom_metadata?: { userId?: string; plan?: PaidPlan };
+};
+
 export async function createPayment(plan: PaidPlan, customer: { email?: string; name?: string }, metadata: { userId: string; plan: PaidPlan }) {
   const callbackUrl = process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?payment=success` : undefined;
   const transaction = await fedapayRequest<TransactionResponse>("/transactions", { method: "POST", body: JSON.stringify({ description: `Vendeo ${plan === "pro" ? "Pro" : "Starter"} - abonnement mensuel`, amount: planAmount(plan), currency: { iso: "XOF" }, callback_url: callbackUrl, custom_metadata: metadata, customer: { email: customer.email, firstname: customer.name || "Créateur" } }) });
@@ -25,4 +33,8 @@ export async function createPayment(plan: PaidPlan, customer: { email?: string; 
   const payment = await fedapayRequest<TokenResponse>(`/transactions/${id}/token`, { method: "POST" });
   if (!payment.url) throw new Error("FedaPay did not return a payment URL");
   return { id, reference: transaction.reference || transaction.v1?.reference, url: payment.url };
+}
+
+export async function getTransaction(id: number) {
+  return fedapayRequest<FedaPayTransaction>(`/transactions/${id}`, { method: "GET" });
 }
