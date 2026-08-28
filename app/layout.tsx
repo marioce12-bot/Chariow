@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Analyst | Ton business, enfin lisible",
+  title: "Vendeo | Ton business, enfin lisible",
   description: "L'analyste IA connecté aux ventes des créateurs de produits digitaux.",
 };
 
