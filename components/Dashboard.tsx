@@ -26,6 +26,7 @@ type SubscriptionData = {
   free_messages_used: number;
   free_messages_limit: number;
   status: string;
+  trial_active?: boolean;
 };
 
 type ProductData = { id: string; name: string; description: string | null; price: number | string | null; currency: string | null; status: string | null; image: string | null; createdAt: string | null; sales: number | null };
@@ -692,6 +693,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
 
 function SubscriptionView({ subscription }: { subscription: SubscriptionData | null }) {
   const plan = subscription?.plan ?? "starter";
+  const trial = subscription?.trial_active ?? true;
 
   async function changePlan(nextPlan: "starter" | "pro") {
     const response = await fetch("/api/subscription/checkout", {
@@ -718,7 +720,7 @@ function SubscriptionView({ subscription }: { subscription: SubscriptionData | n
       </div>
       <div className="pricing-wrap" style={{ maxWidth: 800 }}>
         <article className="price-card">
-          <span className="eyebrow">{plan === "starter" ? "Plan actuel" : "Plan disponible"}</span>
+          <span className="eyebrow">{!trial && plan === "starter" ? "Plan actuel" : "Plan disponible"}</span>
           <h3>Starter</h3>
           <div className="price">3 000 F <small>/ mois</small></div>
           <ul>
@@ -727,7 +729,7 @@ function SubscriptionView({ subscription }: { subscription: SubscriptionData | n
             <li>✓ Support standard</li>
           </ul>
           <button className="btn btn-ghost" disabled={plan === "starter"} onClick={() => changePlan("starter")} style={{ width: "100%" }}>
-            {plan === "starter" ? "Plan actuel" : "Choisir Starter"}
+            {!trial && plan === "starter" ? "Plan actuel" : "Choisir Starter"}
           </button>
         </article>
         <article className="price-card pro">
@@ -740,8 +742,8 @@ function SubscriptionView({ subscription }: { subscription: SubscriptionData | n
             <li>✓ Rapports automatiques</li>
             <li>✓ Support prioritaire</li>
           </ul>
-          <button className="btn btn-lime" disabled={plan === "pro"} onClick={() => changePlan("pro")} style={{ width: "100%" }}>
-            {plan === "pro" ? "Plan actuel" : "Passer au Pro"}
+          <button className="btn btn-lime" disabled={plan === "pro" && !trial} onClick={() => changePlan("pro")} style={{ width: "100%" }}>
+            {plan === "pro" && !trial ? "Plan actuel" : "Passer au Pro"}
           </button>
         </article>
       </div>
