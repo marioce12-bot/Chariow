@@ -24,7 +24,7 @@ button { cursor:pointer; }
 .marketing-header { position:fixed; z-index:1000; width:100%; color:white; background:rgba(15,42,31,.48); border-bottom:1px solid rgba(255,255,255,.12); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%); }
 .marketing-nav { animation:navIn .7s ease both; }
 .marketing-nav { align-items:center; display:flex; justify-content:space-between; padding:26px 0; }
-.brand { align-items:center; display:flex; gap:10px; font-weight:700; letter-spacing:-.04em; }
+.brand { align-items:center; display:flex; gap:0; font-weight:700; letter-spacing:-.04em; }
 .brand-mark { background:var(--lime); border-radius:8px; color:var(--green); display:grid; height:26px; place-items:center; transform:rotate(-8deg); width:26px; font-size:15px; }
 .brand-name { font-size:17px; }
 .brand-name span { color:#91c9aa; font-weight:400; }
