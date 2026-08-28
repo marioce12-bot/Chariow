@@ -66,9 +66,6 @@ export async function GET(request: Request) {
     return redirectToDashboard("chariow=failed");
   }
 
-  // Enforce one-time use.
-  await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
-
   if (oauthError) {
     const message = sanitizeErrorMessage(`${oauthError}: ${oauthErrorDescription ?? ""}`);
     await supabase
@@ -174,6 +171,8 @@ export async function GET(request: Request) {
         .eq("user_id", user.id);
     }
 
+    await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
+
     return redirectToDashboard("chariow=connected");
   } catch (e) {
     const message = e instanceof Error ? sanitizeErrorMessage(e.message) : "Connexion Chariow impossible";
@@ -184,6 +183,7 @@ export async function GET(request: Request) {
         .eq("id", storeId)
         .eq("user_id", user.id);
     }
+    await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
     return redirectToDashboard("chariow=failed");
   }
 }

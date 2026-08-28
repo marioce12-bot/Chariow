@@ -575,11 +575,21 @@ function ChatView() {
 function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresChange: (stores: StoreData[]) => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   async function connectChariow(storeId?: string) {
     setError("");
     setSaving(true);
     try {
+      if (!storeId) {
+        const check = await fetch("/api/integrations/chariow/connect/check");
+        const checkData = await check.json().catch(() => ({}));
+        if (!check.ok) {
+          if (checkData.code === "STORE_LIMIT") setShowUpgrade(true);
+          else setError(checkData.error ?? "Impossible de lancer la connexion Chariow.");
+          return;
+        }
+      }
       const target = storeId
         ? `/api/integrations/chariow/connect?store_id=${encodeURIComponent(storeId)}`
         : "/api/integrations/chariow/connect";
@@ -622,7 +632,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
         </button>
       </div>
 
-      {error && <p style={{ color: "#a64635", fontSize: 12 }}>{error}</p>}
+      {error && <p className="store-error" role="alert">{error}</p>}
 
       <div className="app-card" style={{ maxWidth: 760 }}>
         {stores.map((store) => {
@@ -653,6 +663,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
         {stores.length === 0 && <div className="empty-state compact">Aucune boutique connectée.</div>}
 
       </div>
+      {showUpgrade && <div className="modal-backdrop" role="presentation" onClick={() => setShowUpgrade(false)}><div className="upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setShowUpgrade(false)} aria-label="Fermer">×</button><span className="eyebrow">Limite de ton abonnement</span><h2 id="upgrade-title">Connecte plusieurs boutiques</h2><p>Ton plan actuel autorise une seule boutique. Passe au plan Pro pour en connecter jusqu’à trois.</p><button className="btn btn-dark" onClick={() => document.querySelector<HTMLButtonElement>(".side-link:nth-of-type(6)")?.click()}>Passer au plan Pro <ArrowRight size={15} /></button></div></div>}
     </>
   );
 }
