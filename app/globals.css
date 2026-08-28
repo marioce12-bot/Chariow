@@ -191,11 +191,12 @@ button { cursor:pointer; }
 .report-section { min-width:0; }
 .report-section .card-head { align-items:center; margin-bottom:8px; }
 .report-section .card-head > strong { color:var(--green); font-size:11px; }
-.report-table-head,.report-table-row { align-items:center; display:grid; grid-template-columns:minmax(0,1fr) 120px 45px; gap:12px; }
+.report-table-head,.report-table-row { align-items:center; display:grid; grid-template-columns:minmax(0,1fr) minmax(76px,120px) 45px; gap:12px; min-width:0; }
 .report-table-head { border-bottom:1px solid var(--line); color:var(--muted); font-size:9px; padding:0 0 9px; text-transform:uppercase; }
 .report-table-row { border-bottom:1px solid var(--line); font-size:11px; padding:12px 0; }
 .report-table-row:last-child { border-bottom:0; }
 .report-product { align-items:center; display:flex; gap:9px; min-width:0; }
+.report-product > span:last-child { min-width:0; }
 .report-product-icon { align-items:center; background:#f0eee2; border-radius:7px; color:#896d27; display:flex; flex:none; height:30px; justify-content:center; overflow:hidden; width:30px; }
 .report-product-icon img { height:100%; object-fit:cover; width:100%; }
 .report-product strong,.report-product small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -251,14 +252,16 @@ button { cursor:pointer; }
 @media (max-width: 760px) {
   .sidebar { display:none; }
   .app-layout { grid-template-columns: 1fr; }
-  .app-main { box-sizing:border-box; grid-column: 1; max-width:none; min-width:0; overflow:hidden; padding: 20px 14px calc(92px + env(safe-area-inset-bottom)); }
+  .app-main { box-sizing:border-box; grid-column: 1; max-width:none; min-width:0; padding: 20px 14px calc(92px + env(safe-area-inset-bottom)); }
   .mobile-nav { display:flex; }
   .app-user { gap:0; }
   .app-greeting { font-size:11px; max-width:150px; }
-  .page-top { gap:14px; }
-  .page-top .btn { flex:none; }
-  .app-card { box-sizing:border-box; max-width:100%; overflow:hidden; padding:17px; }
-  .report-table { min-width:0; overflow-x:auto; }
+  .page-top { align-items:stretch; flex-direction:column; gap:12px; }
+  .page-top .btn { align-self:stretch; box-sizing:border-box; flex:none; max-width:100%; width:100%; }
+  .app-card { box-sizing:border-box; max-width:100%; padding:17px; }
+  .report-table { min-width:0; }
+  .report-table-head,.report-table-row { grid-template-columns:minmax(0,1fr) 78px 28px; gap:6px; }
+  .report-status { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 }
 .help-toggle { align-items:center; background:none; border:0; color:var(--green); display:flex; font-size:12px; font-weight:700; gap:7px; margin:22px auto 0; }
 .help-box { background:#f1f6ec; border-radius:10px; color:#5f7165; font-size:12px; line-height:1.6; margin-top:18px; padding:17px; }
@@ -339,9 +342,9 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
   .app-header .brand-logo { height:32px; width:120px; }
   .app-layout { padding-top:60px; }
   .app-main { padding:20px 14px calc(92px + env(safe-area-inset-bottom)); }
-  .page-top { align-items:start; display:flex; margin-bottom:22px; }
+  .page-top { align-items:stretch; display:flex; flex-direction:column; margin-bottom:22px; }
   .page-top h1 { font-size:30px; }
-  .page-top .btn { margin-top:18px; width:100%; }
+  .page-top .btn { margin-top:0; width:100%; }
   .app-card { padding:16px; }
   .content-grid { gap:12px; }
   .store-row { align-items:flex-start; flex-wrap:wrap; }
