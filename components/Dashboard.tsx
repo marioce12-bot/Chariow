@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
@@ -75,7 +75,7 @@ export function Dashboard() {
         setStores(nextStores);
         setSubscription(subscriptionResult.subscription ?? null);
         if (nextStores.length) {
-          const analyticsResult = await fetch(`/api/analytics?store_id=${nextStores[0].id}`);
+          const analyticsResult = await fetch(`/api/analytics?store_id=${encodeURIComponent(nextStores[0].id)}`);
           if (analyticsResult.ok) setAnalytics((await analyticsResult.json()).snapshot ?? null);
         }
       })
@@ -301,7 +301,7 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
                 <strong>{customersTotal}</strong>
               </div>
             </div>
-            <div className="app-card" style={{ marginTop: 18 }}>
+      <div className="app-card" style={{ marginTop: 18 }}>
               <strong>{salesCount === 0 && visitsTotal === 0 ? "Aucune vente ni visite n’a été enregistrée pour cette période." : "Ton activité sur cette période"}</strong>
               {catalogueCount > 0 && <p style={{ margin: "8px 0 0", color: "#607268", fontSize: 12 }}>Tu as {catalogueCount} produit{catalogueCount > 1 ? "s" : ""} dans ton catalogue.</p>}
               {salesCount === 0 && <p style={{ margin: "8px 0 0", color: "#607268", fontSize: 12 }}>Aucune vente enregistrée pour cette période.</p>}
@@ -368,24 +368,40 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
   const [from, setFrom] = useState(analytics?.kpis.period.from ?? "");
   const [to, setTo] = useState(analytics?.kpis.period.to ?? "");
   const kpis = analytics?.kpis;
+  const period = from && to ? `${formatReportDate(from)} – ${formatReportDate(to)}` : "Période sélectionnée";
   return <>
-    <div className="page-top"><div><span className="eyebrow">Analyse détaillée</span><h1>Rapports</h1><p>Explore les ventes, produits et clients sur la période de ton choix.</p></div></div>
-    <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
-      <label style={{ fontSize: 11 }}>Du<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} style={{ display: "block", marginTop: 5, padding: 8 }} /></label>
-      <label style={{ fontSize: 11 }}>Au<input type="date" value={to} onChange={(event) => setTo(event.target.value)} style={{ display: "block", marginTop: 5, padding: 8 }} /></label>
-      <button className="btn btn-dark" disabled={!stores.length}>Actualiser le rapport</button>
+    <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui s’est passé et décide de tes prochaines actions.</p></div></div>
+    <div className="app-card report-filters" style={{ marginBottom: 18 }}>
+      <div className="report-filter-title"><CalendarDays size={17} /><div><strong>Période du rapport</strong><span>Les données Chariow sont analysées au format jour.</span></div></div>
+      <div className="report-filter-fields"><label>Du<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label><label>Au<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label><button className="btn btn-dark" disabled={!stores.length}>Actualiser</button></div>
     </div>
     {!analytics || !kpis ? <div className="empty-state">Aucune donnée pour cette période.</div> : <>
-      <div className="overview-grid">
-        <div className="metric"><small>Ventes</small><strong>{kpis.sales}</strong></div>
-        <div className="metric"><small>Chiffre d’affaires</small><strong>{kpis.revenue.formatted ?? "0"}</strong></div>
-        <div className="metric"><small>Produits vendus</small><strong>{kpis.productsSold}</strong></div>
-        <div className="metric"><small>Clients</small><strong>{kpis.customers}</strong></div>
+      <div className="report-period"><span>Rapport analysé</span><strong>{period}</strong></div>
+      <div className="report-summary">
+        <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{kpis.revenue.formatted ?? "0"}</strong><p>{kpis.sales === 0 ? "Aucune vente enregistrée pour cette période." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} enregistrée${kpis.sales > 1 ? "s" : ""}.`}</p></div>
+        <div className="report-summary-side"><ReportStat icon={<ShoppingBag size={16} />} label="Ventes" value={kpis.sales} /><ReportStat icon={<Eye size={16} />} label="Visites" value={kpis.visits} /><ReportStat icon={<Users size={16} />} label="Clients" value={kpis.customers} /><ReportStat icon={<BarChart3 size={16} />} label="Conversion" value={kpis.conversionRate} /></div>
       </div>
-      <ProductCatalog products={analytics.products} />
-      <div className="app-card" style={{ marginTop: 18 }}><h2>Analyse et recommandations</h2><p style={{ color: "#607268", fontSize: 12 }}>{kpis.sales === 0 ? "Aucune vente pour cette période : concentre-toi sur la visibilité de tes produits et le partage de ta boutique." : "Analyse tes produits les plus performants et identifie les prochaines actions à tester."}</p></div>
+      <div className="report-columns">
+        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Inventaire et performance</span><h2>Détail des produits</h2></div><strong>{analytics.products.length} produit{analytics.products.length > 1 ? "s" : ""}</strong></div>{analytics.products.length === 0 ? <p className="report-muted">Aucun produit trouvé dans ton catalogue.</p> : <div className="report-table"><div className="report-table-head"><span>Produit</span><span>Statut</span><span>Ventes</span></div>{analytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseigné"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
+        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Lecture rapide</span><h2>À retenir</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="report-insight"><strong>{kpis.sales === 0 ? "Pas encore de ventes" : "Ton activité commerciale"}</strong><p>{kpis.sales === 0 ? "Teste un partage ciblé de ton produit et observe les visites sur la prochaine période." : "Compare cette période à la précédente pour identifier les produits qui tirent ta croissance."}</p></div><div className="report-insight"><strong>{kpis.visits === 0 ? "Aucune visite enregistrée" : `${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} observée${kpis.visits > 1 ? "s" : ""}`}</strong><p>{kpis.visits === 0 ? "Ta prochaine priorité est d’amener du trafic vers ta boutique." : `Le taux de conversion actuel est de ${kpis.conversionRate}.`}</p></div></section>
+      </div>
     </>}
   </>;
+}
+
+function ReportStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
+  return <div className="report-stat"><span>{icon}</span><div><small>{label}</small><strong>{value}</strong></div></div>;
+}
+
+function formatReportDate(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function formatProductPrice(product: ProductData) {
+  if (product.price === null || product.price === "") return "Prix non renseigné";
+  return `${product.price}${product.currency ? ` ${product.currency}` : ""}`;
 }
 
 function ChatView() {

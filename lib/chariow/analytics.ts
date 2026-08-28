@@ -1,6 +1,6 @@
 import { decryptSecret } from "@/lib/crypto";
 import { ChariowMcpClient } from "./mcp-client";
-import type { ChariowNormalizedSnapshot, ChariowStoreSnapshot } from "./types";
+import type { ChariowNormalizedSnapshot, ChariowProduct, ChariowStoreSnapshot } from "./types";
 
 export async function getChariowSnapshot(
   store: { mcp_url: string | null; access_token_encrypted: string | null },
