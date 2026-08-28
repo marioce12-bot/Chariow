@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
@@ -28,7 +28,14 @@ type SubscriptionData = {
   status: string;
 };
 
-type AnalyticsData = { store?: unknown; products?: unknown; salesAnalytics?: unknown; storeAnalytics?: unknown } | null;
+type ProductData = { id: string; name: string; description: string | null; price: number | string | null; currency: string | null; status: string | null; image: string | null; createdAt: string | null; sales: number | null };
+type AnalyticsData = {
+  storeName: string;
+  storeStatus: string;
+  products: ProductData[];
+  sales: unknown[];
+  kpis: { period: { from: string | null; to: string | null }; revenue: { value: number | string | null; formatted: string | null }; sales: number; visits: number; conversionRate: string; customers: number; productsSold: number };
+} | null;
 
 export function Dashboard() {
   const [active, setActive] = useState("Vue d’ensemble");
@@ -123,6 +130,8 @@ export function Dashboard() {
             <StoresView stores={stores} onStoresChange={setStores} />
           ) : active === "Abonnement" ? (
             <SubscriptionView subscription={subscription} />
+          ) : active === "Rapports" ? (
+            <Reports stores={stores} analytics={analytics} />
           ) : (
             <Overview stores={stores} subscription={subscription} analytics={analytics} />
           )}
@@ -198,9 +207,8 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
 
   const storeStatus = stores?.[0]?.connection_status ?? "pending";
 
-  const storeAnalytics = (analytics as any)?.storeAnalytics ?? (analytics as any)?.salesAnalytics ?? null;
-  const periodFrom = storeAnalytics?.period?.from;
-  const periodTo = storeAnalytics?.period?.to;
+  const periodFrom = analytics?.kpis.period.from;
+  const periodTo = analytics?.kpis.period.to;
 
   const monthNames = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
   const formatFrenchDate = (d: string) => {
@@ -213,13 +221,13 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
   };
   const periodLabel = periodFrom && periodTo ? `${formatFrenchDate(periodFrom)} – ${formatFrenchDate(periodTo)}` : "";
 
-  const catalogueCount = Array.isArray((analytics as any)?.products) ? (analytics as any)?.products.length : 0;
-  const salesCount = storeAnalytics?.sales?.count ?? 0;
-  const salesValueFormatted = storeAnalytics?.sales?.value?.formatted ?? "—";
-  const productsSold = storeAnalytics?.products?.sold ?? 0;
-  const visitsTotal = storeAnalytics?.visits?.total ?? 0;
-  const conversionFormatted = storeAnalytics?.visits?.conversion_rate?.formatted ?? "—";
-  const customersTotal = storeAnalytics?.customers?.total ?? 0;
+  const catalogueCount = analytics?.products.length ?? 0;
+  const salesCount = analytics?.kpis.sales ?? 0;
+  const salesValueFormatted = analytics?.kpis.revenue.formatted ?? "0";
+  const productsSold = analytics?.kpis.productsSold ?? 0;
+  const visitsTotal = analytics?.kpis.visits ?? 0;
+  const conversionFormatted = analytics?.kpis.conversionRate ?? "0 %";
+  const customersTotal = analytics?.kpis.customers ?? 0;
 
   const connectionCopy: Record<string, string> = {
     connected: "✅ Boutique Chariow connectée",
@@ -261,18 +269,11 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
             <div className="empty-state" style={{ marginTop: 10 }}>
               Les statistiques de ta boutique ne sont pas encore disponibles. Réessaie plus tard.
             </div>
-          ) : catalogueCount === 0 ? (
-            <div className="empty-state" style={{ marginTop: 10 }}>
-              Aucun produit trouvé dans ta boutique.
-            </div>
-          ) : salesCount === 0 ? (
-            <div className="empty-state" style={{ marginTop: 10 }}>
-              Aucune vente enregistrée pour cette période.
-            </div>
           ) : (
+            <>
             <div className="overview-grid">
               <div className="metric">
-                <small>Chiffre d’affaires</small>
+                <small>Chiffre d’affaires ce mois</small>
                 <strong>{salesValueFormatted}</strong>
               </div>
               <div className="metric">
@@ -300,6 +301,14 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
                 <strong>{customersTotal}</strong>
               </div>
             </div>
+            <div className="app-card" style={{ marginTop: 18 }}>
+              <strong>{salesCount === 0 && visitsTotal === 0 ? "Aucune vente ni visite n’a été enregistrée pour cette période." : "Ton activité sur cette période"}</strong>
+              {catalogueCount > 0 && <p style={{ margin: "8px 0 0", color: "#607268", fontSize: 12 }}>Tu as {catalogueCount} produit{catalogueCount > 1 ? "s" : ""} dans ton catalogue.</p>}
+              {salesCount === 0 && <p style={{ margin: "8px 0 0", color: "#607268", fontSize: 12 }}>Aucune vente enregistrée pour cette période.</p>}
+              {visitsTotal === 0 && <p style={{ margin: "8px 0 0", color: "#607268", fontSize: 12 }}>Aucune visite enregistrée pour cette période.</p>}
+            </div>
+            <ProductCatalog products={analytics.products} />
+            </>
           )}
         </>
       )}
@@ -338,6 +347,45 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
       </div>
     </>
   );
+}
+
+function ProductCatalog({ products }: { products: ProductData[] }) {
+  return (
+    <div className="app-card" style={{ marginTop: 18 }}>
+      <div className="card-head"><div><h2>Ton catalogue</h2><p>{products.length ? "Les produits récupérés depuis ta boutique Chariow." : "Aucun produit n’a été trouvé dans ta boutique Chariow."}</p></div></div>
+      {products.length > 0 && <div style={{ display: "grid", gap: 10, marginTop: 15 }}>
+        {products.map((product) => <div key={product.id} className="store-row">
+          <div className="store-logo">{product.image ? <img src={product.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} /> : <Package size={18} />}</div>
+          <div className="store-info"><strong>{product.name}</strong><span>{product.price ?? "Prix non renseigné"}{product.currency ? ` ${product.currency}` : ""}</span></div>
+          <span className="status">{product.status ?? "Statut non renseigné"}</span>
+        </div>)}
+      </div>}
+    </div>
+  );
+}
+
+function Reports({ stores, analytics }: { stores: StoreData[]; analytics: AnalyticsData }) {
+  const [from, setFrom] = useState(analytics?.kpis.period.from ?? "");
+  const [to, setTo] = useState(analytics?.kpis.period.to ?? "");
+  const kpis = analytics?.kpis;
+  return <>
+    <div className="page-top"><div><span className="eyebrow">Analyse détaillée</span><h1>Rapports</h1><p>Explore les ventes, produits et clients sur la période de ton choix.</p></div></div>
+    <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+      <label style={{ fontSize: 11 }}>Du<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} style={{ display: "block", marginTop: 5, padding: 8 }} /></label>
+      <label style={{ fontSize: 11 }}>Au<input type="date" value={to} onChange={(event) => setTo(event.target.value)} style={{ display: "block", marginTop: 5, padding: 8 }} /></label>
+      <button className="btn btn-dark" disabled={!stores.length}>Actualiser le rapport</button>
+    </div>
+    {!analytics || !kpis ? <div className="empty-state">Aucune donnée pour cette période.</div> : <>
+      <div className="overview-grid">
+        <div className="metric"><small>Ventes</small><strong>{kpis.sales}</strong></div>
+        <div className="metric"><small>Chiffre d’affaires</small><strong>{kpis.revenue.formatted ?? "0"}</strong></div>
+        <div className="metric"><small>Produits vendus</small><strong>{kpis.productsSold}</strong></div>
+        <div className="metric"><small>Clients</small><strong>{kpis.customers}</strong></div>
+      </div>
+      <ProductCatalog products={analytics.products} />
+      <div className="app-card" style={{ marginTop: 18 }}><h2>Analyse et recommandations</h2><p style={{ color: "#607268", fontSize: 12 }}>{kpis.sales === 0 ? "Aucune vente pour cette période : concentre-toi sur la visibilité de tes produits et le partage de ta boutique." : "Analyse tes produits les plus performants et identifie les prochaines actions à tester."}</p></div>
+    </>}
+  </>;
 }
 
 function ChatView() {

@@ -20,3 +20,33 @@ export type ChariowStoreSnapshot = {
   salesAnalytics?: unknown;
   storeAnalytics?: unknown;
 };
+
+export type ChariowProduct = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number | string | null;
+  currency: string | null;
+  status: string | null;
+  image: string | null;
+  createdAt: string | null;
+  sales: number | null;
+};
+
+export type ChariowKpis = {
+  period: { from: string | null; to: string | null };
+  revenue: { value: number | string | null; formatted: string | null };
+  sales: number;
+  visits: number;
+  conversionRate: string;
+  customers: number;
+  productsSold: number;
+};
+
+export type ChariowNormalizedSnapshot = {
+  storeName: string;
+  storeStatus: string;
+  products: ChariowProduct[];
+  sales: unknown[];
+  kpis: ChariowKpis;
+};
