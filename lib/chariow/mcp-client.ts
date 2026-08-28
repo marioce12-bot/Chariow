@@ -1,6 +1,6 @@
 import { CHARIOW_MCP_URL, type JsonRpcResponse, type McpToolResult } from "./types";
 
-type ClientOptions = { accessToken: string; endpoint?: string };
+type ClientOptions = { accessToken?: string; endpoint?: string };
 
 function parseToolResult(result: McpToolResult | undefined) {
   if (!result) return null;
@@ -12,7 +12,7 @@ function parseToolResult(result: McpToolResult | undefined) {
 
 export class ChariowMcpClient {
   private readonly endpoint: string;
-  private readonly accessToken: string;
+  private readonly accessToken?: string;
   private nextId = 1;
   private sessionId?: string;
 
@@ -37,8 +37,8 @@ export class ChariowMcpClient {
     const headers: Record<string, string> = {
       Accept: "application/json, text/event-stream",
       "Content-Type": "application/json",
-      Authorization: `Bearer ${this.accessToken}`,
     };
+    if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
     if (this.sessionId) headers["Mcp-Session-Id"] = this.sessionId;
     const response = await fetch(this.endpoint, { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id: this.nextId++, method, params }), cache: "no-store", signal: AbortSignal.timeout(20_000) });
     const sessionId = response.headers.get("mcp-session-id");

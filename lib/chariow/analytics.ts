@@ -3,8 +3,9 @@ import { ChariowMcpClient } from "./mcp-client";
 import type { ChariowStoreSnapshot } from "./types";
 
 export async function getChariowSnapshot(store: { mcp_url: string | null; access_token_encrypted: string | null }) {
-  if (!store.access_token_encrypted) throw new Error("Cette boutique n'a pas encore de connexion MCP active");
-  const client = new ChariowMcpClient({ endpoint: store.mcp_url || undefined, accessToken: decryptSecret(store.access_token_encrypted) });
+  if (!store.mcp_url) throw new Error("Cette boutique n'a pas encore de connexion MCP active (mcp_url manquante)");
+  const accessToken = store.access_token_encrypted ? decryptSecret(store.access_token_encrypted) : undefined;
+  const client = new ChariowMcpClient({ endpoint: store.mcp_url || undefined, accessToken });
   await client.initialize();
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
