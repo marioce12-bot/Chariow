@@ -68,6 +68,12 @@ button { cursor:pointer; }
 .section-head h2 { font-size:clamp(34px,4vw,56px); line-height:1; margin:13px 0 0; max-width:600px; }
 .section-head p { color:var(--muted); line-height:1.7; max-width:350px; }
 .logos { border-bottom:1px solid var(--line); border-top:1px solid var(--line); display:flex; justify-content:space-between; padding:24px 0; color:#829088; font-size:12px; font-weight:700; letter-spacing:.04em; }
+.platform-logo { align-items:center; display:inline-flex; gap:7px; }
+.platform-logo small { color:#a0aaa4; font-size:9px; font-weight:400; letter-spacing:0; }
+.platform-mark { align-items:center; border-radius:7px; color:white; display:inline-flex; font-size:13px; height:26px; justify-content:center; letter-spacing:0; width:26px; }
+.chariow-mark { background:linear-gradient(135deg,#ff7b35,#f04444); }
+.selar-mark { background:#101828; }
+.gumroad-mark { background:#ff90a8; }
 .glass-strip { background:rgba(255,255,255,.4); border:1px solid rgba(214,225,215,.7); border-radius:12px; margin-top:-1px; padding:19px 22px; backdrop-filter:blur(12px); }
 .how-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
 .step-card { background:rgba(255,255,255,.48); border:1px solid rgba(214,225,215,.82); border-radius:14px; min-height:220px; padding:22px; position:relative; transition:.25s ease; }
@@ -156,6 +162,8 @@ button { cursor:pointer; }
 .store-info strong { display:block; font-size:12px; }
 .store-info span { color:var(--muted); font-size:10px; }
 .status { color:#43935a; font-size:10px; }
+.btn-danger-ghost { background:#fff5f5; border:1px solid #f3caca; border-radius:7px; color:#b94c4c; cursor:pointer; }
+.btn-danger-ghost:disabled { cursor:not-allowed; opacity:.6; }
 .usage { align-items:center; display:flex; gap:16px; margin:24px 0; }
 .ring { align-items:center; border:7px solid #d6e6cd; border-left-color:var(--green); border-radius:50%; display:flex; height:82px; justify-content:center; width:82px; }
 .ring strong { font-size:17px; }

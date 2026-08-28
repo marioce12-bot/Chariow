@@ -576,6 +576,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function connectChariow(storeId?: string) {
     setError("");
@@ -619,6 +620,23 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
     }
   }
 
+  async function deleteStore(id: string) {
+    if (!window.confirm("Supprimer cette boutique ? Ses identifiants de connexion seront supprimés de Vendeo.")) return;
+    setError("");
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/stores/${encodeURIComponent(id)}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Impossible de supprimer la boutique.");
+        return;
+      }
+      onStoresChange(stores.filter((store) => store.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <>
       <div className="page-top">
@@ -655,8 +673,11 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
               ) : (
                   <button className="btn btn-ghost" onClick={() => connectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
                   {status === "failed" || status === "expired" ? "Reconnecter Chariow" : "Connecter ma boutique Chariow"}
-                </button>
-              )}
+                 </button>
+               )}
+               <button className="btn btn-danger-ghost" onClick={() => deleteStore(store.id)} disabled={saving || deletingId === store.id} style={{ fontSize: 10, padding: "7px 10px" }}>
+                 {deletingId === store.id ? "Suppression…" : "Supprimer"}
+               </button>
             </div>
           );
         })}
