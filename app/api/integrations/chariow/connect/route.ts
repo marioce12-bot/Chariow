@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const requestedStoreId = new URL(request.url).searchParams.get("store_id");
   let existing: { id: string } | null = null;
 
-  // A connection without store_id always starts a new store. Reconnection is explicit.
+  // Reuse the user's existing Chariow store for reconnection, especially on Starter.
   if (requestedStoreId) {
     const { data, error: findErr } = await supabase
       .from("stores")
@@ -43,6 +43,20 @@ export async function GET(request: Request) {
     existing = data;
     if (!existing) return NextResponse.json({ error: "Boutique Chariow introuvable" }, { status: 404 });
   } else {
+    const { data: existingStore, error: existingError } = await supabase
+      .from("stores")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("platform", "chariow")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingError) return NextResponse.json({ error: "Impossible de retrouver ta boutique Chariow." }, { status: 500 });
+    existing = existingStore;
+  }
+
+  if (!existing) {
     const { count } = await supabase
       .from("stores")
       .select("id", { count: "exact", head: true })

@@ -582,7 +582,8 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
     setError("");
     setSaving(true);
     try {
-      if (!storeId) {
+      const existingStoreId = storeId ?? stores.find((store) => store.platform === "chariow")?.id;
+      if (!existingStoreId) {
         const check = await fetch("/api/integrations/chariow/connect/check");
         const checkData = await check.json().catch(() => ({}));
         if (!check.ok) {
@@ -591,8 +592,8 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
           return;
         }
       }
-      const target = storeId
-        ? `/api/integrations/chariow/connect?store_id=${encodeURIComponent(storeId)}`
+      const target = existingStoreId
+        ? `/api/integrations/chariow/connect?store_id=${encodeURIComponent(existingStoreId)}`
         : "/api/integrations/chariow/connect";
       window.location.href = target;
     } finally {
@@ -645,7 +646,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
           <h1>Mes boutiques</h1>
           <p>Une source de vérité pour toutes tes ventes.</p>
         </div>
-        <button className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}>
+        <button type="button" className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}>
           <Plus size={16} /> {saving ? "Connexion…" : "Connecter ma boutique Chariow"}
         </button>
       </div>
@@ -671,7 +672,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
                   Déconnecter
                 </button>
               ) : (
-                  <button className="btn btn-ghost" onClick={() => connectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
+                  <button type="button" className="btn btn-ghost" onClick={() => connectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
                   {status === "failed" || status === "expired" ? "Reconnecter Chariow" : "Connecter ma boutique Chariow"}
                  </button>
                )}
