@@ -242,7 +242,7 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
       <div className="page-top">
         <div>
           <h1>Vue d'ensemble</h1>
-          <p>{periodLabel ? `Période analysée : ${periodLabel}` : "Période analysée : —"}</p>
+          <p>{periodLabel ? `Période analysée : ${periodLabel}` : "Période analysée : période en cours"}</p>
         </div>
         <button className="btn btn-dark" onClick={() => document.querySelector<HTMLButtonElement>(".side-link:nth-of-type(4)")?.click()}>
           <Plus size={16} /> Boutique
@@ -356,7 +356,7 @@ function ProductCatalog({ products }: { products: ProductData[] }) {
       {products.length > 0 && <div style={{ display: "grid", gap: 10, marginTop: 15 }}>
         {products.map((product) => <div key={product.id} className="store-row">
           <div className="store-logo">{product.image ? <img src={product.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} /> : <Package size={18} />}</div>
-          <div className="store-info"><strong>{product.name}</strong><span>{product.price ?? "Prix non renseigné"}{product.currency ? ` ${product.currency}` : ""}</span></div>
+          <div className="store-info"><strong>{product.name}</strong><span>{formatProductPrice(product)}</span></div>
           <span className="status">{product.status ?? "Statut non renseigné"}</span>
         </div>)}
       </div>}

@@ -16,7 +16,7 @@ export async function getChariowSnapshot(
   const [storeInfo, products, sales, salesAnalytics, storeAnalytics] = await Promise.all([
     client.callTool("get_store"),
     client.callTool("list_products", { per_page: 100 }),
-    client.callTool("list_sales", { status: "completed", per_page: 100, ...(opts?.from ? { start_date: from } : {}), ...(opts?.to ? { end_date: to } : {}) }),
+    client.callTool("list_sales", { per_page: 100, ...(opts?.from ? { start_date: from } : {}), ...(opts?.to ? { end_date: to } : {}) }),
     client.callTool("get_sales_analytics", { from, to }),
     client.callTool("get_store_analytics", { from, to }),
   ]);
@@ -44,15 +44,25 @@ function numberValue(value: unknown): number | string | null {
   return typeof value === "number" || typeof value === "string" ? value : null;
 }
 
+function numericValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return null;
+}
+
+function formattedZero(currency: unknown): string {
+  return `0 ${text(currency) ?? "FCFA"}`;
+}
+
 export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period: { from: string; to: string }): ChariowNormalizedSnapshot {
   const store = asRecord(snapshot.store);
   const storeAnalytics = asRecord(snapshot.storeAnalytics);
   const salesAnalytics = asRecord(snapshot.salesAnalytics);
-  const analytics = Object.keys(storeAnalytics).length ? storeAnalytics : salesAnalytics;
-  const sales = asRecord(analytics.sales);
-  const visits = asRecord(analytics.visits);
-  const customers = asRecord(analytics.customers);
-  const analyticsProducts = asRecord(analytics.products);
+  const analytics = { ...salesAnalytics, ...storeAnalytics };
+  const sales = asRecord(storeAnalytics.sales ?? salesAnalytics.sales);
+  const visits = asRecord(storeAnalytics.visits ?? salesAnalytics.visits);
+  const customers = asRecord(storeAnalytics.customers ?? salesAnalytics.customers);
+  const analyticsProducts = asRecord(storeAnalytics.products ?? salesAnalytics.products);
   const productRows = firstArray(snapshot.products);
   const products: ChariowProduct[] = productRows.map((item, index) => {
     const product = asRecord(item);
@@ -70,6 +80,8 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
     };
   });
   const revenue = asRecord(sales.value);
+  const currency = revenue.currency ?? sales.currency ?? store.currency;
+  const revenueValue = numberValue(revenue.value ?? sales.value);
   const conversion = asRecord(visits.conversion_rate ?? visits.conversionRate);
   return {
     storeName: text(store.name ?? store.store_name) ?? "Boutique Chariow",
@@ -78,12 +90,12 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
     sales: firstArray(snapshot.sales),
     kpis: {
       period,
-      revenue: { value: numberValue(revenue.value ?? sales.value), formatted: text(revenue.formatted) ?? (numberValue(sales.value)?.toString() ?? "0") },
-      sales: typeof sales.count === "number" ? sales.count : 0,
-      visits: typeof visits.total === "number" ? visits.total : 0,
+      revenue: { value: revenueValue, formatted: text(revenue.formatted) ?? (numericValue(revenueValue) === 0 ? formattedZero(currency) : (revenueValue?.toString() ?? formattedZero(currency))) },
+      sales: numericValue(sales.count) ?? 0,
+      visits: numericValue(visits.total) ?? 0,
       conversionRate: text(conversion.formatted) ?? "0 %",
-      customers: typeof customers.total === "number" ? customers.total : 0,
-      productsSold: typeof analyticsProducts.sold === "number" ? analyticsProducts.sold : 0,
+      customers: numericValue(customers.total) ?? 0,
+      productsSold: numericValue(analyticsProducts.sold) ?? 0,
     },
   };
 }
