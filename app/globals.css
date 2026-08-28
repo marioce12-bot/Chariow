@@ -450,6 +450,9 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .vendeo-kpi { background:white; border:1px solid var(--line); border-radius:12px; padding:14px; }
 .vendeo-kpi small { display:block; color:var(--muted); font-size:11px; margin-bottom:6px; }
 .vendeo-kpi strong { display:block; color:var(--ink); font-size:20px; letter-spacing:-.03em; }
+.metric-label { align-items:center; color:var(--muted); display:flex; font-size:11px; gap:6px; margin-bottom:6px; }
+.metric-help { align-items:center; background:#fff1f2; border:1px solid #ef4444; border-radius:50%; color:#dc2626; display:inline-flex; font-size:9px; font-weight:800; height:15px; justify-content:center; line-height:1; padding:0; width:15px; }
+.metric-help:hover,.metric-help:focus { background:#dc2626; color:white; outline:2px solid #fecdd3; }
 .vendeo-kpi-wide { grid-column:1 / -1; }
 
 .vendeo-product-card { background:white; border:1px solid var(--line); border-radius:14px; padding:16px; }
