@@ -25,7 +25,6 @@ export async function GET(request: Request) {
   if (!user) return response;
 
   const redirectUri = process.env.CHARIOW_OAUTH_REDIRECT_URI;
-  const clientId = process.env.CHARIOW_OAUTH_CLIENT_ID;
   const requestedStoreId = new URL(request.url).searchParams.get("store_id");
   let existing: { id: string } | null = null;
 
@@ -69,7 +68,7 @@ export async function GET(request: Request) {
     }
   }
 
-  if (!clientId || !redirectUri) {
+  if (!redirectUri) {
     return NextResponse.json({ error: "Chariow OAuth n'est pas configuré" }, { status: 500 });
   }
 
@@ -108,12 +107,34 @@ export async function GET(request: Request) {
   const { codeVerifier, codeChallenge } = generatePkce();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+  const registerResponse = await fetch("https://mcp.chariow.com/public/oauth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      client_name: "Vendeo",
+      redirect_uris: [redirectUri],
+      grant_types: ["authorization_code"],
+      response_types: ["code"],
+      scopes: ["store:mcp"],
+      token_endpoint_auth_method: "none",
+    }),
+    cache: "no-store",
+  });
+  const registration = await registerResponse.json().catch(() => ({}));
+  const oauthClientId = typeof registration.client_id === "string" ? registration.client_id : null;
+  if (!registerResponse.ok || !oauthClientId) {
+    await supabase.from("stores").update({ connection_status: "failed", connection_error: "Impossible d’enregistrer l’application auprès de Chariow" }).eq("id", storeId).eq("user_id", user.id);
+    console.error("Chariow OAuth dynamic registration failed", registerResponse.status, registration.error ?? "missing client_id");
+    return NextResponse.json({ error: "Impossible de préparer la connexion Chariow" }, { status: 502 });
+  }
+
   const { error: attemptErr } = await supabase.from("oauth_connection_attempts").insert({
     user_id: user.id,
     platform: "chariow",
     store_id: storeId,
     state,
     code_verifier_encrypted: encryptSecret(codeVerifier),
+    oauth_client_id: oauthClientId,
     expires_at: expiresAt.toISOString(),
   });
   if (attemptErr) {
@@ -123,7 +144,7 @@ export async function GET(request: Request) {
 
   const url = new URL("https://mcp.chariow.com/public/oauth/authorize");
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("client_id", oauthClientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("scope", "store:mcp");
   url.searchParams.set("state", state);

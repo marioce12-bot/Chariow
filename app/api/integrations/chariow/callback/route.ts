@@ -23,8 +23,7 @@ export async function GET(request: Request) {
   const oauthErrorDescription = url.searchParams.get("error_description");
 
   const redirectUri = process.env.CHARIOW_OAUTH_REDIRECT_URI;
-  const clientId = process.env.CHARIOW_OAUTH_CLIENT_ID;
-  if (!clientId || !redirectUri) {
+  if (!redirectUri) {
     console.error("Chariow OAuth production variables are missing");
     return redirectToDashboard("chariow=failed");
   }
@@ -35,7 +34,7 @@ export async function GET(request: Request) {
 
   const { data: attempt, error: attemptErr } = await supabase
     .from("oauth_connection_attempts")
-    .select("store_id, code_verifier_encrypted, expires_at")
+    .select("store_id, code_verifier_encrypted, oauth_client_id, expires_at")
     .eq("user_id", user.id)
     .eq("state", state)
     .maybeSingle();
@@ -48,6 +47,11 @@ export async function GET(request: Request) {
   }
 
   if (!attempt) {
+    return redirectToDashboard("chariow=failed");
+  }
+  const oauthClientId = typeof attempt.oauth_client_id === "string" ? attempt.oauth_client_id : null;
+  if (!oauthClientId) {
+    await supabase.from("stores").update({ connection_status: "failed", connection_error: "Tentative OAuth invalide. Recommence la connexion.", last_verified_at: new Date().toISOString() }).eq("id", storeId).eq("user_id", user.id);
     return redirectToDashboard("chariow=failed");
   }
 
@@ -97,7 +101,7 @@ export async function GET(request: Request) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         grant_type: "authorization_code",
-        client_id: clientId,
+        client_id: oauthClientId,
         code,
         redirect_uri: redirectUri,
         code_verifier: codeVerifier,
