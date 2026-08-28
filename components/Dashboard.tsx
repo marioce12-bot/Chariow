@@ -759,7 +759,14 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
     if (response.ok && data.message) {
       setMessages((current) => [...current, data.message]);
       if (data.usage) {
-        setUsage({ free_used: data.usage.free_used, free_limit: data.usage.free_limit, used: data.usage.used, limit: data.usage.limit });
+        const nextUsage = {
+          free_used: data.usage.free_used,
+          free_limit: data.usage.free_limit,
+          used: data.usage.used,
+          limit: data.usage.limit,
+        };
+        setUsage(nextUsage);
+        setPlansRequired(nextUsage.free_used >= nextUsage.free_limit);
       }
     } else {
       if (data.code === "PLANS_REQUIRED") {
