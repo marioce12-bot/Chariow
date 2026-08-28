@@ -157,7 +157,7 @@ export function Dashboard() {
           ) : stores.length === 0 && active !== "Mes boutiques" ? (
             <StoreOnboarding />
           ) : active === "Vendeo AI" ? (
-            <ChatView />
+            <ChatView onGoToSubscription={() => setActive("Abonnement")} />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} onStoresChange={setStores} />
           ) : active === "Abonnement" ? (
@@ -684,12 +684,20 @@ function formatProductPrice(product: ProductData) {
   return `${product.price}${product.currency ? ` ${product.currency}` : ""}`;
 }
 
-function ChatView() {
+function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [usage, setUsage] = useState<{ free_used: number; free_limit: number; used: number; limit: number } | null>(null);
   const [plansRequired, setPlansRequired] = useState(false);
+
+  const bottomRef = (node: HTMLDivElement | null) => {
+    // Ref callback for compatibility.
+    if (node) {
+      // Store the node for later scrolling.
+    }
+  };
+  const [bottomNode, setBottomNode] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     // Prefill from Overview actions without leaking the prompt in the URL.
@@ -706,8 +714,25 @@ function ChatView() {
       .then((data) => setMessages(data.messages ?? []));
     fetch("/api/subscription")
       .then((r) => (r.ok ? r.json() : { subscription: null }))
-      .then((data) => setUsage(data.subscription ? { free_used: data.subscription.free_messages_used, free_limit: data.subscription.free_messages_limit, used: data.subscription.messages_used_this_month, limit: data.subscription.messages_limit } : null));
+      .then((data) => {
+        const nextUsage = data.subscription
+          ? {
+              free_used: data.subscription.free_messages_used,
+              free_limit: data.subscription.free_messages_limit,
+              used: data.subscription.messages_used_this_month,
+              limit: data.subscription.messages_limit,
+            }
+          : null;
+        setUsage(nextUsage);
+        if (nextUsage) setPlansRequired(nextUsage.free_used >= nextUsage.free_limit);
+      });
   }, []);
+
+  useEffect(() => {
+    // Auto-scroll to the latest message.
+    if (!bottomNode) return;
+    bottomNode.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages.length, sending, bottomNode]);
 
   async function send(message = input) {
     if (!message.trim() || sending || plansRequired) return;
@@ -723,8 +748,15 @@ function ChatView() {
         setUsage({ free_used: data.usage.free_used, free_limit: data.usage.free_limit, used: data.usage.used, limit: data.usage.limit });
       }
     } else {
-      if (data.code === "PLANS_REQUIRED") setPlansRequired(true);
-      setMessages((current) => [...current, { role: "assistant", content: data.error ?? "Une erreur est survenue." }]);
+      if (data.code === "PLANS_REQUIRED") {
+        setPlansRequired(true);
+        setMessages((current) => [
+          ...current,
+          { role: "assistant", content: "Active un plan pour continuer à utiliser Vendeo AI." },
+        ]);
+      } else {
+        setMessages((current) => [...current, { role: "assistant", content: data.error ?? "Une erreur est survenue." }]);
+      }
     }
     setSending(false);
   }
@@ -745,7 +777,15 @@ function ChatView() {
           <div className="trial-banner">
             {plansRequired ? (
               <>
-                <strong>Ton essai gratuit est terminé.</strong> Choisis un plan pour continuer. <button className="btn btn-dark" onClick={() => document.querySelector<HTMLButtonElement>(".side-link:nth-of-type(6)")?.click()} style={{ fontSize: 10, padding: "7px 10px", marginLeft: 8 }}>Voir les offres</button>
+                <strong>Active un plan pour continuer.</strong>{" "}
+                <button
+                  className="btn btn-dark"
+                  onClick={onGoToSubscription}
+                  style={{ fontSize: 10, padding: "7px 10px", marginLeft: 8 }}
+                  type="button"
+                >
+                  Voir les offres
+                </button>
               </>
             ) : (
               <>
@@ -764,6 +804,8 @@ function ChatView() {
               {message.content}
             </div>
           ))}
+
+          <div ref={setBottomNode} />
         </div>
         <div style={{ marginTop: "auto" }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 15 }}>
