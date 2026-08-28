@@ -58,6 +58,22 @@ Routes disponibles :
 - `/api/chat` : historique et messages avec quota
 - `/api/subscription` : consulter et changer de plan
 
+## Connexion Chariow MCP
+
+Lorsqu’un compte n’a aucune boutique active, Vendeo affiche automatiquement l’onboarding Chariow :
+
+```text
+Chariow → Automatisations → Connexion MCP
+```
+
+L’URL publique habituelle du serveur MCP est :
+
+```text
+https://mcp.chariow.com/public
+```
+
+Le parcours principal ouvre Chariow afin que l’utilisateur sélectionne sa boutique et autorise l’accès. Tant que Chariow ne fournit pas à Vendeo une URL OAuth/callback officielle, une saisie manuelle reste disponible en secours pour un token MCP déjà obtenu.
+
 ## 5. Configuration du fournisseur IA Imole
 
 Dans Vercel et dans `.env.local`, ajoute :
