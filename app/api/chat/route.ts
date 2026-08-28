@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askImole } from "@/lib/ai/imole";
 import { getChariowSnapshot, serializeChariowContext } from "@/lib/chariow/analytics";
+import { cleanAiText } from "@/lib/ai/format";
 
 const VENDEO_SYSTEM_PROMPT = `Tu es l'analyste business de Vendeo pour les créateurs de produits digitaux francophones.
 
@@ -14,6 +15,9 @@ Règles importantes :
 - Utilise uniquement les données réellement fournies dans le contexte.
 - Si les données sont insuffisantes, dis-le clairement.
 - Distingue les faits, les analyses et les recommandations.
+- Utilise un format texte propre : titres simples, listes avec des tirets et paragraphes courts.
+- N'entoure jamais toute ta réponse de blocs de code et n'utilise pas de balises HTML.
+- N'utilise pas de Markdown gras avec des astérisques ; écris les titres directement.
 - Adapte tes recommandations aux créateurs africains et aux paiements en FCFA.
 - Quand c'est pertinent, propose une liste d'actions prioritaires.
 - Réponds de manière concise mais utile.`;
@@ -101,6 +105,7 @@ export async function POST(request: Request) {
     console.error("Imole chat error", error instanceof Error ? error.message : error);
     return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
   }
+  answer = cleanAiText(answer);
   const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer }).select("id, role, content, created_at").single();
   if (assistantError) return NextResponse.json({ error: assistantError.message }, { status: 500 });
   return NextResponse.json({ message: assistant, usage: { free_used: quota.free_messages_used, free_limit: quota.free_messages_limit, used: quota.messages_used_this_month, limit: quota.messages_limit, free_trial_available: quota.free_messages_used < quota.free_messages_limit } });

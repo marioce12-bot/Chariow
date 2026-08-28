@@ -311,6 +311,22 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .auth-card .btn { border-radius:7px; width:100%; margin-top:5px; }
 .auth-foot { color:var(--muted); font-size:12px; margin-top:22px; text-align:center; }
 .auth-foot a { color:var(--green); font-weight:700; }
+.auth-success { background:#e9f5ff; border-radius:8px; color:#123e75; font-size:13px; line-height:1.6; padding:16px; }
+.legal-consent { align-items:flex-start; color:#64748b; display:flex; font-size:11px; gap:8px; line-height:1.5; margin:18px 0; }
+.legal-consent input { flex:none; margin-top:2px; }
+.legal-consent span { align-items:center; display:flex; flex-wrap:wrap; gap:4px; }
+.legal-consent a { color:#4c21f6; font-weight:700; }
+.legal-page { background:#f1f5ff; min-height:100vh; padding:70px 20px; }
+.legal-card { background:white; border:1px solid var(--line); border-radius:16px; box-shadow:0 18px 50px rgba(0,12,46,.08); margin:auto; max-width:760px; padding:40px; }
+.legal-back { color:#4c21f6; display:inline-block; font-size:12px; font-weight:700; margin-bottom:34px; }
+.legal-card h1 { font-size:38px; letter-spacing:-.06em; margin:10px 0; }
+.legal-card h2 { font-size:17px; margin:28px 0 8px; }
+.legal-card p { color:var(--muted); font-size:13px; line-height:1.75; margin:0; }
+.legal-updated { color:#94a3b8 !important; font-size:11px !important; }
+.vendeo-badge { align-items:center; display:flex; gap:7px; }
+.vendeo-step-check { color:#103ef8; }
+.step-empty { border:1.5px solid #94a3b8; border-radius:50%; display:block; height:13px; width:13px; }
+.empty-state b { align-items:center; display:inline-flex; gap:5px; }
 
 @media (max-width:800px) { .nav-links { display:none; } .hero { padding-top:125px; } .hero-grid,.feature-grid,.content-grid { grid-template-columns:1fr; } .dashboard-preview { margin-top:10px; transform:none; } .how-grid { grid-template-columns:repeat(2,1fr); } .pricing-wrap { grid-template-columns:1fr; } .section { padding:75px 0; } .section-head { display:block; } .section-head p { margin-top:20px; } .logos { flex-wrap:wrap; gap:16px; } .app-layout { grid-template-columns:1fr; } .sidebar { display:none; } .app-main { grid-column:1; } .overview-grid { grid-template-columns:repeat(2,1fr); } .app-header { padding:0 14px; } .cta { padding:45px 22px; } }
 @media (max-width:800px) { .report-filters,.report-filter-fields { align-items:stretch; flex-direction:column; } .report-filter-fields button { width:100%; } .report-summary,.report-columns { grid-template-columns:1fr; } .report-summary-side { grid-template-columns:repeat(2,1fr); } }

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Rocket, Sparkles } from "lucide-react";
+import { cleanAiText } from "@/lib/ai/format";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
@@ -427,10 +428,10 @@ function Overview({
       <>
         <div className="vendeo-overview-header">
           <div>
-            <h1>Bonjour {greeting} 👋</h1>
+            <h1>Bonjour {greeting}</h1>
             <p>Voici ce que Vendeo recommande pour faire avancer ton business cette semaine.</p>
           </div>
-          <div className="vendeo-badge">✅ Boutique Chariow connectée</div>
+          <div className="vendeo-badge"><CheckCircle2 size={15} /> Boutique Chariow connectée</div>
         </div>
         <div className="empty-state" style={{ marginTop: 12 }}>Connecte ta boutique Chariow pour voir tes recommandations.</div>
       </>
@@ -438,15 +439,15 @@ function Overview({
   }
 
   if (!analytics || !isChariowConnected) {
-    const badgeText = stores?.[0]?.connection_status === "connected" ? "✅ Boutique Chariow connectée" : "⏳ Connexion Chariow requise";
+    const badgeText = stores?.[0]?.connection_status === "connected" ? "Boutique Chariow connectée" : "Connexion Chariow requise";
     return (
       <>
         <div className="vendeo-overview-header">
           <div>
-            <h1>Bonjour {greeting} 👋</h1>
+            <h1>Bonjour {greeting}</h1>
             <p>Voici ce que Vendeo recommande pour faire avancer ton business cette semaine.</p>
           </div>
-          <div className="vendeo-badge">{badgeText}</div>
+          <div className="vendeo-badge">{stores?.[0]?.connection_status === "connected" ? <CheckCircle2 size={15} /> : <Clock3 size={15} />}{badgeText}</div>
         </div>
         <div className="empty-state" style={{ marginTop: 12 }}>Connecte ta boutique Chariow pour afficher tes recommandations.</div>
       </>
@@ -455,17 +456,17 @@ function Overview({
 
   return (
     <>
-      <div className="vendeo-overview-header">
+        <div className="vendeo-overview-header">
         <div>
-          <h1>Bonjour {greeting} 👋</h1>
+          <h1>Bonjour {greeting}</h1>
           <p>Voici ce que Vendeo recommande pour faire avancer ton business cette semaine.</p>
         </div>
-        <div className="vendeo-badge">✅ Boutique Chariow connectée</div>
+        <div className="vendeo-badge"><CheckCircle2 size={15} /> Boutique Chariow connectée</div>
       </div>
 
       <section className="vendeo-section" aria-label="Priorités">
         <div className="vendeo-section-head">
-          <div className="vendeo-section-icon">🎯</div>
+          <div className="vendeo-section-icon"><Target size={17} /></div>
           <h2>Tes priorités cette semaine</h2>
         </div>
 
@@ -507,7 +508,7 @@ function Overview({
 
       <section className="vendeo-section" aria-label="Résumé">
         <div className="vendeo-section-head">
-          <div className="vendeo-section-icon">🧠</div>
+          <div className="vendeo-section-icon"><Brain size={17} /></div>
           <h2>Ce que Vendeo a compris</h2>
         </div>
         <div className="vendeo-resume-card">{summaryText}</div>
@@ -515,7 +516,7 @@ function Overview({
 
       <section className="vendeo-section" aria-label="Performance">
         <div className="vendeo-section-head">
-          <div className="vendeo-section-icon">📈</div>
+          <div className="vendeo-section-icon"><LineChart size={17} /></div>
           <h2>Performance de ta boutique</h2>
         </div>
 
@@ -551,7 +552,7 @@ function Overview({
 
       <section className="vendeo-section" aria-label="Produit">
         <div className="vendeo-section-head">
-          <div className="vendeo-section-icon">🛍️</div>
+          <div className="vendeo-section-icon"><ShoppingBag size={17} /></div>
           <h2>Ton produit à promouvoir</h2>
         </div>
 
@@ -584,14 +585,14 @@ function Overview({
 
       <section className="vendeo-section" aria-label="Chemin">
         <div className="vendeo-section-head">
-          <div className="vendeo-section-icon">🚀</div>
+          <div className="vendeo-section-icon"><Rocket size={17} /></div>
           <h2>Ton chemin vers ta première vente</h2>
         </div>
 
         <div className="vendeo-progress">
           {progress.map((step) => (
             <div key={step.label} className="vendeo-progress-step">
-              <span className="vendeo-step-check">{step.done ? "✅" : "○"}</span>
+              <span className="vendeo-step-check">{step.done ? <CheckCircle2 size={16} /> : <span className="step-empty" aria-hidden="true" />}</span>
               <span>{step.label}</span>
             </div>
           ))}
@@ -986,10 +987,10 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
           </div>
         )}
         <div className="chat-messages">
-          {messages.length === 0 && <div className="empty-state"><b>✦ Vendeo</b><br />Tu as 3 requêtes gratuites pour découvrir ton analyste IA.</div>}
+          {messages.length === 0 && <div className="empty-state"><b><Sparkles size={15} /> Vendeo</b><br />Tu as 3 requêtes gratuites pour découvrir ton analyste IA.</div>}
           {messages.map((message, index) => (
             <div key={index} className={message.role === "user" ? "chat-bubble user" : "chat-bubble assistant"}>
-              {message.content}
+              {cleanAiText(message.content)}
             </div>
           ))}
 
