@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Check, ChevronDown, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronDown } from "lucide-react";
 import { useState } from "react";
 
 const faqs = [
@@ -15,8 +15,7 @@ const faqs = [
 
 function Preview() {
   return <div className="dashboard-preview">
-     <div className="preview-top"><span className="preview-brand">Vendeo <span style={{color:'#7f9a84',fontWeight:400}}>/ overview</span></span><span className="preview-dots"><i/><i/><i/></span></div>
-    <div className="preview-body"><div className="preview-side"><div className="active">Overview</div><div>Mes ventes</div><div>Produits</div><div>Conversations</div><div>Paramètres</div></div><div className="preview-main"><h3>Bonjour, Aïcha</h3><span className="preview-sub">Voici ce qui se passe dans ton business.</span><div className="preview-stats"><div className="preview-stat"><small>CA ce mois</small><strong>428 500 F</strong></div><div className="preview-stat"><small>Commandes</small><strong>86</strong></div><div className="preview-stat"><small>Panier moyen</small><strong>4 982 F</strong></div></div><div className="chart"><i className="bar" style={{height:'32%'}}/><i className="bar" style={{height:'45%'}}/><i className="bar" style={{height:'38%'}}/><i className="bar" style={{height:'67%'}}/><i className="bar" style={{height:'55%'}}/><i className="bar" style={{height:'83%'}}/><i className="bar" style={{height:'72%'}}/><i className="bar" style={{height:'94%'}}/></div><div className="preview-chat"><b><Sparkles size={10} style={{verticalAlign:'-2px'}}/> Ton analyste IA</b> Ton ebook "Vendre sur TikTok" génère 62% de tes ventes. Voici 3 idées pour capitaliser...</div></div></div>
+    <Image className="platform-preview-image" src="/vendeo-platform-preview.png" alt="Aperçu de la plateforme Vendeo" width={900} height={620} priority />
   </div>;
 }
 
