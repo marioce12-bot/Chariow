@@ -128,6 +128,29 @@ export function Dashboard() {
           )}
         </section>
       </div>
+
+      <nav className="mobile-nav" aria-label="Navigation mobile">
+        <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
+          <LayoutDashboard size={18} />
+          <span>Accueil</span>
+        </button>
+        <button type="button" className={`nav-btn ${active === "Mon analyste IA" ? "active" : ""}`} onClick={() => setActive("Mon analyste IA")}>
+          <MessageSquare size={18} />
+          <span>IA</span>
+        </button>
+        <button type="button" className={`nav-btn ${active === "Mes boutiques" ? "active" : ""}`} onClick={() => setActive("Mes boutiques")}>
+          <Store size={18} />
+          <span>Boutiques</span>
+        </button>
+        <button type="button" className={`nav-btn ${active === "Rapports" ? "active" : ""}`} onClick={() => setActive("Rapports")}>
+          <BarChart3 size={18} />
+          <span>Rapports</span>
+        </button>
+        <button type="button" className={`nav-btn ${active === "Abonnement" ? "active" : ""}`} onClick={() => setActive("Abonnement")}>
+          <CreditCard size={18} />
+          <span>Plan</span>
+        </button>
+      </nav>
     </main>
   );
 }
