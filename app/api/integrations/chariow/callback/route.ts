@@ -37,7 +37,13 @@ export async function GET(request: Request) {
     .eq("state", state)
     .maybeSingle();
 
-  if (attemptErr || !attempt?.store_id) {
+  const storeId = attempt?.store_id ? String(attempt.store_id) : null;
+
+  if (attemptErr || !storeId) {
+    return NextResponse.redirect("/dashboard?chariow=failed");
+  }
+
+  if (!attempt) {
     return NextResponse.redirect("/dashboard?chariow=failed");
   }
 
@@ -52,7 +58,7 @@ export async function GET(request: Request) {
         connection_error: "La demande de connexion a expiré. Recommence la connexion.",
         last_verified_at: now.toISOString(),
       })
-      .eq("id", attempt.store_id)
+      .eq("id", storeId)
       .eq("user_id", user.id);
     await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
     return NextResponse.redirect("/dashboard?chariow=failed");
@@ -66,7 +72,7 @@ export async function GET(request: Request) {
     await supabase
       .from("stores")
       .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
-      .eq("id", attempt.store_id)
+      .eq("id", storeId)
       .eq("user_id", user.id);
     return NextResponse.redirect("/dashboard?chariow=failed");
   }
@@ -75,7 +81,7 @@ export async function GET(request: Request) {
     await supabase
       .from("stores")
       .update({ connection_status: "failed", connection_error: "Connexion Chariow incomplète", last_verified_at: now.toISOString() })
-      .eq("id", attempt.store_id)
+      .eq("id", storeId)
       .eq("user_id", user.id);
     return NextResponse.redirect("/dashboard?chariow=failed");
   }
@@ -103,7 +109,7 @@ export async function GET(request: Request) {
       await supabase
         .from("stores")
         .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
-        .eq("id", attempt.store_id)
+        .eq("id", storeId)
         .eq("user_id", user.id);
       return NextResponse.redirect("/dashboard?chariow=failed");
     }
@@ -113,7 +119,7 @@ export async function GET(request: Request) {
       await supabase
         .from("stores")
         .update({ connection_status: "failed", connection_error: "Réponse OAuth invalide", last_verified_at: now.toISOString() })
-        .eq("id", attempt.store_id)
+        .eq("id", storeId)
         .eq("user_id", user.id);
       return NextResponse.redirect("/dashboard?chariow=failed");
     }
@@ -162,18 +168,20 @@ export async function GET(request: Request) {
       await supabase
         .from("stores")
         .update({ connection_status: "failed", connection_error: "Impossible de sauvegarder la connexion", last_verified_at: now.toISOString() })
-        .eq("id", attempt.store_id)
+        .eq("id", storeId)
         .eq("user_id", user.id);
     }
 
     return NextResponse.redirect("/dashboard?chariow=connected");
   } catch (e) {
     const message = e instanceof Error ? sanitizeErrorMessage(e.message) : "Connexion Chariow impossible";
-    await supabase
-      .from("stores")
-      .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
-      .eq("id", attempt.store_id)
-      .eq("user_id", user.id);
+    if (storeId) {
+      await supabase
+        .from("stores")
+        .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
+        .eq("id", storeId)
+        .eq("user_id", user.id);
+    }
     return NextResponse.redirect("/dashboard?chariow=failed");
   }
 }
