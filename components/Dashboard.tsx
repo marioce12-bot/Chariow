@@ -195,80 +195,123 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
   const used = subscription?.messages_used_this_month ?? 0;
   const limit = subscription?.messages_limit ?? 400;
   const percent = freeUsed < freeLimit ? Math.round((freeUsed / freeLimit) * 100) : Math.min(100, Math.round((used / limit) * 100));
-  const analyticsText = analytics ? JSON.stringify(analytics) : "";
-  const revenue = analyticsText.match(/(?:revenue|total_revenue|amount)[^\d]{0,20}(\d[\d ,.]*)/i)?.[1] ?? "—";
+
+  const storeStatus = stores?.[0]?.connection_status ?? "pending";
+
+  const storeAnalytics = (analytics as any)?.storeAnalytics ?? (analytics as any)?.salesAnalytics ?? null;
+  const periodFrom = storeAnalytics?.period?.from;
+  const periodTo = storeAnalytics?.period?.to;
+
+  const monthNames = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+  const formatFrenchDate = (d: string) => {
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return d;
+    const day = dt.getDate();
+    const month = monthNames[dt.getMonth()] ?? "";
+    const year = dt.getFullYear();
+    return `${day} ${month} ${year}`;
+  };
+  const periodLabel = periodFrom && periodTo ? `${formatFrenchDate(periodFrom)} – ${formatFrenchDate(periodTo)}` : "";
+
+  const catalogueCount = Array.isArray((analytics as any)?.products) ? (analytics as any)?.products.length : 0;
+  const salesCount = storeAnalytics?.sales?.count ?? 0;
+  const salesValueFormatted = storeAnalytics?.sales?.value?.formatted ?? "—";
+  const productsSold = storeAnalytics?.products?.sold ?? 0;
+  const visitsTotal = storeAnalytics?.visits?.total ?? 0;
+  const conversionFormatted = storeAnalytics?.visits?.conversion_rate?.formatted ?? "—";
+  const customersTotal = storeAnalytics?.customers?.total ?? 0;
+
+  const connectionCopy: Record<string, string> = {
+    connected: "✅ Boutique Chariow connectée",
+    pending: "Connexion à Chariow en cours…",
+    failed: "❌ Impossible de connecter la boutique. Réessaie.",
+    expired: "⚠️ La connexion Chariow a expiré. Reconnecte ta boutique.",
+    revoked: "Boutique déconnectée",
+  };
 
   return (
     <>
       <div className="page-top">
         <div>
-          <span className="eyebrow">Ton espace Vendeo</span>
           <h1>Vue d'ensemble</h1>
-          <p>Voici ce qui se passe dans ton business ce mois-ci.</p>
+          <p>{periodLabel ? `Période analysée : ${periodLabel}` : "Période analysée : —"}</p>
         </div>
         <button className="btn btn-dark" onClick={() => document.querySelector<HTMLButtonElement>(".side-link:nth-of-type(4)")?.click()}>
-          <Plus size={16} /> Connecter une boutique
+          <Plus size={16} /> Boutique
         </button>
       </div>
-      <div className="overview-grid">
-        <div className="metric">
-          <small>CA ce mois</small>
-          <strong>{revenue}</strong>
-          <span className="up">Données Chariow</span>
-        </div>
-        <div className="metric">
-          <small>Produits</small>
-          <strong>{Array.isArray(analytics?.products) ? analytics.products.length : "—"}</strong>
-          <span className="up">Catalogue connecté</span>
-        </div>
-        <div className="metric">
-          <small>Analytics</small>
-          <strong>{analytics ? "Actifs" : "—"}</strong>
-          <span className="up">Synchronisation MCP</span>
-        </div>
-        <div className="metric">
-          <small>Boutiques actives</small>
-          <strong>{stores.length}</strong>
-          <span className="up">{stores.length ? "Connexion active" : "Aucune connexion"}</span>
+
+      <div style={{ marginBottom: 18 }}>
+        <div className="app-card">
+          <div style={{ fontWeight: 800, color: "#234d3d" }}>
+            {stores.length === 0 ? "Connecte ta boutique Chariow pour voir tes statistiques." : (connectionCopy[storeStatus] ?? "Connecte ta boutique Chariow pour voir tes statistiques.")}
+          </div>
         </div>
       </div>
-      <div className="content-grid">
-        <div className="app-card">
-          <div className="card-head">
-            <div>
-              <h2>Evolution du chiffre d'affaires</h2>
-              <p>{analytics ? "Analytics Chariow du mois en cours" : "Les données apparaîtront après la connexion MCP"}</p>
-            </div>
-          </div>
-          {analytics ? (
-            <pre className="analytics-preview">{JSON.stringify(analytics.storeAnalytics ?? analytics.salesAnalytics, null, 2).slice(0, 1800)}</pre>
-          ) : (
-            <div className="empty-state">Connecte ta boutique pour visualiser tes ventes réelles.</div>
-          )}
+
+      {stores.length === 0 || storeStatus !== "connected" ? (
+        <div className="empty-state" style={{ marginTop: 10 }}>
+          {stores.length === 0
+            ? "Connecte ta boutique Chariow pour voir tes statistiques."
+            : connectionCopy[storeStatus] ?? "Connecte ta boutique Chariow pour voir tes statistiques."}
         </div>
+      ) : (
+        <>
+          {!analytics ? (
+            <div className="empty-state" style={{ marginTop: 10 }}>
+              Les statistiques de ta boutique ne sont pas encore disponibles. Réessaie plus tard.
+            </div>
+          ) : catalogueCount === 0 ? (
+            <div className="empty-state" style={{ marginTop: 10 }}>
+              Aucun produit trouvé dans ta boutique.
+            </div>
+          ) : salesCount === 0 ? (
+            <div className="empty-state" style={{ marginTop: 10 }}>
+              Aucune vente enregistrée pour cette période.
+            </div>
+          ) : (
+            <div className="overview-grid">
+              <div className="metric">
+                <small>Chiffre d’affaires</small>
+                <strong>{salesValueFormatted}</strong>
+              </div>
+              <div className="metric">
+                <small>Ventes réalisées</small>
+                <strong>{salesCount}</strong>
+              </div>
+              <div className="metric">
+                <small>Produits du catalogue</small>
+                <strong>{catalogueCount}</strong>
+              </div>
+              <div className="metric">
+                <small>Produits vendus ce mois</small>
+                <strong>{productsSold}</strong>
+              </div>
+              <div className="metric">
+                <small>Visites de la boutique</small>
+                <strong>{visitsTotal}</strong>
+              </div>
+              <div className="metric">
+                <small>Taux de conversion</small>
+                <strong>{conversionFormatted}</strong>
+              </div>
+              <div className="metric">
+                <small>Clients</small>
+                <strong>{customersTotal}</strong>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      <div style={{ marginTop: 18 }}>
         <div className="app-card">
           <div className="card-head">
             <div>
-              <h2>Tes boutiques</h2>
-              <p>{stores.length} connexion(s) active(s)</p>
+              <h2>Votre suivi Vendeo</h2>
+              <p>Votre progression d’utilisation cette période.</p>
             </div>
           </div>
-          {stores.length ? (
-            stores.map((store) => (
-              <div className="store-row" key={store.id}>
-                <div className="store-logo">{store.platform.slice(0, 1).toUpperCase()}</div>
-                <div className="store-info">
-                  <strong>{store.store_name}</strong>
-                  <span>
-                    {store.platform} · {store.connection_status ?? "pending"}
-                  </span>
-                </div>
-                <span className="status">● {store.connection_status ?? "pending"}</span>
-              </div>
-            ))
-          ) : (
-            <div className="empty-state compact">Aucune boutique connectée.</div>
-          )}
           <div style={{ borderTop: "1px solid #dfe5de", paddingTop: 18, marginTop: 15 }}>
             <div className="eyebrow" style={{ fontSize: 9 }}>
               {freeUsed < freeLimit ? "Essai gratuit Vendeo" : "Usage IA ce mois"}
@@ -286,7 +329,9 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
               <i style={{ width: `${percent}%` }} />
             </div>
             <p style={{ color: "#809087", fontSize: 10 }}>
-              {freeUsed < freeLimit ? `Il te reste ${freeLimit - freeUsed} requêtes gratuites.` : `Il te reste ${Math.max(0, limit - used)} messages ce mois-ci.`}
+              {freeUsed < freeLimit
+                ? `Il te reste ${freeLimit - freeUsed} requêtes gratuites.`
+                : `Il te reste ${Math.max(0, limit - used)} messages ce mois-ci.`}
             </p>
           </div>
         </div>
