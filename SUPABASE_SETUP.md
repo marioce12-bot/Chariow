@@ -55,6 +55,7 @@ Routes disponibles :
 - `/dashboard` : espace protégé
 - `/api/stores` : lister et ajouter une boutique
 - `/api/stores/:id` : désactiver une boutique
+- `/api/stores/:id/test` : tester la connexion MCP Chariow
 - `/api/chat` : historique et messages avec quota
 - `/api/subscription` : consulter et changer de plan
 
@@ -97,3 +98,21 @@ Après toute modification dans Vercel, redéploie l’application pour charger l
 ## 6. Limites actuelles
 
 La route `/api/chat` persiste les messages, applique les 3 requêtes gratuites puis le quota du plan, et appelle Imole avec GPT-5.6 Luna. Les offres sont indiquées après consommation des 3 essais. Les données commerciales Chariow doivent encore être ajoutées dans le connecteur MCP pour fournir à l’IA des ventes et produits réels.
+
+## Client MCP Chariow
+
+Vendeo utilise le serveur MCP officiel :
+
+```text
+https://mcp.chariow.com/public
+```
+
+Le client serveur envoie les requêtes JSON-RPC avec le bearer token obtenu après l’autorisation Chariow et accepte les réponses JSON ou SSE. Les fonctions d’analyse utilisent les outils en lecture seule : `get_store`, `list_products`, `get_sales_analytics` et `get_store_analytics`.
+
+Le test d’une connexion existante se fait avec :
+
+```text
+POST /api/stores/:id/test
+```
+
+Les tokens ne sont jamais envoyés au navigateur ni au modèle IA.

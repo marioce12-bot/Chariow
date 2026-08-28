@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askImole } from "@/lib/ai/imole";
+import { getChariowSnapshot, serializeChariowContext } from "@/lib/chariow/analytics";
 
 const VENDEO_SYSTEM_PROMPT = `Tu es l'analyste business de Vendeo pour les créateurs de produits digitaux francophones.
 
@@ -32,9 +33,14 @@ export async function POST(request: Request) {
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!message || message.length > 20000) return NextResponse.json({ error: "Le message doit contenir entre 1 et 20 000 caractères" }, { status: 400 });
   const storeId = body?.store_id || null;
+  let selectedStore: { id: string; mcp_url: string | null; access_token_encrypted: string | null; store_name: string } | null = null;
   if (storeId) {
-    const { data: store } = await supabase.from("stores").select("id").eq("id", storeId).eq("user_id", user.id).eq("is_active", true).maybeSingle();
+    const { data: store } = await supabase.from("stores").select("id, mcp_url, access_token_encrypted, store_name").eq("id", storeId).eq("user_id", user.id).eq("is_active", true).maybeSingle();
     if (!store) return NextResponse.json({ error: "Boutique introuvable" }, { status: 404 });
+    selectedStore = store;
+  } else {
+    const { data: store } = await supabase.from("stores").select("id, mcp_url, access_token_encrypted, store_name").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle();
+    selectedStore = store;
   }
   const { data: quota, error: quotaError } = await supabase.rpc("consume_message_quota", { target_user_id: user.id });
   if (quotaError) return NextResponse.json({ error: quotaError.message }, { status: 500 });
@@ -42,7 +48,16 @@ export async function POST(request: Request) {
   const { error: insertError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "user", content: message });
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
   const { data: history } = await supabase.from("messages").select("role, content").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20);
-  const context = storeId ? `Boutique sélectionnée : ${storeId}. Les données commerciales détaillées de Chariow seront ajoutées dans le connecteur MCP.` : "Aucune boutique n'est encore sélectionnée. Demande à l'utilisateur de connecter une boutique pour analyser des données réelles.";
+  let context = "Aucune boutique n'est encore sélectionnée.";
+  if (selectedStore) {
+    try {
+      const snapshot = await getChariowSnapshot(selectedStore);
+      context = `Données réelles de la boutique ${selectedStore.store_name} pour la période du mois en cours :\n${serializeChariowContext(snapshot)}`;
+    } catch (error) {
+      console.error("Chariow MCP error", error instanceof Error ? error.message : error);
+      context = `La boutique ${selectedStore.store_name} est connectée mais ses données MCP sont momentanément indisponibles. Ne fabrique aucun chiffre.`;
+    }
+  }
   let answer: string;
   try {
     answer = await askImole([
