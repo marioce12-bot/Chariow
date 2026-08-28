@@ -11,7 +11,10 @@ export async function GET(request: Request) {
   if (!clientId || !redirectUri) return NextResponse.json({ error: "Meta Ads OAuth n'est pas configuré" }, { status: 500 });
   const state = crypto.randomBytes(32).toString("hex");
   const { error } = await supabase.from("meta_oauth_states").insert({ user_id: user.id, state_hash: encryptSecret(state), expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() });
-  if (error) return NextResponse.json({ error: "Impossible de préparer la connexion Meta Ads" }, { status: 500 });
+  if (error) {
+    console.error("Meta OAuth state insert failed", { code: error.code, message: error.message, details: error.details, hint: error.hint });
+    return NextResponse.json({ error: "Impossible de préparer la connexion Meta Ads" }, { status: 500 });
+  }
   const version = process.env.META_GRAPH_VERSION ?? "v23.0";
   const url = new URL(`https://www.facebook.com/${version}/dialog/oauth`);
   url.searchParams.set("client_id", clientId);

@@ -9,6 +9,21 @@ create table public.meta_oauth_states (
 create index meta_oauth_states_user_idx on public.meta_oauth_states(user_id, expires_at);
 alter table public.meta_oauth_states enable row level security;
 
+create policy "Users can create their Meta OAuth states"
+on public.meta_oauth_states
+for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can read their Meta OAuth states"
+on public.meta_oauth_states
+for select
+using (auth.uid() = user_id);
+
+create policy "Users can delete their Meta OAuth states"
+on public.meta_oauth_states
+for delete
+using (auth.uid() = user_id);
+
 create table public.meta_integrations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
