@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
+import { calculateProfitability, formatMoney, getProfitRecommendation, type ProfitabilityInputs, type ProfitabilityResult, type ProfitScenario } from "@/lib/profitability";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 
@@ -60,6 +61,7 @@ export function Dashboard() {
   const links = [
     ["Vue d’ensemble", LayoutDashboard],
     ["Vendeo AI", MessageSquare],
+    ["Assistant de profit", WalletCards],
     ["Mes boutiques", Store],
     ["Rapports", BarChart3],
     ["Abonnement", CreditCard],
@@ -172,6 +174,8 @@ export function Dashboard() {
             <StoreOnboarding />
           ) : active === "Vendeo AI" ? (
             <ChatView onGoToSubscription={() => setActive("Abonnement")} />
+          ) : active === "Assistant de profit" ? (
+            <ProfitAssistant analytics={analytics} />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} onStoresChange={setStores} />
           ) : active === "Abonnement" ? (
@@ -198,6 +202,10 @@ export function Dashboard() {
          <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
            <MessageSquare size={18} />
            <span>IA</span>
+         </button>
+         <button type="button" className={`nav-btn ${active === "Assistant de profit" ? "active" : ""}`} onClick={() => setActive("Assistant de profit")}>
+           <WalletCards size={18} />
+           <span>Profit</span>
          </button>
         <button type="button" className={`nav-btn ${active === "Mes boutiques" ? "active" : ""}`} onClick={() => setActive("Mes boutiques")}>
           <Store size={18} />
@@ -681,6 +689,98 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
       <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s’est passé</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La période est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi c’est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion n’est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action</small><strong>{getRecommendation(analytics).title}</strong></div></div></div>
     </>}
   </>;
+}
+
+function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
+  const product = analytics?.products?.[0];
+  const price = product?.price === null || product?.price === undefined ? 0 : Number(product.price) || 0;
+  const [inputs, setInputs] = useState<ProfitabilityInputs>({
+    price,
+    productCost: 0,
+    platformFees: 0,
+    otherVariableCosts: 0,
+    adSpend: 50000,
+    conversionRate: 0.03,
+    refundRate: 0,
+  });
+  const [result, setResult] = useState<ProfitabilityResult>(() => calculateProfitability({ ...inputs, price }));
+  const [scenarios, setScenarios] = useState<ProfitScenario[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (price > 0) {
+      setInputs((current) => ({ ...current, price }));
+      setResult(calculateProfitability({ ...inputs, price }));
+    }
+    // The first synchronized product is the initial scenario anchor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [price]);
+
+  function update(key: keyof ProfitabilityInputs, value: string) {
+    const number = Number(value);
+    const normalized = key === "conversionRate" || key === "refundRate" ? number / 100 : number;
+    setInputs((current) => ({ ...current, [key]: Number.isFinite(normalized) ? normalized : 0 }));
+  }
+
+  async function runSimulation(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      const response = await fetch("/api/profitability", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ inputs }) });
+      const data = await response.json();
+      if (response.ok) {
+        setResult(data.result);
+        setScenarios(data.scenarios ?? []);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const recommendation = getProfitRecommendation(result);
+  const currency = product?.currency ?? "FCFA";
+  const field = (key: keyof ProfitabilityInputs, label: string, suffix = "") => (
+    <label className="profit-field" key={key}>
+      <span>{label}</span>
+      <div><input type="number" min="0" step="any" value={key === "conversionRate" || key === "refundRate" ? (inputs[key] as number) * 100 : inputs[key] as number} onChange={(event) => update(key, event.target.value)} />{suffix && <small>{suffix}</small>}</div>
+    </label>
+  );
+
+  return (
+    <>
+      <div className="page-top">
+        <div><span className="eyebrow">Copilote de rentabilité</span><h1>Assistant de profit</h1><p>Réponds à la question la plus importante : combien puis-je investir sans perdre d’argent ?</p></div>
+      </div>
+      <div className="profit-hero">
+        <div><span className="eyebrow">Lecture instantanée</span><h2>{recommendation.title}</h2><p>{recommendation.description}</p></div>
+        <div className={`profit-status ${recommendation.tone}`}><ShieldAlert size={18} /><strong>{result.status === "profitable" ? "Rentable" : result.status === "break_even" ? "Point mort" : "À corriger"}</strong></div>
+      </div>
+      <div className="profit-layout">
+        <form className="app-card profit-form" onSubmit={runSimulation}>
+          <div className="card-head"><div><span className="eyebrow">Paramètres</span><h2>Construis ton scénario</h2></div><Calculator size={18} color="#4c21f6" /></div>
+          {field("price", "Prix de vente", currency)}
+          {field("productCost", "Coût produit", currency)}
+          {field("platformFees", "Frais plateforme", currency)}
+          {field("otherVariableCosts", "Autres coûts variables", currency)}
+          {field("adSpend", "Budget publicitaire", currency)}
+          {field("conversionRate", "Taux de conversion", "%")}
+          {field("refundRate", "Taux de remboursement", "%")}
+          <p className="profit-help">Entre les taux sous forme décimale : 3% = 0,03.</p>
+          <button className="btn btn-dark" disabled={saving} type="submit">{saving ? "Calcul…" : "Analyser la rentabilité"} <ArrowRight size={15} /></button>
+        </form>
+        <section className="profit-results">
+          <div className="profit-metric-grid">
+            <div className="vendeo-kpi"><small>Marge contributionnelle</small><strong>{formatMoney(result.contributionMargin, currency)}</strong></div>
+            <div className="vendeo-kpi"><small>CPA maximum acceptable</small><strong>{formatMoney(result.maxCpa, currency)}</strong></div>
+            <div className="vendeo-kpi"><small>ROAS break-even</small><strong>{result.breakEvenRoas === null ? "n/d" : `${result.breakEvenRoas.toFixed(2)}x`}</strong></div>
+            <div className="vendeo-kpi"><small>Profit estimé</small><strong className={result.expectedProfit < 0 ? "profit-negative" : ""}>{formatMoney(result.expectedProfit, currency)}</strong></div>
+          </div>
+          <div className="app-card profit-explanation"><div className="card-head"><div><span className="eyebrow">Décision</span><h2>Ce que tu dois faire</h2></div><Lightbulb size={18} color="#d28b3d" /></div><p>{recommendation.description}</p><div className="profit-equation"><span>Budget</span><strong>{formatMoney(inputs.adSpend, currency)}</strong><span>→</span><span>Ventes nécessaires</span><strong>{Math.ceil(result.expectedSales).toLocaleString("fr-FR")}</strong></div></div>
+          <div className="app-card"><div className="card-head"><div><span className="eyebrow">Simulation IA</span><h2>Trois niveaux de risque</h2></div><TrendingUp size={18} color="#103ef8" /></div><div className="scenario-grid">{scenarios.length ? scenarios.map((scenario) => <div className={`scenario-card ${scenario.name}`} key={scenario.name}><strong>{scenario.name}</strong><span>{formatMoney(scenario.expectedProfit, currency)} de profit</span><small>{Math.round(scenario.expectedSales)} vente{Math.round(scenario.expectedSales) > 1 ? "s" : ""} · {formatMoney(scenario.assumptions.budget, currency)} de budget</small></div>) : <p className="profit-help">Lance une simulation pour comparer les scénarios conservateur, central et agressif.</p>}</div></div>
+        </section>
+      </div>
+    </>
+  );
 }
 
 function ReportStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {

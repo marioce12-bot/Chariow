@@ -451,6 +451,32 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .side-usage-label { font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#64748b; margin-bottom:6px; }
 .side-usage-value { font-size:12px; font-weight:900; color:#103ef8; }
 
+/* Profit assistant */
+.profit-hero { align-items:center; background:linear-gradient(135deg,#000c2e,#4c21f6 62%,#029bfc); border-radius:16px; color:white; display:flex; gap:20px; justify-content:space-between; margin-bottom:16px; padding:24px; }
+.profit-hero h2 { font-size:23px; letter-spacing:-.04em; margin:8px 0 5px; }
+.profit-hero p { color:#dbeafe; font-size:12px; line-height:1.6; margin:0; max-width:620px; }
+.profit-status { align-items:center; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.2); border-radius:999px; display:flex; flex:none; gap:8px; padding:10px 13px; }
+.profit-status.positive { color:#d9f99d; }.profit-status.warning { color:#fde68a; }.profit-status.danger { color:#fecaca; }
+.profit-layout { display:grid; gap:16px; grid-template-columns:280px minmax(0,1fr); }
+.profit-form { align-self:start; display:grid; gap:11px; }
+.profit-form .card-head { margin-bottom:4px; }
+.profit-field { color:var(--muted); display:flex; flex-direction:column; font-size:10px; gap:5px; }
+.profit-field div { align-items:center; background:#f8faff; border:1px solid var(--line); border-radius:7px; display:flex; overflow:hidden; }
+.profit-field input { background:transparent; border:0; color:var(--ink); min-width:0; outline:0; padding:9px 10px; width:100%; }
+.profit-field small { color:#8290a7; font-size:10px; padding-right:9px; }
+.profit-help { color:var(--muted); font-size:10px; line-height:1.5; margin:0; }
+.profit-results { display:grid; gap:16px; min-width:0; }
+.profit-metric-grid { display:grid; gap:10px; grid-template-columns:repeat(4,1fr); }
+.profit-negative { color:#c2414b !important; }
+.profit-explanation p { color:var(--muted); font-size:12px; line-height:1.7; margin:0 0 15px; }
+.profit-equation { align-items:center; background:#f5f7ff; border:1px solid var(--line); border-radius:9px; color:var(--muted); display:flex; flex-wrap:wrap; font-size:11px; gap:10px; padding:12px; }
+.profit-equation strong { color:var(--ink); }
+.scenario-grid { display:grid; gap:10px; grid-template-columns:repeat(3,1fr); }
+.scenario-card { background:#f8faff; border:1px solid var(--line); border-radius:10px; display:flex; flex-direction:column; gap:5px; padding:13px; }
+.scenario-card.central { background:linear-gradient(135deg,#ede9fe,#e0f2fe); border-color:#bfcdf3; }
+.scenario-card strong { color:#4c21f6; font-size:12px; text-transform:capitalize; }
+.scenario-card span { font-size:15px; font-weight:800; }.scenario-card small { color:var(--muted); font-size:10px; }
+
 .side-notice { margin-top:14px; padding:12px 12px; border-radius:12px; border:1px solid rgba(214,225,215,.75); background:linear-gradient(135deg,rgba(255,255,255,.8),rgba(219,234,254,.55)); color:var(--ink); position:relative; }
 .side-notice-close { position:absolute; right:10px; top:8px; background:transparent; border:0; color:var(--muted); font-size:18px; line-height:1; padding:0; }
 
@@ -460,4 +486,12 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
   .vendeo-kpi-grid { grid-template-columns:1fr 1fr; }
   .vendeo-product-row { grid-template-columns:1fr; }
   .vendeo-progress { grid-template-columns:1fr; }
+  .profit-layout { grid-template-columns:1fr; }
+  .profit-metric-grid { grid-template-columns:1fr 1fr; }
+}
+
+@media (max-width: 600px) {
+  .profit-hero { align-items:flex-start; flex-direction:column; }
+  .profit-status { align-self:flex-start; }
+  .scenario-grid { grid-template-columns:1fr; }
 }
