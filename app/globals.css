@@ -216,3 +216,35 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 
 @media (max-width:800px) { .nav-links { display:none; } .hero { padding-top:125px; } .hero-grid,.feature-grid,.content-grid { grid-template-columns:1fr; } .dashboard-preview { margin-top:10px; transform:none; } .how-grid { grid-template-columns:repeat(2,1fr); } .pricing-wrap { grid-template-columns:1fr; } .section { padding:75px 0; } .section-head { display:block; } .section-head p { margin-top:20px; } .logos { flex-wrap:wrap; gap:16px; } .app-layout { grid-template-columns:1fr; } .sidebar { display:none; } .app-main { grid-column:1; padding:24px 18px; } .overview-grid { grid-template-columns:repeat(2,1fr); } .app-header { padding:0 18px; } .app-user > span:first-child { display:none; } .cta { padding:45px 22px; } }
 @media (max-width:480px) { .container { width:min(100% - 28px,1160px); } .hero-actions { flex-direction:column; } .hero-actions .btn { width:100%; } .how-grid { grid-template-columns:1fr; } .footer-row { align-items:start; flex-direction:column; gap:20px; } .footer-links { flex-wrap:wrap; } .overview-grid { gap:8px; } .metric { padding:12px; } .metric strong { font-size:21px; } .onboarding-card { padding:24px 18px; } .onboarding-card h1 { font-size:30px; } .mcp-steps { grid-template-columns:1fr; } }
+
+/* Vendeo identity */
+:root { --ink:#000c2e; --muted:#64748b; --paper:#f8faff; --line:#dce4f3; --green:#103ef8; --lime:#029bfc; --purple:#8f2afb; --blue:#4c21f6; --vendeo-gradient:linear-gradient(135deg,#8f2afb 0%,#103ef8 55%,#029bfc 100%); }
+.brand-logo { border-radius:9px; display:block; height:34px; object-fit:contain; width:34px; }
+.btn-dark,.btn-lime { background:var(--vendeo-gradient); color:white; box-shadow:0 8px 18px rgba(16,62,248,.22); }
+.btn-ghost { background:rgba(255,255,255,.62); border-color:var(--line); color:var(--ink); }
+.marketing-header { background:rgba(0,12,46,.58); border-bottom-color:rgba(255,255,255,.14); }
+.hero { background:linear-gradient(135deg,#000c2e 0%,#101b61 48%,#103ef8 100%); }
+.dashboard-preview { background:rgba(248,250,255,.9); box-shadow:0 28px 60px rgba(0,12,46,.34),0 0 0 1px rgba(255,255,255,.08) inset; }
+.bar { background:linear-gradient(180deg,#029bfc,#4c21f6); }
+.bar:nth-child(2n) { background:linear-gradient(180deg,#8f2afb,#103ef8); }
+.features-section { background:linear-gradient(135deg,#eef4ff,#f6f2ff); }
+.feature-card.dark { background:linear-gradient(135deg,#000c2e,#103ef8); }
+.feature-card.light { background:linear-gradient(135deg,#ede9fe,#e0f2fe); }
+.feature-line { background:var(--vendeo-gradient); }
+.pricing-wrap { background:rgba(255,255,255,.65); border-color:rgba(214,225,215,.85); box-shadow:0 18px 45px rgba(0,12,46,.07); }
+.price-card.pro { background:linear-gradient(135deg,#000c2e,#4c21f6); }
+.site-footer { background:#000c2e; }
+.app-shell { background:#f1f5ff; }
+.app-header { background:#000c2e; }
+.app-header .brand-name span { color:#93c5fd; }
+.sidebar { background:#eef3ff; border-right-color:var(--line); }
+.side-link.active,.side-link:hover { background:linear-gradient(135deg,#ede9fe,#dbeafe); color:#103ef8; }
+.ring { border-color:#dbeafe; border-left-color:#4c21f6; border-top-color:#029bfc; }
+.progress i { background:var(--vendeo-gradient); }
+.activity i { background:#029bfc; box-shadow:0 0 8px #029bfc; }
+.chat-bubble.user { background:var(--vendeo-gradient); }
+.chat-bubble.assistant { background:#eaf4ff; }
+.onboarding-icon { background:linear-gradient(135deg,#ede9fe,#e0f2fe); color:#4c21f6; }
+.auth-page { background:radial-gradient(circle at 20% 20%,#4c21f6,#000c2e 58%); }
+.form-group input:focus { border-color:#4c21f6; outline-color:#dbeafe; }
+.auth-foot a { color:#4c21f6; }
