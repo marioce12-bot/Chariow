@@ -1,0 +1,14 @@
+<svg width="640" height="172" viewBox="0 0 640 172" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Vendeo</title>
+  <desc id="desc">Logo Vendeo</desc>
+  <defs>
+    <linearGradient id="mark" x1="12" y1="12" x2="142" y2="148" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8F2AFB"/><stop offset=".55" stop-color="#103EF8"/><stop offset="1" stop-color="#029BFC"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#7DD3FC"/><stop offset="1" stop-color="#A7F3D0"/></linearGradient>
+  </defs>
+  <path d="M18 20C18 11.2 25.2 4 34 4H132c8.8 0 16 7.2 16 16v98c0 27.6-22.4 50-50 50H18V20Z" fill="url(#mark)"/>
+  <path d="m47 47 26 26 27-26M73 73v53" stroke="white" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="178" y="105" fill="white" font-family="Arial,Helvetica,sans-serif" font-size="78" font-weight="700" letter-spacing="-3">Vendeo</text>
+  <text x="510" y="105" fill="url(#accent)" font-family="Arial,Helvetica,sans-serif" font-size="31" letter-spacing="1">/ studio</text>
+</svg>
