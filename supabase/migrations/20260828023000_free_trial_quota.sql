@@ -33,3 +33,5 @@ end;
 $$;
 
 revoke all on function public.consume_message_quota(uuid) from public, anon, authenticated;
+grant execute on function public.reset_subscription_period_if_needed(uuid) to authenticated;
+grant execute on function public.consume_message_quota(uuid) to authenticated;

@@ -70,10 +70,7 @@ button { cursor:pointer; }
 .logos { border-bottom:1px solid var(--line); border-top:1px solid var(--line); display:flex; justify-content:space-between; padding:24px 0; color:#829088; font-size:12px; font-weight:700; letter-spacing:.04em; }
 .platform-logo { align-items:center; display:inline-flex; gap:7px; }
 .platform-logo small { color:#a0aaa4; font-size:9px; font-weight:400; letter-spacing:0; }
-.platform-mark { align-items:center; border-radius:7px; color:white; display:inline-flex; font-size:13px; height:26px; justify-content:center; letter-spacing:0; width:26px; }
-.chariow-mark { background:linear-gradient(135deg,#ff7b35,#f04444); }
-.selar-mark { background:#101828; }
-.gumroad-mark { background:#ff90a8; }
+.platform-logo img { display:block; height:32px; object-fit:contain; width:auto; }
 .glass-strip { background:rgba(255,255,255,.4); border:1px solid rgba(214,225,215,.7); border-radius:12px; margin-top:-1px; padding:19px 22px; backdrop-filter:blur(12px); }
 .how-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
 .step-card { background:rgba(255,255,255,.48); border:1px solid rgba(214,225,215,.82); border-radius:14px; min-height:220px; padding:22px; position:relative; transition:.25s ease; }
