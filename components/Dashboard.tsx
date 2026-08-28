@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
@@ -245,6 +245,7 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
   const visitsTotal = analytics?.kpis.visits ?? 0;
   const conversionFormatted = analytics?.kpis.conversionRate ?? "0 %";
   const customersTotal = analytics?.kpis.customers ?? 0;
+  const health = getStoreHealth(analytics);
 
   const connectionCopy: Record<string, string> = {
     connected: "✅ Boutique Chariow connectée",
@@ -325,6 +326,7 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
               {visitsTotal === 0 && <p style={{ margin: "8px 0 0", color: "#607268", fontSize: 12 }}>Aucune visite enregistrée pour cette période.</p>}
             </div>
             <ProductCatalog products={analytics.products} />
+            <BusinessSignals analytics={analytics} health={health} />
             </>
           )}
         </>
@@ -366,6 +368,62 @@ function Overview({ stores, subscription, analytics }: { stores: StoreData[]; su
   );
 }
 
+function BusinessSignals({ analytics, health }: { analytics: AnalyticsData; health: StoreHealth }) {
+  if (!analytics) return null;
+  const { kpis, products } = analytics;
+  const alerts = getBusinessAlerts(analytics);
+  const recommendation = getRecommendation(analytics);
+  return <div className="business-signals">
+    <div className="signal-health app-card">
+      <div className="card-head"><div><span className="eyebrow">Lecture Vendeo</span><h2>Score de santé</h2></div><Activity size={18} color="#34684d" /></div>
+      <div className="health-score"><strong>{health.score}</strong><span>/ 100</span></div>
+      <p>{health.label}</p>
+      <div className="health-progress"><i style={{ width: `${health.score}%` }} /></div>
+      <small>{health.details}</small>
+    </div>
+    <div className="signal-alerts app-card">
+      <div className="card-head"><div><span className="eyebrow">À surveiller</span><h2>Signaux utiles</h2></div><AlertTriangle size={18} color="#d28b3d" /></div>
+      {alerts.length ? <div className="signal-list">{alerts.map((alert) => <div className={`signal-item ${alert.tone}`} key={alert.title}><span>{alert.icon}</span><div><strong>{alert.title}</strong><p>{alert.description}</p></div></div>)}</div> : <div className="signal-item positive"><span><TrendingUp size={15} /></span><div><strong>Tout est stable</strong><p>Aucun signal critique n’a été détecté sur cette période.</p></div></div>}
+    </div>
+    <div className="signal-action app-card"><div className="card-head"><div><span className="eyebrow">Prochaine action</span><h2>Ton meilleur levier</h2></div><Target size={18} color="#34684d" /></div><strong>{recommendation.title}</strong><p>{recommendation.description}</p><div className="signal-meta">{products.length} produit{products.length > 1 ? "s" : ""} · {kpis.sales} vente{kpis.sales > 1 ? "s" : ""} · {kpis.visits} visite{kpis.visits > 1 ? "s" : ""}</div></div>
+  </div>;
+}
+
+type StoreHealth = { score: number; label: string; details: string };
+
+function getStoreHealth(analytics: AnalyticsData): StoreHealth {
+  if (!analytics) return { score: 0, label: "Données indisponibles", details: "Reconnecte ta boutique pour recalculer le score." };
+  const { kpis, products } = analytics;
+  let score = 35;
+  if (products.length > 0) score += 20;
+  if (kpis.visits > 0) score += 15;
+  if (kpis.sales > 0) score += 20;
+  if (kpis.customers > 0) score += 5;
+  if (kpis.conversionRate !== "0 %") score += 5;
+  const bounded = Math.min(score, 100);
+  return { score: bounded, label: bounded >= 75 ? "Ta boutique est en bonne dynamique." : bounded >= 50 ? "Ta boutique a une base solide à développer." : "Ta priorité est de générer du trafic et des premières ventes.", details: `${products.length} produit${products.length > 1 ? "s" : ""} au catalogue, ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} et ${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} sur la période.` };
+}
+
+function getBusinessAlerts(analytics: AnalyticsData) {
+  if (!analytics) return [];
+  const { kpis, products } = analytics;
+  const alerts: { title: string; description: string; tone: string; icon: React.ReactNode }[] = [];
+  if (!products.length) alerts.push({ title: "Ton catalogue est vide", description: "Ajoute un produit pour commencer à mesurer ta boutique.", tone: "warning", icon: <Package size={15} /> });
+  if (kpis.visits > 0 && kpis.sales === 0) alerts.push({ title: "Trafic sans vente", description: "Tes visiteurs ne convertissent pas encore. Travaille l’offre ou la page de vente.", tone: "warning", icon: <Eye size={15} /> });
+  if (kpis.visits === 0) alerts.push({ title: "Aucune visite enregistrée", description: "Partage ta boutique auprès d’une audience ciblée pour créer tes premiers signaux.", tone: "neutral", icon: <Eye size={15} /> });
+  if (kpis.sales === 0 && kpis.customers === 0) alerts.push({ title: "Pas encore de clients", description: "Commence par promouvoir ton produit principal avec un message clair et une offre simple.", tone: "neutral", icon: <Users size={15} /> });
+  return alerts.slice(0, 3);
+}
+
+function getRecommendation(analytics: AnalyticsData) {
+  if (!analytics) return { title: "Reconnecter ta boutique", description: "Les données sont nécessaires pour proposer une action utile." };
+  const { kpis, products } = analytics;
+  if (!products.length) return { title: "Ajouter ton premier produit", description: "Sans produit dans le catalogue, Vendeo ne peut pas identifier ton meilleur levier commercial." };
+  if (kpis.visits === 0) return { title: "Créer du trafic qualifié", description: "Partage ton produit auprès d’une audience précise et suis les visites sur la prochaine période." };
+  if (kpis.sales === 0) return { title: "Améliorer la conversion", description: "Tes prochaines actions doivent rassurer les visiteurs : bénéfice clair, preuve sociale et appel à l’action visible." };
+  return { title: "Capitaliser sur tes ventes", description: "Analyse ton produit principal et teste une offre complémentaire pour augmenter la valeur de chaque client." };
+}
+
 function ProductCatalog({ products }: { products: ProductData[] }) {
   return (
     <div className="app-card" style={{ marginTop: 18 }}>
@@ -402,6 +460,7 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
         <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Inventaire et performance</span><h2>Détail des produits</h2></div><strong>{analytics.products.length} produit{analytics.products.length > 1 ? "s" : ""}</strong></div>{analytics.products.length === 0 ? <p className="report-muted">Aucun produit trouvé dans ton catalogue.</p> : <div className="report-table"><div className="report-table-head"><span>Produit</span><span>Statut</span><span>Ventes</span></div>{analytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseigné"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
         <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Lecture rapide</span><h2>À retenir</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="report-insight"><strong>{kpis.sales === 0 ? "Pas encore de ventes" : "Ton activité commerciale"}</strong><p>{kpis.sales === 0 ? "Teste un partage ciblé de ton produit et observe les visites sur la prochaine période." : "Compare cette période à la précédente pour identifier les produits qui tirent ta croissance."}</p></div><div className="report-insight"><strong>{kpis.visits === 0 ? "Aucune visite enregistrée" : `${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} observée${kpis.visits > 1 ? "s" : ""}`}</strong><p>{kpis.visits === 0 ? "Ta prochaine priorité est d’amener du trafic vers ta boutique." : `Le taux de conversion actuel est de ${kpis.conversionRate}.`}</p></div></section>
       </div>
+      <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s’est passé</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La période est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi c’est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion n’est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action</small><strong>{getRecommendation(analytics).title}</strong></div></div></div>
     </>}
   </>;
 }
@@ -590,11 +649,6 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
         })}
         {stores.length === 0 && <div className="empty-state compact">Aucune boutique connectée.</div>}
 
-        <div style={{ border: "1px dashed #cdd9cd", borderRadius: 9, marginTop: 18, padding: 28, textAlign: "center" }}>
-          <Store size={24} color="#6d9072" />
-          <p style={{ fontSize: 13, margin: "10px 0 3px" }}>Le parcours est 100% OAuth + PKCE.</p>
-          <span style={{ color: "#819087", fontSize: 11 }}>Vous connectez une boutique sans URL/token.</span>
-        </div>
       </div>
     </>
   );

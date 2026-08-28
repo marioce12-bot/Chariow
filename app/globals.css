@@ -205,6 +205,27 @@ button { cursor:pointer; }
 .report-insight { border-top:1px solid var(--line); padding:15px 0 2px; }
 .report-insight strong { font-size:12px; }
 .report-insight p { color:var(--muted); font-size:11px; line-height:1.6; margin:6px 0 0; }
+.business-signals { display:grid; gap:16px; grid-template-columns:repeat(3,1fr); margin-top:18px; }
+.business-signals .app-card { min-width:0; }
+.health-score { align-items:baseline; display:flex; gap:5px; margin:5px 0; }
+.health-score strong { color:var(--green); font-size:42px; letter-spacing:-.08em; }
+.health-score span { color:var(--muted); font-size:12px; }
+.signal-health > p,.signal-action > p { color:var(--muted); font-size:11px; line-height:1.6; margin:0 0 14px; }
+.signal-health > small { color:var(--muted); display:block; font-size:10px; line-height:1.5; margin-top:9px; }
+.health-progress { background:#e4ebe3; border-radius:99px; height:7px; overflow:hidden; }
+.health-progress i { background:linear-gradient(90deg,#d28b3d,#34684d); display:block; height:100%; }
+.signal-list { display:grid; gap:12px; }
+.signal-item { align-items:flex-start; display:flex; gap:9px; }
+.signal-item > span { align-items:center; background:#f1f6ec; border-radius:7px; color:var(--green); display:flex; flex:none; height:28px; justify-content:center; width:28px; }
+.signal-item.warning > span { background:#fff3e1; color:#b96f20; }
+.signal-item strong,.signal-action > strong { display:block; font-size:12px; }
+.signal-item p { color:var(--muted); font-size:10px; line-height:1.5; margin:4px 0 0; }
+.signal-meta { color:#8b9b90; font-size:10px; margin-top:14px; }
+.report-conclusion { margin-top:16px; }
+.conclusion-grid { display:grid; gap:12px; grid-template-columns:repeat(3,1fr); }
+.conclusion-grid div { background:#f5f8f2; border-radius:8px; padding:13px; }
+.conclusion-grid small { color:var(--muted); display:block; font-size:10px; margin-bottom:7px; }
+.conclusion-grid strong { display:block; font-size:12px; line-height:1.45; }
 .empty-state { align-items:center; border:1px dashed #cdd9cd; border-radius:9px; color:var(--muted); display:flex; flex-direction:column; font-size:13px; justify-content:center; min-height:190px; padding:24px; text-align:center; }
 .empty-state.compact { min-height:100px; }
 .chat-messages { display:flex; flex:1; flex-direction:column; gap:12px; margin-bottom:24px; max-height:370px; overflow-y:auto; padding-right:4px; }
@@ -277,6 +298,7 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 
 @media (max-width:800px) { .nav-links { display:none; } .hero { padding-top:125px; } .hero-grid,.feature-grid,.content-grid { grid-template-columns:1fr; } .dashboard-preview { margin-top:10px; transform:none; } .how-grid { grid-template-columns:repeat(2,1fr); } .pricing-wrap { grid-template-columns:1fr; } .section { padding:75px 0; } .section-head { display:block; } .section-head p { margin-top:20px; } .logos { flex-wrap:wrap; gap:16px; } .app-layout { grid-template-columns:1fr; } .sidebar { display:none; } .app-main { grid-column:1; } .overview-grid { grid-template-columns:repeat(2,1fr); } .app-header { padding:0 14px; } .cta { padding:45px 22px; } }
 @media (max-width:800px) { .report-filters,.report-filter-fields { align-items:stretch; flex-direction:column; } .report-filter-fields button { width:100%; } .report-summary,.report-columns { grid-template-columns:1fr; } .report-summary-side { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:800px) { .business-signals,.conclusion-grid { grid-template-columns:1fr; } }
 @media (max-width:480px) { .container { width:min(100% - 28px,1160px); } .hero-actions { flex-direction:column; } .hero-actions .btn { width:100%; } .how-grid { grid-template-columns:1fr; } .footer-row { align-items:start; flex-direction:column; gap:20px; } .footer-links { flex-wrap:wrap; } .overview-grid { gap:8px; } .metric { padding:12px; } .metric strong { font-size:21px; } .onboarding-card { padding:24px 18px; } .onboarding-card h1 { font-size:30px; } .mcp-steps { grid-template-columns:1fr; } .page-top .btn { font-size:10px; padding:9px 10px; } .mobile-nav .nav-btn span { font-size:9px; } }
 
 @media (max-width:800px) {
