@@ -24,6 +24,7 @@ button { cursor:pointer; }
 .marketing-header { position:fixed; z-index:1000; width:100%; color:white; background:rgba(15,42,31,.48); border-bottom:1px solid rgba(255,255,255,.12); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%); }
 .marketing-nav { animation:navIn .7s ease both; }
 .marketing-nav { align-items:center; display:flex; justify-content:space-between; padding:26px 0; }
+.marketing-actions { align-items:center; display:flex; gap:8px; }
 .brand { align-items:center; display:flex; gap:0; font-weight:700; letter-spacing:-.04em; }
 .brand-mark { background:var(--lime); border-radius:8px; color:var(--green); display:grid; height:26px; place-items:center; transform:rotate(-8deg); width:26px; font-size:15px; }
 .brand-name { font-size:17px; }
@@ -121,9 +122,6 @@ button { cursor:pointer; }
 
 /* App */
 .app-shell { background:#f1f4ef; min-height:100vh; }
-.pwa-splash { align-items:center; background:#000c2e; display:flex; inset:0; justify-content:center; position:fixed; z-index:3000; }
-.pwa-splash-video { height:100%; object-fit:contain; width:100%; }
-.pwa-splash-fallback { display:none; height:96px; position:absolute; width:96px; }
 .app-header { align-items:center; background:var(--green); color:white; display:flex; height:68px; justify-content:space-between; padding:0 30px; position:fixed; inset:0 0 auto; z-index:1000; }
 .app-header .brand-name span { color:#a9c7b0; }
 .app-user { align-items:center; display:flex; gap:14px; }
@@ -314,6 +312,8 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
   .marketing-header .brand-name { display:none; }
   .marketing-header .brand-logo { height:34px; width:128px; }
   .marketing-header .btn { font-size:11px; padding:10px 13px; }
+  .marketing-actions { gap:5px; }
+  .marketing-actions .btn { font-size:10px; padding:9px 10px; }
   .hero { min-height:auto; padding:112px 0 58px; }
   .hero-copy h1 { font-size:clamp(42px,12vw,62px); }
   .hero-copy p { font-size:15px; }
