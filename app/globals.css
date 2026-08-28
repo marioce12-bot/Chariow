@@ -123,6 +123,7 @@ button { cursor:pointer; }
 .app-header { align-items:center; background:var(--green); color:white; display:flex; height:68px; justify-content:space-between; padding:0 30px; position:fixed; inset:0 0 auto; z-index:1000; }
 .app-header .brand-name span { color:#a9c7b0; }
 .app-user { align-items:center; display:flex; gap:14px; }
+.app-greeting { color:#c7d2fe; font-size:12px; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .avatar { align-items:center; background:var(--lime); border-radius:50%; color:var(--green); display:flex; font-size:12px; font-weight:700; height:30px; justify-content:center; width:30px; }
 .app-layout { display:grid; grid-template-columns:220px 1fr; min-height:100vh; padding-top:68px; }
 .sidebar { background:#e9efe7; border-right:1px solid var(--line); padding:24px 14px; position:fixed; top:68px; bottom:0; width:220px; overflow-y:auto; }
@@ -221,16 +222,22 @@ button { cursor:pointer; }
 
 /* Mobile navigation */
 .mobile-nav { display:none; }
-.mobile-nav { position:fixed; left:0; right:0; bottom:0; z-index:1000; background:#e9efe7; border-top:1px solid var(--line); padding:10px 10px; justify-content:space-around; }
-.mobile-nav .nav-btn { background:transparent; border:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:6px 6px; color:#607167; border-radius:10px; }
+.mobile-nav { position:fixed; left:0; right:0; bottom:0; z-index:1000; background:#e9efe7; border-top:1px solid var(--line); padding:8px max(8px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)); justify-content:space-around; }
+.mobile-nav .nav-btn { background:transparent; border:0; display:flex; flex:1 1 0; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-width:0; padding:7px 3px; color:#607167; border-radius:10px; }
 .mobile-nav .nav-btn.active { color:var(--green); font-weight:800; }
 .mobile-nav .nav-btn span { font-size:10px; line-height:1; }
 
 @media (max-width: 760px) {
   .sidebar { display:none; }
   .app-layout { grid-template-columns: 1fr; }
-  .app-main { grid-column: 1; padding: 20px 18px 92px; }
+  .app-main { box-sizing:border-box; grid-column: 1; max-width:none; min-width:0; overflow:hidden; padding: 20px 14px calc(92px + env(safe-area-inset-bottom)); }
   .mobile-nav { display:flex; }
+  .app-user { gap:0; }
+  .app-greeting { font-size:11px; max-width:150px; }
+  .page-top { gap:14px; }
+  .page-top .btn { flex:none; }
+  .app-card { box-sizing:border-box; max-width:100%; overflow:hidden; padding:17px; }
+  .report-table { min-width:0; overflow-x:auto; }
 }
 .help-toggle { align-items:center; background:none; border:0; color:var(--green); display:flex; font-size:12px; font-weight:700; gap:7px; margin:22px auto 0; }
 .help-box { background:#f1f6ec; border-radius:10px; color:#5f7165; font-size:12px; line-height:1.6; margin-top:18px; padding:17px; }
@@ -268,9 +275,9 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .auth-foot { color:var(--muted); font-size:12px; margin-top:22px; text-align:center; }
 .auth-foot a { color:var(--green); font-weight:700; }
 
-@media (max-width:800px) { .nav-links { display:none; } .hero { padding-top:125px; } .hero-grid,.feature-grid,.content-grid { grid-template-columns:1fr; } .dashboard-preview { margin-top:10px; transform:none; } .how-grid { grid-template-columns:repeat(2,1fr); } .pricing-wrap { grid-template-columns:1fr; } .section { padding:75px 0; } .section-head { display:block; } .section-head p { margin-top:20px; } .logos { flex-wrap:wrap; gap:16px; } .app-layout { grid-template-columns:1fr; } .sidebar { display:none; } .app-main { grid-column:1; padding:24px 18px; } .overview-grid { grid-template-columns:repeat(2,1fr); } .app-header { padding:0 18px; } .app-user > span:first-child { display:none; } .cta { padding:45px 22px; } }
+@media (max-width:800px) { .nav-links { display:none; } .hero { padding-top:125px; } .hero-grid,.feature-grid,.content-grid { grid-template-columns:1fr; } .dashboard-preview { margin-top:10px; transform:none; } .how-grid { grid-template-columns:repeat(2,1fr); } .pricing-wrap { grid-template-columns:1fr; } .section { padding:75px 0; } .section-head { display:block; } .section-head p { margin-top:20px; } .logos { flex-wrap:wrap; gap:16px; } .app-layout { grid-template-columns:1fr; } .sidebar { display:none; } .app-main { grid-column:1; } .overview-grid { grid-template-columns:repeat(2,1fr); } .app-header { padding:0 14px; } .cta { padding:45px 22px; } }
 @media (max-width:800px) { .report-filters,.report-filter-fields { align-items:stretch; flex-direction:column; } .report-filter-fields button { width:100%; } .report-summary,.report-columns { grid-template-columns:1fr; } .report-summary-side { grid-template-columns:repeat(2,1fr); } }
-@media (max-width:480px) { .container { width:min(100% - 28px,1160px); } .hero-actions { flex-direction:column; } .hero-actions .btn { width:100%; } .how-grid { grid-template-columns:1fr; } .footer-row { align-items:start; flex-direction:column; gap:20px; } .footer-links { flex-wrap:wrap; } .overview-grid { gap:8px; } .metric { padding:12px; } .metric strong { font-size:21px; } .onboarding-card { padding:24px 18px; } .onboarding-card h1 { font-size:30px; } .mcp-steps { grid-template-columns:1fr; } }
+@media (max-width:480px) { .container { width:min(100% - 28px,1160px); } .hero-actions { flex-direction:column; } .hero-actions .btn { width:100%; } .how-grid { grid-template-columns:1fr; } .footer-row { align-items:start; flex-direction:column; gap:20px; } .footer-links { flex-wrap:wrap; } .overview-grid { gap:8px; } .metric { padding:12px; } .metric strong { font-size:21px; } .onboarding-card { padding:24px 18px; } .onboarding-card h1 { font-size:30px; } .mcp-steps { grid-template-columns:1fr; } .page-top .btn { font-size:10px; padding:9px 10px; } .mobile-nav .nav-btn span { font-size:9px; } }
 
 @media (max-width:800px) {
   .container { width:calc(100% - 28px); }
@@ -309,8 +316,8 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
   .app-header .brand-name { display:none; }
   .app-header .brand-logo { height:32px; width:120px; }
   .app-layout { padding-top:60px; }
-  .app-main { padding:24px 14px; }
-  .page-top { display:block; margin-bottom:22px; }
+  .app-main { padding:20px 14px calc(92px + env(safe-area-inset-bottom)); }
+  .page-top { align-items:start; display:flex; margin-bottom:22px; }
   .page-top h1 { font-size:30px; }
   .page-top .btn { margin-top:18px; width:100%; }
   .app-card { padding:16px; }

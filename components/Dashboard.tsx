@@ -44,6 +44,7 @@ export function Dashboard() {
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
+  const [userName, setUserName] = useState("créateur");
 
   const links = [
     ["Vue d’ensemble", LayoutDashboard],
@@ -66,20 +67,37 @@ export function Dashboard() {
   }, [searchParams]);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/stores").then((r) => (r.ok ? r.json() : { stores: [] })),
-      fetch("/api/subscription").then((r) => (r.ok ? r.json() : { subscription: null })),
-    ])
-      .then(async ([storeResult, subscriptionResult]) => {
-        const nextStores = storeResult.stores ?? [];
-        setStores(nextStores);
-        setSubscription(subscriptionResult.subscription ?? null);
-        if (nextStores.length) {
-          const analyticsResult = await fetch(`/api/analytics?store_id=${encodeURIComponent(nextStores[0].id)}`);
-          if (analyticsResult.ok) setAnalytics((await analyticsResult.json()).snapshot ?? null);
-        }
-      })
-      .finally(() => setLoadingData(false));
+    let cancelled = false;
+    const client = createClient();
+    client.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      const metadata = data.user?.user_metadata as { full_name?: string; name?: string; first_name?: string } | undefined;
+      const name = metadata?.full_name ?? metadata?.name ?? metadata?.first_name ?? data.user?.email?.split("@")[0];
+      if (name) setUserName(name);
+    });
+
+    async function loadDashboard() {
+      const storeResponse = await fetch("/api/stores");
+      const storeResult = storeResponse.ok ? await storeResponse.json() : { stores: [] };
+      if (cancelled) return;
+      const nextStores = storeResult.stores ?? [];
+      setStores(nextStores);
+      setLoadingData(false);
+
+      const subscriptionPromise = fetch("/api/subscription").then((r) => (r.ok ? r.json() : { subscription: null }));
+      const analyticsPromise = nextStores.length
+        ? fetch(`/api/analytics?store_id=${encodeURIComponent(nextStores[0].id)}`).then((r) => (r.ok ? r.json() : null))
+        : Promise.resolve(null);
+      const [subscriptionResult, analyticsResult] = await Promise.all([subscriptionPromise, analyticsPromise]);
+      if (cancelled) return;
+      setSubscription(subscriptionResult.subscription ?? null);
+      setAnalytics(analyticsResult?.snapshot ?? null);
+    }
+
+    loadDashboard().catch(() => {
+      if (!cancelled) setLoadingData(false);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   return (
@@ -89,8 +107,7 @@ export function Dashboard() {
           <Image className="brand-logo" src="/vendeo-logo-light.svg" alt="Vendeo" width={150} height={40} />
         </Link>
         <div className="app-user">
-          <span style={{ color: "#c7d2fe", fontSize: 12 }}>Bonjour, créateur</span>
-          <span className="avatar">VC</span>
+          <span className="app-greeting">Bonjour, {userName}</span>
           <button onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
             Déconnexion
           </button>
