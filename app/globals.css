@@ -121,6 +121,9 @@ button { cursor:pointer; }
 
 /* App */
 .app-shell { background:#f1f4ef; min-height:100vh; }
+.pwa-splash { align-items:center; background:#000c2e; display:flex; inset:0; justify-content:center; position:fixed; z-index:3000; }
+.pwa-splash-video { height:100%; object-fit:contain; width:100%; }
+.pwa-splash-fallback { display:none; height:96px; position:absolute; width:96px; }
 .app-header { align-items:center; background:var(--green); color:white; display:flex; height:68px; justify-content:space-between; padding:0 30px; position:fixed; inset:0 0 auto; z-index:1000; }
 .app-header .brand-name span { color:#a9c7b0; }
 .app-user { align-items:center; display:flex; gap:14px; }
