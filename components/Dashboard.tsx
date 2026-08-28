@@ -62,6 +62,7 @@ export function Dashboard() {
     ["Vue d’ensemble", LayoutDashboard],
     ["Vendeo AI", MessageSquare],
     ["Assistant de profit", WalletCards],
+    ["Meta Ads", BarChart3],
     ["Mes boutiques", Store],
     ["Rapports", BarChart3],
     ["Abonnement", CreditCard],
@@ -176,6 +177,8 @@ export function Dashboard() {
             <ChatView onGoToSubscription={() => setActive("Abonnement")} />
           ) : active === "Assistant de profit" ? (
             <ProfitAssistant analytics={analytics} />
+          ) : active === "Meta Ads" ? (
+            <MetaAdsView />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} onStoresChange={setStores} />
           ) : active === "Abonnement" ? (
@@ -206,6 +209,10 @@ export function Dashboard() {
          <button type="button" className={`nav-btn ${active === "Assistant de profit" ? "active" : ""}`} onClick={() => setActive("Assistant de profit")}>
            <WalletCards size={18} />
            <span>Profit</span>
+         </button>
+         <button type="button" className={`nav-btn ${active === "Meta Ads" ? "active" : ""}`} onClick={() => setActive("Meta Ads")}>
+           <BarChart3 size={18} />
+           <span>Meta Ads</span>
          </button>
         <button type="button" className={`nav-btn ${active === "Mes boutiques" ? "active" : ""}`} onClick={() => setActive("Mes boutiques")}>
           <Store size={18} />
@@ -779,6 +786,66 @@ function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
           <div className="app-card"><div className="card-head"><div><span className="eyebrow">Simulation IA</span><h2>Trois niveaux de risque</h2></div><TrendingUp size={18} color="#103ef8" /></div><div className="scenario-grid">{scenarios.length ? scenarios.map((scenario) => <div className={`scenario-card ${scenario.name}`} key={scenario.name}><strong>{scenario.name}</strong><span>{formatMoney(scenario.expectedProfit, currency)} de profit</span><small>{Math.round(scenario.expectedSales)} vente{Math.round(scenario.expectedSales) > 1 ? "s" : ""} · {formatMoney(scenario.assumptions.budget, currency)} de budget</small></div>) : <p className="profit-help">Lance une simulation pour comparer les scénarios conservateur, central et agressif.</p>}</div></div>
         </section>
       </div>
+    </>
+  );
+}
+
+type MetaPerformance = {
+  currency: string;
+  period: { from: string; to: string };
+  overview: { spend: number; conversions: number; revenue: number; sales: number; cpa: number | null; cac: number | null; roas: number | null };
+  performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; status: string }>;
+};
+
+function MetaAdsView() {
+  const [accounts, setAccounts] = useState<Array<{ id: string; name: string | null; currency: string }>>([]);
+  const [selectedAccount, setSelectedAccount] = useState("");
+  const [performance, setPerformance] = useState<MetaPerformance | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    const response = await fetch("/api/integrations/meta/accounts");
+    const data = response.ok ? await response.json() : { accounts: [] };
+    const nextAccounts = data.accounts ?? [];
+    setAccounts(nextAccounts);
+    if (nextAccounts[0]) {
+      setSelectedAccount(nextAccounts[0].id);
+      const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(nextAccounts[0].id)}`);
+      if (metrics.ok) setPerformance(await metrics.json());
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => { void load(); }, []);
+
+  async function connect() {
+    window.location.href = "/api/integrations/meta/connect";
+  }
+
+  async function sync() {
+    if (!selectedAccount) return;
+    setSyncing(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/meta/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: selectedAccount }) });
+      const data = await response.json();
+      if (!response.ok) setMessage(data.error ?? "Synchronisation impossible.");
+      else { setMessage("Données Meta Ads synchronisées."); const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(selectedAccount)}`); if (metrics.ok) setPerformance(await metrics.json()); }
+    } finally { setSyncing(false); }
+  }
+
+  if (loading) return <div className="app-card">Chargement de Meta Ads…</div>;
+  return (
+    <>
+      <div className="page-top"><div><span className="eyebrow">Acquisition rentable</span><h1>Meta Ads</h1><p>Relie tes dépenses publicitaires aux ventes Chariow pour distinguer croissance et perte.</p></div><button className="btn btn-dark" onClick={connect}><Plus size={15} /> Connecter Meta Ads</button></div>
+      {message && <p className="store-error" role="status">{message}</p>}
+      {!accounts.length ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte Meta Ads connecté</strong><span>Autorise Vendeo à lire tes campagnes, ensembles de publicités et publicités.</span><button className="btn btn-dark" onClick={connect}>Connecter Meta Ads</button></div> : <>
+        <div className="app-card meta-toolbar"><label>Compte publicitaire<select value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={sync} disabled={syncing}>{syncing ? "Synchronisation…" : "Synchroniser les insights"}</button></div>
+        {performance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><small>Dépenses</small><strong>{formatMoney(performance.overview.spend, performance.currency)}</strong></div><div className="vendeo-kpi"><small>CA attribué</small><strong>{formatMoney(performance.overview.revenue, performance.currency)}</strong></div><div className="vendeo-kpi"><small>CPA</small><strong>{performance.overview.cpa === null ? "n/d" : formatMoney(performance.overview.cpa, performance.currency)}</strong></div><div className="vendeo-kpi"><small>CAC réel</small><strong>{performance.overview.cac === null ? "n/d" : formatMoney(performance.overview.cac, performance.currency)}</strong></div><div className="vendeo-kpi"><small>ROAS</small><strong>{performance.overview.roas === null ? "n/d" : `${performance.overview.roas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><small>Ventes Chariow</small><strong>{performance.overview.sales}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse réelle</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>CPA</span><span>ROAS</span><span>Statut</span></div>{performance.performances.map((campaign) => <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, performance.currency)}</span><span>{campaign.cpa === null ? "n/d" : formatMoney(campaign.cpa, performance.currency)}</span><span>{campaign.roas === null ? "n/d" : `${campaign.roas.toFixed(2)}x`}</span><span className={`meta-status ${campaign.status}`}>{campaign.status === "profitable" ? "Rentable" : campaign.status === "loss" ? "À corriger" : "Sans signal"}</span></div>)}</div>{!performance.performances.length && <p className="profit-help">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section></> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
+      </>}
     </>
   );
 }
