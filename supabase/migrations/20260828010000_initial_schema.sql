@@ -19,6 +19,8 @@ create table public.subscriptions (
   plan public.subscription_plan not null default 'starter',
   messages_used_this_month integer not null default 0 check (messages_used_this_month >= 0),
   messages_limit integer not null default 400 check (messages_limit > 0),
+  free_messages_used integer not null default 0 check (free_messages_used >= 0 and free_messages_used <= 3),
+  free_messages_limit integer not null default 3 check (free_messages_limit = 3),
   current_period_start date not null default date_trunc('month', current_date)::date,
   current_period_end date not null default (date_trunc('month', current_date) + interval '1 month - 1 day')::date,
   status public.subscription_status not null default 'active',

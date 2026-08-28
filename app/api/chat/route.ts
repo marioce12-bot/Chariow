@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   }
   const { data: quota, error: quotaError } = await supabase.rpc("consume_message_quota", { target_user_id: user.id });
   if (quotaError) return NextResponse.json({ error: quotaError.message }, { status: 500 });
-  if (!quota) return NextResponse.json({ error: "Quota mensuel atteint", code: "QUOTA_EXCEEDED" }, { status: 429 });
+  if (!quota) return NextResponse.json({ error: "Tes 3 requêtes gratuites sont terminées. Choisis un plan pour continuer.", code: "PLANS_REQUIRED" }, { status: 429 });
   const { error: insertError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "user", content: message });
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
   const { data: history } = await supabase.from("messages").select("role, content").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20);
@@ -55,5 +55,5 @@ export async function POST(request: Request) {
   }
   const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer }).select("id, role, content, created_at").single();
   if (assistantError) return NextResponse.json({ error: assistantError.message }, { status: 500 });
-  return NextResponse.json({ message: assistant, usage: { used: quota.messages_used_this_month, limit: quota.messages_limit } });
+  return NextResponse.json({ message: assistant, usage: { free_used: quota.free_messages_used, free_limit: quota.free_messages_limit, used: quota.messages_used_this_month, limit: quota.messages_limit, free_trial_available: quota.free_messages_used < quota.free_messages_limit } });
 }

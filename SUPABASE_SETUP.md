@@ -11,6 +11,8 @@ Dans le dashboard Supabase :
 
 Le script crée `profiles`, `subscriptions`, `stores` et `messages`, le trigger de création de profil, les fonctions de quota et les politiques RLS.
 
+Si le schéma initial a déjà été exécuté, exécute ensuite la migration `supabase/migrations/20260828023000_free_trial_quota.sql`. Elle ajoute 3 requêtes gratuites permanentes par compte.
+
 ## 2. Configurer l’authentification
 
 Dans **Authentication > URL Configuration** :
@@ -78,4 +80,4 @@ Après toute modification dans Vercel, redéploie l’application pour charger l
 
 ## 6. Limites actuelles
 
-La route `/api/chat` persiste les messages, applique le quota et appelle Imole avec GPT-5.6 Luna. Les données commerciales Chariow doivent encore être ajoutées dans le connecteur MCP pour fournir à l’IA des ventes et produits réels.
+La route `/api/chat` persiste les messages, applique les 3 requêtes gratuites puis le quota du plan, et appelle Imole avec GPT-5.6 Luna. Les offres sont indiquées après consommation des 3 essais. Les données commerciales Chariow doivent encore être ajoutées dans le connecteur MCP pour fournir à l’IA des ventes et produits réels.

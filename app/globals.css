@@ -158,6 +158,7 @@ button { cursor:pointer; }
 .chat-bubble { border-radius:9px; font-size:13px; line-height:1.6; max-width:75%; padding:13px 15px; white-space:pre-wrap; }
 .chat-bubble.user { align-self:flex-end; background:var(--green); color:white; }
 .chat-bubble.assistant { align-self:flex-start; background:#edf6e8; color:var(--ink); }
+.trial-banner { background:#f0f7e8; border:1px solid #d6e8c7; border-radius:8px; color:#52705b; font-size:11px; margin-bottom:16px; padding:10px 12px; }
 .auth-page { align-items:center; background:var(--green); display:flex; justify-content:center; min-height:100vh; padding:30px; }
 .auth-card { background:#fbfcf8; border-radius:16px; max-width:420px; padding:38px; width:100%; }
 .auth-card .brand { color:var(--ink); margin-bottom:45px; }
