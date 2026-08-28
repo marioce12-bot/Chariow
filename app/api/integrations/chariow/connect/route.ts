@@ -37,6 +37,7 @@ export async function GET(request: Request) {
       .eq("id", requestedStoreId)
       .eq("user_id", user.id)
       .eq("platform", "chariow")
+      .eq("is_active", true)
       .maybeSingle();
     if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 });
     existing = data;
