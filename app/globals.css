@@ -159,6 +159,17 @@ button { cursor:pointer; }
 .chat-bubble.user { align-self:flex-end; background:var(--green); color:white; }
 .chat-bubble.assistant { align-self:flex-start; background:#edf6e8; color:var(--ink); }
 .trial-banner { background:#f0f7e8; border:1px solid #d6e8c7; border-radius:8px; color:#52705b; font-size:11px; margin-bottom:16px; padding:10px 12px; }
+.onboarding-wrap { align-items:center; display:flex; justify-content:center; min-height:calc(100vh - 145px); padding:24px 0; }
+.onboarding-card { background:white; border:1px solid var(--line); border-radius:16px; max-width:650px; padding:34px; width:100%; }
+.onboarding-icon { align-items:center; background:#dcebd4; border-radius:12px; color:var(--green); display:flex; height:52px; justify-content:center; margin-bottom:22px; width:52px; }
+.onboarding-card h1 { font-size:36px; letter-spacing:-.06em; line-height:1; margin:12px 0; }
+.onboarding-lead { color:var(--muted); font-size:14px; line-height:1.7; margin:0 0 28px; max-width:520px; }
+.field-help { color:#809087; display:block; font-size:11px; line-height:1.5; margin-top:6px; }
+.form-error { background:#fbe8e3; border-radius:7px; color:#a64635; font-size:12px; line-height:1.5; padding:10px; }
+.help-toggle { align-items:center; background:none; border:0; color:var(--green); display:flex; font-size:12px; font-weight:700; gap:7px; margin:22px auto 0; }
+.help-box { background:#f1f6ec; border-radius:10px; color:#5f7165; font-size:12px; line-height:1.6; margin-top:18px; padding:17px; }
+.help-box ol { margin:10px 0; padding-left:20px; }
+.help-box a { align-items:center; color:var(--green); display:inline-flex; font-weight:700; gap:4px; }
 .auth-page { align-items:center; background:var(--green); display:flex; justify-content:center; min-height:100vh; padding:30px; }
 .auth-card { background:#fbfcf8; border-radius:16px; max-width:420px; padding:38px; width:100%; }
 .auth-card .brand { color:var(--ink); margin-bottom:45px; }
