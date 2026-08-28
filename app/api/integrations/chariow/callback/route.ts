@@ -14,6 +14,8 @@ export async function GET(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
 
+  const redirectToDashboard = (query: string) => NextResponse.redirect(new URL(`/dashboard?${query}`, request.url));
+
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -23,11 +25,11 @@ export async function GET(request: Request) {
   const redirectUri = process.env.CHARIOW_OAUTH_REDIRECT_URI;
   const clientId = process.env.CHARIOW_OAUTH_CLIENT_ID;
   if (!clientId || !redirectUri) {
-    return NextResponse.redirect("/dashboard?chariow=failed");
+    return redirectToDashboard("chariow=failed");
   }
 
   if (!state) {
-    return NextResponse.redirect("/dashboard?chariow=failed");
+    return redirectToDashboard("chariow=failed");
   }
 
   const { data: attempt, error: attemptErr } = await supabase
@@ -40,11 +42,11 @@ export async function GET(request: Request) {
   const storeId = attempt?.store_id ? String(attempt.store_id) : null;
 
   if (attemptErr || !storeId) {
-    return NextResponse.redirect("/dashboard?chariow=failed");
+    return redirectToDashboard("chariow=failed");
   }
 
   if (!attempt) {
-    return NextResponse.redirect("/dashboard?chariow=failed");
+    return redirectToDashboard("chariow=failed");
   }
 
   const now = new Date();
@@ -61,7 +63,7 @@ export async function GET(request: Request) {
       .eq("id", storeId)
       .eq("user_id", user.id);
     await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
-    return NextResponse.redirect("/dashboard?chariow=failed");
+    return redirectToDashboard("chariow=failed");
   }
 
   // Enforce one-time use.
@@ -74,7 +76,7 @@ export async function GET(request: Request) {
       .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
       .eq("id", storeId)
       .eq("user_id", user.id);
-    return NextResponse.redirect("/dashboard?chariow=failed");
+    return redirectToDashboard("chariow=failed");
   }
 
   if (!code) {
@@ -83,7 +85,7 @@ export async function GET(request: Request) {
       .update({ connection_status: "failed", connection_error: "Connexion Chariow incomplète", last_verified_at: now.toISOString() })
       .eq("id", storeId)
       .eq("user_id", user.id);
-    return NextResponse.redirect("/dashboard?chariow=failed");
+    return redirectToDashboard("chariow=failed");
   }
 
   try {
@@ -111,7 +113,7 @@ export async function GET(request: Request) {
         .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
         .eq("id", storeId)
         .eq("user_id", user.id);
-      return NextResponse.redirect("/dashboard?chariow=failed");
+      return redirectToDashboard("chariow=failed");
     }
 
     const accessToken = tokenJson?.access_token;
@@ -121,7 +123,7 @@ export async function GET(request: Request) {
         .update({ connection_status: "failed", connection_error: "Réponse OAuth invalide", last_verified_at: now.toISOString() })
         .eq("id", storeId)
         .eq("user_id", user.id);
-      return NextResponse.redirect("/dashboard?chariow=failed");
+      return redirectToDashboard("chariow=failed");
     }
 
     const tokenType = typeof tokenJson?.token_type === "string" ? tokenJson.token_type : "Bearer";
@@ -172,7 +174,7 @@ export async function GET(request: Request) {
         .eq("user_id", user.id);
     }
 
-    return NextResponse.redirect("/dashboard?chariow=connected");
+    return redirectToDashboard("chariow=connected");
   } catch (e) {
     const message = e instanceof Error ? sanitizeErrorMessage(e.message) : "Connexion Chariow impossible";
     if (storeId) {
@@ -182,6 +184,6 @@ export async function GET(request: Request) {
         .eq("id", storeId)
         .eq("user_id", user.id);
     }
-    return NextResponse.redirect("/dashboard?chariow=failed");
+    return redirectToDashboard("chariow=failed");
   }
 }
