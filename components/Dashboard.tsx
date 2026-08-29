@@ -217,22 +217,21 @@ export function Dashboard() {
             <Megaphone size={18} />
             <span>Meta</span>
           </button>
-          <button type="button" className={`nav-btn ${active === "Mes boutiques" ? "active" : ""}`} onClick={() => setActive("Mes boutiques")}>
-            <ShoppingBag size={18} />
-            <span>Ventes</span>
+           <button type="button" className={`nav-btn ${active === "Assistant de profit" ? "active" : ""}`} onClick={() => setActive("Assistant de profit")}>
+             <WalletCards size={18} />
+             <span>Profit</span>
           </button>
           <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
             <MessageSquare size={18} />
             <span>IA</span>
           </button>
-          <button type="button" className={`nav-btn ${moreOpen || ["Assistant de profit", "Rapports", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} onClick={() => setMoreOpen((open) => !open)}>
+          <button type="button" className={`nav-btn ${moreOpen || ["Rapports", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} onClick={() => setMoreOpen((open) => !open)}>
             <Settings size={18} />
             <span>Plus</span>
           </button>
         </nav>
         {moreOpen ? <div className="mobile-more-menu" role="menu">
-          <button type="button" onClick={() => { setActive("Assistant de profit"); setMoreOpen(false); }}><WalletCards size={16} /> Profit</button>
-          <button type="button" onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
+           <button type="button" onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
           <button type="button" onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
           <button type="button" onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
           <button type="button" onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
