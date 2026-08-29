@@ -51,6 +51,7 @@ type AnalyticsData = {
 
 export function Dashboard() {
   const [active, setActive] = useState("Vue d’ensemble");
+  const [moreOpen, setMoreOpen] = useState(false);
   const searchParams = useSearchParams();
   const [stores, setStores] = useState<StoreData[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
@@ -210,28 +211,35 @@ export function Dashboard() {
         </section>
       </div>
 
-       <nav className="mobile-nav" aria-label="Navigation mobile">
-        <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
-          <LayoutDashboard size={18} />
-          <span>Accueil</span>
-        </button>
-         <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
-           <MessageSquare size={18} />
-           <span>IA</span>
+        <nav className="mobile-nav" aria-label="Navigation mobile">
+         <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
+           <LayoutDashboard size={18} />
+           <span>Accueil</span>
          </button>
-         <button type="button" className={`nav-btn ${active === "Assistant de profit" ? "active" : ""}`} onClick={() => setActive("Assistant de profit")}>
-           <WalletCards size={18} />
-           <span>Profit</span>
-         </button>
-         <button type="button" className={`nav-btn ${active === "Meta Ads" ? "active" : ""}`} onClick={() => setActive("Meta Ads")}>
-           <Megaphone size={18} />
-           <span>Meta Ads</span>
-         </button>
-         <button type="button" className={`nav-btn ${active === "Rapports" ? "active" : ""}`} onClick={() => setActive("Rapports")}>
-           <FileText size={18} />
-           <span>Rapports</span>
-         </button>
-       </nav>
+          <button type="button" className={`nav-btn ${active === "Meta Ads" ? "active" : ""}`} onClick={() => setActive("Meta Ads")}>
+            <Megaphone size={18} />
+            <span>Meta</span>
+          </button>
+          <button type="button" className={`nav-btn ${active === "Mes boutiques" ? "active" : ""}`} onClick={() => setActive("Mes boutiques")}>
+            <ShoppingBag size={18} />
+            <span>Ventes</span>
+          </button>
+          <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
+            <MessageSquare size={18} />
+            <span>IA</span>
+          </button>
+          <button type="button" className={`nav-btn ${moreOpen || ["Assistant de profit", "Rapports", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} onClick={() => setMoreOpen((open) => !open)}>
+            <Settings size={18} />
+            <span>Plus</span>
+          </button>
+        </nav>
+        {moreOpen ? <div className="mobile-more-menu" role="menu">
+          <button type="button" onClick={() => { setActive("Assistant de profit"); setMoreOpen(false); }}><WalletCards size={16} /> Profit</button>
+          <button type="button" onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
+          <button type="button" onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
+          <button type="button" onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
+          <button type="button" onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
+        </div> : null}
     </main>
   );
 }
