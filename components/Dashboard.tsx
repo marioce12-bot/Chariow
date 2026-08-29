@@ -288,264 +288,41 @@ function Overview({
   userFirstName: string;
   onGoToAI: () => void;
 }) {
-  const isChariowConnected = stores?.[0]?.connection_status === "connected";
-
-  const catalogProducts = analytics?.products ?? [];
-  const productsTotal = catalogProducts.length;
-  const publishedProducts = catalogProducts
-    .filter((p) => {
-      const status = (p.status ?? "").toString().toLowerCase();
-      return status.includes("published") || status.includes("publié") || status.includes("publiée");
-    })
-    .map((p) => ({
-      title: p.name,
-      priceAvailable: p.price !== null && p.price !== "" && p.price !== undefined,
-    }));
-
-  const publishedCount = publishedProducts.length;
-  const firstPublishedTitle = publishedProducts[0]?.title ?? "";
-  const firstPublishedPriceAvailable = publishedProducts[0]?.priceAvailable ?? false;
-
-  const visitsTotal = analytics?.kpis?.visits ?? 0;
-  const salesCount = analytics?.kpis?.sales ?? 0;
-  const revenueFormatted = analytics?.kpis?.revenue?.formatted ?? "0";
-  const conversionFormatted = analytics?.kpis?.conversionRate ?? "0 %";
-  const customersTotal = analytics?.kpis?.customers ?? 0;
-  const productsSold = analytics?.kpis?.productsSold ?? 0;
-
-  const summaryText = (() => {
-    if (isChariowConnected && publishedCount >= 1 && visitsTotal === 0) {
-      return "Ta boutique est bien connectée et ton premier produit est publié. Ton principal défi est maintenant d’attirer tes premiers visiteurs. Concentre-toi cette semaine sur la promotion de ton produit auprès d’une audience précise.";
-    }
-    if (!isChariowConnected) return "Connecte ta boutique Chariow pour recevoir des recommandations personnalisées.";
-    if (publishedCount < 1) return "Publie ton premier produit pour que Vendeo puisse proposer des actions concrètes.";
-    if (visitsTotal > 0 && salesCount === 0) return "Tu as déjà des visites. L’enjeu maintenant est d’améliorer la page produit et la promesse pour favoriser la première vente.";
-    return "Ta boutique est connectée. Continue tes actions de promotion et observe l’impact sur les visites et les ventes.";
-  })();
-
-  const buildPrompt = (kind: "tiktok" | "whatsapp" | "productPage" | "salesPlan") => {
-    const title = firstPublishedTitle || "mon produit";
-    const map = {
-      tiktok: "Crée un script TikTok court et convaincant pour promouvoir mon produit : ${product.title}. Mon objectif est d’obtenir mes premières visites et mes premières ventes.",
-      whatsapp: "Crée une publication WhatsApp courte et convaincante pour promouvoir mon produit : ${product.title}. Mon objectif est d’obtenir mes premières visites et mes premières ventes.",
-      productPage: "Aide-moi à améliorer la page de vente de mon produit ${product.title}. Propose une promesse forte, une description claire, les bénéfices, une structure de page et un appel à l’action.",
-      salesPlan: "Crée un plan d’action simple sur 7 jours pour obtenir mes premières visites et ma première vente pour mon produit ${product.title}. Je cible les créateurs et entrepreneurs francophones.",
-    } as const;
-    return map[kind].replace(/\$\{product\.title\}/g, title);
-  };
-
-  const openAIWithPrompt = (prompt: string) => {
-    sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt);
-    onGoToAI();
-  };
-
-  const primaryPublished = publishedCount >= 1;
-  const priceAvailable = firstPublishedPriceAvailable;
-
-  const card1 = (() => {
-    if (visitsTotal === 0) {
-      return {
-        title: "Obtiens tes premiers visiteurs",
-        body: "Ta boutique est prête. La prochaine étape est d’attirer tes premiers visiteurs.",
-        primaryAction: { label: "TikTok", promptKind: "tiktok" as const },
-        secondaryAction: { label: "WhatsApp", promptKind: "whatsapp" as const },
-      };
-    }
-    return {
-      title: "Obtiens tes premiers visiteurs",
-      body: "Tu as déjà des visites. Continue la promotion pour créer des signaux vers ta première vente.",
-      primaryAction: { label: "TikTok", promptKind: "tiktok" as const },
-      secondaryAction: { label: "WhatsApp", promptKind: "whatsapp" as const },
-    };
-  })();
-
-  const card2 = (() => {
-    if (!primaryPublished) {
-      return {
-        title: "Renforce ta page de vente",
-        body: "Ton produit n’est pas encore publié. Publie-le pour que Vendeo puisse affiner les recommandations sur ta page de vente.",
-        primaryAction: { label: "Améliorer ma page produit", promptKind: "productPage" as const },
-      };
-    }
-    if (!priceAvailable) {
-      return {
-        title: "Renforce ta page de vente",
-        body: "Ton produit est publié, mais son prix n’est pas disponible dans les données synchronisées. Vérifie que son prix, sa promesse et ses bénéfices sont clairement affichés…",
-        primaryAction: { label: "Améliorer ma page produit", promptKind: "productPage" as const },
-      };
-    }
-    return {
-      title: "Renforce ta page de vente",
-      body: "Ton produit est publié. On va optimiser la page pour que la promesse et les bénéfices soient immédiatement clairs.",
-      primaryAction: { label: "Améliorer ma page produit", promptKind: "productPage" as const },
-    };
-  })();
-
-  const card3 = (() => {
-    if (productsTotal === 1 && primaryPublished) {
-      return {
-        title: "Prépare ton premier objectif",
-        body: "Objectif : obtenir premières visites + première vente cette semaine.",
-        primaryAction: { label: "Créer mon plan de vente", promptKind: "salesPlan" as const },
-      };
-    }
-    return {
-      title: "Prépare ton premier objectif",
-      body: "Crée un objectif simple basé sur tes signaux actuels. (V1 prudente : une action de plan quand un produit est publié.)",
-      primaryAction: { label: "Créer mon plan de vente", promptKind: "salesPlan" as const },
-    };
-  })();
-
-  const productCard = (() => {
-    const product = catalogProducts.find((p) => {
-      const status = (p.status ?? "").toString().toLowerCase();
-      return status.includes("published") || status.includes("publié") || status.includes("publiée");
-    }) ?? catalogProducts[0];
-
-    if (!product) return null;
-    const status = (product.status ?? "").toString().toLowerCase();
-    const isPublished = status.includes("published") || status.includes("publié") || status.includes("publiée");
-    const priceAvailable = product.price !== null && product.price !== "" && product.price !== undefined;
-    const priceText = priceAvailable
-      ? `${product.price}${product.currency ? ` ${product.currency}` : ""}`
-      : "Prix non disponible dans les données synchronisées.";
-
-    return {
-      title: product.name,
-      statusLabel: isPublished ? "Publié" : "Non publié",
-      priceText,
-    };
-  })();
-
-  const performanceMessage = (() => {
-    if (visitsTotal === 0) return "Ta priorité cette semaine : attirer tes premiers visiteurs pour déclencher des signaux utiles.";
-    if (salesCount === 0) return "Tu as des visites : concentre-toi sur une page produit claire et une promesse forte pour obtenir ta première vente.";
-    return "Continue l’optimisation : teste des variations et observe l’évolution des visites et des ventes.";
-  })();
-
-  const progress = [
-    { label: "Boutique Chariow connectée", done: isChariowConnected },
-    { label: "Produit publié", done: primaryPublished },
-    { label: "Premiers visiteurs", done: visitsTotal > 0 },
-    { label: "Première vente", done: salesCount > 0 },
-  ];
-
   const greeting = (userFirstName || "créateur").trim().split(/\s+/)[0] || "créateur";
-
-  if (!stores.length) {
-    return (
-      <>
-         <div className="vendeo-overview-header">
-          <div>
-            <h1>Bonjour {greeting}</h1>
-            <p>Voici l’état de ton activité sur les 30 derniers jours.</p>
-          </div>
-         <div className="vendeo-overview-actions"><div className="vendeo-badge"><CheckCircle2 size={15} /> Boutique Chariow connectée</div><span className="vendeo-period-pill">30 derniers jours</span></div>
-        </div>
-        <div className="empty-state" style={{ marginTop: 12 }}>Connecte ta boutique Chariow pour voir tes recommandations.</div>
-      </>
-    );
-  }
-
-  if (!analytics || !isChariowConnected) {
-    const badgeText = stores?.[0]?.connection_status === "connected" ? "Boutique Chariow connectée" : "Connexion Chariow requise";
-    return (
-      <>
-         <div className="vendeo-overview-header">
-          <div>
-           <h1>Bonjour {greeting}</h1>
-           <p>Voici l’état de ton activité sur les 30 derniers jours.</p>
-          </div>
-          <div className="vendeo-badge">{stores?.[0]?.connection_status === "connected" ? <CheckCircle2 size={15} /> : <Clock3 size={15} />}{badgeText}</div>
-        </div>
-        <div className="empty-state" style={{ marginTop: 12 }}>Connecte ta boutique Chariow pour afficher tes recommandations.</div>
-      </>
-    );
-  }
-
-  return (
-    <>
-         <div className="vendeo-overview-header">
-        <div>
-           <h1>Bonjour {greeting}</h1>
-           <p>Voici l’état de ton activité sur les 30 derniers jours.</p>
-        </div>
-        <div className="vendeo-badge"><CheckCircle2 size={15} /> Boutique Chariow connectée</div>
-      </div>
-
-       <section className="vendeo-section" aria-label="Priorités">
-        <div className="vendeo-section-head">
-          <div className="vendeo-section-icon"><Target size={17} /></div>
-          <h2>Tes priorités cette semaine</h2>
-        </div>
-
-        <div className="vendeo-priorities-grid">
-          <div className="vendeo-priority-card">
-            <h3>{card1.title}</h3>
-            <p className="vendeo-muted">{card1.body}</p>
-            <div className="vendeo-card-actions">
-              <button className="btn btn-lime" onClick={() => openAIWithPrompt(buildPrompt(card1.primaryAction.promptKind))}>
-                Créer un script TikTok
-              </button>
-              <button className="btn btn-ghost" onClick={() => openAIWithPrompt(buildPrompt(card1.secondaryAction.promptKind))}>
-                Créer une publication WhatsApp
-              </button>
-            </div>
-          </div>
-
-          <div className="vendeo-priority-card">
-            <h3>{card2.title}</h3>
-            <p className="vendeo-muted">{card2.body}</p>
-            <div className="vendeo-card-actions">
-              <button className="btn btn-lime" onClick={() => openAIWithPrompt(buildPrompt(card2.primaryAction.promptKind))}>
-                {card2.primaryAction.label}
-              </button>
-            </div>
-          </div>
-
-          <div className="vendeo-priority-card">
-            <h3>{card3.title}</h3>
-            <p className="vendeo-muted">{card3.body}</p>
-            <div className="vendeo-card-actions">
-              <button className="btn btn-lime" onClick={() => openAIWithPrompt(buildPrompt(card3.primaryAction.promptKind))}>
-                {card3.primaryAction.label}
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-       <section className="vendeo-section" aria-label="Performance">
-        <div className="vendeo-section-head">
-          <div className="vendeo-section-icon"><LineChart size={17} /></div>
-          <h2>Performance de ta boutique</h2>
-        </div>
-
-         <div className="vendeo-kpi-grid">
-           <div className="vendeo-kpi"><small>Chiffre d’affaires Chariow</small><strong>{revenueFormatted}</strong><span className="kpi-caption">Revenu commercial</span></div>
-           <div className="vendeo-kpi"><small>Ventes confirmées</small><strong>{salesCount}</strong><span className="kpi-caption">Paiements validés</span></div>
-           <div className="vendeo-kpi"><small>Visites</small><strong>{visitsTotal}</strong><span className="kpi-caption">Trafic observé</span></div>
-           <div className="vendeo-kpi"><small>Conversion</small><strong>{conversionFormatted}</strong><span className="kpi-caption">Visites → ventes</span></div>
-          <div className="vendeo-kpi">
-            <small>Clients</small>
-            <strong>{customersTotal}</strong>
-          </div>
-          <div className="vendeo-kpi vendeo-kpi-wide">
-            <small>Produits du catalogue</small>
-            <strong>{productsTotal}</strong>
-          </div>
-        </div>
-
-        <p className="vendeo-muted" style={{ margin: "12px 0 0" }}>{performanceMessage}</p>
-      </section>
-
-       <section className="vendeo-section overview-next" aria-label="Prochaine action">
-         <div className="vendeo-section-head"><div className="vendeo-section-icon"><Target size={17} /></div><div><h2>Prochaine action</h2><p className="vendeo-muted">{performanceMessage}</p></div></div>
-         <div className="vendeo-next-row"><strong>{getRecommendation(analytics).title}</strong><button className="btn btn-dark" onClick={() => openAIWithPrompt(buildPrompt("salesPlan"))}>Demander à Vendeo AI <ArrowRight size={15} /></button></div>
-       </section>
-    </>
-  );
+  const store = stores[0];
+  const connected = store?.connection_status === "connected";
+  const products = analytics?.products ?? [];
+  const sales = analytics?.kpis.sales ?? 0;
+  const revenue = Number(analytics?.kpis.revenue.value ?? 0) || 0;
+  const currency = products[0]?.currency ?? "XOF";
+  const format = (value: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value) + ` ${currency}`;
+  const [period, setPeriod] = useState("30 derniers jours");
+  const [refreshing, setRefreshing] = useState(false);
+  const [metaConnected, setMetaConnected] = useState(false);
+  const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
+  const [costsConfigured] = useState(false);
+  const refresh = async () => { setRefreshing(true); try { const response = await fetch("/api/integrations/meta/accounts"); setMetaConnected(response.ok && ((await response.json()).accounts ?? []).length > 0); } finally { setRefreshing(false); } };
+  useEffect(() => { void refresh(); }, []);
+  const spend = metaPerformance?.overview.spend ?? 0;
+  const roas = metaPerformance?.overview.metaRoas ?? null;
+  const statusText = !connected ? "Connecte ta boutique Chariow pour commencer l’analyse." : !metaConnected ? "Ta boutique est connectée. Connecte Meta Ads pour relier tes dépenses à tes ventes." : sales === 0 && spend > 0 ? "Les dépenses Meta ne produisent pas encore de vente confirmée." : sales === 0 ? "Aucune vente confirmée sur la période. Commence par observer ton trafic et tes campagnes." : "Ton activité est suivie. Analyse les campagnes et les produits qui contribuent le plus à tes ventes.";
+  const productsSummary = products.slice(0, 5).map((product) => ({ name: product.name, sales: product.sales ?? 0, revenue: product.sales ? Number(product.price ?? 0) * product.sales : 0, state: product.sales ? "Performant" : "À surveiller" }));
+  const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
+  return <div className="dashboard-home">
+    <div className="home-header"><div><span className="eyebrow">Pilotage de rentabilité</span><h1>Bonjour, {greeting}</h1><p>Une lecture simple de ton activité Chariow et Meta Ads.</p></div><div className="home-controls"><span className="home-store">{store?.store_name ?? "Aucune boutique"}</span><span className={connected ? "status-positive" : "status-warning"}>{connected ? "Chariow connectée" : "Chariow non connectée"}</span><span className={metaConnected ? "status-positive" : "status-info"}>{metaConnected ? "Meta Ads connectée" : "Meta Ads non connectée"}</span><span className="sync-label">Dernière synchronisation : à vérifier</span><select value={period} onChange={(event) => setPeriod(event.target.value)}><option>Aujourd’hui</option><option>Hier</option><option>7 derniers jours</option><option>30 derniers jours</option><option>Ce mois-ci</option><option>Mois dernier</option><option>Personnalisé</option></select><button className="btn btn-ghost" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "Actualisation…" : "Actualiser"}</button></div></div>
+    <section className="home-ai-state app-card"><div><span className="eyebrow">Analyse IA</span><h2>État de votre activité</h2><p>{statusText}</p></div><Brain size={24} /></section>
+    <section className="home-kpis"><HomeKpi label="Chiffre d’affaires Chariow" value={connected ? format(revenue) : "Non disponible"} tone={revenue > 0 ? "positive" : "neutral"} help="Revenu commercial remonté par Chariow." /><HomeKpi label="Ventes confirmées Chariow" value={connected ? String(sales) : "Non disponible"} tone={sales > 0 ? "positive" : "neutral"} help="Paiements confirmés par Chariow." /><HomeKpi label="Dépenses Meta Ads" value={metaConnected ? format(spend) : "Non disponible"} tone="info" help="Dépenses synchronisées depuis Meta Insights." /><HomeKpi label="Profit estimé" value={costsConfigured ? format(revenue - spend) : "Profit à configurer"} tone={costsConfigured ? "positive" : "warning"} help="Disponible après configuration des coûts produits." action={!costsConfigured ? () => window.dispatchEvent(new CustomEvent("vendeo:navigate", { detail: "Assistant de profit" })) : undefined} /><HomeKpi label="ROAS Meta rapporté" value={roas === null ? "Non disponible" : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help="Valeur d’achat rapportée par Meta divisée par les dépenses Meta." /></section>
+    <section className="home-chart app-card"><div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Évolution du chiffre d’affaires et des dépenses</h2></div><LineChart size={19} /></div>{!connected && !metaConnected ? <EmptyState title="Données indisponibles" text="Connecte Chariow et Meta Ads pour afficher l’évolution." /> : <div className="simple-chart"><div className="chart-line revenue-line" /><div className="chart-line spend-line" /><div className="chart-legend"><span><i className="legend-dot revenue-dot" /> CA Chariow</span><span><i className="legend-dot spend-dot" /> Dépenses Meta Ads</span>{costsConfigured ? <span>Profit estimé</span> : null}</div></div>}</section>
+    <section className="home-actions app-card"><div className="card-head"><div><span className="eyebrow">Décision</span><h2>À faire maintenant</h2></div><Target size={19} /></div><div className="action-list"><ActionItem title={!metaConnected ? "Connecter Meta Ads" : spend > 0 && sales === 0 ? "Surveiller les dépenses sans vente" : "Analyser les campagnes performantes"} proof={!metaConnected ? "Les dépenses publicitaires ne sont pas encore disponibles." : `${format(spend)} dépensés pour ${sales} vente(s) confirmée(s).`} action={!metaConnected ? "Meta Ads" : "Meta Ads"} onClick={() => openAI("Analyse mes priorités publicitaires à partir des données disponibles.")} /><ActionItem title={!connected ? "Connecter Chariow" : sales === 0 ? "Vérifier la conversion de la boutique" : "Identifier le produit moteur"} proof={connected ? `${sales} vente(s) confirmée(s) sur la période.` : "Aucune donnée Chariow disponible."} action="Boutiques Chariow" onClick={() => openAI("Analyse ce qui fonctionne et ce qui bloque ma conversion.")} /></div></section>
+    <div className="home-tables"><SummaryTable title="Produits les plus performants" columns={["Produit", "Ventes", "CA", "État"]} rows={productsSummary.map((product) => [product.name, product.sales, format(product.revenue), product.state])} empty="Aucune vente produit disponible." /><SummaryTable title="Campagnes Meta Ads" columns={["Campagne", "Dépenses", "Clics", "ROAS Meta rapporté", "État"]} rows={(metaPerformance?.performances ?? []).slice(0, 5).map((campaign) => [campaign.name, format(campaign.spend), campaign.clicks, campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`, campaign.status])} empty={metaConnected ? "Aucune campagne avec données sur la période." : "Meta Ads non connectée."} /></div>
+    <section className="home-activity app-card"><div className="card-head"><div><span className="eyebrow">Chariow</span><h2>Activité récente</h2></div><Activity size={19} /></div>{analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <li key={index}><i /><span><b>Événement Chariow</b><br />Détail disponible dans la section Ventes.</span></li>)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu’ils seront synchronisés." />}</section>
+  </div>;
 }
+
+function HomeKpi({ label, value, help, tone, action }: { label: string; value: string; help: string; tone: string; action?: () => void }) { return <div className={`home-kpi ${tone}`}><small>{label}</small><strong>{value}</strong><span>{help}</span>{action ? <button className="btn btn-ghost" onClick={action}>Configurer</button> : null}</div>; }
+function EmptyState({ title, text }: { title: string; text: string }) { return <div className="home-empty"><strong>{title}</strong><span>{text}</span></div>; }
+function ActionItem({ title, proof, action, onClick }: { title: string; proof: string; action: string; onClick: () => void }) { return <div className="home-action-item"><div><strong>{title}</strong><p>{proof}</p></div><button className="btn btn-dark" onClick={onClick}>{action}</button></div>; }
+function SummaryTable({ title, columns, rows, empty }: { title: string; columns: string[]; rows: Array<Array<string | number>>; empty: string }) { return <section className="home-summary app-card"><div className="card-head"><h2>{title}</h2><BarChart3 size={18} /></div>{rows.length ? <div className="home-table"><div className="home-table-row home-table-head">{columns.map((column) => <span key={column}>{column}</span>)}</div>{rows.map((row, index) => <div className="home-table-row" key={index}>{row.map((value, valueIndex) => <span key={valueIndex}>{value}</span>)}</div>)}</div> : <EmptyState title={empty} text="Les données apparaîtront après synchronisation." />}</section>; }
 
 function BusinessSignals({ analytics, health }: { analytics: AnalyticsData; health: StoreHealth }) {
   if (!analytics) return null;
