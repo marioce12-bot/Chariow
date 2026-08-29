@@ -172,6 +172,7 @@ export async function GET(request: Request) {
 
     const { error: upErr } = await supabase.from("stores").update(updated).eq("id", attempt.store_id).eq("user_id", user.id);
     if (upErr) {
+      console.error("Chariow connection persistence failed", upErr.message);
       await supabase
         .from("stores")
         .update({ connection_status: "failed", connection_error: "Impossible de sauvegarder la connexion", last_verified_at: now.toISOString() })
@@ -181,7 +182,7 @@ export async function GET(request: Request) {
 
     await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
 
-    return redirectToDashboard("chariow=connected");
+    return redirectToDashboard(upErr ? "chariow=failed" : "chariow=connected");
   } catch (e) {
     const message = e instanceof Error ? sanitizeErrorMessage(e.message) : "Connexion Chariow impossible";
     console.error("Chariow OAuth callback failed", message);

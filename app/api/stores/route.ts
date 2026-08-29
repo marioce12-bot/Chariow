@@ -13,7 +13,14 @@ export async function GET() {
     .eq("user_id", user.id)
     .eq("is_active", true)
     .order("created_at", { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // Keep dashboard access usable while the additive public-slug migration is pending.
+    if (error.message.toLowerCase().includes("column") && error.message.toLowerCase().includes("slug")) {
+      const fallback = await supabase.from("stores").select("id, platform, store_name, mcp_url, is_active, connection_status, connection_error, connected_at, created_at").eq("user_id", user.id).eq("is_active", true).order("created_at", { ascending: false });
+      if (!fallback.error) return NextResponse.json({ stores: (fallback.data ?? []).map((store) => ({ ...store, slug: null })) });
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json({ stores: data });
 }
 

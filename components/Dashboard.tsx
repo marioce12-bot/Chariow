@@ -1074,7 +1074,7 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
     try {
       const existingStoreId = storeId ?? stores.find((store) => store.platform === "chariow")?.id;
       if (!existingStoreId) {
-        const check = await fetch("/api/integrations/chariow/connect/check");
+        const check = await fetch(`/api/integrations/chariow/connect/check${existingStoreId ? `?store_id=${encodeURIComponent(existingStoreId)}` : ""}`);
         const checkData = await check.json().catch(() => ({}));
         if (!check.ok) {
           if (checkData.code === "STORE_LIMIT") setShowUpgrade(true);
