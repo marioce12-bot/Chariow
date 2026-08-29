@@ -25,6 +25,8 @@ type StoreData = {
   is_active: boolean;
   connection_status?: string;
   connection_error?: string | null;
+  logo_url?: string | null;
+  image?: string | null;
 };
 
 type SubscriptionData = {
@@ -190,9 +192,9 @@ export function Dashboard() {
           ) : active === "Meta Ads" ? (
             <MetaAdsView />
           ) : active === "Mes boutiques" ? (
-            <StoresView stores={stores} onStoresChange={setStores} />
+            <StoresView stores={stores} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Abonnement" ? (
-            <SubscriptionView subscription={subscription} />
+            <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Rapports" ? (
             <Reports stores={stores} analytics={analytics} />
           ) : (
@@ -1056,7 +1058,7 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
   );
 }
 
-function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresChange: (stores: StoreData[]) => void }) {
+function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: StoreData[]; onStoresChange: (stores: StoreData[]) => void; onBackToSettings?: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -1130,6 +1132,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
           <h1>Mes boutiques</h1>
           <p>Une source de vérité pour toutes tes ventes.</p>
         </div>
+        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
         <button type="button" className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}>
           <Plus size={16} /> {saving ? "Connexion…" : "Connecter ma boutique Chariow"}
         </button>
@@ -1143,7 +1146,9 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
           const canDisconnect = status === "connected";
           return (
             <div className="store-row" key={store.id}>
-              <div className="store-logo">{store.platform.slice(0, 1).toUpperCase()}</div>
+              <div className="store-logo">
+                {store.logo_url || store.image ? <img src={store.logo_url ?? store.image ?? ""} alt="" /> : store.platform.slice(0, 1).toUpperCase()}
+              </div>
               <div className="store-info">
                 <strong>{store.store_name}</strong>
                 <span>
@@ -1174,7 +1179,7 @@ function StoresView({ stores, onStoresChange }: { stores: StoreData[]; onStoresC
   );
 }
 
-function SubscriptionView({ subscription }: { subscription: SubscriptionData | null }) {
+function SubscriptionView({ subscription, onBackToSettings }: { subscription: SubscriptionData | null; onBackToSettings?: () => void }) {
   const plan = subscription?.plan ?? "starter";
   const trial = subscription?.trial_active ?? true;
   const isStarter = plan === "starter";
@@ -1201,6 +1206,7 @@ function SubscriptionView({ subscription }: { subscription: SubscriptionData | n
           <h1>Grandis à ton rythme.</h1>
           <p>Gère ton plan et ton usage IA depuis un seul endroit.</p>
         </div>
+        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
       </div>
       <div className="pricing-wrap" style={{ maxWidth: 800 }}>
         <article className="price-card">

@@ -156,6 +156,7 @@ button { cursor:pointer; }
 .chart-labels { color:#98a69d; display:flex; font-size:9px; justify-content:space-between; padding:9px 6px; }
 .store-row { align-items:center; border-top:1px solid var(--line); display:flex; gap:10px; padding:15px 0; }
 .store-logo { align-items:center; background:#f0eee2; border-radius:7px; color:#896d27; display:flex; font-size:11px; font-weight:700; height:32px; justify-content:center; width:32px; }
+.store-logo img { border-radius:7px; height:100%; object-fit:cover; width:100%; }
 .store-info { flex:1; }
 .store-info strong { display:block; font-size:12px; }
 .store-info span { color:var(--muted); font-size:10px; }
@@ -270,6 +271,7 @@ button { cursor:pointer; }
 .mobile-settings-icon { align-items:center; background:linear-gradient(135deg,#ede9fe,#dbeafe); border:1px solid var(--line); border-radius:10px; color:#4c21f6; display:flex; height:40px; justify-content:center; width:40px; }
 .mobile-settings-danger { color:#b4233c; }
 .mobile-settings-danger .mobile-settings-icon { background:#fff1f2; border-color:#fecdd3; color:#b4233c; }
+.mobile-back-button { align-items:center; background:transparent; border:1px solid var(--line); border-radius:999px; color:var(--ink); display:none; font-size:11px; gap:5px; padding:9px 12px; }
 
 @media (max-width: 760px) {
   .sidebar { display:none; }
@@ -279,6 +281,7 @@ button { cursor:pointer; }
   .app-user { gap:0; }
   .desktop-signout { display:none; }
   .mobile-settings-trigger { align-items:center; background:transparent; border:0; color:#dbeafe; display:flex; height:34px; justify-content:center; padding:0; width:34px; }
+  .mobile-back-button { display:inline-flex; }
   .app-greeting { font-size:11px; max-width:150px; }
   .page-top { align-items:stretch; flex-direction:column; gap:12px; }
   .page-top .btn { align-self:stretch; box-sizing:border-box; flex:none; max-width:100%; width:100%; }
