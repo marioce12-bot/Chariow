@@ -304,7 +304,7 @@ button { cursor:pointer; }
   .vendeo-next-row { align-items:flex-start; flex-direction:column; }
   .app-user { gap:0; }
   .desktop-signout { display:none; }
-  .mobile-settings-trigger { align-items:center; background:transparent; border:0; color:#dbeafe; display:flex; height:34px; justify-content:center; padding:0; width:34px; }
+  .mobile-settings-trigger { display:none; }
   .mobile-back-button { display:inline-flex; }
   .app-greeting { font-size:11px; max-width:150px; }
   .page-top { align-items:stretch; flex-direction:column; gap:12px; }

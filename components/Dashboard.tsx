@@ -134,9 +134,6 @@ export function Dashboard() {
           <button className="desktop-signout" onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
             Déconnexion
           </button>
-          <button className="mobile-settings-trigger" type="button" aria-label="Ouvrir les paramètres" onClick={() => setActive("Paramètres")}>
-            <Settings size={19} />
-          </button>
         </div>
       </header>
       <div className="app-layout">
@@ -476,11 +473,6 @@ function Overview({
         <div className="vendeo-badge"><CheckCircle2 size={15} /> Boutique Chariow connectée</div>
       </div>
 
-       <section className="vendeo-section overview-command" aria-label="Résumé de pilotage">
-         <div className="vendeo-section-head"><div className="vendeo-section-icon"><Activity size={17} /></div><div><h2>Vue de pilotage</h2><p className="vendeo-muted">Ce qui s’est passé et ce qui mérite ton attention.</p></div></div>
-         <div className="vendeo-kpi-grid overview-command-grid"><div className="vendeo-kpi"><small>Revenu Chariow</small><strong>{revenueFormatted}</strong><span className="kpi-caption">Source commerciale</span></div><div className="vendeo-kpi"><small>Ventes confirmées</small><strong>{salesCount}</strong><span className="kpi-caption">Paiements validés</span></div><div className="vendeo-kpi"><small>Visites</small><strong>{visitsTotal}</strong><span className="kpi-caption">Trafic observé</span></div><div className="vendeo-kpi"><small>Conversion</small><strong>{conversionFormatted}</strong><span className="kpi-caption">Visites → ventes</span></div></div>
-       </section>
-
        <section className="vendeo-section" aria-label="Priorités">
         <div className="vendeo-section-head">
           <div className="vendeo-section-icon"><Target size={17} /></div>
@@ -529,23 +521,11 @@ function Overview({
           <h2>Performance de ta boutique</h2>
         </div>
 
-        <div className="vendeo-kpi-grid">
-          <div className="vendeo-kpi">
-            <small>Chiffre d’affaires</small>
-            <strong>{revenueFormatted}</strong>
-          </div>
-          <div className="vendeo-kpi">
-            <small>Ventes</small>
-            <strong>{salesCount}</strong>
-          </div>
-          <div className="vendeo-kpi">
-            <small>Visites</small>
-            <strong>{visitsTotal}</strong>
-          </div>
-          <div className="vendeo-kpi">
-            <small>Conversion</small>
-            <strong>{conversionFormatted}</strong>
-          </div>
+         <div className="vendeo-kpi-grid">
+           <div className="vendeo-kpi"><small>Chiffre d’affaires Chariow</small><strong>{revenueFormatted}</strong><span className="kpi-caption">Revenu commercial</span></div>
+           <div className="vendeo-kpi"><small>Ventes confirmées</small><strong>{salesCount}</strong><span className="kpi-caption">Paiements validés</span></div>
+           <div className="vendeo-kpi"><small>Visites</small><strong>{visitsTotal}</strong><span className="kpi-caption">Trafic observé</span></div>
+           <div className="vendeo-kpi"><small>Conversion</small><strong>{conversionFormatted}</strong><span className="kpi-caption">Visites → ventes</span></div>
           <div className="vendeo-kpi">
             <small>Clients</small>
             <strong>{customersTotal}</strong>
