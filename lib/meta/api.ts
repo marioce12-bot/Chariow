@@ -28,7 +28,7 @@ export async function fetchMetaInsights(accountId: string, accessToken: string, 
       : ["ad_id", "ad_name"];
   const fields = [...identityFields, "impressions", "reach", "clicks", "spend", "ctr", "cpc", "cpm", "actions", "action_values", "purchase_roas"].join(",");
   console.info("Meta insights request", { level, fields, from, to });
-  const url = graphUrl(accountId, { fields, level, time_range: JSON.stringify({ since: from, until: to }), time_increment: "1", limit: "500", access_token: accessToken });
+  const url = graphUrl(`${accountId}/insights`, { fields, level, time_range: JSON.stringify({ since: from, until: to }), time_increment: "1", limit: "500", access_token: accessToken });
   const rows: MetaInsight[] = [];
   let next: string | null = url.toString();
   while (next) {
