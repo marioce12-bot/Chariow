@@ -162,4 +162,8 @@ Routes V1 :
 - `GET /api/meta/performance` expose `vendeoAttributedRoas`, basé sur le revenu net attribué.
 - `GET /api/cron/chariow/reconcile` réconcilie les ventes avec `GET /v1/sales` puis `GET /v1/sales/{sale_id}` avec `Authorization: Bearer $CRON_SECRET`.
 
+Pour les numéros de téléphone, Chariow attend `phone.number` séparément de `phone.country_code`. Le dépôt utilise `BJ` par défaut pour le Bénin et n’impose pas `+225`. Vérifie la spécification Chariow de ton compte avant production : si elle attend le code ISO, utilise `country_code: "BJ"` avec un numéro béninois local valide ; si elle documente le préfixe international, utilise `+229` avec le numéro au format demandé. Aucun format ne doit être déduit uniquement de l’interface.
+
+Rollback migration : ne supprime pas les colonnes avant d’avoir restauré l’ancienne version. En cas d’échec avant contrainte unique, corrige les données puis relance la migration. Pour annuler après validation, sauvegarde d’abord les données, puis exécute explicitement : `drop index if exists public.stores_slug_unique_idx; alter table public.stores drop column if exists slug; alter table public.stores drop column if exists chariow_api_key_encrypted;` et restaure les colonnes V1 uniquement si le schéma précédent les exigeait. Les suppressions de données de doublons ne sont pas réversibles sans sauvegarde.
+
 Le checkout V1 ne doit pas être proposé pour les produits Chariow de type Service, Coaching ou pay-what-you-want.

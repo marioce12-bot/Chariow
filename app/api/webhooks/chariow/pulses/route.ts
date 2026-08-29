@@ -1,22 +1,13 @@
 import { NextResponse } from "next/server";
-import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-function validSignature(rawBody: string, signature: string | null) {
-  const secret = process.env.CHARIOW_PULSE_WEBHOOK_SECRET;
-  if (!secret) return process.env.NODE_ENV !== "production";
-  if (!signature) return false;
-  const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  const actual = signature.replace(/^sha256=/, "");
-  return actual.length === expected.length && crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
-}
+import { verifyChariowSignature } from "@/lib/attribution-server";
 
 function record(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function amount(value: unknown) { const row = record(value); return Number(row.value ?? value ?? 0) || 0; }
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
-  if (!validSignature(rawBody, request.headers.get("x-chariow-signature"))) return NextResponse.json({ error: "Signature invalide" }, { status: 401 });
+  if (!verifyChariowSignature(rawBody, request.headers.get("x-chariow-signature"), process.env.CHARIOW_PULSE_WEBHOOK_SECRET) && process.env.NODE_ENV === "production") return NextResponse.json({ error: "Signature invalide" }, { status: 401 });
   let event: Record<string, unknown>;
   try { event = JSON.parse(rawBody) as Record<string, unknown>; } catch { return NextResponse.json({ error: "Payload invalide" }, { status: 400 }); }
   const deliveryId = request.headers.get("x-pulse-delivery-id");

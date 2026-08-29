@@ -19,6 +19,7 @@ function MetricHelp({ label, description }: { label: string; description: string
 
 type StoreData = {
   id: string;
+  slug?: string;
   platform: string;
   store_name: string;
   mcp_url: string | null;
@@ -1063,6 +1064,9 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
   const [error, setError] = useState("");
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [checkoutKeyStore, setCheckoutKeyStore] = useState<string | null>(null);
+  const [checkoutKey, setCheckoutKey] = useState("");
+  const [checkoutConfigured, setCheckoutConfigured] = useState<Record<string, boolean>>({});
 
   async function connectChariow(storeId?: string) {
     setError("");
@@ -1105,6 +1109,22 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
     } finally {
       setSaving(false);
     }
+  }
+
+  async function loadCheckoutKeyStatus(id: string) {
+    const response = await fetch(`/api/integrations/chariow/checkout-key?store_id=${encodeURIComponent(id)}`);
+    const data = await response.json().catch(() => ({}));
+    setCheckoutConfigured((current) => ({ ...current, [id]: Boolean(data.configured) }));
+  }
+
+  async function saveCheckoutKey(id: string) {
+    const response = await fetch("/api/integrations/chariow/checkout-key", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ store_id: id, api_key: checkoutKey }) });
+    if (response.ok) { setCheckoutKey(""); setCheckoutKeyStore(null); setCheckoutConfigured((current) => ({ ...current, [id]: true })); }
+  }
+
+  async function deleteCheckoutKey(id: string) {
+    const response = await fetch("/api/integrations/chariow/checkout-key", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ store_id: id }) });
+    if (response.ok) setCheckoutConfigured((current) => ({ ...current, [id]: false }));
   }
 
   async function deleteStore(id: string) {
@@ -1156,6 +1176,13 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
                 </span>
               </div>
               <span className="status">● {status}</span>
+              <div className="store-checkout-key">
+                <strong>Clé Checkout Chariow</strong>
+                <span>{checkoutConfigured[store.id] ? "Configurée côté serveur" : "Non configurée"}</span>
+                <button type="button" className="btn btn-ghost" onClick={() => { setCheckoutKeyStore(store.id); void loadCheckoutKeyStatus(store.id); }}>Remplacer</button>
+                {checkoutConfigured[store.id] ? <button type="button" className="btn btn-ghost" onClick={() => void deleteCheckoutKey(store.id)}>Supprimer</button> : null}
+                {checkoutKeyStore === store.id ? <form onSubmit={(event) => { event.preventDefault(); void saveCheckoutKey(store.id); }}><input type="password" value={checkoutKey} onChange={(event) => setCheckoutKey(event.target.value)} placeholder="Clé API Checkout" required minLength={16} /><button className="btn btn-dark" type="submit">Enregistrer</button></form> : null}
+              </div>
               {canDisconnect ? (
                 <button className="btn btn-ghost" onClick={() => disconnectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
                   Déconnecter

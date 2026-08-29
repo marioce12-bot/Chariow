@@ -32,6 +32,6 @@ with duplicates as (
 delete from public.meta_attributions target using duplicates
 where target.id = duplicates.id and duplicates.row_number > 1;
 
-create unique index if not exists meta_attributions_chariow_sale_unique_idx on public.meta_attributions(chariow_sale_id) where chariow_sale_id is not null;
+-- The sale_id backfill and global uniqueness are finalized by the slug migration.
 create index if not exists meta_attributions_campaign_attributed_idx on public.meta_attributions(meta_campaign_id, attributed_at desc);
 create index if not exists meta_attributions_store_attributed_idx on public.meta_attributions(store_id, attributed_at desc);

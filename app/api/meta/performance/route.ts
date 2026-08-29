@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getChariowSnapshot, normalizeChariowSnapshot } from "@/lib/chariow/analytics";
-import { decryptSecret } from "@/lib/crypto";
 import { calculateProfitability } from "@/lib/profitability";
 import type { MetaEntityPerformance } from "@/lib/meta/types";
+import { calculateVendeoAttributedRoas } from "@/lib/attribution-server";
 
 function sum(rows: Array<Record<string, unknown>>, key: string) {
   return rows.reduce((total, row) => total + Number(row[key] ?? 0), 0);
@@ -74,5 +74,5 @@ export async function GET(request: Request) {
   const attributedGrossRevenue = completedAttributedSales.reduce((total: number, item: { attributed_gross_revenue?: number | string | null }) => total + (Number(item.attributed_gross_revenue ?? 0) || 0), 0);
   const attributedNetRevenue = completedAttributedSales.reduce((total: number, item: { attributed_net_revenue?: number | string | null }) => total + (Number(item.attributed_net_revenue ?? 0) || 0), 0);
   const profitability = calculateProfitability({ price: productPrice, productCost: 0, platformFees: 0, otherVariableCosts: 0, adSpend: totalSpend, conversionRate: totalConversions, refundRate: 0 });
-  return NextResponse.json({ currency, period: { from, to }, overview: { spend: totalSpend, chariowRevenue: revenue, metaReportedRevenue, attributedGrossRevenue, attributedNetRevenue, attributedRevenue: attributedNetRevenue, conversions: totalConversions, sales, cpa: totalConversions > 0 ? totalSpend / totalConversions : null, cac: sales > 0 ? totalSpend / sales : null, metaRoas: totalSpend > 0 ? metaReportedRevenue / totalSpend : null, vendeoAttributedRoas: totalSpend > 0 ? attributedNetRevenue / totalSpend : null, realRoas: totalSpend > 0 ? attributedNetRevenue / totalSpend : null, attributionCoverage: completedAttributedSales.length }, profitability, performances });
+  return NextResponse.json({ currency, period: { from, to }, overview: { spend: totalSpend, chariowRevenue: revenue, metaReportedRevenue, attributedGrossRevenue, attributedNetRevenue, attributedRevenue: attributedNetRevenue, conversions: totalConversions, sales, cpa: totalConversions > 0 ? totalSpend / totalConversions : null, cac: sales > 0 ? totalSpend / sales : null, metaRoas: totalSpend > 0 ? metaReportedRevenue / totalSpend : null, vendeoAttributedRoas: calculateVendeoAttributedRoas(attributedNetRevenue, totalSpend), realRoas: calculateVendeoAttributedRoas(attributedNetRevenue, totalSpend), attributionCoverage: completedAttributedSales.length }, profitability, performances });
 }

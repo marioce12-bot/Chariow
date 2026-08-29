@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   const ip = clientIp(request);
   if (limited(`${ip}:${storeSlug}`)) return NextResponse.json({ error: "Trop de requêtes" }, { status: 429 });
   const supabase = createAdminClient();
-  const { data: store } = await supabase.from("stores").select("id,user_id").or(`id.eq.${storeSlug},store_name.ilike.${storeSlug}`).eq("is_active", true).eq("platform", "chariow").maybeSingle();
+  const { data: store } = await supabase.from("stores").select("id,user_id").eq("slug", storeSlug).eq("is_active", true).eq("platform", "chariow").maybeSingle();
   if (!store) return NextResponse.json({ error: "Boutique introuvable" }, { status: 404 });
   const now = new Date();
   const { error } = await supabase.from("attribution_touches").upsert({ user_id: store.user_id, store_id: store.id, product_slug: productSlug, visitor_id: visitorId, ...fields, captured_at: now.toISOString(), expires_at: new Date(now.getTime() + 90 * 86400000).toISOString() }, { onConflict: "store_id,visitor_id" });

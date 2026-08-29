@@ -16,7 +16,13 @@ function visitorId() {
 
 export function AttributionTracker() {
   useEffect(() => {
-    const touch = getAttributionFromSearch(new URLSearchParams(window.location.search), visitorId());
+    const params = new URLSearchParams(window.location.search);
+    const path = window.location.pathname.split("/").filter(Boolean);
+    if (path[0] === "s") {
+      if (!params.get("store_slug")) params.set("store_slug", path[1] ?? "");
+      if (!params.get("product_slug")) params.set("product_slug", path[2] ?? "");
+    }
+    const touch = getAttributionFromSearch(params, visitorId());
     if (!touch) return;
     const existing = window.localStorage.getItem(ATTRIBUTION_STORAGE);
     if (!existing || touch.utmCampaign || touch.fbclid) window.localStorage.setItem(ATTRIBUTION_STORAGE, JSON.stringify(touch));

@@ -1,5 +1,3 @@
-import { decryptSecret } from "@/lib/crypto";
-
 type CheckoutInput = {
   productId: string;
   email: string;
