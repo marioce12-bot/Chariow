@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Rocket, Sparkles, LogOut } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Rocket, Sparkles, LogOut, Megaphone, FileText } from "lucide-react";
 import { cleanAiText } from "@/lib/ai/format";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
@@ -69,9 +69,9 @@ export function Dashboard() {
     ["Vue d’ensemble", LayoutDashboard],
     ["Vendeo AI", MessageSquare],
     ["Assistant de profit", WalletCards],
-    ["Meta Ads", BarChart3],
+    ["Meta Ads", Megaphone],
     ["Mes boutiques", Store],
-    ["Rapports", BarChart3],
+    ["Rapports", FileText],
     ["Abonnement", CreditCard],
   ] as const;
 
@@ -223,11 +223,11 @@ export function Dashboard() {
            <span>Profit</span>
          </button>
          <button type="button" className={`nav-btn ${active === "Meta Ads" ? "active" : ""}`} onClick={() => setActive("Meta Ads")}>
-           <BarChart3 size={18} />
+           <Megaphone size={18} />
            <span>Meta Ads</span>
          </button>
          <button type="button" className={`nav-btn ${active === "Rapports" ? "active" : ""}`} onClick={() => setActive("Rapports")}>
-           <BarChart3 size={18} />
+           <FileText size={18} />
            <span>Rapports</span>
          </button>
        </nav>
