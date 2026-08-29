@@ -9,7 +9,7 @@ export async function GET() {
   if (!user) return response;
   const { data, error } = await supabase
     .from("stores")
-    .select("id, platform, store_name, mcp_url, logo_url, image, is_active, connection_status, connection_error, connected_at, created_at")
+    .select("id, platform, store_name, mcp_url, is_active, connection_status, connection_error, connected_at, created_at")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .order("created_at", { ascending: false });
