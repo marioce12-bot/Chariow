@@ -183,4 +183,4 @@ Sur une base qui a déjà appliqué les migrations précédentes, ne les réappl
 
 Vendeo ne crée aucun paiement Chariow. Le suivi UTM est enregistré pour l’analyse ; l’attribution financière Chariow nécessite que le webhook fournisse le contexte de boutique et les données de vente correspondantes.
 
-Appliquer aussi les migrations `20260829200000_persist_chariow_sales.sql` et `20260829201000_meta_auto_sync.sql`. Sur Vercel, planifier `/api/cron/meta/sync` avec un cron quotidien ou horaire et envoyer `Authorization: Bearer $CRON_SECRET`.
+Appliquer aussi les migrations `20260829200000_persist_chariow_sales.sql` et `20260829201000_meta_auto_sync.sql`. Sur Vercel Hobby, `/api/cron/meta/sync` est planifié quotidiennement à 03:00 UTC. La route attend `Authorization: Bearer $CRON_SECRET`.
