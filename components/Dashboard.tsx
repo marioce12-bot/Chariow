@@ -176,8 +176,10 @@ export function Dashboard() {
         <section className="app-main">
           {loadingData ? (
             <div className="app-card">Chargement de ton espace…</div>
-          ) : stores.length === 0 && active !== "Mes boutiques" ? (
+          ) : stores.length === 0 && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
             <StoreOnboarding />
+          ) : active === "Paramètres" ? (
+            <MobileSettingsView onNavigate={setActive} />
           ) : active === "Vendeo AI" ? (
             <ChatView onGoToSubscription={() => setActive("Abonnement")} />
           ) : active === "Assistant de profit" ? (
@@ -219,18 +221,14 @@ export function Dashboard() {
            <BarChart3 size={18} />
            <span>Meta Ads</span>
          </button>
-        <button type="button" className={`nav-btn ${active === "Mes boutiques" ? "active" : ""}`} onClick={() => setActive("Mes boutiques")}>
-          <Store size={18} />
-          <span>Boutiques</span>
-        </button>
-        <button type="button" className={`nav-btn ${active === "Rapports" ? "active" : ""}`} onClick={() => setActive("Rapports")}>
-          <BarChart3 size={18} />
-          <span>Rapports</span>
-        </button>
-        <button type="button" className={`nav-btn ${active === "Abonnement" ? "active" : ""}`} onClick={() => setActive("Abonnement")}>
-          <CreditCard size={18} />
-          <span>Plan</span>
-        </button>
+         <button type="button" className={`nav-btn ${active === "Rapports" ? "active" : ""}`} onClick={() => setActive("Rapports")}>
+           <BarChart3 size={18} />
+           <span>Rapports</span>
+         </button>
+         <button type="button" className={`nav-btn ${active === "Paramètres" || active === "Mes boutiques" || active === "Abonnement" ? "active" : ""}`} onClick={() => setActive("Paramètres")}>
+           <Settings size={18} />
+           <span>Paramètres</span>
+         </button>
       </nav>
     </main>
   );
@@ -701,6 +699,32 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
       <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s’est passé</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La période est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi c’est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion n’est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action</small><strong>{getRecommendation(analytics).title}</strong></div></div></div>
     </>}
   </>;
+}
+
+function MobileSettingsView({ onNavigate }: { onNavigate: (section: string) => void }) {
+  return (
+    <>
+      <div className="page-top">
+        <div>
+          <span className="eyebrow">Compte</span>
+          <h1>Paramètres</h1>
+          <p>Gère tes boutiques et ton abonnement depuis cet espace.</p>
+        </div>
+      </div>
+      <div className="mobile-settings-grid">
+        <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
+          <span className="mobile-settings-icon"><Store size={20} /></span>
+          <span><strong>Mes boutiques</strong><small>Connecter et gérer tes boutiques Chariow.</small></span>
+          <ArrowRight size={16} />
+        </button>
+        <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Abonnement")}>
+          <span className="mobile-settings-icon"><CreditCard size={20} /></span>
+          <span><strong>Abonnement</strong><small>Voir ton plan et gérer ton accès Vendeo.</small></span>
+          <ArrowRight size={16} />
+        </button>
+      </div>
+    </>
+  );
 }
 
 function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {

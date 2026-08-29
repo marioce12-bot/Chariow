@@ -261,6 +261,12 @@ button { cursor:pointer; }
 .mobile-nav .nav-btn { background:transparent; border:0; display:flex; flex:1 1 0; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-width:0; padding:7px 3px; color:#607167; border-radius:10px; }
 .mobile-nav .nav-btn.active { color:var(--green); font-weight:800; }
 .mobile-nav .nav-btn span { font-size:10px; line-height:1; }
+.mobile-settings-grid { display:grid; gap:12px; margin-top:18px; }
+.mobile-settings-card { align-items:center; background:white; border:1px solid var(--line); border-radius:14px; color:var(--ink); display:flex; gap:12px; padding:16px; text-align:left; width:100%; }
+.mobile-settings-card > span:nth-child(2) { display:flex; flex:1; flex-direction:column; gap:5px; }
+.mobile-settings-card strong { font-size:14px; }
+.mobile-settings-card small { color:var(--muted); font-size:11px; line-height:1.5; }
+.mobile-settings-icon { align-items:center; background:linear-gradient(135deg,#ede9fe,#dbeafe); border:1px solid var(--line); border-radius:10px; color:#4c21f6; display:flex; height:40px; justify-content:center; width:40px; }
 
 @media (max-width: 760px) {
   .sidebar { display:none; }
