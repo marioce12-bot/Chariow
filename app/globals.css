@@ -43,6 +43,11 @@ button { cursor:pointer; }
 .hero-note { color:#a5bcad; font-size:11px; margin-top:15px; }
 .dashboard-preview { background:rgba(249,251,245,.88); border:8px solid rgba(255,255,255,.2); border-radius:18px; box-shadow:0 28px 60px rgba(7,24,17,.34),0 0 0 1px rgba(255,255,255,.08) inset; color:var(--ink); overflow:hidden; transform:rotate(2deg); animation:previewFloat 6s ease-in-out infinite, riseIn .9s .25s ease both; }
 .platform-preview-image { display:block; height:auto; max-width:100%; width:100%; }
+.animated-preview { aspect-ratio:900 / 620; position:relative; }
+.preview-slide { animation: previewCrossfade 12.6s ease-in-out infinite; left:0; object-fit:cover; opacity:0; position:absolute; top:0; transform:translateY(14px) scale(.985); }
+.preview-slide:first-child { opacity:1; }
+@keyframes previewCrossfade { 0%,27% { opacity:0; transform:translateY(14px) scale(.985); } 5%,22% { opacity:1; transform:translateY(0) scale(1); } 32%,100% { opacity:0; transform:translateY(-10px) scale(1.01); } }
+@media (prefers-reduced-motion: reduce) { .preview-slide { animation:none; opacity:0; } .preview-slide:first-child { opacity:1; } }
 .preview-top { align-items:center; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; padding:14px 16px; }
 .preview-brand { font-size:12px; font-weight:700; }
 .preview-dots { display:flex; gap:4px; }
