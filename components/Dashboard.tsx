@@ -688,7 +688,7 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [usage, setUsage] = useState<{ free_used: number; free_limit: number; used: number; limit: number } | null>(null);
+  const [usage, setUsage] = useState<{ free_used: number; free_limit: number; used: number; limit: number; trialActive: boolean; status: string; plan: string } | null>(null);
   const [plansRequired, setPlansRequired] = useState(false);
 
   const bottomRef = (node: HTMLDivElement | null) => {
@@ -720,11 +720,11 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
               free_used: data.subscription.free_messages_used,
               free_limit: data.subscription.free_messages_limit,
               used: data.subscription.messages_used_this_month,
-              limit: data.subscription.messages_limit,
+              limit: data.subscription.messages_limit, trialActive: Boolean(data.subscription.trial_active), status: data.subscription.status, plan: data.subscription.plan,
             }
           : null;
         setUsage(nextUsage);
-        if (nextUsage) setPlansRequired(nextUsage.free_used >= nextUsage.free_limit);
+        if (nextUsage) setPlansRequired(nextUsage.trialActive ? nextUsage.free_used >= nextUsage.free_limit : nextUsage.status !== "active" || nextUsage.used >= nextUsage.limit);
       });
   }, []);
 
@@ -749,10 +749,10 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
           free_used: data.usage.free_used,
           free_limit: data.usage.free_limit,
           used: data.usage.used,
-          limit: data.usage.limit,
+          limit: data.usage.limit, trialActive: Boolean(data.usage.trial_active), status: data.usage.status, plan: data.usage.plan,
         };
         setUsage(nextUsage);
-        setPlansRequired(nextUsage.free_used >= nextUsage.free_limit);
+        setPlansRequired(nextUsage.trialActive ? nextUsage.free_used >= nextUsage.free_limit : nextUsage.status !== "active" || nextUsage.used >= nextUsage.limit);
       }
     } else {
       if (data.code === "PLANS_REQUIRED") {
@@ -794,14 +794,14 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
                   Voir les offres
                 </button>
               </>
-            ) : (
+            ) : usage.trialActive ? (
               <>
                 <strong>
                   {freeRemaining} requête{freeRemaining > 1 ? "s" : ""} gratuite{freeRemaining > 1 ? "s" : ""}
                 </strong>
                 {' '}restante{freeRemaining > 1 ? "s" : ""}. Découvre Vendeo avant de choisir ton plan.
               </>
-            )}
+            ) : <strong>Plan {usage.plan} actif</strong>}
           </div>
         )}
         <div className="chat-messages">
@@ -959,7 +959,7 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
 function SubscriptionView({ subscription, onBackToSettings }: { subscription: SubscriptionData | null; onBackToSettings?: () => void }) {
   const plan = subscription?.plan ?? "starter";
   const trial = subscription?.trial_active ?? true;
-  const isStarter = plan === "starter";
+  const isStarter = plan === "starter" && !trial;
 
   async function changePlan(nextPlan: "starter" | "pro") {
     const response = await fetch("/api/subscription/checkout", {
