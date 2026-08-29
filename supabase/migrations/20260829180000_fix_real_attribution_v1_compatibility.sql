@@ -1,8 +1,5 @@
 -- Compatibility follow-up for databases that may or may not have applied V1.
-alter table public.stores add column if not exists chariow_api_key_encrypted text;
 alter table public.attribution_touches alter column user_id drop not null;
-alter table public.attribution_touches add column if not exists product_id text;
-alter table public.attribution_touches add column if not exists product_slug text;
 alter table public.attribution_touches add column if not exists expires_at timestamptz not null default (now() + interval '90 days');
 alter table public.chariow_pulse_events add column if not exists pulse_delivery_id text;
 alter table public.chariow_pulse_events add column if not exists store_id uuid references public.stores(id) on delete set null;

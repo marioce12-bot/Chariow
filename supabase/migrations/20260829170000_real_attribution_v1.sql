@@ -3,7 +3,6 @@ alter table public.attribution_touches alter column user_id drop not null;
 alter table public.attribution_touches add column if not exists product_id text;
 alter table public.attribution_touches add column if not exists product_slug text;
 alter table public.attribution_touches add column if not exists expires_at timestamptz not null default (now() + interval '90 days');
-alter table public.stores add column if not exists chariow_api_key_encrypted text;
 
 alter table public.attribution_touches drop constraint if exists attribution_touches_user_id_visitor_id_key;
 create unique index if not exists attribution_touches_store_visitor_unique_idx on public.attribution_touches(store_id, visitor_id) where store_id is not null;

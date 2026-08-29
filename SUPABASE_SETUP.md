@@ -152,21 +152,14 @@ npx supabase db push
 ou exécute `supabase/migrations/20260829170000_real_attribution_v1.sql` dans le SQL Editor.
 
 Configure `CHARIOW_PULSE_WEBHOOK_SECRET` avec le secret fourni par Chariow pour vérifier `x-chariow-signature`.
-Chaque boutique doit aussi disposer d’une clé Checkout Chariow chiffrée dans `stores.chariow_api_key_encrypted`; elle est distincte du token MCP OAuth. `CRON_SECRET` protège la route de réconciliation.
 
 Routes V1 :
 
 - `POST /api/attribution/touch` accepte les visiteurs anonymes et enregistre les UTM par boutique.
-- `POST /api/chariow/checkout/init` crée un checkout Chariow et transmet `custom_metadata`.
 - `POST /api/webhooks/chariow/pulses` déduplique les livraisons sur `x-pulse-delivery-id`.
 - `GET /api/meta/performance` expose `vendeoAttributedRoas`, basé sur le revenu net attribué.
-- `GET /api/cron/chariow/reconcile` réconcilie les ventes avec `GET /v1/sales` puis `GET /v1/sales/{sale_id}` avec `Authorization: Bearer $CRON_SECRET`.
 
-Pour les numéros de téléphone, Chariow attend `phone.number` séparément de `phone.country_code`. Le dépôt utilise `BJ` par défaut pour le Bénin et n’impose pas `+225`. Vérifie la spécification Chariow de ton compte avant production : si elle attend le code ISO, utilise `country_code: "BJ"` avec un numéro béninois local valide ; si elle documente le préfixe international, utilise `+229` avec le numéro au format demandé. Aucun format ne doit être déduit uniquement de l’interface.
-
-Rollback migration : ne supprime pas les colonnes avant d’avoir restauré l’ancienne version. En cas d’échec avant contrainte unique, corrige les données puis relance la migration. Pour annuler après validation, sauvegarde d’abord les données, puis exécute explicitement : `drop index if exists public.stores_slug_unique_idx; alter table public.stores drop column if exists slug; alter table public.stores drop column if exists chariow_api_key_encrypted;` et restaure les colonnes V1 uniquement si le schéma précédent les exigeait. Les suppressions de données de doublons ne sont pas réversibles sans sauvegarde.
-
-Le checkout V1 ne doit pas être proposé pour les produits Chariow de type Service, Coaching ou pay-what-you-want.
+Vendeo ne vend pas de produits et ne crée aucune session de paiement. Chariow reste la plateforme de vente ; Vendeo lit les données de boutique et analyse les ventes, revenus, publicités Meta et indicateurs de rentabilité.
 
 ### Modèle d’attribution V1
 
@@ -181,7 +174,10 @@ Le checkout V1 ne doit pas être proposé pour les produits Chariow de type Serv
 Ordre final des migrations :
 
 1. `20260829170000_attribution_touches.sql` et les migrations antérieures déjà listées dans ce dépôt.
-2. `20260829173000_public_store_product_slugs.sql`.
+2. `20260829173000_public_store_product_slugs.sql` uniquement si les slugs publics d’analyse sont conservés.
 3. `20260829180000_fix_real_attribution_v1_compatibility.sql`.
+4. `20260829190000_remove_unused_checkout_api_key.sql` pour supprimer l’ancienne colonne de clé Checkout si elle existe.
 
-Sur une base qui a déjà appliqué `20260829170000`, ne réapplique pas cette migration : applique uniquement les migrations ultérieures. La migration corrective est conçue pour les colonnes déjà présentes et les données historiques.
+Sur une base qui a déjà appliqué les migrations précédentes, ne les réapplique pas : applique uniquement les migrations encore absentes. La migration de suppression ne touche pas au token MCP/OAuth utilisé pour l’analyse.
+
+Vendeo ne crée aucun paiement Chariow. Le suivi UTM est enregistré pour l’analyse ; l’attribution financière Chariow nécessite que le webhook fournisse le contexte de boutique et les données de vente correspondantes.

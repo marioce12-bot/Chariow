@@ -17,11 +17,11 @@ describe("Attribution réelle V1", () => {
     expect(calculateVendeoAttributedRoas(125000, 0)).toBeNull();
   });
 
-  it("documente les invariants de résolution publique", () => {
-    const request = { store_slug: "boutique-stable", product_slug: "produit-stable", visitor_id: "visitor-1" };
+  it("n’expose aucun identifiant vendeur dans le suivi navigateur", () => {
+    const request = { visitor_id: "visitor-1", utm_source: "meta", utm_medium: "paid_social" };
     expect(request).not.toHaveProperty("user_id");
+    expect(request).not.toHaveProperty("store_id");
     expect(request).not.toHaveProperty("product_id");
-    expect(request).toMatchObject({ store_slug: expect.any(String), product_slug: expect.any(String) });
   });
 
   it("représente l’idempotence Pulse et chariow_sale_id comme des clés distinctes", () => {
