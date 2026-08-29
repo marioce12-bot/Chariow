@@ -19,7 +19,10 @@ export async function middleware(request: NextRequest) {
   });
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error) console.error("Supabase middleware auth error", error.message);
-  if (!user && (request.nextUrl.pathname.startsWith("/dashboard") || request.nextUrl.pathname.startsWith("/admin"))) return NextResponse.redirect(new URL(request.nextUrl.pathname.startsWith("/admin") ? "/admin/login" : "/login", request.url));
+  const isAdminPath = request.nextUrl.pathname.startsWith("/admin");
+  const isAdminLogin = request.nextUrl.pathname === "/admin/login";
+  if (!user && request.nextUrl.pathname.startsWith("/dashboard")) return NextResponse.redirect(new URL("/login", request.url));
+  if (!user && isAdminPath && !isAdminLogin) return NextResponse.redirect(new URL("/admin/login", request.url));
   if (user && ["/login", "/register"].includes(request.nextUrl.pathname)) return NextResponse.redirect(new URL("/dashboard", request.url));
   return response;
 }
