@@ -430,12 +430,12 @@ function Overview({
   if (!stores.length) {
     return (
       <>
-        <div className="vendeo-overview-header">
+         <div className="vendeo-overview-header">
           <div>
             <h1>Bonjour {greeting}</h1>
             <p>Voici ce que Vendeo recommande pour faire avancer ton business cette semaine.</p>
           </div>
-          <div className="vendeo-badge"><CheckCircle2 size={15} /> Boutique Chariow connectée</div>
+         <div className="vendeo-overview-actions"><div className="vendeo-badge"><CheckCircle2 size={15} /> Boutique Chariow connectée</div><span className="vendeo-period-pill">30 derniers jours</span></div>
         </div>
         <div className="empty-state" style={{ marginTop: 12 }}>Connecte ta boutique Chariow pour voir tes recommandations.</div>
       </>
@@ -468,7 +468,12 @@ function Overview({
         <div className="vendeo-badge"><CheckCircle2 size={15} /> Boutique Chariow connectée</div>
       </div>
 
-      <section className="vendeo-section" aria-label="Priorités">
+       <section className="vendeo-section overview-command" aria-label="Résumé de pilotage">
+         <div className="vendeo-section-head"><div className="vendeo-section-icon"><Activity size={17} /></div><div><h2>Vue de pilotage</h2><p className="vendeo-muted">Ce qui s’est passé et ce qui mérite ton attention.</p></div></div>
+         <div className="vendeo-kpi-grid overview-command-grid"><div className="vendeo-kpi"><small>Revenu Chariow</small><strong>{revenueFormatted}</strong><span className="kpi-caption">Source commerciale</span></div><div className="vendeo-kpi"><small>Ventes confirmées</small><strong>{salesCount}</strong><span className="kpi-caption">Paiements validés</span></div><div className="vendeo-kpi"><small>Visites</small><strong>{visitsTotal}</strong><span className="kpi-caption">Trafic observé</span></div><div className="vendeo-kpi"><small>Conversion</small><strong>{conversionFormatted}</strong><span className="kpi-caption">Visites → ventes</span></div></div>
+       </section>
+
+       <section className="vendeo-section" aria-label="Priorités">
         <div className="vendeo-section-head">
           <div className="vendeo-section-icon"><Target size={17} /></div>
           <h2>Tes priorités cette semaine</h2>
