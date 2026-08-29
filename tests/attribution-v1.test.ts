@@ -70,4 +70,13 @@ describe("Attribution réelle V1", () => {
     expect(fallback(undefined, "2026-07-30")).toBe("2026-07-30");
     expect(fallback("2026-08-01", "2026-07-30")).toBe("2026-08-01");
   });
+
+  it("n’inclut jamais campaign_id dans les champs Insights demandés", () => {
+    const fieldsByLevel = {
+      campaign: ["impressions", "spend"],
+      adset: ["adset_id", "adset_name", "impressions", "spend"],
+      ad: ["ad_id", "ad_name", "impressions", "spend"],
+    };
+    expect(Object.values(fieldsByLevel).flat().filter((field) => field === "campaign_id")).toHaveLength(0);
+  });
 });

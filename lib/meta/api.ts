@@ -17,14 +17,17 @@ export async function fetchMetaAccounts(accessToken: string) {
 }
 
 export async function fetchMetaInsights(accountId: string, accessToken: string, from: string, to: string, level: "campaign" | "adset" | "ad") {
-  // Keep identity fields scoped to the requested level. Meta rejects fields
-  // belonging to another level for some ad accounts (Graph error #100).
+  // Do not request campaign_id/campaign_name: some Meta account tokens reject
+  // these fields even when the insight level is campaign (#100). The API
+  // returns the level identity when available; the sync layer can fallback to
+  // the entity id or the requested range when it is omitted.
   const identityFields = level === "campaign"
-    ? ["campaign_id", "campaign_name"]
+    ? []
     : level === "adset"
-      ? ["adset_id", "adset_name", "campaign_id", "campaign_name"]
-      : ["ad_id", "ad_name", "adset_id", "adset_name", "campaign_id", "campaign_name"];
+      ? ["adset_id", "adset_name"]
+      : ["ad_id", "ad_name"];
   const fields = [...identityFields, "impressions", "reach", "clicks", "spend", "ctr", "cpc", "cpm", "actions", "action_values", "purchase_roas"].join(",");
+  console.info("Meta insights request", { level, fields, from, to });
   const url = graphUrl(accountId, { fields, level, time_range: JSON.stringify({ since: from, until: to }), time_increment: "1", limit: "500", access_token: accessToken });
   const rows: MetaInsight[] = [];
   let next: string | null = url.toString();

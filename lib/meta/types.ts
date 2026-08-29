@@ -6,6 +6,7 @@ export type MetaAdAccount = {
 };
 
 export type MetaInsight = {
+  id?: string;
   date_start: string;
   date_stop: string;
   campaign_id?: string;

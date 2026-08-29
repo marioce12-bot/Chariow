@@ -17,7 +17,7 @@ export async function syncMetaInsights(supabase: any, account: { id: string; met
   for (const level of ["campaign", "adset", "ad"] as const) {
     const insights = await fetchMetaInsights(`act_${account.meta_account_id}`, accessToken, from, to, level);
     const rows = insights.map((insight: MetaInsight) => {
-      const id = level === "campaign" ? insight.campaign_id : level === "adset" ? insight.adset_id : insight.ad_id;
+      const id = level === "campaign" ? insight.campaign_id ?? insight.id : level === "adset" ? insight.adset_id ?? insight.id : insight.ad_id ?? insight.id;
       const name = level === "campaign" ? insight.campaign_name : level === "adset" ? insight.adset_name : insight.ad_name;
       const conversions = actionValue(insight.actions, ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]);
       const conversionValue = actionValue(insight.action_values, ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]);
