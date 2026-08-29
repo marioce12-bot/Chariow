@@ -28,8 +28,38 @@ export function Marketing() {
   const [open, setOpen] = useState<number | null>(null);
   return <main>
       <header className="marketing-header"><div className="container"><nav className="marketing-nav"><Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo-light.svg" alt="Vendeo" width={150} height={40}/></Link><div className="nav-links"><a href="#fonctionnalites">Fonctionnalités</a><a href="#comment">Comment ça marche</a><a href="#tarifs">Tarifs</a><a href="#faq">FAQ</a></div><div className="marketing-actions"><Link className="btn btn-ghost" href="/login">Se connecter</Link><Link className="btn btn-white" href="/register">Commencer <ArrowRight size={15}/></Link></div></nav></div></header>
-      <section className="hero"><div className="container hero-grid"><div className="hero-copy"><span className="pill"><i className="dot"/> Analyse tes ventes. Comprends tes pubs. Vends mieux</span><h1>Analyse tes ventes.<br/>Comprends tes pubs.<br/><em>Vends mieux</em></h1><p>Vendeo te montre ou tu gagne de largent ou tu en perds et comment ameliorer tes perfomances</p><div className="hero-actions"><Link href="/register" className="btn btn-lime">Analyser mon activité gratuitement <ArrowRight size={16}/></Link><a href="#comment" className="btn" style={{border:'1px solid rgba(255,255,255,.3)',color:'white'}}>Voir comment ça marche</a></div><div className="hero-note">✓ Ventes et publicités réunies &nbsp; · &nbsp; ✓ Décisions en langage simple &nbsp; · &nbsp; ✓ Pensé pour les createurs</div></div><Preview/></div></section>
-      <div className="container"><div className="logos glass-strip"><span className="platform-logo"><Image src="/logos/chariow.svg" alt="Chariow" width={132} height={32}/></span><span className="platform-logo"><Image src="/logos/selar.png" alt="Selar" width={102} height={32}/><small>(bientôt)</small></span><span className="platform-logo"><Image src="/logos/gumroad.svg" alt="Gumroad" width={125} height={32}/><small>(bientôt)</small></span><span>POUR LES CRÉATEURS</span></div></div>
+       <section className="hero">
+        <div className="container hero-grid hero-vendeo-grid">
+          <div className="hero-title hero-copy">
+            <span className="pill"><i className="dot"/> Analyse tes ventes. Comprends tes pubs. Vends mieux</span>
+            <h1>Analyse tes ventes.<br/>Comprends tes pubs.<br/><em>Vends mieux</em></h1>
+          </div>
+
+          <div className="hero-paragraph hero-copy">
+            <p>Vendeo te montre ou tu gagne de largent ou tu en perds et comment ameliorer tes perfomances</p>
+          </div>
+
+          <div className="hero-actions-block">
+            <div className="hero-actions">
+              <Link href="/register" className="btn btn-lime">Analyser mon activité gratuitement <ArrowRight size={16}/></Link>
+              <a href="#comment" className="btn" style={{border:'1px solid rgba(255,255,255,.3)',color:'white'}}>Voir comment ça marche</a>
+            </div>
+            <div className="hero-note">✓ Ventes et publicités réunies &nbsp; · &nbsp; ✓ Décisions en langage simple &nbsp; · &nbsp; ✓ Pensé pour les createurs</div>
+          </div>
+
+          <div className="hero-preview">
+            <Preview/>
+          </div>
+
+          <div className="hero-logos">
+            <div className="logos">
+              <span className="platform-logo"><Image src="/logos/chariow.svg" alt="Chariow" width={132} height={32}/></span>
+              <span className="platform-logo"><Image src="/logos/selar.png" alt="Selar" width={102} height={32}/><small>(bientôt)</small></span>
+              <span className="platform-logo"><Image src="/logos/gumroad.svg" alt="Gumroad" width={125} height={32}/><small>(bientôt)</small></span>
+            </div>
+          </div>
+        </div>
+      </section>
      <section className="section" id="comment"><div className="container"><div className="section-head"><div><span className="eyebrow">Simple par design</span><h2>De tes données<br/>à tes décisions.</h2></div><p>Pas de tableaux compliqués. Pas de jargon. Vendeo transforme tes ventes en réponses claires et en actions concrètes.</p></div><div className="how-grid"><article className="step-card"><span className="step-num mono">01 / CONNECTER</span><h3>Ta boutique</h3><p>Branche Chariow en quelques clics. Tes données restent à toi.</p></article><article className="step-card"><span className="step-num mono">02 / DEMANDER</span><h3>Ta question</h3><p>Écris comme tu parles. L'IA comprend ton contexte et tes objectifs.</p></article><article className="step-card"><span className="step-num mono">03 / COMPRENDRE</span><h3>Ton insight</h3><p>Découvre ce qui marche, ce qui bloque et ce qui mérite ton attention.</p></article><article className="step-card"><span className="step-num mono">04 / AGIR</span><h3>Ton prochain move</h3><p>Obtiens une recommandation précise, pas une réponse générique.</p></article></div></div></section>
      <section className="section features-section" id="fonctionnalites"><div className="container"><div className="section-head"><div><span className="eyebrow">Une plateforme orientée résultats</span><h2>De la dépense<br/>au bénéfice.</h2></div><p>Vendeo ne se contente pas de regarder tes chiffres. Il relie tes ventes, tes produits et tes publicités pour t’aider à protéger ta marge.</p></div><div className="feature-grid"><article className="feature-card dark"><h3>Comprends enfin ta rentabilité.</h3><p>Identifie les produits et campagnes qui gagnent réellement de l’argent, avec ton coût publicitaire maximum et ton bénéfice estimé.</p><ul className="mini-list"><li>Ventes Chariow et dépenses Meta au même endroit</li><li>Seuil de rentabilité par produit</li><li>Recommandations simples et prioritaires</li></ul></article><article className="feature-card light"><h3>Décide avant de dépenser plus.</h3><p>Teste un budget, une conversion ou un prix de vente avant de prendre une décision qui coûte cher.</p><div className="feature-line"/></article></div></div></section>
     <section className="section" id="tarifs"><div className="container"><div className="section-head"><div><span className="eyebrow">Des prix qui ont du sens</span><h2>Commence petit.<br/>Grandis serein.</h2></div><p>Tout ce qu'il faut pour comprendre ton activité, sans abonnement hors-sol.</p></div><div className="pricing-wrap"><article className="price-card"><span className="eyebrow">Pour commencer</span><h3>Starter</h3><div className="price">3 000 F <small>/ mois</small></div><ul><li><Check className="check" size={15}/>400 messages IA / mois</li><li><Check className="check" size={15}/>1 boutique Chariow</li><li><Check className="check" size={15}/>Questions sur ventes et produits</li><li><Check className="check" size={15}/>Support standard</li></ul><Link href="/register" className="btn btn-dark" style={{width:'100%'}}>Choisir Starter <ArrowRight size={15}/></Link></article><article className="price-card pro"><span className="pill" style={{marginBottom:18}}>Le plus choisi</span><h3>Pro</h3><div className="price">5 000 F <small>/ mois</small></div><ul><li><Check className="check" size={15}/>1 200 messages IA / mois</li><li><Check className="check" size={15}/>Jusqu'à 3 boutiques</li><li><Check className="check" size={15}/>Stratégie, pricing et promotions</li><li><Check className="check" size={15}/>Rapports automatiques</li><li><Check className="check" size={15}/>Support prioritaire</li></ul><Link href="/register" className="btn btn-lime" style={{width:'100%'}}>Choisir Pro <ArrowRight size={15}/></Link></article></div></div></section>
