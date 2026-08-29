@@ -57,4 +57,11 @@ describe("Attribution réelle V1", () => {
     const backfilled = { ...legacy, chariow_sale_id: legacy.sale_id };
     expect(backfilled.chariow_sale_id).toBe("sale-legacy");
   });
+
+  it("utilise une fenêtre de synchronisation Meta glissante de 30 jours", () => {
+    const to = new Date("2026-08-29T00:00:00.000Z");
+    const from = new Date(to.getTime() - 30 * 86400000);
+    expect(from.toISOString().slice(0, 10)).toBe("2026-07-30");
+    expect(to.toISOString().slice(0, 10)).toBe("2026-08-29");
+  });
 });

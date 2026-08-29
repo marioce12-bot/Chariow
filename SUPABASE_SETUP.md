@@ -158,6 +158,7 @@ Routes V1 :
 - `POST /api/attribution/touch` accepte les visiteurs anonymes et enregistre les UTM par boutique.
 - `POST /api/webhooks/chariow/pulses` déduplique les livraisons sur `x-pulse-delivery-id`.
 - `GET /api/meta/performance` expose `vendeoAttributedRoas`, basé sur le revenu net attribué.
+- `GET /api/cron/meta/sync` synchronise automatiquement les comptes Meta actifs avec `Authorization: Bearer $CRON_SECRET`.
 
 Vendeo ne vend pas de produits et ne crée aucune session de paiement. Chariow reste la plateforme de vente ; Vendeo lit les données de boutique et analyse les ventes, revenus, publicités Meta et indicateurs de rentabilité.
 
@@ -181,3 +182,5 @@ Ordre final des migrations :
 Sur une base qui a déjà appliqué les migrations précédentes, ne les réapplique pas : applique uniquement les migrations encore absentes. La migration de suppression ne touche pas au token MCP/OAuth utilisé pour l’analyse.
 
 Vendeo ne crée aucun paiement Chariow. Le suivi UTM est enregistré pour l’analyse ; l’attribution financière Chariow nécessite que le webhook fournisse le contexte de boutique et les données de vente correspondantes.
+
+Appliquer aussi les migrations `20260829200000_persist_chariow_sales.sql` et `20260829201000_meta_auto_sync.sql`. Sur Vercel, planifier `/api/cron/meta/sync` avec un cron quotidien ou horaire et envoyer `Authorization: Bearer $CRON_SECRET`.

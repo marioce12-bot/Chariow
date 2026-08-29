@@ -23,17 +23,18 @@ export async function POST(request: Request) {
   const { error: eventError } = await supabase.from("chariow_pulse_events").insert({ event_id: eventId, pulse_delivery_id: deliveryId, event_type: eventType, payload: event });
   if (eventError?.code === "23505") return NextResponse.json({ received: true, duplicate: true });
   if (eventError) return NextResponse.json({ error: "Événement non enregistré" }, { status: 500 });
+  const metadata = record(sale.custom_metadata ?? sale.metadata);
+  const storeId = String(metadata.store_id ?? sale.store_id ?? "") || null;
+  const settlement = record(sale.settlement);
+  await supabase.from("chariow_sales").upsert({ chariow_sale_id: saleId, store_id: storeId, product_id: String(metadata.product_id ?? sale.product_id ?? "") || null, status: String(sale.status ?? eventType), amount: amount(sale.amount), net_amount: amount(settlement.amount), currency: String(record(sale.amount).currency ?? sale.currency ?? "") || null, settlement_done: Boolean(settlement.done_at), event_type: eventType, occurred_at: String(sale.created_at ?? sale.createdAt ?? new Date().toISOString()), updated_at: new Date().toISOString(), raw_payload: event }, { onConflict: "chariow_sale_id" });
 
   if (eventType === "successful.sale") {
-    const metadata = record(sale.custom_metadata ?? sale.metadata);
     const visitorId = String(metadata.visitor_id ?? "");
-    const storeId = String(metadata.store_id ?? "");
     if (visitorId && storeId) {
       const { data: touches } = await supabase.from("attribution_touches").select("*").eq("store_id", storeId).eq("visitor_id", visitorId).gt("expires_at", new Date().toISOString()).order("captured_at", { ascending: false });
       const saleAt = String(sale.created_at ?? sale.createdAt ?? new Date().toISOString());
       const touch = selectLastNonDirectTouch(touches ?? [], saleAt);
       if (touch) {
-        const settlement = record(sale.settlement);
         const campaign = String(metadata.utm_campaign ?? "") || null;
         await supabase.from("meta_attributions").upsert({ user_id: touch.user_id, store_id: storeId, sale_id: saleId, chariow_sale_id: saleId, product_id: String(metadata.product_id ?? sale.product_id ?? "") || null, visitor_id: visitorId, meta_campaign_id: campaign, meta_adset_id: String(metadata.meta_adset_id ?? metadata.utm_term ?? "") || null, meta_ad_id: String(metadata.meta_ad_id ?? metadata.utm_content ?? "") || null, campaign_id: campaign, attribution_method: metadata.fbclid ? "click_id" : "sale_metadata", utm_source: String(metadata.utm_source ?? "") || null, utm_medium: String(metadata.utm_medium ?? "") || null, utm_campaign: campaign, utm_content: String(metadata.utm_content ?? "") || null, utm_term: String(metadata.utm_term ?? "") || null, fbclid: String(metadata.fbclid ?? "") || null, attribution_model: "last_non_direct_click", attribution_confidence: metadata.fbclid ? 95 : 80, attributed_gross_revenue: amount(sale.amount), attributed_net_revenue: amount(settlement.amount), attributed_revenue: amount(settlement.amount), sale_status: String(sale.status ?? "completed"), settlement_done: Boolean(settlement.done_at), currency: String(record(sale.amount).currency ?? sale.currency ?? "") || null, attributed_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "chariow_sale_id" });
       }

@@ -15,9 +15,12 @@ export async function POST(request: Request) {
   if (!account) return NextResponse.json({ error: "Aucun compte Meta Ads connecté" }, { status: 404 });
   try {
     const synced = await syncMetaInsights(supabase, account, from, to);
+    await supabase.from("meta_ad_accounts").update({ last_sync_error: null }).eq("id", account.id);
     return NextResponse.json({ synced, from, to });
   } catch (syncError) {
-    console.error("Meta insights sync failed", syncError instanceof Error ? syncError.message : syncError);
+    const message = syncError instanceof Error ? syncError.message.slice(0, 500) : "Meta sync failed";
+    await supabase.from("meta_ad_accounts").update({ last_sync_error: message }).eq("id", account.id);
+    console.error("Meta insights sync failed", message);
     return NextResponse.json({ error: "La synchronisation Meta Ads a échoué" }, { status: 502 });
   }
 }
