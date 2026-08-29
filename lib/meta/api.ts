@@ -17,9 +17,14 @@ export async function fetchMetaAccounts(accessToken: string) {
 }
 
 export async function fetchMetaInsights(accountId: string, accessToken: string, from: string, to: string, level: "campaign" | "adset" | "ad") {
-  // Meta returns date_start/date_stop as breakdown fields for time_increment;
-  // requesting them explicitly causes Graph API error #100 on some accounts.
-  const fields = ["campaign_id", "campaign_name", "adset_id", "adset_name", "ad_id", "ad_name", "impressions", "reach", "clicks", "spend", "ctr", "cpc", "cpm", "actions", "action_values", "purchase_roas"].join(",");
+  // Keep identity fields scoped to the requested level. Meta rejects fields
+  // belonging to another level for some ad accounts (Graph error #100).
+  const identityFields = level === "campaign"
+    ? ["campaign_id", "campaign_name"]
+    : level === "adset"
+      ? ["adset_id", "adset_name", "campaign_id", "campaign_name"]
+      : ["ad_id", "ad_name", "adset_id", "adset_name", "campaign_id", "campaign_name"];
+  const fields = [...identityFields, "impressions", "reach", "clicks", "spend", "ctr", "cpc", "cpm", "actions", "action_values", "purchase_roas"].join(",");
   const url = graphUrl(accountId, { fields, level, time_range: JSON.stringify({ since: from, until: to }), time_increment: "1", limit: "500", access_token: accessToken });
   const rows: MetaInsight[] = [];
   let next: string | null = url.toString();
