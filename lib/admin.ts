@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { ADMIN_COOKIE, isAdminSessionValid } from "@/lib/admin-password";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AdminRole = "super_admin" | "support" | "analyst";
 
 export async function requireAdmin(roles?: AdminRole[]) {
+  const cookieStore = await cookies();
+  if (isAdminSessionValid(cookieStore.get(ADMIN_COOKIE)?.value)) return { supabase: createAdminClient(), user: null, admin: { id: "password-admin", role: "super_admin" as AdminRole }, response: null };
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) return { supabase, user: null, admin: null, response: NextResponse.json({ error: "Authentification requise" }, { status: 401 }) };

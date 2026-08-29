@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { CookieOptions } from "@supabase/ssr";
+import { ADMIN_COOKIE, isAdminSessionValidEdge } from "@/lib/admin-password-edge";
 
 export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -22,7 +23,7 @@ export async function middleware(request: NextRequest) {
   const isAdminPath = request.nextUrl.pathname.startsWith("/admin");
   const isAdminLogin = request.nextUrl.pathname === "/admin/login";
   if (!user && request.nextUrl.pathname.startsWith("/dashboard")) return NextResponse.redirect(new URL("/login", request.url));
-  if (!user && isAdminPath && !isAdminLogin) return NextResponse.redirect(new URL("/admin/login", request.url));
+  if (isAdminPath && !isAdminLogin && !(await isAdminSessionValidEdge(request.cookies.get(ADMIN_COOKIE)?.value))) return NextResponse.redirect(new URL("/admin/login", request.url));
   if (user && ["/login", "/register"].includes(request.nextUrl.pathname)) return NextResponse.redirect(new URL("/dashboard", request.url));
   return response;
 }

@@ -1,5 +1,5 @@
-import { Auth } from "@/components/Auth";
+import { AdminPasswordLogin } from "./AdminPasswordLogin";
 
 export default function AdminLoginPage() {
-  return <Auth mode="login" />;
+  return <AdminPasswordLogin />;
 }

@@ -153,6 +153,8 @@ ou exécute `supabase/migrations/20260829170000_real_attribution_v1.sql` dans le
 
 Configure `CHARIOW_PULSE_WEBHOOK_SECRET` avec le secret fourni par Chariow pour vérifier `x-chariow-signature`.
 
+Console administrateur : configure `ADMIN_PASSWORD` et `ADMIN_PASSWORD_SECRET` dans Vercel. L’accès se fait via `/admin/login`; le mot de passe n’est jamais stocké en base et la session est un cookie HTTP-only signé, valable 8 heures. Ne mets jamais ces valeurs dans Git.
+
 Routes V1 :
 
 - `POST /api/attribution/touch` accepte les visiteurs anonymes et enregistre les UTM par boutique.

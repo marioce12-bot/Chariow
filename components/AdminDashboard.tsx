@@ -35,6 +35,7 @@ export function AdminDashboard() {
   useEffect(() => { void load(); }, []);
 
   async function signOut() {
+    await fetch("/api/admin/password-logout", { method: "POST" });
     await createClient().auth.signOut();
     window.location.href = "/admin/login";
   }
