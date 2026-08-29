@@ -5,7 +5,7 @@ export async function GET() {
   const { supabase, admin, response } = await requireAdmin();
   if (!admin) return response ?? NextResponse.json({ error: "Accès administrateur requis" }, { status: 403 });
   const [profiles, stores, subscriptions, messages, metaAccounts, audit] = await Promise.all([
-    supabase.from("profiles").select("id,email,full_name,created_at,updated_at", { count: "exact", head: false }).order("created_at", { ascending: false }).limit(100),
+    supabase.from("profiles").select("id,email,full_name,created_at,updated_at,subscriptions(plan,status)", { count: "exact", head: false }).order("created_at", { ascending: false }).limit(100),
     supabase.from("stores").select("id,user_id,platform,store_name,is_active,connection_status,connected_at,created_at", { count: "exact", head: false }).order("created_at", { ascending: false }).limit(100),
     supabase.from("subscriptions").select("id,user_id,plan,status,messages_used_this_month,messages_limit,current_period_end,created_at", { count: "exact", head: false }).order("created_at", { ascending: false }).limit(100),
     supabase.from("messages").select("id,user_id,role,created_at", { count: "exact", head: true }),
