@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { shouldReplaceTouch, TOUCH_RETENTION_DAYS } from "@/lib/attribution-selection";
 
 const MAX = { slug: 120, visitor: 128, utm: 255, url: 2048 };
 const buckets = new Map<string, { count: number; expiresAt: number }>();
@@ -47,7 +48,10 @@ export async function POST(request: Request) {
   const { data: store } = await supabase.from("stores").select("id,user_id").eq("slug", storeSlug).eq("is_active", true).eq("platform", "chariow").maybeSingle();
   if (!store) return NextResponse.json({ error: "Boutique introuvable" }, { status: 404 });
   const now = new Date();
-  const { error } = await supabase.from("attribution_touches").upsert({ user_id: store.user_id, store_id: store.id, product_slug: productSlug, visitor_id: visitorId, ...fields, captured_at: now.toISOString(), expires_at: new Date(now.getTime() + 90 * 86400000).toISOString() }, { onConflict: "store_id,visitor_id" });
+  const { data: existing } = await supabase.from("attribution_touches").select("captured_at,utm_source,utm_medium,expires_at").eq("store_id", store.id).eq("visitor_id", visitorId).order("captured_at", { ascending: false }).limit(1).maybeSingle();
+  const incoming = { captured_at: now.toISOString(), utm_source: fields.utm_source, utm_medium: fields.utm_medium, expires_at: new Date(now.getTime() + TOUCH_RETENTION_DAYS * 86400000).toISOString() };
+  if (!shouldReplaceTouch(existing, incoming)) return NextResponse.json({ received: true, preserved: true });
+  const { error } = await supabase.from("attribution_touches").upsert({ user_id: store.user_id, store_id: store.id, product_slug: productSlug, visitor_id: visitorId, ...fields, captured_at: incoming.captured_at, expires_at: incoming.expires_at }, { onConflict: "store_id,visitor_id" });
   if (error) return NextResponse.json({ error: "Impossible d’enregistrer le suivi" }, { status: 500 });
   return NextResponse.json({ received: true });
 }

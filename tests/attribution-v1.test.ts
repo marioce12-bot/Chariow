@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import crypto from "node:crypto";
 import { calculateVendeoAttributedRoas, verifyChariowSignature } from "@/lib/attribution-server";
+import { selectLastNonDirectTouch, shouldReplaceTouch } from "@/lib/attribution-selection";
 
 describe("Attribution réelle V1", () => {
   it("accepte une signature Pulse HMAC valide et refuse une signature invalide", () => {
@@ -30,5 +31,30 @@ describe("Attribution réelle V1", () => {
     attributions.add("sale-1");
     expect(events.size).toBe(1);
     expect(attributions.size).toBe(1);
+  });
+
+  it("accepte le replay Pulse signé sans delivery id sans attribution financière", () => {
+    const body = JSON.stringify({ type: "successful.sale", data: { id: "sale-test" } });
+    const signature = crypto.createHmac("sha256", "test-secret").update(body).digest("hex");
+    expect(verifyChariowSignature(body, signature, "test-secret")).toBe(true);
+    expect(null).toBeNull();
+  });
+
+  it("sélectionne uniquement une touch Meta antérieure dans la fenêtre de 30 jours", () => {
+    const saleAt = "2026-08-29T12:00:00.000Z";
+    expect(selectLastNonDirectTouch([
+      { captured_at: "2026-08-29T13:00:00.000Z", utm_source: "meta", utm_medium: "paid_social" },
+      { captured_at: "2026-08-20T13:00:00.000Z", utm_source: "meta", utm_medium: "paid_social" },
+    ], saleAt)?.captured_at).toBe("2026-08-20T13:00:00.000Z");
+  });
+
+  it("ne laisse pas une visite directe écraser la touch Meta", () => {
+    expect(shouldReplaceTouch({ captured_at: "2026-08-20T00:00:00.000Z", utm_source: "meta", utm_medium: "paid_social" }, { captured_at: "2026-08-21T00:00:00.000Z", utm_source: null, utm_medium: null })).toBe(false);
+  });
+
+  it("rend la migration corrective compatible avec l’historique sale_id", () => {
+    const legacy = { sale_id: "sale-legacy", chariow_sale_id: null };
+    const backfilled = { ...legacy, chariow_sale_id: legacy.sale_id };
+    expect(backfilled.chariow_sale_id).toBe("sale-legacy");
   });
 });

@@ -167,3 +167,21 @@ Pour les numéros de téléphone, Chariow attend `phone.number` séparément de 
 Rollback migration : ne supprime pas les colonnes avant d’avoir restauré l’ancienne version. En cas d’échec avant contrainte unique, corrige les données puis relance la migration. Pour annuler après validation, sauvegarde d’abord les données, puis exécute explicitement : `drop index if exists public.stores_slug_unique_idx; alter table public.stores drop column if exists slug; alter table public.stores drop column if exists chariow_api_key_encrypted;` et restaure les colonnes V1 uniquement si le schéma précédent les exigeait. Les suppressions de données de doublons ne sont pas réversibles sans sauvegarde.
 
 Le checkout V1 ne doit pas être proposé pour les produits Chariow de type Service, Coaching ou pay-what-you-want.
+
+### Modèle d’attribution V1
+
+- Modèle : dernière touch non directe (`last non-direct touch`).
+- Fenêtre d’attribution : 30 jours avant la vente.
+- Conservation technique des touches : 90 jours.
+- Une touch capturée après la vente est toujours exclue.
+- Une visite directe sans UTM ne remplace jamais une touch Meta valide existante.
+- `successful.sale` est le seul événement Pulse qui crédite une vente dans V1.
+- Un test Pulse signé sans `x-pulse-delivery-id` reçoit `200`, mais n’est ni persisté ni attribué financièrement.
+
+Ordre final des migrations :
+
+1. `20260829170000_attribution_touches.sql` et les migrations antérieures déjà listées dans ce dépôt.
+2. `20260829173000_public_store_product_slugs.sql`.
+3. `20260829180000_fix_real_attribution_v1_compatibility.sql`.
+
+Sur une base qui a déjà appliqué `20260829170000`, ne réapplique pas cette migration : applique uniquement les migrations ultérieures. La migration corrective est conçue pour les colonnes déjà présentes et les données historiques.

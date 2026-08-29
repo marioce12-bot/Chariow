@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyChariowSignature } from "@/lib/attribution-server";
+import { selectLastNonDirectTouch } from "@/lib/attribution-selection";
 
 function record(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function amount(value: unknown) { const row = record(value); return Number(row.value ?? value ?? 0) || 0; }
@@ -15,8 +16,10 @@ export async function POST(request: Request) {
   const eventType = String(event.type ?? event.event ?? "unknown");
   const sale = record(event.data ?? event.payload ?? event.sale ?? event);
   const saleId = String(sale.id ?? sale.sale_id ?? sale.order_id ?? "");
-  if (!deliveryId || !eventId || !saleId) return NextResponse.json({ error: "Événement Chariow invalide" }, { status: 400 });
+  if (!eventId || !saleId) return NextResponse.json({ error: "Événement Chariow invalide" }, { status: 400 });
   const supabase = createAdminClient();
+  // Chariow's signed test pulse has no delivery id and must never create financial attribution.
+  if (!deliveryId) return NextResponse.json({ received: true, test: true });
   const { error: eventError } = await supabase.from("chariow_pulse_events").insert({ event_id: eventId, pulse_delivery_id: deliveryId, event_type: eventType, payload: event });
   if (eventError?.code === "23505") return NextResponse.json({ received: true, duplicate: true });
   if (eventError) return NextResponse.json({ error: "Événement non enregistré" }, { status: 500 });
@@ -26,7 +29,9 @@ export async function POST(request: Request) {
     const visitorId = String(metadata.visitor_id ?? "");
     const storeId = String(metadata.store_id ?? "");
     if (visitorId && storeId) {
-      const { data: touch } = await supabase.from("attribution_touches").select("*").eq("store_id", storeId).eq("visitor_id", visitorId).gt("expires_at", new Date().toISOString()).order("captured_at", { ascending: false }).limit(1).maybeSingle();
+      const { data: touches } = await supabase.from("attribution_touches").select("*").eq("store_id", storeId).eq("visitor_id", visitorId).gt("expires_at", new Date().toISOString()).order("captured_at", { ascending: false });
+      const saleAt = String(sale.created_at ?? sale.createdAt ?? new Date().toISOString());
+      const touch = selectLastNonDirectTouch(touches ?? [], saleAt);
       if (touch) {
         const settlement = record(sale.settlement);
         const campaign = String(metadata.utm_campaign ?? "") || null;
