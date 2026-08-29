@@ -31,7 +31,6 @@ export function Marketing() {
        <section className="hero">
         <div className="container hero-grid hero-vendeo-grid">
           <div className="hero-title hero-copy">
-            <span className="pill"><i className="dot"/> Analyse tes ventes. Comprends tes pubs. Vends mieux</span>
             <h1>Analyse tes ventes.<br/>Comprends tes pubs.<br/><em>Vends mieux</em></h1>
           </div>
 
@@ -52,7 +51,7 @@ export function Marketing() {
           </div>
 
           <div className="hero-logos">
-            <div className="logos">
+            <div className="logos hero-logos-inner">
               <span className="platform-logo"><Image src="/logos/chariow.svg" alt="Chariow" width={132} height={32}/></span>
               <span className="platform-logo"><Image src="/logos/selar.png" alt="Selar" width={102} height={32}/><small>(bientôt)</small></span>
               <span className="platform-logo"><Image src="/logos/gumroad.svg" alt="Gumroad" width={125} height={32}/><small>(bientôt)</small></span>

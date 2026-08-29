@@ -43,6 +43,7 @@ button { cursor:pointer; }
 .hero-logos { grid-area:logos; margin-top:18px; }
 .hero-copy { animation:riseIn .8s .12s ease both; }
 .hero-copy h1 { font-size:clamp(48px,6.1vw,78px); line-height:.96; margin:18px 0 25px; max-width:680px; }
+.hero-title h1 { margin-top:0 !important; }
 .hero-copy h1 em { color:var(--lime); font-style:normal; }
 .hero-copy p { color:#c4d5c9; font-size:17px; line-height:1.7; max-width:510px; }
 .hero-actions { display:flex; gap:12px; margin-top:30px; }
@@ -79,10 +80,12 @@ button { cursor:pointer; }
 .section-head h2 { font-size:clamp(34px,4vw,56px); line-height:1; margin:13px 0 0; max-width:600px; }
 .section-head p { color:var(--muted); line-height:1.7; max-width:350px; }
 .logos { border-bottom:1px solid var(--line); border-top:1px solid var(--line); display:flex; justify-content:space-between; padding:24px 0; color:#829088; font-size:12px; font-weight:700; letter-spacing:.04em; }
+.hero-logos-inner { border:0 !important; box-shadow:none !important; background:transparent !important; padding:0 !important; margin:0 !important; }
 .platform-logo { align-items:center; display:inline-flex; gap:7px; }
 .platform-logo small { color:#a0aaa4; font-size:9px; font-weight:400; letter-spacing:0; }
 .platform-logo img { display:block; height:32px; object-fit:contain; width:auto; }
 .glass-strip { background:rgba(255,255,255,.4); border:1px solid rgba(214,225,215,.7); border-radius:12px; margin-top:-1px; padding:19px 22px; backdrop-filter:blur(12px); }
+.hero-logos-inner { position:relative; z-index:1; }
 .how-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
 .step-card { background:rgba(255,255,255,.48); border:1px solid rgba(214,225,215,.82); border-radius:14px; min-height:220px; padding:22px; position:relative; transition:.25s ease; }
 .step-card:hover { background:#f1f6ec; transform:translateY(-4px); }
