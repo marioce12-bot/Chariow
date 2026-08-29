@@ -20,7 +20,7 @@ export function AttributionTracker() {
     if (!touch) return;
     const existing = window.localStorage.getItem(ATTRIBUTION_STORAGE);
     if (!existing || touch.utmCampaign || touch.fbclid) window.localStorage.setItem(ATTRIBUTION_STORAGE, JSON.stringify(touch));
-    void fetch("/api/attribution/touch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(touch), keepalive: true });
+    void fetch("/api/attribution/touch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ visitor_id: touch.visitorId, store_slug: touch.storeSlug, product_slug: touch.productSlug, utm_source: touch.utmSource, utm_medium: touch.utmMedium, utm_campaign: touch.utmCampaign, utm_term: touch.utmTerm, utm_content: touch.utmContent, fbclid: touch.fbclid, landing_url: touch.landingUrl, captured_at: touch.capturedAt }), keepalive: true });
   }, []);
   return null;
 }

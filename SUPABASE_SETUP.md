@@ -140,3 +140,26 @@ POST /api/stores/:id/test
 ```
 
 Les tokens ne sont jamais envoyés au navigateur ni au modèle IA.
+
+## Attribution réelle V1
+
+Applique ensuite la migration :
+
+```bash
+npx supabase db push
+```
+
+ou exécute `supabase/migrations/20260829170000_real_attribution_v1.sql` dans le SQL Editor.
+
+Configure `CHARIOW_PULSE_WEBHOOK_SECRET` avec le secret fourni par Chariow pour vérifier `x-chariow-signature`.
+Chaque boutique doit aussi disposer d’une clé Checkout Chariow chiffrée dans `stores.chariow_api_key_encrypted`; elle est distincte du token MCP OAuth. `CRON_SECRET` protège la route de réconciliation.
+
+Routes V1 :
+
+- `POST /api/attribution/touch` accepte les visiteurs anonymes et enregistre les UTM par boutique.
+- `POST /api/chariow/checkout/init` crée un checkout Chariow et transmet `custom_metadata`.
+- `POST /api/webhooks/chariow/pulses` déduplique les livraisons sur `x-pulse-delivery-id`.
+- `GET /api/meta/performance` expose `vendeoAttributedRoas`, basé sur le revenu net attribué.
+- `GET /api/cron/chariow/reconcile` réconcilie les ventes avec `GET /v1/sales` puis `GET /v1/sales/{sale_id}` avec `Authorization: Bearer $CRON_SECRET`.
+
+Le checkout V1 ne doit pas être proposé pour les produits Chariow de type Service, Coaching ou pay-what-you-want.
