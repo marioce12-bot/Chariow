@@ -344,12 +344,18 @@ function RealTrendChart({ sales, spend, currency }: { sales: unknown[]; spend: n
 }
 
 function RecentSale({ sale, currency }: { sale: unknown; currency: string }) {
+  const [open, setOpen] = useState(false);
   const row = sale && typeof sale === "object" ? sale as Record<string, unknown> : {};
   const status = String(row.status ?? row.state ?? "unknown");
   const label = status === "completed" ? "Vente réussie" : status === "awaiting_payment" ? "Paiement en attente" : status === "failed" ? "Paiement échoué" : status === "abandoned" ? "Vente abandonnée" : status === "refunded" ? "Remboursement" : status;
   const amount = Number((row.amount as Record<string, unknown>)?.value ?? row.amount ?? 0);
   const date = row.created_at ?? row.createdAt ?? row.occurred_at;
-  return <li><i className={`activity-dot activity-${status}`} /><span><b>{label}</b><br />{String(row.product_name ?? (row.product as Record<string, unknown>)?.name ?? "Produit Chariow")} · {amount ? `${amount.toLocaleString("fr-FR")} ${currency}` : "Montant indisponible"} · {date ? new Date(String(date)).toLocaleDateString("fr-FR") : "Date indisponible"}</span><button type="button" className="activity-detail" onClick={() => window.alert(`${label}\nProduit : ${String(row.product_name ?? "Produit Chariow")}\nMontant : ${amount ? `${amount.toLocaleString("fr-FR")} ${currency}` : "indisponible"}\nDate : ${date ? new Date(String(date)).toLocaleString("fr-FR") : "indisponible"}`)}>Détail</button></li>;
+  const customer = (row.customer as Record<string, unknown> | undefined) ?? {};
+  const error = (row.error as Record<string, unknown> | undefined) ?? {};
+  const productName = String(row.product_name ?? (row.product as Record<string, unknown>)?.name ?? "Produit Chariow");
+  const customerName = customer.name ?? ([customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Non fourni");
+  const failureReason = error.message ?? row.failure_reason ?? row.reason ?? "Non fournie par Chariow";
+  return <><li><i className={`activity-dot activity-${status}`} /><span><b>{label}</b><br />{productName} · {amount ? `${amount.toLocaleString("fr-FR")} ${currency}` : "Montant indisponible"} · {date ? new Date(String(date)).toLocaleDateString("fr-FR") : "Date indisponible"}</span><button type="button" className="activity-detail" onClick={() => setOpen(true)}>Détail</button></li>{open ? <div className="sale-modal-backdrop" role="presentation" onClick={() => setOpen(false)}><section className="sale-modal" role="dialog" aria-modal="true" aria-labelledby="sale-detail-title" onClick={(event) => event.stopPropagation()}><button type="button" className="sale-modal-close" aria-label="Fermer" onClick={() => setOpen(false)}>×</button><span className="eyebrow">Détail Chariow</span><h2 id="sale-detail-title">{label}</h2><div className="sale-detail-grid"><div><small>Produit</small><strong>{productName}</strong></div><div><small>Montant</small><strong>{amount ? `${amount.toLocaleString("fr-FR")} ${currency}` : "Indisponible"}</strong></div><div><small>Client</small><strong>{String(customerName)}</strong></div><div><small>Email</small><strong>{String(customer.email ?? row.email ?? "Non fourni")}</strong></div><div><small>Date</small><strong>{date ? new Date(String(date)).toLocaleString("fr-FR") : "Non fournie"}</strong></div><div><small>Raison de l’échec</small><strong>{status === "failed" ? String(failureReason) : "Aucune"}</strong></div></div><button type="button" className="btn btn-dark sale-modal-action" onClick={() => setOpen(false)}>Fermer</button></section></div> : null}</>;
 }
 
 function BusinessSignals({ analytics, health }: { analytics: AnalyticsData; health: StoreHealth }) {
