@@ -7,9 +7,10 @@ export async function requireAdmin(roles?: AdminRole[]) {
   const supabase = await createClient();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) return { supabase, user: null, admin: null, response: NextResponse.json({ error: "Authentification requise" }, { status: 401 }) };
-  const { data: admin, error } = await supabase.from("admin_users").select("id,user_id,role,is_active").eq("user_id", user.id).eq("is_active", true).maybeSingle();
-  if (error || !admin || (roles && !roles.includes(admin.role as AdminRole))) return { supabase, user: null, admin: null, response: NextResponse.json({ error: "Accès administrateur requis" }, { status: 403 }) };
-  return { supabase, user, admin, response: null };
+  const { data: admin, error } = await supabase.rpc("get_current_admin", { target_user_id: user.id });
+  const currentAdmin = Array.isArray(admin) ? admin[0] : admin;
+  if (error || !currentAdmin || (roles && !roles.includes(currentAdmin.role as AdminRole))) return { supabase, user: null, admin: null, response: NextResponse.json({ error: "Accès administrateur requis" }, { status: 403 }) };
+  return { supabase, user, admin: currentAdmin, response: null };
 }
 
 export async function writeAdminAudit(supabase: any, adminUserId: string, action: string, resourceType: string, resourceId?: string | null, metadata: Record<string, unknown> = {}) {

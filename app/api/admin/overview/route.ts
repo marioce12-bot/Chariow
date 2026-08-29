@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/admin";
 
 export async function GET() {
   const { supabase, admin, response } = await requireAdmin();
-  if (!admin) return response;
+  if (!admin) return response ?? NextResponse.json({ error: "Accès administrateur requis" }, { status: 403 });
   const [profiles, stores, subscriptions, messages, metaAccounts, audit] = await Promise.all([
     supabase.from("profiles").select("id,email,full_name,created_at,updated_at", { count: "exact", head: false }).order("created_at", { ascending: false }).limit(100),
     supabase.from("stores").select("id,user_id,platform,store_name,is_active,connection_status,connected_at,created_at", { count: "exact", head: false }).order("created_at", { ascending: false }).limit(100),
