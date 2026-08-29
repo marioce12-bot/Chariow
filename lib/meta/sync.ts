@@ -7,6 +7,10 @@ function number(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function dateValue(value: unknown, fallback: string) {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : fallback;
+}
+
 export async function syncMetaInsights(supabase: any, account: { id: string; meta_account_id: string; access_token_encrypted: string }, from: string, to: string) {
   const accessToken = decryptSecret(account.access_token_encrypted);
   const results = [];
@@ -23,8 +27,8 @@ export async function syncMetaInsights(supabase: any, account: { id: string; met
         level,
         entity_id: id,
         entity_name: name ?? id,
-        date_start: insight.date_start,
-        date_stop: insight.date_stop,
+        date_start: dateValue(insight.date_start, from),
+        date_stop: dateValue(insight.date_stop, to),
         impressions: Math.round(number(insight.impressions)),
         reach: Math.round(number(insight.reach)),
         clicks: Math.round(number(insight.clicks)),

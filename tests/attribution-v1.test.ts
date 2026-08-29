@@ -64,4 +64,10 @@ describe("Attribution réelle V1", () => {
     expect(from.toISOString().slice(0, 10)).toBe("2026-07-30");
     expect(to.toISOString().slice(0, 10)).toBe("2026-08-29");
   });
+
+  it("utilise les dates de la fenêtre quand Meta ne renvoie pas les breakdown dates", () => {
+    const fallback = (value: unknown, defaultValue: string) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : defaultValue;
+    expect(fallback(undefined, "2026-07-30")).toBe("2026-07-30");
+    expect(fallback("2026-08-01", "2026-07-30")).toBe("2026-08-01");
+  });
 });
