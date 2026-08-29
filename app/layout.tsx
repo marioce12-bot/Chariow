@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { PwaRegister } from "./PwaRegister";
+import { AttributionTracker } from "@/components/AttributionTracker";
 
 export const metadata: Metadata = {
   title: "Vendeo | Ton business, enfin lisible",
@@ -9,5 +10,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="fr"><body><PwaRegister />{children}</body></html>;
+  return <html lang="fr"><body><PwaRegister /><AttributionTracker />{children}</body></html>;
 }
