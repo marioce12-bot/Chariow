@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { askImole } from "@/lib/ai/imole";
 import { getChariowSnapshot, serializeChariowContext } from "@/lib/chariow/analytics";
 import { cleanAiText } from "@/lib/ai/format";
+import { calculateProfitabilityAggregate } from "@/lib/profitability-aggregates";
 
 const VENDEO_SYSTEM_PROMPT = `Tu es l'analyste business de Vendeo pour les créateurs de produits digitaux francophones.
 
@@ -68,6 +69,11 @@ export async function POST(request: Request) {
         context = `La boutique ${selectedStore.store_name} est connectée mais ses données MCP sont momentanément indisponibles. Ne fabrique aucun chiffre.`;
       }
     }
+  }
+
+  if (selectedStore) {
+    const { data: profitabilitySales } = await supabase.from("chariow_sales").select("status,amount,net_amount").eq("store_id", selectedStore.id).gte("occurred_at", new Date(Date.now() - 30 * 86400000).toISOString()).lte("occurred_at", new Date().toISOString());
+    if (profitabilitySales?.length) context += `\nAgrégat financier persistant des 30 derniers jours : ${JSON.stringify(calculateProfitabilityAggregate({ spend: 0, sales: profitabilitySales })).slice(0, 3000)}`;
   }
 
   // Imole peut refuser les payloads trop volumineux (400).

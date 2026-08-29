@@ -622,9 +622,17 @@ function BusinessSignals({ analytics, health }: { analytics: AnalyticsData; heal
     <div className="signal-alerts app-card">
       <div className="card-head"><div><span className="eyebrow">À surveiller</span><h2>Signaux utiles</h2></div><AlertTriangle size={18} color="#d28b3d" /></div>
       {alerts.length ? <div className="signal-list">{alerts.map((alert) => <div className={`signal-item ${alert.tone}`} key={alert.title}><span>{alert.icon}</span><div><strong>{alert.title}</strong><p>{alert.description}</p></div></div>)}</div> : <div className="signal-item positive"><span><TrendingUp size={15} /></span><div><strong>Tout est stable</strong><p>Aucun signal critique n’a été détecté sur cette période.</p></div></div>}
+      <PersistentAlerts />
     </div>
     <div className="signal-action app-card"><div className="card-head"><div><span className="eyebrow">Prochaine action</span><h2>Ton meilleur levier</h2></div><Target size={18} color="#34684d" /></div><strong>{recommendation.title}</strong><p>{recommendation.description}</p><div className="signal-meta">{products.length} produit{products.length > 1 ? "s" : ""} · {kpis.sales} vente{kpis.sales > 1 ? "s" : ""} · {kpis.visits} visite{kpis.visits > 1 ? "s" : ""}</div></div>
   </div>;
+}
+
+function PersistentAlerts() {
+  const [alerts, setAlerts] = useState<Array<{ id: string; severity: string; title: string; description: string; status: string }>>([]);
+  useEffect(() => { void fetch("/api/alerts").then((response) => response.ok ? response.json() : { alerts: [] }).then((data) => setAlerts(data.alerts ?? [])); }, []);
+  if (!alerts.length) return null;
+  return <div className="signal-list" style={{ marginTop: 12 }}>{alerts.slice(0, 3).map((alert) => <div className={`signal-item ${alert.severity}`} key={alert.id}><span><AlertTriangle size={15} /></span><div><strong>{alert.title}</strong><p>{alert.description}</p></div></div>)}</div>;
 }
 
 type StoreHealth = { score: number; label: string; details: string };

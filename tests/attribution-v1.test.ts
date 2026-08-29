@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import crypto from "node:crypto";
 import { calculateVendeoAttributedRoas, verifyChariowSignature } from "@/lib/attribution-server";
 import { selectLastNonDirectTouch, shouldReplaceTouch } from "@/lib/attribution-selection";
+import { calculateProfitabilityAggregate } from "@/lib/profitability-aggregates";
 
 describe("Attribution réelle V1", () => {
   it("accepte une signature Pulse HMAC valide et refuse une signature invalide", () => {
@@ -78,5 +79,19 @@ describe("Attribution réelle V1", () => {
       ad: ["ad_id", "ad_name", "impressions", "spend"],
     };
     expect(Object.values(fieldsByLevel).flat().filter((field) => field === "campaign_id")).toHaveLength(0);
+  });
+
+  it("calcule les agrégats ventes, abandon, CAC et ROAS net", () => {
+    const aggregate = calculateProfitabilityAggregate({ spend: 100, attributedNetRevenue: 150, sales: [
+      { status: "completed", amount: 120, net_amount: 100 },
+      { status: "abandoned", amount: 120, net_amount: 0 },
+      { status: "failed", amount: 120, net_amount: 0 },
+    ] });
+    expect(aggregate.completedSales).toBe(1);
+    expect(aggregate.abandonedSales).toBe(1);
+    expect(aggregate.failedSales).toBe(1);
+    expect(aggregate.abandonmentRate).toBeCloseTo(1 / 3);
+    expect(aggregate.cac).toBe(100);
+    expect(aggregate.vendeoAttributedRoas).toBe(1.5);
   });
 });
