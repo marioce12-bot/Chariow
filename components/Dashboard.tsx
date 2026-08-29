@@ -334,7 +334,7 @@ function SalesView({ stores, analytics }: { stores: StoreData[]; analytics: Anal
 }
 
 function RealTrendChart({ sales, spend, currency }: { sales: unknown[]; spend: number; currency: string }) {
-  const rows = sales.map((item) => item && typeof item === "object" ? item as Record<string, unknown> : {}).filter((item) => item.created_at || item.createdAt || item.occurred_at);
+  const rows = sales.map((item) => item && typeof item === "object" ? item as Record<string, unknown> : {}).filter((item) => (item.status === "completed" || item.status === "settled") && (item.created_at || item.createdAt || item.occurred_at));
   const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() - (6 - index)); return date.toISOString().slice(0, 10); });
   const values = days.map((day) => rows.filter((row) => String(row.created_at ?? row.createdAt ?? row.occurred_at).slice(0, 10) === day).reduce<number>((sum, row) => sum + Number((row.amount as Record<string, unknown>)?.value ?? row.amount ?? 0), 0));
   const max = Math.max(...values, spend, 1);
@@ -763,7 +763,7 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
           <p>Pose une question sur tes ventes, tes produits ou ta stratégie.</p>
         </div>
       </div>
-      <div className="app-card" style={{ maxWidth: 760, minHeight: 480, display: "flex", flexDirection: "column" }}>
+      <div className="app-card chat-card" style={{ maxWidth: 760 }}>
         {usage && (
           <div className="trial-banner">
             {plansRequired ? (
@@ -798,7 +798,7 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
 
           <div ref={setBottomNode} />
         </div>
-        <div style={{ marginTop: "auto" }}>
+        <div className="chat-composer">
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 15 }}>
             {["Voir mes ventes", "Analyser mes produits", "Idées de bundle"].map((x) => (
               <button key={x} className="btn btn-ghost" disabled={plansRequired} onClick={() => send(x)} style={{ fontSize: 11, padding: "9px 12px" }}>
@@ -806,8 +806,8 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
               </button>
             ))}
           </div>
-          <form onSubmit={(event) => { event.preventDefault(); void send(); }} style={{ border: "1px solid #dfe5de", borderRadius: 8, display: "flex", padding: 6 }}>
-            <input disabled={plansRequired} value={input} onChange={(event) => setInput(event.target.value)} placeholder={plansRequired ? "Choisis un plan pour continuer" : "Pose ta question..."} style={{ border: 0, flex: 1, outline: 0, padding: 8, fontSize: 12 }} />
+          <form onSubmit={(event) => { event.preventDefault(); void send(); }} className="chat-input-form">
+            <input disabled={plansRequired} value={input} onChange={(event) => setInput(event.target.value)} placeholder={plansRequired ? "Choisis un plan pour continuer" : "Pose ta question..."} />
             <button className="btn btn-dark" disabled={sending || plansRequired} style={{ borderRadius: 6, fontSize: 11, padding: "9px 14px" }}>
               {sending ? "…" : plansRequired ? "Plans" : "Envoyer"}
             </button>
