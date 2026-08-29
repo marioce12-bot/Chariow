@@ -433,7 +433,7 @@ function Overview({
          <div className="vendeo-overview-header">
           <div>
             <h1>Bonjour {greeting}</h1>
-            <p>Voici ce que Vendeo recommande pour faire avancer ton business cette semaine.</p>
+            <p>Voici l’état de ton activité sur les 30 derniers jours.</p>
           </div>
          <div className="vendeo-overview-actions"><div className="vendeo-badge"><CheckCircle2 size={15} /> Boutique Chariow connectée</div><span className="vendeo-period-pill">30 derniers jours</span></div>
         </div>
@@ -446,10 +446,10 @@ function Overview({
     const badgeText = stores?.[0]?.connection_status === "connected" ? "Boutique Chariow connectée" : "Connexion Chariow requise";
     return (
       <>
-        <div className="vendeo-overview-header">
+         <div className="vendeo-overview-header">
           <div>
-            <h1>Bonjour {greeting}</h1>
-            <p>Voici ce que Vendeo recommande pour faire avancer ton business cette semaine.</p>
+           <h1>Bonjour {greeting}</h1>
+           <p>Voici l’état de ton activité sur les 30 derniers jours.</p>
           </div>
           <div className="vendeo-badge">{stores?.[0]?.connection_status === "connected" ? <CheckCircle2 size={15} /> : <Clock3 size={15} />}{badgeText}</div>
         </div>
@@ -460,10 +460,10 @@ function Overview({
 
   return (
     <>
-        <div className="vendeo-overview-header">
+         <div className="vendeo-overview-header">
         <div>
-          <h1>Bonjour {greeting}</h1>
-          <p>Voici ce que Vendeo recommande pour faire avancer ton business cette semaine.</p>
+           <h1>Bonjour {greeting}</h1>
+           <p>Voici l’état de ton activité sur les 30 derniers jours.</p>
         </div>
         <div className="vendeo-badge"><CheckCircle2 size={15} /> Boutique Chariow connectée</div>
       </div>
@@ -515,15 +515,7 @@ function Overview({
         </div>
       </section>
 
-      <section className="vendeo-section" aria-label="Résumé">
-        <div className="vendeo-section-head">
-          <div className="vendeo-section-icon"><Brain size={17} /></div>
-          <h2>Ce que Vendeo a compris</h2>
-        </div>
-        <div className="vendeo-resume-card">{summaryText}</div>
-      </section>
-
-      <section className="vendeo-section" aria-label="Performance">
+       <section className="vendeo-section" aria-label="Performance">
         <div className="vendeo-section-head">
           <div className="vendeo-section-icon"><LineChart size={17} /></div>
           <h2>Performance de ta boutique</h2>
@@ -559,54 +551,10 @@ function Overview({
         <p className="vendeo-muted" style={{ margin: "12px 0 0" }}>{performanceMessage}</p>
       </section>
 
-      <section className="vendeo-section" aria-label="Produit">
-        <div className="vendeo-section-head">
-          <div className="vendeo-section-icon"><ShoppingBag size={17} /></div>
-          <h2>Ton produit à promouvoir</h2>
-        </div>
-
-        <div className="vendeo-product-card">
-          {productCard ? (
-            <>
-              <div className="vendeo-product-row">
-                <div>
-                  <div className="vendeo-muted">Nom</div>
-                  <div className="vendeo-product-title">{productCard.title}</div>
-                </div>
-                <div>
-                  <div className="vendeo-muted">Statut</div>
-                  <div className="vendeo-product-status">{productCard.statusLabel}</div>
-                </div>
-                <div>
-                  <div className="vendeo-muted">Prix</div>
-                  <div className="vendeo-product-price">{productCard.priceText}</div>
-                </div>
-              </div>
-              {!firstPublishedPriceAvailable ? (
-                <div className="vendeo-product-hint">Prix non disponible dans les données synchronisées.</div>
-              ) : null}
-            </>
-          ) : (
-            <div className="empty-state compact">Aucun produit trouvé dans ta boutique Chariow.</div>
-          )}
-        </div>
-      </section>
-
-      <section className="vendeo-section" aria-label="Chemin">
-        <div className="vendeo-section-head">
-          <div className="vendeo-section-icon"><Rocket size={17} /></div>
-          <h2>Ton chemin vers ta première vente</h2>
-        </div>
-
-        <div className="vendeo-progress">
-          {progress.map((step) => (
-            <div key={step.label} className="vendeo-progress-step">
-              <span className="vendeo-step-check">{step.done ? <CheckCircle2 size={16} /> : <span className="step-empty" aria-hidden="true" />}</span>
-              <span>{step.label}</span>
-            </div>
-          ))}
-        </div>
-      </section>
+       <section className="vendeo-section overview-next" aria-label="Prochaine action">
+         <div className="vendeo-section-head"><div className="vendeo-section-icon"><Target size={17} /></div><div><h2>Prochaine action</h2><p className="vendeo-muted">{performanceMessage}</p></div></div>
+         <div className="vendeo-next-row"><strong>{getRecommendation(analytics).title}</strong><button className="btn btn-dark" onClick={() => openAIWithPrompt(buildPrompt("salesPlan"))}>Demander à Vendeo AI <ArrowRight size={15} /></button></div>
+       </section>
     </>
   );
 }
