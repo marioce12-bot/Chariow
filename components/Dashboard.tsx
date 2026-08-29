@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Rocket, Sparkles } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Rocket, Sparkles, LogOut } from "lucide-react";
 import { cleanAiText } from "@/lib/ai/format";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
@@ -127,8 +127,11 @@ export function Dashboard() {
         </Link>
         <div className="app-user">
           <span className="app-greeting">Bonjour, {userName}</span>
-          <button onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
+          <button className="desktop-signout" onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
             Déconnexion
+          </button>
+          <button className="mobile-settings-trigger" type="button" aria-label="Ouvrir les paramètres" onClick={() => setActive("Paramètres")}>
+            <Settings size={19} />
           </button>
         </div>
       </header>
@@ -179,7 +182,7 @@ export function Dashboard() {
           ) : stores.length === 0 && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
             <StoreOnboarding />
           ) : active === "Paramètres" ? (
-            <MobileSettingsView onNavigate={setActive} />
+            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} />
           ) : active === "Vendeo AI" ? (
             <ChatView onGoToSubscription={() => setActive("Abonnement")} />
           ) : active === "Assistant de profit" ? (
@@ -225,11 +228,7 @@ export function Dashboard() {
            <BarChart3 size={18} />
            <span>Rapports</span>
          </button>
-         <button type="button" className={`nav-btn ${active === "Paramètres" || active === "Mes boutiques" || active === "Abonnement" ? "active" : ""}`} onClick={() => setActive("Paramètres")}>
-           <Settings size={18} />
-           <span>Paramètres</span>
-         </button>
-      </nav>
+       </nav>
     </main>
   );
 }
@@ -701,7 +700,7 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
   </>;
 }
 
-function MobileSettingsView({ onNavigate }: { onNavigate: (section: string) => void }) {
+function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: string) => void; onSignOut: () => void }) {
   return (
     <>
       <div className="page-top">
@@ -720,6 +719,11 @@ function MobileSettingsView({ onNavigate }: { onNavigate: (section: string) => v
         <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Abonnement")}>
           <span className="mobile-settings-icon"><CreditCard size={20} /></span>
           <span><strong>Abonnement</strong><small>Voir ton plan et gérer ton accès Vendeo.</small></span>
+          <ArrowRight size={16} />
+        </button>
+        <button type="button" className="mobile-settings-card mobile-settings-danger" onClick={onSignOut}>
+          <span className="mobile-settings-icon"><LogOut size={20} /></span>
+          <span><strong>Déconnexion</strong><small>Quitter ton espace Vendeo en toute sécurité.</small></span>
           <ArrowRight size={16} />
         </button>
       </div>

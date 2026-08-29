@@ -128,6 +128,7 @@ button { cursor:pointer; }
 .app-header { align-items:center; background:var(--green); color:white; display:flex; height:68px; justify-content:space-between; padding:0 30px; position:fixed; inset:0 0 auto; z-index:1000; }
 .app-header .brand-name span { color:#a9c7b0; }
 .app-user { align-items:center; display:flex; gap:14px; }
+.mobile-settings-trigger { display:none; }
 .app-greeting { color:#c7d2fe; font-size:12px; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .avatar { align-items:center; background:var(--lime); border-radius:50%; color:var(--green); display:flex; font-size:12px; font-weight:700; height:30px; justify-content:center; width:30px; }
 .app-layout { display:grid; grid-template-columns:220px 1fr; min-height:100vh; padding-top:68px; }
@@ -267,6 +268,8 @@ button { cursor:pointer; }
 .mobile-settings-card strong { font-size:14px; }
 .mobile-settings-card small { color:var(--muted); font-size:11px; line-height:1.5; }
 .mobile-settings-icon { align-items:center; background:linear-gradient(135deg,#ede9fe,#dbeafe); border:1px solid var(--line); border-radius:10px; color:#4c21f6; display:flex; height:40px; justify-content:center; width:40px; }
+.mobile-settings-danger { color:#b4233c; }
+.mobile-settings-danger .mobile-settings-icon { background:#fff1f2; border-color:#fecdd3; color:#b4233c; }
 
 @media (max-width: 760px) {
   .sidebar { display:none; }
@@ -274,6 +277,8 @@ button { cursor:pointer; }
   .app-main { box-sizing:border-box; grid-column: 1; max-width:none; min-width:0; padding: 20px 14px calc(92px + env(safe-area-inset-bottom)); }
   .mobile-nav { display:flex; }
   .app-user { gap:0; }
+  .desktop-signout { display:none; }
+  .mobile-settings-trigger { align-items:center; background:transparent; border:0; color:#dbeafe; display:flex; height:34px; justify-content:center; padding:0; width:34px; }
   .app-greeting { font-size:11px; max-width:150px; }
   .page-top { align-items:stretch; flex-direction:column; gap:12px; }
   .page-top .btn { align-self:stretch; box-sizing:border-box; flex:none; max-width:100%; width:100%; }
