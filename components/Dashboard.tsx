@@ -677,8 +677,11 @@ function formatReportDate(value: string) {
 }
 
 function formatProductPrice(product: ProductData) {
-  if (product.price === null || product.price === "") return "Prix non renseigné";
-  return `${product.price}${product.currency ? ` ${product.currency}` : ""}`;
+  const raw = product.price as unknown;
+  const value = raw && typeof raw === "object" ? (raw as Record<string, unknown>).value ?? (raw as Record<string, unknown>).amount ?? (raw as Record<string, unknown>).price : raw;
+  const currency = product.currency ?? (raw && typeof raw === "object" ? String((raw as Record<string, unknown>).currency ?? (raw as Record<string, unknown>).currency_code ?? "") : "");
+  if (value === null || value === undefined || value === "") return "Prix non renseigné";
+  return `${value}${currency ? ` ${currency}` : ""}`;
 }
 
 function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
