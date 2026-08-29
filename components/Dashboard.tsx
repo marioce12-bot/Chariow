@@ -1001,7 +1001,7 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
             onClick={() => changePlan("starter")}
             style={{ width: "100%" }}
           >
-            {trial && isStarter ? "Essai gratuit en cours" : "Plan actuel"}
+            {trial ? "Essai gratuit en cours" : isStarter ? "Plan actuel" : "Souscrire à Starter"}
           </button>
         </article>
         <article className="price-card pro">

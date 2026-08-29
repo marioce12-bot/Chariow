@@ -32,7 +32,9 @@ export async function POST(request: Request) {
   const { error: eventError } = await admin.from("payment_events").insert({ provider: "fedapay", provider_event_id: event.id, transaction_id: String(event.object.id), user_id: userId, plan, status: "approved" });
   if (eventError?.code === "23505") return NextResponse.json({ received: true });
   if (eventError) return NextResponse.json({ error: "Événement de paiement non enregistré" }, { status: 500 });
-  const { error } = await admin.from("subscriptions").update({ plan, messages_limit: plan === "pro" ? 1200 : 400, status: "active", trial_active: false }).eq("user_id", userId);
+  const now = new Date();
+  const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+  const { error } = await admin.from("subscriptions").update({ plan, messages_limit: plan === "pro" ? 1200 : 400, status: "active", trial_active: false, messages_used_this_month: 0, current_period_start: now.toISOString().slice(0, 10), current_period_end: periodEnd, updated_at: now.toISOString() }).eq("user_id", userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ received: true });
 }
