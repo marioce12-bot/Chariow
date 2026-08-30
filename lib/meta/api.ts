@@ -16,6 +16,16 @@ export async function fetchMetaAccounts(accessToken: string) {
   return Array.isArray(json.data) ? json.data as Array<Record<string, unknown>> : [];
 }
 
+export async function fetchMetaResources(accountId: string, accessToken: string) {
+  const account = graphUrl(accountId, { fields: "id,name,account_status,currency,business", access_token: accessToken });
+  const pages = graphUrl("me/accounts", { fields: "id,name,access_token,instagram_business_account", limit: "100", access_token: accessToken });
+  const pixels = graphUrl(`${accountId}/adspixels`, { fields: "id,name", limit: "100", access_token: accessToken });
+  const [accountResponse, pagesResponse, pixelsResponse] = await Promise.all([fetch(account, { cache: "no-store" }), fetch(pages, { cache: "no-store" }), fetch(pixels, { cache: "no-store" })]);
+  const [accountJson, pagesJson, pixelsJson] = await Promise.all([accountResponse.json().catch(() => ({})), pagesResponse.json().catch(() => ({})), pixelsResponse.json().catch(() => ({}))]);
+  if (!accountResponse.ok) throw new Error(typeof accountJson?.error?.message === "string" ? accountJson.error.message : "Impossible de lire le compte Meta");
+  return { account: accountJson, pages: Array.isArray(pagesJson?.data) ? pagesJson.data : [], pixels: Array.isArray(pixelsJson?.data) ? pixelsJson.data : [] };
+}
+
 export async function fetchMetaInsights(accountId: string, accessToken: string, from: string, to: string, level: "campaign" | "adset" | "ad") {
   // Do not request campaign_id/campaign_name: some Meta account tokens reject
   // these fields even when the insight level is campaign (#100). The API
