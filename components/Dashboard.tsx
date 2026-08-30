@@ -69,6 +69,7 @@ export function Dashboard() {
   const [userName, setUserName] = useState("créateur");
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [promoteProduct, setPromoteProduct] = useState<ProductData | null>(null);
+  const [campaignRefreshKey, setCampaignRefreshKey] = useState(0);
 
   const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
   const freeUsed = subscription?.free_messages_used ?? 0;
@@ -231,7 +232,7 @@ export function Dashboard() {
           ) : active === "Assistant de profit" ? (
             <ProfitAssistant analytics={analytics} />
           ) : active === "Meta Ads" ? (
-             <MetaAdsView products={analytics?.products ?? []} onPromoteProduct={setPromoteProduct} />
+             <MetaAdsView products={analytics?.products ?? []} onPromoteProduct={setPromoteProduct} campaignRefreshKey={campaignRefreshKey} />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Abonnement" ? (
@@ -252,7 +253,7 @@ export function Dashboard() {
          </section>
       </div>
 
-      {promoteProduct ? <CampaignWizard product={promoteProduct} onClose={() => setPromoteProduct(null)} /> : null}
+      {promoteProduct ? <CampaignWizard product={promoteProduct} onClose={() => setPromoteProduct(null)} onSaved={() => setCampaignRefreshKey((key) => key + 1)} /> : null}
 
         <nav className="mobile-nav" aria-label="Navigation mobile">
          <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
@@ -699,7 +700,7 @@ type MetaPerformance = {
   performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; status: string }>;
 };
 
-function MetaAdsView({ products, onPromoteProduct }: { products: ProductData[]; onPromoteProduct: (product: ProductData) => void }) {
+function MetaAdsView({ products, onPromoteProduct, campaignRefreshKey }: { products: ProductData[]; onPromoteProduct: (product: ProductData) => void; campaignRefreshKey: number }) {
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null }>>([]);
   const [selectedAccount, setSelectedAccount] = useState("");
   const [performance, setPerformance] = useState<MetaPerformance | null>(null);
@@ -724,7 +725,7 @@ function MetaAdsView({ products, onPromoteProduct }: { products: ProductData[]; 
     setLoading(false);
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [campaignRefreshKey]);
 
   async function connect() {
     window.location.href = "/api/integrations/meta/connect";
@@ -804,7 +805,7 @@ function CampaignList({ campaigns, products, accounts, onConnect, onRefresh }: {
   return <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><div><span className="eyebrow">Suivi</span><h2>Mes campagnes</h2><p>Les campagnes sont préparées dans Vendeo avant leur envoi à Meta.</p></div><Megaphone size={19} /></div>{error ? <p className="store-error" role="alert">{error}</p> : null}{campaigns.length ? <div className="home-table" style={{ marginTop: 15 }}><div className="home-table-row home-table-head"><span>Produit</span><span>Plateforme</span><span>Budget</span><span>Statut</span><span>Action</span></div>{campaigns.map((campaign) => <div className="home-table-row" key={campaign.id}><span>{productName(campaign.product_id)}</span><span>{campaign.platform === "meta" ? "Meta" : campaign.platform}</span><span>{Number(campaign.estimated_budget).toLocaleString("fr-FR")} FCFA</span><span className={campaign.status === "active" ? "status-positive" : "status-warning"}>{statusLabel[campaign.status] ?? campaign.status}</span><span>{["draft", "error", "account_required"].includes(campaign.status) ? <><select aria-label={`Compte Meta pour ${productName(campaign.product_id)}`} value={selected[campaign.id] ?? accounts[0]?.id ?? ""} onChange={(event) => setSelected((current) => ({ ...current, [campaign.id]: event.target.value }))} disabled={!accounts.length}><option value="">Compte Meta</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select><button className="btn btn-dark" type="button" onClick={() => void launch(campaign)} disabled={launching === campaign.id || !accounts.length}>{launching === campaign.id ? "Lancement…" : "Lancer"}</button></> : "-"}</span></div>)}</div> : <EmptyState title="Aucune campagne" text="Ta première campagne apparaîtra ici après son enregistrement." />}{campaigns.some((campaign) => campaign.status === "draft" || campaign.status === "account_required") && !accounts.length ? <div className="meta-conversion-info" style={{ marginTop: 15 }}>Connecte un compte Meta Ads pour pouvoir soumettre tes brouillons à la plateforme. <button className="btn btn-dark" type="button" onClick={onConnect} style={{ marginLeft: 10 }}>Connecter Meta Ads</button></div> : null}</section>;
 }
 
-function CampaignWizard({ product, onClose }: { product: ProductData; onClose: () => void }) {
+function CampaignWizard({ product, onClose, onSaved }: { product: ProductData; onClose: () => void; onSaved: () => void }) {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -869,7 +870,8 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
       const response = await fetch("/api/ad-campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) { setMessage(data.error ?? "Impossible d’enregistrer la campagne."); return; }
-      setMessage("Campagne enregistrée en brouillon. Connecte Meta Ads pour la lancer.");
+      onSaved();
+      setMessage("Campagne enregistrée en brouillon. Tu peux maintenant la lancer depuis Mes campagnes.");
     } finally { setSaving(false); setUploadingMedia(false); }
   }
 
