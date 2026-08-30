@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyChariowSignature } from "@/lib/attribution-server";
-import { selectLastNonDirectTouch } from "@/lib/attribution-selection";
 
 function record(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function amount(value: unknown) { const row = record(value); return Number(row.value ?? value ?? 0) || 0; }
@@ -25,20 +24,16 @@ export async function POST(request: Request) {
   if (eventError) return NextResponse.json({ error: "Événement non enregistré" }, { status: 500 });
   const metadata = record(sale.custom_metadata ?? sale.metadata);
   const storeId = String(metadata.store_id ?? sale.store_id ?? "") || null;
+  const campaign = record(sale.campaign ?? metadata.campaign ?? metadata.marketing_campaign);
+  const campaignId = String(campaign.id ?? campaign.campaign_id ?? sale.campaign_id ?? metadata.campaign_id ?? "") || null;
+  const campaignName = String(campaign.name ?? campaign.title ?? sale.campaign_name ?? metadata.campaign_name ?? "") || null;
   const settlement = record(sale.settlement);
-  await supabase.from("chariow_sales").upsert({ chariow_sale_id: saleId, store_id: storeId, product_id: String(metadata.product_id ?? sale.product_id ?? "") || null, status: String(sale.status ?? eventType), amount: amount(sale.amount), net_amount: amount(settlement.amount), currency: String(record(sale.amount).currency ?? sale.currency ?? "") || null, settlement_done: Boolean(settlement.done_at), event_type: eventType, occurred_at: String(sale.created_at ?? sale.createdAt ?? new Date().toISOString()), updated_at: new Date().toISOString(), raw_payload: event }, { onConflict: "chariow_sale_id" });
+  await supabase.from("chariow_sales").upsert({ chariow_sale_id: saleId, store_id: storeId, product_id: String(metadata.product_id ?? sale.product_id ?? "") || null, chariow_campaign_id: campaignId, chariow_campaign_name: campaignName, status: String(sale.status ?? eventType), amount: amount(sale.amount), net_amount: amount(settlement.amount), currency: String(record(sale.amount).currency ?? sale.currency ?? "") || null, settlement_done: Boolean(settlement.done_at), event_type: eventType, occurred_at: String(sale.created_at ?? sale.createdAt ?? new Date().toISOString()), updated_at: new Date().toISOString(), raw_payload: event }, { onConflict: "chariow_sale_id" });
 
   if (eventType === "successful.sale") {
-    const visitorId = String(metadata.visitor_id ?? "");
-    if (visitorId && storeId) {
-      const { data: touches } = await supabase.from("attribution_touches").select("*").eq("store_id", storeId).eq("visitor_id", visitorId).gt("expires_at", new Date().toISOString()).order("captured_at", { ascending: false });
-      const saleAt = String(sale.created_at ?? sale.createdAt ?? new Date().toISOString());
-      const touch = selectLastNonDirectTouch(touches ?? [], saleAt);
-      if (touch) {
-        const campaign = String(metadata.utm_campaign ?? "") || null;
-        await supabase.from("meta_attributions").upsert({ user_id: touch.user_id, store_id: storeId, sale_id: saleId, chariow_sale_id: saleId, product_id: String(metadata.product_id ?? sale.product_id ?? "") || null, visitor_id: visitorId, meta_campaign_id: campaign, meta_adset_id: String(metadata.meta_adset_id ?? metadata.utm_term ?? "") || null, meta_ad_id: String(metadata.meta_ad_id ?? metadata.utm_content ?? "") || null, campaign_id: campaign, attribution_method: metadata.fbclid ? "click_id" : "sale_metadata", utm_source: String(metadata.utm_source ?? "") || null, utm_medium: String(metadata.utm_medium ?? "") || null, utm_campaign: campaign, utm_content: String(metadata.utm_content ?? "") || null, utm_term: String(metadata.utm_term ?? "") || null, fbclid: String(metadata.fbclid ?? "") || null, attribution_model: "last_non_direct_click", attribution_confidence: metadata.fbclid ? 95 : 80, attributed_gross_revenue: amount(sale.amount), attributed_net_revenue: amount(settlement.amount), attributed_revenue: amount(settlement.amount), sale_status: String(sale.status ?? "completed"), settlement_done: Boolean(settlement.done_at), currency: String(record(sale.amount).currency ?? sale.currency ?? "") || null, attributed_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "chariow_sale_id" });
-      }
-    }
+    // Native Chariow campaign data is persisted with the sale. Attribution to
+    // Meta is resolved later through meta_campaign_mappings; it no longer uses
+    // visitor_id, which is unavailable on chariow.com checkout pages.
   }
   return NextResponse.json({ received: true });
 }

@@ -73,6 +73,20 @@ export async function GET(request: Request) {
   const completedAttributedSales = (attributedSales ?? []).filter((item: { sale_status?: string | null }) => item.sale_status === "completed");
   const attributedGrossRevenue = completedAttributedSales.reduce((total: number, item: { attributed_gross_revenue?: number | string | null }) => total + (Number(item.attributed_gross_revenue ?? 0) || 0), 0);
   const attributedNetRevenue = completedAttributedSales.reduce((total: number, item: { attributed_net_revenue?: number | string | null }) => total + (Number(item.attributed_net_revenue ?? 0) || 0), 0);
+  const { data: mappings } = await supabase.from("meta_campaign_mappings").select("id,store_id,meta_campaign_id,meta_campaign_name,chariow_campaign_id,chariow_campaign_name,mapping_level,status").eq("user_id", user.id).eq("status", "active");
+  const campaignRowsWithNativeRevenue = performances.map((performance) => {
+    const linked = (mappings ?? []).filter((mapping: { meta_campaign_id: string; store_id: string }) => mapping.meta_campaign_id === performance.id && (!store || mapping.store_id === store.id));
+    const campaignIds = linked.map((mapping: { chariow_campaign_id: string }) => mapping.chariow_campaign_id);
+    return { ...performance, linkedChariowCampaigns: linked, nativeChariowNetRevenue: 0, nativeRealRoas: null as number | null, nativeCampaignIds: campaignIds };
+  });
+  if (store && campaignRowsWithNativeRevenue.length) {
+    const { data: nativeSales } = await supabase.from("chariow_sales").select("chariow_campaign_id,net_amount,status").eq("store_id", store.id).gte("occurred_at", `${from}T00:00:00.000Z`).lte("occurred_at", `${to}T23:59:59.999Z`);
+    for (const performance of campaignRowsWithNativeRevenue) {
+      const campaignIds = new Set(performance.nativeCampaignIds);
+      performance.nativeChariowNetRevenue = (nativeSales ?? []).filter((sale: { chariow_campaign_id?: string | null; status?: string }) => sale.status === "completed" && sale.chariow_campaign_id && campaignIds.has(sale.chariow_campaign_id)).reduce((total: number, sale: { net_amount?: number | string | null }) => total + Number(sale.net_amount ?? 0), 0);
+      performance.nativeRealRoas = performance.spend > 0 ? performance.nativeChariowNetRevenue / performance.spend : null;
+    }
+  }
   const profitability = calculateProfitability({ price: productPrice, productCost: 0, platformFees: 0, otherVariableCosts: 0, adSpend: totalSpend, conversionRate: totalConversions, refundRate: 0 });
-  return NextResponse.json({ currency, period: { from, to }, overview: { spend: totalSpend, chariowRevenue: revenue, metaReportedRevenue, attributedGrossRevenue, attributedNetRevenue, attributedRevenue: attributedNetRevenue, conversions: totalConversions, sales, cpa: totalConversions > 0 ? totalSpend / totalConversions : null, cac: sales > 0 ? totalSpend / sales : null, metaRoas: totalSpend > 0 ? metaReportedRevenue / totalSpend : null, vendeoAttributedRoas: calculateVendeoAttributedRoas(attributedNetRevenue, totalSpend), realRoas: calculateVendeoAttributedRoas(attributedNetRevenue, totalSpend), attributionCoverage: completedAttributedSales.length }, profitability, performances });
+  return NextResponse.json({ currency, period: { from, to }, overview: { spend: totalSpend, chariowRevenue: revenue, metaReportedRevenue, attributedGrossRevenue, attributedNetRevenue, attributedRevenue: attributedNetRevenue, conversions: totalConversions, sales, cpa: totalConversions > 0 ? totalSpend / totalConversions : null, cac: sales > 0 ? totalSpend / sales : null, metaRoas: totalSpend > 0 ? metaReportedRevenue / totalSpend : null, vendeoAttributedRoas: calculateVendeoAttributedRoas(attributedNetRevenue, totalSpend), realRoas: calculateVendeoAttributedRoas(attributedNetRevenue, totalSpend), attributionCoverage: completedAttributedSales.length }, profitability, performances: campaignRowsWithNativeRevenue });
 }
