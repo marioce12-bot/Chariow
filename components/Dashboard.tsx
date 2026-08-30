@@ -159,19 +159,17 @@ export function Dashboard() {
       <div className="app-layout">
         <aside className="sidebar">
           <div className="side-label">Workspace</div>
-          {stores.length > 1 && (
+          <label className="store-selector">
+            <span>Boutique affichée</span>
             <select
               value={selectedStoreId ?? ""}
+              disabled={!stores.length}
               onChange={(e) => setSelectedStoreId(e.target.value || null)}
-              style={{ margin: "0 4px 16px", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 12, width: "calc(100% - 8px)" }}
             >
-              {stores.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.store_name}
-                </option>
-              ))}
+              {!stores.length && <option value="">Aucune boutique</option>}
+              {stores.map((s) => <option key={s.id} value={s.id}>{s.store_name}</option>)}
             </select>
-          )}
+          </label>
           {links.map(([name, Icon]) => (
             <button key={name} className={`side-link ${active === name ? "active" : ""}`} onClick={() => setActive(name)}>
               <Icon size={16} />
@@ -793,7 +791,7 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
   useEffect(() => {
     // Auto-scroll to the latest message.
     if (!bottomNode) return;
-    bottomNode.scrollIntoView({ behavior: "smooth", block: "end" });
+    bottomNode.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages.length, sending, bottomNode]);
 
   async function send(message = input) {
