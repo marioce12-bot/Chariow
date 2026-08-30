@@ -42,7 +42,7 @@ type SubscriptionData = {
   current_period_end?: string;
 };
 
-type ProductData = { id: string; name: string; description: string | null; price: number | string | null; currency: string | null; status: string | null; image: string | null; createdAt: string | null; sales: number | null };
+type ProductData = { id: string; name: string; description: string | null; price: number | string | null; currency: string | null; status: string | null; image: string | null; url?: string | null; createdAt: string | null; sales: number | null };
 type AnalyticsData = {
   storeName: string;
   storeStatus: string;
@@ -808,7 +808,7 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [draft, setDraft] = useState<CampaignDraft>({ platform: "meta", text: "", title: product.name, link: "", objective: "sales", countries: "Bénin", minAge: "18", maxAge: "35", dailyBudget: "2500", duration: "7", mediaUrl: "" });
+  const [draft, setDraft] = useState<CampaignDraft>({ platform: "meta", text: "", title: product.name, link: product.url ?? "", objective: "sales", countries: "Bénin", minAge: "18", maxAge: "35", dailyBudget: "2500", duration: "7", mediaUrl: "" });
   const [mediaPreview, setMediaPreview] = useState<{ url: string; name: string; type: string } | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);

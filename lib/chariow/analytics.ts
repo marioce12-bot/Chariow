@@ -74,7 +74,8 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       price: numberValue(product.price) ?? numberValue(price.amount),
       currency: text(product.currency ?? price.currency),
       status: text(product.status ?? product.state),
-      image: text(product.image ?? product.image_url ?? product.thumbnail),
+       image: text(product.image ?? product.image_url ?? product.thumbnail),
+       url: text(product.url ?? product.product_url ?? product.checkout_url ?? product.sales_url ?? product.link ?? product.slug),
       createdAt: text(product.created_at ?? product.createdAt),
       sales: typeof product.sales === "number" ? product.sales : null,
     };
