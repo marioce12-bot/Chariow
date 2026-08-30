@@ -344,6 +344,30 @@ function RealTrendChart({ sales, spend, currency }: { sales: unknown[]; spend: n
   return <div className="real-chart"><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Evolution réelle du chiffre d’affaires Chariow"><line x1="0" y1="90" x2="100" y2="90" /><polyline points={points} /></svg><div className="chart-legend"><span><i className="legend-dot revenue-dot" /> CA Chariow</span><span className="chart-total">Total : {new Intl.NumberFormat("fr-FR").format(values.reduce((sum, value) => sum + value, 0))} {currency}</span></div></div>;
 }
 
+function displayValue(value: unknown, keys: string[] = ["name", "label", "title", "value", "text", "code"]): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map((item) => displayValue(item)).filter(Boolean).join(", ") || undefined;
+  if (typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    for (const key of keys) {
+      const result = displayValue(object[key]);
+      if (result) return result;
+    }
+    return Object.values(object).map((item) => displayValue(item)).filter(Boolean).join(" · ") || undefined;
+  }
+  return undefined;
+}
+
+function displayPhone(value: unknown) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return undefined;
+  const object = value as Record<string, unknown>;
+  const number = displayValue(object.number ?? object.phone_number ?? object.value ?? object.formatted);
+  const code = displayValue(object.country_code ?? object.dial_code ?? object.countryCode);
+  return [code, number].filter(Boolean).join(" ") || displayValue(value);
+}
+
 function RecentSale({ sale, currency }: { sale: unknown; currency: string }) {
   const [open, setOpen] = useState(false);
   const row = sale && typeof sale === "object" ? sale as Record<string, unknown> : {};
@@ -355,19 +379,19 @@ function RecentSale({ sale, currency }: { sale: unknown; currency: string }) {
   const error = (row.error as Record<string, unknown> | undefined) ?? {};
   const payment = (row.payment as Record<string, unknown> | undefined) ?? {};
   const context = (row.context as Record<string, unknown> | undefined) ?? {};
-  const phone = customer.phone ?? row.phone ?? customer.phone_number ?? row.phone_number;
+  const phone = displayPhone(customer.phone ?? row.phone ?? customer.phone_number ?? row.phone_number);
   const price = row.price ?? payment.price ?? row.amount;
   const discount = row.discount ?? payment.discount ?? row.discount_amount;
   const netAmount = row.net_amount ?? row.netAmount ?? payment.net_amount ?? payment.netAmount ?? row.amount;
-  const source = row.source ?? payment.source ?? "Non fourni";
-  const shop = row.store_name ?? row.store ?? row.shop ?? "Non fourni";
-  const description = row.description ?? row.sale_description ?? "Non fournie";
-  const country = row.country ?? context.country ?? customer.country ?? "Non fourni";
-  const language = row.language ?? context.language ?? customer.language ?? "Non fournie";
-  const device = row.device ?? context.device ?? "Non fourni";
+  const source = displayValue(row.source ?? payment.source) ?? "Non fourni";
+  const shop = displayValue(row.store_name ?? row.store ?? row.shop) ?? "Non fourni";
+  const description = displayValue(row.description ?? row.sale_description) ?? "Non fournie";
+  const country = displayValue(row.country ?? context.country ?? customer.country) ?? "Non fourni";
+  const language = displayValue(row.language ?? context.language ?? customer.language) ?? "Non fournie";
+  const device = displayValue(row.device ?? context.device) ?? "Non fourni";
   const productName = String(row.product_name ?? (row.product as Record<string, unknown>)?.name ?? "Produit Chariow");
   const customerName = customer.name ?? ([customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Non fourni");
-  const failureReason = error.message ?? error.description ?? row.failure_reason ?? row.failureReason ?? row.error_message ?? row.reason ?? row.status_reason ?? row.payment_error ?? "Non fournie par Chariow";
+  const failureReason = displayValue(error.message ?? error.description ?? row.failure_reason ?? row.failureReason ?? row.error_message ?? row.reason ?? row.status_reason ?? row.payment_error ?? row.failure ?? row.payment_status_reason ?? (row.payment as Record<string, unknown> | undefined)?.error) ?? "Non fournie par Chariow";
   const money = (value: unknown) => { const numeric = Number((value as Record<string, unknown>)?.value ?? value); return Number.isFinite(numeric) && numeric > 0 ? `${numeric.toLocaleString("fr-FR")} ${String((value as Record<string, unknown>)?.currency ?? currency)}` : "Non fourni"; };
   return <><li><i className={`activity-dot activity-${status}`} /><span><b>{label}</b><br />{productName} · {amount ? `${amount.toLocaleString("fr-FR")} ${currency}` : "Montant indisponible"} · {date ? new Date(String(date)).toLocaleDateString("fr-FR") : "Date indisponible"}</span><button type="button" className="activity-detail" onClick={() => setOpen(true)}>Détail</button></li>{open ? <div className="sale-modal-backdrop" role="presentation" onClick={() => setOpen(false)}><section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-detail-title" onClick={(event) => event.stopPropagation()}><button type="button" className="sale-modal-close" aria-label="Fermer" onClick={() => setOpen(false)}>×</button><span className="eyebrow">Détail Chariow</span><h2 id="sale-detail-title">{label}</h2><h3 className="sale-modal-section-title">Client</h3><div className="sale-detail-grid"><div><small>Nom</small><strong>{String(customerName)}</strong></div><div><small>Email</small><strong>{String(customer.email ?? row.email ?? "Non fourni")}</strong></div><div><small>Téléphone</small><strong>{String(phone ?? "Non fourni")}</strong></div></div><h3 className="sale-modal-section-title">Informations de paiement</h3><div className="sale-detail-grid"><div><small>Prix</small><strong>{money(price)}</strong></div><div><small>Réduction</small><strong>{money(discount)}</strong></div><div><small>Montant net</small><strong>{money(netAmount)}</strong></div><div><small>Source</small><strong>{String(source)}</strong></div><div><small>Boutique</small><strong>{String(shop)}</strong></div><div><small>Description</small><strong>{String(description)}</strong></div></div><h3 className="sale-modal-section-title">Contexte</h3><div className="sale-detail-grid"><div><small>Pays</small><strong>{String(country)}</strong></div><div><small>Langue</small><strong>{String(language)}</strong></div><div><small>Appareil</small><strong>{String(device)}</strong></div><div><small>Date</small><strong>{date ? new Date(String(date)).toLocaleString("fr-FR") : "Non fournie"}</strong></div><div><small>Raison de l’échec</small><strong>{status === "failed" ? String(failureReason) : "Aucune"}</strong></div></div><button type="button" className="btn btn-dark sale-modal-action" onClick={() => setOpen(false)}>Fermer</button></section></div> : null}</>;
 }
