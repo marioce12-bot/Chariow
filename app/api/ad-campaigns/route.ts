@@ -22,50 +22,11 @@ export async function POST(request: Request) {
   const { data: store } = await supabase.from("stores").select("id,mcp_url,access_token_encrypted").eq("user_id", user.id).eq("connection_status", "connected").limit(1).maybeSingle();
   if (!store) return NextResponse.json({ error: "Connecte d’abord une boutique Chariow" }, { status: 400 });
 
-  // Product catalogues are supplied by Chariow through MCP and are not stored
-  // in a `chariow_products` table. Validate the product identifier against the
-  // synchronized store snapshot instead of querying a non-existent table.
-  const { getChariowSnapshot } = await import("@/lib/chariow/analytics");
-  let snapshot;
-  try {
-    snapshot = await getChariowSnapshot(store);
-  } catch (snapshotError) {
-    const message = snapshotError instanceof Error ? snapshotError.message : String(snapshotError);
-    console.error("Ad campaign product lookup failed", { userId: user.id, storeId: store.id, message });
-    return NextResponse.json({ error: "Impossible de vérifier le produit dans Chariow" }, { status: 502 });
-  }
-  const productSource = snapshot.products;
-  const productRecord = productSource && typeof productSource === "object" && !Array.isArray(productSource)
-    ? productSource as Record<string, unknown>
-    : null;
-  const productRows = Array.isArray(productSource)
-    ? productSource
-    : Array.isArray(productRecord?.data)
-      ? productRecord.data
-      : Array.isArray(productRecord?.items)
-        ? productRecord.items
-        : Array.isArray(productRecord?.products)
-          ? productRecord.products
-          : [];
-  const normalize = (value: unknown) => String(value ?? "").trim().toLowerCase();
-  const requestedId = normalize(body.product_id);
-  const requestedName = normalize(body.product_name);
-  const productExists = productRows.some((item: unknown) => {
-    if (!item || typeof item !== "object") return false;
-    const row = item as Record<string, unknown>;
-    const ids = [row.id, row.uuid, row.product_id, row.productId, row.slug].filter(Boolean).map(normalize);
-    const name = normalize(row.name ?? row.title);
-    return ids.includes(requestedId) || (requestedName.length > 0 && name === requestedName);
-  });
-  if (!productExists) {
-    console.error("Campaign product mismatch", { userId: user.id, storeId: store.id, requestedProductId: body.product_id, requestedProductName: body.product_name, availableProducts: productRows.slice(0, 20).map((item) => { const row = item && typeof item === "object" ? item as Record<string, unknown> : {}; return { id: row.id, uuid: row.uuid, product_id: row.product_id, slug: row.slug, name: row.name, title: row.title }; }) });
-    return NextResponse.json({ error: "Produit introuvable dans ta boutique" }, { status: 404 });
-  }
-
   const { data, error } = await supabase.from("ad_campaigns").insert({
     user_id: user.id,
     store_id: store.id,
     product_id: body.product_id,
+    product_name: typeof body.product_name === "string" ? body.product_name.trim() : null,
     platform: "meta",
     status: "draft",
     objective: body.objective,
