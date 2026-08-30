@@ -811,6 +811,7 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
   const [draft, setDraft] = useState<CampaignDraft>({ platform: "meta", text: "", title: product.name, link: "", objective: "sales", countries: "Bénin", minAge: "18", maxAge: "35", dailyBudget: "2500", duration: "7", mediaUrl: "" });
   const [mediaPreview, setMediaPreview] = useState<{ url: string; name: string; type: string } | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const total = Math.max(0, Number(draft.dailyBudget) || 0) * Math.max(0, Number(draft.duration) || 0);
   const update = (key: keyof CampaignDraft, value: string) => setDraft((current) => ({ ...current, [key]: value }));
   function handleMediaChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -829,12 +830,23 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
     setSaving(true);
     setMessage(null);
     try {
-      const payload = { product_id: product.id, ...draft, media_url: draft.mediaUrl, media_name: mediaFile?.name ?? null, media_type: mediaFile?.type ?? null, daily_budget: Number(draft.dailyBudget), duration_days: Number(draft.duration), estimated_budget: total };
+      let mediaUrl = draft.mediaUrl;
+      if (mediaFile && !mediaUrl.startsWith("https://res.cloudinary.com/")) {
+        setUploadingMedia(true);
+        const mediaForm = new FormData();
+        mediaForm.append("file", mediaFile);
+        const uploadResponse = await fetch("/api/uploads/campaign-media", { method: "POST", body: mediaForm });
+        const uploadData = await uploadResponse.json().catch(() => ({}));
+        if (!uploadResponse.ok) { setMessage(uploadData.error ?? "Upload du média impossible."); return; }
+        mediaUrl = uploadData.secure_url;
+        update("mediaUrl", mediaUrl);
+      }
+      const payload = { product_id: product.id, ...draft, media_url: mediaUrl, media_name: mediaFile?.name ?? null, media_type: mediaFile?.type ?? null, daily_budget: Number(draft.dailyBudget), duration_days: Number(draft.duration), estimated_budget: total };
       const response = await fetch("/api/ad-campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) { setMessage(data.error ?? "Impossible d’enregistrer la campagne."); return; }
       setMessage("Campagne enregistrée en brouillon. Connecte Meta Ads pour la lancer.");
-    } finally { setSaving(false); }
+    } finally { setSaving(false); setUploadingMedia(false); }
   }
 
   const steps = [{ number: 1, label: "Campagne", hint: "Choix de diffusion" }, { number: 2, label: "Contenu", hint: "Texte et creative" }, { number: 3, label: "Audience", hint: "Personnes ciblées" }, { number: 4, label: "Budget", hint: "Durée et montant" }];
