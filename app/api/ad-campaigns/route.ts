@@ -19,11 +19,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Budget ou durée invalide" }, { status: 400 });
   }
 
-  const { data: store } = await supabase.from("stores").select("id").eq("user_id", user.id).eq("connection_status", "connected").limit(1).maybeSingle();
+  const { data: store } = await supabase.from("stores").select("id,mcp_url,access_token_encrypted").eq("user_id", user.id).eq("connection_status", "connected").limit(1).maybeSingle();
   if (!store) return NextResponse.json({ error: "Connecte d’abord une boutique Chariow" }, { status: 400 });
 
-  const { data: product } = await supabase.from("chariow_products").select("id").eq("id", body.product_id).eq("store_id", store.id).maybeSingle();
-  if (!product) return NextResponse.json({ error: "Produit introuvable dans ta boutique" }, { status: 404 });
+  // Product catalogues are supplied by Chariow through MCP and are not stored
+  // in a `chariow_products` table. Validate the product identifier against the
+  // synchronized store snapshot instead of querying a non-existent table.
+  const { getChariowSnapshot } = await import("@/lib/chariow/analytics");
+  const snapshot = await getChariowSnapshot(store);
+  const productExists = snapshot.products.some((item: unknown) => {
+    if (!item || typeof item !== "object") return false;
+    const row = item as Record<string, unknown>;
+    return String(row.id ?? row.product_id ?? "") === body.product_id;
+  });
+  if (!productExists) return NextResponse.json({ error: "Produit introuvable dans ta boutique" }, { status: 404 });
 
   const { data, error } = await supabase.from("ad_campaigns").insert({
     user_id: user.id,
@@ -35,6 +44,7 @@ export async function POST(request: Request) {
     ad_text: body.text.trim(),
     title: typeof body.title === "string" ? body.title.trim() : null,
     destination_url: body.link.trim(),
+    media_url: typeof body.media_url === "string" ? body.media_url.trim() : null,
     countries: typeof body.countries === "string" ? body.countries.split(",").map((country: string) => country.trim()).filter(Boolean) : [],
     min_age: Number(body.minAge) || 18,
     max_age: Number(body.maxAge) || 65,
