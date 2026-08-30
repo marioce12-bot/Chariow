@@ -47,13 +47,18 @@ export async function POST(request: Request) {
         : Array.isArray(productRecord?.products)
           ? productRecord.products
           : [];
+  const requestedName = typeof body.product_name === "string" ? body.product_name.trim().toLowerCase() : "";
   const productExists = productRows.some((item: unknown) => {
     if (!item || typeof item !== "object") return false;
     const row = item as Record<string, unknown>;
     const ids = [row.id, row.uuid, row.product_id, row.productId, row.slug].filter(Boolean).map(String);
-    return ids.includes(body.product_id);
+    const name = String(row.name ?? row.title ?? "").trim().toLowerCase();
+    return ids.includes(body.product_id) || (requestedName.length > 0 && name === requestedName);
   });
-  if (!productExists) return NextResponse.json({ error: "Produit introuvable dans ta boutique" }, { status: 404 });
+  if (!productExists) {
+    console.error("Campaign product mismatch", { userId: user.id, storeId: store.id, requestedProductId: body.product_id, requestedProductName: body.product_name, availableProductIds: productRows.slice(0, 20).map((item) => item && typeof item === "object" ? Object.keys(item as Record<string, unknown>).slice(0, 12) : typeof item) });
+    return NextResponse.json({ error: "Produit introuvable dans ta boutique" }, { status: 404 });
+  }
 
   const { data, error } = await supabase.from("ad_campaigns").insert({
     user_id: user.id,

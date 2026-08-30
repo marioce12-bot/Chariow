@@ -865,7 +865,7 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
         update("mediaUrl", mediaUrl);
       }
       if (mediaFile && mediaUrl.startsWith("blob:")) { setMessage("Attends la fin du transfert du média avant d’enregistrer."); return; }
-      const payload = { product_id: product.id, ...draft, media_url: mediaUrl, media_name: mediaFile?.name ?? null, media_type: mediaFile?.type ?? null, daily_budget: Number(draft.dailyBudget), duration_days: Number(draft.duration), estimated_budget: total };
+      const payload = { product_id: product.id, product_name: product.name, ...draft, media_url: mediaUrl, media_name: mediaFile?.name ?? null, media_type: mediaFile?.type ?? null, daily_budget: Number(draft.dailyBudget), duration_days: Number(draft.duration), estimated_budget: total };
       const response = await fetch("/api/ad-campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) { setMessage(data.error ?? "Impossible d’enregistrer la campagne."); return; }
