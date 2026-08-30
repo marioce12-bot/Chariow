@@ -26,8 +26,21 @@ export async function POST(request: Request) {
   // in a `chariow_products` table. Validate the product identifier against the
   // synchronized store snapshot instead of querying a non-existent table.
   const { getChariowSnapshot } = await import("@/lib/chariow/analytics");
-  const snapshot = await getChariowSnapshot(store);
-  const productExists = snapshot.products.some((item: unknown) => {
+  let snapshot;
+  try {
+    snapshot = await getChariowSnapshot(store);
+  } catch (snapshotError) {
+    const message = snapshotError instanceof Error ? snapshotError.message : String(snapshotError);
+    console.error("Ad campaign product lookup failed", { userId: user.id, storeId: store.id, message });
+    return NextResponse.json({ error: "Impossible de vérifier le produit dans Chariow" }, { status: 502 });
+  }
+  const productSource = snapshot.products;
+  const productRows = Array.isArray(productSource)
+    ? productSource
+    : productSource && typeof productSource === "object"
+      ? Object.values(productSource as Record<string, unknown>)
+      : [];
+  const productExists = productRows.some((item: unknown) => {
     if (!item || typeof item !== "object") return false;
     const row = item as Record<string, unknown>;
     return String(row.id ?? row.product_id ?? "") === body.product_id;
@@ -52,7 +65,10 @@ export async function POST(request: Request) {
     duration_days: durationDays,
     estimated_budget: dailyBudget * durationDays,
   }).select("id,status").single();
-  if (error) return NextResponse.json({ error: "Impossible d’enregistrer la campagne" }, { status: 500 });
+  if (error) {
+    console.error("Ad campaign insert failed", { userId: user.id, storeId: store.id, productId: body.product_id, code: error.code, message: error.message, details: error.details, hint: error.hint });
+    return NextResponse.json({ error: "Impossible d’enregistrer la campagne", code: process.env.NODE_ENV === "development" ? error.code : undefined }, { status: 500 });
+  }
   return NextResponse.json({ campaign: data }, { status: 201 });
 }
 
