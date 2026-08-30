@@ -35,15 +35,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Impossible de vérifier le produit dans Chariow" }, { status: 502 });
   }
   const productSource = snapshot.products;
+  const productRecord = productSource && typeof productSource === "object" && !Array.isArray(productSource)
+    ? productSource as Record<string, unknown>
+    : null;
   const productRows = Array.isArray(productSource)
     ? productSource
-    : productSource && typeof productSource === "object"
-      ? Object.values(productSource as Record<string, unknown>)
-      : [];
+    : Array.isArray(productRecord?.data)
+      ? productRecord.data
+      : Array.isArray(productRecord?.items)
+        ? productRecord.items
+        : Array.isArray(productRecord?.products)
+          ? productRecord.products
+          : [];
   const productExists = productRows.some((item: unknown) => {
     if (!item || typeof item !== "object") return false;
     const row = item as Record<string, unknown>;
-    return String(row.id ?? row.product_id ?? "") === body.product_id;
+    const ids = [row.id, row.uuid, row.product_id, row.productId, row.slug].filter(Boolean).map(String);
+    return ids.includes(body.product_id);
   });
   if (!productExists) return NextResponse.json({ error: "Produit introuvable dans ta boutique" }, { status: 404 });
 
