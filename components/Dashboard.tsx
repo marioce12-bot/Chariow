@@ -238,6 +238,8 @@ export function Dashboard() {
               analytics={analytics}
               userFirstName={userFirstName}
               onGoToAI={() => setActive("Vendeo AI")}
+              selectedStoreId={selectedStoreId}
+              onStoreChange={setSelectedStoreId}
             />
           )}
         </section>
@@ -315,12 +317,16 @@ function Overview({
   analytics,
   userFirstName,
   onGoToAI,
+  selectedStoreId,
+  onStoreChange,
 }: {
   stores: StoreData[];
   subscription: SubscriptionData | null;
   analytics: AnalyticsData;
   userFirstName: string;
   onGoToAI: () => void;
+  selectedStoreId: string | null;
+  onStoreChange: (storeId: string) => void;
 }) {
   const greeting = (userFirstName || "créateur").trim().split(/\s+/)[0] || "créateur";
   const store = stores[0];
@@ -345,7 +351,7 @@ function Overview({
   const productsSummary = products.slice(0, 5).map((product) => ({ name: product.name, sales: product.sales ?? 0, revenue: product.sales ? Number(product.price ?? 0) * product.sales : 0, state: product.sales ? "Performant" : "À surveiller" }));
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
   return <div className="dashboard-home">
-    <div className="home-header"><div><span className="eyebrow">Pilotage de rentabilité</span><h1>Bonjour, {greeting}</h1><p>Une lecture simple de ton activité Chariow et Meta Ads.</p></div><div className="home-controls"><span className="home-store">{store?.store_name ?? "Aucune boutique"}</span><span className={connected ? "status-positive" : "status-warning"}>{connected ? "Chariow connectée" : "Chariow non connectée"}</span><span className={metaConnected ? "status-positive" : "status-info"}>{metaConnected ? "Meta Ads connectée" : "Meta Ads non connectée"}</span><span className="sync-label">Dernière synchronisation : à vérifier</span><select value={period} onChange={(event) => setPeriod(event.target.value)}><option>Aujourd’hui</option><option>Hier</option><option>7 derniers jours</option><option>30 derniers jours</option><option>Ce mois-ci</option><option>Mois dernier</option><option>Personnalisé</option></select>{period === "Personnalisé" ? <><input aria-label="Date de début" type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} /><input aria-label="Date de fin" type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} /></> : null}<button className="btn btn-ghost" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "Actualisation…" : "Actualiser"}</button></div></div>
+    <div className="home-header"><div><span className="eyebrow">Pilotage de rentabilité</span><h1>Bonjour, {greeting}</h1><p>Une lecture simple de ton activité Chariow et Meta Ads.</p></div><div className="home-controls"><label className="home-store-selector"><span>Boutique analysée</span><select aria-label="Boutique analysée" value={selectedStoreId ?? ""} disabled={!stores.length} onChange={(event) => onStoreChange(event.target.value)}>{!stores.length && <option value="">Aucune boutique</option>}{stores.map((item) => <option key={item.id} value={item.id}>{item.store_name}</option>)}</select></label><span className={connected ? "status-positive" : "status-warning"}>{connected ? "Chariow connectée" : "Chariow non connectée"}</span><span className={metaConnected ? "status-positive" : "status-info"}>{metaConnected ? "Meta Ads connectée" : "Meta Ads non connectée"}</span><span className="sync-label">Dernière synchronisation : à vérifier</span><select value={period} onChange={(event) => setPeriod(event.target.value)}><option>Aujourd’hui</option><option>Hier</option><option>7 derniers jours</option><option>30 derniers jours</option><option>Ce mois-ci</option><option>Mois dernier</option><option>Personnalisé</option></select>{period === "Personnalisé" ? <><input aria-label="Date de début" type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} /><input aria-label="Date de fin" type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} /></> : null}<button className="btn btn-ghost" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "Actualisation…" : "Actualiser"}</button></div></div>
     <section className="home-ai-state app-card"><div><span className="eyebrow">Analyse IA</span><h2>État de votre activité</h2><p>{statusText}</p></div><Brain size={24} /></section>
     <section className="home-kpis"><HomeKpi label="Chiffre d’affaires Chariow" value={connected ? format(revenue) : "Non disponible"} tone={revenue > 0 ? "positive" : "neutral"} help="Revenu commercial remonté par Chariow." /><HomeKpi label="Ventes confirmées Chariow" value={connected ? String(sales) : "Non disponible"} tone={sales > 0 ? "positive" : "neutral"} help="Paiements confirmés par Chariow." /><HomeKpi label="Dépenses Meta Ads" value={metaConnected ? format(spend) : "Non disponible"} tone="info" help="Dépenses synchronisées depuis Meta Insights." /><HomeKpi label="Profit estimé" value={costsConfigured ? format(revenue - spend) : "Profit à configurer"} tone={costsConfigured ? "positive" : "warning"} help="Disponible après configuration des coûts produits." action={!costsConfigured ? () => window.dispatchEvent(new CustomEvent("vendeo:navigate", { detail: "Assistant de profit" })) : undefined} /><HomeKpi label="ROAS Meta rapporté" value={roas === null ? "Non disponible" : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help="Valeur d’achat rapportée par Meta divisée par les dépenses Meta." /></section>
      <section className="home-chart app-card"><div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Évolution du chiffre d’affaires et des dépenses</h2></div><LineChart size={19} /></div>{!connected && !metaConnected ? <EmptyState title="Données indisponibles" text="Connecte Chariow et Meta Ads pour afficher l’évolution." /> : <RealTrendChart sales={analytics?.sales ?? []} spend={spend} currency={currency} />}</section>
@@ -750,6 +756,7 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
   const [sending, setSending] = useState(false);
   const [usage, setUsage] = useState<{ free_used: number; free_limit: number; used: number; limit: number; trialActive: boolean; status: string; plan: string } | null>(null);
   const [plansRequired, setPlansRequired] = useState(false);
+  const [expandedMessages, setExpandedMessages] = useState<Record<number, boolean>>({});
 
   const bottomRef = (node: HTMLDivElement | null) => {
     // Ref callback for compatibility.
@@ -875,11 +882,19 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
             <br />Tu as 3 requêtes gratuites pour découvrir ton analyste IA.
           </div>
         )}
-        {messages.map((message, index) => (
-          <div key={index} className={message.role === "user" ? "chat-bubble user" : "chat-bubble assistant"}>
-            {cleanAiText(message.content)}
-          </div>
-        ))}
+        {messages.map((message, index) => {
+          const content = cleanAiText(message.content);
+          const isLong = content.length > 520;
+          const expanded = expandedMessages[index] === true;
+          return (
+            <div key={index} className={message.role === "user" ? "chat-bubble user" : "chat-bubble assistant"}>
+              <div className={!expanded && isLong ? "chat-message-preview" : undefined}>
+                {expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}…`}
+              </div>
+              {isLong && <button type="button" className="chat-see-more" onClick={() => setExpandedMessages((current) => ({ ...current, [index]: !expanded }))}>{expanded ? "Voir moins" : "Voir plus"}</button>}
+            </div>
+          );
+        })}
 
         <div ref={setBottomNode} />
       </div>
