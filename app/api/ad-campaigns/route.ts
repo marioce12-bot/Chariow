@@ -47,16 +47,18 @@ export async function POST(request: Request) {
         : Array.isArray(productRecord?.products)
           ? productRecord.products
           : [];
-  const requestedName = typeof body.product_name === "string" ? body.product_name.trim().toLowerCase() : "";
+  const normalize = (value: unknown) => String(value ?? "").trim().toLowerCase();
+  const requestedId = normalize(body.product_id);
+  const requestedName = normalize(body.product_name);
   const productExists = productRows.some((item: unknown) => {
     if (!item || typeof item !== "object") return false;
     const row = item as Record<string, unknown>;
-    const ids = [row.id, row.uuid, row.product_id, row.productId, row.slug].filter(Boolean).map(String);
-    const name = String(row.name ?? row.title ?? "").trim().toLowerCase();
-    return ids.includes(body.product_id) || (requestedName.length > 0 && name === requestedName);
+    const ids = [row.id, row.uuid, row.product_id, row.productId, row.slug].filter(Boolean).map(normalize);
+    const name = normalize(row.name ?? row.title);
+    return ids.includes(requestedId) || (requestedName.length > 0 && name === requestedName);
   });
   if (!productExists) {
-    console.error("Campaign product mismatch", { userId: user.id, storeId: store.id, requestedProductId: body.product_id, requestedProductName: body.product_name, availableProductIds: productRows.slice(0, 20).map((item) => item && typeof item === "object" ? Object.keys(item as Record<string, unknown>).slice(0, 12) : typeof item) });
+    console.error("Campaign product mismatch", { userId: user.id, storeId: store.id, requestedProductId: body.product_id, requestedProductName: body.product_name, availableProducts: productRows.slice(0, 20).map((item) => { const row = item && typeof item === "object" ? item as Record<string, unknown> : {}; return { id: row.id, uuid: row.uuid, product_id: row.product_id, slug: row.slug, name: row.name, title: row.title }; }) });
     return NextResponse.json({ error: "Produit introuvable dans ta boutique" }, { status: 404 });
   }
 
