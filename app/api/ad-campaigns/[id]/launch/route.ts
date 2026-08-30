@@ -19,7 +19,7 @@ export async function POST(request: Request, context: Context) {
   const { data: account, error: accountError } = await supabase.from("meta_ad_accounts").select("id,meta_account_id,access_token_encrypted,is_active,account_status").eq("id", accountId).eq("user_id", user.id).maybeSingle();
   if (accountError) return NextResponse.json({ error: "Impossible de vérifier le compte Meta" }, { status: 500 });
   if (!account?.is_active) return NextResponse.json({ error: "Le compte Meta sélectionné n’est plus actif" }, { status: 400 });
-  if (account.account_status !== null && account.account_status !== 1) return NextResponse.json({ error: "Le compte Meta n’est pas autorisé à diffuser des publicités" }, { status: 400 });
+  if (account.account_status !== null && account.account_status !== 1) return NextResponse.json({ error: "Le compte publicitaire Meta est restreint. Vérifie son état dans Meta Account Quality avant de relancer la campagne.", code: "META_ACCOUNT_RESTRICTED", account_quality_url: "https://www.facebook.com/accountquality" }, { status: 400 });
   await supabase.from("ad_campaigns").update({ status: "submitting", meta_ad_account_id: account.id, external_error: null }).eq("id", campaign.id).eq("user_id", user.id);
   try {
     const external = await createMetaCampaign({ accountId: `act_${account.meta_account_id}`, accessToken: decryptSecret(account.access_token_encrypted), name: campaign.title || "Campagne Vendeo", objective: campaign.objective, dailyBudget: Number(campaign.daily_budget) });

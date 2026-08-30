@@ -13,7 +13,8 @@ export async function GET(request: Request) {
   if (!account) return NextResponse.json({ error: "Aucun compte Meta connecté" }, { status: 404 });
   try {
     const resources = await fetchMetaResources(`act_${account.meta_account_id}`, decryptSecret(account.access_token_encrypted));
-    return NextResponse.json({ account: { id: account.id, status: resources.account.account_status ?? account.account_status }, pages: resources.pages.map((page: Record<string, unknown>) => ({ id: page.id, name: page.name, instagram_business_account: page.instagram_business_account ?? null })), pixels: resources.pixels.map((pixel: Record<string, unknown>) => ({ id: pixel.id, name: pixel.name })) });
+    const status = Number(resources.account.account_status ?? account.account_status ?? 0);
+    return NextResponse.json({ account: { id: account.id, status, restricted: status !== 1 }, account_quality_url: "https://www.facebook.com/accountquality", pages: resources.pages.map((page: Record<string, unknown>) => ({ id: page.id, name: page.name, instagram_business_account: page.instagram_business_account ?? null })), pixels: resources.pixels.map((pixel: Record<string, unknown>) => ({ id: pixel.id, name: pixel.name })) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ressources Meta indisponibles" }, { status: 502 });
   }
