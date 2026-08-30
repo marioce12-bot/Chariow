@@ -38,6 +38,8 @@ type SubscriptionData = {
   free_messages_limit: number;
   status: string;
   trial_active?: boolean;
+  current_period_start?: string;
+  current_period_end?: string;
 };
 
 type ProductData = { id: string; name: string; description: string | null; price: number | string | null; currency: string | null; status: string | null; image: string | null; createdAt: string | null; sales: number | null };
@@ -65,7 +67,8 @@ export function Dashboard() {
   const freeLimit = subscription?.free_messages_limit ?? 3;
   const used = subscription?.messages_used_this_month ?? 0;
   const limit = subscription?.messages_limit ?? 400;
-  const remainingAiThisMonth = freeUsed < freeLimit ? Math.max(0, freeLimit - freeUsed) : Math.max(0, limit - used);
+  const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
+  const remainingAiThisMonth = isActivePlan ? Math.max(0, limit - used) : Math.max(0, freeLimit - freeUsed);
 
   const links = [
     ["Vue d’ensemble", LayoutDashboard],
@@ -166,10 +169,9 @@ export function Dashboard() {
           ) : null}
           <div style={{ background: "linear-gradient(135deg,#ede9fe,#e0f2fe)", borderRadius: 10, margin: "35px 4px 0", padding: 14 }}>
             <span className="eyebrow" style={{ fontSize: 9 }}>
-              Plan {subscription?.plan === "pro" ? "Pro" : "Starter"}
+              {isActivePlan ? `Plan ${subscription?.plan === "pro" ? "Pro" : "Starter"} actif` : subscription?.status === "past_due" ? "Abonnement expiré" : "Essai gratuit"}
             </span>
-            <p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>Passe au Pro pour débloquer les rapports.</p>
-            <button className="btn btn-dark" style={{ fontSize: 10, padding: "8px 10px", width: "100%" }}>Passer au Pro</button>
+            {isActivePlan && subscription?.plan === "pro" ? <p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>Ton abonnement Pro est actif.</p> : <><p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>{isActivePlan ? "Passe au Pro pour débloquer les rapports." : subscription?.status === "past_due" ? "Ton abonnement a expiré. Choisis un plan pour continuer." : "Choisis un plan pour continuer après ton essai."}</p><button className="btn btn-dark" style={{ fontSize: 10, padding: "8px 10px", width: "100%" }} onClick={() => setActive("Abonnement")}>{isActivePlan ? "Passer au Pro" : "Voir les plans"}</button></>}
           </div>
 
           <div className="side-usage">
@@ -959,7 +961,7 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
 function SubscriptionView({ subscription, onBackToSettings }: { subscription: SubscriptionData | null; onBackToSettings?: () => void }) {
   const plan = subscription?.plan ?? "starter";
   const trial = subscription?.trial_active ?? true;
-  const isStarter = plan === "starter" && !trial;
+  const isActive = subscription?.status === "active" && !trial;
 
   async function changePlan(nextPlan: "starter" | "pro") {
     const response = await fetch("/api/subscription/checkout", {
@@ -975,6 +977,15 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
     }
   }
 
+  if (isActive) {
+    const used = subscription?.messages_used_this_month ?? 0;
+    const limit = subscription?.messages_limit ?? (plan === "pro" ? 1200 : 400);
+    const remaining = Math.max(0, limit - used);
+    const periodStart = subscription?.current_period_start ? new Date(subscription.current_period_start).toLocaleDateString("fr-FR") : "Non disponible";
+    const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("fr-FR") : "Non disponible";
+    return <><div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>Plan {plan === "pro" ? "Pro" : "Starter"} actif</h1><p>Gère ton plan et ton usage IA depuis un seul endroit.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div><div className="app-card" style={{ maxWidth: 520 }}><span className="eyebrow">Abonnement en cours</span><h2 style={{ marginTop: 6 }}>{plan === "pro" ? "Pro — 5 000 F / mois" : "Starter — 3 000 F / mois"}</h2><div className="sale-detail-grid" style={{ marginTop: 18 }}><div><small>Période en cours depuis</small><strong>{periodStart}</strong></div><div><small>Renouvellement</small><strong>{periodEnd}</strong></div><div><small>Messages utilisés</small><strong>{used.toLocaleString("fr-FR")} / {limit.toLocaleString("fr-FR")}</strong></div><div><small>Messages restants</small><strong>{remaining.toLocaleString("fr-FR")}</strong></div></div>{plan !== "pro" && <button className="btn btn-dark" style={{ marginTop: 20 }} onClick={() => changePlan("pro")}>Passer au Pro <ArrowRight size={15} /></button>}</div></>;
+  }
+
   return (
     <>
       <div className="page-top">
@@ -987,7 +998,7 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
       </div>
       <div className="pricing-wrap" style={{ maxWidth: 800 }}>
         <article className="price-card">
-          <span className="eyebrow">{trial && isStarter ? "Essai gratuit" : !trial && isStarter ? "Plan actuel" : "Plan disponible"}</span>
+          <span className="eyebrow">{trial ? "Essai gratuit" : "Plan disponible"}</span>
           <h3>Starter</h3>
           <div className="price">3 000 F <small>/ mois</small></div>
           <ul>
@@ -997,11 +1008,10 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
           </ul>
           <button
             className="btn btn-ghost"
-            disabled={isStarter}
             onClick={() => changePlan("starter")}
             style={{ width: "100%" }}
           >
-            {trial ? "Essai gratuit en cours" : isStarter ? "Plan actuel" : "Souscrire à Starter"}
+            Souscrire à Starter
           </button>
         </article>
         <article className="price-card pro">
