@@ -37,43 +37,64 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!message || message.length > 20000) return NextResponse.json({ error: "Le message doit contenir entre 1 et 20 000 caractères" }, { status: 400 });
+  // Contexte IA : on agrège toutes les boutiques actives de l'utilisateur.
+  // Le paramètre store_id (si envoyé) sera ignoré côté contexte pour garantir que l'IA a la vue complète.
   const storeId = body?.store_id || null;
-  let selectedStore: { id: string; mcp_url: string | null; access_token_encrypted: string | null; store_name: string } | null = null;
-  if (storeId) {
-    const { data: store } = await supabase.from("stores").select("id, mcp_url, access_token_encrypted, store_name").eq("id", storeId).eq("user_id", user.id).eq("is_active", true).maybeSingle();
-    if (!store) return NextResponse.json({ error: "Boutique introuvable" }, { status: 404 });
-    selectedStore = store;
-  } else {
-    const { data: store } = await supabase.from("stores").select("id, mcp_url, access_token_encrypted, store_name").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle();
-    selectedStore = store;
-  }
+  const { data: stores } = await supabase
+    .from("stores")
+    .select("id, mcp_url, access_token_encrypted, store_name")
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .eq("platform", "chariow");
   const { data: quota, error: quotaError } = await supabase.rpc("consume_message_quota", { target_user_id: user.id });
   if (quotaError) return NextResponse.json({ error: quotaError.message }, { status: 500 });
   if (!quota) return NextResponse.json({ error: "Tes 3 requêtes gratuites sont terminées. Choisis un plan pour continuer.", code: "PLANS_REQUIRED" }, { status: 429 });
   const { error: insertError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "user", content: message });
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
   const { data: history } = await supabase.from("messages").select("role, content").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20);
-  let context = "Aucune boutique n'est encore sélectionnée.";
-  if (selectedStore) {
-    try {
-      const snapshot = await getChariowSnapshot(selectedStore);
-      context = `Données réelles de la boutique ${selectedStore.store_name} pour la période du mois en cours :\n${serializeChariowContext(snapshot)}`;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("Chariow MCP error", message);
-      // Token expired: MCP returns 401.
-      if (message.includes("401")) {
-        await supabase.from("stores").update({ connection_status: "expired", connection_error: null, last_verified_at: new Date().toISOString() }).eq("id", selectedStore.id).eq("user_id", user.id);
-        context = `La connexion Chariow de ${selectedStore.store_name} a expiré. Reconnecte ta boutique Chariow pour continuer. Ne fabrique aucun chiffre.`;
-      } else {
-        context = `La boutique ${selectedStore.store_name} est connectée mais ses données MCP sont momentanément indisponibles. Ne fabrique aucun chiffre.`;
-      }
-    }
-  }
+  let context = "Aucune boutique n'est encore connectée.";
 
-  if (selectedStore) {
-    const { data: profitabilitySales } = await supabase.from("chariow_sales").select("status,amount,net_amount").eq("store_id", selectedStore.id).gte("occurred_at", new Date(Date.now() - 30 * 86400000).toISOString()).lte("occurred_at", new Date().toISOString());
-    if (profitabilitySales?.length) context += `\nAgrégat financier persistant des 30 derniers jours : ${JSON.stringify(calculateProfitabilityAggregate({ spend: 0, sales: profitabilitySales })).slice(0, 3000)}`;
+  if (stores && stores.length > 0) {
+    try {
+      const snapshots = await Promise.all(
+        stores.map(async (store) => {
+          try {
+            const snapshot = await getChariowSnapshot(store);
+            return `--- Boutique : ${store.store_name} ---\n${serializeChariowContext(snapshot)}`;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error("Chariow MCP error", message);
+            if (message.includes("401")) {
+              await supabase
+                .from("stores")
+                .update({ connection_status: "expired", connection_error: null, last_verified_at: new Date().toISOString() })
+                .eq("id", store.id)
+                .eq("user_id", user.id);
+              return `--- Boutique : ${store.store_name} ---\nConnexion expirée, reconnecte cette boutique pour inclure ses données. Ne fabrique aucun chiffre.`;
+            }
+            return `--- Boutique : ${store.store_name} ---\nDonnées momentanément indisponibles. Ne fabrique aucun chiffre.`;
+          }
+        })
+      );
+
+      context = `Données réelles de toutes tes boutiques actives pour la période du mois en cours :\n${snapshots.join("\n\n")}`;
+    } catch {
+      context = "Données Chariow momentanément indisponibles pour l'une ou plusieurs boutiques. Ne fabrique aucun chiffre.";
+    }
+
+    const storeIds = stores.map((s) => s.id);
+    const { data: profitabilitySales } = await supabase
+      .from("chariow_sales")
+      .select("status,amount,net_amount")
+      .in("store_id", storeIds)
+      .gte("occurred_at", new Date(Date.now() - 30 * 86400000).toISOString())
+      .lte("occurred_at", new Date().toISOString());
+
+    if (profitabilitySales?.length) {
+      context += `\nAgrégat financier persistent des 30 derniers jours (toutes boutiques) : ${JSON.stringify(
+        calculateProfitabilityAggregate({ spend: 0, sales: profitabilitySales })
+      ).slice(0, 3000)}`;
+    }
   }
 
   // Imole peut refuser les payloads trop volumineux (400).

@@ -56,6 +56,7 @@ export function Dashboard() {
   const [moreOpen, setMoreOpen] = useState(false);
   const searchParams = useSearchParams();
   const [stores, setStores] = useState<StoreData[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
@@ -108,12 +109,19 @@ export function Dashboard() {
       if (cancelled) return;
       const nextStores = storeResult.stores ?? [];
       setStores(nextStores);
+
+      const nextSelected = selectedStoreId && nextStores.some((store: StoreData) => store.id === selectedStoreId)
+        ? selectedStoreId
+        : nextStores[0]?.id ?? null;
+      if (nextSelected !== selectedStoreId) setSelectedStoreId(nextSelected);
+
       setLoadingData(false);
 
       const subscriptionPromise = fetch("/api/subscription").then((r) => (r.ok ? r.json() : { subscription: null }));
-      const analyticsPromise = nextStores.length
-        ? fetch(`/api/analytics?store_id=${encodeURIComponent(nextStores[0].id)}`).then((r) => (r.ok ? r.json() : null))
+      const analyticsPromise = nextSelected
+        ? fetch(`/api/analytics?store_id=${encodeURIComponent(nextSelected)}`).then((r) => (r.ok ? r.json() : null))
         : Promise.resolve(null);
+
       const [subscriptionResult, analyticsResult] = await Promise.all([subscriptionPromise, analyticsPromise]);
       if (cancelled) return;
       setSubscription(subscriptionResult.subscription ?? null);
@@ -125,6 +133,15 @@ export function Dashboard() {
     });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!selectedStoreId) return;
+    void (async () => {
+      const res = await fetch(`/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}`);
+      const data = res.ok ? await res.json() : null;
+      setAnalytics(data?.snapshot ?? null);
+    })();
+  }, [selectedStoreId]);
 
   return (
     <main className="app-shell">
@@ -142,6 +159,19 @@ export function Dashboard() {
       <div className="app-layout">
         <aside className="sidebar">
           <div className="side-label">Workspace</div>
+          {stores.length > 1 && (
+            <select
+              value={selectedStoreId ?? ""}
+              onChange={(e) => setSelectedStoreId(e.target.value || null)}
+              style={{ margin: "0 4px 16px", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 12, width: "calc(100% - 8px)" }}
+            >
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.store_name}
+                </option>
+              ))}
+            </select>
+          )}
           {links.map(([name, Icon]) => (
             <button key={name} className={`side-link ${active === name ? "active" : ""}`} onClick={() => setActive(name)}>
               <Icon size={16} />
@@ -187,7 +217,12 @@ export function Dashboard() {
           ) : active === "Paramètres" ? (
             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} />
           ) : active === "Vendeo AI" ? (
-            <ChatView onGoToSubscription={() => setActive("Abonnement")} />
+            <ChatView
+              onGoToSubscription={() => setActive("Abonnement")}
+              onUsageChange={(patch) =>
+                setSubscription((prev) => (prev ? { ...prev, ...patch } : prev))
+              }
+            />
           ) : active === "Assistant de profit" ? (
             <ProfitAssistant analytics={analytics} />
           ) : active === "Meta Ads" ? (
@@ -711,7 +746,7 @@ function formatProductPrice(product: ProductData) {
   return `${value}${currency ? ` ${currency}` : ""}`;
 }
 
-function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
+function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: () => void; onUsageChange: (patch: Partial<SubscriptionData>) => void }) {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -780,6 +815,17 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
         };
         setUsage(nextUsage);
         setPlansRequired(nextUsage.trialActive ? nextUsage.free_used >= nextUsage.free_limit : nextUsage.status !== "active" || nextUsage.used >= nextUsage.limit);
+
+        // Sync quota vers le parent (sidebar + page Abonnement)
+        onUsageChange({
+          free_messages_used: nextUsage.free_used,
+          free_messages_limit: nextUsage.free_limit,
+          messages_used_this_month: nextUsage.used,
+          messages_limit: nextUsage.limit,
+          plan: nextUsage.plan,
+          status: nextUsage.status,
+          trial_active: nextUsage.trialActive,
+        });
       }
     } else {
       if (data.code === "PLANS_REQUIRED") {
