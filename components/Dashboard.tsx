@@ -68,6 +68,7 @@ export function Dashboard() {
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
   const [userName, setUserName] = useState("créateur");
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
+  const [promoteProduct, setPromoteProduct] = useState<ProductData | null>(null);
 
   const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
   const freeUsed = subscription?.free_messages_used ?? 0;
@@ -230,7 +231,7 @@ export function Dashboard() {
           ) : active === "Assistant de profit" ? (
             <ProfitAssistant analytics={analytics} />
           ) : active === "Meta Ads" ? (
-            <MetaAdsView />
+             <MetaAdsView products={analytics?.products ?? []} onPromoteProduct={setPromoteProduct} />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Abonnement" ? (
@@ -248,8 +249,10 @@ export function Dashboard() {
               onStoreChange={setSelectedStoreId}
             />
           )}
-        </section>
+         </section>
       </div>
+
+      {promoteProduct ? <CampaignWizard product={promoteProduct} onClose={() => setPromoteProduct(null)} /> : null}
 
         <nav className="mobile-nav" aria-label="Navigation mobile">
          <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
@@ -506,7 +509,7 @@ function getRecommendation(analytics: AnalyticsData) {
   return { title: "Capitaliser sur tes ventes", description: "Analyse ton produit principal et teste une offre complémentaire pour augmenter la valeur de chaque client." };
 }
 
-function ProductCatalog({ products }: { products: ProductData[] }) {
+function ProductCatalog({ products, onPromote }: { products: ProductData[]; onPromote?: (product: ProductData) => void }) {
   return (
     <div className="app-card" style={{ marginTop: 18 }}>
       <div className="card-head"><div><h2>Ton catalogue</h2><p>{products.length ? "Les produits récupérés depuis ta boutique Chariow." : "Aucun produit n’a été trouvé dans ta boutique Chariow."}</p></div></div>
@@ -514,7 +517,8 @@ function ProductCatalog({ products }: { products: ProductData[] }) {
         {products.map((product) => <div key={product.id} className="store-row">
           <div className="store-logo">{product.image ? <img src={product.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} /> : <Package size={18} />}</div>
           <div className="store-info"><strong>{product.name}</strong><span>{formatProductPrice(product)}</span></div>
-          <span className="status">{product.status ?? "Statut non renseigné"}</span>
+           <span className="status">{product.status ?? "Statut non renseigné"}</span>
+           {onPromote ? <button className="btn btn-dark" type="button" onClick={() => onPromote(product)}>Promouvoir</button> : null}
         </div>)}
       </div>}
     </div>
@@ -685,13 +689,14 @@ type MetaPerformance = {
   performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; status: string }>;
 };
 
-function MetaAdsView() {
-  const [accounts, setAccounts] = useState<Array<{ id: string; name: string | null; currency: string }>>([]);
+function MetaAdsView({ products, onPromoteProduct }: { products: ProductData[]; onPromoteProduct: (product: ProductData) => void }) {
+  const [accounts, setAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null }>>([]);
   const [selectedAccount, setSelectedAccount] = useState("");
   const [performance, setPerformance] = useState<MetaPerformance | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
 
   async function load() {
     setLoading(true);
@@ -699,6 +704,8 @@ function MetaAdsView() {
     const data = response.ok ? await response.json() : { accounts: [] };
     const nextAccounts = data.accounts ?? [];
     setAccounts(nextAccounts);
+    const campaignsResponse = await fetch("/api/ad-campaigns");
+    if (campaignsResponse.ok) setCampaigns((await campaignsResponse.json()).campaigns ?? []);
     if (nextAccounts[0]) {
       setSelectedAccount(nextAccounts[0].id);
       const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(nextAccounts[0].id)}`);
@@ -731,12 +738,83 @@ function MetaAdsView() {
       <div className="page-top"><div><span className="eyebrow">Acquisition rentable</span><h1>Meta Ads</h1><p>Relie tes dépenses publicitaires aux ventes Chariow pour distinguer croissance et perte.</p></div><button className="btn btn-dark" onClick={connect}><Plus size={15} /> Connecter Meta Ads</button></div>
          {message && <p className="store-error" role="status">{message}</p>}
          {performance && performance.overview.conversions === 0 && <div className="meta-conversion-info" role="status">Meta ne rapporte actuellement aucune conversion attribuée. Cela peut être normal si aucune campagne n’a diffusé ou si aucun Pixel/Conversions API n’est configuré sur le parcours de vente Chariow. Les ventes Chariow reçues par Vendeo restent analysées séparément.</div>}
-      {!accounts.length ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte Meta Ads connecté</strong><span>Autorise Vendeo à lire tes campagnes, ensembles de publicités et publicités.</span><button className="btn btn-dark" onClick={connect}>Connecter Meta Ads</button></div> : <>
+       <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><div><span className="eyebrow">Nouveau</span><h2>Promouvoir un produit</h2><p>Choisis un produit Chariow pour préparer une campagne Meta sans quitter Vendeo.</p></div><Rocket size={19} /></div>{products.length ? <div style={{ display: "grid", gap: 10, marginTop: 15 }}>{products.map((product) => <div className="store-row" key={product.id}><div className="store-logo">{product.image ? <img src={product.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} /> : <Package size={18} />}</div><div className="store-info"><strong>{product.name}</strong><span>{formatProductPrice(product)}</span></div><button className="btn btn-dark" type="button" onClick={() => onPromoteProduct(product)}>Promouvoir</button></div>)}</div> : <EmptyState title="Aucun produit disponible" text="Connecte et synchronise une boutique Chariow pour promouvoir un produit." />}</section>
+       <CampaignList campaigns={campaigns} products={products} accounts={accounts} onConnect={connect} onRefresh={() => void load()} />
+       {!accounts.length ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte Meta Ads connecté</strong><span>Autorise Vendeo à lire tes campagnes, ensembles de publicités et publicités.</span><button className="btn btn-dark" onClick={connect}>Connecter Meta Ads</button></div> : <>
         <div className="app-card meta-toolbar"><label>Compte publicitaire<select value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={sync} disabled={syncing}>{syncing ? "Synchronisation…" : "Synchroniser les insights"}</button></div>
         {performance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(performance.overview.spend, performance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d’affaires réel Chariow" description="Revenus réellement enregistrés par Chariow, indépendamment des estimations de Meta." /><strong>{formatMoney(performance.overview.chariowRevenue, performance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses publicitaires divisées par le nombre de conversions déclarées par Meta." /><strong>{performance.overview.cpa === null ? "Non disponible" : formatMoney(performance.overview.cpa, performance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses publicitaires divisées par les ventes réellement enregistrées dans Chariow." /><strong>{performance.overview.cac === null ? "Non disponible" : formatMoney(performance.overview.cac, performance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses publicitaires." /><strong>{performance.overview.metaRoas === null ? "Non disponible" : `${performance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité grâce aux données d’attribution, divisés par les dépenses publicitaires." /><strong>{performance.overview.realRoas === null ? "Non disponible" : `${performance.overview.realRoas.toFixed(2)}x`}</strong></div></div><div className="meta-attribution-note">{performance.overview.attributionCoverage ? `${performance.overview.attributionCoverage} vente(s) reliée(s) par attribution interne.` : "Aucune vente Chariow n’est encore reliée à une publicité. Le retour publicitaire réel reste indisponible jusqu’à la mise en place des paramètres de suivi."}</div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Statut</span></div>{performance.performances.map((campaign) => <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, performance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, performance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><span className={`meta-status ${campaign.status}`}>{campaign.status === "profitable" ? "Rentable" : campaign.status === "loss" ? "À corriger" : "Sans signal"}</span></div>)}</div>{!performance.performances.length && <p className="profit-help">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section></> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
       </>}
     </>
   );
+}
+
+type CampaignDraft = {
+  platform: "meta";
+  text: string;
+  title: string;
+  link: string;
+  objective: "sales" | "traffic" | "engagement" | "leads";
+  countries: string;
+  minAge: string;
+  maxAge: string;
+  dailyBudget: string;
+  duration: string;
+};
+
+type AdCampaign = {
+  id: string;
+  product_id: string;
+  platform: string;
+  status: string;
+  objective: string;
+  title: string | null;
+  countries: string[];
+  daily_budget: number | string;
+  duration_days: number;
+  estimated_budget: number | string;
+  external_campaign_id: string | null;
+  external_error: string | null;
+  created_at: string;
+  meta_ad_account_id?: string | null;
+};
+
+function CampaignList({ campaigns, products, accounts, onConnect, onRefresh }: { campaigns: AdCampaign[]; products: ProductData[]; accounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null }>; onConnect: () => void; onRefresh: () => void }) {
+  const productName = (id: string) => products.find((product) => product.id === id)?.name ?? "Produit Chariow";
+  const statusLabel: Record<string, string> = { draft: "Brouillon", account_required: "Compte requis", submitting: "Envoi en cours", review: "En validation", active: "Active", paused: "En pause", rejected: "Refusée", error: "Erreur", completed: "Terminée" };
+  const [selected, setSelected] = useState<Record<string, string>>({});
+  const [launching, setLaunching] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function launch(campaign: AdCampaign) {
+    const accountId = selected[campaign.id] ?? accounts[0]?.id;
+    if (!accountId) { onConnect(); return; }
+    setLaunching(campaign.id); setError(null);
+    try { const response = await fetch(`/api/ad-campaigns/${campaign.id}/launch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ meta_ad_account_id: accountId }) }); const data = await response.json().catch(() => ({})); if (!response.ok) setError(data.error ?? "Lancement impossible."); else onRefresh(); } finally { setLaunching(null); }
+  }
+  return <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><div><span className="eyebrow">Suivi</span><h2>Mes campagnes</h2><p>Les campagnes sont préparées dans Vendeo avant leur envoi à Meta.</p></div><Megaphone size={19} /></div>{error ? <p className="store-error" role="alert">{error}</p> : null}{campaigns.length ? <div className="home-table" style={{ marginTop: 15 }}><div className="home-table-row home-table-head"><span>Produit</span><span>Plateforme</span><span>Budget</span><span>Statut</span><span>Action</span></div>{campaigns.map((campaign) => <div className="home-table-row" key={campaign.id}><span>{productName(campaign.product_id)}</span><span>{campaign.platform === "meta" ? "Meta" : campaign.platform}</span><span>{Number(campaign.estimated_budget).toLocaleString("fr-FR")} FCFA</span><span className={campaign.status === "active" ? "status-positive" : "status-warning"}>{statusLabel[campaign.status] ?? campaign.status}</span><span>{["draft", "error", "account_required"].includes(campaign.status) ? <><select aria-label={`Compte Meta pour ${productName(campaign.product_id)}`} value={selected[campaign.id] ?? accounts[0]?.id ?? ""} onChange={(event) => setSelected((current) => ({ ...current, [campaign.id]: event.target.value }))} disabled={!accounts.length}><option value="">Compte Meta</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select><button className="btn btn-dark" type="button" onClick={() => void launch(campaign)} disabled={launching === campaign.id || !accounts.length}>{launching === campaign.id ? "Lancement…" : "Lancer"}</button></> : "-"}</span></div>)}</div> : <EmptyState title="Aucune campagne" text="Ta première campagne apparaîtra ici après son enregistrement." />}{campaigns.some((campaign) => campaign.status === "draft" || campaign.status === "account_required") && !accounts.length ? <div className="meta-conversion-info" style={{ marginTop: 15 }}>Connecte un compte Meta Ads pour pouvoir soumettre tes brouillons à la plateforme. <button className="btn btn-dark" type="button" onClick={onConnect} style={{ marginLeft: 10 }}>Connecter Meta Ads</button></div> : null}</section>;
+}
+
+function CampaignWizard({ product, onClose }: { product: ProductData; onClose: () => void }) {
+  const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [draft, setDraft] = useState<CampaignDraft>({ platform: "meta", text: "", title: product.name, link: "", objective: "sales", countries: "Bénin", minAge: "18", maxAge: "35", dailyBudget: "2500", duration: "7" });
+  const total = Math.max(0, Number(draft.dailyBudget) || 0) * Math.max(0, Number(draft.duration) || 0);
+  const update = (key: keyof CampaignDraft, value: string) => setDraft((current) => ({ ...current, [key]: value }));
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (step < 4) { setStep((current) => current + 1); return; }
+    setSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/ad-campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product_id: product.id, ...draft, daily_budget: Number(draft.dailyBudget), duration_days: Number(draft.duration), estimated_budget: total }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setMessage(data.error ?? "Impossible d’enregistrer la campagne."); return; }
+      setMessage("Campagne enregistrée en brouillon. Connecte Meta Ads pour la lancer.");
+    } finally { setSaving(false); }
+  }
+
+  return <div className="sale-modal-backdrop" role="presentation" onClick={onClose}><section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="campaign-wizard-title" onClick={(event) => event.stopPropagation()}><button type="button" className="sale-modal-close" aria-label="Fermer" onClick={onClose}>×</button><span className="eyebrow">Promouvoir un produit</span><h2 id="campaign-wizard-title">{product.name}</h2>{message ? <div className="meta-conversion-info" role="status">{message}</div> : <form onSubmit={submit}><div className="campaign-steps"><span className={step >= 1 ? "active" : ""}>1. Plateforme</span><span className={step >= 2 ? "active" : ""}>2. Créative</span><span className={step >= 3 ? "active" : ""}>3. Audience</span><span className={step >= 4 ? "active" : ""}>4. Budget</span></div>{step === 1 ? <div className="campaign-form-grid"><label>Plateforme<select value={draft.platform} disabled><option value="meta">Facebook et Instagram</option></select></label><label>Objectif<select value={draft.objective} onChange={(event) => update("objective", event.target.value)}><option value="sales">Ventes</option><option value="traffic">Trafic</option><option value="engagement">Interactions</option><option value="leads">Prospects</option></select></label></div> : null}{step === 2 ? <div className="campaign-form-grid"><label className="campaign-form-full">Texte publicitaire<textarea required rows={5} value={draft.text} onChange={(event) => update("text", event.target.value)} placeholder="Présente ton produit et explique pourquoi il est utile." /></label><label>Titre<input required value={draft.title} onChange={(event) => update("title", event.target.value)} /></label><label>Lien de destination<input type="url" required value={draft.link} onChange={(event) => update("link", event.target.value)} placeholder="https://..." /></label><label className="campaign-form-full">Image ou vidéo<input type="file" accept="image/*,video/*" /></label></div> : null}{step === 3 ? <div className="campaign-form-grid"><label className="campaign-form-full">Pays ciblés<input required value={draft.countries} onChange={(event) => update("countries", event.target.value)} placeholder="Bénin, Côte d’Ivoire" /><small>Sépare plusieurs pays par une virgule.</small></label><label>Âge minimum<input type="number" min="13" max="65" value={draft.minAge} onChange={(event) => update("minAge", event.target.value)} /></label><label>Âge maximum<input type="number" min="13" max="65" value={draft.maxAge} onChange={(event) => update("maxAge", event.target.value)} /></label><div className="meta-conversion-info campaign-form-full">Vendeo préparera automatiquement le suivi des visites et des ventes. Aucune configuration technique de pixel n’est demandée.</div></div> : null}{step === 4 ? <div className="campaign-form-grid"><label>Budget quotidien<input required type="number" min="100" step="100" value={draft.dailyBudget} onChange={(event) => update("dailyBudget", event.target.value)} /><small>FCFA</small></label><label>Durée<input required type="number" min="1" max="90" value={draft.duration} onChange={(event) => update("duration", event.target.value)} /><small>jours</small></label><div className="campaign-total campaign-form-full"><span>Budget publicitaire estimé</span><strong>{total.toLocaleString("fr-FR")} FCFA</strong><small>Ce montant sera facturé directement par Meta. Aucun frais supplémentaire Vendeo.</small></div></div> : null}<div className="campaign-actions">{step > 1 ? <button className="btn btn-ghost" type="button" onClick={() => setStep((current) => current - 1)}>Retour</button> : <span />}{<button className="btn btn-dark" type="submit" disabled={saving}>{saving ? "Enregistrement…" : step < 4 ? "Continuer" : "Enregistrer le brouillon"}<ArrowRight size={15} /></button>}</div></form>}</section></div>;
 }
 
 function ReportStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {

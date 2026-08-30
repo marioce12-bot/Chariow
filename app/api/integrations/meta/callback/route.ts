@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       meta_user_id: typeof me?.id === "string" ? me.id : user.id,
       access_token_encrypted: encryptSecret(token.access_token),
       token_expires_at: typeof token.expires_in === "number" ? new Date(Date.now() + token.expires_in * 1000).toISOString() : null,
-      granted_scopes: ["ads_read"],
+       granted_scopes: ["ads_read", "ads_management", "business_management"],
       is_active: true,
       last_error: null,
     }, { onConflict: "user_id,meta_user_id" }).select("id").single();

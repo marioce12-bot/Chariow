@@ -20,6 +20,7 @@ export async function GET(request: Request) {
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("state", state);
-  url.searchParams.set("scope", "ads_read");
+  // ads_management is required to create, pause and resume campaigns.
+  url.searchParams.set("scope", "ads_read,ads_management,business_management");
   return NextResponse.redirect(url);
 }
