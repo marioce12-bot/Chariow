@@ -810,6 +810,7 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
   const [message, setMessage] = useState<string | null>(null);
   const [draft, setDraft] = useState<CampaignDraft>({ platform: "meta", text: "", title: product.name, link: "", objective: "sales", countries: "Bénin", minAge: "18", maxAge: "35", dailyBudget: "2500", duration: "7", mediaUrl: "" });
   const [mediaPreview, setMediaPreview] = useState<{ url: string; name: string; type: string } | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
   const total = Math.max(0, Number(draft.dailyBudget) || 0) * Math.max(0, Number(draft.duration) || 0);
   const update = (key: keyof CampaignDraft, value: string) => setDraft((current) => ({ ...current, [key]: value }));
   function handleMediaChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -818,6 +819,7 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
     if (mediaPreview) URL.revokeObjectURL(mediaPreview.url);
     const url = URL.createObjectURL(file);
     setMediaPreview({ url, name: file.name, type: file.type });
+    setMediaFile(file);
     update("mediaUrl", url);
   }
 
@@ -827,7 +829,8 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
     setSaving(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/ad-campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product_id: product.id, ...draft, media_url: draft.mediaUrl, daily_budget: Number(draft.dailyBudget), duration_days: Number(draft.duration), estimated_budget: total }) });
+      const payload = { product_id: product.id, ...draft, media_url: draft.mediaUrl, media_name: mediaFile?.name ?? null, media_type: mediaFile?.type ?? null, daily_budget: Number(draft.dailyBudget), duration_days: Number(draft.duration), estimated_budget: total };
+      const response = await fetch("/api/ad-campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) { setMessage(data.error ?? "Impossible d’enregistrer la campagne."); return; }
       setMessage("Campagne enregistrée en brouillon. Connecte Meta Ads pour la lancer.");
