@@ -26,6 +26,13 @@ export async function fetchMetaResources(accountId: string, accessToken: string)
   return { account: accountJson, pages: Array.isArray(pagesJson?.data) ? pagesJson.data : [], pixels: Array.isArray(pixelsJson?.data) ? pixelsJson.data : [] };
 }
 
+export async function fetchMetaPageAccessToken(pageId: string, accessToken: string) {
+  const response = await fetch(graphUrl(pageId, { fields: "id,access_token", access_token: accessToken }), { cache: "no-store" });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok || typeof json.access_token !== "string") throw new Error(typeof json?.error?.message === "string" ? json.error.message : "Impossible d’accéder à la page Facebook sélectionnée");
+  return json.access_token;
+}
+
 export async function fetchMetaInsights(accountId: string, accessToken: string, from: string, to: string, level: "campaign" | "adset" | "ad") {
   // Do not request campaign_id/campaign_name: some Meta account tokens reject
   // these fields even when the insight level is campaign (#100). The API

@@ -30,3 +30,27 @@ export async function createMetaCampaign(input: {
   });
   return { id: String(campaign.id), objective };
 }
+
+export async function createMetaAdSet(input: { accountId: string; accessToken: string; campaignId: string; name: string; dailyBudget: number; countries: string[]; minAge: number; maxAge: number }) {
+  return graphPost(`${input.accountId}/adsets`, input.accessToken, {
+    name: input.name.slice(0, 200),
+    campaign_id: input.campaignId,
+    daily_budget: String(Math.round(input.dailyBudget * 100)),
+    billing_event: "IMPRESSIONS",
+    optimization_goal: "LINK_CLICKS",
+    bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+    targeting: JSON.stringify({ geo_locations: { countries: input.countries }, age_min: input.minAge, age_max: input.maxAge }),
+    status: "PAUSED",
+  });
+}
+
+export async function createMetaCreative(input: { accountId: string; accessToken: string; name: string; pageId: string; link: string; message: string; headline: string; imageUrl: string }) {
+  return graphPost(`${input.accountId}/adcreatives`, input.accessToken, {
+    name: input.name.slice(0, 200),
+    object_story_spec: JSON.stringify({ page_id: input.pageId, link_data: { link: input.link, message: input.message, name: input.headline, image_url: input.imageUrl, call_to_action: { type: "LEARN_MORE", value: { link: input.link } } } }),
+  });
+}
+
+export async function createMetaAd(input: { accountId: string; accessToken: string; name: string; adsetId: string; creativeId: string }) {
+  return graphPost(`${input.accountId}/ads`, input.accessToken, { name: input.name.slice(0, 200), adset_id: input.adsetId, creative: JSON.stringify({ creative_id: input.creativeId }), status: "PAUSED" });
+}
