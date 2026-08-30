@@ -812,6 +812,7 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
   const [mediaPreview, setMediaPreview] = useState<{ url: string; name: string; type: string } | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const total = Math.max(0, Number(draft.dailyBudget) || 0) * Math.max(0, Number(draft.duration) || 0);
   const update = (key: keyof CampaignDraft, value: string) => setDraft((current) => ({ ...current, [key]: value }));
   function handleMediaChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -822,6 +823,27 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
     setMediaPreview({ url, name: file.name, type: file.type });
     setMediaFile(file);
     update("mediaUrl", url);
+    setMediaError(null);
+    void uploadMedia(file, url);
+  }
+
+  async function uploadMedia(file: File, localUrl: string) {
+    setUploadingMedia(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch("/api/uploads/campaign-media", { method: "POST", body: form });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || typeof data.secure_url !== "string") {
+        setMediaError(data.error ?? "Le média n’a pas pu être transféré.");
+        return;
+      }
+      if (localUrl === mediaPreview?.url) update("mediaUrl", data.secure_url);
+    } catch {
+      setMediaError("Impossible de contacter le service d’upload.");
+    } finally {
+      setUploadingMedia(false);
+    }
   }
 
   async function submit(event: React.FormEvent) {
@@ -841,6 +863,7 @@ function CampaignWizard({ product, onClose }: { product: ProductData; onClose: (
         mediaUrl = uploadData.secure_url;
         update("mediaUrl", mediaUrl);
       }
+      if (mediaFile && mediaUrl.startsWith("blob:")) { setMessage("Attends la fin du transfert du média avant d’enregistrer."); return; }
       const payload = { product_id: product.id, ...draft, media_url: mediaUrl, media_name: mediaFile?.name ?? null, media_type: mediaFile?.type ?? null, daily_budget: Number(draft.dailyBudget), duration_days: Number(draft.duration), estimated_budget: total };
       const response = await fetch("/api/ad-campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await response.json().catch(() => ({}));
