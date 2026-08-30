@@ -798,66 +798,72 @@ function ChatView({ onGoToSubscription }: { onGoToSubscription: () => void }) {
   const freeRemaining = usage ? Math.max(0, usage.free_limit - usage.free_used) : 3;
 
   return (
-    <>
-      <div className="page-top">
-        <div>
-          <span className="eyebrow">Vendeo AI</span>
-          <h1>On regarde ça ensemble ?</h1>
-          <p>Pose une question sur tes ventes, tes produits ou ta stratégie.</p>
+    <div className="app-card chat-card" style={{ maxWidth: 760 }}>
+      {usage && (plansRequired || usage.trialActive) && (
+        <div className="trial-banner">
+          {plansRequired ? (
+            <>
+              <strong>Active un plan pour continuer.</strong>{" "}
+              <button
+                className="btn btn-dark"
+                onClick={onGoToSubscription}
+                style={{ fontSize: 10, padding: "7px 10px", marginLeft: 8 }}
+                type="button"
+              >
+                Voir les offres
+              </button>
+            </>
+          ) : usage.trialActive ? (
+            <>
+              <strong>
+                {freeRemaining} requête{freeRemaining > 1 ? "s" : ""} gratuite{freeRemaining > 1 ? "s" : ""}
+              </strong>
+              {' '}restante{freeRemaining > 1 ? "s" : ""}. Découvre Vendeo avant de choisir ton plan.
+            </>
+          ) : null}
         </div>
-      </div>
-      <div className="app-card chat-card" style={{ maxWidth: 760 }}>
-        {usage && (
-          <div className="trial-banner">
-            {plansRequired ? (
-              <>
-                <strong>Active un plan pour continuer.</strong>{" "}
-                <button
-                  className="btn btn-dark"
-                  onClick={onGoToSubscription}
-                  style={{ fontSize: 10, padding: "7px 10px", marginLeft: 8 }}
-                  type="button"
-                >
-                  Voir les offres
-                </button>
-              </>
-            ) : usage.trialActive ? (
-              <>
-                <strong>
-                  {freeRemaining} requête{freeRemaining > 1 ? "s" : ""} gratuite{freeRemaining > 1 ? "s" : ""}
-                </strong>
-                {' '}restante{freeRemaining > 1 ? "s" : ""}. Découvre Vendeo avant de choisir ton plan.
-              </>
-            ) : <strong>Plan {usage.plan} actif</strong>}
+      )}
+
+      <div className="chat-messages">
+        {messages.length === 0 && (
+          <div className="empty-state">
+            <b><Sparkles size={15} /> Vendeo</b>
+            <br />Tu as 3 requêtes gratuites pour découvrir ton analyste IA.
           </div>
         )}
-        <div className="chat-messages">
-          {messages.length === 0 && <div className="empty-state"><b><Sparkles size={15} /> Vendeo</b><br />Tu as 3 requêtes gratuites pour découvrir ton analyste IA.</div>}
-          {messages.map((message, index) => (
-            <div key={index} className={message.role === "user" ? "chat-bubble user" : "chat-bubble assistant"}>
-              {cleanAiText(message.content)}
-            </div>
-          ))}
-
-          <div ref={setBottomNode} />
-        </div>
-        <div className="chat-composer">
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 15 }}>
-            {["Voir mes ventes", "Analyser mes produits", "Idées de bundle"].map((x) => (
-              <button key={x} className="btn btn-ghost" disabled={plansRequired} onClick={() => send(x)} style={{ fontSize: 11, padding: "9px 12px" }}>
-                {x}
-              </button>
-            ))}
+        {messages.map((message, index) => (
+          <div key={index} className={message.role === "user" ? "chat-bubble user" : "chat-bubble assistant"}>
+            {cleanAiText(message.content)}
           </div>
-          <form onSubmit={(event) => { event.preventDefault(); void send(); }} className="chat-input-form">
-            <input disabled={plansRequired} value={input} onChange={(event) => setInput(event.target.value)} placeholder={plansRequired ? "Choisis un plan pour continuer" : "Pose ta question..."} />
-            <button className="btn btn-dark" disabled={sending || plansRequired} style={{ borderRadius: 6, fontSize: 11, padding: "9px 14px" }}>
-              {sending ? "…" : plansRequired ? "Plans" : "Envoyer"}
-            </button>
-          </form>
-        </div>
+        ))}
+
+        <div ref={setBottomNode} />
       </div>
-    </>
+
+      <div className="chat-composer">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void send();
+          }}
+          className="chat-input-form"
+        >
+          <input
+            disabled={plansRequired}
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder={plansRequired ? "Choisis un plan pour continuer" : "Pose ta question..."}
+          />
+          <button
+            className="btn btn-dark"
+            disabled={sending || plansRequired}
+            style={{ borderRadius: 6, fontSize: 11, padding: "9px 14px" }}
+          >
+            {sending ? "…" : plansRequired ? "Plans" : "Envoyer"}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
 
