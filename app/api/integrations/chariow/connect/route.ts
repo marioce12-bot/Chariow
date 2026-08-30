@@ -41,18 +41,6 @@ export async function GET(request: Request) {
     if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 });
     existing = data;
     if (!existing) return NextResponse.json({ error: "Boutique Chariow introuvable" }, { status: 404 });
-  } else {
-    const { data: existingStore, error: existingError } = await supabase
-      .from("stores")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("platform", "chariow")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (existingError) return NextResponse.json({ error: "Impossible de retrouver ta boutique Chariow." }, { status: 500 });
-    existing = existingStore;
   }
 
   if (!existing) {
@@ -72,8 +60,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Chariow OAuth n'est pas configuré" }, { status: 500 });
   }
 
+  // Si store_id est fourni (reconnexion), on réutilise cette entrée.
+  // Sinon on crée une nouvelle boutique (tant que le plan le permet).
   let storeId: string;
-  if (existing?.id) {
+  if (requestedStoreId && existing?.id) {
     storeId = existing.id;
     const { error: upErr } = await supabase
       .from("stores")

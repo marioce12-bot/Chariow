@@ -179,7 +179,7 @@ export function Dashboard() {
             <div className="side-usage-value">{remainingAiThisMonth.toLocaleString("fr-FR")} messages disponibles</div>
           </div>
         </aside>
-        <section className="app-main">
+        <section className={active === "Vendeo AI" ? "app-main chat-page" : "app-main"}>
           {loadingData ? (
             <div className="app-card">Chargement de ton espace…</div>
           ) : stores.length === 0 && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
@@ -871,9 +871,8 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
     setError("");
     setSaving(true);
     try {
-      const existingStoreId = storeId ?? stores.find((store) => store.platform === "chariow")?.id;
-      if (!existingStoreId) {
-        const check = await fetch(`/api/integrations/chariow/connect/check${existingStoreId ? `?store_id=${encodeURIComponent(existingStoreId)}` : ""}`);
+      if (!storeId) {
+        const check = await fetch("/api/integrations/chariow/connect/check");
         const checkData = await check.json().catch(() => ({}));
         if (!check.ok) {
           if (checkData.code === "STORE_LIMIT") setShowUpgrade(true);
@@ -881,8 +880,9 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
           return;
         }
       }
-      const target = existingStoreId
-        ? `/api/integrations/chariow/connect?store_id=${encodeURIComponent(existingStoreId)}`
+
+      const target = storeId
+        ? `/api/integrations/chariow/connect?store_id=${encodeURIComponent(storeId)}`
         : "/api/integrations/chariow/connect";
       window.location.href = target;
     } finally {
