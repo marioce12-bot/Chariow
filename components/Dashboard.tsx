@@ -51,6 +51,12 @@ type AnalyticsData = {
   kpis: { period: { from: string | null; to: string | null }; revenue: { value: number | string | null; formatted: string | null }; sales: number; visits: number; conversionRate: string; customers: number; productsSold: number };
 } | null;
 
+function subscriptionLimitFromStores(stores: StoreData[]) {
+  // The API remains the source of truth for enforcement. This fallback keeps
+  // the visible counter useful before the subscription response is loaded.
+  return stores.length > 1 ? 3 : 1;
+}
+
 export function Dashboard() {
   const [active, setActive] = useState("Vue d’ensemble");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -932,6 +938,7 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
   const [error, setError] = useState("");
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const maxStores = stores.length > 1 ? 3 : 1;
 
   async function connectChariow(storeId?: string) {
     setError("");
@@ -1000,11 +1007,11 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
         <div>
           <span className="eyebrow">Connexions</span>
           <h1>Mes boutiques</h1>
-          <p>Une source de vérité pour toutes tes ventes.</p>
+          <p>Une source de vérité pour toutes tes ventes. <strong className="store-count">{stores.length}/{maxStores}</strong></p>
         </div>
         {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
         <button type="button" className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}>
-          <Plus size={16} /> {saving ? "Connexion…" : "Connecter ma boutique Chariow"}
+          <Plus size={16} /> {saving ? "Ajout en cours…" : "Ajouter une boutique"}
         </button>
       </div>
 
@@ -1032,7 +1039,7 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
                 </button>
               ) : (
                   <button type="button" className="btn btn-ghost" onClick={() => connectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
-                  {status === "failed" || status === "expired" ? "Reconnecter Chariow" : "Connecter ma boutique Chariow"}
+                  {status === "failed" || status === "expired" ? "Reconnecter Chariow" : "Réessayer"}
                  </button>
                )}
                <button className="btn btn-danger-ghost" onClick={() => deleteStore(store.id)} disabled={saving || deletingId === store.id} style={{ fontSize: 10, padding: "7px 10px" }}>
