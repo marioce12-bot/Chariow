@@ -42,7 +42,6 @@ export function Marketing() {
           <div className="hero-actions-block">
             <div className="hero-actions">
               <Link href="/register" className="btn btn-lime">Commencer gratuitement <ArrowRight size={16}/></Link>
-              <a href="#comment" className="hero-secondary-link">Découvrir comment ça marche <span>↓</span></a>
             </div>
              <div className="hero-note"><span>✓ Ventes & publicités réunies</span><span>✓ Analyses approfondies</span><span>✓ Recommandations concrètes</span></div>
           </div>
