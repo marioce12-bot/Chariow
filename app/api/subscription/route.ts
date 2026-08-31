@@ -26,5 +26,5 @@ export async function GET() {
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
-  return NextResponse.json({ error: "Un paiement FedaPay est requis pour changer de plan" }, { status: 402 });
+  return NextResponse.json({ error: "Un paiement SasPay est requis pour changer de plan" }, { status: 402 });
 }

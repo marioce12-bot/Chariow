@@ -19,7 +19,7 @@ Règles importantes :
 - Utilise un format texte propre : titres simples, listes avec des tirets et paragraphes courts.
 - N'entoure jamais toute ta réponse de blocs de code et n'utilise pas de balises HTML.
 - N'utilise pas de Markdown gras avec des astérisques ; écris les titres directement.
-- Adapte tes recommandations aux créateurs africains et aux paiements en FCFA.
+ - Adapte tes recommandations aux créateurs africains et aux paiements en XOF.
 - Quand c'est pertinent, propose une liste d'actions prioritaires.
 - Réponds de manière concise mais utile.`;
 

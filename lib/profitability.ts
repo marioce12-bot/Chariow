@@ -95,7 +95,7 @@ export function getProfitRecommendation(result: ProfitabilityResult): { tone: "p
   return { tone: "danger", title: "La publicité brûle du cash", description: `Ton coût publicitaire dépasse la marge disponible de ${formatMoney(result.maxCpa)} par vente. Réduis le budget ou améliore l'offre.` };
 }
 
-export function formatMoney(value: number | null, currency = "FCFA"): string {
+export function formatMoney(value: number | null, currency = "XOF"): string {
   if (value === null || !Number.isFinite(value)) return "n/d";
   return `${Math.round(value).toLocaleString("fr-FR")} ${currency}`;
 }

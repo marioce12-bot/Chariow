@@ -34,9 +34,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=ta-cle-anon-ou-publishable
 SUPABASE_SERVICE_ROLE_KEY=ta-service-role-key
 TOKEN_ENCRYPTION_KEY=une-valeur-secrete-longue-et-stable
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-FEDAPAY_SECRET_KEY=ta-clé-secrète-FedaPay
-FEDAPAY_WEBHOOK_SECRET=le-secret-du-webhook-FedaPay
-FEDAPAY_ENVIRONMENT=sandbox
+SASPAY_API_KEY=ta-clé-secrète-SasPay
+SASPAY_WEBHOOK_SECRET=le-secret-de-signature-du-webhook-SasPay
+
 ```
 
 La clé `SUPABASE_SERVICE_ROLE_KEY` ne doit jamais être préfixée par `NEXT_PUBLIC_`, envoyée au navigateur ou commitée dans Git.
@@ -61,8 +61,8 @@ Routes disponibles :
 - `/api/stores/:id/test` : tester la connexion MCP Chariow
 - `/api/chat` : historique et messages avec quota
 - `/api/subscription` : consulter et changer de plan
-- `/api/subscription/checkout` : créer un paiement FedaPay
-- `/api/webhooks/fedapay` : activer un plan après paiement confirmé
+- `/api/subscription/checkout` : créer un paiement SasPay
+- `/api/webhooks/saspay` : activer un plan après paiement confirmé
 
 ## Connexion Chariow MCP
 
@@ -100,24 +100,24 @@ POST https://api.imole.app/v1/chat/completions
 
 Après toute modification dans Vercel, redéploie l’application pour charger les variables.
 
-## Paiements FedaPay
+## Paiements SasPay
 
 Les plans utilisent les montants suivants :
 
 ```text
-Starter : 3 000 XOF
-Pro     : 5 000 XOF
+Starter : 5 000 XOF
+Pro     : 9 000 XOF
 ```
 
-Le bouton d’abonnement appelle `POST /api/subscription/checkout`, crée une transaction FedaPay et redirige vers sa page de paiement. Le plan n’est activé qu’après réception d’un webhook `transaction.approved` signé.
+Le bouton d’abonnement appelle `POST /api/subscription/checkout`, crée une transaction SasPay et redirige vers sa page de paiement. Le plan n’est activé qu’après réception d’un webhook `transaction.approved` signé.
 
-Dans FedaPay, configure ce webhook :
+Dans SasPay, configure ce webhook :
 
 ```text
-https://ton-domaine-vercel.app/api/webhooks/fedapay
+https://ton-domaine-vercel.app/api/webhooks/saspay
 ```
 
-Copie le secret du webhook dans `FEDAPAY_WEBHOOK_SECRET`. Utilise d’abord `FEDAPAY_ENVIRONMENT=sandbox`, puis passe à `live` après les tests.
+Copie le secret du webhook dans `SASPAY_WEBHOOK_SECRET`. Utilise d’abord ``, puis passe à `live` après les tests.
 
 ## 6. Limites actuelles
 

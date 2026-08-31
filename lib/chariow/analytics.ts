@@ -51,7 +51,7 @@ function numericValue(value: unknown): number | null {
 }
 
 function formattedZero(currency: unknown): string {
-  return `0 ${text(currency) ?? "FCFA"}`;
+  return `0 ${text(currency) ?? "XOF"}`;
 }
 
 export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period: { from: string; to: string }): ChariowNormalizedSnapshot {

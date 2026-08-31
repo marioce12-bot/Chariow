@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { createPayment, type PaidPlan } from "@/lib/payments/fedapay";
+import { createPayment, type PaidPlan } from "@/lib/payments/saspay";
 
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const payment = await createPayment(body.plan as PaidPlan, { email: profile?.email || user.email, name: profile?.full_name || undefined }, { userId: user.id, plan: body.plan });
     return NextResponse.json({ payment });
   } catch (error) {
-    console.error("FedaPay checkout error", error instanceof Error ? error.message : "unknown error");
+    console.error("SasPay checkout error", error instanceof Error ? error.message : "unknown error");
     return NextResponse.json({ error: "Impossible de créer le paiement pour le moment" }, { status: 502 });
   }
 }
