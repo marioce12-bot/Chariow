@@ -557,6 +557,7 @@ function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: s
   const [metaMessage, setMetaMessage] = useState<string | null>(null);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   useEffect(() => { void fetch("/api/integrations/meta/accounts").then((response) => response.ok ? response.json() : { accounts: [] }).then((data) => setMetaConnected((data.accounts ?? []).length > 0)).catch(() => setMetaConnected(false)); }, []);
   async function disconnectMeta() {
     if (!window.confirm("Déconnecter Meta Ads de Vendeo ?")) return;
@@ -564,7 +565,6 @@ function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: s
     try { const response = await fetch("/api/integrations/meta/disconnect", { method: "POST" }); const data = await response.json().catch(() => ({})); if (!response.ok) setMetaMessage(data.error ?? "Déconnexion impossible."); else { setMetaConnected(false); setMetaMessage("Compte Meta Ads déconnecté."); } } finally { setDisconnecting(false); }
   }
   async function deleteAccount() {
-    if (!window.confirm("Supprimer définitivement ton compte et toutes tes données Vendeo ? Cette action est irréversible.")) return;
     setDeletingAccount(true); setAccountMessage(null);
     try {
       const response = await fetch("/api/account", { method: "DELETE" });
@@ -607,12 +607,13 @@ function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: s
            <ArrowRight size={16} />
          </button>
          {accountMessage ? <p className="settings-inline-message settings-account-error" role="alert">{accountMessage}</p> : null}
-         <button type="button" className="mobile-settings-card mobile-settings-danger settings-delete-account" onClick={() => void deleteAccount()} disabled={deletingAccount}>
+         <button type="button" className="mobile-settings-card mobile-settings-danger settings-delete-account" onClick={() => setShowDeleteAccountModal(true)} disabled={deletingAccount}>
            <span className="mobile-settings-icon"><Trash2 size={20} /></span>
            <span><strong>{deletingAccount ? "Suppression du compte…" : "Supprimer mon compte"}</strong><small>Supprimer définitivement ton compte et toutes tes données.</small></span>
            <ArrowRight size={16} />
          </button>
       </div>
+      {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>×</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">Action irréversible</span><h2 id="account-delete-title">Supprimer ton compte ?</h2><p>Ton profil, tes boutiques, tes conversations et tes connexions publicitaires seront définitivement supprimés.</p><div className="account-delete-warning">Cette action ne peut pas être annulée.</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>Annuler</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? "Suppression…" : "Oui, supprimer"}</button></div></section></div> : null}
     </>
   );
 }

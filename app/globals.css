@@ -374,6 +374,20 @@ button { cursor:pointer; }
 .settings-delete-account { border-color:#fecdd3; }
 .settings-delete-account:disabled { cursor:wait; opacity:.65; }
 .settings-account-error { background:#fff1f2; border-radius:8px; color:#b4233c; padding:10px; }
+.account-delete-backdrop { align-items:center; background:rgba(0,12,46,.62); display:flex; inset:0; justify-content:center; padding:18px; position:fixed; z-index:4000; }
+.account-delete-modal { background:#fff; border:1px solid #fecdd3; border-radius:20px; box-shadow:0 24px 80px rgba(0,12,46,.28); max-width:430px; padding:28px; position:relative; width:100%; }
+.account-delete-close { background:#f8fafc; border:0; border-radius:50%; color:var(--muted); cursor:pointer; font-size:24px; height:32px; line-height:1; position:absolute; right:16px; top:16px; width:32px; }
+.account-delete-close:disabled { cursor:wait; opacity:.5; }
+.account-delete-icon { align-items:center; background:#fff1f2; border:1px solid #fecdd3; border-radius:14px; color:#b4233c; display:flex; height:48px; justify-content:center; margin-bottom:18px; width:48px; }
+.account-delete-modal .eyebrow { color:#b4233c; }
+.account-delete-modal h2 { color:var(--ink); font-size:23px; letter-spacing:-.05em; margin:8px 0 10px; }
+.account-delete-modal p { color:var(--muted); font-size:12px; line-height:1.65; margin:0; max-width:340px; }
+.account-delete-warning { background:#fff7ed; border:1px solid #fed7aa; border-radius:9px; color:#9a3412; font-size:11px; font-weight:700; margin:18px 0; padding:10px 12px; }
+.account-delete-actions { display:flex; gap:9px; justify-content:flex-end; }
+.account-delete-actions .btn { font-size:11px; padding:10px 13px; }
+.account-delete-confirm { background:#b4233c; border-color:#b4233c; color:#fff; }
+.account-delete-confirm:hover { background:#951b31; border-color:#951b31; }
+@media (max-width:760px) { .account-delete-backdrop { align-items:flex-end; padding:0; }.account-delete-modal { border-radius:22px 22px 0 0; max-width:none; padding:26px 20px calc(22px + env(safe-area-inset-bottom)); }.account-delete-actions { display:grid; grid-template-columns:1fr 1fr; }.account-delete-actions .btn { width:100%; } }
 .mobile-back-button { align-items:center; background:transparent; border:1px solid var(--line); border-radius:999px; color:var(--ink); display:none; font-size:11px; gap:5px; padding:9px 12px; }
 
 @media (max-width: 760px) {
