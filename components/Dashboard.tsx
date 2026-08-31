@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Rocket, Sparkles, LogOut, Megaphone, FileText, ImageIcon, Info } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Rocket, Sparkles, LogOut, Megaphone, FileText, ImageIcon, Info, Trash2 } from "lucide-react";
 import { cleanAiText } from "@/lib/ai/format";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
@@ -555,11 +555,30 @@ function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: s
   const [metaConnected, setMetaConnected] = useState<boolean | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
   const [metaMessage, setMetaMessage] = useState<string | null>(null);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [accountMessage, setAccountMessage] = useState<string | null>(null);
   useEffect(() => { void fetch("/api/integrations/meta/accounts").then((response) => response.ok ? response.json() : { accounts: [] }).then((data) => setMetaConnected((data.accounts ?? []).length > 0)).catch(() => setMetaConnected(false)); }, []);
   async function disconnectMeta() {
     if (!window.confirm("Déconnecter Meta Ads de Vendeo ?")) return;
     setDisconnecting(true); setMetaMessage(null);
     try { const response = await fetch("/api/integrations/meta/disconnect", { method: "POST" }); const data = await response.json().catch(() => ({})); if (!response.ok) setMetaMessage(data.error ?? "Déconnexion impossible."); else { setMetaConnected(false); setMetaMessage("Compte Meta Ads déconnecté."); } } finally { setDisconnecting(false); }
+  }
+  async function deleteAccount() {
+    if (!window.confirm("Supprimer définitivement ton compte et toutes tes données Vendeo ? Cette action est irréversible.")) return;
+    setDeletingAccount(true); setAccountMessage(null);
+    try {
+      const response = await fetch("/api/account", { method: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setAccountMessage(data.error ?? "Impossible de supprimer le compte.");
+        return;
+      }
+      window.location.href = "/?account=deleted";
+    } catch {
+      setAccountMessage("Impossible de supprimer le compte.");
+    } finally {
+      setDeletingAccount(false);
+    }
   }
   return (
     <>
@@ -582,11 +601,17 @@ function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: s
           <span><strong>Abonnement</strong><small>Voir ton plan et gérer ton accès Vendeo.</small></span>
           <ArrowRight size={16} />
         </button>
-        <button type="button" className="mobile-settings-card mobile-settings-danger" onClick={onSignOut}>
+         <button type="button" className="mobile-settings-card mobile-settings-danger" onClick={onSignOut}>
           <span className="mobile-settings-icon"><LogOut size={20} /></span>
           <span><strong>Déconnexion</strong><small>Quitter ton espace Vendeo en toute sécurité.</small></span>
-          <ArrowRight size={16} />
-        </button>
+           <ArrowRight size={16} />
+         </button>
+         {accountMessage ? <p className="settings-inline-message settings-account-error" role="alert">{accountMessage}</p> : null}
+         <button type="button" className="mobile-settings-card mobile-settings-danger settings-delete-account" onClick={() => void deleteAccount()} disabled={deletingAccount}>
+           <span className="mobile-settings-icon"><Trash2 size={20} /></span>
+           <span><strong>{deletingAccount ? "Suppression du compte…" : "Supprimer mon compte"}</strong><small>Supprimer définitivement ton compte et toutes tes données.</small></span>
+           <ArrowRight size={16} />
+         </button>
       </div>
     </>
   );
