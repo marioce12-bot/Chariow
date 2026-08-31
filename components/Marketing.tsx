@@ -31,19 +31,20 @@ export function Marketing() {
        <section className="hero">
         <div className="container hero-grid hero-vendeo-grid">
           <div className="hero-title hero-copy">
-             <h1>Gère, analyse et optimise<br/>ton activité digitale.<br/><em>Depuis un seul espace</em></h1>
+            <h1>Gère, analyse et<br/>optimise ton activité<br/>digitale.</h1>
+            <p className="hero-tagline">Depuis un seul espace.</p>
           </div>
 
           <div className="hero-paragraph hero-copy">
-             <p>Connecte ta boutique et tes comptes publicitaires. Centralise tes ventes, tes campagnes et tes performances pour comprendre ce qui fonctionne et décider quoi améliorer.</p>
+             <p>Vendeo réunit ta boutique, tes ventes et tes comptes publicitaires pour t’aider à comprendre tes résultats et à optimiser ton activité sans passer d’une plateforme à l’autre.</p>
           </div>
 
           <div className="hero-actions-block">
             <div className="hero-actions">
               <Link href="/register" className="btn btn-lime">Commencer gratuitement <ArrowRight size={16}/></Link>
-              <a href="#comment" className="btn" style={{border:'1px solid rgba(255,255,255,.3)',color:'white'}}>Voir comment ça marche</a>
+              <a href="#comment" className="hero-secondary-link">Découvrir comment ça marche <span>↓</span></a>
             </div>
-             <div className="hero-note">✓ Boutique et publicités réunies &nbsp; · &nbsp; ✓ Analyses approfondies &nbsp; · &nbsp; ✓ Recommandations concrètes</div>
+             <div className="hero-note"><span>✓ Ventes & publicités réunies</span><span>✓ Analyses approfondies</span><span>✓ Recommandations concrètes</span></div>
           </div>
 
           <div className="hero-preview">
