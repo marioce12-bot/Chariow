@@ -378,7 +378,8 @@ button { cursor:pointer; }
   .app-layout { grid-template-columns: 1fr; }
   .app-main { box-sizing:border-box; grid-column: 1; max-width:none; min-height:calc(100dvh - 60px); min-width:0; padding: 20px 14px calc(92px + env(safe-area-inset-bottom)); }
 
-  .app-main.chat-page { height:calc(100dvh - 60px); overflow:hidden; padding-bottom:0; }
+  .app-header { position:fixed; top:0; transform:translateZ(0); }
+  .app-main.chat-page { height:calc(100dvh - 60px); max-height:calc(100dvh - 60px); overflow:hidden; padding-bottom:0; }
   .mobile-nav { display:flex; }
   .vendeo-overview-actions { align-items:flex-start; flex-direction:row; width:100%; }
   .vendeo-next-row { align-items:flex-start; flex-direction:column; }
@@ -386,9 +387,9 @@ button { cursor:pointer; }
   .desktop-signout { display:none; }
   .mobile-settings-trigger { display:none; }
   .home-header { align-items:stretch; flex-direction:column; gap:14px; padding:16px; }.home-greeting { background:var(--paper); position:sticky; top:60px; z-index:20; padding-bottom:12px; }.home-header h1 { font-size:30px; }.home-controls { align-items:stretch; justify-content:flex-start; max-width:none; }.home-context { min-width:0; }.home-store-selector { min-width:0; width:100%; }.home-statuses { align-items:stretch; width:100%; }.home-statuses span { flex:1; text-align:center; }.home-period { flex:1; }.home-controls select,.home-controls .btn { flex:1; }.sync-label { width:100%; }.home-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }.home-kpi strong { font-size:18px; }.home-primary-grid,.home-tables { grid-template-columns:1fr; }.home-ai-state { align-items:flex-start; }.home-ai-state > svg { margin-top:4px; }.home-action-item { align-items:flex-start; flex-direction:column; }.home-action-item .btn { width:100%; }.sales-kpis { grid-template-columns:1fr 1fr; }.sales-kpis .home-kpi:last-child { grid-column:1 / -1; }.sale-detail-grid { grid-template-columns:1fr; }
-  .chat-card { height:auto; min-height:0; padding-bottom:0; }
-  .chat-composer { bottom:68px; padding-bottom:calc(10px + env(safe-area-inset-bottom)); }
-  .chat-messages { padding-bottom:calc(96px + env(safe-area-inset-bottom)); scroll-padding-bottom:calc(96px + env(safe-area-inset-bottom)); }
+  .chat-card { height:100%; min-height:0; padding-bottom:0; }
+  .chat-composer { bottom:68px; padding-bottom:calc(10px + env(safe-area-inset-bottom)); position:sticky; z-index:1002; }
+  .chat-messages { min-height:0; padding-bottom:calc(96px + env(safe-area-inset-bottom)); scroll-padding-bottom:calc(96px + env(safe-area-inset-bottom)); }
   .mobile-back-button { display:inline-flex; }
   .app-greeting { font-size:11px; max-width:150px; }
   .page-top { align-items:stretch; flex-direction:column; gap:12px; }
