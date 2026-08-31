@@ -11,6 +11,17 @@ async function saspayRequest<T>(path: string, init: RequestInit = {}) {
   const response = await fetch(`${endpoint}${path}`, { ...init, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...(init.headers || {}) }, cache: "no-store", signal: AbortSignal.timeout(20_000) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || (data && typeof data === "object" && "success" in data && data.success === false)) throw new Error(`SasPay ${response.status}: ${JSON.stringify(data)}`);
+  if (path === "/checkout-sessions/") {
+    const record = data && typeof data === "object" ? data as Record<string, unknown> : {};
+    const nested = record.data && typeof record.data === "object" ? record.data as Record<string, unknown> : null;
+    console.info("SasPay checkout response diagnostic", {
+      status: response.status,
+      topLevelKeys: Object.keys(record),
+      nestedDataKeys: nested ? Object.keys(nested) : [],
+      hasCheckoutUrl: typeof record.checkout_url === "string" || typeof nested?.checkout_url === "string",
+      hasId: typeof record.id === "string" || typeof nested?.id === "string",
+    });
+  }
   return data as T;
 }
 
