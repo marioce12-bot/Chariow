@@ -1,9 +1,11 @@
+import { PLAN_CONFIG, type PlanId } from "@/lib/plans";
+
 const endpoint = "https://api.saspay.me/api/v1";
 
-const plans = { starter: 5000, pro: 9000 } as const;
-export type PaidPlan = keyof typeof plans;
+export type PaidPlan = PlanId;
 
-export function planAmount(plan: PaidPlan) { return plans[plan]; }
+export function planAmount(plan: PaidPlan) { return PLAN_CONFIG[plan].amount; }
+function planLabel(plan: PaidPlan) { return PLAN_CONFIG[plan].label; }
 
 async function saspayRequest<T>(path: string, init: RequestInit = {}) {
   const key = process.env.SASPAY_API_KEY;
@@ -32,7 +34,8 @@ type SasPayTransaction = {
 
 export async function createPayment(plan: PaidPlan, customer: { email?: string; name?: string }, metadata: { userId: string; plan: PaidPlan }) {
   const returnUrl = process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?payment=success` : undefined;
-  const response = await saspayRequest<{ data?: SasPayCheckout }>("/checkout-sessions/", { method: "POST", body: JSON.stringify({ amount: planAmount(plan).toFixed(2), currency: "XOF", description: `Vendeo ${plan === "pro" ? "Pro" : "Starter"} - abonnement mensuel`, customer_email: customer.email, customer_name: customer.name || "Créateur", return_url: returnUrl, metadata }) });
+  const periodLabel = PLAN_CONFIG[plan].periodDays === 15 ? "15 jours" : "mensuel";
+  const response = await saspayRequest<{ data?: SasPayCheckout }>("/checkout-sessions/", { method: "POST", body: JSON.stringify({ amount: planAmount(plan).toFixed(2), currency: "XOF", description: `Vendeo ${planLabel(plan)} - abonnement ${periodLabel}`, customer_email: customer.email, customer_name: customer.name || "Créateur", return_url: returnUrl, metadata }) });
   const checkout = response.data;
   if (!checkout?.id || !checkout.checkout_url) throw new Error("SasPay did not return a checkout session URL");
   return {
