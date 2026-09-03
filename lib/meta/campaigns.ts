@@ -31,7 +31,11 @@ export async function createMetaCampaign(input: {
   return { id: String(campaign.id), objective };
 }
 
-export async function createMetaAdSet(input: { accountId: string; accessToken: string; campaignId: string; name: string; dailyBudget: number; countries: string[]; minAge: number; maxAge: number }) {
+export async function createMetaAdSet(input: { accountId: string; accessToken: string; campaignId: string; name: string; dailyBudget: number; countries: string[]; minAge: number; maxAge: number; publisherPlatforms?: string[] }) {
+  const targeting: Record<string, unknown> = { geo_locations: { countries: input.countries }, age_min: input.minAge, age_max: input.maxAge };
+  // Plan Éco : diffusion restreinte à Facebook uniquement (pas Instagram).
+  // Sans ce champ, Meta diffuse automatiquement sur tous les emplacements disponibles.
+  if (input.publisherPlatforms?.length) targeting.publisher_platforms = input.publisherPlatforms;
   return graphPost(`${input.accountId}/adsets`, input.accessToken, {
     name: input.name.slice(0, 200),
     campaign_id: input.campaignId,
@@ -39,7 +43,7 @@ export async function createMetaAdSet(input: { accountId: string; accessToken: s
     billing_event: "IMPRESSIONS",
     optimization_goal: "LINK_CLICKS",
     bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-    targeting: JSON.stringify({ geo_locations: { countries: input.countries }, age_min: input.minAge, age_max: input.maxAge }),
+    targeting: JSON.stringify(targeting),
     status: "PAUSED",
   });
 }
