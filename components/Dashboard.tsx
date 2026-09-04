@@ -12,6 +12,30 @@ import { calculateProfitability, formatMoney, getProfitRecommendation, type Prof
 import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
+const DASHBOARD_CACHE_KEY = "vendeo_dashboard_cache_v1";
+const ADS_CACHE_KEY = "vendeo_ads_cache_v1";
+
+// Petit cache en sessionStorage : permet d'afficher instantanément les dernières
+// données connues au lieu d'un écran "Chargement…" à chaque changement de section,
+// pendant qu'une version fraîche est récupérée silencieusement en arrière-plan.
+function readCache<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(key: string, value: unknown) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Stockage indisponible (navigation privée, quota plein…) — on ignore simplement.
+  }
+}
 
 const bars = [32, 44, 39, 55, 48, 65, 57, 71, 64, 82, 74, 91, 79, 96];
 
@@ -144,6 +168,17 @@ export function Dashboard() {
     });
 
     async function loadDashboard() {
+      const cached = readCache<{ stores: StoreData[]; selectedStoreId: string | null; subscription: SubscriptionData | null; analytics: AnalyticsData }>(DASHBOARD_CACHE_KEY);
+      if (cached && !cancelled) {
+        // On affiche tout de suite les dernières données connues : plus d'écran
+        // "Chargement de ton espace…" à chaque ouverture, la mise à jour se fait en silence.
+        setStores(cached.stores);
+        if (cached.selectedStoreId) setSelectedStoreId(cached.selectedStoreId);
+        setSubscription(cached.subscription);
+        setAnalytics(cached.analytics);
+        setLoadingData(false);
+      }
+
       const storeResponse = await fetch("/api/stores");
       const storeResult = storeResponse.ok ? await storeResponse.json() : { stores: [] };
       if (cancelled) return;
@@ -164,8 +199,11 @@ export function Dashboard() {
 
       const [subscriptionResult, analyticsResult] = await Promise.all([subscriptionPromise, analyticsPromise]);
       if (cancelled) return;
-      setSubscription(subscriptionResult.subscription ?? null);
-      setAnalytics(analyticsResult?.snapshot ?? null);
+      const nextSubscription = subscriptionResult.subscription ?? null;
+      const nextAnalytics = analyticsResult?.snapshot ?? null;
+      setSubscription(nextSubscription);
+      setAnalytics(nextAnalytics);
+      writeCache(DASHBOARD_CACHE_KEY, { stores: nextStores, selectedStoreId: nextSelected, subscription: nextSubscription, analytics: nextAnalytics });
     }
 
     loadDashboard().catch(() => {
@@ -179,7 +217,10 @@ export function Dashboard() {
     void (async () => {
       const res = await fetch(`/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}`);
       const data = res.ok ? await res.json() : null;
-      setAnalytics(data?.snapshot ?? null);
+      const nextAnalytics = data?.snapshot ?? null;
+      setAnalytics(nextAnalytics);
+      const cached = readCache<{ stores: StoreData[]; selectedStoreId: string | null; subscription: SubscriptionData | null; analytics: AnalyticsData }>(DASHBOARD_CACHE_KEY);
+      writeCache(DASHBOARD_CACHE_KEY, { stores: cached?.stores ?? stores, selectedStoreId, subscription: cached?.subscription ?? subscription, analytics: nextAnalytics });
     })();
   }, [selectedStoreId]);
 
@@ -191,6 +232,9 @@ export function Dashboard() {
         </Link>
         <div className="app-user">
           <span className="app-greeting">Bonjour, {userName}</span>
+          <button type="button" className={`mobile-more-trigger ${moreOpen || ["Mes boutiques", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" onClick={() => setMoreOpen((open) => !open)}>
+            <Settings size={18} />
+          </button>
           <button className="desktop-signout" onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
             Déconnexion
           </button>
@@ -304,13 +348,12 @@ export function Dashboard() {
             <MessageSquare size={18} />
             <span>IA</span>
           </button>
-          <button type="button" className={`nav-btn ${moreOpen || ["Rapports", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} onClick={() => setMoreOpen((open) => !open)}>
-            <Settings size={18} />
-            <span>Plus</span>
+          <button type="button" className={`nav-btn ${active === "Rapports" ? "active" : ""}`} onClick={() => setActive("Rapports")}>
+            <FileText size={18} />
+            <span>Rapports</span>
           </button>
         </nav>
         {moreOpen ? <div className="mobile-more-menu" role="menu">
-           <button type="button" onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
           <button type="button" onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
           <button type="button" onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
           <button type="button" onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
@@ -584,18 +627,9 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
 }
 
 function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: string) => void; onSignOut: () => void }) {
-  const [metaConnected, setMetaConnected] = useState<boolean | null>(null);
-  const [disconnecting, setDisconnecting] = useState(false);
-  const [metaMessage, setMetaMessage] = useState<string | null>(null);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
-  useEffect(() => { void fetch("/api/integrations/meta/accounts").then((response) => response.ok ? response.json() : { accounts: [] }).then((data) => setMetaConnected((data.accounts ?? []).length > 0)).catch(() => setMetaConnected(false)); }, []);
-  async function disconnectMeta() {
-    if (!window.confirm("Déconnecter Meta Ads de Vendeo ?")) return;
-    setDisconnecting(true); setMetaMessage(null);
-    try { const response = await fetch("/api/integrations/meta/disconnect", { method: "POST" }); const data = await response.json().catch(() => ({})); if (!response.ok) setMetaMessage(data.error ?? "Déconnexion impossible."); else { setMetaConnected(false); setMetaMessage("Compte Meta Ads déconnecté."); } } finally { setDisconnecting(false); }
-  }
   async function deleteAccount() {
     setDeletingAccount(true); setAccountMessage(null);
     try {
@@ -622,7 +656,11 @@ function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: s
         </div>
       </div>
       <div className="mobile-settings-grid">
-        <section className="settings-integration-card"><div><span className="mobile-settings-icon"><Megaphone size={20} /></span><span><strong>Meta Ads</strong><small>{metaConnected === null ? "Vérification de la connexion…" : metaConnected ? "Compte publicitaire connecté à Vendeo." : "Aucun compte publicitaire connecté."}</small></span></div>{metaConnected ? <button type="button" className="settings-disconnect" onClick={() => void disconnectMeta()} disabled={disconnecting}>{disconnecting ? "…" : "Déconnecter"}</button> : <button type="button" className="settings-connect" onClick={() => { window.location.href = "/api/integrations/meta/connect"; }} disabled={metaConnected === null}>Connecter</button>}</section>{metaMessage ? <p className="settings-inline-message" role="status">{metaMessage}</p> : null}
+        <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Pubs")}>
+          <span className="mobile-settings-icon"><Megaphone size={20} /></span>
+          <span><strong>Pubs</strong><small>Connecter Meta, TikTok et gérer tes campagnes publicitaires.</small></span>
+          <ArrowRight size={16} />
+        </button>
         <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
           <span className="mobile-settings-icon"><Store size={20} /></span>
           <span><strong>Mes boutiques</strong><small>Connecter et gérer tes boutiques Chariow.</small></span>
@@ -757,50 +795,73 @@ type MetaPerformance = {
   performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; status: string }>;
 };
 
-function AdsView({ products, plan, onPromoteProduct, campaignRefreshKey }: { products: ProductData[]; plan: PlanId; onPromoteProduct: (product: ProductData) => void; campaignRefreshKey: number }) {
-  const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
-  const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
+type AdsCache = {
+  campaigns: AdCampaign[];
+  metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null }>;
+  selectedMetaAccount: string;
+  metaPerformance: MetaPerformance | null;
+  metaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<{ id: string; name: string }> } | null;
+  metaAccountRestricted: boolean;
+  tiktokAccounts: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>;
+  tiktokIdentities: Array<{ id: string; type: string; name: string }>;
+};
 
-  const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null }>>([]);
-  const [selectedMetaAccount, setSelectedMetaAccount] = useState("");
-  const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
-  const [metaResources, setMetaResources] = useState<{ pages: Array<{ id: string; name: string }>; pixels: Array<{ id: string; name: string }> } | null>(null);
-  const [metaAccountRestricted, setMetaAccountRestricted] = useState(false);
+function AdsView({ products, plan, onPromoteProduct, campaignRefreshKey }: { products: ProductData[]; plan: PlanId; onPromoteProduct: (product: ProductData) => void; campaignRefreshKey: number }) {
+  const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
+  const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
+  // On ne montre l'écran de chargement que la toute première fois : si on a déjà
+  // des données en cache (venant d'un précédent passage sur "Pubs"), on les affiche
+  // tout de suite et on rafraîchit silencieusement derrière.
+  const [loading, setLoading] = useState(!cachedOnce);
+  const [message, setMessage] = useState<string | null>(null);
+  const [campaigns, setCampaigns] = useState<AdCampaign[]>(cachedOnce?.campaigns ?? []);
+
+  const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null }>>(cachedOnce?.metaAccounts ?? []);
+  const [selectedMetaAccount, setSelectedMetaAccount] = useState(cachedOnce?.selectedMetaAccount ?? "");
+  const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(cachedOnce?.metaPerformance ?? null);
+  const [metaResources, setMetaResources] = useState<{ pages: Array<{ id: string; name: string }>; pixels: Array<{ id: string; name: string }> } | null>(cachedOnce?.metaResources ?? null);
+  const [metaAccountRestricted, setMetaAccountRestricted] = useState(cachedOnce?.metaAccountRestricted ?? false);
   const [metaSyncing, setMetaSyncing] = useState(false);
 
-  const [tiktokAccounts, setTiktokAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>>([]);
-  const [tiktokIdentities, setTiktokIdentities] = useState<Array<{ id: string; type: string; name: string }>>([]);
+  const [tiktokAccounts, setTiktokAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>>(cachedOnce?.tiktokAccounts ?? []);
+  const [tiktokIdentities, setTiktokIdentities] = useState<Array<{ id: string; type: string; name: string }>>(cachedOnce?.tiktokIdentities ?? []);
 
   async function load() {
-    setLoading(true);
     const campaignsResponse = await fetch("/api/ad-campaigns");
-    if (campaignsResponse.ok) setCampaigns((await campaignsResponse.json()).campaigns ?? []);
+    const nextCampaigns = campaignsResponse.ok ? ((await campaignsResponse.json()).campaigns ?? []) : campaigns;
+    setCampaigns(nextCampaigns);
 
     const metaResponse = await fetch("/api/integrations/meta/accounts");
     const metaData = metaResponse.ok ? await metaResponse.json() : { accounts: [] };
     const nextMetaAccounts = metaData.accounts ?? [];
     setMetaAccounts(nextMetaAccounts);
+    let nextSelectedMetaAccount = "";
+    let nextMetaPerformance: MetaPerformance | null = null;
+    let nextMetaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<{ id: string; name: string }> } | null = null;
+    let nextMetaAccountRestricted = false;
     if (nextMetaAccounts[0]) {
-      setSelectedMetaAccount(nextMetaAccounts[0].id);
+      nextSelectedMetaAccount = nextMetaAccounts[0].id;
+      setSelectedMetaAccount(nextSelectedMetaAccount);
       const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(nextMetaAccounts[0].id)}`);
-      if (metrics.ok) setMetaPerformance(await metrics.json());
+      if (metrics.ok) { nextMetaPerformance = await metrics.json(); setMetaPerformance(nextMetaPerformance); }
       const resourceResponse = await fetch(`/api/integrations/meta/resources?account_id=${encodeURIComponent(nextMetaAccounts[0].id)}`);
-      if (resourceResponse.ok) { const resourceData = await resourceResponse.json(); setMetaResources(resourceData); setMetaAccountRestricted(Boolean(resourceData.account?.restricted)); }
+      if (resourceResponse.ok) { const resourceData = await resourceResponse.json(); nextMetaResources = resourceData; nextMetaAccountRestricted = Boolean(resourceData.account?.restricted); setMetaResources(resourceData); setMetaAccountRestricted(nextMetaAccountRestricted); }
     }
 
+    let nextTiktokAccounts: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }> = [];
+    let nextTiktokIdentities: Array<{ id: string; type: string; name: string }> = [];
     if (isAdPlatformAllowed(plan, "tiktok")) {
       const tiktokResponse = await fetch("/api/integrations/tiktok/accounts");
       const tiktokData = tiktokResponse.ok ? await tiktokResponse.json() : { accounts: [] };
-      const nextTiktokAccounts = tiktokData.accounts ?? [];
+      nextTiktokAccounts = tiktokData.accounts ?? [];
       setTiktokAccounts(nextTiktokAccounts);
       if (nextTiktokAccounts[0]) {
         const identityResponse = await fetch(`/api/integrations/tiktok/resources?account_id=${encodeURIComponent(nextTiktokAccounts[0].id)}`);
-        if (identityResponse.ok) setTiktokIdentities((await identityResponse.json()).identities ?? []);
+        if (identityResponse.ok) { nextTiktokIdentities = (await identityResponse.json()).identities ?? []; setTiktokIdentities(nextTiktokIdentities); }
       }
     }
     setLoading(false);
+    writeCache(ADS_CACHE_KEY, { campaigns: nextCampaigns, metaAccounts: nextMetaAccounts, selectedMetaAccount: nextSelectedMetaAccount, metaPerformance: nextMetaPerformance, metaResources: nextMetaResources, metaAccountRestricted: nextMetaAccountRestricted, tiktokAccounts: nextTiktokAccounts, tiktokIdentities: nextTiktokIdentities });
   }
 
   useEffect(() => { void load(); }, [campaignRefreshKey]);
