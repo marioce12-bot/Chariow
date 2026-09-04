@@ -288,7 +288,8 @@ button { cursor:pointer; }
 .mobile-nav .nav-btn { background:transparent; border:0; display:flex; flex:1 1 0; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-width:0; padding:7px 3px; color:#607167; border-radius:10px; }
 .mobile-nav .nav-btn.active { color:var(--green); font-weight:800; }
 .mobile-nav .nav-btn span { font-size:10px; line-height:1; }
-.mobile-more-menu { background:#fff; border:1px solid var(--line); border-radius:16px; bottom:78px; box-shadow:0 14px 40px rgba(16,24,40,.16); display:grid; gap:4px; padding:8px; position:fixed; right:12px; z-index:1010; }
+.mobile-more-trigger { display:none; }
+.mobile-more-menu { background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 14px 40px rgba(16,24,40,.16); display:grid; gap:4px; padding:8px; position:fixed; right:12px; top:72px; z-index:1010; }
 .mobile-more-menu button { align-items:center; background:transparent; border:0; border-radius:10px; color:var(--ink); display:flex; font-size:12px; gap:9px; padding:10px 12px; text-align:left; width:190px; }
 .mobile-more-menu button:hover { background:#eef3ff; }
 .vendeo-overview-actions { align-items:center; display:flex; flex-direction:column; gap:8px; }
@@ -414,6 +415,8 @@ button { cursor:pointer; }
   .vendeo-next-row { align-items:flex-start; flex-direction:column; }
   .app-user { gap:0; }
   .desktop-signout { display:none; }
+  .mobile-more-trigger { align-items:center; background:rgba(255,255,255,.14); border:0; border-radius:10px; color:#fff; display:flex; height:34px; justify-content:center; margin-left:8px; width:34px; }
+  .mobile-more-trigger.active { background:rgba(255,255,255,.28); }
   .mobile-settings-trigger { display:none; }
   .home-header { align-items:stretch; flex-direction:column; gap:14px; padding:16px; }.home-greeting { background:var(--paper); position:sticky; top:60px; z-index:20; padding-bottom:12px; }.home-header h1 { font-size:30px; }.home-controls { align-items:stretch; justify-content:flex-start; max-width:none; }.home-context { min-width:0; }.home-store-selector { min-width:0; width:100%; }.home-statuses { align-items:stretch; width:100%; }.home-statuses span { flex:1; text-align:center; }.home-period { flex:1; }.home-controls select,.home-controls .btn { flex:1; }.sync-label { width:100%; }.home-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }.home-kpi strong { font-size:18px; }.home-primary-grid,.home-tables { grid-template-columns:1fr; }.home-ai-state { align-items:flex-start; }.home-ai-state > svg { margin-top:4px; }.home-action-item { align-items:flex-start; flex-direction:column; }.home-action-item .btn { width:100%; }.sales-kpis { grid-template-columns:1fr 1fr; }.sales-kpis .home-kpi:last-child { grid-column:1 / -1; }.sale-detail-grid { grid-template-columns:1fr; }
   .chat-card { height:100%; min-height:0; padding-bottom:0; }
