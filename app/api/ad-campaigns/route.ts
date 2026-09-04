@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   if (!body || typeof body.product_id !== "string" || typeof body.text !== "string" || typeof body.link !== "string") {
     return NextResponse.json({ error: "Informations de campagne incomplètes" }, { status: 400 });
   }
-  if (!objectives.has(body.objective) || body.platform !== "meta") {
+  if (!objectives.has(body.objective) || !["meta", "tiktok"].includes(body.platform)) {
     return NextResponse.json({ error: "Configuration publicitaire non prise en charge" }, { status: 400 });
   }
   const dailyBudget = Number(body.daily_budget);
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     store_id: store.id,
     product_id: body.product_id,
     product_name: typeof body.product_name === "string" ? body.product_name.trim() : null,
-    platform: "meta",
+    platform: body.platform,
     status: "draft",
     objective: body.objective,
     ad_text: body.text.trim(),
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 export async function GET() {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
-  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,platform,status,objective,title,destination_url,countries,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,platform,status,objective,title,destination_url,countries,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "Impossible de charger les campagnes" }, { status: 500 });
   return NextResponse.json({ campaigns: data ?? [] });
 }
