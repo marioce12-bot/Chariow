@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncMetaInsights } from "@/lib/meta/sync";
+import { decryptSecret } from "@/lib/crypto";
+import { getMetaAdReviewStatus, mapMetaEffectiveStatus } from "@/lib/meta/campaigns";
 
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -26,5 +28,26 @@ export async function GET(request: Request) {
       results.push({ id: account.id, ok: false, error: message });
     }
   }
+
+  const { data: pendingCampaigns } = await supabase
+    .from("ad_campaigns")
+    .select("id,external_ad_id,meta_ad_account_id")
+    .eq("platform", "meta")
+    .eq("status", "review")
+    .not("external_ad_id", "is", null)
+    .limit(200);
+  for (const campaign of pendingCampaigns ?? []) {
+    const { data: account } = await supabase.from("meta_ad_accounts").select("access_token_encrypted").eq("id", campaign.meta_ad_account_id).maybeSingle();
+    if (!account) continue;
+    try {
+      const accessToken = decryptSecret(account.access_token_encrypted);
+      const { effectiveStatus, feedback } = await getMetaAdReviewStatus({ adId: campaign.external_ad_id, accessToken });
+      const mapped = mapMetaEffectiveStatus(effectiveStatus, feedback);
+      if (mapped) await supabase.from("ad_campaigns").update({ status: mapped.status, external_error: mapped.error }).eq("id", campaign.id);
+    } catch {
+      // on retentera au prochain passage du cron
+    }
+  }
+
   return NextResponse.json({ from, to, results });
 }
