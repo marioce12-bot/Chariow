@@ -66,3 +66,33 @@ export function actionValue(actions: unknown, types: string[]) {
     return types.includes(String(row.action_type)) ? total + Number(row.value ?? 0) : total;
   }, 0);
 }
+
+export async function getMetaAccountFunding(accountId: string, accessToken: string) {
+  const response = await fetch(graphUrl(accountId, { fields: "account_status,disable_reason,balance,amount_spent,spend_cap,currency,is_prepay_account,funding_source_details", access_token: accessToken }), { cache: "no-store" });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof json?.error?.message === "string" ? json.error.message : "Impossible de vérifier le compte Meta");
+  return {
+    accountStatus: Number(json.account_status ?? 0),
+    hasFundingSource: json.funding_source_details != null,
+    balance: json.balance != null ? Number(json.balance) : null,
+    currency: typeof json.currency === "string" ? json.currency : null,
+    isPrepayAccount: Boolean(json.is_prepay_account),
+  };
+}
+
+/**
+ * Distingue les cas bloquants avant de lancer une campagne.
+ * Retourne null si rien ne bloque, sinon un message clair pour le tableau de bord.
+ * Volontairement prudent sur `balance`/`spend_cap` : leur sens exact diffère selon
+ * que le compte est prépayé ou facturé après coup (postpay). On ne bloque donc que sur
+ * les deux signaux fiables à 100% : compte non actif, et aucun moyen de paiement du tout.
+ */
+export function describeMetaFundingIssue(funding: { accountStatus: number; hasFundingSource: boolean }): { code: string; message: string } | null {
+  if (funding.accountStatus !== 1) {
+    return { code: "META_ACCOUNT_RESTRICTED", message: "Ce compte publicitaire Meta n'est pas actif (compte restreint, en revue ou désactivé). Vérifie son état dans Meta Account Quality avant de relancer." };
+  }
+  if (!funding.hasFundingSource) {
+    return { code: "META_NO_PAYMENT_METHOD", message: "Aucun moyen de paiement n'est configuré sur ce compte Meta Ads. Ajoute une carte dans Meta Business Manager (Facturation) avant de lancer une campagne." };
+  }
+  return null;
+}
