@@ -297,7 +297,7 @@ export function Dashboard() {
           ) : stores.length === 0 && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
             <StoreOnboarding />
           ) : active === "Paramètres" ? (
-            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} />
+            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
           ) : active === "Vendeo AI" ? (
             <ChatView
               onGoToSubscription={() => setActive("Abonnement")}
@@ -626,10 +626,67 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
   </>;
 }
 
-function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: string) => void; onSignOut: () => void }) {
+const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; label: string; description: string; badge: AdPlatform; live: boolean }> = [
+  { id: "meta", label: "Meta (Facebook & Instagram)", description: "Diffuse tes campagnes sur Facebook et Instagram.", badge: "facebook", live: true },
+  { id: "tiktok", label: "TikTok", description: "Diffuse tes campagnes sur TikTok Ads.", badge: "tiktok", live: true },
+  { id: "pinterest", label: "Pinterest", description: "Bientôt disponible.", badge: "pinterest", live: false },
+];
+
+function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId }) {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [metaConnected, setMetaConnected] = useState(false);
+  const [tiktokConnected, setTiktokConnected] = useState(false);
+  const [connectionBusy, setConnectionBusy] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function loadConnections() {
+      try {
+        const [metaResponse, tiktokResponse] = await Promise.all([
+          fetch("/api/integrations/meta/accounts"),
+          fetch("/api/integrations/tiktok/accounts"),
+        ]);
+        const metaData = metaResponse.ok ? await metaResponse.json().catch(() => ({})) : {};
+        const tiktokData = tiktokResponse.ok ? await tiktokResponse.json().catch(() => ({})) : {};
+        if (!active) return;
+        setMetaConnected((metaData.accounts ?? []).length > 0);
+        setTiktokConnected((tiktokData.accounts ?? []).length > 0);
+      } finally {
+        if (active) setLoadingAccounts(false);
+      }
+    }
+    void loadConnections();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function connectAccount(platform: "meta" | "tiktok") {
+    window.location.href = `/api/integrations/${platform}/connect`;
+  }
+
+  async function disconnectAccount(platform: "meta" | "tiktok") {
+    setConnectionBusy(platform);
+    setConnectionError(null);
+    try {
+      const response = await fetch(`/api/integrations/${platform}/disconnect`, { method: "POST" });
+      if (!response.ok) {
+        setConnectionError("Impossible de déconnecter ce compte pour le moment.");
+        return;
+      }
+      if (platform === "meta") setMetaConnected(false);
+      else setTiktokConnected(false);
+    } catch {
+      setConnectionError("Impossible de déconnecter ce compte pour le moment.");
+    } finally {
+      setConnectionBusy(null);
+    }
+  }
+
   async function deleteAccount() {
     setDeletingAccount(true); setAccountMessage(null);
     try {
@@ -656,11 +713,6 @@ function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: s
         </div>
       </div>
       <div className="mobile-settings-grid">
-        <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Pubs")}>
-          <span className="mobile-settings-icon"><Megaphone size={20} /></span>
-          <span><strong>Pubs</strong><small>Connecter Meta, TikTok et gérer tes campagnes publicitaires.</small></span>
-          <ArrowRight size={16} />
-        </button>
         <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
           <span className="mobile-settings-icon"><Store size={20} /></span>
           <span><strong>Mes boutiques</strong><small>Connecter et gérer tes boutiques Chariow.</small></span>
@@ -683,6 +735,53 @@ function MobileSettingsView({ onNavigate, onSignOut }: { onNavigate: (section: s
            <ArrowRight size={16} />
          </button>
       </div>
+      <div className="page-top" style={{ marginTop: 28 }}>
+        <div>
+          <span className="eyebrow">Canaux publicitaires</span>
+          <h2>Comptes connectés</h2>
+          <p>Connecte ou déconnecte les comptes publicitaires utilisés par Vendeo pour diffuser tes campagnes.</p>
+        </div>
+      </div>
+      {connectionError ? <p className="settings-inline-message settings-account-error" role="alert">{connectionError}</p> : null}
+      {CONNECTED_ACCOUNT_PLATFORMS.map((platform) => {
+        const allowed = isAdPlatformAllowed(plan, platform.badge);
+        const isConnected = platform.id === "meta" ? metaConnected : platform.id === "tiktok" ? tiktokConnected : false;
+        const busy = connectionBusy === platform.id;
+        return (
+          <div className="settings-integration-card" key={platform.id}>
+            <div>
+              <span className="mobile-settings-icon"><ChannelBadge id={platform.badge} /></span>
+              <div>
+                <strong>{platform.label}</strong>
+                <small>
+                  {!platform.live
+                    ? "Bientôt disponible"
+                    : !allowed
+                    ? "Non inclus dans ton plan"
+                    : loadingAccounts
+                    ? "Vérification…"
+                    : isConnected
+                    ? "Connecté"
+                    : platform.description}
+                </small>
+              </div>
+            </div>
+            {!platform.live || !allowed ? (
+              <button type="button" className="settings-connect" disabled>
+                {!platform.live ? "Bientôt" : "Indisponible"}
+              </button>
+            ) : isConnected ? (
+              <button type="button" className="settings-disconnect" onClick={() => void disconnectAccount(platform.id as "meta" | "tiktok")} disabled={busy}>
+                {busy ? "Déconnexion…" : "Déconnecter"}
+              </button>
+            ) : (
+              <button type="button" className="settings-connect" onClick={() => connectAccount(platform.id as "meta" | "tiktok")} disabled={busy}>
+                Connecter
+              </button>
+            )}
+          </div>
+        );
+      })}
       {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>×</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">Action irréversible</span><h2 id="account-delete-title">Supprimer ton compte ?</h2><p>Ton profil, tes boutiques, tes conversations et tes connexions publicitaires seront définitivement supprimés.</p><div className="account-delete-warning">Cette action ne peut pas être annulée.</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>Annuler</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? "Suppression…" : "Oui, supprimer"}</button></div></section></div> : null}
     </>
   );
