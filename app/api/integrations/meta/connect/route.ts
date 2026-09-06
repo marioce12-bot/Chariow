@@ -21,6 +21,8 @@ export async function GET(request: Request) {
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("state", state);
   // ads_management is required to create, pause and resume campaigns.
-  url.searchParams.set("scope", "ads_read,ads_management,business_management");
+  // pages_show_list / pages_read_engagement / pages_manage_ads are required to let the
+  // user pick a Facebook Page and to attach an ad creative to it.
+  url.searchParams.set("scope", "ads_read,ads_management,business_management,pages_show_list,pages_read_engagement,pages_manage_ads");
   return NextResponse.redirect(url);
 }
