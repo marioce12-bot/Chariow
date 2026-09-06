@@ -1254,7 +1254,10 @@ function AdsSavingsSummary({ performances, currency }: { performances: MetaPerfo
 // toutes les permissions Meta obtenues. Ce que Vendeo affiche à la place, c'est un verdict explicite
 // (STOP / OPTIMISER / SURVEILLER) par campagne, calculé à partir des dépenses, conversions, CPA et
 // ROAS déjà synchronisés — voir getCampaignVerdict ci-dessus.
-function AdsView({ plan }: { plan: PlanId }) {
+function AdsView({   plan,   onGoToAI, }: {   plan: PlanId;   onGoToAI: () => void; }) {
+  function openAI() {
+  onGoToAI();
+}
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
   // On ne montre l'écran de chargement que la toute première fois : si on a déjà
