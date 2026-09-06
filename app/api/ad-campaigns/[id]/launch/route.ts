@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCreative } from "@/lib/meta/campaigns";
-import { fetchMetaPageAccessToken } from "@/lib/meta/api";
+import { fetchMetaPageAccessToken, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { createTikTokAd, createTikTokAdGroup, createTikTokCampaign, uploadTikTokAdImage } from "@/lib/tiktok/campaigns";
 import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
 
@@ -31,13 +31,22 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   const { data: account, error: accountError } = await supabase.from("meta_ad_accounts").select("id,meta_account_id,access_token_encrypted,is_active,account_status").eq("id", accountId).eq("user_id", userId).maybeSingle();
   if (accountError) return NextResponse.json({ error: "Impossible de vérifier le compte Meta" }, { status: 500 });
   if (!account?.is_active) return NextResponse.json({ error: "Le compte Meta sélectionné n’est plus actif" }, { status: 400 });
-  if (account.account_status !== null && account.account_status !== 1) return NextResponse.json({ error: "Le compte publicitaire Meta est restreint. Vérifie son état dans Meta Account Quality avant de relancer la campagne.", code: "META_ACCOUNT_RESTRICTED", account_quality_url: "https://www.facebook.com/accountquality" }, { status: 400 });
+
+  const accessToken = decryptSecret(account.access_token_encrypted);
+  try {
+    const funding = await getMetaAccountFunding(`act_${account.meta_account_id}`, accessToken);
+    const issue = describeMetaFundingIssue(funding);
+    if (issue) return NextResponse.json({ error: issue.message, code: issue.code, account_quality_url: "https://www.facebook.com/accountquality", billing_url: "https://business.facebook.com/billing_hub" }, { status: 400 });
+  } catch (fundingError) {
+    // Si Meta est momentanément indisponible pour cette vérification, on ne bloque pas
+    // le lancement pour autant — Meta refusera de toute façon la création si besoin.
+  }
+
   const { data: subscription } = await supabase.from("subscriptions").select("plan").eq("user_id", userId).maybeSingle();
   const plan = isPlanId(subscription?.plan) ? subscription.plan : "starter";
   const publisherPlatforms = metaPublisherPlatforms(plan);
   await supabase.from("ad_campaigns").update({ status: "submitting", meta_ad_account_id: account.id, external_error: null }).eq("id", campaign.id).eq("user_id", userId);
   try {
-    const accessToken = decryptSecret(account.access_token_encrypted);
     const pageAccessToken = await fetchMetaPageAccessToken(pageId, accessToken);
     const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
     const external = await createMetaCampaign({ accountId: `act_${account.meta_account_id}`, accessToken, name: campaignName, objective: campaign.objective, dailyBudget: Number(campaign.daily_budget) });
@@ -46,7 +55,7 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     const ad = await createMetaAd({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Ad`, adsetId: String(adSet.id), creativeId: String(creative.id) });
     const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, external_campaign_id: external.id, external_adset_id: String(adSet.id), external_creative_id: String(creative.id), external_ad_id: String(ad.id), external_error: null }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id").single();
     if (updateError) return NextResponse.json({ error: "Campagne Meta créée mais statut Vendeo non enregistré" }, { status: 502 });
-    await supabase.from("meta_campaigns").upsert({ ad_account_id: account.id, meta_campaign_id: external.id, name: campaign.title || "Campagne Vendeo", status: "PAUSED", objective: external.objective }, { onConflict: "ad_account_id,meta_campaign_id" });
+    await supabase.from("meta_campaigns").upsert({ ad_account_id: account.id, meta_campaign_id: external.id, name: campaign.title || "Campagne Vendeo", status: "ACTIVE", objective: external.objective }, { onConflict: "ad_account_id,meta_campaign_id" });
     return NextResponse.json({ campaign: updated });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : "Meta campaign creation failed";
