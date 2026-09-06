@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Rocket, Sparkles, LogOut, Megaphone, FileText, ImageIcon, Info, Trash2 } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2 } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { cleanAiText } from "@/lib/ai/format";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 import { calculateProfitability, formatMoney, getProfitRecommendation, type ProfitabilityInputs, type ProfitabilityResult, type ProfitScenario } from "@/lib/profitability";
@@ -124,8 +124,6 @@ export function Dashboard() {
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
   const [userName, setUserName] = useState("créateur");
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
-  const [promoteProduct, setPromoteProduct] = useState<ProductData | null>(null);
-  const [campaignRefreshKey, setCampaignRefreshKey] = useState(0);
 
   const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
   const freeUsed = subscription?.free_messages_used ?? 0;
@@ -281,9 +279,9 @@ export function Dashboard() {
           ) : null}
           <div style={{ background: "linear-gradient(135deg,#ede9fe,#e0f2fe)", borderRadius: 10, margin: "35px 4px 0", padding: 14 }}>
             <span className="eyebrow" style={{ fontSize: 9 }}>
-              {isActivePlan ? `Plan ${subscription?.plan === "pro" ? "Pro" : "Starter"} actif` : subscription?.status === "past_due" ? "Abonnement expiré" : "Essai gratuit"}
+              {isActivePlan ? "Abonnement actif" : subscription?.status === "past_due" ? "Abonnement expiré" : "Essai gratuit"}
             </span>
-            {isActivePlan && subscription?.plan === "pro" ? <p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>Ton abonnement Pro est actif.</p> : <><p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>{isActivePlan ? "Passe au Pro pour débloquer les rapports." : subscription?.status === "past_due" ? "Ton abonnement a expiré. Choisis un plan pour continuer." : "Choisis un plan pour continuer après ton essai."}</p><button className="btn btn-dark" style={{ fontSize: 10, padding: "8px 10px", width: "100%" }} onClick={() => setActive("Abonnement")}>{isActivePlan ? "Passer au Pro" : "Voir les plans"}</button></>}
+            {isActivePlan ? <p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>Ton abonnement Vendeo est actif.</p> : <><p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>{subscription?.status === "past_due" ? "Ton abonnement a expiré. Réactive-le pour continuer." : "Choisis l’abonnement pour continuer après ton essai."}</p><button className="btn btn-dark" style={{ fontSize: 10, padding: "8px 10px", width: "100%" }} onClick={() => setActive("Abonnement")}>Voir l’abonnement</button></>}
           </div>
 
           <div className="side-usage">
@@ -308,7 +306,7 @@ export function Dashboard() {
           ) : active === "Assistant de profit" ? (
             <ProfitAssistant analytics={analytics} />
           ) : active === "Pubs" ? (
-             <AdsView products={analytics?.products ?? []} plan={(subscription?.plan ?? "starter") as PlanId} onPromoteProduct={setPromoteProduct} campaignRefreshKey={campaignRefreshKey} />
+             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Abonnement" ? (
@@ -328,8 +326,6 @@ export function Dashboard() {
           )}
          </section>
       </div>
-
-      {promoteProduct ? <CampaignWizard product={promoteProduct} plan={(subscription?.plan ?? "starter") as PlanId} onClose={() => setPromoteProduct(null)} onSaved={() => setCampaignRefreshKey((key) => key + 1)} /> : null}
 
         <nav className="mobile-nav" aria-label="Navigation mobile">
          <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
@@ -739,7 +735,7 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
         <div>
           <span className="eyebrow">Canaux publicitaires</span>
           <h2>Comptes connectés</h2>
-          <p>Connecte ou déconnecte les comptes publicitaires utilisés par Vendeo pour diffuser tes campagnes.</p>
+          <p>Connecte ou déconnecte les comptes publicitaires que Vendeo utilise pour analyser tes performances.</p>
         </div>
       </div>
       {connectionError ? <p className="settings-inline-message settings-account-error" role="alert">{connectionError}</p> : null}
@@ -895,17 +891,18 @@ type MetaPerformance = {
 };
 
 type AdsCache = {
-  campaigns: AdCampaign[];
   metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null }>;
   selectedMetaAccount: string;
   metaPerformance: MetaPerformance | null;
   metaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<{ id: string; name: string }> } | null;
   metaAccountRestricted: boolean;
   tiktokAccounts: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>;
-  tiktokIdentities: Array<{ id: string; type: string; name: string }>;
 };
 
-function AdsView({ products, plan, onPromoteProduct, campaignRefreshKey }: { products: ProductData[]; plan: PlanId; onPromoteProduct: (product: ProductData) => void; campaignRefreshKey: number }) {
+// AdsView : uniquement de l'analyse en lecture seule des campagnes déjà diffusées sur Meta/TikTok.
+// Le lancement de pub depuis Vendeo (création de campagnes) a été retiré ; il reviendra une fois
+// toutes les permissions Meta obtenues. Voir /areas/vendeo.md pour le contexte du repositionnement.
+function AdsView({ plan }: { plan: PlanId }) {
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
   // On ne montre l'écran de chargement que la toute première fois : si on a déjà
@@ -913,7 +910,6 @@ function AdsView({ products, plan, onPromoteProduct, campaignRefreshKey }: { pro
   // tout de suite et on rafraîchit silencieusement derrière.
   const [loading, setLoading] = useState(!cachedOnce);
   const [message, setMessage] = useState<string | null>(null);
-  const [campaigns, setCampaigns] = useState<AdCampaign[]>(cachedOnce?.campaigns ?? []);
 
   const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null }>>(cachedOnce?.metaAccounts ?? []);
   const [selectedMetaAccount, setSelectedMetaAccount] = useState(cachedOnce?.selectedMetaAccount ?? "");
@@ -923,13 +919,8 @@ function AdsView({ products, plan, onPromoteProduct, campaignRefreshKey }: { pro
   const [metaSyncing, setMetaSyncing] = useState(false);
 
   const [tiktokAccounts, setTiktokAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>>(cachedOnce?.tiktokAccounts ?? []);
-  const [tiktokIdentities, setTiktokIdentities] = useState<Array<{ id: string; type: string; name: string }>>(cachedOnce?.tiktokIdentities ?? []);
 
   async function load() {
-    const campaignsResponse = await fetch("/api/ad-campaigns");
-    const nextCampaigns = campaignsResponse.ok ? ((await campaignsResponse.json()).campaigns ?? []) : campaigns;
-    setCampaigns(nextCampaigns);
-
     const metaResponse = await fetch("/api/integrations/meta/accounts");
     const metaData = metaResponse.ok ? await metaResponse.json() : { accounts: [] };
     const nextMetaAccounts = metaData.accounts ?? [];
@@ -948,22 +939,17 @@ function AdsView({ products, plan, onPromoteProduct, campaignRefreshKey }: { pro
     }
 
     let nextTiktokAccounts: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }> = [];
-    let nextTiktokIdentities: Array<{ id: string; type: string; name: string }> = [];
     if (isAdPlatformAllowed(plan, "tiktok")) {
       const tiktokResponse = await fetch("/api/integrations/tiktok/accounts");
       const tiktokData = tiktokResponse.ok ? await tiktokResponse.json() : { accounts: [] };
       nextTiktokAccounts = tiktokData.accounts ?? [];
       setTiktokAccounts(nextTiktokAccounts);
-      if (nextTiktokAccounts[0]) {
-        const identityResponse = await fetch(`/api/integrations/tiktok/resources?account_id=${encodeURIComponent(nextTiktokAccounts[0].id)}`);
-        if (identityResponse.ok) { nextTiktokIdentities = (await identityResponse.json()).identities ?? []; setTiktokIdentities(nextTiktokIdentities); }
-      }
     }
     setLoading(false);
-    writeCache(ADS_CACHE_KEY, { campaigns: nextCampaigns, metaAccounts: nextMetaAccounts, selectedMetaAccount: nextSelectedMetaAccount, metaPerformance: nextMetaPerformance, metaResources: nextMetaResources, metaAccountRestricted: nextMetaAccountRestricted, tiktokAccounts: nextTiktokAccounts, tiktokIdentities: nextTiktokIdentities });
+    writeCache(ADS_CACHE_KEY, { metaAccounts: nextMetaAccounts, selectedMetaAccount: nextSelectedMetaAccount, metaPerformance: nextMetaPerformance, metaResources: nextMetaResources, metaAccountRestricted: nextMetaAccountRestricted, tiktokAccounts: nextTiktokAccounts });
   }
 
-  useEffect(() => { void load(); }, [campaignRefreshKey]);
+  useEffect(() => { void load(); }, []);
 
   const connectMeta = () => { window.location.href = "/api/integrations/meta/connect"; };
   const connectTiktok = () => { window.location.href = "/api/integrations/tiktok/connect"; };
@@ -985,43 +971,36 @@ function AdsView({ products, plan, onPromoteProduct, campaignRefreshKey }: { pro
   const metaConnected = metaAccounts.length > 0;
   const tiktokConnected = tiktokAccounts.length > 0;
   const tiktokAllowed = isAdPlatformAllowed(plan, "tiktok");
-  const campaignsMeta = campaigns.filter((campaign) => campaign.platform === "meta");
-  const campaignsTiktok = campaigns.filter((campaign) => campaign.platform === "tiktok");
   const totalSpend = metaPerformance?.overview.spend ?? 0;
 
   const channels: Array<{ id: "overview" | "meta" | "tiktok"; label: string }> = [{ id: "overview", label: "Vue générale" }, { id: "meta", label: "Meta" }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: "TikTok" }] : [])];
 
   return (
     <>
-      <div className="page-top"><div><span className="eyebrow">Acquisition rentable</span><h1>Pubs</h1><p>Lance et suis tes campagnes publicitaires, tous canaux confondus, sans quitter Vendeo.</p></div></div>
+      <div className="page-top"><div><span className="eyebrow">Analyse publicitaire</span><h1>Pubs</h1><p>Vendeo analyse tes campagnes déjà diffusées sur Meta et TikTok et te dit quoi arrêter ou optimiser.</p></div></div>
 
       <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8 }}>{channels.map((item) => <button key={item.id} type="button" className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.label}</button>)}</div>
 
       {message && <p className="store-error" role="status">{message}</p>}
-
-      <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><div><span className="eyebrow">Nouveau</span><h2>Promouvoir un produit</h2><p>Choisis un produit Chariow et le canal de diffusion — Vendeo demandera la connexion au canal si besoin, seulement à cette étape.</p></div><Rocket size={19} /></div>{products.length ? <div style={{ display: "grid", gap: 10, marginTop: 15 }}>{products.map((product) => <div className="store-row" key={product.id}><div className="store-logo">{product.image ? <img src={product.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} /> : <Package size={18} />}</div><div className="store-info"><strong>{product.name}</strong><span>{formatProductPrice(product)}</span></div><button className="btn btn-dark" type="button" onClick={() => onPromoteProduct(product)}>Promouvoir</button></div>)}</div> : <EmptyState title="Aucun produit disponible" text="Connecte et synchronise une boutique Chariow pour promouvoir un produit." />}</section>
 
       {channel === "overview" ? (
         <>
           <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><h2>Vue générale</h2><BarChart3 size={19} /></div>
             <div className="vendeo-kpi-grid" style={{ marginTop: 12 }}>
               <div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires totales" description="Somme des dépenses sur les canaux connectés et synchronisés." /><strong>{metaConnected ? formatMoney(totalSpend, metaPerformance?.currency ?? "XOF") : "Non disponible"}</strong></div>
-              <div className="vendeo-kpi"><MetricHelp label="Campagnes actives" description="Nombre de campagnes actuellement diffusées, tous canaux confondus." /><strong>{campaigns.filter((campaign) => campaign.status === "active").length}</strong></div>
-              <div className="vendeo-kpi"><MetricHelp label="Campagnes en brouillon" description="Campagnes préparées mais pas encore envoyées à une plateforme." /><strong>{campaigns.filter((campaign) => campaign.status === "draft").length}</strong></div>
             </div>
           </section>
           <div className="vendeo-kpi-grid" style={{ marginBottom: 18 }}>
-            <div className="app-card"><div className="card-head"><h3>Meta</h3>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{metaConnected ? <p className="profit-help">{formatMoney(totalSpend, metaPerformance?.currency ?? "XOF")} dépensés · {campaignsMeta.length} campagne(s)</p> : <><p className="profit-help">Connecte Meta Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectMeta}>Connecter Meta</button></>}</div>
-            {tiktokAllowed ? <div className="app-card"><div className="card-head"><h3>TikTok</h3>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{tiktokConnected ? <p className="profit-help">{campaignsTiktok.length} campagne(s) · statistiques détaillées bientôt disponibles</p> : <><p className="profit-help">Connecte TikTok Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectTiktok}>Connecter TikTok</button></>}</div> : <div className="app-card"><div className="card-head"><h3>TikTok</h3><span className="status-info">Non inclus dans ton plan</span></div><p className="profit-help">Passe au plan Starter ou Pro pour diffuser sur TikTok.</p></div>}
+            <div className="app-card"><div className="card-head"><h3>Meta</h3>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{metaConnected ? <p className="profit-help">{formatMoney(totalSpend, metaPerformance?.currency ?? "XOF")} dépensés sur la période</p> : <><p className="profit-help">Connecte Meta Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectMeta}>Connecter Meta</button></>}</div>
+            {tiktokAllowed ? <div className="app-card"><div className="card-head"><h3>TikTok</h3>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{tiktokConnected ? <p className="profit-help">Statistiques détaillées bientôt disponibles</p> : <><p className="profit-help">Connecte TikTok Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectTiktok}>Connecter TikTok</button></>}</div> : <div className="app-card"><div className="card-head"><h3>TikTok</h3><span className="status-info">Non inclus dans ton plan</span></div></div>}
           </div>
-          <CampaignList campaigns={campaigns} products={products} metaAccounts={metaAccounts} metaPages={metaResources?.pages ?? []} tiktokAccounts={tiktokAccounts} tiktokIdentities={tiktokIdentities} onConnectMeta={connectMeta} onConnectTikTok={connectTiktok} onRefresh={() => void load()} />
         </>
       ) : channel === "meta" ? (
         <>
           <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Meta Ads connectée</span> : <button className="btn btn-dark" onClick={connectMeta}><Plus size={15} /> Connecter Meta Ads</button>}</div>
           {metaPerformance && metaPerformance.overview.conversions === 0 && <div className="meta-conversion-info" role="status">Meta ne rapporte actuellement aucune conversion attribuée. Cela peut être normal si aucune campagne n’a diffusé ou si aucun Pixel/Conversions API n’est configuré sur le parcours de vente Chariow.</div>}
-          {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Vendeo ne peut pas lancer de publicité avec ce compte tant que Meta n’a pas levé la restriction.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
-          {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Ajoute une page Facebook à ton Business Manager pour pouvoir créer une publicité.</div> : null}
+          {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n’est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
+          {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte Meta Ads connecté</strong><span>Autorise Vendeo à lire tes campagnes, ensembles de publicités et publicités.</span><button className="btn btn-dark" onClick={connectMeta}>Connecter Meta Ads</button></div> : <>
             <div className="app-card meta-toolbar"><label>Compte publicitaire<select value={selectedMetaAccount} onChange={(event) => setSelectedMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? "Synchronisation…" : "Synchroniser les insights"}</button></div>
             {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d’affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Statut</span></div>{metaPerformance.performances.map((campaign) => <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><span className={`meta-status ${campaign.status}`}>{campaign.status === "profitable" ? "Rentable" : campaign.status === "loss" ? "À corriger" : "Sans signal"}</span></div>)}</div>{!metaPerformance.performances.length && <p className="profit-help">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section></> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
@@ -1030,169 +1009,11 @@ function AdsView({ products, plan, onPromoteProduct, campaignRefreshKey }: { pro
       ) : (
         <>
           <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> TikTok Ads connecté</span> : <button className="btn btn-dark" onClick={connectTiktok}><Plus size={15} /> Connecter TikTok Ads</button>}</div>
-          {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte TikTok Ads connecté</strong><span>Autorise Vendeo à créer des campagnes sur ton compte publicitaire TikTok.</span><button className="btn btn-dark" onClick={connectTiktok}>Connecter TikTok Ads</button></div> : <div className="meta-conversion-info" role="status">Les statistiques détaillées TikTok Ads (dépenses, ROAS) arrivent bientôt. Tu peux déjà créer et lancer tes campagnes depuis "Promouvoir un produit" ci-dessus — elles apparaissent dans "Mes campagnes" (onglet Vue générale).</div>}
+          {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte TikTok Ads connecté</strong><span>Autorise Vendeo à lire les performances de ton compte publicitaire TikTok.</span><button className="btn btn-dark" onClick={connectTiktok}>Connecter TikTok Ads</button></div> : <div className="meta-conversion-info" role="status">Les statistiques détaillées TikTok Ads (dépenses, ROAS) arrivent bientôt.</div>}
         </>
       )}
     </>
   );
-}
-
-const NETWORK_OPTIONS: { id: AdPlatform; label: string; hint: string; live: boolean }[] = [
-  { id: "facebook", label: "Facebook & Instagram", hint: "Diffusion via Meta Ads", live: true },
-  { id: "tiktok", label: "TikTok", hint: "Diffusion via TikTok Ads", live: true },
-  { id: "whatsapp", label: "WhatsApp Business", hint: "Bientôt disponible", live: false },
-  { id: "pinterest", label: "Pinterest", hint: "Bientôt disponible", live: false },
-  { id: "linkedin", label: "LinkedIn", hint: "Bientôt disponible", live: false },
-  { id: "google", label: "Google", hint: "Bientôt disponible", live: false },
-];
-
-type CampaignDraft = {
-  platform: "meta" | "tiktok";
-  network: AdPlatform;
-  text: string;
-  title: string;
-  link: string;
-  objective: "sales" | "traffic" | "engagement" | "leads";
-  countries: string;
-  minAge: string;
-  maxAge: string;
-  dailyBudget: string;
-  duration: string;
-  mediaUrl: string;
-};
-
-type AdCampaign = {
-  id: string;
-  product_id: string;
-  platform: string;
-  status: string;
-  objective: string;
-  title: string | null;
-  countries: string[];
-  daily_budget: number | string;
-  duration_days: number;
-  estimated_budget: number | string;
-  external_campaign_id: string | null;
-  external_error: string | null;
-  created_at: string;
-  meta_ad_account_id?: string | null;
-  tiktok_ad_account_id?: string | null;
-};
-
-function CampaignList({ campaigns, products, metaAccounts, metaPages, tiktokAccounts, tiktokIdentities, onConnectMeta, onConnectTikTok, onRefresh }: { campaigns: AdCampaign[]; products: ProductData[]; metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null }>; metaPages: Array<{ id: string; name: string }>; tiktokAccounts: Array<{ id: string; advertiser_id: string; name: string | null; currency: string }>; tiktokIdentities: Array<{ id: string; type: string; name: string }>; onConnectMeta: () => void; onConnectTikTok: () => void; onRefresh: () => void }) {
-  const productName = (id: string) => products.find((product) => product.id === id)?.name ?? "Produit Chariow";
-  const statusLabel: Record<string, string> = { draft: "Brouillon", account_required: "Compte requis", submitting: "Envoi en cours", review: "En cours de vérification par Meta", active: "Active", paused: "En pause", rejected: "Refusée", error: "Erreur", completed: "Terminée" };
-  const [selectedMeta, setSelectedMeta] = useState<Record<string, string>>({});
-  const [selectedPage, setSelectedPage] = useState<Record<string, string>>({});
-  const [selectedTiktok, setSelectedTiktok] = useState<Record<string, string>>({});
-  const [selectedIdentity, setSelectedIdentity] = useState<Record<string, string>>({});
-  const [launching, setLaunching] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const pending = campaigns.filter((c) => c.platform === "meta" && c.status === "review");
-    if (!pending.length) return;
-    const interval = setInterval(() => {
-      Promise.all(pending.map((c) => fetch(`/api/ad-campaigns/${c.id}/status`))).then(() => onRefresh());
-    }, 20000); // toutes les 20 secondes tant qu'il y a une campagne en attente
-    return () => clearInterval(interval);
-  }, [campaigns, onRefresh]);
-
-  async function launchMeta(campaign: AdCampaign) {
-    const accountId = selectedMeta[campaign.id] ?? metaAccounts[0]?.id;
-    const page = metaPages.find((item) => item.id === (selectedPage[campaign.id] ?? metaPages[0]?.id));
-    if (!accountId) { onConnectMeta(); return; }
-    if (!page) { setError("Ajoute une page Facebook à ton Business Manager et reconnecte Meta Ads avant de lancer cette campagne."); return; }
-    setLaunching(campaign.id); setError(null);
-    try { const response = await fetch(`/api/ad-campaigns/${campaign.id}/launch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ meta_ad_account_id: accountId, page_id: page.id }) }); const data = await response.json().catch(() => ({})); if (!response.ok) setError(data.error ?? "Lancement impossible."); else onRefresh(); } finally { setLaunching(null); }
-  }
-
-  async function launchTiktok(campaign: AdCampaign) {
-    const accountId = selectedTiktok[campaign.id] ?? tiktokAccounts[0]?.id;
-    const identity = tiktokIdentities.find((item) => item.id === (selectedIdentity[campaign.id] ?? tiktokIdentities[0]?.id));
-    if (!accountId) { onConnectTikTok(); return; }
-    if (!identity) { setError("Connecte un compte TikTok lié à ton Business Center avant de lancer cette campagne."); return; }
-    setLaunching(campaign.id); setError(null);
-    try { const response = await fetch(`/api/ad-campaigns/${campaign.id}/launch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tiktok_ad_account_id: accountId, identity_id: identity.id, identity_type: identity.type }) }); const data = await response.json().catch(() => ({})); if (!response.ok) setError(data.error ?? "Lancement impossible."); else onRefresh(); } finally { setLaunching(null); }
-  }
-
-  const canLaunch = (campaign: AdCampaign) => ["draft", "error", "account_required"].includes(campaign.status);
-
-  return <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><div><span className="eyebrow">Suivi</span><h2>Mes campagnes</h2><p>Toutes tes campagnes, tous canaux confondus, préparées dans Vendeo avant leur envoi à la plateforme choisie.</p></div><Megaphone size={19} /></div>{error ? <p className="store-error" role="alert">{error}</p> : null}{campaigns.length ? <div className="home-table" style={{ marginTop: 15 }}><div className="home-table-row home-table-head"><span>Produit</span><span>Canal</span><span>Budget</span><span>Statut</span><span>Action</span></div>{campaigns.map((campaign) => <div className="home-table-row" key={campaign.id}><span>{productName(campaign.product_id)}</span><span>{campaign.platform === "meta" ? "Meta" : campaign.platform === "tiktok" ? "TikTok" : campaign.platform}</span><span>{Number(campaign.estimated_budget).toLocaleString("fr-FR")} XOF</span><span className={campaign.status === "active" ? "status-positive" : "status-warning"}>{statusLabel[campaign.status] ?? campaign.status}{campaign.status === "rejected" && campaign.external_error ? <small style={{ display: "block", color: "#b91c1c", marginTop: 4 }}>{campaign.external_error}</small> : null}</span><span>{!canLaunch(campaign) ? "-" : campaign.platform === "meta" ? <><select aria-label={`Compte Meta pour ${productName(campaign.product_id)}`} value={selectedMeta[campaign.id] ?? metaAccounts[0]?.id ?? ""} onChange={(event) => setSelectedMeta((current) => ({ ...current, [campaign.id]: event.target.value }))} disabled={!metaAccounts.length}><option value="">Compte Meta</option>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select><select aria-label={`Page Facebook pour ${productName(campaign.product_id)}`} value={selectedPage[campaign.id] ?? metaPages[0]?.id ?? ""} onChange={(event) => setSelectedPage((current) => ({ ...current, [campaign.id]: event.target.value }))} disabled={!metaPages.length}><option value="">Page Facebook</option>{metaPages.map((page) => <option key={page.id} value={page.id}>{page.name}</option>)}</select><button className="btn btn-dark" type="button" onClick={() => void launchMeta(campaign)} disabled={launching === campaign.id || !metaAccounts.length || !metaPages.length}>{launching === campaign.id ? "Lancement…" : !metaAccounts.length ? "Connecter Meta" : "Lancer"}</button></> : campaign.platform === "tiktok" ? <><select aria-label={`Compte TikTok pour ${productName(campaign.product_id)}`} value={selectedTiktok[campaign.id] ?? tiktokAccounts[0]?.id ?? ""} onChange={(event) => setSelectedTiktok((current) => ({ ...current, [campaign.id]: event.target.value }))} disabled={!tiktokAccounts.length}><option value="">Compte TikTok</option>{tiktokAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.advertiser_id}</option>)}</select><select aria-label={`Identité TikTok pour ${productName(campaign.product_id)}`} value={selectedIdentity[campaign.id] ?? tiktokIdentities[0]?.id ?? ""} onChange={(event) => setSelectedIdentity((current) => ({ ...current, [campaign.id]: event.target.value }))} disabled={!tiktokIdentities.length}><option value="">Identité TikTok</option>{tiktokIdentities.map((identity) => <option key={identity.id} value={identity.id}>{identity.name}</option>)}</select><button className="btn btn-dark" type="button" onClick={() => void launchTiktok(campaign)} disabled={launching === campaign.id || !tiktokAccounts.length || !tiktokIdentities.length}>{launching === campaign.id ? "Lancement…" : !tiktokAccounts.length ? "Connecter TikTok" : "Lancer"}</button></> : "-"}</span></div>)}</div> : <EmptyState title="Aucune campagne" text="Ta première campagne apparaîtra ici après son enregistrement." />}</section>;
-}
-
-function CampaignWizard({ product, plan, onClose, onSaved }: { product: ProductData; plan: PlanId; onClose: () => void; onSaved: () => void }) {
-  const [step, setStep] = useState(1);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [draft, setDraft] = useState<CampaignDraft>({ platform: "meta", network: "facebook", text: "", title: product.name, link: product.url ?? "", objective: "sales", countries: "Bénin", minAge: "18", maxAge: "35", dailyBudget: "2500", duration: "7", mediaUrl: "" });
-  const [mediaPreview, setMediaPreview] = useState<{ url: string; name: string; type: string } | null>(null);
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [uploadingMedia, setUploadingMedia] = useState(false);
-  const [mediaError, setMediaError] = useState<string | null>(null);
-  const mediaInputRef = useRef<HTMLInputElement | null>(null);
-  const total = Math.max(0, Number(draft.dailyBudget) || 0) * Math.max(0, Number(draft.duration) || 0);
-  const update = (key: keyof CampaignDraft, value: string) => setDraft((current) => ({ ...current, [key]: value }));
-  function handleMediaChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (mediaPreview) URL.revokeObjectURL(mediaPreview.url);
-    const url = URL.createObjectURL(file);
-    setMediaPreview({ url, name: file.name, type: file.type });
-    setMediaFile(file);
-    update("mediaUrl", url);
-    setMediaError(null);
-    void uploadMedia(file, url);
-  }
-
-  async function uploadMedia(file: File, localUrl: string) {
-    setUploadingMedia(true);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const response = await fetch("/api/uploads/campaign-media", { method: "POST", body: form });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || typeof data.secure_url !== "string") {
-        setMediaError(data.error ?? "Le média n’a pas pu être transféré.");
-        return;
-      }
-      if (localUrl === mediaPreview?.url) update("mediaUrl", data.secure_url);
-    } catch {
-      setMediaError("Impossible de contacter le service d’upload.");
-    } finally {
-      setUploadingMedia(false);
-    }
-  }
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    if (step < 4) { setStep((current) => current + 1); return; }
-    setSaving(true);
-    setMessage(null);
-    try {
-      let mediaUrl = draft.mediaUrl;
-      if (mediaFile && !mediaUrl.startsWith("https://res.cloudinary.com/")) {
-        setUploadingMedia(true);
-        const mediaForm = new FormData();
-        mediaForm.append("file", mediaFile);
-        const uploadResponse = await fetch("/api/uploads/campaign-media", { method: "POST", body: mediaForm });
-        const uploadData = await uploadResponse.json().catch(() => ({}));
-        if (!uploadResponse.ok) { setMessage(uploadData.error ?? "Upload du média impossible."); return; }
-        mediaUrl = uploadData.secure_url;
-        update("mediaUrl", mediaUrl);
-      }
-      if (mediaFile && mediaUrl.startsWith("blob:")) { setMessage("Attends la fin du transfert du média avant d’enregistrer."); return; }
-const payload = { product_id: product.id, product_name: product.name, ...draft, platform: draft.network === "tiktok" ? "tiktok" : "meta", media_url: mediaUrl, media_name: mediaFile?.name ?? null, media_type: mediaFile?.type ?? null, daily_budget: Number(draft.dailyBudget), duration_days: Number(draft.duration), estimated_budget: total };      const response = await fetch("/api/ad-campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) { setMessage(data.error ?? "Impossible d’enregistrer la campagne."); return; }
-      onSaved();
-      setMessage("Campagne enregistrée en brouillon. Tu peux maintenant la lancer depuis Mes campagnes.");
-    } finally { setSaving(false); setUploadingMedia(false); }
-  }
-
-  const steps = [{ number: 1, label: "Campagne", hint: "Choix de diffusion" }, { number: 2, label: "Contenu", hint: "Texte et creative" }, { number: 3, label: "Audience", hint: "Personnes ciblées" }, { number: 4, label: "Budget", hint: "Durée et montant" }];
-  const mediaPicker = <div className="campaign-upload"><input ref={mediaInputRef} className="campaign-file-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" onChange={handleMediaChange} />{mediaPreview ? <>{mediaPreview.type.startsWith("image/") ? <img className="campaign-upload-preview" src={mediaPreview.url} alt="Aperçu de la creative" /> : <span className="campaign-upload-video"><Rocket size={20} /></span>}<strong>{mediaPreview.name}</strong><small>{uploadingMedia ? "Chargement…" : mediaError ?? "Fichier sélectionné · Cliquer pour remplacer"}</small></> : <><span className="campaign-upload-icon"><Plus size={20} /></span><strong>Ajouter une image ou une vidéo</strong><small>JPG, PNG ou MP4</small></>}<button className="btn btn-ghost campaign-upload-button" type="button" onClick={() => mediaInputRef.current?.click()}>{mediaPreview ? "Remplacer le fichier" : "Choisir un fichier"}</button></div>;
-  return <div className="campaign-modal-backdrop" role="presentation" onClick={onClose}><section className="campaign-modal" role="dialog" aria-modal="true" aria-labelledby="campaign-wizard-title" onClick={(event) => event.stopPropagation()}><header className="campaign-modal-header"><div className="campaign-heading"><div className="campaign-product-thumb">{product.image ? <img src={product.image} alt="" /> : <Package size={20} />}</div><div><span className="eyebrow">Créer une campagne</span><h2 id="campaign-wizard-title">Promouvoir « {product.name} »</h2><p>Prépare ta campagne simplement, puis envoie-la à Meta après vérification.</p></div></div><button type="button" className="campaign-close" aria-label="Fermer" onClick={onClose}>×</button></header>{message ? <div className="campaign-success" role="status"><CheckCircle2 size={20} /><div><strong>Campagne enregistrée</strong><p>{message}</p></div><button className="btn btn-dark" type="button" onClick={onClose}>Fermer</button></div> : <form onSubmit={submit}><nav className="campaign-stepper" aria-label="Étapes de la campagne">{steps.map((item) => <div className={`campaign-step ${step === item.number ? "current" : ""} ${step > item.number ? "done" : ""}`} key={item.number}><span className="campaign-step-number">{step > item.number ? "✓" : item.number}</span><span><strong>{item.label}</strong><small>{item.hint}</small></span></div>)}</nav><div className="campaign-modal-body"><div className="campaign-form-card">{step === 1 ? <><div className="campaign-section-intro"><span className="campaign-icon"><Megaphone size={18} /></span><div><h3>Où veux-tu diffuser ?</h3><p>Commence par choisir la plateforme et l’objectif de ta campagne.</p></div></div><div className="campaign-choice-grid">{NETWORK_OPTIONS.map((option) => { const allowed = isAdPlatformAllowed(plan, option.id); const selectable = option.live && allowed; return <label key={option.id} className={`campaign-choice ${draft.network === option.id ? "selected" : ""} ${!selectable ? "disabled" : ""}`}><input type="radio" name="network" checked={draft.network === option.id} disabled={!selectable} onChange={() => selectable && update("network", option.id)} /><span className="campaign-choice-logo"><ChannelBadge id={option.id} /></span><span><strong>{option.label}</strong><small>{!allowed ? "Non inclus dans ton plan" : option.hint}</small></span>{draft.network === option.id ? <CheckCircle2 size={18} /> : null}</label>; })}</div><label className="campaign-field"><span>Objectif de campagne</span><select value={draft.objective} onChange={(event) => update("objective", event.target.value)}><option value="sales">Ventes</option><option value="traffic">Trafic</option><option value="engagement">Interactions</option><option value="leads">Prospects</option></select><small>Choisis le résultat que tu veux obtenir en priorité.</small></label></> : null}{step === 2 ? <><div className="campaign-section-intro"><span className="campaign-icon"><ImageIcon size={18} /></span><div><h3>Donne envie de cliquer</h3><p>Ajoute le contenu que les personnes verront dans leur fil.</p></div></div><label className="campaign-field"><span>Texte publicitaire</span><textarea required rows={5} value={draft.text} onChange={(event) => update("text", event.target.value)} placeholder="Présente ton produit et explique pourquoi il est utile." /><small>Un message clair, court et centré sur le bénéfice fonctionne généralement mieux.</small></label><div className="campaign-field-row"><label className="campaign-field"><span>Titre</span><input required value={draft.title} onChange={(event) => update("title", event.target.value)} /></label><label className="campaign-field"><span>Lien de destination</span><input type="url" required value={draft.link} onChange={(event) => update("link", event.target.value)} placeholder="https://..." /></label></div>{mediaPicker}</> : null}{step === 3 ? <><div className="campaign-section-intro"><span className="campaign-icon"><Target size={18} /></span><div><h3>À qui veux-tu t’adresser ?</h3><p>Définis une audience simple. Tu pourras l’affiner plus tard.</p></div></div><label className="campaign-field"><span>Pays ciblés</span><input required value={draft.countries} onChange={(event) => update("countries", event.target.value)} placeholder="Bénin, Côte d’Ivoire" /><small>Sépare plusieurs pays par une virgule.</small></label><div className="campaign-field-row"><label className="campaign-field"><span>Âge minimum</span><input type="number" min="13" max="65" value={draft.minAge} onChange={(event) => update("minAge", event.target.value)} /></label><label className="campaign-field"><span>Âge maximum</span><input type="number" min="13" max="65" value={draft.maxAge} onChange={(event) => update("maxAge", event.target.value)} /></label></div><div className="campaign-info"><CheckCircle2 size={17} /><p><strong>Suivi automatisé</strong><br />Vendeo préparera le suivi des visites et des ventes. Tu n’as pas besoin de configurer un pixel.</p></div></> : null}{step === 4 ? <><div className="campaign-section-intro"><span className="campaign-icon"><WalletCards size={18} /></span><div><h3>Définis ton investissement</h3><p>Le budget est payé directement à Meta depuis ton compte publicitaire.</p></div></div><div className="campaign-field-row"><label className="campaign-field"><span>Budget quotidien</span><div className="campaign-input-addon"><input required type="number" min="100" step="100" value={draft.dailyBudget} onChange={(event) => update("dailyBudget", event.target.value)} /><small>XOF</small></div></label><label className="campaign-field"><span>Durée</span><div className="campaign-input-addon"><input required type="number" min="1" max="90" value={draft.duration} onChange={(event) => update("duration", event.target.value)} /><small>jours</small></div></label></div><div className="campaign-budget-card"><div><span>Budget publicitaire estimé</span><small>{Number(draft.dailyBudget).toLocaleString("fr-FR")} XOF × {draft.duration} jour{Number(draft.duration) > 1 ? "s" : ""}</small></div><strong>{total.toLocaleString("fr-FR")} XOF</strong></div><div className="campaign-info neutral"><Info size={17} /><p>Meta facturera ce budget selon les conditions de ton compte. Vendeo ne facture aucun frais supplémentaire.</p></div></> : null}</div><aside className="campaign-preview"><span className="eyebrow">Résumé</span><h3>{product.name}</h3><div className="campaign-preview-media">{product.image ? <img src={product.image} alt="Aperçu du produit" /> : <Package size={28} />}</div><dl><div><dt>Plateforme</dt><dd>{NETWORK_OPTIONS.find((option) => option.id === draft.network)?.label ?? "Facebook & Instagram"}</dd></div><div><dt>Objectif</dt><dd>{draft.objective === "sales" ? "Ventes" : draft.objective === "traffic" ? "Trafic" : draft.objective === "engagement" ? "Interactions" : "Prospects"}</dd></div><div><dt>Audience</dt><dd>{draft.countries || "À définir"}</dd></div><div><dt>Budget</dt><dd>{total.toLocaleString("fr-FR")} XOF</dd></div></dl></aside></div><footer className="campaign-modal-footer">{step > 1 ? <button className="btn btn-ghost" type="button" onClick={() => setStep((current) => current - 1)}>Retour</button> : <span className="campaign-footer-note">Étape {step} sur 4</span>}<button className="btn btn-dark" type="submit" disabled={saving}>{saving ? "Enregistrement…" : step < 4 ? "Continuer" : "Enregistrer le brouillon"}<ArrowRight size={15} /></button></footer></form>}</section></div>;
 }
 
 function ReportStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
@@ -1507,21 +1328,20 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
         {stores.length === 0 && <div className="empty-state compact">Aucune boutique connectée.</div>}
 
       </div>
-      {showUpgrade && <div className="modal-backdrop" role="presentation" onClick={() => setShowUpgrade(false)}><div className="upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setShowUpgrade(false)} aria-label="Fermer">×</button><span className="eyebrow">Limite de ton abonnement</span><h2 id="upgrade-title">Connecte plusieurs boutiques</h2><p>Ton plan actuel autorise une seule boutique. Passe au plan Pro pour en connecter jusqu’à trois.</p><button className="btn btn-dark" onClick={() => document.querySelector<HTMLButtonElement>(".side-link:nth-of-type(6)")?.click()}>Passer au plan Pro <ArrowRight size={15} /></button></div></div>}
+      {showUpgrade && <div className="modal-backdrop" role="presentation" onClick={() => setShowUpgrade(false)}><div className="upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setShowUpgrade(false)} aria-label="Fermer">×</button><span className="eyebrow">Limite de ton abonnement</span><h2 id="upgrade-title">Connecte plusieurs boutiques</h2><p>Contacte le support pour connecter davantage de boutiques.</p></div></div>}
     </>
   );
 }
 
 function SubscriptionView({ subscription, onBackToSettings }: { subscription: SubscriptionData | null; onBackToSettings?: () => void }) {
-  const plan = subscription?.plan ?? "starter";
   const trial = subscription?.trial_active ?? true;
   const isActive = subscription?.status === "active" && !trial;
 
-  async function changePlan(nextPlan: "starter" | "pro") {
+  async function subscribe() {
     const response = await fetch("/api/subscription/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan: nextPlan }),
+      body: JSON.stringify({ plan: "starter" }),
     });
     const data = await response.json();
     if (response.ok && data.payment?.url) {
@@ -1533,11 +1353,11 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
 
   if (isActive) {
     const used = subscription?.messages_used_this_month ?? 0;
-    const limit = subscription?.messages_limit ?? (plan === "pro" ? 1200 : 400);
+    const limit = subscription?.messages_limit ?? 400;
     const remaining = Math.max(0, limit - used);
     const periodStart = subscription?.current_period_start ? new Date(subscription.current_period_start).toLocaleDateString("fr-FR") : "Non disponible";
     const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("fr-FR") : "Non disponible";
-     return <><div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>Plan {plan === "pro" ? "Pro" : "Starter"} actif</h1><p>Gère ton plan et ton usage IA depuis un seul endroit.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div><div className="app-card" style={{ maxWidth: 520 }}><span className="eyebrow">Abonnement en cours</span><h2 style={{ marginTop: 6 }}>{plan === "pro" ? "Pro — 9 000 XOF / mois" : "Starter — 5 000 XOF / mois"}</h2><div className="sale-detail-grid" style={{ marginTop: 18 }}><div><small>Période en cours depuis</small><strong>{periodStart}</strong></div><div><small>Renouvellement</small><strong>{periodEnd}</strong></div><div><small>Messages utilisés</small><strong>{used.toLocaleString("fr-FR")} / {limit.toLocaleString("fr-FR")}</strong></div><div><small>Messages restants</small><strong>{remaining.toLocaleString("fr-FR")}</strong></div></div>{plan !== "pro" && <button className="btn btn-dark" style={{ marginTop: 20 }} onClick={() => changePlan("pro")}>Passer au Pro <ArrowRight size={15} /></button>}</div></>;
+    return <><div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>Abonnement Vendeo actif</h1><p>Gère ton usage IA depuis un seul endroit.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div><div className="app-card" style={{ maxWidth: 520 }}><span className="eyebrow">Abonnement en cours</span><h2 style={{ marginTop: 6 }}>Vendeo — 2 000 XOF / mois</h2><div className="sale-detail-grid" style={{ marginTop: 18 }}><div><small>Période en cours depuis</small><strong>{periodStart}</strong></div><div><small>Renouvellement</small><strong>{periodEnd}</strong></div><div><small>Messages utilisés</small><strong>{used.toLocaleString("fr-FR")} / {limit.toLocaleString("fr-FR")}</strong></div><div><small>Messages restants</small><strong>{remaining.toLocaleString("fr-FR")}</strong></div></div></div></>;
   }
 
   return (
@@ -1545,41 +1365,24 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
       <div className="page-top">
         <div>
           <span className="eyebrow">Ton abonnement</span>
-          <h1>Grandis à ton rythme.</h1>
-          <p>Gère ton plan et ton usage IA depuis un seul endroit.</p>
+          <h1>Un seul plan, tout inclus.</h1>
+          <p>Gère ton usage IA depuis un seul endroit.</p>
         </div>
         {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
       </div>
-      <div className="pricing-wrap" style={{ maxWidth: 800 }}>
-        <article className="price-card">
-          <span className="eyebrow">{trial ? "Essai gratuit" : "Plan disponible"}</span>
-          <h3>Starter</h3>
-           <div className="price">5 000 XOF <small>/ mois</small></div>
-          <ul>
-            <li>✓ 400 messages IA / mois</li>
-            <li>✓ 1 boutique connectée</li>
-            <li>✓ Support standard</li>
-          </ul>
-          <button
-            className="btn btn-ghost"
-            onClick={() => changePlan("starter")}
-            style={{ width: "100%" }}
-          >
-            Souscrire à Starter
-          </button>
-        </article>
+      <div className="pricing-wrap" style={{ maxWidth: 400 }}>
         <article className="price-card pro">
-          <span className="pill" style={{ marginBottom: 18 }}>Recommandé</span>
-          <h3>Pro</h3>
-           <div className="price">9 000 XOF <small>/ mois</small></div>
+          <span className="eyebrow">{trial ? "Essai gratuit" : "Plan disponible"}</span>
+          <h3>Vendeo</h3>
+          <div className="price">2 000 XOF <small>/ mois</small></div>
           <ul>
-            <li>✓ 1 200 messages IA / mois</li>
-            <li>✓ Jusqu'à 3 boutiques</li>
-            <li>✓ Rapports automatiques</li>
-            <li>✓ Support prioritaire</li>
+            <li>✓ Analyse IA de tes ventes et de tes pubs</li>
+            <li>✓ Connexion boutique Chariow</li>
+            <li>✓ Suivi Meta Ads et TikTok Ads</li>
+            <li>✓ Rapports et assistant de profit</li>
           </ul>
-          <button className="btn btn-lime" disabled={plan === "pro" && !trial} onClick={() => changePlan("pro")} style={{ width: "100%" }}>
-            {plan === "pro" && !trial ? "Plan actuel" : "Passer au Pro"}
+          <button className="btn btn-lime" onClick={() => void subscribe()} style={{ width: "100%" }}>
+            S’abonner
           </button>
         </article>
       </div>
