@@ -899,9 +899,79 @@ type AdsCache = {
   tiktokAccounts: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>;
 };
 
+// --- Moteur de décision Vendeo -------------------------------------------------
+// Vendeo n'est plus un outil de lancement de pubs : il lit les campagnes déjà
+// diffusées sur Meta/TikTok, les croise avec les ventes réelles Chariow, et dit
+// explicitement STOP / OPTIMISER / SURVEILLER, avec une recommandation concrète.
+// Tant que le module d'attribution campagne → produit (cf. lib/attribution) n'est
+// pas branché ici, les verdicts s'appuient sur les métriques déjà disponibles
+// (dépenses, conversions, CPA, ROAS) ; le niveau de confiance reste donc modéré
+// et c'est assumé dans le texte plutôt que présenté comme une certitude.
+type AdVerdictTone = "stop" | "optimize" | "watch" | "none";
+type AdVerdict = { tone: AdVerdictTone; emoji: string; label: string; recommendation: string };
+
+function getCampaignVerdict(campaign: MetaPerformance["performances"][number], currency: string): AdVerdict {
+  const { spend, conversions, cpa, roas, status } = campaign;
+  if (spend <= 0) {
+    return { tone: "none", emoji: "⚪", label: "Pas assez de données", recommendation: "Aucune dépense enregistrée sur cette campagne pendant la période." };
+  }
+  if (conversions === 0) {
+    return { tone: "stop", emoji: "🛑", label: "Arrête cette pub", recommendation: `${formatMoney(spend, currency)} dépensés sans conversion confirmée sur la période. Cette campagne te fait probablement perdre de l’argent.` };
+  }
+  if (status === "loss") {
+    return { tone: "stop", emoji: "🛑", label: "Arrête cette pub", recommendation: `Coût par conversion élevé${cpa !== null ? ` (${formatMoney(cpa, currency)})` : ""} par rapport aux résultats obtenus. Vérifie ta marge avant de continuer à investir.` };
+  }
+  if (status === "profitable") {
+    return { tone: "optimize", emoji: "✅", label: "Optimise cette pub", recommendation: `Cette publicité fonctionne${roas !== null ? ` (retour de ${roas.toFixed(2)}x rapporté par Meta)` : ""}. Augmente le budget progressivement (par petits paliers) et surveille l’évolution du coût par conversion pour rester rentable.` };
+  }
+  return { tone: "watch", emoji: "⚠️", label: "Surveille cette pub", recommendation: "Pas encore assez de signal fiable pour recommander d’arrêter ou d’augmenter le budget. Laisse tourner et réanalyse dans quelques jours." };
+}
+
+function AdVerdictBadge({ verdict }: { verdict: AdVerdict }) {
+  const className = verdict.tone === "stop" ? "meta-status loss" : verdict.tone === "optimize" ? "meta-status profitable" : verdict.tone === "watch" ? "meta-status watch" : "meta-status";
+  return <span className={className}>{verdict.emoji} {verdict.label}</span>;
+}
+
+// Résumé "Décision" affiché en tête de la vue générale des Pubs : compte combien
+// de campagnes sont à arrêter / optimiser / surveiller, et détaille les 3 plus
+// urgentes avec une recommandation en langage clair (pas juste des chiffres).
+function AdsDecisionSummary({ performances, currency }: { performances: MetaPerformance["performances"]; currency: string }) {
+  const withVerdict = performances.map((campaign) => ({ campaign, verdict: getCampaignVerdict(campaign, currency) }));
+  const stop = withVerdict.filter((item) => item.verdict.tone === "stop");
+  const optimize = withVerdict.filter((item) => item.verdict.tone === "optimize");
+  const watch = withVerdict.filter((item) => item.verdict.tone === "watch");
+  const highlighted = [...stop, ...optimize, ...watch].slice(0, 3);
+  return (
+    <section className="app-card" style={{ marginBottom: 18 }}>
+      <div className="card-head"><div><span className="eyebrow">Décision Vendeo</span><h2>Que faire maintenant ?</h2><p>Vendeo dit explicitement quoi arrêter, quoi optimiser et quoi surveiller — pas juste des chiffres.</p></div><Target size={19} /></div>
+      {performances.length === 0 ? (
+        <p className="profit-help">Synchronise Meta Ads pour obtenir tes premières recommandations.</p>
+      ) : (
+        <>
+          <div className="vendeo-kpi-grid" style={{ marginTop: 12 }}>
+            <div className="vendeo-kpi"><span className="metric-label">🛑 À arrêter</span><strong>{stop.length}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">✅ À optimiser</span><strong>{optimize.length}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">⚠️ À surveiller</span><strong>{watch.length}</strong></div>
+          </div>
+          {highlighted.length ? <div className="signal-list" style={{ marginTop: 14 }}>
+            {highlighted.map(({ campaign, verdict }) => (
+              <div className={`signal-item ${verdict.tone === "stop" ? "warning" : verdict.tone === "optimize" ? "positive" : "neutral"}`} key={campaign.id}>
+                <span>{verdict.emoji}</span>
+                <div><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.recommendation}</p></div>
+              </div>
+            ))}
+          </div> : null}
+        </>
+      )}
+    </section>
+  );
+}
+
 // AdsView : uniquement de l'analyse en lecture seule des campagnes déjà diffusées sur Meta/TikTok.
 // Le lancement de pub depuis Vendeo (création de campagnes) a été retiré ; il reviendra une fois
-// toutes les permissions Meta obtenues. Voir /areas/vendeo.md pour le contexte du repositionnement.
+// toutes les permissions Meta obtenues. Ce que Vendeo affiche à la place, c'est un verdict explicite
+// (STOP / OPTIMISER / SURVEILLER) par campagne, calculé à partir des dépenses, conversions, CPA et
+// ROAS déjà synchronisés — voir getCampaignVerdict ci-dessus.
 function AdsView({ plan }: { plan: PlanId }) {
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
@@ -985,6 +1055,7 @@ function AdsView({ plan }: { plan: PlanId }) {
 
       {channel === "overview" ? (
         <>
+          <AdsDecisionSummary performances={metaPerformance?.performances ?? []} currency={metaPerformance?.currency ?? "XOF"} />
           <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><h2>Vue générale</h2><BarChart3 size={19} /></div>
             <div className="vendeo-kpi-grid" style={{ marginTop: 12 }}>
               <div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires totales" description="Somme des dépenses sur les canaux connectés et synchronisés." /><strong>{metaConnected ? formatMoney(totalSpend, metaPerformance?.currency ?? "XOF") : "Non disponible"}</strong></div>
@@ -1003,7 +1074,9 @@ function AdsView({ plan }: { plan: PlanId }) {
           {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte Meta Ads connecté</strong><span>Autorise Vendeo à lire tes campagnes, ensembles de publicités et publicités.</span><button className="btn btn-dark" onClick={connectMeta}>Connecter Meta Ads</button></div> : <>
             <div className="app-card meta-toolbar"><label>Compte publicitaire<select value={selectedMetaAccount} onChange={(event) => setSelectedMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? "Synchronisation…" : "Synchroniser les insights"}</button></div>
-            {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d’affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Statut</span></div>{metaPerformance.performances.map((campaign) => <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><span className={`meta-status ${campaign.status}`}>{campaign.status === "profitable" ? "Rentable" : campaign.status === "loss" ? "À corriger" : "Sans signal"}</span></div>)}</div>{!metaPerformance.performances.length && <p className="profit-help">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section></> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
+            {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d’affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="profit-help">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
+            {metaPerformance.performances.length ? <section className="app-card meta-campaigns" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Pourquoi ce verdict</span><h2>Recommandation par campagne</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="signal-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`signal-item ${verdict.tone === "stop" ? "warning" : verdict.tone === "optimize" ? "positive" : "neutral"}`} key={campaign.id}><span>{verdict.emoji}</span><div><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.recommendation}</p></div></div>; })}</div></section> : null}
+            </> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
           </>}
         </>
       ) : (
