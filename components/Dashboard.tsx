@@ -94,6 +94,7 @@ type SubscriptionData = {
   free_messages_limit: number;
   status: string;
   trial_active?: boolean;
+  trial_ends_at?: string;
   current_period_start?: string;
   current_period_end?: string;
 };
@@ -111,6 +112,53 @@ function subscriptionLimitFromStores(stores: StoreData[]) {
   // The API remains the source of truth for enforcement. This fallback keeps
   // the visible counter useful before the subscription response is loaded.
   return stores.length > 1 ? 3 : 1;
+}
+
+// Pop-up bloquante affichée dès que l'essai gratuit de 7 jours (ou l'abonnement payant)
+// est expiré côté base (subscriptions.status = 'past_due'). "Plus tard" masque la pop-up
+// pour la session en cours seulement — elle réapparaîtra à la prochaine connexion tant
+// que l'abonnement n'est pas activé.
+function TrialPaywallModal({ subscription }: { subscription: SubscriptionData | null }) {
+  const [dismissed, setDismissed] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+  const shouldShow = subscription?.status === "past_due" && !dismissed;
+  if (!shouldShow) return null;
+
+  async function subscribe() {
+    setSubscribing(true);
+    try {
+      const response = await fetch("/api/subscription/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: "starter" }),
+      });
+      const data = await response.json();
+      if (response.ok && data.payment?.url) {
+        window.location.href = data.payment.url;
+      } else {
+        window.alert(data.error ?? "Impossible de lancer le paiement.");
+        setSubscribing(false);
+      }
+    } catch {
+      window.alert("Impossible de lancer le paiement.");
+      setSubscribing(false);
+    }
+  }
+
+  return (
+    <div className="account-delete-backdrop" role="presentation">
+      <section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="trial-paywall-title" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setDismissed(true)}>×</button>
+        <span className="eyebrow">Essai terminé</span>
+        <h2 id="trial-paywall-title">Ton essai gratuit de 7 jours est terminé</h2>
+        <p>Active l’abonnement Vendeo — 2 000 XOF/mois — pour continuer à utiliser l’analyse IA, les rapports et le suivi de tes pubs.</p>
+        <div className="account-delete-actions">
+          <button type="button" className="btn btn-ghost" onClick={() => setDismissed(true)}>Plus tard</button>
+          <button type="button" className="btn btn-dark" onClick={() => void subscribe()} disabled={subscribing}>{subscribing ? "Redirection…" : "Activer mon abonnement"}</button>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 export function Dashboard() {
@@ -326,6 +374,8 @@ export function Dashboard() {
           )}
          </section>
       </div>
+
+      <TrialPaywallModal subscription={subscription} />
 
         <nav className="mobile-nav" aria-label="Navigation mobile">
          <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
@@ -1398,7 +1448,7 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [usage, setUsage] = useState<{ free_used: number; free_limit: number; used: number; limit: number; trialActive: boolean; status: string; plan: string } | null>(null);
+  const [usage, setUsage] = useState<{ used: number; limit: number; trialActive: boolean; status: string; plan: string } | null>(null);
   const [plansRequired, setPlansRequired] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Record<number, boolean>>({});
 
@@ -1428,14 +1478,18 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
       .then((data) => {
         const nextUsage = data.subscription
           ? {
-              free_used: data.subscription.free_messages_used,
-              free_limit: data.subscription.free_messages_limit,
               used: data.subscription.messages_used_this_month,
-              limit: data.subscription.messages_limit, trialActive: Boolean(data.subscription.trial_active), status: data.subscription.status, plan: data.subscription.plan,
+              limit: data.subscription.messages_limit,
+              trialActive: Boolean(data.subscription.trial_active),
+              status: data.subscription.status,
+              plan: data.subscription.plan,
             }
           : null;
         setUsage(nextUsage);
-        if (nextUsage) setPlansRequired(nextUsage.trialActive ? nextUsage.free_used >= nextUsage.free_limit : nextUsage.status !== "active" || nextUsage.used >= nextUsage.limit);
+        // La limite de l'essai gratuit est désormais la date trial_ends_at (7 jours),
+        // pas un nombre de messages : le serveur (consume_message_quota) est la seule
+        // source de vérité. Côté client on se contente de refléter le statut renvoyé.
+        if (nextUsage) setPlansRequired(nextUsage.status === "past_due");
       });
   }, []);
 
@@ -1457,18 +1511,17 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
       setMessages((current) => [...current, data.message]);
       if (data.usage) {
         const nextUsage = {
-          free_used: data.usage.free_used,
-          free_limit: data.usage.free_limit,
           used: data.usage.used,
-          limit: data.usage.limit, trialActive: Boolean(data.usage.trial_active), status: data.usage.status, plan: data.usage.plan,
+          limit: data.usage.limit,
+          trialActive: Boolean(data.usage.trial_active),
+          status: data.usage.status,
+          plan: data.usage.plan,
         };
         setUsage(nextUsage);
-        setPlansRequired(nextUsage.trialActive ? nextUsage.free_used >= nextUsage.free_limit : nextUsage.status !== "active" || nextUsage.used >= nextUsage.limit);
+        setPlansRequired(nextUsage.status === "past_due");
 
         // Sync quota vers le parent (sidebar + page Abonnement)
         onUsageChange({
-          free_messages_used: nextUsage.free_used,
-          free_messages_limit: nextUsage.free_limit,
           messages_used_this_month: nextUsage.used,
           messages_limit: nextUsage.limit,
           plan: nextUsage.plan,
@@ -1481,7 +1534,7 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
         setPlansRequired(true);
         setMessages((current) => [
           ...current,
-          { role: "assistant", content: "Active un plan pour continuer à utiliser Vendeo AI." },
+          { role: "assistant", content: "Ton essai gratuit de 7 jours est terminé. Active ton abonnement pour continuer." },
         ]);
       } else {
         setMessages((current) => [...current, { role: "assistant", content: data.error ?? "Une erreur est survenue." }]);
@@ -1490,32 +1543,19 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
     setSending(false);
   }
 
-  const freeRemaining = usage ? Math.max(0, usage.free_limit - usage.free_used) : 3;
-
   return (
     <div className="app-card chat-card" style={{ maxWidth: 760 }}>
-      {usage && (plansRequired || usage.trialActive) && (
+      {usage && plansRequired && (
         <div className="trial-banner">
-          {plansRequired ? (
-            <>
-              <strong>Active un plan pour continuer.</strong>{" "}
-              <button
-                className="btn btn-dark"
-                onClick={onGoToSubscription}
-                style={{ fontSize: 10, padding: "7px 10px", marginLeft: 8 }}
-                type="button"
-              >
-                Voir les offres
-              </button>
-            </>
-          ) : usage.trialActive ? (
-            <>
-              <strong>
-                {freeRemaining} requête{freeRemaining > 1 ? "s" : ""} gratuite{freeRemaining > 1 ? "s" : ""}
-              </strong>
-              {' '}restante{freeRemaining > 1 ? "s" : ""}. Découvre Vendeo avant de choisir ton plan.
-            </>
-          ) : null}
+          <strong>Ton essai gratuit est terminé.</strong>{" "}
+          <button
+            className="btn btn-dark"
+            onClick={onGoToSubscription}
+            style={{ fontSize: 10, padding: "7px 10px", marginLeft: 8 }}
+            type="button"
+          >
+            Activer l’abonnement
+          </button>
         </div>
       )}
 
@@ -1523,7 +1563,7 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
         {messages.length === 0 && (
           <div className="empty-state">
             <b><Sparkles size={15} /> Vendeo</b>
-            <br />Tu as 3 requêtes gratuites pour découvrir ton analyste IA.
+            <br />Ton essai gratuit de 7 jours te donne un accès complet à ton analyste IA.
           </div>
         )}
         {messages.map((message, index) => {
@@ -1555,14 +1595,14 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
             disabled={plansRequired}
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder={plansRequired ? "Choisis un plan pour continuer" : "Pose ta question..."}
+            placeholder={plansRequired ? "Active ton abonnement pour continuer" : "Pose ta question..."}
           />
           <button
             className="btn btn-dark"
             disabled={sending || plansRequired}
             style={{ borderRadius: 6, fontSize: 11, padding: "9px 14px" }}
           >
-            {sending ? "…" : plansRequired ? "Plans" : "Envoyer"}
+            {sending ? "…" : plansRequired ? "Abonnement" : "Envoyer"}
           </button>
         </form>
       </div>
@@ -1696,6 +1736,8 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
 function SubscriptionView({ subscription, onBackToSettings }: { subscription: SubscriptionData | null; onBackToSettings?: () => void }) {
   const trial = subscription?.trial_active ?? true;
   const isActive = subscription?.status === "active" && !trial;
+  const trialEndsAt = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null;
+  const trialDaysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / 86400000)) : null;
 
   async function subscribe() {
     const response = await fetch("/api/subscription/checkout", {
@@ -1726,13 +1768,13 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
         <div>
           <span className="eyebrow">Ton abonnement</span>
           <h1>Un seul plan, tout inclus.</h1>
-          <p>Gère ton usage IA depuis un seul endroit.</p>
+          <p>{trial && trialDaysLeft !== null ? `Il te reste ${trialDaysLeft} jour${trialDaysLeft > 1 ? "s" : ""} d’essai gratuit.` : "Gère ton usage IA depuis un seul endroit."}</p>
         </div>
         {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
       </div>
       <div className="pricing-wrap" style={{ maxWidth: 400 }}>
         <article className="price-card pro">
-          <span className="eyebrow">{trial ? "Essai gratuit" : "Plan disponible"}</span>
+          <span className="eyebrow">{trial ? "Essai gratuit — 7 jours" : "Plan disponible"}</span>
           <h3>Vendeo</h3>
           <div className="price">2 000 XOF <small>/ mois</small></div>
           <ul>
