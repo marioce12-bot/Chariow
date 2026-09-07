@@ -47,12 +47,24 @@ export async function POST(request: Request) {
     .eq("user_id", user.id)
     .eq("is_active", true)
     .eq("platform", "chariow");
+
+  // Historique AVANT le message courant : on le récupère avant d'insérer le nouveau
+  // message pour être certain de sa position et pouvoir garantir que la conversation
+  // envoyée aux modèles se termine toujours par le tour "user" en cours, jamais par
+  // un tour "assistant"/"model" — Gemini rejette explicitement les requêtes qui se
+  // terminent par un tour "model" ("Requests ending with a model turn are not supported").
+  const { data: previousHistory } = await supabase
+    .from("messages")
+    .select("role, content")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
   const { data: quota, error: quotaError } = await supabase.rpc("consume_message_quota", { target_user_id: user.id });
   if (quotaError) return NextResponse.json({ error: quotaError.message }, { status: 500 });
-  if (!quota) return NextResponse.json({ error: "Tes 3 requêtes gratuites sont terminées. Choisis un plan pour continuer.", code: "PLANS_REQUIRED" }, { status: 429 });
+  if (!quota) return NextResponse.json({ error: "Ton essai gratuit est terminé. Active ton abonnement pour continuer.", code: "PLANS_REQUIRED" }, { status: 429 });
   const { error: insertError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "user", content: message });
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
-  const { data: history } = await supabase.from("messages").select("role, content").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20);
   let context = "Aucune boutique n'est encore connectée.";
 
   if (stores && stores.length > 0) {
@@ -110,7 +122,9 @@ export async function POST(request: Request) {
       ? `${context.slice(0, MAX_CONTEXT_CHARS)}\n[... contexte tronqué ...]`
       : context;
   let answer: string;
-  const reversedHistory = (history ?? []).reverse();
+  // previousHistory est trié du plus récent au plus ancien : on prend les N derniers
+  // messages AVANT le tour courant, puis on remet dans l'ordre chronologique.
+  const recentPreviousHistory = (previousHistory ?? []).slice(0, MAX_HISTORY_MESSAGES).reverse();
   const rawSystemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}`;
   const systemContent = rawSystemContent.length > MAX_SYSTEM_CONTENT_CHARS ? `${rawSystemContent.slice(0, MAX_SYSTEM_CONTENT_CHARS)}[...system tronqué...]` : rawSystemContent;
 
@@ -118,23 +132,26 @@ export async function POST(request: Request) {
   const shouldIncludeHistory = systemContent.length < 7_500;
 
   const safeHistory = shouldIncludeHistory
-    ? reversedHistory
-        .slice(0, MAX_HISTORY_MESSAGES)
-        .map((item) => {
-          const raw = typeof item.content === "string" ? item.content : "";
-          const content = raw.length > MAX_MESSAGE_CHARS ? `${raw.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : raw;
-          return { role: item.role as "user" | "assistant", content };
-        })
+    ? recentPreviousHistory.map((item) => {
+        const raw = typeof item.content === "string" ? item.content : "";
+        const content = raw.length > MAX_MESSAGE_CHARS ? `${raw.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : raw;
+        return { role: item.role as "user" | "assistant", content };
+      })
     : [];
 
+  // Le tour courant est toujours ajouté explicitement en dernier, avec le rôle "user" —
+  // ça garantit que la conversation envoyée aux modèles ne se termine jamais par un tour
+  // assistant, quel que soit le contenu de l'historique.
+  const currentTurn = { role: "user" as const, content: message.length > MAX_MESSAGE_CHARS ? `${message.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : message };
+
   try {
-    answer = await askImole([{ role: "system", content: systemContent }, ...safeHistory]);
+    answer = await askImole([{ role: "system", content: systemContent }, ...safeHistory, currentTurn]);
   } catch (imoleError) {
     console.error("Imole chat error", imoleError instanceof Error ? imoleError.message : imoleError);
     // Imole a un problème (panne, quota, timeout...) : on retente avec Gemini
     // (palier gratuit Google) avant d'abandonner et de renvoyer une erreur.
     try {
-      answer = await askGemini([{ role: "system", content: systemContent }, ...safeHistory]);
+      answer = await askGemini([{ role: "system", content: systemContent }, ...safeHistory, currentTurn]);
     } catch (geminiError) {
       console.error("Gemini fallback error", geminiError instanceof Error ? geminiError.message : geminiError);
       return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
@@ -143,5 +160,5 @@ export async function POST(request: Request) {
   answer = cleanAiText(answer);
   const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer }).select("id, role, content, created_at").single();
   if (assistantError) return NextResponse.json({ error: assistantError.message }, { status: 500 });
-  return NextResponse.json({ message: assistant, usage: { free_used: quota.free_messages_used, free_limit: quota.free_messages_limit, used: quota.messages_used_this_month, limit: quota.messages_limit, free_trial_available: quota.free_messages_used < quota.free_messages_limit } });
+  return NextResponse.json({ message: assistant, usage: { free_used: quota.free_messages_used, free_limit: quota.free_messages_limit, used: quota.messages_used_this_month, limit: quota.messages_limit, trial_active: quota.trial_active, trial_ends_at: quota.trial_ends_at, status: quota.status, plan: quota.plan } });
 }
