@@ -13,7 +13,7 @@ export const PLAN_CONFIG = {
   },
   starter: {
     label: "Starter",
-    amount: 5000,
+    amount: 2000,
     periodDays: 30,
     messagesLimit: 400,
     adPlatforms: ["facebook", "instagram", "tiktok", "whatsapp"] as const,
