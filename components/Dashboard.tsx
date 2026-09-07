@@ -10,6 +10,18 @@ import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 import { calculateProfitability, formatMoney, getProfitRecommendation, type ProfitabilityInputs, type ProfitabilityResult, type ProfitScenario } from "@/lib/profitability";
 import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
+import {
+  VerdictBanner,
+  ImpactFinancierCard,
+  LaunchAdBar,
+  CampaignCrossTable,
+  DiagnosticBoutique,
+  type VerdictBannerData,
+  type CampaignRow,
+  type CampaignVerdictBadge,
+  type DiagnosticCard,
+} from "@/components/vendeo";
+import { LaunchAdWizard } from "@/components/vendeo/wizard";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 const DASHBOARD_CACHE_KEY = "vendeo_dashboard_cache_v1";
@@ -368,6 +380,7 @@ export function Dashboard() {
               analytics={analytics}
               userFirstName={userFirstName}
               onGoToAI={() => setActive("Vendeo AI")}
+              onGoToStores={() => setActive("Mes boutiques")}
               selectedStoreId={selectedStoreId}
               onStoreChange={setSelectedStoreId}
             />
@@ -448,6 +461,7 @@ function Overview({
   analytics,
   userFirstName,
   onGoToAI,
+  onGoToStores,
   selectedStoreId,
   onStoreChange,
 }: {
@@ -456,6 +470,7 @@ function Overview({
   analytics: AnalyticsData;
   userFirstName: string;
   onGoToAI: () => void;
+  onGoToStores: () => void;
   selectedStoreId: string | null;
   onStoreChange: (storeId: string) => void;
 }) {
@@ -473,6 +488,7 @@ function Overview({
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   // Avant : on vérifiait juste si Meta était connecté, sans jamais récupérer
   // les performances. Résultat : la carte "Recommandations" restait vide en
@@ -528,6 +544,87 @@ function Overview({
 
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
 
+  // --- Refonte dashboard : verdict global, tableau croisé, diagnostic boutique ---
+  // Ces trois blocs réutilisent le même moteur de décision (getCampaignVerdict, plus
+  // bas dans ce fichier) que les pages "Pubs" et "Rapports", pour rester cohérents
+  // avec les verdicts déjà affichés ailleurs plutôt que d'inventer une seconde logique.
+  const withVerdict = performances.map((campaign) => ({ campaign, verdict: getCampaignVerdict(campaign, adsCurrency) }));
+
+  const verdictData: VerdictBannerData = (() => {
+    const stopEntries = withVerdict.filter((item) => item.verdict.tone === "stop");
+    if (stopEntries.length > 0) {
+      const worst = stopEntries.reduce((a, b) => (b.campaign.spend > a.campaign.spend ? b : a));
+      return { verdict: "stop", campaignName: worst.campaign.name, spend: worst.campaign.spend, activeCampaignsCount: stopEntries.length };
+    }
+    const scaleEntries = withVerdict.filter((item) => item.verdict.tone === "optimize" && (item.campaign.roas ?? 0) >= 1);
+    if (scaleEntries.length > 0) {
+      const best = scaleEntries.reduce((a, b) => (b.campaign.roas ?? 0) > (a.campaign.roas ?? 0) ? b : a);
+      const suggestedIncrease = Math.max(2000, Math.round((best.campaign.spend * 0.2) / 1000) * 1000);
+      return {
+        verdict: "scale",
+        bestCampaignName: best.campaign.name,
+        roas: best.campaign.roas ?? 0,
+        suggestedBudgetIncrease: suggestedIncrease,
+        estimatedExtraSales: Math.max(1, Math.round((best.campaign.conversions || 0) * 0.2)),
+      };
+    }
+    return { verdict: "stable", activeCampaignsCount: performances.length };
+  })();
+
+  const budgetEconomise = withVerdict.filter((item) => item.verdict.tone === "stop").reduce((sum, item) => sum + item.campaign.spend, 0);
+  const revenuAdditionnelEstime = Math.round(
+    withVerdict
+      .filter((item) => item.verdict.tone === "optimize")
+      .reduce((sum, item) => sum + item.campaign.spend * 0.2 * (item.campaign.roas ?? 1), 0)
+  );
+
+  // Pas encore d'attribution campagne → produit branchée ici (cf. lib/attribution) :
+  // on affiche donc le nom de campagne et les métriques réelles, sans inventer un
+  // produit ou une audience que Vendeo ne connaît pas encore pour cette campagne.
+  const campaignRows: CampaignRow[] = performances.map((campaign) => {
+    const verdict = getCampaignVerdict(campaign, adsCurrency);
+    const badge: CampaignVerdictBadge = verdict.tone === "stop" ? "stop" : verdict.tone === "optimize" ? "scale" : "test";
+    return {
+      id: campaign.id,
+      campaignName: campaign.name,
+      productName: "",
+      audienceTags: [],
+      network: "meta",
+      spend: campaign.spend,
+      realSales: campaign.conversions,
+      realRevenue: campaign.roas !== null ? Math.round(campaign.spend * campaign.roas) : 0,
+      verdict: badge,
+      recommendedAction: verdict.action,
+    };
+  });
+
+  // Diagnostic boutique : s'appuie sur les ventes déjà confirmées par Chariow pour ce
+  // produit (mêmes données que "Produits les plus performants" ci-dessous). On reste
+  // volontairement prudent — pas de calcul d'abandon de panier ici, contrairement au
+  // moteur complet de lib/pricing.ts — donc le texte évite d'affirmer "sans abandon".
+  const topProduct = productsRanked[0];
+  const diagnosticCards: DiagnosticCard[] =
+    topProduct && (topProduct.sales ?? 0) >= 2
+      ? [
+          {
+            id: `price-${topProduct.name}`,
+            type: "price_up",
+            title: "Ajustement de prix",
+            description: `« ${topProduct.name} » a déjà ${topProduct.sales} vente${(topProduct.sales ?? 0) > 1 ? "s" : ""} confirmée${(topProduct.sales ?? 0) > 1 ? "s" : ""} sur Chariow. Demande à Vendeo AI si une légère hausse de prix est jouable sans perdre de volume.`,
+            actionLabel: "Demander à Vendeo AI",
+            onAction: () => openAI(`Le produit "${topProduct.name}" a ${topProduct.sales} ventes confirmées. Est-ce que je peux augmenter son prix sans perdre de volume ?`),
+          },
+        ]
+      : [];
+
+  function launchAd() {
+    if (!store?.id) {
+      onGoToStores();
+      return;
+    }
+    setWizardOpen(true);
+  }
+
   return (
     <div className="dashboard-home">
       <div className="home-greeting"><h1>Bonjour, {greeting}</h1><p>Voici la performance de tes publicités et de ta boutique.</p></div>
@@ -560,6 +657,16 @@ function Overview({
         </div>
       </div>
 
+      <LaunchAdBar onLaunch={launchAd} />
+
+      <VerdictBanner
+        data={verdictData}
+        onPrimaryAction={() => openAI("Analyse mes campagnes et dis-moi précisément quoi arrêter ou scaler en priorité.")}
+        onSecondaryAction={() => openAI("Explique-moi pourquoi ce verdict et ce que je risque si je ne fais rien.")}
+      />
+
+      <ImpactFinancierCard data={{ budgetEconomise, revenuAdditionnelEstime }} />
+
       <section className="home-ai-state app-card"><div><span className="eyebrow">Analyse IA</span><h2>État de votre activité</h2><p>{statusText}</p></div><Brain size={24} /></section>
 
       <section className="home-kpis">
@@ -588,6 +695,10 @@ function Overview({
           </section>
         </div>
       </div>
+
+      {performances.length > 0 ? <CampaignCrossTable rows={campaignRows} /> : null}
+
+      {diagnosticCards.length > 0 ? <DiagnosticBoutique cards={diagnosticCards} /> : null}
 
       <section className="app-card product-perf-section">
         <div className="card-head"><h2>Produits les plus performants</h2></div>
@@ -619,6 +730,18 @@ function Overview({
         <div className="card-head"><div><span className="eyebrow">Chariow</span><h2>Activité récente</h2><p>Les derniers événements remontés par ta boutique.</p></div><Activity size={19} /></div>
         {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu’ils seront synchronisés." />}
       </section>
+
+      {wizardOpen && store?.id ? (
+        <LaunchAdWizard
+          storeId={store.id}
+          onClose={() => setWizardOpen(false)}
+          onLaunched={() => {
+            // Rafraîchit les performances Meta pour refléter la nouvelle campagne
+            // dans le tableau de croisement et le verdict global.
+            void refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
