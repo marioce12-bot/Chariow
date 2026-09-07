@@ -73,20 +73,24 @@ export function VerdictBanner({ data, onPrimaryAction, onSecondaryAction }: Verd
   }
 
   // stable
+  const activeCount = data.activeCampaignsCount ?? 0;
+  const noActiveCampaigns = activeCount === 0;
+
   return (
     <div className="flex items-start gap-4 rounded-2xl border-l-4 border-[#6366F1] bg-[#EEF2FF] p-5">
       <Lightbulb className="mt-0.5 h-8 w-8 shrink-0 text-[#6366F1]" strokeWidth={2.2} />
       <div className="flex-1">
         <h3 className="text-lg font-bold text-[#3730A3]">
-          💡 Tes publicités tournent normalement
+          {noActiveCampaigns ? "💡 Aucune publicité en cours" : "💡 Tes publicités tournent normalement"}
         </h3>
         <p className="mt-1 text-sm text-[#3730A3]/90">
-          Aucune perte critique détectée. Tes {data.activeCampaignsCount ?? 0} campagnes actives
-          sont rentables.
+          {noActiveCampaigns
+            ? "Tu n'as aucune campagne active pour le moment. Lance une pub pour commencer à suivre sa rentabilité ici."
+            : `Aucune perte critique détectée. Tes ${activeCount} campagnes actives sont rentables.`}
         </p>
         <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#4338CA]">
           <CheckCircle2 className="h-4 w-4" />
-          Tout est sous contrôle
+          {noActiveCampaigns ? "Rien à surveiller pour l'instant" : "Tout est sous contrôle"}
         </div>
       </div>
     </div>
