@@ -10,6 +10,7 @@ export interface ChariowProductLite {
   price: number | string | null;
   currency: string | null;
   image: string | null;
+  url?: string | null;
 }
 
 export interface WizardState {
