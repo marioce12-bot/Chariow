@@ -54,6 +54,39 @@ function formattedZero(currency: unknown): string {
   return `0 ${text(currency) ?? "XOF"}`;
 }
 
+function firstNumeric(...candidates: unknown[]): number | string | null {
+  for (const candidate of candidates) {
+    if (typeof candidate === "number" && Number.isFinite(candidate)) return candidate;
+    if (typeof candidate === "string" && candidate.trim()) {
+      // Certaines API renvoient un prix déjà formaté avec la devise, ex. "8 $US"
+      // ou "12 500 XOF" : on extrait la partie numérique plutôt que d'abandonner.
+      const cleaned = candidate.replace(/[^\d.,-]/g, "").replace(/\s/g, "");
+      if (cleaned && Number.isFinite(Number(cleaned.replace(",", ".")))) return Number(cleaned.replace(",", "."));
+      if (Number.isFinite(Number(candidate))) return candidate;
+    }
+  }
+  return null;
+}
+
+function firstText(...candidates: unknown[]): string | null {
+  for (const candidate of candidates) {
+    const value = text(candidate);
+    if (value) return value;
+  }
+  return null;
+}
+
+// Construit un lien produit à partir d'une boutique + d'un slug quand l'API ne
+// renvoie pas d'URL complète toute faite (seulement un identifiant/slug produit).
+function buildProductUrl(store: Record<string, unknown>, product: Record<string, unknown>): string | null {
+  const slug = firstText(product.slug, product.handle, product.reference);
+  if (!slug) return null;
+  const storeDomain = firstText(store.domain, store.subdomain, store.slug, store.store_slug, store.url, store.storefront_url);
+  if (!storeDomain) return null;
+  const host = storeDomain.includes(".") ? storeDomain.replace(/^https?:\/\//, "") : `${storeDomain}.mychariow.com`;
+  return `https://${host.replace(/\/$/, "")}/${slug.replace(/^\//, "")}`;
+}
+
 export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period: { from: string; to: string }): ChariowNormalizedSnapshot {
   const store = asRecord(snapshot.store);
   const storeAnalytics = asRecord(snapshot.storeAnalytics);
@@ -64,18 +97,57 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
   const customers = asRecord(storeAnalytics.customers ?? salesAnalytics.customers);
   const analyticsProducts = asRecord(storeAnalytics.products ?? salesAnalytics.products);
   const productRows = firstArray(snapshot.products);
+  let loggedUnresolvedFields = false;
   const products: ChariowProduct[] = productRows.map((item, index) => {
     const product = asRecord(item);
     const price = asRecord(product.price);
+    const resolvedPrice = firstNumeric(
+      product.price,
+      price.value,
+      price.amount,
+      price.price,
+      product.selling_price,
+      product.unit_price,
+      product.amount,
+      product.cost,
+      product.formatted_price,
+      product.price_formatted
+    );
+    const resolvedUrl = firstText(
+      product.url,
+      product.product_url,
+      product.public_url,
+      product.storefront_url,
+      product.store_url,
+      product.page_url,
+      product.short_url,
+      product.permalink,
+      product.share_url,
+      product.landing_url,
+      product.checkout_url,
+      product.sales_url,
+      product.link
+    ) ?? buildProductUrl(store, product);
+
+    // Diagnostic ponctuel : si on n'arrive toujours pas à lire le prix ou le lien
+    // sur les deux premiers produits, on log les clés brutes renvoyées par
+    // Chariow (jamais les valeurs, pour éviter de fuiter des données client) —
+    // ça permet de repérer le vrai nom de champ dans les logs serveur au
+    // prochain sync plutôt que de deviner à l'aveugle.
+    if (!loggedUnresolvedFields && index < 2 && (resolvedPrice === null || !resolvedUrl)) {
+      console.warn("[chariow] champ prix/lien non résolu pour un produit — clés disponibles:", Object.keys(product), "clés price:", Object.keys(price));
+      loggedUnresolvedFields = true;
+    }
+
     return {
       id: String(product.id ?? product.uuid ?? index),
       name: text(product.name ?? product.title) ?? "Produit sans nom",
       description: text(product.description),
-      price: numberValue(product.price) ?? numberValue(price.amount),
-      currency: text(product.currency ?? price.currency),
+      price: resolvedPrice,
+      currency: firstText(product.currency, price.currency, price.currency_code, product.currency_code, store.currency),
       status: text(product.status ?? product.state),
-       image: text(product.image ?? product.image_url ?? product.thumbnail),
-       url: text(product.url ?? product.product_url ?? product.checkout_url ?? product.sales_url ?? product.link ?? product.slug),
+      image: text(product.image ?? product.image_url ?? product.thumbnail),
+      url: resolvedUrl,
       createdAt: text(product.created_at ?? product.createdAt),
       sales: typeof product.sales === "number" ? product.sales : null,
     };
