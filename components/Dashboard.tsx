@@ -5,12 +5,12 @@ import Image from "next/image";
 import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2 } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { cleanAiText } from "@/lib/ai/format";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 import { calculateProfitability, formatMoney, getProfitRecommendation, type ProfitabilityInputs, type ProfitabilityResult, type ProfitScenario } from "@/lib/profitability";
 import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
-import { AttributionPanel } from "@/components/AttributionPanel";
+import { getPricingOpportunities, type PricingOpportunity } from "@/lib/pricing";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 const DASHBOARD_CACHE_KEY = "vendeo_dashboard_cache_v1";
@@ -126,6 +126,14 @@ export function Dashboard() {
   const [userName, setUserName] = useState("créateur");
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
 
+  // --- Signal publicitaire partagé entre Vue d'ensemble, Pubs et Rapports -----
+  // Une seule source de vérité pour la performance Meta Ads : on récupère le
+  // premier compte connecté et ses métriques une fois ici, puis on distribue le
+  // même jeu de données aux trois écrans pour qu'ils racontent la même histoire
+  // (résumé sur l'Overview, détail avec historique dans Rapports, action dans Pubs).
+  const [metaAccountsForDecision, setMetaAccountsForDecision] = useState<Array<{ id: string; name: string | null; currency: string }>>([]);
+  const [metaPerformanceForDecision, setMetaPerformanceForDecision] = useState<MetaPerformance | null>(null);
+
   const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
   const freeUsed = subscription?.free_messages_used ?? 0;
   const freeLimit = subscription?.free_messages_limit ?? 3;
@@ -133,6 +141,13 @@ export function Dashboard() {
   const limit = subscription?.messages_limit ?? 400;
   const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
   const remainingAiThisMonth = isActivePlan ? Math.max(0, limit - used) : Math.max(0, freeLimit - freeUsed);
+
+  // Opportunités de prix calculées une seule fois à partir des données Chariow
+  // (catalogue + historique des ventes), puis partagées entre les trois écrans.
+  const pricingOpportunities = useMemo(
+    () => getPricingOpportunities(analytics?.products ?? [], analytics?.sales ?? []),
+    [analytics]
+  );
 
   const links = [
     ["Vue d’ensemble", LayoutDashboard],
@@ -223,6 +238,33 @@ export function Dashboard() {
     })();
   }, [selectedStoreId]);
 
+  // Charge une seule fois la performance Meta Ads (compte + insights) pour
+  // alimenter le résumé de la Vue d'ensemble et le détail des Rapports. La page
+  // Pubs continue de gérer sa propre synchronisation détaillée (Meta + TikTok).
+  useEffect(() => {
+    let cancelled = false;
+    async function loadMetaDecisionData() {
+      try {
+        const accountsResponse = await fetch("/api/integrations/meta/accounts");
+        const accountsData = accountsResponse.ok ? await accountsResponse.json() : { accounts: [] };
+        const accounts = accountsData.accounts ?? [];
+        if (cancelled) return;
+        setMetaAccountsForDecision(accounts);
+        if (accounts[0]) {
+          const perfResponse = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accounts[0].id)}`);
+          if (cancelled) return;
+          setMetaPerformanceForDecision(perfResponse.ok ? await perfResponse.json() : null);
+        } else {
+          setMetaPerformanceForDecision(null);
+        }
+      } catch {
+        if (!cancelled) setMetaPerformanceForDecision(null);
+      }
+    }
+    void loadMetaDecisionData();
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -305,15 +347,15 @@ export function Dashboard() {
               }
             />
           ) : active === "Assistant de profit" ? (
-            <ProfitAssistant analytics={analytics} />
+            <ProfitAssistant analytics={analytics} pricingOpportunities={pricingOpportunities} />
           ) : active === "Pubs" ? (
-             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} />
+             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} pricingOpportunities={pricingOpportunities} />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Abonnement" ? (
             <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Rapports" ? (
-            <Reports stores={stores} analytics={analytics} />
+            <Reports stores={stores} analytics={analytics} metaPerformance={metaPerformanceForDecision} pricingOpportunities={pricingOpportunities} />
           ) : (
             <Overview
               stores={stores}
@@ -321,9 +363,13 @@ export function Dashboard() {
               analytics={analytics}
               userFirstName={userFirstName}
               onGoToAI={() => setActive("Vendeo AI")}
-              onGoToAds={() => setActive("Pubs")}
+              onGoToPubs={() => setActive("Pubs")}
+              onGoToProfit={() => setActive("Assistant de profit")}
               selectedStoreId={selectedStoreId}
               onStoreChange={setSelectedStoreId}
+              metaConnected={metaAccountsForDecision.length > 0}
+              metaPerformance={metaPerformanceForDecision}
+              pricingOpportunities={pricingOpportunities}
             />
           )}
          </section>
@@ -400,18 +446,26 @@ function Overview({
   analytics,
   userFirstName,
   onGoToAI,
-  onGoToAds,
+  onGoToPubs,
+  onGoToProfit,
   selectedStoreId,
   onStoreChange,
+  metaConnected,
+  metaPerformance,
+  pricingOpportunities,
 }: {
   stores: StoreData[];
   subscription: SubscriptionData | null;
   analytics: AnalyticsData;
   userFirstName: string;
   onGoToAI: () => void;
-  onGoToAds: () => void;
+  onGoToPubs: () => void;
+  onGoToProfit: () => void;
   selectedStoreId: string | null;
   onStoreChange: (storeId: string) => void;
+  metaConnected: boolean;
+  metaPerformance: MetaPerformance | null;
+  pricingOpportunities: PricingOpportunity[];
 }) {
   const greeting = (userFirstName || "créateur").trim().split(/\s+/)[0] || "créateur";
   const store = stores[0];
@@ -422,155 +476,46 @@ function Overview({
   const currency = products[0]?.currency ?? "XOF";
   const format = (value: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value) + ` ${currency}`;
   const [period, setPeriod] = useState("30 derniers jours");
-  const [refreshing, setRefreshing] = useState(false);
-  const [metaConnected, setMetaConnected] = useState(false);
-  const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
   const [costsConfigured] = useState(false);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-
-  // Avant : on vérifiait juste si Meta était connecté, sans jamais récupérer
-  // les performances. Résultat : la carte "Recommandations" restait vide en
-  // permanence sur la Vue d'ensemble. On récupère maintenant les vraies données.
-  const refresh = async () => {
-    setRefreshing(true);
-    try {
-      const accountsResponse = await fetch("/api/integrations/meta/accounts");
-      const accountsData = accountsResponse.ok ? await accountsResponse.json() : { accounts: [] };
-      const accounts = accountsData.accounts ?? [];
-      setMetaConnected(accounts.length > 0);
-      if (accounts[0]) {
-        const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accounts[0].id)}`);
-        if (metrics.ok) setMetaPerformance(await metrics.json());
-      } else {
-        setMetaPerformance(null);
-      }
-    } finally {
-      setRefreshing(false);
-    }
-  };
-  useEffect(() => { void refresh(); }, []);
-
   const spend = metaPerformance?.overview.spend ?? 0;
-  const roas = metaPerformance?.overview.realRoas ?? metaPerformance?.overview.metaRoas ?? null;
-  const performances = metaPerformance?.performances ?? [];
-  const adsCurrency = metaPerformance?.currency ?? currency;
-
-  const statusText = !connected
-    ? "Connecte ta boutique Chariow pour commencer l’analyse."
-    : !metaConnected
-    ? "Ta boutique est connectée. Connecte Meta Ads pour relier tes dépenses à tes ventes."
-    : sales === 0 && spend > 0
-    ? "Les dépenses Meta ne produisent pas encore de vente confirmée."
-    : sales === 0
-    ? "Aucune vente confirmée sur la période. Commence par observer ton trafic et tes campagnes."
-    : "Ton activité est suivie. Voici ce que Vendeo recommande de faire maintenant.";
-
-  const productsRanked = [...products].sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0));
-  const productsSummary = productsRanked.slice(0, 3).map((product, index) => {
-    const productSales = product.sales ?? 0;
-    const state = productSales === 0
-      ? { label: "À arrêter", tone: "stop" as const }
-      : index === 0
-      ? { label: "Meilleure performance", tone: "optimize" as const }
-      : { label: "À optimiser", tone: "watch" as const };
-    return { name: product.name, sales: productSales, revenue: productSales ? Number(product.price ?? 0) * productSales : 0, image: product.image, state };
-  });
-
-  const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
-
-  return (
-    <div className="dashboard-home">
-      <div className="home-greeting"><h1>Bonjour, {greeting}</h1><p>Voici la performance de tes publicités et de ta boutique.</p></div>
-
-      <div className="home-header">
-        <div className="home-context"><span className="eyebrow">Vue d’ensemble</span><p>Une lecture claire de tes ventes, campagnes et prochaines décisions.</p></div>
-        <div className="home-controls">
-          <label className="home-store-selector">
-            <span>Boutique analysée</span>
-            <select aria-label="Boutique analysée" value={selectedStoreId ?? ""} disabled={!stores.length} onChange={(event) => onStoreChange(event.target.value)}>
-              {!stores.length && <option value="">Aucune boutique</option>}
-              {stores.map((item) => <option key={item.id} value={item.id}>{item.store_name}</option>)}
-            </select>
-          </label>
-          <div className="home-statuses">
-            <span className={connected ? "status-positive" : "status-warning"}>{connected ? "Chariow connectée" : "Chariow non connectée"}</span>
-            <span className={metaConnected ? "status-positive" : "status-info"}>{metaConnected ? "Meta Ads connectée" : "Meta Ads non connectée"}</span>
-          </div>
-          <div className="home-period">
-            <span>Période</span>
-            <select aria-label="Période" value={period} onChange={(event) => setPeriod(event.target.value)}>
-              <option>Aujourd’hui</option><option>Hier</option><option>7 derniers jours</option><option>30 derniers jours</option><option>Ce mois-ci</option><option>Mois dernier</option><option>Personnalisé</option>
-            </select>
-          </div>
-          {period === "Personnalisé" ? <>
-            <input aria-label="Date de début" type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} />
-            <input aria-label="Date de fin" type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} />
-          </> : null}
-          <button className="btn btn-ghost" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "Actualisation…" : "Actualiser"}</button>
-        </div>
-      </div>
-
-      <section className="home-ai-state app-card"><div><span className="eyebrow">Analyse IA</span><h2>État de votre activité</h2><p>{statusText}</p></div><Brain size={24} /></section>
-
-      <section className="home-kpis">
-        <HomeKpi label="Chiffre d’affaires" value={connected ? format(revenue) : "Non disponible"} tone={revenue > 0 ? "positive" : "neutral"} help="Revenu commercial remonté par Chariow." />
-        <HomeKpi label="Dépenses pub" value={metaConnected ? format(spend) : "Non disponible"} tone="info" help="Dépenses synchronisées depuis Meta Insights." />
-        <HomeKpi label="Ventes" value={connected ? String(sales) : "Non disponible"} tone={sales > 0 ? "positive" : "neutral"} help="Paiements confirmés par Chariow." />
-        <HomeKpi label="ROAS (réel)" value={roas === null ? "Non disponible" : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help="Revenu Chariow attribué divisé par les dépenses publicitaires." />
-        <HomeKpi label="Profit estimé" value={costsConfigured ? format(revenue - spend) : "Profit à configurer"} tone={costsConfigured ? "positive" : "warning"} help="Disponible après configuration des coûts produits." action={!costsConfigured ? () => window.dispatchEvent(new CustomEvent("vendeo:navigate", { detail: "Assistant de profit" })) : undefined} />
-      </section>
-
-      <div className="home-primary-grid">
-        <div className="app-card reco-card-wrapper">
-          <div className="reco-card-head-row">
-            <div><span className="eyebrow">Recommandations Vendeo</span><h2 style={{ margin: "4px 0 0", fontSize: 17 }}>Que faire maintenant ?</h2></div>
-            <button type="button" className="link-btn" onClick={onGoToAds}>Voir toutes <ArrowRight size={13} /></button>
-          </div>
-          <AdsDecisionSummary performances={performances} currency={adsCurrency} onOpenAI={openAI} compact />
-        </div>
-        <div className="home-side-stack">
-          <AdsSavingsSummary performances={performances} currency={adsCurrency} />
-          <section className="app-card vendeo-ai-cta">
-            <span className="eyebrow">Vendeo AI</span>
-            <p>Posez vos questions, obtenez une analyse claire et des actions concrètes.</p>
-            <button type="button" className="btn btn-dark" onClick={() => openAI("Analyse mes campagnes et mes produits, et dis-moi précisément quoi arrêter, optimiser ou scaler.")}>
-              Discuter avec Vendeo AI <ArrowRight size={14} />
-            </button>
-          </section>
-        </div>
-      </div>
-
-      <section className="app-card product-perf-section">
-        <div className="card-head"><h2>Produits les plus performants</h2><button type="button" className="link-btn" onClick={onGoToAds}>Voir tous <ArrowRight size={13} /></button></div>
-        {productsSummary.length ? (
-          <div className="product-perf-grid">
-            {productsSummary.map((product) => (
-              <div className="product-perf-card" key={product.name}>
-                <div className="product-perf-image">{product.image ? <img src={product.image} alt="" /> : <Package size={20} />}</div>
-                <strong className="product-perf-name">{product.name}</strong>
-                <span className={`product-perf-badge product-perf-badge-${product.state.tone}`}>{product.state.label}</span>
-                <div className="product-perf-stats">
-                  <div><small>Ventes</small><strong>{product.sales}</strong></div>
-                  <div><small>CA</small><strong>{format(product.revenue)}</strong></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState title="Aucun produit avec des ventes" text="Les produits apparaîtront ici une fois des ventes confirmées." />}
-      </section>
-
-      <section className="home-chart app-card">
-        <div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Évolution du chiffre d’affaires et des dépenses</h2><p>Compare les résultats commerciaux aux dépenses publicitaires.</p></div><LineChart size={19} /></div>
-        {!connected && !metaConnected ? <EmptyState title="Données indisponibles" text="Connecte Chariow et Meta Ads pour afficher l’évolution." /> : <RealTrendChart sales={analytics?.sales ?? []} spend={spend} currency={currency} />}
-      </section>
-
-      <section className="home-activity app-card">
-        <div className="card-head"><div><span className="eyebrow">Chariow</span><h2>Activité récente</h2><p>Les derniers événements remontés par ta boutique.</p></div><Activity size={19} /></div>
-        {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu’ils seront synchronisés." />}
-      </section>
-    </div>
+  const roas = metaPerformance?.overview.metaRoas ?? null;
+  // Le même moteur de verdict que la page Pubs (arrêter / optimiser / surveiller)
+  // alimente ici le signal résumé visible en un coup d'œil sur la Vue d'ensemble.
+  const adSummary = useMemo(
+    () => summarizeAdVerdicts(metaPerformance?.performances ?? [], metaPerformance?.currency ?? currency),
+    [metaPerformance, currency]
   );
+  const topPricingOpportunity = pricingOpportunities[0] ?? null;
+  const statusText = !connected ? "Connecte ta boutique Chariow pour commencer l’analyse." : !metaConnected ? "Ta boutique est connectée. Connecte Meta Ads pour relier tes dépenses à tes ventes." : sales === 0 && spend > 0 ? "Les dépenses Meta ne produisent pas encore de vente confirmée." : sales === 0 ? "Aucune vente confirmée sur la période. Commence par observer ton trafic et tes campagnes." : "Ton activité est suivie. Analyse les campagnes et les produits qui contribuent le plus à tes ventes.";
+  const productsSummary = products.slice(0, 5).map((product) => ({ name: product.name, sales: product.sales ?? 0, revenue: product.sales ? Number(product.price ?? 0) * product.sales : 0, state: product.sales ? "Performant" : "À surveiller" }));
+  const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
+  return <div className="dashboard-home">
+    <div className="home-greeting"><h1>Bonjour, {greeting}</h1></div>
+    <div className="home-header"><div className="home-context"><span className="eyebrow">Vue d’ensemble</span><p>Une lecture claire de tes ventes, campagnes et prochaines décisions.</p></div><div className="home-controls"><label className="home-store-selector"><span>Boutique analysée</span><select aria-label="Boutique analysée" value={selectedStoreId ?? ""} disabled={!stores.length} onChange={(event) => onStoreChange(event.target.value)}>{!stores.length && <option value="">Aucune boutique</option>}{stores.map((item) => <option key={item.id} value={item.id}>{item.store_name}</option>)}</select></label><div className="home-statuses"><span className={connected ? "status-positive" : "status-warning"}>{connected ? "Chariow connectée" : "Chariow non connectée"}</span><span className={metaConnected ? "status-positive" : "status-info"}>{metaConnected ? "Meta Ads connectée" : "Meta Ads non connectée"}</span></div><span className="sync-label">Dernière synchronisation : à vérifier</span><div className="home-period"><span>Période</span><select aria-label="Période" value={period} onChange={(event) => setPeriod(event.target.value)}><option>Aujourd’hui</option><option>Hier</option><option>7 derniers jours</option><option>30 derniers jours</option><option>Ce mois-ci</option><option>Mois dernier</option><option>Personnalisé</option></select></div>{period === "Personnalisé" ? <><input aria-label="Date de début" type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} /><input aria-label="Date de fin" type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} /></> : null}</div></div>
+    <section className="home-ai-state app-card"><div><span className="eyebrow">Analyse IA</span><h2>État de votre activité</h2><p>{statusText}</p></div><Brain size={24} /></section>
+    <section className="home-decision app-card">
+      <div className="card-head"><div><span className="eyebrow">Décision Vendeo</span><h2>Pubs et prix — ce qui compte cette semaine</h2><p>Le signal résumé. Le détail chiffré est dans Rapports, l’action dans Pubs.</p></div><Target size={19} color="#34684d" /></div>
+      {!metaConnected ? <p className="profit-help">Connecte Meta Ads pour recevoir un premier verdict sur tes campagnes.</p> : (
+        <div className="vendeo-kpi-grid" style={{ marginTop: 12 }}>
+          <div className="vendeo-kpi"><span className="metric-label">🛑 Pubs à arrêter</span><strong>{adSummary.stop.length}</strong></div>
+          <div className="vendeo-kpi"><span className="metric-label">✅ Pubs à optimiser</span><strong>{adSummary.optimize.length}</strong></div>
+          <div className="vendeo-kpi"><span className="metric-label">💰 Opportunités de prix</span><strong>{pricingOpportunities.length}</strong></div>
+        </div>
+      )}
+      {adSummary.highlighted[0] ? <div className="signal-list" style={{ marginTop: 14 }}><div className={`signal-item ${adSummary.highlighted[0].verdict.tone === "stop" ? "warning" : adSummary.highlighted[0].verdict.tone === "optimize" ? "positive" : "neutral"}`}><span>{adSummary.highlighted[0].verdict.emoji}</span><div><strong>{adSummary.highlighted[0].campaign.name} — {adSummary.highlighted[0].verdict.label}</strong><p>{adSummary.highlighted[0].verdict.recommendation}</p></div></div></div> : null}
+      {topPricingOpportunity ? <div className="signal-list" style={{ marginTop: 8 }}><div className="signal-item positive"><span>💰</span><div><strong>Prix — {topPricingOpportunity.productName}</strong><p>{topPricingOpportunity.reasoning} Teste {formatMoney(topPricingOpportunity.suggestedPrice, topPricingOpportunity.currency)} au lieu de {formatMoney(topPricingOpportunity.currentPrice, topPricingOpportunity.currency)} (+{topPricingOpportunity.suggestedIncreasePercent.toFixed(0)} %) : environ {formatMoney(topPricingOpportunity.projectedExtraRevenue, topPricingOpportunity.currency)} de marge supplémentaire estimée sur les ventes déjà observées.</p></div></div></div> : null}
+      <div className="signal-meta" style={{ marginTop: 14, display: "flex", gap: 10 }}>
+        <button className="btn btn-ghost" type="button" onClick={onGoToPubs}>Voir le détail dans Pubs</button>
+        <button className="btn btn-ghost" type="button" onClick={onGoToProfit}>Configurer le calcul de profit</button>
+      </div>
+    </section>
+    <section className="home-kpis"><HomeKpi label="Chiffre d’affaires Chariow" value={connected ? format(revenue) : "Non disponible"} tone={revenue > 0 ? "positive" : "neutral"} help="Revenu commercial remonté par Chariow." /><HomeKpi label="Ventes confirmées Chariow" value={connected ? String(sales) : "Non disponible"} tone={sales > 0 ? "positive" : "neutral"} help="Paiements confirmés par Chariow." /><HomeKpi label="Dépenses Meta Ads" value={metaConnected ? format(spend) : "Non disponible"} tone="info" help="Dépenses synchronisées depuis Meta Insights." /><HomeKpi label="Profit estimé" value={costsConfigured ? format(revenue - spend) : "Profit à configurer"} tone={costsConfigured ? "positive" : "warning"} help="Disponible après configuration des coûts produits." action={!costsConfigured ? onGoToProfit : undefined} /><HomeKpi label="ROAS Meta rapporté" value={roas === null ? "Non disponible" : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help="Valeur d’achat rapportée par Meta divisée par les dépenses Meta." /></section>
+     <div className="home-primary-grid"><section className="home-chart app-card"><div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Évolution du chiffre d’affaires et des dépenses</h2><p>Compare les résultats commerciaux aux dépenses publicitaires.</p></div><LineChart size={19} /></div>{!connected && !metaConnected ? <EmptyState title="Données indisponibles" text="Connecte Chariow et Meta Ads pour afficher l’évolution." /> : <RealTrendChart sales={analytics?.sales ?? []} spend={spend} currency={currency} />}</section><section className="home-actions app-card"><div className="card-head"><div><span className="eyebrow">Décision</span><h2>À faire maintenant</h2><p>Les deux actions les plus utiles pour avancer.</p></div><Target size={19} /></div><div className="action-list"><ActionItem title={!metaConnected ? "Connecter Meta Ads" : spend > 0 && sales === 0 ? "Surveiller les dépenses sans vente" : "Analyser les campagnes performantes"} proof={!metaConnected ? "Les dépenses publicitaires ne sont pas encore disponibles." : `${format(spend)} dépensés pour ${sales} vente(s) confirmée(s).`} action={!metaConnected ? "Pubs" : "Pubs"} onClick={() => openAI("Analyse mes priorités publicitaires à partir des données disponibles.")} /><ActionItem title={!connected ? "Connecter Chariow" : sales === 0 ? "Vérifier la conversion de la boutique" : "Identifier le produit moteur"} proof={connected ? `${sales} vente(s) confirmée(s) sur la période.` : "Aucune donnée Chariow disponible."} action="Boutiques Chariow" onClick={() => openAI("Analyse ce qui fonctionne et ce qui bloque ma conversion.")} /></div></section></div>
+     <div className="home-tables"><SummaryTable title="Produits les plus performants" columns={["Produit", "Ventes", "CA", "État"]} rows={productsSummary.map((product) => [product.name, product.sales, format(product.revenue), product.state])} empty="Aucune vente produit disponible." /><SummaryTable title="Campagnes Meta Ads" columns={["Campagne", "Dépenses", "Clics", "ROAS Meta rapporté", "État"]} rows={(metaPerformance?.performances ?? []).slice(0, 5).map((campaign) => [campaign.name, format(campaign.spend), campaign.clicks, campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`, campaign.status])} empty={metaConnected ? "Aucune campagne avec données sur la période." : "Meta Ads non connectée."} /></div>
+     <section className="home-activity app-card"><div className="card-head"><div><span className="eyebrow">Chariow</span><h2>Activité récente</h2><p>Les derniers événements remontés par ta boutique.</p></div><Activity size={19} /></div>{analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu’ils seront synchronisés." />}</section>
+  </div>;
 }
 
 function HomeKpi({ label, value, help, tone, action }: { label: string; value: string; help: string; tone: string; action?: () => void }) { return <div className={`home-kpi ${tone}`}><small>{label}</small><strong>{value}</strong><span>{help}</span>{action ? <button className="btn btn-ghost" onClick={action}>Configurer</button> : null}</div>; }
@@ -727,40 +672,14 @@ function ProductCatalog({ products, onPromote }: { products: ProductData[]; onPr
   );
 }
 
-function Reports({ stores, analytics }: { stores: StoreData[]; analytics: AnalyticsData }) {
+function Reports({ stores, analytics, metaPerformance, pricingOpportunities }: { stores: StoreData[]; analytics: AnalyticsData; metaPerformance: MetaPerformance | null; pricingOpportunities: PricingOpportunity[] }) {
   const [from, setFrom] = useState(analytics?.kpis.period.from ?? "");
   const [to, setTo] = useState(analytics?.kpis.period.to ?? "");
-  const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
-  const [loadingAds, setLoadingAds] = useState(true);
   const kpis = analytics?.kpis;
   const period = from && to ? `${formatReportDate(from)} – ${formatReportDate(to)}` : "Période sélectionnée";
-  const currency = analytics?.products?.[0]?.currency ?? "XOF";
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const accountsResponse = await fetch("/api/integrations/meta/accounts");
-        const accountsData = accountsResponse.ok ? await accountsResponse.json() : { accounts: [] };
-        const accounts = accountsData.accounts ?? [];
-        if (!accounts[0]) { if (!cancelled) setMetaPerformance(null); return; }
-        const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accounts[0].id)}`);
-        if (metrics.ok && !cancelled) setMetaPerformance(await metrics.json());
-      } finally {
-        if (!cancelled) setLoadingAds(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  const performances = metaPerformance?.performances ?? [];
-  const adsCurrency = metaPerformance?.currency ?? currency;
-  const withVerdict = performances.map((campaign) => ({ campaign, verdict: getCampaignVerdict(campaign, adsCurrency) }));
-  const topStop = withVerdict.find((item) => item.verdict.tone === "stop");
-  const topOptimize = withVerdict.find((item) => item.verdict.tone === "optimize");
-
+  const adSummary = summarizeAdVerdicts(metaPerformance?.performances ?? [], metaPerformance?.currency ?? "XOF");
   return <>
-    <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui s’est passé, ce que ça a coûté en pub, et ce que Vendeo recommande de faire.</p></div></div>
+    <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui s’est passé et décide de tes prochaines actions.</p></div></div>
     <div className="app-card report-filters" style={{ marginBottom: 18 }}>
       <div className="report-filter-title"><CalendarDays size={17} /><div><strong>Période du rapport</strong><span>Les données Chariow sont analysées au format jour.</span></div></div>
       <div className="report-filter-fields"><label>Du<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label><label>Au<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label><button className="btn btn-dark" disabled={!stores.length}>Actualiser</button></div>
@@ -773,33 +692,69 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
       </div>
 
       <section className="app-card report-section" style={{ marginBottom: 18 }}>
-        <div className="card-head"><div><span className="eyebrow">Croisement Chariow × Publicité</span><h2>Dépense pub → trafic → ventes réelles</h2><p>Le calcul central de Vendeo : ce que tu dépenses en pub, comparé à ce que Chariow confirme réellement.</p></div><Activity size={18} color="#103ef8" /></div>
-        {loadingAds ? <p className="profit-help">Analyse des campagnes en cours…</p> : !performances.length ? <p className="profit-help">Connecte et synchronise Meta Ads pour voir le croisement avec tes ventes Chariow.</p> : <>
-          <div className="vendeo-kpi-grid" style={{ marginBottom: 14 }}>
-            <div className="vendeo-kpi"><MetricHelp label="Dépensé (Meta)" description="Somme des dépenses publicitaires synchronisées sur la période." /><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, adsCurrency)}</strong></div>
-            <div className="vendeo-kpi"><MetricHelp label="Revenu confirmé (Chariow)" description="Ventes réellement payées, remontées par Chariow — pas les conversions déclarées par Meta." /><strong>{formatMoney(metaPerformance?.overview.chariowRevenue ?? 0, adsCurrency)}</strong></div>
-            <div className="vendeo-kpi"><MetricHelp label="Écart Meta / Chariow" description="Revenu déclaré par Meta comparé au revenu réellement confirmé par Chariow. Un grand écart signale une sur-attribution côté Meta." /><strong>{formatMoney((metaPerformance?.overview.metaReportedRevenue ?? 0) - (metaPerformance?.overview.chariowRevenue ?? 0), adsCurrency)}</strong></div>
-          </div>
+        <div className="card-head"><div><span className="eyebrow">Publicité — historique détaillé</span><h2>Pourquoi arrêter ou optimiser chaque campagne</h2><p>Le même verdict que la page Pubs, avec les chiffres qui le justifient.</p></div><Megaphone size={18} color="#103ef8" /></div>
+        {!metaPerformance || !metaPerformance.performances.length ? (
+          <p className="report-muted">Connecte et synchronise Meta Ads (page Pubs) pour obtenir un historique de campagnes.</p>
+        ) : (
+          <>
+            <div className="vendeo-kpi-grid" style={{ marginTop: 12, marginBottom: 14 }}>
+              <div className="vendeo-kpi"><span className="metric-label">🛑 À arrêter</span><strong>{adSummary.stop.length}</strong></div>
+              <div className="vendeo-kpi"><span className="metric-label">✅ À optimiser</span><strong>{adSummary.optimize.length}</strong></div>
+              <div className="vendeo-kpi"><span className="metric-label">⚠️ À surveiller</span><strong>{adSummary.watch.length}</strong></div>
+            </div>
+            <div className="report-table">
+              <div className="report-table-head"><span>Campagne</span><span>Dépensé</span><span>Coût / conversion</span><span>Verdict</span></div>
+              {metaPerformance.performances.map((campaign) => {
+                const verdict = getCampaignVerdict(campaign, metaPerformance.currency);
+                return (
+                  <div className="report-table-row" key={campaign.id}>
+                    <div className="report-product"><span><strong title={campaign.name}>{campaign.name}</strong><small>{campaign.status}</small></span></div>
+                    <strong>{formatMoney(campaign.spend, metaPerformance.currency)}</strong>
+                    <span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span>
+                    <AdVerdictBadge verdict={verdict} />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="signal-list" style={{ marginTop: 14 }}>
+              {metaPerformance.performances.map((campaign) => {
+                const verdict = getCampaignVerdict(campaign, metaPerformance.currency);
+                return (
+                  <div className={`signal-item ${verdict.tone === "stop" ? "warning" : verdict.tone === "optimize" ? "positive" : "neutral"}`} key={campaign.id}>
+                    <span>{verdict.emoji}</span>
+                    <div><strong>{campaign.name} — {verdict.diagnostic}</strong><p>{verdict.recommendation}</p></div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </section>
+
+      <section className="app-card report-section" style={{ marginBottom: 18 }}>
+        <div className="card-head"><div><span className="eyebrow">Prix — historique détaillé</span><h2>Où une hausse de prix est probablement possible</h2><p>Calculé à partir des ventes confirmées et des abandons observés sur chaque produit.</p></div><WalletCards size={18} color="#4c21f6" /></div>
+        {!pricingOpportunities.length ? (
+          <p className="report-muted">Pas encore assez de ventes confirmées par produit pour recommander un test de prix.</p>
+        ) : (
           <div className="report-table">
-            <div className="report-table-head"><span>Campagne</span><span>Dépense</span><span>Conversions liées</span><span>Verdict Vendeo</span></div>
-            {withVerdict.map(({ campaign, verdict }) => (
-              <div className="report-table-row" key={campaign.id}>
-                <strong>{campaign.name}</strong>
-                <span>{formatMoney(campaign.spend, adsCurrency)}</span>
-                <span>{campaign.conversions}</span>
-                <AdVerdictBadge verdict={verdict} />
+            <div className="report-table-head"><span>Produit</span><span>Prix actuel</span><span>Prix à tester</span><span>Marge suppl. estimée</span></div>
+            {pricingOpportunities.map((opportunity) => (
+              <div className="report-table-row" key={opportunity.productId}>
+                <div className="report-product"><span><strong title={opportunity.productName}>{opportunity.productName}</strong><small>{opportunity.completedSales} vente{opportunity.completedSales > 1 ? "s" : ""} confirmée{opportunity.completedSales > 1 ? "s" : ""} · {(opportunity.abandonRate * 100).toFixed(0)} % d’abandons observés</small></span></div>
+                <strong>{formatMoney(opportunity.currentPrice, opportunity.currency)}</strong>
+                <span>{formatMoney(opportunity.suggestedPrice, opportunity.currency)} (+{opportunity.suggestedIncreasePercent.toFixed(0)} %)</span>
+                <strong>{formatMoney(opportunity.projectedExtraRevenue, opportunity.currency)}</strong>
               </div>
             ))}
           </div>
-        </>}
+        )}
       </section>
 
       <div className="report-columns">
         <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Inventaire et performance</span><h2>Détail des produits</h2></div><strong>{analytics.products.length} produit{analytics.products.length > 1 ? "s" : ""}</strong></div>{analytics.products.length === 0 ? <p className="report-muted">Aucun produit trouvé dans ton catalogue.</p> : <div className="report-table"><div className="report-table-head"><span>Produit</span><span>Statut</span><span>Ventes</span></div>{analytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong title={product.name}>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseigné"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
         <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Lecture rapide</span><h2>À retenir</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="report-insight"><strong>{kpis.sales === 0 ? "Pas encore de ventes" : "Ton activité commerciale"}</strong><p>{kpis.sales === 0 ? "Teste un partage ciblé de ton produit et observe les visites sur la prochaine période." : "Compare cette période à la précédente pour identifier les produits qui tirent ta croissance."}</p></div><div className="report-insight"><strong>{kpis.visits === 0 ? "Aucune visite enregistrée" : `${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} observée${kpis.visits > 1 ? "s" : ""}`}</strong><p>{kpis.visits === 0 ? "Ta prochaine priorité est d’amener du trafic vers ta boutique." : `Le taux de conversion actuel est de ${kpis.conversionRate}.`}</p></div></section>
       </div>
-
-      <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s’est passé</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La période est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi c’est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion n’est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action publicitaire</small><strong>{topStop ? topStop.verdict.label : topOptimize ? topOptimize.verdict.label : getRecommendation(analytics).title}</strong></div></div></div>
+      <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s’est passé</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La période est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi c’est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion n’est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action</small><strong>{adSummary.stop.length ? `Arrêter : ${adSummary.stop[0].campaign.name}` : adSummary.optimize.length ? `Optimiser : ${adSummary.optimize[0].campaign.name}` : pricingOpportunities.length ? `Tester le prix de ${pricingOpportunities[0].productName}` : getRecommendation(analytics).title}</strong></div></div></div>
     </>}
   </>;
 }
@@ -965,7 +920,7 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
   );
 }
 
-function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
+function ProfitAssistant({ analytics, pricingOpportunities }: { analytics: AnalyticsData; pricingOpportunities: PricingOpportunity[] }) {
   const product = analytics?.products?.[0];
   const price = product?.price === null || product?.price === undefined ? 0 : Number(product.price) || 0;
   const [inputs, setInputs] = useState<ProfitabilityInputs>({
@@ -1014,6 +969,7 @@ function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
   const recommendation = getProfitRecommendation(result);
   const currency = product?.currency ?? "XOF";
   const hasPrice = inputs.price > 0;
+  const matchingPricingOpportunity = pricingOpportunities.find((opportunity) => opportunity.productId === product?.id) ?? null;
   const fieldDescriptions: Record<keyof ProfitabilityInputs, string> = {
     price: "Prix payé par le client pour une vente de ton produit.",
     productCost: "Coût directement lié à la fabrication, la livraison ou la mise à disposition d’une unité du produit.",
@@ -1036,6 +992,12 @@ function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
       <div className="page-top">
         <div><span className="eyebrow">Copilote de rentabilité</span><h1>Assistant de profit</h1><p>Réponds à la question la plus importante : combien puis-je investir sans perdre d’argent ?</p></div>
       </div>
+      {matchingPricingOpportunity ? (
+        <div className="app-card" style={{ marginBottom: 18 }}>
+          <div className="card-head"><div><span className="eyebrow">Suggestion Vendeo</span><h2>Une hausse de prix semble possible sur ce produit</h2></div><WalletCards size={18} color="#4c21f6" /></div>
+          <p className="profit-help">{matchingPricingOpportunity.reasoning} Teste {formatMoney(matchingPricingOpportunity.suggestedPrice, matchingPricingOpportunity.currency)} au lieu de {formatMoney(matchingPricingOpportunity.currentPrice, matchingPricingOpportunity.currency)} : environ {formatMoney(matchingPricingOpportunity.projectedExtraRevenue, matchingPricingOpportunity.currency)} de marge supplémentaire estimée, sans changer le volume de ventes observé.</p>
+        </div>
+      ) : null}
       <div className="profit-layout">
         <form className="app-card profit-form" onSubmit={runSimulation}>
           <div className="card-head"><div><span className="eyebrow">Paramètres</span><h2>Construis ton scénario</h2></div><Calculator size={18} color="#4c21f6" /></div>
@@ -1067,50 +1029,9 @@ function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
 
 type MetaPerformance = {
   currency: string;
-
-  period: {
-    from: string;
-    to: string;
-  };
-
-  overview: {
-    spend: number;
-    chariowRevenue: number;
-    metaReportedRevenue: number;
-    attributedRevenue: number;
-    attributedNetRevenue?: number;
-    conversions: number;
-    sales: number;
-    cpa: number | null;
-    cac: number | null;
-    metaRoas: number | null;
-    realRoas: number | null;
-    attributionCoverage: number;
-  };
-
-  performances: Array<{
-    id: string;
-    name: string;
-
-    impressions: number;
-    clicks: number;
-    spend: number;
-
-    // Données Meta
-    conversions: number;
-    cpa: number | null;
-    roas: number | null;
-
-    // Données Chariow réellement attribuées
-    nativeChariowNetRevenue: number;
-    nativeRealRoas: number | null;
-    nativeChariowSales: number;
-
-    // Permet de distinguer "0 vente" de "aucune attribution disponible"
-    attributionLinked: boolean;
-
-    status: string;
-  }>;
+  period: { from: string; to: string };
+  overview: { spend: number; chariowRevenue: number; metaReportedRevenue: number; attributedRevenue: number; conversions: number; sales: number; cpa: number | null; cac: number | null; metaRoas: number | null; realRoas: number | null; attributionCoverage: number };
+  performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; status: string }>;
 };
 
 type AdsCache = {
@@ -1125,67 +1046,71 @@ type AdsCache = {
 // --- Moteur de décision Vendeo -------------------------------------------------
 // Vendeo n'est plus un outil de lancement de pubs : il lit les campagnes déjà
 // diffusées sur Meta/TikTok, les croise avec les ventes réelles Chariow, et dit
-// explicitement STOP / OPTIMISER / SURVEILLER — avec un montant chiffré à l'appui.
-// Tant que le module d'attribution campagne → produit (cf. lib/attribution) n'est
-// pas branché ici, les verdicts s'appuient sur les métriques déjà disponibles
-// (dépenses, conversions, CPA, ROAS) ; le niveau de confiance reste donc modéré
-// et c'est assumé dans le texte plutôt que présenté comme une certitude.
+// explicitement STOP / OPTIMISER / SURVEILLER, avec un diagnostic et une
+// recommandation chiffrée (budget à ajuster, prix à tester). Tant que le module
+// d'attribution campagne → produit (cf. lib/attribution) n'est pas branché ici,
+// les verdicts s'appuient sur les métriques déjà disponibles (dépenses,
+// impressions, clics, conversions, CPA, ROAS) ; le niveau de confiance reste
+// donc modéré et c'est assumé dans le texte plutôt que présenté comme une
+// certitude.
 type AdVerdictTone = "stop" | "optimize" | "watch" | "none";
-type AdVerdict = {
-  tone: AdVerdictTone;
-  emoji: string;
-  label: string;       // titre affiché ("Arrête cette pub", "Cette pub fonctionne !")
-  diagnosis: string;    // pourquoi ce verdict
-  action: string;       // l'action chiffrée à faire
-  actionLabel: string;  // texte du bouton ("Arrêter", "Scaler", "Surveiller")
-};
+type AdVerdict = { tone: AdVerdictTone; emoji: string; label: string; diagnostic: string; recommendation: string };
+
+// Pourcentage utilisé pour chiffrer une hausse ou une baisse de budget suggérée :
+// des paliers modérés, faciles à tester sans déstabiliser une campagne.
+const SUGGESTED_BUDGET_STEP_RATIO = 0.2;
 
 function getCampaignVerdict(campaign: MetaPerformance["performances"][number], currency: string): AdVerdict {
-  const { spend, conversions, cpa, roas, status } = campaign;
+  const { spend, impressions, clicks, conversions, cpa, roas, status } = campaign;
 
   if (spend <= 0) {
-    return {
-      tone: "none",
-      emoji: "⚪",
-      label: "Pas assez de données",
-      diagnosis: "Aucune dépense enregistrée sur cette campagne pendant la période.",
-      action: "Attends que la campagne dépense avant de juger sa performance.",
-      actionLabel: "Suivre",
-    };
+    return { tone: "none", emoji: "⚪", label: "Pas assez de données", diagnostic: "Aucune donnée exploitable", recommendation: "Aucune dépense enregistrée sur cette campagne pendant la période." };
   }
 
+  const clickThroughRate = impressions > 0 ? clicks / impressions : null;
+
   if (conversions === 0) {
+    // Beaucoup d'impressions, très peu de clics : le problème est probablement
+    // le ciblage ou la création publicitaire, pas le produit.
+    if (clickThroughRate !== null && clickThroughRate < 0.01) {
+      return {
+        tone: "stop",
+        emoji: "🛑",
+        label: "Arrête cette pub",
+        diagnostic: "Mauvaise audience ou créa non adaptée",
+        recommendation: `${formatMoney(spend, currency)} dépensés pour un taux de clic de seulement ${(clickThroughRate * 100).toFixed(1)} %, sans aucune conversion. Change d’audience ou de créa avant de remettre du budget : le message actuel ne parle pas à la bonne cible.`,
+      };
+    }
+    // Des clics arrivent mais aucune vente : la pub fait son travail, le
+    // problème est plus probablement en aval (prix affiché, page produit).
     return {
       tone: "stop",
       emoji: "🛑",
       label: "Arrête cette pub",
-      diagnosis: `${formatMoney(spend, currency)} dépensés sans aucune vente confirmée sur la période. L’audience touchée ne convertit pas, ou le prix ne correspond pas à cette audience.`,
-      action: `Coupe cette campagne maintenant — ${formatMoney(spend, currency)} dépensés sans vente.`,
-      actionLabel: "Arrêter",
+      diagnostic: "Prix ou page produit à revoir",
+      recommendation: `${formatMoney(spend, currency)} dépensés et des clics obtenus, mais aucune vente confirmée dans Chariow. La publicité amène du monde ; regarde plutôt le prix affiché et la page produit avant de continuer à dépenser ici.`,
     };
   }
 
   if (status === "loss") {
+    const budgetToCut = Math.round(spend * SUGGESTED_BUDGET_STEP_RATIO);
     return {
       tone: "stop",
       emoji: "🛑",
       label: "Arrête cette pub",
-      diagnosis: cpa !== null ? `Coût par conversion de ${formatMoney(cpa, currency)} : trop élevé pour rester rentable au prix actuel du produit.` : "Le coût par conversion est trop élevé par rapport aux résultats obtenus.",
-      action: "Mets cette campagne en pause et vérifie ta marge avant de relancer un budget dessus.",
-      actionLabel: "Arrêter",
+      diagnostic: "Budget mal réparti pour le résultat obtenu",
+      recommendation: `Coût par conversion élevé${cpa !== null ? ` (${formatMoney(cpa, currency)})` : ""} par rapport à ce que ça rapporte. Réduis ou coupe au moins ${formatMoney(budgetToCut, currency)} sur cette campagne et redirige ce budget vers une campagne rentable.`,
     };
   }
 
   if (status === "profitable") {
-    // Palier d'augmentation suggéré : 20 % de la dépense actuelle, arrondi au millier, jamais < 2 000.
-    const suggestedIncrease = Math.max(2000, Math.round((spend * 0.2) / 1000) * 1000);
+    const budgetToAdd = Math.round(spend * SUGGESTED_BUDGET_STEP_RATIO);
     return {
       tone: "optimize",
       emoji: "✅",
-      label: "Cette pub fonctionne !",
-      diagnosis: roas !== null ? `Retour de ${roas.toFixed(2)}x rapporté par Meta pour ${formatMoney(spend, currency)} dépensés.` : `Cette campagne génère des ventes confirmées pour ${formatMoney(spend, currency)} dépensés.`,
-      action: `Augmente le budget de ${formatMoney(suggestedIncrease, currency)}/jour sur cette audience, par paliers, en surveillant le coût par conversion.`,
-      actionLabel: "Scaler",
+      label: "Optimise cette pub",
+      diagnostic: "Cette pub fonctionne",
+      recommendation: `Cette publicité fonctionne${roas !== null ? ` (retour de ${roas.toFixed(2)}x rapporté par Meta)` : ""}. Augmente le budget de ${formatMoney(budgetToAdd, currency)} (environ +${(SUGGESTED_BUDGET_STEP_RATIO * 100).toFixed(0)} %) sur cette même audience, puis surveille le coût par conversion pendant quelques jours avant d’augmenter à nouveau.`,
     };
   }
 
@@ -1193,9 +1118,8 @@ function getCampaignVerdict(campaign: MetaPerformance["performances"][number], c
     tone: "watch",
     emoji: "⚠️",
     label: "Surveille cette pub",
-    diagnosis: "Pas encore assez de signal fiable pour recommander d’arrêter ou d’augmenter le budget.",
-    action: "Laisse tourner sans y toucher et réanalyse dans quelques jours.",
-    actionLabel: "Surveiller",
+    diagnostic: "Signal encore insuffisant",
+    recommendation: "Pas encore assez de signal fiable pour recommander d’arrêter ou d’augmenter le budget. Laisse tourner et réanalyse dans quelques jours.",
   };
 }
 
@@ -1204,89 +1128,60 @@ function AdVerdictBadge({ verdict }: { verdict: AdVerdict }) {
   return <span className={className}>{verdict.emoji} {verdict.label}</span>;
 }
 
-// Carte "Recommandations Vendeo" — utilisée en compact sur la Vue d'ensemble
-// et en complet sur la page Pubs. compact=true masque le titre (déjà affiché
-// par le parent) et limite la liste à 3 recommandations.
-function AdsDecisionSummary({
-  performances,
-  currency,
-  onOpenAI,
-  compact,
-}: {
-  performances: MetaPerformance["performances"];
-  currency: string;
-  onOpenAI: (prompt: string) => void;
-  compact?: boolean;
-}) {
+// Regroupe les campagnes par verdict (stop / optimize / watch) : cette même
+// fonction alimente le résumé de la Vue d'ensemble, le détail des Rapports et
+// la page Pubs, pour que les trois écrans racontent exactement la même histoire.
+function summarizeAdVerdicts(performances: MetaPerformance["performances"], currency: string) {
   const withVerdict = performances.map((campaign) => ({ campaign, verdict: getCampaignVerdict(campaign, currency) }));
   const stop = withVerdict.filter((item) => item.verdict.tone === "stop");
   const optimize = withVerdict.filter((item) => item.verdict.tone === "optimize");
   const watch = withVerdict.filter((item) => item.verdict.tone === "watch");
-  const highlighted = [...stop, ...optimize, ...watch].slice(0, compact ? 3 : 8);
-  const Wrapper = compact ? "div" : "section";
+  const highlighted = [...stop, ...optimize, ...watch];
+  return { withVerdict, stop, optimize, watch, highlighted };
+}
 
+// Résumé "Décision" affiché en tête de la vue générale des Pubs : compte combien
+// de campagnes sont à arrêter / optimiser / surveiller, et détaille les plus
+// urgentes avec une recommandation en langage clair (pas juste des chiffres).
+// Complété par les opportunités de prix détectées sur le catalogue Chariow.
+function AdsDecisionSummary({ performances, currency, pricingOpportunities }: { performances: MetaPerformance["performances"]; currency: string; pricingOpportunities: PricingOpportunity[] }) {
+  const { stop, optimize, watch, highlighted } = summarizeAdVerdicts(performances, currency);
+  const topHighlighted = highlighted.slice(0, 3);
+  const topPricingOpportunity = pricingOpportunities[0] ?? null;
   return (
-    <Wrapper className={compact ? "reco-card-body" : "app-card reco-card"} style={compact ? undefined : { marginBottom: 18 }}>
-      {!compact ? (
-        <div className="card-head">
-          <div><span className="eyebrow">Recommandations Vendeo</span><h2>Que faire maintenant ?</h2><p>Vendeo dit explicitement quoi arrêter, quoi optimiser et quoi surveiller.</p></div>
-          <Target size={19} />
-        </div>
-      ) : null}
+    <section className="app-card" style={{ marginBottom: 18 }}>
+      <div className="card-head"><div><span className="eyebrow">Décision Vendeo</span><h2>Que faire maintenant ?</h2><p>Vendeo dit explicitement quoi arrêter, quoi optimiser, quoi surveiller — et si le prix peut monter.</p></div><Target size={19} /></div>
       {performances.length === 0 ? (
         <p className="profit-help">Synchronise Meta Ads pour obtenir tes premières recommandations.</p>
       ) : (
         <>
-          <div className="vendeo-kpi-grid" style={{ marginTop: compact ? 0 : 12, marginBottom: 12 }}>
+          <div className="vendeo-kpi-grid" style={{ marginTop: 12 }}>
             <div className="vendeo-kpi"><span className="metric-label">🛑 À arrêter</span><strong>{stop.length}</strong></div>
             <div className="vendeo-kpi"><span className="metric-label">✅ À optimiser</span><strong>{optimize.length}</strong></div>
             <div className="vendeo-kpi"><span className="metric-label">⚠️ À surveiller</span><strong>{watch.length}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">💰 Prix à tester</span><strong>{pricingOpportunities.length}</strong></div>
           </div>
-          <div className="reco-list">
-            {highlighted.map(({ campaign, verdict }) => (
-              <div className={`reco-item reco-item-${verdict.tone}`} key={campaign.id}>
-                <span className="reco-icon">{verdict.emoji}</span>
-                <div className="reco-body">
-                  <strong>{verdict.label}</strong>
-                  <p>{verdict.action}</p>
-                  {!compact ? <small>{verdict.diagnosis}</small> : null}
-                </div>
-                <button
-                  type="button"
-                  className={`reco-action reco-action-${verdict.tone}`}
-                  onClick={() => onOpenAI(`Analyse la campagne "${campaign.name}" (verdict Vendeo : ${verdict.label}) et détaille les prochaines actions à prendre.`)}
-                >
-                  {verdict.actionLabel}
-                </button>
+          {topHighlighted.length ? <div className="signal-list" style={{ marginTop: 14 }}>
+            {topHighlighted.map(({ campaign, verdict }) => (
+              <div className={`signal-item ${verdict.tone === "stop" ? "warning" : verdict.tone === "optimize" ? "positive" : "neutral"}`} key={campaign.id}>
+                <span>{verdict.emoji}</span>
+                <div><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.recommendation}</p></div>
               </div>
             ))}
-          </div>
+          </div> : null}
         </>
       )}
-    </Wrapper>
-  );
-}
-
-// Carte "Économies & gains" — budget économisé en arrêtant les pubs qui brûlent
-// du cash, et revenu additionnel estimé si les recommandations de scale sont suivies.
-function AdsSavingsSummary({ performances, currency }: { performances: MetaPerformance["performances"]; currency: string }) {
-  const withVerdict = performances.map((campaign) => ({ campaign, verdict: getCampaignVerdict(campaign, currency) }));
-  const stop = withVerdict.filter((item) => item.verdict.tone === "stop");
-  const optimize = withVerdict.filter((item) => item.verdict.tone === "optimize");
-  const budgetToStop = stop.reduce((sum, item) => sum + item.campaign.spend, 0);
-  const revenueFromScale = optimize.reduce((sum, item) => sum + item.campaign.spend * 0.2 * (item.campaign.roas ?? 1), 0);
-
-  return (
-    <section className="app-card savings-card">
-      <div className="card-head"><div><span className="eyebrow">Économies & gains</span><h2>Impact potentiel</h2></div></div>
-      <div className="savings-block">
-        <span className="savings-icon savings-icon-stop"><ShieldAlert size={16} /></span>
-        <div><small>Budget potentiel économisé</small><strong>{formatMoney(budgetToStop, currency)}</strong><p>sur les pubs sous-performantes</p></div>
-      </div>
-      <div className="savings-block">
-        <span className="savings-icon savings-icon-scale"><TrendingUp size={16} /></span>
-        <div><small>Revenu additionnel estimé</small><strong>+ {formatMoney(Math.round(revenueFromScale), currency)}</strong><p>si tu appliques les recommandations</p></div>
-      </div>
+      {topPricingOpportunity ? (
+        <div className="signal-list" style={{ marginTop: 14 }}>
+          <div className="signal-item positive">
+            <span>💰</span>
+            <div>
+              <strong>Prix — {topPricingOpportunity.productName}</strong>
+              <p>{topPricingOpportunity.reasoning} Teste {formatMoney(topPricingOpportunity.suggestedPrice, topPricingOpportunity.currency)} au lieu de {formatMoney(topPricingOpportunity.currentPrice, topPricingOpportunity.currency)} (+{topPricingOpportunity.suggestedIncreasePercent.toFixed(0)} %) : environ {formatMoney(topPricingOpportunity.projectedExtraRevenue, topPricingOpportunity.currency)} de marge supplémentaire estimée sur les ventes déjà observées.</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -1295,11 +1190,9 @@ function AdsSavingsSummary({ performances, currency }: { performances: MetaPerfo
 // Le lancement de pub depuis Vendeo (création de campagnes) a été retiré ; il reviendra une fois
 // toutes les permissions Meta obtenues. Ce que Vendeo affiche à la place, c'est un verdict explicite
 // (STOP / OPTIMISER / SURVEILLER) par campagne, calculé à partir des dépenses, conversions, CPA et
-// ROAS déjà synchronisés — voir getCampaignVerdict ci-dessus.
-function AdsView({   plan,   onGoToAI, }: {   plan: PlanId;   onGoToAI: () => void; }) {
-  function openAI() {
-  onGoToAI();
-}
+// ROAS déjà synchronisés — voir getCampaignVerdict ci-dessus — complété par les opportunités de prix
+// détectées sur le catalogue Chariow.
+function AdsView({ plan, pricingOpportunities }: { plan: PlanId; pricingOpportunities: PricingOpportunity[] }) {
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
   // On ne montre l'écran de chargement que la toute première fois : si on a déjà
@@ -1376,15 +1269,13 @@ function AdsView({   plan,   onGoToAI, }: {   plan: PlanId;   onGoToAI: () => vo
     <>
       <div className="page-top"><div><span className="eyebrow">Analyse publicitaire</span><h1>Pubs</h1><p>Vendeo analyse tes campagnes déjà diffusées sur Meta et TikTok et te dit quoi arrêter ou optimiser.</p></div></div>
 
-      <AttributionPanel />
-
       <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8 }}>{channels.map((item) => <button key={item.id} type="button" className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.label}</button>)}</div>
 
       {message && <p className="store-error" role="status">{message}</p>}
 
       {channel === "overview" ? (
         <>
-          <AdsDecisionSummary   performances={metaPerformance?.performances ?? []}   currency={metaPerformance?.currency ?? "XOF"}   onOpenAI={() => openAI()} />
+          <AdsDecisionSummary performances={metaPerformance?.performances ?? []} currency={metaPerformance?.currency ?? "XOF"} pricingOpportunities={pricingOpportunities} />
           <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><h2>Vue générale</h2><BarChart3 size={19} /></div>
             <div className="vendeo-kpi-grid" style={{ marginTop: 12 }}>
               <div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires totales" description="Somme des dépenses sur les canaux connectés et synchronisés." /><strong>{metaConnected ? formatMoney(totalSpend, metaPerformance?.currency ?? "XOF") : "Non disponible"}</strong></div>
@@ -1404,7 +1295,7 @@ function AdsView({   plan,   onGoToAI, }: {   plan: PlanId;   onGoToAI: () => vo
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte Meta Ads connecté</strong><span>Autorise Vendeo à lire tes campagnes, ensembles de publicités et publicités.</span><button className="btn btn-dark" onClick={connectMeta}>Connecter Meta Ads</button></div> : <>
             <div className="app-card meta-toolbar"><label>Compte publicitaire<select value={selectedMetaAccount} onChange={(event) => setSelectedMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? "Synchronisation…" : "Synchroniser les insights"}</button></div>
             {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d’affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="profit-help">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
-            {metaPerformance.performances.length ? <section className="app-card meta-campaigns" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Pourquoi ce verdict</span><h2>Recommandation par campagne</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="signal-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`signal-item ${verdict.tone === "stop" ? "warning" : verdict.tone === "optimize" ? "positive" : "neutral"}`} key={campaign.id}><span>{verdict.emoji}</span><div><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.diagnosis}</p></div></div>; })}</div></section> : null}
+            {metaPerformance.performances.length ? <section className="app-card meta-campaigns" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Pourquoi ce verdict</span><h2>Recommandation par campagne</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="signal-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`signal-item ${verdict.tone === "stop" ? "warning" : verdict.tone === "optimize" ? "positive" : "neutral"}`} key={campaign.id}><span>{verdict.emoji}</span><div><strong>{campaign.name} — {verdict.diagnostic}</strong><p>{verdict.recommendation}</p></div></div>; })}</div></section> : null}
             </> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
           </>}
         </>
