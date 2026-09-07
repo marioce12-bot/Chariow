@@ -725,7 +725,8 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 /* Nouveau positionnement Vendeo — recommandations, économies, produits */
 .home-side-stack { display:flex; flex-direction:column; gap:18px; min-width:0; }
 .reco-card-wrapper { min-width:0; }
-.reco-card-head-row { align-items:flex-start; display:flex; justify-content:space-between; margin-bottom:10px; }
+.reco-card-head-row { margin-bottom:10px; }
+.reco-card-head-row h2 { margin:4px 0 0; }
 .link-btn { align-items:center; background:none; border:0; color:var(--green); cursor:pointer; display:inline-flex; font-size:11px; font-weight:700; gap:4px; padding:0; white-space:nowrap; }
 .reco-list { display:grid; gap:10px; }
 .reco-item { align-items:flex-start; background:#fafafa; border-radius:12px; display:flex; gap:10px; padding:12px; }
@@ -756,19 +757,19 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .vendeo-ai-cta p { color:#e5e7eb; font-size:12px; margin:8px 0 14px; }
 .vendeo-ai-cta .btn-dark { background:#fff; color:#111827; justify-content:center; width:100%; }
 .product-perf-section .card-head { align-items:center; display:flex; justify-content:space-between; }
-.product-perf-grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); margin-top:14px; }
-.product-perf-card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; }
-.product-perf-image { align-items:center; background:#f4f4f5; border-radius:8px; display:flex; height:64px; justify-content:center; margin-bottom:10px; overflow:hidden; width:64px; }
+.product-perf-list { display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+.product-perf-row { align-items:center; background:#fafafa; border-radius:12px; display:flex; gap:12px; padding:10px 12px; }
+.product-perf-image { align-items:center; background:#f4f4f5; border-radius:8px; display:flex; flex:none; height:44px; justify-content:center; overflow:hidden; width:44px; }
 .product-perf-image img { height:100%; object-fit:cover; width:100%; }
-.product-perf-name { display:block; font-size:12px; margin-bottom:6px; }
-.product-perf-badge { border-radius:999px; display:inline-block; font-size:9px; font-weight:800; margin-bottom:10px; padding:4px 8px; }
+.product-perf-info { display:flex; flex:1; flex-direction:column; gap:5px; min-width:0; }
+.product-perf-name { display:block; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.product-perf-badge { border-radius:999px; display:inline-block; font-size:9px; font-weight:800; padding:3px 8px; width:fit-content; }
 .product-perf-badge-optimize { background:#dcf3e0; color:#15803d; }
 .product-perf-badge-watch { background:#fdead0; color:#b96f20; }
-.product-perf-badge-stop { background:#fde2e2; color:#c2414b; }
-.product-perf-stats { display:flex; gap:14px; }
+.product-perf-badge-none { background:#eee; color:var(--muted); }
+.product-perf-stats { display:flex; flex:none; gap:16px; }
 .product-perf-stats small { color:var(--muted); display:block; font-size:9px; }
 .product-perf-stats strong { display:block; font-size:13px; }
 @media (max-width: 900px) {
   .home-primary-grid { grid-template-columns:1fr; }
-  .product-perf-grid { grid-template-columns:repeat(2,1fr); }
 }
