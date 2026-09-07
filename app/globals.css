@@ -205,6 +205,7 @@ button { cursor:pointer; }
 .report-filter-fields { align-items:end; display:flex; gap:10px; }
 .report-filter-fields label { color:var(--muted); display:flex; flex-direction:column; font-size:10px; gap:5px; }
 .report-filter-fields input { background:#f8faf6; border:1px solid var(--line); border-radius:6px; color:var(--ink); font-size:11px; padding:9px; }
+.report-filter-loading { color:var(--muted); font-size:11px; }
 .report-period { align-items:center; display:flex; justify-content:space-between; margin:4px 0 12px; }
 .report-period span { color:var(--muted); font-size:11px; }
 .report-period strong { color:var(--green); font-size:12px; }
@@ -496,7 +497,7 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
   .hero-logos { margin-top:0; }
   .hero-preview { width:100%; }
 }
-@media (max-width:800px) { .report-filters,.report-filter-fields { align-items:stretch; flex-direction:column; } .report-filter-fields button { width:100%; } .report-summary,.report-columns { grid-template-columns:1fr; } .report-summary-side { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:800px) { .report-filters { align-items:stretch; flex-direction:column; } .report-filter-fields { flex-direction:row; gap:10px; } .report-filter-fields label { flex:1; min-width:0; } .report-filter-fields input { width:100%; } .report-summary,.report-columns { grid-template-columns:1fr; } .report-summary-side { grid-template-columns:repeat(2,1fr); } }
 @media (max-width:800px) { .business-signals,.conclusion-grid { grid-template-columns:1fr; } }
 @media (max-width:480px) { .container { width:min(100% - 28px,1160px); } .hero-actions { flex-direction:column; } .hero-actions .btn { width:100%; } .how-grid { grid-template-columns:1fr; } .footer-row { align-items:start; flex-direction:column; gap:20px; } .footer-links { flex-wrap:wrap; } .overview-grid { gap:8px; } .metric { padding:12px; } .metric strong { font-size:21px; } .onboarding-card { padding:24px 18px; } .onboarding-card h1 { font-size:30px; } .mcp-steps { grid-template-columns:1fr; } .page-top .btn { font-size:10px; padding:9px 10px; } .mobile-nav .nav-btn span { font-size:9px; } }
 
