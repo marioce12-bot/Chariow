@@ -101,6 +101,11 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
   const products: ChariowProduct[] = productRows.map((item, index) => {
     const product = asRecord(item);
     const price = asRecord(product.price);
+    // Chariow expose le prix via un champ `pricing` (objet, ou tableau de
+    // formules de prix) plutôt que `price` sur certains produits — on lit
+    // les deux pour ne rater ni l'un ni l'autre.
+    const pricingRaw = product.pricing;
+    const pricingEntry = asRecord(Array.isArray(pricingRaw) ? pricingRaw[0] : pricingRaw);
     const resolvedPrice = firstNumeric(
       product.price,
       price.value,
@@ -111,7 +116,12 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       product.amount,
       product.cost,
       product.formatted_price,
-      product.price_formatted
+      product.price_formatted,
+      pricingEntry.amount,
+      pricingEntry.price,
+      pricingEntry.value,
+      pricingEntry.unit_price,
+      pricingRaw
     );
     const resolvedUrl = firstText(
       product.url,
@@ -135,7 +145,16 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
     // ça permet de repérer le vrai nom de champ dans les logs serveur au
     // prochain sync plutôt que de deviner à l'aveugle.
     if (!loggedUnresolvedFields && index < 2 && (resolvedPrice === null || !resolvedUrl)) {
-      console.warn("[chariow] champ prix/lien non résolu pour un produit — clés disponibles:", Object.keys(product), "clés price:", Object.keys(price));
+      console.warn(
+        "[chariow] champ prix/lien non résolu pour un produit — clés disponibles:",
+        Object.keys(product),
+        "clés price:",
+        Object.keys(price),
+        "pricing est un tableau:",
+        Array.isArray(pricingRaw),
+        "clés pricing:",
+        Object.keys(pricingEntry)
+      );
       loggedUnresolvedFields = true;
     }
 
@@ -144,7 +163,7 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       name: text(product.name ?? product.title) ?? "Produit sans nom",
       description: text(product.description),
       price: resolvedPrice,
-      currency: firstText(product.currency, price.currency, price.currency_code, product.currency_code, store.currency),
+      currency: firstText(product.currency, price.currency, price.currency_code, product.currency_code, pricingEntry.currency, pricingEntry.currency_code, store.currency),
       status: text(product.status ?? product.state),
       image: text(product.image ?? product.image_url ?? product.thumbnail),
       url: resolvedUrl,
