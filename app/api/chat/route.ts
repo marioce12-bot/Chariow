@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askImole } from "@/lib/ai/imole";
+import { askGemini } from "@/lib/ai/gemini";
 import { getChariowSnapshot, serializeChariowContext } from "@/lib/chariow/analytics";
 import { cleanAiText } from "@/lib/ai/format";
 import { calculateProfitabilityAggregate } from "@/lib/profitability-aggregates";
@@ -109,28 +110,35 @@ export async function POST(request: Request) {
       ? `${context.slice(0, MAX_CONTEXT_CHARS)}\n[... contexte tronqué ...]`
       : context;
   let answer: string;
+  const reversedHistory = (history ?? []).reverse();
+  const rawSystemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}`;
+  const systemContent = rawSystemContent.length > MAX_SYSTEM_CONTENT_CHARS ? `${rawSystemContent.slice(0, MAX_SYSTEM_CONTENT_CHARS)}[...system tronqué...]` : rawSystemContent;
+
+  // Garde-fou : si le system est déjà gros, on enlève l'historique.
+  const shouldIncludeHistory = systemContent.length < 7_500;
+
+  const safeHistory = shouldIncludeHistory
+    ? reversedHistory
+        .slice(0, MAX_HISTORY_MESSAGES)
+        .map((item) => {
+          const raw = typeof item.content === "string" ? item.content : "";
+          const content = raw.length > MAX_MESSAGE_CHARS ? `${raw.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : raw;
+          return { role: item.role as "user" | "assistant", content };
+        })
+    : [];
+
   try {
-    const reversedHistory = (history ?? []).reverse();
-    const rawSystemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}`;
-    const systemContent = rawSystemContent.length > MAX_SYSTEM_CONTENT_CHARS ? `${rawSystemContent.slice(0, MAX_SYSTEM_CONTENT_CHARS)}[...system tronqué...]` : rawSystemContent;
-
-    // Garde-fou : si le system est déjà gros, on enlève l'historique.
-    const shouldIncludeHistory = systemContent.length < 7_500;
-
-    const safeHistory = shouldIncludeHistory
-      ? reversedHistory
-          .slice(0, MAX_HISTORY_MESSAGES)
-          .map((item) => {
-            const raw = typeof item.content === "string" ? item.content : "";
-            const content = raw.length > MAX_MESSAGE_CHARS ? `${raw.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : raw;
-            return { role: item.role as "user" | "assistant", content };
-          })
-      : [];
-
     answer = await askImole([{ role: "system", content: systemContent }, ...safeHistory]);
-  } catch (error) {
-    console.error("Imole chat error", error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
+  } catch (imoleError) {
+    console.error("Imole chat error", imoleError instanceof Error ? imoleError.message : imoleError);
+    // Imole a un problème (panne, quota, timeout...) : on retente avec Gemini
+    // (palier gratuit Google) avant d'abandonner et de renvoyer une erreur.
+    try {
+      answer = await askGemini([{ role: "system", content: systemContent }, ...safeHistory]);
+    } catch (geminiError) {
+      console.error("Gemini fallback error", geminiError instanceof Error ? geminiError.message : geminiError);
+      return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
+    }
   }
   answer = cleanAiText(answer);
   const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer }).select("id, role, content, created_at").single();
