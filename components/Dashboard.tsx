@@ -320,7 +320,6 @@ export function Dashboard() {
               analytics={analytics}
               userFirstName={userFirstName}
               onGoToAI={() => setActive("Vendeo AI")}
-              onGoToAds={() => setActive("Pubs")}
               selectedStoreId={selectedStoreId}
               onStoreChange={setSelectedStoreId}
             />
@@ -399,7 +398,6 @@ function Overview({
   analytics,
   userFirstName,
   onGoToAI,
-  onGoToAds,
   selectedStoreId,
   onStoreChange,
 }: {
@@ -408,7 +406,6 @@ function Overview({
   analytics: AnalyticsData;
   userFirstName: string;
   onGoToAI: () => void;
-  onGoToAds: () => void;
   selectedStoreId: string | null;
   onStoreChange: (storeId: string) => void;
 }) {
@@ -468,11 +465,15 @@ function Overview({
   const productsRanked = [...products].sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0));
   const productsSummary = productsRanked.slice(0, 3).map((product, index) => {
     const productSales = product.sales ?? 0;
+    // Cette étiquette décrit uniquement les ventes Chariow du produit — elle ne dit
+    // rien sur une pub, qui peut ne même pas exister pour ce produit. On évite donc
+    // tout vocabulaire de verdict publicitaire ("Arrêter"/"Optimiser") ici : ce
+    // langage n'a de sens que sur une campagne, pas sur une fiche produit.
     const state = productSales === 0
-      ? { label: "À arrêter", tone: "stop" as const }
+      ? { label: "Aucune vente", tone: "none" as const }
       : index === 0
-      ? { label: "Meilleure performance", tone: "optimize" as const }
-      : { label: "À optimiser", tone: "watch" as const };
+      ? { label: "Meilleure vente", tone: "optimize" as const }
+      : { label: "En progression", tone: "watch" as const };
     return { name: product.name, sales: productSales, revenue: productSales ? Number(product.price ?? 0) * productSales : 0, image: product.image, state };
   });
 
@@ -517,14 +518,14 @@ function Overview({
         <HomeKpi label="Dépenses pub" value={metaConnected ? format(spend) : "Non disponible"} tone="info" help="Dépenses synchronisées depuis Meta Insights." />
         <HomeKpi label="Ventes" value={connected ? String(sales) : "Non disponible"} tone={sales > 0 ? "positive" : "neutral"} help="Paiements confirmés par Chariow." />
         <HomeKpi label="ROAS (réel)" value={roas === null ? "Non disponible" : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help="Revenu Chariow attribué divisé par les dépenses publicitaires." />
-        <HomeKpi label="Profit estimé" value={costsConfigured ? format(revenue - spend) : "Profit à configurer"} tone={costsConfigured ? "positive" : "warning"} help="Disponible après configuration des coûts produits." action={!costsConfigured ? () => window.dispatchEvent(new CustomEvent("vendeo:navigate", { detail: "Assistant de profit" })) : undefined} />
+        <HomeKpi label="Profit estimé" value={costsConfigured ? format(revenue - spend) : "Profit à configurer"} tone={costsConfigured ? "positive" : "warning"} help="Disponible après configuration des coûts produits." />
       </section>
 
       <div className="home-primary-grid">
         <div className="app-card reco-card-wrapper">
           <div className="reco-card-head-row">
-            <div><span className="eyebrow">Recommandations Vendeo</span><h2 style={{ margin: "4px 0 0", fontSize: 17 }}>Que faire maintenant ?</h2></div>
-            <button type="button" className="link-btn" onClick={onGoToAds}>Voir toutes <ArrowRight size={13} /></button>
+            <span className="eyebrow">Recommandations Vendeo</span>
+            <h2 style={{ margin: "4px 0 0", fontSize: 17 }}>Que faire maintenant ?</h2>
           </div>
           <AdsDecisionSummary performances={performances} currency={adsCurrency} onOpenAI={openAI} compact />
         </div>
@@ -541,14 +542,16 @@ function Overview({
       </div>
 
       <section className="app-card product-perf-section">
-        <div className="card-head"><h2>Produits les plus performants</h2><button type="button" className="link-btn" onClick={onGoToAds}>Voir tous <ArrowRight size={13} /></button></div>
+        <div className="card-head"><h2>Produits les plus performants</h2></div>
         {productsSummary.length ? (
-          <div className="product-perf-grid">
+          <div className="product-perf-list">
             {productsSummary.map((product) => (
-              <div className="product-perf-card" key={product.name}>
-                <div className="product-perf-image">{product.image ? <img src={product.image} alt="" /> : <Package size={20} />}</div>
-                <strong className="product-perf-name">{product.name}</strong>
-                <span className={`product-perf-badge product-perf-badge-${product.state.tone}`}>{product.state.label}</span>
+              <div className="product-perf-row" key={product.name}>
+                <div className="product-perf-image">{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}</div>
+                <div className="product-perf-info">
+                  <strong className="product-perf-name">{product.name}</strong>
+                  <span className={`product-perf-badge product-perf-badge-${product.state.tone}`}>{product.state.label}</span>
+                </div>
                 <div className="product-perf-stats">
                   <div><small>Ventes</small><strong>{product.sales}</strong></div>
                   <div><small>CA</small><strong>{format(product.revenue)}</strong></div>
