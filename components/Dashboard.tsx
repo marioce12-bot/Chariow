@@ -1340,7 +1340,7 @@ function AdsView({   plan,   onGoToAI, }: {   plan: PlanId;   onGoToAI: () => vo
 
       {channel === "overview" ? (
         <>
-          <AdsDecisionSummary   performances={metaPerformance?.performances ?? []}   currency={metaPerformance?.currency ?? "XOF"}   onOpenAI={(prompt) => {     setActive("Vendeo AI");   }} />
+          <AdsDecisionSummary   performances={metaPerformance?.performances ?? []}   currency={metaPerformance?.currency ?? "XOF"}   onOpenAI={() => openAI()} />
           <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><h2>Vue générale</h2><BarChart3 size={19} /></div>
             <div className="vendeo-kpi-grid" style={{ marginTop: 12 }}>
               <div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires totales" description="Somme des dépenses sur les canaux connectés et synchronisés." /><strong>{metaConnected ? formatMoney(totalSpend, metaPerformance?.currency ?? "XOF") : "Non disponible"}</strong></div>
