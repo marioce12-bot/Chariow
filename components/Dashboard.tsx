@@ -360,7 +360,7 @@ export function Dashboard() {
           ) : active === "Abonnement" ? (
             <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Rapports" ? (
-            <Reports stores={stores} analytics={analytics} />
+            <Reports stores={stores} analytics={analytics} selectedStoreId={selectedStoreId} />
           ) : (
             <Overview
               stores={stores}
@@ -777,14 +777,61 @@ function ProductCatalog({ products, onPromote }: { products: ProductData[]; onPr
   );
 }
 
-function Reports({ stores, analytics }: { stores: StoreData[]; analytics: AnalyticsData }) {
-  const [from, setFrom] = useState(analytics?.kpis.period.from ?? "");
-  const [to, setTo] = useState(analytics?.kpis.period.to ?? "");
+function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; analytics: AnalyticsData; selectedStoreId: string | null }) {
+  // Date par défaut alignée sur celle du backend (lib/chariow/analytics.ts) :
+  // du 1er du mois en cours jusqu'à aujourd'hui, tant que l'utilisateur n'a
+  // rien choisi lui-même.
+  const defaultFrom = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const defaultTo = new Date().toISOString().slice(0, 10);
+  const [from, setFrom] = useState(analytics?.kpis.period.from || defaultFrom);
+  const [to, setTo] = useState(analytics?.kpis.period.to || defaultTo);
+
+  // Les Rapports ont leur propre jeu de données Chariow, réellement filtré par
+  // la période choisie (le bouton "Actualiser" appelait auparavant rien du
+  // tout : la période affichée à l'écran ne changeait jamais). On part des
+  // données déjà chargées par le tableau de bord, puis on ré-interroge
+  // /api/analytics avec from/to dès que l'utilisateur clique sur Actualiser.
+  const [reportAnalytics, setReportAnalytics] = useState<AnalyticsData>(analytics);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
   const [loadingAds, setLoadingAds] = useState(true);
-  const kpis = analytics?.kpis;
+  const kpis = reportAnalytics?.kpis;
   const period = from && to ? `${formatReportDate(from)} – ${formatReportDate(to)}` : "Période sélectionnée";
-  const currency = analytics?.products?.[0]?.currency ?? "XOF";
+  const currency = reportAnalytics?.products?.[0]?.currency ?? "XOF";
+
+  async function runReport(nextFrom: string, nextTo: string) {
+    if (!selectedStoreId) { setReportError("Sélectionne une boutique pour lancer un rapport."); return; }
+    setLoadingReport(true);
+    setReportError(null);
+    try {
+      const params = new URLSearchParams({ store_id: selectedStoreId });
+      if (nextFrom) params.set("from", nextFrom);
+      if (nextTo) params.set("to", nextTo);
+      const response = await fetch(`/api/analytics?${params.toString()}`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setReportError(data.error ?? "Impossible de charger le rapport pour cette période.");
+        return;
+      }
+      setReportAnalytics(data.snapshot ?? null);
+    } catch {
+      setReportError("Impossible de contacter le serveur. Réessaie dans un instant.");
+    } finally {
+      setLoadingReport(false);
+    }
+  }
+
+  // Si la boutique analysée change ailleurs dans l'app, on revient à la
+  // période par défaut et on recharge un rapport frais pour cette boutique.
+  useEffect(() => {
+    if (!selectedStoreId) return;
+    setFrom(defaultFrom);
+    setTo(defaultTo);
+    void runReport(defaultFrom, defaultTo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStoreId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -813,9 +860,14 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
     <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui s’est passé, ce que ça a coûté en pub, et ce que Vendeo recommande de faire.</p></div></div>
     <div className="app-card report-filters" style={{ marginBottom: 18 }}>
       <div className="report-filter-title"><CalendarDays size={17} /><div><strong>Période du rapport</strong><span>Les données Chariow sont analysées au format jour.</span></div></div>
-      <div className="report-filter-fields"><label>Du<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label><label>Au<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label><button className="btn btn-dark" disabled={!stores.length}>Actualiser</button></div>
+      <div className="report-filter-fields">
+        <label>Du<input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} /></label>
+        <label>Au<input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} /></label>
+        <button type="button" className="btn btn-dark" disabled={!stores.length || !selectedStoreId || loadingReport} onClick={() => void runReport(from, to)}>{loadingReport ? "Actualisation…" : "Actualiser"}</button>
+      </div>
+      {reportError ? <p className="store-error" role="alert" style={{ marginTop: 10 }}>{reportError}</p> : null}
     </div>
-    {!analytics || !kpis ? <div className="empty-state">Aucune donnée pour cette période.</div> : <>
+    {!reportAnalytics || !kpis ? <div className="empty-state">{loadingReport ? "Chargement du rapport…" : "Aucune donnée pour cette période."}</div> : <>
       <div className="report-period"><span>Rapport analysé</span><strong>{period}</strong></div>
       <div className="report-summary">
         <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{kpis.revenue.formatted ?? "0"}</strong><p>{kpis.sales === 0 ? "Aucune vente enregistrée pour cette période." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} enregistrée${kpis.sales > 1 ? "s" : ""}.`}</p></div>
@@ -830,6 +882,7 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
             <div className="vendeo-kpi"><MetricHelp label="Revenu confirmé (Chariow)" description="Ventes réellement payées, remontées par Chariow — pas les conversions déclarées par Meta." /><strong>{formatMoney(metaPerformance?.overview.chariowRevenue ?? 0, adsCurrency)}</strong></div>
             <div className="vendeo-kpi"><MetricHelp label="Écart Meta / Chariow" description="Revenu déclaré par Meta comparé au revenu réellement confirmé par Chariow. Un grand écart signale une sur-attribution côté Meta." /><strong>{formatMoney((metaPerformance?.overview.metaReportedRevenue ?? 0) - (metaPerformance?.overview.chariowRevenue ?? 0), adsCurrency)}</strong></div>
           </div>
+          <p className="profit-help" style={{ marginBottom: 10 }}>Les dépenses ci-dessus viennent de la dernière synchronisation Meta Ads (page Pubs) et ne sont pas encore filtrées par la période du rapport ci-dessus — seules les données Chariow (ventes, visites, clients) le sont.</p>
           <div className="report-table">
             <div className="report-table-head"><span>Campagne</span><span>Dépense</span><span>Conversions liées</span><span>Verdict Vendeo</span></div>
             {withVerdict.map(({ campaign, verdict }) => (
@@ -845,11 +898,11 @@ function Reports({ stores, analytics }: { stores: StoreData[]; analytics: Analyt
       </section>
 
       <div className="report-columns">
-        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Inventaire et performance</span><h2>Détail des produits</h2></div><strong>{analytics.products.length} produit{analytics.products.length > 1 ? "s" : ""}</strong></div>{analytics.products.length === 0 ? <p className="report-muted">Aucun produit trouvé dans ton catalogue.</p> : <div className="report-table"><div className="report-table-head"><span>Produit</span><span>Statut</span><span>Ventes</span></div>{analytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong title={product.name}>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseigné"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
+        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Inventaire et performance</span><h2>Détail des produits</h2></div><strong>{reportAnalytics.products.length} produit{reportAnalytics.products.length > 1 ? "s" : ""}</strong></div>{reportAnalytics.products.length === 0 ? <p className="report-muted">Aucun produit trouvé dans ton catalogue.</p> : <div className="report-table"><div className="report-table-head"><span>Produit</span><span>Statut</span><span>Ventes</span></div>{reportAnalytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong title={product.name}>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseigné"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
         <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Lecture rapide</span><h2>À retenir</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="report-insight"><strong>{kpis.sales === 0 ? "Pas encore de ventes" : "Ton activité commerciale"}</strong><p>{kpis.sales === 0 ? "Teste un partage ciblé de ton produit et observe les visites sur la prochaine période." : "Compare cette période à la précédente pour identifier les produits qui tirent ta croissance."}</p></div><div className="report-insight"><strong>{kpis.visits === 0 ? "Aucune visite enregistrée" : `${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} observée${kpis.visits > 1 ? "s" : ""}`}</strong><p>{kpis.visits === 0 ? "Ta prochaine priorité est d’amener du trafic vers ta boutique." : `Le taux de conversion actuel est de ${kpis.conversionRate}.`}</p></div></section>
       </div>
 
-      <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s’est passé</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La période est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi c’est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion n’est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action publicitaire</small><strong>{topStop ? topStop.verdict.label : topOptimize ? topOptimize.verdict.label : getRecommendation(analytics).title}</strong></div></div></div>
+      <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s’est passé</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La période est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi c’est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion n’est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action publicitaire</small><strong>{topStop ? topStop.verdict.label : topOptimize ? topOptimize.verdict.label : getRecommendation(reportAnalytics).title}</strong></div></div></div>
     </>}
   </>;
 }
