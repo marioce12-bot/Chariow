@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 import { calculateProfitability, formatMoney, getProfitRecommendation, type ProfitabilityInputs, type ProfitabilityResult, type ProfitScenario } from "@/lib/profitability";
 import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
+import { AttributionPanel } from "@/components/AttributionPanel";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 const DASHBOARD_CACHE_KEY = "vendeo_dashboard_cache_v1";
@@ -1374,6 +1375,8 @@ function AdsView({   plan,   onGoToAI, }: {   plan: PlanId;   onGoToAI: () => vo
   return (
     <>
       <div className="page-top"><div><span className="eyebrow">Analyse publicitaire</span><h1>Pubs</h1><p>Vendeo analyse tes campagnes déjà diffusées sur Meta et TikTok et te dit quoi arrêter ou optimiser.</p></div></div>
+
+      <AttributionPanel />
 
       <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8 }}>{channels.map((item) => <button key={item.id} type="button" className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.label}</button>)}</div>
 
