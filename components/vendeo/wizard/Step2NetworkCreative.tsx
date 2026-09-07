@@ -18,6 +18,23 @@ const OBJECTIVES: { value: Objective; label: string }[] = [
   { value: "leads", label: "Leads" },
 ];
 
+// Les descriptions produit Chariow sont du HTML (issu d'un éditeur riche côté
+// boutique) : "<h3><strong style=...>Titre</strong></h3><p>...</p>". Sans nettoyage,
+// ce balisage se retrouvait affiché tel quel dans le texte de l'annonce. On retire
+// les balises et on décode les entités les plus courantes avant de préremplir.
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /**
  * Étape 2/5 — Réseau (Meta/TikTok), objectif, visuel et texte de l'annonce.
  *
@@ -26,10 +43,8 @@ const OBJECTIVES: { value: Objective; label: string }[] = [
  * branche-la sur tes sélecteurs existants (ceux utilisés dans le flux actuel
  * de connexion Meta/TikTok) et passe les valeurs via `patch(...)`.
  *
- * NB2 : l'upload du visuel suppose que POST /api/uploads accepte un
- * FormData avec un champ "file" et renvoie du JSON contenant l'URL publique
- * sous l'une des clés url / publicUrl / file_url / path / data.url. Si ta
- * route a un contrat différent, ajuste handleFileSelected en conséquence.
+ * NB2 : l'upload du visuel utilise POST /api/uploads/campaign-media (route
+ * existante, backée par Cloudinary) qui renvoie { secure_url, public_id, ... }.
  */
 export function Step2NetworkCreative({ state, patch, onNext, onBack }: StepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,7 +57,7 @@ export function Step2NetworkCreative({ state, patch, onNext, onBack }: StepProps
   useEffect(() => {
     if (state.product && !state.adText) {
       patch({
-        adText: state.product.description?.slice(0, 200) ?? `Découvre ${state.product.name} 🔥`,
+        adText: state.product.description ? stripHtml(state.product.description).slice(0, 200) : `Découvre ${state.product.name} 🔥`,
         title: state.product.name,
       });
     }
@@ -72,12 +87,11 @@ export function Step2NetworkCreative({ state, patch, onNext, onBack }: StepProps
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/uploads", { method: "POST", body: formData });
+      const res = await fetch("/api/uploads/campaign-media", { method: "POST", body: formData });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "Échec de l'envoi du fichier");
 
-      const url: string | null =
-        data?.url ?? data?.publicUrl ?? data?.file_url ?? data?.data?.url ?? data?.path ?? null;
+      const url: string | null = typeof data?.secure_url === "string" ? data.secure_url : null;
       if (!url) throw new Error("Le fichier a été envoyé mais aucune URL n'a été renvoyée");
 
       patch({ mediaUrl: url });
