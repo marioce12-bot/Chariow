@@ -22,7 +22,7 @@ type SasPayCheckout = {
   status?: string;
   amount?: string | number;
   currency?: string;
-  metadata?: { userId?: string; plan?: PaidPlan };
+  metadata?: { userId?: string; plan?: PaidPlan; type?: string; campaignId?: string };
 };
 
 type SasPayTransaction = {
@@ -42,6 +42,36 @@ export async function createPayment(plan: PaidPlan, customer: { email?: string; 
     id: checkout.id,
     url: checkout.checkout_url,
   };
+}
+
+/**
+ * Paiement pour le lancement d'une campagne pub (wizard 5 étapes).
+ * `amount` est le montant BRUT (budget pub net / 0.98, cf. /api/ad-campaigns/estimate) :
+ * 98% finance la campagne, 2% est la commission Vendeo.
+ */
+export async function createAdCampaignPayment(
+  amount: number,
+  customer: { email?: string; name?: string },
+  metadata: { userId: string; campaignId: string },
+) {
+  const returnUrl = process.env.NEXT_PUBLIC_APP_URL
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?ad_payment=success&campaign=${metadata.campaignId}`
+    : undefined;
+  const response = await saspayRequest<{ data?: SasPayCheckout }>("/checkout-sessions/", {
+    method: "POST",
+    body: JSON.stringify({
+      amount: amount.toFixed(2),
+      currency: "XOF",
+      description: "Vendeo - Lancement de campagne publicitaire",
+      customer_email: customer.email,
+      customer_name: customer.name || "Créateur",
+      return_url: returnUrl,
+      metadata: { ...metadata, type: "ad_campaign" },
+    }),
+  });
+  const checkout = response.data;
+  if (!checkout?.id || !checkout.checkout_url) throw new Error("SasPay did not return a checkout session URL");
+  return { id: checkout.id, url: checkout.checkout_url };
 }
 
 export async function getCheckoutSession(id: string) {
