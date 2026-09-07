@@ -721,6 +721,7 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
   .campaign-success { align-items:flex-start; flex-wrap:wrap; margin:18px 14px 20px; }
   .campaign-success .btn { margin-left:32px; }
 }
+
 /* Nouveau positionnement Vendeo — recommandations, économies, produits */
 .home-side-stack { display:flex; flex-direction:column; gap:18px; min-width:0; }
 .reco-card-wrapper { min-width:0; }
