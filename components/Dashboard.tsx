@@ -1066,9 +1066,50 @@ function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
 
 type MetaPerformance = {
   currency: string;
-  period: { from: string; to: string };
-  overview: { spend: number; chariowRevenue: number; metaReportedRevenue: number; attributedRevenue: number; conversions: number; sales: number; cpa: number | null; cac: number | null; metaRoas: number | null; realRoas: number | null; attributionCoverage: number };
-  performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; status: string }>;
+
+  period: {
+    from: string;
+    to: string;
+  };
+
+  overview: {
+    spend: number;
+    chariowRevenue: number;
+    metaReportedRevenue: number;
+    attributedRevenue: number;
+    attributedNetRevenue?: number;
+    conversions: number;
+    sales: number;
+    cpa: number | null;
+    cac: number | null;
+    metaRoas: number | null;
+    realRoas: number | null;
+    attributionCoverage: number;
+  };
+
+  performances: Array<{
+    id: string;
+    name: string;
+
+    impressions: number;
+    clicks: number;
+    spend: number;
+
+    // Données Meta
+    conversions: number;
+    cpa: number | null;
+    roas: number | null;
+
+    // Données Chariow réellement attribuées
+    nativeChariowNetRevenue: number;
+    nativeRealRoas: number | null;
+    nativeChariowSales: number;
+
+    // Permet de distinguer "0 vente" de "aucune attribution disponible"
+    attributionLinked: boolean;
+
+    status: string;
+  }>;
 };
 
 type AdsCache = {
