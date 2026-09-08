@@ -35,9 +35,9 @@ export async function POST(request: Request) {
   }
   if (mcp_url && !String(mcp_url).startsWith("https://")) return NextResponse.json({ error: "L'URL MCP doit utiliser HTTPS" }, { status: 400 });
   const { count } = await supabase.from("stores").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("is_active", true);
-  const { data: subscription } = await supabase.from("subscriptions").select("plan").eq("user_id", user.id).single();
-  const maxStores = subscription?.plan === "pro" ? 3 : 1;
-  if ((count ?? 0) >= maxStores) return NextResponse.json({ error: `Ton plan autorise ${maxStores} boutique(s)` }, { status: 403 });
+  // Un seul plan existe désormais : 1 boutique Chariow connectée.
+  const maxStores = 1;
+  if ((count ?? 0) >= maxStores) return NextResponse.json({ error: `Ton abonnement autorise ${maxStores} boutique(s)` }, { status: 403 });
   const { data, error } = await supabase
     .from("stores")
     .insert({

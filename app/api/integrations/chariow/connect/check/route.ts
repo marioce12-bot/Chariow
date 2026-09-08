@@ -20,10 +20,10 @@ export async function GET(request: Request) {
     .eq("is_active", true);
   if (countError) return NextResponse.json({ error: "Impossible de vérifier ton abonnement." }, { status: 500 });
 
-  const { data: subscription } = await supabase.from("subscriptions").select("plan").eq("user_id", user.id).maybeSingle();
-  const maxStores = subscription?.plan === "pro" ? 3 : 1;
+  // Un seul plan existe désormais : 1 boutique Chariow connectée.
+  const maxStores = 1;
   if ((count ?? 0) >= maxStores) {
-    return NextResponse.json({ error: `Ton plan autorise ${maxStores} boutique(s). Reconnecte une boutique existante ou passe au plan Pro.`, code: "STORE_LIMIT", maxStores }, { status: 403 });
+    return NextResponse.json({ error: `Ton abonnement autorise ${maxStores} boutique(s). Reconnecte une boutique existante ou contacte le support pour en connecter davantage.`, code: "STORE_LIMIT", maxStores }, { status: 403 });
   }
   return NextResponse.json({ allowed: true });
 }

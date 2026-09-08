@@ -186,12 +186,9 @@ export function Dashboard() {
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
 
   const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
-  const freeUsed = subscription?.free_messages_used ?? 0;
-  const freeLimit = subscription?.free_messages_limit ?? 3;
-  const used = subscription?.messages_used_this_month ?? 0;
-  const limit = subscription?.messages_limit ?? 400;
+  // Plus de quota de messages IA : l'accès est illimité tant que l'essai de
+  // 7 jours ou l'abonnement Vendeo est actif.
   const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
-  const remainingAiThisMonth = isActivePlan ? Math.max(0, limit - used) : Math.max(0, freeLimit - freeUsed);
 
   const links = [
     ["Vue d’ensemble", LayoutDashboard],
@@ -345,8 +342,8 @@ export function Dashboard() {
           </div>
 
           <div className="side-usage">
-            <div className="side-usage-label">Usage IA ce mois</div>
-            <div className="side-usage-value">{remainingAiThisMonth.toLocaleString("fr-FR")} messages disponibles</div>
+            <div className="side-usage-label">Usage IA</div>
+            <div className="side-usage-value">Accès illimité</div>
           </div>
         </aside>
         <section className={active === "Vendeo AI" ? "app-main chat-page" : "app-main"}>
@@ -727,6 +724,7 @@ function Overview({
       {wizardOpen && store?.id ? (
         <LaunchAdWizard
           storeId={store.id}
+          plan={(subscription?.plan ?? "starter") as PlanId}
           onClose={() => setWizardOpen(false)}
           onLaunched={() => {
             // Rafraîchit les performances Meta pour refléter la nouvelle campagne
@@ -1615,7 +1613,7 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [usage, setUsage] = useState<{ used: number; limit: number; trialActive: boolean; status: string; plan: string } | null>(null);
+  const [usage, setUsage] = useState<{ trialActive: boolean; status: string; plan: string } | null>(null);
   const [plansRequired, setPlansRequired] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Record<number, boolean>>({});
 
@@ -1645,8 +1643,6 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
       .then((data) => {
         const nextUsage = data.subscription
           ? {
-              used: data.subscription.messages_used_this_month,
-              limit: data.subscription.messages_limit,
               trialActive: Boolean(data.subscription.trial_active),
               status: data.subscription.status,
               plan: data.subscription.plan,
@@ -1678,8 +1674,6 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
       setMessages((current) => [...current, data.message]);
       if (data.usage) {
         const nextUsage = {
-          used: data.usage.used,
-          limit: data.usage.limit,
           trialActive: Boolean(data.usage.trial_active),
           status: data.usage.status,
           plan: data.usage.plan,
@@ -1687,10 +1681,8 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
         setUsage(nextUsage);
         setPlansRequired(nextUsage.status === "past_due");
 
-        // Sync quota vers le parent (sidebar + page Abonnement)
+        // Sync statut d'abonnement vers le parent (sidebar + page Abonnement)
         onUsageChange({
-          messages_used_this_month: nextUsage.used,
-          messages_limit: nextUsage.limit,
           plan: nextUsage.plan,
           status: nextUsage.status,
           trial_active: nextUsage.trialActive,
@@ -1921,12 +1913,9 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
   }
 
   if (isActive) {
-    const used = subscription?.messages_used_this_month ?? 0;
-    const limit = subscription?.messages_limit ?? 400;
-    const remaining = Math.max(0, limit - used);
     const periodStart = subscription?.current_period_start ? new Date(subscription.current_period_start).toLocaleDateString("fr-FR") : "Non disponible";
     const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("fr-FR") : "Non disponible";
-    return <><div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>Abonnement Vendeo actif</h1><p>Gère ton usage IA depuis un seul endroit.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div><div className="app-card" style={{ maxWidth: 520 }}><span className="eyebrow">Abonnement en cours</span><h2 style={{ marginTop: 6 }}>Vendeo — 2 000 XOF / mois</h2><div className="sale-detail-grid" style={{ marginTop: 18 }}><div><small>Période en cours depuis</small><strong>{periodStart}</strong></div><div><small>Renouvellement</small><strong>{periodEnd}</strong></div><div><small>Messages utilisés</small><strong>{used.toLocaleString("fr-FR")} / {limit.toLocaleString("fr-FR")}</strong></div><div><small>Messages restants</small><strong>{remaining.toLocaleString("fr-FR")}</strong></div></div></div></>;
+    return <><div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>Abonnement Vendeo actif</h1><p>Accès illimité à ton analyste IA.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div><div className="app-card" style={{ maxWidth: 520 }}><span className="eyebrow">Abonnement en cours</span><h2 style={{ marginTop: 6 }}>Vendeo — 2 000 XOF / mois</h2><div className="sale-detail-grid" style={{ marginTop: 18 }}><div><small>Période en cours depuis</small><strong>{periodStart}</strong></div><div><small>Renouvellement</small><strong>{periodEnd}</strong></div><div><small>Usage IA</small><strong>Illimité</strong></div></div></div></>;
   }
 
   return (

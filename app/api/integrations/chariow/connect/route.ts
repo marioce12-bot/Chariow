@@ -49,10 +49,10 @@ export async function GET(request: Request) {
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("is_active", true);
-    const { data: subscription } = await supabase.from("subscriptions").select("plan").eq("user_id", user.id).maybeSingle();
-    const maxStores = subscription?.plan === "pro" ? 3 : 1;
+    // Un seul plan existe désormais : 1 boutique Chariow connectée.
+    const maxStores = 1;
     if ((count ?? 0) >= maxStores) {
-      return NextResponse.json({ error: `Ton plan autorise ${maxStores} boutique(s). Reconnecte une boutique existante ou passe au plan Pro.` }, { status: 403 });
+      return NextResponse.json({ error: `Ton abonnement autorise ${maxStores} boutique(s). Reconnecte une boutique existante ou contacte le support pour en connecter davantage.` }, { status: 403 });
     }
   }
 

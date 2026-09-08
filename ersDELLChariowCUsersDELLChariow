@@ -1,0 +1,109 @@
+[1mdiff --git a/app/api/subscription/checkout/route.ts b/app/api/subscription/checkout/route.ts[m
+[1mindex d59a684..94705ce 100644[m
+[1m--- a/app/api/subscription/checkout/route.ts[m
+[1m+++ b/app/api/subscription/checkout/route.ts[m
+[36m@@ -2,14 +2,14 @@[m [mimport { NextResponse } from "next/server";[m
+ import { requireUser } from "@/lib/auth";[m
+ import { createPayment, type PaidPlan } from "@/lib/payments/saspay";[m
+ [m
+[31m-export async function POST(request: Request) {[m
+[32m+[m[32mexport async function POST(_request: Request) {[m
+   const { supabase, user, response } = await requireUser();[m
+   if (!user) return response;[m
+[31m-  const body = await request.json().catch(() => null);[m
+[31m-  if (!body?.plan || !["starter", "pro"].includes(body.plan)) return NextResponse.json({ error: "Plan invalide" }, { status: 400 });[m
+[32m+[m[32m  // Un seul abonnement possible : "starter" (Vendeo, 2 000 XOF/mois).[m
+[32m+[m[32m  const plan: PaidPlan = "starter";[m
+   const { data: profile } = await supabase.from("profiles").select("email, full_name").eq("id", user.id).maybeSingle();[m
+   try {[m
+[31m-    const payment = await createPayment(body.plan as PaidPlan, { email: profile?.email || user.email, name: profile?.full_name || undefined }, { userId: user.id, plan: body.plan });[m
+[32m+[m[32m    const payment = await createPayment(plan, { email: profile?.email || user.email, name: profile?.full_name || undefined }, { userId: user.id, plan });[m
+     return NextResponse.json({ payment });[m
+   } catch (error) {[m
+     console.error("SasPay checkout error", error instanceof Error ? error.message : "unknown error");[m
+[1mdiff --git a/lib/plans.ts b/lib/plans.ts[m
+[1mindex f07dad9..42f1733 100644[m
+[1m--- a/lib/plans.ts[m
+[1m+++ b/lib/plans.ts[m
+[36m@@ -1,28 +1,18 @@[m
+[31m-// Configuration centralisée des plans Vendeo.[m
+[31m-// Toute logique de prix, durée, quota IA ou accès aux réseaux pub doit passer par ce fichier[m
+[31m-// plutôt que d'écrire des valeurs "en dur" dans les routes API ou les composants.[m
+[32m+[m[32m// Configuration centralisée du plan Vendeo.[m
+[32m+[m[32m// Un seul abonnement, un seul prix : 2 000 XOF / mois, avec 7 jours d'essai[m
+[32m+[m[32m// gratuit à l'inscription. Toute logique de prix ou de durée doit passer par[m
+[32m+[m[32m// ce fichier plutôt que d'écrire des valeurs "en dur" dans les routes API ou[m
+[32m+[m[32m// les composants.[m
+[32m+[m[32m//[m
+[32m+[m[32m// Il n'y a plus de quota de messages IA : tant que l'essai de 7 jours ou[m
+[32m+[m[32m// l'abonnement est actif, l'usage de l'assistant IA est illimité (voir[m
+[32m+[m[32m// consume_message_quota côté base de données).[m
+ [m
+ export const PLAN_CONFIG = {[m
+[31m-  eco: {[m
+[31m-    label: "Éco",[m
+[31m-    amount: 2900,[m
+[31m-    periodDays: 15,[m
+[31m-    messagesLimit: 100,[m
+[31m-    // Restriction volontairement plus fine que "meta" : uniquement Facebook, pas Instagram.[m
+[31m-    adPlatforms: ["facebook"] as const,[m
+[31m-  },[m
+   starter: {[m
+[31m-    label: "Starter",[m
+[32m+[m[32m    label: "Vendeo",[m
+     amount: 2000,[m
+     periodDays: 30,[m
+[31m-    messagesLimit: 400,[m
+[31m-    adPlatforms: ["facebook", "instagram", "tiktok", "whatsapp"] as const,[m
+[31m-  },[m
+[31m-  pro: {[m
+[31m-    label: "Pro",[m
+[31m-    amount: 9000,[m
+[31m-    periodDays: 30,[m
+[31m-    messagesLimit: 1200,[m
+     adPlatforms: ["facebook", "instagram", "tiktok", "whatsapp", "pinterest", "linkedin", "google"] as const,[m
+   },[m
+ } as const;[m
+[36m@@ -47,31 +37,22 @@[m [mexport function planAmount(plan: PlanId) {[m
+   return PLAN_CONFIG[plan].amount;[m
+ }[m
+ [m
+[31m-export function planMessagesLimit(plan: PlanId) {[m
+[31m-  return PLAN_CONFIG[plan].messagesLimit;[m
+[31m-}[m
+[31m-[m
+[31m-// Vérifie si un réseau pub est inclus dans le plan de l'utilisateur.[m
+[31m-// Utilisé à la fois pour l'UI (afficher "non inclus dans ton plan") et pour bloquer[m
+[31m-// côté serveur au moment du lancement d'une campagne.[m
+[32m+[m[32m// Un seul plan existe désormais et il inclut tous les réseaux pub : cette[m
+[32m+[m[32m// fonction est conservée pour ne pas casser les appels existants (UI de[m
+[32m+[m[32m// verrouillage par plateforme), mais elle retourne toujours vrai en pratique.[m
+ export function isAdPlatformAllowed(plan: PlanId, platform: AdPlatform) {[m
+   return (PLAN_CONFIG[plan].adPlatforms as readonly string[]).includes(platform);[m
+ }[m
+ [m
+[31m-// Calcule la date de fin de période d'un abonnement à partir d'aujourd'hui.[m
+[31m-// Éco : 15 jours glissants. Starter / Pro : comportement existant conservé[m
+[31m-// (fin du mois calendaire en cours), pour ne rien changer aux abonnements déjà en place.[m
+[31m-export function computePeriodEnd(plan: PlanId, now: Date): string {[m
+[31m-  if (plan === "eco") {[m
+[31m-    const end = new Date(now.getTime());[m
+[31m-    end.setUTCDate(end.getUTCDate() + PLAN_CONFIG.eco.periodDays);[m
+[31m-    return end.toISOString().slice(0, 10);[m
+[31m-  }[m
+[32m+[m[32m// Calcule la date de fin de période d'un abonnement à partir d'aujourd'hui[m
+[32m+[m[32m// (fin du mois calendaire en cours).[m
+[32m+[m[32mexport function computePeriodEnd(_plan: PlanId, now: Date): string {[m
+   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);[m
+ }[m
+ [m
+[31m-// Pour le lancement d'une campagne Meta : quelles plateformes Meta ("publisher_platforms")[m
+[31m-// transmettre à l'API. Le plan Éco est restreint à Facebook seul (pas Instagram).[m
+[31m-export function metaPublisherPlatforms(plan: PlanId): string[] {[m
+[31m-  return plan === "eco" ? ["facebook"] : ["facebook", "instagram"];[m
+[32m+[m[32m// Pour le lancement d'une campagne Meta : quelles plateformes Meta[m
+[32m+[m[32m// ("publisher_platforms") transmettre à l'API. Le plan unique inclut[m
+[32m+[m[32m// Facebook et Instagram.[m
+[32m+[m[32mexport function metaPublisherPlatforms(_plan: PlanId): string[] {[m
+[32m+[m[32m  return ["facebook", "instagram"];[m
+ }[m

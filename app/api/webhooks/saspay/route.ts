@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isPlanId, planAmount, planMessagesLimit, computePeriodEnd, type PlanId } from "@/lib/plans";
+import { isPlanId, planAmount, computePeriodEnd, type PlanId } from "@/lib/plans";
 
 function validSignature(rawBody: string, signature: string | null, timestamp: string | null) {
   const secret = process.env.SASPAY_WEBHOOK_SECRET;
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
   if (eventError) return NextResponse.json({ error: "Événement de paiement non enregistré" }, { status: 500 });
   const now = new Date();
   const periodEnd = computePeriodEnd(plan, now);
-  const { error } = await admin.from("subscriptions").update({ plan, messages_limit: planMessagesLimit(plan), status: "active", trial_active: false, messages_used_this_month: 0, current_period_start: now.toISOString().slice(0, 10), current_period_end: periodEnd, updated_at: now.toISOString() }).eq("user_id", userId);
+  const { error } = await admin.from("subscriptions").update({ plan, status: "active", trial_active: false, messages_used_this_month: 0, current_period_start: now.toISOString().slice(0, 10), current_period_end: periodEnd, updated_at: now.toISOString() }).eq("user_id", userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ received: true });
 }

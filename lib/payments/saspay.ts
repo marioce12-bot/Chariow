@@ -34,7 +34,7 @@ type SasPayTransaction = {
 
 export async function createPayment(plan: PaidPlan, customer: { email?: string; name?: string }, metadata: { userId: string; plan: PaidPlan }) {
   const returnUrl = process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?payment=success` : undefined;
-  const periodLabel = PLAN_CONFIG[plan].periodDays === 15 ? "15 jours" : "mensuel";
+  const periodLabel = "mensuel";
   const response = await saspayRequest<{ data?: SasPayCheckout }>("/checkout-sessions/", { method: "POST", body: JSON.stringify({ amount: planAmount(plan).toFixed(2), currency: "XOF", description: `Vendeo ${planLabel(plan)} - abonnement ${periodLabel}`, customer_email: customer.email, customer_name: customer.name || "Créateur", return_url: returnUrl, metadata }) });
   const checkout = response.data;
   if (!checkout?.id || !checkout.checkout_url) throw new Error("SasPay did not return a checkout session URL");
