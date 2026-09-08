@@ -31,7 +31,7 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched }: LaunchAdWizardP
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-      <div className="flex h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white sm:h-auto sm:max-h-[90vh] sm:rounded-2xl">
+      <div className="flex h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white sm:h-auto sm:max-h-[90vh] sm:rounded-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
           <h2 className="text-base font-bold text-gray-900">Lancer une pub</h2>
