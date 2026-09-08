@@ -103,7 +103,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
         <p className="text-sm text-gray-400">Aucun produit trouvé sur cette boutique.</p>
       )}
 
-      <div className="sticky bottom-0 -mx-5 flex justify-end border-t border-gray-100 bg-white px-5 pb-1 pt-3">
+      <div className="sticky bottom-0 -mx-5 mt-4 flex justify-end border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button
           disabled={!state.product}
           onClick={onNext}

@@ -140,7 +140,7 @@ export function Step5Payment({ state, onBack, onLaunched }: StepProps) {
       {error && <p className="text-sm text-[#991B1B]">{error}</p>}
 
       {phase !== "done" && (
-        <div className="sticky bottom-0 -mx-5 flex justify-between border-t border-gray-100 bg-white px-5 pb-1 pt-3">
+        <div className="sticky bottom-0 -mx-5 mt-4 flex justify-between border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button onClick={onBack} className="text-sm font-medium text-gray-500">
             Retour
           </button>
