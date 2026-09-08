@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
-import type { Objective, Platform, WizardState } from "./types";
+import type { Objective, Placement, Platform, WizardState } from "./types";
+import { isAdPlatformAllowed, type PlanId } from "@/lib/plans";
 
 interface StepProps {
   state: WizardState;
   patch: (p: Partial<WizardState>) => void;
   onValidityChange: (valid: boolean) => void;
+  plan: PlanId;
 }
 
 const OBJECTIVES: { value: Objective; label: string }[] = [
@@ -30,7 +32,7 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-export function Step2NetworkCreative({ state, patch, onValidityChange }: StepProps) {
+export function Step2NetworkCreative({ state, patch, onValidityChange, plan }: StepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -110,7 +112,7 @@ export function Step2NetworkCreative({ state, patch, onValidityChange }: StepPro
           {(["meta", "tiktok"] as Platform[]).map((p) => (
             <button
               key={p}
-              onClick={() => patch({ platform: p })}
+              onClick={() => patch({ platform: p, placement: p === "meta" ? state.placement : "auto" })}
               className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium capitalize transition ${
                 state.platform === p
                   ? "border-[#6366F1] bg-[#EEF2FF] text-[#3730A3]"
@@ -141,6 +143,45 @@ export function Step2NetworkCreative({ state, patch, onValidityChange }: StepPro
           ))}
         </div>
       </div>
+
+      {state.platform === "meta" && (
+        <div>
+          <p className="mb-1.5 text-sm font-semibold text-gray-700">Emplacement</p>
+          <div className="flex gap-2">
+            {(["auto", "whatsapp_status"] as Placement[]).map((p) => {
+              const allowed = p === "auto" || isAdPlatformAllowed(plan, "whatsapp");
+              const active = state.placement === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  disabled={!allowed}
+                  onClick={() => allowed && patch({ placement: p })}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${
+                    active
+                      ? "border-[#6366F1] bg-[#EEF2FF] text-[#3730A3]"
+                      : allowed
+                        ? "border-gray-200 text-gray-600"
+                        : "border-gray-100 text-gray-300"
+                  }`}
+                >
+                  {p === "auto" ? "Automatique" : "Statut WhatsApp"}
+                  {p === "whatsapp_status" && !allowed && (
+                    <span className="ml-1 text-[10px] font-normal text-gray-400">
+                      (non inclus dans ton plan)
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-xs text-gray-400">
+            {state.placement === "whatsapp_status"
+              ? "Diffusée dans l'onglet Actualités de WhatsApp (Statuts), en plus des Stories Instagram — Meta impose ce duo. Le clic ouvre ton lien de destination, pas une conversation WhatsApp."
+              : "Meta choisit automatiquement les meilleurs emplacements (Facebook, Instagram)."}
+          </p>
+        </div>
+      )}
 
       <div>
         <label className="mb-1.5 block text-sm font-semibold text-gray-700">
