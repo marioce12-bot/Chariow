@@ -50,16 +50,6 @@ function AnimatedCounter({ end, duration = 1600, className }: { end: number; dur
   return <span ref={ref} className={className}>{count}</span>;
 }
 
-function Preview() {
-  const previews = [
-    ["/vendeo-platform-preview.png", "Vue d’ensemble des ventes et des décisions Vendeo"],
-    ["/vendeo-preview-dashboard.png", "Analyse des performances publicitaires Vendeo"],
-  ];
-  return <div className="dashboard-preview animated-preview" aria-label="Aperçu animé de Vendeo">
-    {previews.map(([src, alt], index) => <Image key={src} className="platform-preview-image preview-slide" src={src} alt={alt} width={900} height={620} priority={index === 0} style={{ animationDelay: `${index * 4.2}s` }} />)}
-  </div>;
-}
-
 export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) {
   const [open, setOpen] = useState<number | null>(null);
   return <main>
@@ -81,10 +71,6 @@ export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) 
             </div>
             <p className="hero-social-proof">⭐ Plus de <AnimatedCounter end={150} className="counter-highlight"/> créateurs utilisent déjà Vendeo</p>
              <div className="hero-note"><span>✓ Ventes & publicités réunies</span><span>✓ Analyses approfondies</span><span>✓ Recommandations concrètes</span></div>
-          </div>
-
-          <div className="hero-preview">
-            <Preview/>
           </div>
 
           <div className="hero-logos">
