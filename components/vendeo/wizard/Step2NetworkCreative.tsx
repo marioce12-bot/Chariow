@@ -251,29 +251,31 @@ export function Step2NetworkCreative({ state, patch, onNext, onBack }: StepProps
         )}
       </div>
 
-      <div className="flex justify-between pt-2">
-        <button onClick={onBack} className="text-sm font-medium text-gray-500">
-          Retour
-        </button>
-        <button
-          disabled={!canContinue}
-          onClick={onNext}
-          className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
-        >
-          Continuer
-        </button>
+      <div className="sticky bottom-0 -mx-5 border-t border-gray-100 bg-white px-5 pb-1 pt-3">
+        {!canContinue && !uploading && (
+          <p className="pb-1 text-right text-xs text-gray-400">
+            {!state.mediaUrl.trim()
+              ? "Ajoute un visuel pour continuer."
+              : !state.destinationUrl.trim()
+              ? "Renseigne un lien de destination pour continuer."
+              : !state.adText.trim()
+              ? "Ajoute un texte d'annonce pour continuer."
+              : ""}
+          </p>
+        )}
+        <div className="flex justify-between">
+          <button onClick={onBack} className="text-sm font-medium text-gray-500">
+            Retour
+          </button>
+          <button
+            disabled={!canContinue}
+            onClick={onNext}
+            className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            Continuer
+          </button>
+        </div>
       </div>
-      {!canContinue && !uploading && (
-        <p className="text-right text-xs text-gray-400">
-          {!state.mediaUrl.trim()
-            ? "Ajoute un visuel pour continuer."
-            : !state.destinationUrl.trim()
-            ? "Renseigne un lien de destination pour continuer."
-            : !state.adText.trim()
-            ? "Ajoute un texte d'annonce pour continuer."
-            : ""}
-        </p>
-      )}
     </div>
   );
 }
