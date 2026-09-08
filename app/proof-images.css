@@ -1,10 +1,25 @@
-.proof-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+.proof-carousel {
+  overflow: hidden;
+  width: 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
+}
+
+.proof-track {
+  display: flex;
+  gap: 20px;
+  width: max-content;
+  animation: proofScroll 26s linear infinite;
+}
+
+.proof-carousel:hover .proof-track {
+  animation-play-state: paused;
 }
 
 .proof-card {
+  flex: 0 0 auto;
+  height: 340px;
+  width: auto;
   background: white;
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -14,15 +29,29 @@
 
 .proof-card img {
   display: block;
-  width: 100%;
-  height: auto;
+  height: 100%;
+  width: auto;
   object-fit: cover;
 }
 
+@keyframes proofScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
 @media (max-width: 800px) {
-  .proof-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
+  .proof-card {
+    height: 260px;
+  }
+  .proof-track {
+    gap: 14px;
+    animation-duration: 20s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proof-track {
+    animation: none;
   }
 }
 
