@@ -288,8 +288,8 @@ button { cursor:pointer; }
 
 /* Mobile navigation */
 .mobile-nav { display:none; }
-.mobile-nav { position:fixed; left:0; right:0; bottom:0; z-index:1000; background:#e9efe7; border-top:1px solid var(--line); padding:8px max(8px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)); justify-content:space-around; }
-.mobile-nav .nav-btn { background:transparent; border:0; display:flex; flex:1 1 0; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-width:0; padding:7px 3px; color:#607167; border-radius:10px; }
+.mobile-nav { position:fixed; left:0; right:0; bottom:0; z-index:1000; background:#eef3ff; border-top:1px solid var(--line); padding:8px max(8px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)); justify-content:space-around; }
+.mobile-nav .nav-btn { background:transparent; border:0; display:flex; flex:1 1 0; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-width:0; padding:7px 3px; color:#64748b; border-radius:10px; }
 .mobile-nav .nav-btn.active { color:var(--green); font-weight:800; }
 .mobile-nav .nav-btn span { font-size:10px; line-height:1; }
 .mobile-more-trigger { display:none; }
@@ -390,6 +390,15 @@ button { cursor:pointer; }
 .mobile-settings-danger .mobile-settings-icon { background:#fff1f2; border-color:#fecdd3; color:#b4233c; }
 .settings-delete-account { border-color:#fecdd3; }
 .settings-delete-account:disabled { cursor:wait; opacity:.65; }
+.theme-choice-grid { display:grid; gap:12px; grid-template-columns:1fr 1fr; margin-top:18px; }
+.theme-choice { align-items:center; background:white; border:1px solid var(--line); border-radius:14px; color:var(--ink); cursor:pointer; display:flex; gap:12px; padding:16px; text-align:left; transition:border-color .15s ease, box-shadow .15s ease; width:100%; }
+.theme-choice > span:nth-child(2) { display:flex; flex:1; flex-direction:column; gap:5px; }
+.theme-choice strong { font-size:14px; }
+.theme-choice small { color:var(--muted); font-size:11px; line-height:1.5; }
+.theme-choice > svg { color:var(--green); flex:none; }
+.theme-choice.selected { border-color:var(--green); box-shadow:0 0 0 2px rgba(16,62,248,.14); }
+.theme-choice.selected .mobile-settings-icon { background:linear-gradient(135deg,#ede9fe,#dbeafe); }
+@media (max-width:480px) { .theme-choice-grid { grid-template-columns:1fr; } }
 .settings-account-error { background:#fff1f2; border-radius:8px; color:#b4233c; padding:10px; }
 .account-delete-backdrop { align-items:center; background:rgba(0,12,46,.62); display:flex; inset:0; justify-content:center; padding:18px; position:fixed; z-index:4000; }
 .account-delete-modal { background:#fff; border:1px solid #fecdd3; border-radius:20px; box-shadow:0 24px 80px rgba(0,12,46,.28); max-width:430px; padding:28px; position:relative; width:100%; }
@@ -641,32 +650,8 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .side-usage-label { font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#64748b; margin-bottom:6px; }
 .side-usage-value { font-size:12px; font-weight:900; color:#103ef8; }
 
-/* Profit assistant */
-.profit-hero { align-items:center; background:linear-gradient(135deg,#000c2e,#4c21f6 62%,#029bfc); border-radius:16px; color:white; display:flex; gap:20px; justify-content:space-between; margin-bottom:16px; padding:24px; }
-.profit-hero h2 { font-size:23px; letter-spacing:-.04em; margin:8px 0 5px; }
-.profit-hero p { color:#dbeafe; font-size:12px; line-height:1.6; margin:0; max-width:620px; }
-.profit-status { align-items:center; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.2); border-radius:999px; display:flex; flex:none; gap:8px; padding:10px 13px; }
-.profit-status.positive { color:#d9f99d; }.profit-status.warning { color:#fde68a; }.profit-status.danger { color:#fecaca; }
-.profit-layout { display:grid; gap:16px; grid-template-columns:280px minmax(0,1fr); }
-.profit-form { align-self:start; display:grid; gap:11px; }
-.profit-form .card-head { margin-bottom:4px; }
-.profit-field { color:var(--muted); display:flex; flex-direction:column; font-size:10px; gap:5px; }
-.profit-field-label { align-items:center; display:flex; gap:6px; }
-.profit-field div { align-items:center; background:#f8faff; border:1px solid var(--line); border-radius:7px; display:flex; overflow:hidden; }
-.profit-field input { background:transparent; border:0; color:var(--ink); min-width:0; outline:0; padding:9px 10px; width:100%; }
-.profit-field small { color:#8290a7; font-size:10px; padding-right:9px; }
-.profit-help { color:var(--muted); font-size:10px; line-height:1.5; margin:0; }
-.profit-results { display:grid; gap:16px; min-width:0; }
-.profit-metric-grid { display:grid; gap:10px; grid-template-columns:repeat(4,1fr); }
-.profit-negative { color:#c2414b !important; }
-.profit-explanation p { color:var(--muted); font-size:12px; line-height:1.7; margin:0 0 15px; }
-.profit-equation { align-items:center; background:#f5f7ff; border:1px solid var(--line); border-radius:9px; color:var(--muted); display:flex; flex-wrap:wrap; font-size:11px; gap:10px; padding:12px; }
-.profit-equation strong { color:var(--ink); }
-.scenario-grid { display:grid; gap:10px; grid-template-columns:repeat(3,1fr); }
-.scenario-card { background:#f8faff; border:1px solid var(--line); border-radius:10px; display:flex; flex-direction:column; gap:5px; padding:13px; }
-.scenario-card.central { background:linear-gradient(135deg,#ede9fe,#e0f2fe); border-color:#bfcdf3; }
-.scenario-card strong { color:#4c21f6; font-size:12px; text-transform:capitalize; }
-.scenario-card span { font-size:15px; font-weight:800; }.scenario-card small { color:var(--muted); font-size:10px; }
+/* Astuces inline */
+.hint-line { color:var(--muted); font-size:10px; line-height:1.5; margin:0; }
 .meta-toolbar { align-items:end; display:flex; gap:15px; justify-content:space-between; margin-bottom:16px; }
 .meta-connected-badge { align-items:center; display:inline-flex; gap:6px; font-size:11px; font-weight:700; white-space:nowrap; }
 .hero-tagline { color:var(--lime); font-size:clamp(24px,3.2vw,42px); font-weight:500; letter-spacing:-.055em; line-height:1; margin:-4px 0 0; }.hero-secondary-link { align-items:center; color:rgba(255,255,255,.7); display:inline-flex; font-size:12px; gap:8px; padding:8px 0; text-decoration:none; }.hero-secondary-link:hover { color:#fff; }.hero-secondary-link span { font-size:16px; transition:transform .2s; }.hero-secondary-link:hover span { transform:translateY(2px); }.hero-note { align-items:center; display:flex; flex-wrap:wrap; gap:8px 18px; }.hero-note span { white-space:nowrap; }
@@ -694,15 +679,11 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
   .vendeo-kpi-grid { grid-template-columns:1fr 1fr; }
   .vendeo-product-row { grid-template-columns:1fr; }
   .vendeo-progress { grid-template-columns:1fr; }
-  .profit-layout { grid-template-columns:1fr; }
-  .profit-metric-grid { grid-template-columns:1fr 1fr; }
   .campaign-modal-body { grid-template-columns:1fr; }
   .campaign-preview { display:none; }
 }
 
 @media (max-width: 600px) {
-  .profit-hero { align-items:flex-start; flex-direction:column; }
-  .profit-status { align-self:flex-start; }
   .scenario-grid { grid-template-columns:1fr; }
   .meta-toolbar { align-items:stretch; flex-direction:column; }
   .meta-toolbar select { min-width:0; width:100%; }
@@ -777,3 +758,112 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 @media (max-width: 900px) {
   .home-primary-grid { grid-template-columns:1fr; }
 }
+
+/* Thème sombre — activé via data-theme="dark" sur <html> (choix dans Paramètres > Thème) */
+html[data-theme="dark"] {
+  --ink:#e7edfb;
+  --muted:#94a3c4;
+  --paper:#050e24;
+  --cream:#0a1734;
+  --line:#1e2c52;
+  --shadow:0 18px 44px rgba(0,0,0,.55);
+}
+html[data-theme="dark"] body { background:var(--paper); color:var(--ink); }
+html[data-theme="dark"] .app-shell { background:#040b1f; }
+html[data-theme="dark"] .sidebar { background:#071129; }
+html[data-theme="dark"] .side-link { color:#9aa8c9; }
+html[data-theme="dark"] .side-link.active, html[data-theme="dark"] .side-link:hover { background:rgba(16,62,248,.22); color:#7da2ff; }
+html[data-theme="dark"] .side-label, html[data-theme="dark"] .store-selector span, html[data-theme="dark"] .side-usage-label { color:#64748b; }
+html[data-theme="dark"] .side-usage { background:#0d1c42; border-color:var(--line); }
+html[data-theme="dark"] .side-usage-value { color:#7da2ff; }
+html[data-theme="dark"] .store-selector select, html[data-theme="dark"] .home-controls select, html[data-theme="dark"] .home-store-selector select, html[data-theme="dark"] .sales-toolbar select, html[data-theme="dark"] .meta-toolbar select { background:#0b1734; border-color:var(--line); color:var(--ink); }
+html[data-theme="dark"] .app-card, html[data-theme="dark"] .metric, html[data-theme="dark"] .home-kpi, html[data-theme="dark"] .home-header, html[data-theme="dark"] .mobile-settings-card, html[data-theme="dark"] .theme-choice, html[data-theme="dark"] .settings-integration-card, html[data-theme="dark"] .vendeo-kpi, html[data-theme="dark"] .vendeo-priority-card, html[data-theme="dark"] .vendeo-resume-card, html[data-theme="dark"] .vendeo-product-card, html[data-theme="dark"] .vendeo-progress { background:#0b1734; }
+html[data-theme="dark"] .vendeo-badge, html[data-theme="dark"] .vendeo-section-icon, html[data-theme="dark"] .vendeo-step-check { background:rgba(16,62,248,.16); color:#7da2ff; }
+html[data-theme="dark"] .mobile-settings-icon { background:rgba(16,62,248,.16); color:#8fa8ff; }
+html[data-theme="dark"] .mobile-nav { background:#071129; border-top-color:var(--line); }
+html[data-theme="dark"] .mobile-nav .nav-btn { color:#8fa0c4; }
+html[data-theme="dark"] .mobile-nav .nav-btn.active { color:#7da2ff; }
+html[data-theme="dark"] .mobile-more-menu { background:#0b1734; }
+html[data-theme="dark"] .mobile-more-menu button:hover { background:#12224a; }
+html[data-theme="dark"] .chat-input-form { background:#0b1734; }
+html[data-theme="dark"] .chat-bubble.assistant { background:#101f45; }
+html[data-theme="dark"] .report-filter-fields input, html[data-theme="dark"] .form-group input { background:#0b1734; border-color:var(--line); color:var(--ink); }
+html[data-theme="dark"] .real-chart { background:#0b1734; border-color:var(--line); }
+html[data-theme="dark"] .sale-modal, html[data-theme="dark"] .upgrade-modal, html[data-theme="dark"] .onboarding-card, html[data-theme="dark"] .account-delete-modal { background:#0b1734; }
+html[data-theme="dark"] .sale-modal-close, html[data-theme="dark"] .account-delete-close, html[data-theme="dark"] .campaign-close { background:#12224a; color:var(--muted); }
+html[data-theme="dark"] .sale-detail-grid div { background:#0e1c3f; border-color:var(--line); }
+html[data-theme="dark"] .btn-ghost { background:rgba(255,255,255,.05); }
+html[data-theme="dark"] .btn-danger-ghost { background:rgba(217,93,93,.12); border-color:rgba(217,93,93,.4); color:#f19999; }
+html[data-theme="dark"] .store-error, html[data-theme="dark"] .settings-account-error, html[data-theme="dark"] .mobile-settings-danger { color:#f19999; }
+html[data-theme="dark"] .store-error { background:rgba(217,93,93,.12); border-color:rgba(217,93,93,.35); }
+html[data-theme="dark"] .settings-account-error { background:rgba(217,93,93,.12); }
+html[data-theme="dark"] .mobile-settings-danger .mobile-settings-icon { background:rgba(217,93,93,.12); border-color:rgba(217,93,93,.35); }
+html[data-theme="dark"] .account-delete-icon { background:rgba(217,93,93,.12); border-color:rgba(217,93,93,.35); }
+html[data-theme="dark"] .account-delete-warning { background:rgba(217,119,6,.14); border-color:rgba(217,119,6,.35); color:#f0b47a; }
+html[data-theme="dark"] .trial-banner { background:rgba(47,166,106,.12); border-color:rgba(47,166,106,.3); color:#7fd6a4; }
+html[data-theme="dark"] .empty-state, html[data-theme="dark"] .home-empty, html[data-theme="dark"] .vendeo-product-hint { border-color:#2a3a66; }
+html[data-theme="dark"] .vendeo-period-pill { background:#0e1c3f; border-color:var(--line); color:#9db4e8; }
+html[data-theme="dark"] .status { color:#6fd394; }
+html[data-theme="dark"] .metric .up { color:#6fd394; }
+html[data-theme="dark"] .status-positive { background:rgba(47,166,106,.15); color:#6fd394; }
+html[data-theme="dark"] .status-warning { background:rgba(210,139,61,.15); color:#eec488; }
+html[data-theme="dark"] .status-info { background:rgba(77,126,216,.15); color:#93b8f5; }
+html[data-theme="dark"] .store-count, html[data-theme="dark"] .home-store { background:rgba(16,62,248,.16); color:#7da2ff; }
+html[data-theme="dark"] .activity-detail { color:#8fa8ff; }
+html[data-theme="dark"] .report-filter-title, html[data-theme="dark"] .report-period strong, html[data-theme="dark"] .health-score strong, html[data-theme="dark"] .help-toggle, html[data-theme="dark"] .help-box a, html[data-theme="dark"] .auth-foot a, html[data-theme="dark"] .chat-see-more, html[data-theme="dark"] .link-btn, html[data-theme="dark"] .upgrade-modal .eyebrow { color:#7da2ff; }
+html[data-theme="dark"] .help-box { background:#0e1c3f; color:#9db4e8; }
+html[data-theme="dark"] .mcp-steps div { background:#0e1c3f; }
+html[data-theme="dark"] .mcp-steps span { color:#9aa8c9; }
+html[data-theme="dark"] .manual-divider { color:#64748b; }
+html[data-theme="dark"] code { background:#12224a; color:#8fa8ff; }
+html[data-theme="dark"] .report-product-icon, html[data-theme="dark"] .store-logo { background:#12224a; color:#d9c07a; }
+html[data-theme="dark"] .report-stat > span { background:rgba(255,255,255,.14); color:#fff; }
+html[data-theme="dark"] .report-summary-main .eyebrow, html[data-theme="dark"] .report-summary-main p, html[data-theme="dark"] .report-stat small { color:#c7d6ff; }
+html[data-theme="dark"] .progress, html[data-theme="dark"] .health-progress { background:#12224a; }
+html[data-theme="dark"] .conclusion-grid div { background:#0e1c3f; }
+html[data-theme="dark"] .signal-item > span { background:#12224a; }
+html[data-theme="dark"] .signal-item.warning > span { background:rgba(210,139,61,.15); color:#eec488; }
+html[data-theme="dark"] .reco-item, html[data-theme="dark"] .product-perf-row { background:#0e1c3f; }
+html[data-theme="dark"] .reco-item-stop { background:rgba(217,93,93,.12); }
+html[data-theme="dark"] .reco-item-optimize { background:rgba(47,166,106,.12); }
+html[data-theme="dark"] .reco-item-watch { background:rgba(210,139,61,.12); }
+html[data-theme="dark"] .product-perf-image { background:#12224a; }
+html[data-theme="dark"] .savings-icon-stop { background:rgba(47,166,106,.15); color:#6fd394; }
+html[data-theme="dark"] .savings-icon-scale { background:rgba(16,62,248,.16); color:#7da2ff; }
+html[data-theme="dark"] .meta-account-warning { background:rgba(210,139,61,.12); border-color:rgba(210,139,61,.35); color:#eec488; }
+html[data-theme="dark"] .meta-account-warning strong { color:#f0b47a; }
+html[data-theme="dark"] .meta-attribution-note { background:rgba(210,139,61,.12); border-color:rgba(210,139,61,.35); color:#eec488; }
+html[data-theme="dark"] .meta-conversion-info { background:#0e1c3f; border-color:var(--line); color:#9db4e8; }
+html[data-theme="dark"] .meta-status.profitable { color:#6fd394; }
+html[data-theme="dark"] .meta-status.loss { color:#f19999; }
+html[data-theme="dark"] .meta-status.warning { color:#eec488; }
+html[data-theme="dark"] .campaign-modal { background:#071129; }
+html[data-theme="dark"] .campaign-modal-header, html[data-theme="dark"] .campaign-stepper, html[data-theme="dark"] .campaign-modal-footer, html[data-theme="dark"] .campaign-form-card { background:#0b1734; }
+html[data-theme="dark"] .campaign-field input, html[data-theme="dark"] .campaign-field select, html[data-theme="dark"] .campaign-field textarea { background:#0a1733; border-color:var(--line); color:var(--ink); }
+html[data-theme="dark"] .campaign-choice { border-color:var(--line); }
+html[data-theme="dark"] .campaign-choice.selected { background:rgba(16,62,248,.14); border-color:#3b62d9; }
+html[data-theme="dark"] .campaign-upload { background:#0a1733; border-color:#31427a; }
+html[data-theme="dark"] .campaign-upload:hover { background:rgba(16,62,248,.1); }
+html[data-theme="dark"] .campaign-icon, html[data-theme="dark"] .campaign-upload-icon, html[data-theme="dark"] .campaign-product-thumb { background:rgba(16,62,248,.16); color:#8fa8ff; }
+html[data-theme="dark"] .campaign-info { background:rgba(47,166,106,.12); border-color:rgba(47,166,106,.35); color:#7fd6a4; }
+html[data-theme="dark"] .campaign-info.neutral { background:#0e1c3f; border-color:#24386b; color:#9db4e8; }
+html[data-theme="dark"] .campaign-preview { background:#0d1b3d; border-color:var(--line); }
+html[data-theme="dark"] .campaign-preview-media { background:#12224a; }
+html[data-theme="dark"] .campaign-preview dl div { border-top-color:var(--line); }
+html[data-theme="dark"] .campaign-success { background:rgba(47,166,106,.12); border-color:rgba(47,166,106,.35); }
+html[data-theme="dark"] .campaign-step { color:#7484a8; }
+html[data-theme="dark"] .campaign-step.current, html[data-theme="dark"] .campaign-step.done { color:#7da2ff; }
+html[data-theme="dark"] .campaign-step-number { border-color:#2a3a66; }
+html[data-theme="dark"] .campaign-step.done .campaign-step-number { background:#13275c; border-color:#2a3a66; }
+html[data-theme="dark"] .auth-card { background:#0b1734; }
+html[data-theme="dark"] .auth-success { background:#0e1c3f; color:#9db4e8; }
+html[data-theme="dark"] .legal-page { background:#050e24; }
+html[data-theme="dark"] .legal-card { background:#0b1734; }
+html[data-theme="dark"] .features-section { background:#050e24; }
+html[data-theme="dark"] .step-card { background:rgba(255,255,255,.04); border-color:var(--line); }
+html[data-theme="dark"] .step-card:hover { background:rgba(255,255,255,.07); }
+html[data-theme="dark"] .feature-card.light { background:#0d1c42; }
+html[data-theme="dark"] .feature-card.light p { color:#93a1c0; }
+html[data-theme="dark"] .pricing-wrap { background:rgba(10,23,52,.7); border-color:var(--line); }
+html[data-theme="dark"] .glass-strip { background:rgba(10,23,52,.5); border-color:var(--line); }
+html[data-theme="dark"] .logos { color:#8fa0c4; }

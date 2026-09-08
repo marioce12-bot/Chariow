@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getChariowSnapshot, normalizeChariowSnapshot } from "@/lib/chariow/analytics";
-import { calculateProfitability } from "@/lib/profitability";
 import type { MetaEntityPerformance } from "@/lib/meta/types";
 import { calculateVendeoAttributedRoas } from "@/lib/attribution-server";
 
@@ -25,7 +24,6 @@ export async function GET(request: Request) {
 
   let revenue = 0;
   let sales = 0;
-  let productPrice = 0;
   let currency = account.currency ?? "XOF";
   const { data: store } = await supabase.from("stores").select("id,mcp_url,access_token_encrypted,store_name").eq("user_id", user.id).eq("is_active", true).eq("platform", "chariow").limit(1).maybeSingle();
   if (store) {
@@ -34,7 +32,6 @@ export async function GET(request: Request) {
       const normalized = normalizeChariowSnapshot(snapshot, { from, to });
       revenue = Number(normalized.kpis.revenue.value ?? 0) || 0;
       sales = normalized.kpis.sales;
-      productPrice = Number(normalized.products[0]?.price ?? 0) || 0;
       currency = normalized.products[0]?.currency ?? currency;
     } catch (storeError) {
       console.warn("Chariow attribution data unavailable", storeError instanceof Error ? storeError.message : storeError);
@@ -87,6 +84,5 @@ export async function GET(request: Request) {
       performance.nativeRealRoas = performance.spend > 0 ? performance.nativeChariowNetRevenue / performance.spend : null;
     }
   }
-  const profitability = calculateProfitability({ price: productPrice, productCost: 0, platformFees: 0, otherVariableCosts: 0, adSpend: totalSpend, conversionRate: totalConversions, refundRate: 0 });
-  return NextResponse.json({ currency, period: { from, to }, overview: { spend: totalSpend, chariowRevenue: revenue, metaReportedRevenue, attributedGrossRevenue, attributedNetRevenue, attributedRevenue: attributedNetRevenue, conversions: totalConversions, sales, cpa: totalConversions > 0 ? totalSpend / totalConversions : null, cac: sales > 0 ? totalSpend / sales : null, metaRoas: totalSpend > 0 ? metaReportedRevenue / totalSpend : null, vendeoAttributedRoas: calculateVendeoAttributedRoas(attributedNetRevenue, totalSpend), realRoas: calculateVendeoAttributedRoas(attributedNetRevenue, totalSpend), attributionCoverage: completedAttributedSales.length }, profitability, performances: campaignRowsWithNativeRevenue });
+  return NextResponse.json({ currency, period: { from, to }, overview: { spend: totalSpend, chariowRevenue: revenue, metaReportedRevenue, attributedGrossRevenue, attributedNetRevenue, attributedRevenue: attributedNetRevenue, conversions: totalConversions, sales, cpa: totalConversions > 0 ? totalSpend / totalConversions : null, cac: sales > 0 ? totalSpend / sales : null, metaRoas: totalSpend > 0 ? metaReportedRevenue / totalSpend : null, vendeoAttributedRoas: calculateVendeoAttributedRoas(attributedNetRevenue, totalSpend), realRoas: calculateVendeoAttributedRoas(attributedNetRevenue, totalSpend), attributionCoverage: completedAttributedSales.length }, performances: campaignRowsWithNativeRevenue });
 }

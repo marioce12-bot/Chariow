@@ -22,6 +22,17 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+// Applique le thème choisi (localStorage) avant le premier rendu pour éviter un flash clair.
+const themeInitScript = `(function(){try{var t=localStorage.getItem("vendeo-theme");if(t==="dark"||(!t&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.dataset.theme="dark"}}catch(e){}})()`;
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="fr"><body><PwaRegister />{children}</body></html>;
+  return (
+    <html lang="fr" suppressHydrationWarning>
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <PwaRegister />
+        {children}
+      </body>
+    </html>
+  );
 }

@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, WalletCards, Calculator, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2 } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { cleanAiText } from "@/lib/ai/format";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
-import { calculateProfitability, formatMoney, getProfitRecommendation, type ProfitabilityInputs, type ProfitabilityResult, type ProfitScenario } from "@/lib/profitability";
+import { formatMoney } from "@/lib/format";
 import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
 import {
   VerdictBanner,
@@ -183,7 +183,6 @@ export function Dashboard() {
   const [loadingData, setLoadingData] = useState(true);
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
   const [userName, setUserName] = useState("créateur");
-  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
 
   const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
   // Plus de quota de messages IA : l'accès est illimité tant que l'essai de
@@ -193,7 +192,6 @@ export function Dashboard() {
   const links = [
     ["Vue d’ensemble", LayoutDashboard],
     ["Vendeo AI", MessageSquare],
-    ["Assistant de profit", WalletCards],
     ["Pubs", Megaphone],
     ["Mes boutiques", Store],
     ["Rapports", FileText],
@@ -321,19 +319,10 @@ export function Dashboard() {
           <button
             className="side-link"
             type="button"
-            onClick={() => setSettingsNotice("Paramètres bientôt disponibles.")}
+            onClick={() => setActive("Paramètres")}
           >
             <Settings size={16} />Paramètres
           </button>
-
-          {settingsNotice ? (
-            <div className="side-notice" role="status" aria-live="polite">
-              {settingsNotice}
-              <button className="side-notice-close" type="button" onClick={() => setSettingsNotice(null)}>
-                ×
-              </button>
-            </div>
-          ) : null}
           <div style={{ background: "linear-gradient(135deg,#ede9fe,#e0f2fe)", borderRadius: 10, margin: "35px 4px 0", padding: 14 }}>
             <span className="eyebrow" style={{ fontSize: 9 }}>
               {isActivePlan ? "Abonnement actif" : subscription?.status === "past_due" ? "Abonnement expiré" : "Essai gratuit"}
@@ -360,8 +349,6 @@ export function Dashboard() {
                 setSubscription((prev) => (prev ? { ...prev, ...patch } : prev))
               }
             />
-          ) : active === "Assistant de profit" ? (
-            <ProfitAssistant analytics={analytics} />
           ) : active === "Pubs" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} />
           ) : active === "Mes boutiques" ? (
@@ -395,10 +382,6 @@ export function Dashboard() {
           <button type="button" className={`nav-btn ${active === "Pubs" ? "active" : ""}`} onClick={() => setActive("Pubs")}>
             <Megaphone size={18} />
             <span>Pubs</span>
-          </button>
-           <button type="button" className={`nav-btn ${active === "Assistant de profit" ? "active" : ""}`} onClick={() => setActive("Assistant de profit")}>
-             <WalletCards size={18} />
-             <span>Profit</span>
           </button>
           <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
             <MessageSquare size={18} />
@@ -990,13 +973,13 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
 
       <section className="app-card report-section" style={{ marginBottom: 18 }}>
         <div className="card-head"><div><span className="eyebrow">Croisement Chariow × Publicité</span><h2>Dépense pub → trafic → ventes réelles</h2><p>Le calcul central de Vendeo : ce que tu dépenses en pub, comparé à ce que Chariow confirme réellement.</p></div><Activity size={18} color="#103ef8" /></div>
-        {loadingAds ? <p className="profit-help">Analyse des campagnes en cours…</p> : !performances.length ? <p className="profit-help">Connecte et synchronise Meta Ads pour voir le croisement avec tes ventes Chariow.</p> : <>
+        {loadingAds ? <p className="hint-line">Analyse des campagnes en cours…</p> : !performances.length ? <p className="hint-line">Connecte et synchronise Meta Ads pour voir le croisement avec tes ventes Chariow.</p> : <>
           <div className="vendeo-kpi-grid" style={{ marginBottom: 14 }}>
             <div className="vendeo-kpi"><MetricHelp label="Dépensé (Meta)" description="Somme des dépenses publicitaires synchronisées sur la période." /><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, adsCurrency)}</strong></div>
             <div className="vendeo-kpi"><MetricHelp label="Revenu confirmé (Chariow)" description="Ventes réellement payées, remontées par Chariow — pas les conversions déclarées par Meta." /><strong>{formatMoney(metaPerformance?.overview.chariowRevenue ?? 0, adsCurrency)}</strong></div>
             <div className="vendeo-kpi"><MetricHelp label="Écart Meta / Chariow" description="Revenu déclaré par Meta comparé au revenu réellement confirmé par Chariow. Un grand écart signale une sur-attribution côté Meta." /><strong>{formatMoney((metaPerformance?.overview.metaReportedRevenue ?? 0) - (metaPerformance?.overview.chariowRevenue ?? 0), adsCurrency)}</strong></div>
           </div>
-          <p className="profit-help" style={{ marginBottom: 10 }}>Les dépenses ci-dessus viennent de la dernière synchronisation Meta Ads (page Pubs) et ne sont pas encore filtrées par la période du rapport ci-dessus — seules les données Chariow (ventes, visites, clients) le sont.</p>
+          <p className="hint-line" style={{ marginBottom: 10 }}>Les dépenses ci-dessus viennent de la dernière synchronisation Meta Ads (page Pubs) et ne sont pas encore filtrées par la période du rapport ci-dessus — seules les données Chariow (ventes, visites, clients) le sont.</p>
           <div className="report-table">
             <div className="report-table-head"><span>Campagne</span><span>Dépense</span><span>Conversions liées</span><span>Verdict Vendeo</span></div>
             {withVerdict.map(({ campaign, verdict }) => (
@@ -1031,6 +1014,7 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(() => (typeof document !== "undefined" && document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [metaConnected, setMetaConnected] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
@@ -1098,6 +1082,17 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
       setDeletingAccount(false);
     }
   }
+
+  function applyTheme(next: "light" | "dark") {
+    setTheme(next);
+    if (next === "dark") document.documentElement.dataset.theme = "dark";
+    else delete document.documentElement.dataset.theme;
+    try {
+      localStorage.setItem("vendeo-theme", next);
+    } catch {
+      // Stockage indisponible : le choix s'applique seulement à la session.
+    }
+  }
   return (
     <>
       <div className="page-top">
@@ -1129,6 +1124,25 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
            <span><strong>{deletingAccount ? "Suppression du compte…" : "Supprimer mon compte"}</strong><small>Supprimer définitivement ton compte et toutes tes données.</small></span>
            <ArrowRight size={16} />
          </button>
+      </div>
+      <div className="page-top" style={{ marginTop: 28 }}>
+        <div>
+          <span className="eyebrow">Apparence</span>
+          <h2>Thème</h2>
+          <p>Choisis l’apparence de ton espace Vendeo.</p>
+        </div>
+      </div>
+      <div className="theme-choice-grid">
+        <button type="button" className={`theme-choice ${theme === "light" ? "selected" : ""}`} onClick={() => applyTheme("light")} aria-pressed={theme === "light"}>
+          <span className="mobile-settings-icon"><Sun size={20} /></span>
+          <span><strong>Clair</strong><small>L’apparence par défaut de Vendeo.</small></span>
+          {theme === "light" ? <CheckCircle2 size={16} /> : null}
+        </button>
+        <button type="button" className={`theme-choice ${theme === "dark" ? "selected" : ""}`} onClick={() => applyTheme("dark")} aria-pressed={theme === "dark"}>
+          <span className="mobile-settings-icon"><Moon size={20} /></span>
+          <span><strong>Sombre</strong><small>Plus de confort le soir.</small></span>
+          {theme === "dark" ? <CheckCircle2 size={16} /> : null}
+        </button>
       </div>
       <div className="page-top" style={{ marginTop: 28 }}>
         <div>
@@ -1178,106 +1192,6 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
         );
       })}
       {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>×</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">Action irréversible</span><h2 id="account-delete-title">Supprimer ton compte ?</h2><p>Ton profil, tes boutiques, tes conversations et tes connexions publicitaires seront définitivement supprimés.</p><div className="account-delete-warning">Cette action ne peut pas être annulée.</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>Annuler</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? "Suppression…" : "Oui, supprimer"}</button></div></section></div> : null}
-    </>
-  );
-}
-
-function ProfitAssistant({ analytics }: { analytics: AnalyticsData }) {
-  const product = analytics?.products?.[0];
-  const price = product?.price === null || product?.price === undefined ? 0 : Number(product.price) || 0;
-  const [inputs, setInputs] = useState<ProfitabilityInputs>({
-    price,
-    productCost: 0,
-    platformFees: 0,
-    otherVariableCosts: 0,
-    adSpend: 50000,
-    conversionRate: 0.03,
-    refundRate: 0,
-  });
-  const [result, setResult] = useState<ProfitabilityResult>(() => calculateProfitability({ ...inputs, price }));
-  const [scenarios, setScenarios] = useState<ProfitScenario[]>([]);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (price > 0) {
-      setInputs((current) => ({ ...current, price }));
-      setResult(calculateProfitability({ ...inputs, price }));
-    }
-    // The first synchronized product is the initial scenario anchor.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [price]);
-
-  function update(key: keyof ProfitabilityInputs, value: string) {
-    const number = Number(value);
-    const normalized = key === "conversionRate" || key === "refundRate" ? number / 100 : number;
-    setInputs((current) => ({ ...current, [key]: Number.isFinite(normalized) ? normalized : 0 }));
-  }
-
-  async function runSimulation(event: React.FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    try {
-      const response = await fetch("/api/profitability", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ inputs }) });
-      const data = await response.json();
-      if (response.ok) {
-        setResult(data.result);
-        setScenarios(data.scenarios ?? []);
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const recommendation = getProfitRecommendation(result);
-  const currency = product?.currency ?? "XOF";
-  const hasPrice = inputs.price > 0;
-  const fieldDescriptions: Record<keyof ProfitabilityInputs, string> = {
-    price: "Prix payé par le client pour une vente de ton produit.",
-    productCost: "Coût directement lié à la fabrication, la livraison ou la mise à disposition d’une unité du produit.",
-    platformFees: "Frais prélevés par Chariow, le moyen de paiement ou une autre plateforme pour chaque vente.",
-    otherVariableCosts: "Autres coûts qui augmentent avec chaque vente, par exemple une commission ou un service externe.",
-    adSpend: "Montant total que tu prévois de dépenser en publicité pendant la période analysée.",
-    conversionRate: "Pourcentage de visiteurs qui deviennent des acheteurs. Exemple : 3 signifie 3 %.",
-    refundRate: "Pourcentage des ventes qui sont ensuite remboursées. Exemple : 2 signifie 2 %.",
-    targetProfitPerSale: "Bénéfice minimum que tu veux conserver après tous les coûts pour chaque vente.",
-  };
-  const field = (key: keyof ProfitabilityInputs, label: string, suffix = "") => (
-    <label className="profit-field" key={key}>
-      <span className="profit-field-label">{label}<button type="button" className="metric-help" aria-label={`Explication : ${label}`} title={fieldDescriptions[key]} onClick={(event) => { event.preventDefault(); event.stopPropagation(); window.alert(fieldDescriptions[key]); }}>?</button></span>
-      <div><input type="number" min="0" step="any" value={key === "conversionRate" || key === "refundRate" ? (inputs[key] as number) * 100 : inputs[key] as number} onChange={(event) => update(key, event.target.value)} />{suffix && <small>{suffix}</small>}</div>
-    </label>
-  );
-
-  return (
-    <>
-      <div className="page-top">
-        <div><span className="eyebrow">Copilote de rentabilité</span><h1>Assistant de profit</h1><p>Réponds à la question la plus importante : combien puis-je investir sans perdre d’argent ?</p></div>
-      </div>
-      <div className="profit-layout">
-        <form className="app-card profit-form" onSubmit={runSimulation}>
-          <div className="card-head"><div><span className="eyebrow">Paramètres</span><h2>Construis ton scénario</h2></div><Calculator size={18} color="#4c21f6" /></div>
-          {field("price", "Prix de vente", currency)}
-          {field("productCost", "Coût produit", currency)}
-          {field("platformFees", "Frais plateforme", currency)}
-          {field("otherVariableCosts", "Autres coûts variables", currency)}
-          {field("adSpend", "Budget publicitaire", currency)}
-          {field("conversionRate", "Taux de conversion", "%")}
-          {field("refundRate", "Taux de remboursement", "%")}
-          <p className="profit-help">Les taux sont à saisir en pourcentage : écris 3 pour 3 %.</p>
-          <button className="btn btn-dark" disabled={saving} type="submit">{saving ? "Calcul…" : "Analyser la rentabilité"} <ArrowRight size={15} /></button>
-        </form>
-        <section className="profit-results">
-          <div className="profit-metric-grid">
-            <div className="vendeo-kpi"><MetricHelp label="Marge restante par vente" description="Montant restant après le prix du produit, les frais, les coûts variables et les remboursements estimés." /><strong>{formatMoney(result.contributionMargin, currency)}</strong></div>
-            <div className="vendeo-kpi"><MetricHelp label="Coût publicitaire maximum par vente" description="Montant maximal que tu peux dépenser en publicité pour obtenir une vente sans dépasser le seuil de rentabilité." /><strong>{formatMoney(result.maxCpa, currency)}</strong></div>
-            <div className="vendeo-kpi"><MetricHelp label="Retour publicitaire au point mort" description="Niveau de retour publicitaire à partir duquel tes revenus couvrent exactement tes coûts, sans bénéfice ni perte." /><strong>{result.breakEvenRoas === null ? "Non disponible" : `${result.breakEvenRoas.toFixed(2)}x`}</strong></div>
-            <div className="vendeo-kpi"><MetricHelp label="Bénéfice estimé" description="Bénéfice prévu après les coûts variables et le budget publicitaire renseigné." /><strong className={result.expectedProfit < 0 ? "profit-negative" : ""}>{formatMoney(result.expectedProfit, currency)}</strong></div>
-          </div>
-          <div className="app-card profit-explanation"><div className="card-head"><div><span className="eyebrow">Décision</span><h2>Ce que tu dois faire</h2></div><Lightbulb size={18} color="#d28b3d" /></div><p>{hasPrice ? recommendation.description : "Renseigne d’abord le prix de vente pour obtenir une recommandation de rentabilité fiable."}</p><div className="profit-equation"><span>Budget</span><strong>{formatMoney(inputs.adSpend, currency)}</strong><span>→</span><span>Ventes prévues</span><strong>{Math.ceil(result.expectedSales).toLocaleString("fr-FR")}</strong></div></div>
-           <div className="app-card"><div className="card-head"><div><span className="eyebrow">Simulation IA</span><h2>Trois niveaux de risque</h2></div><TrendingUp size={18} color="#103ef8" /></div><div className="scenario-grid">{scenarios.length ? scenarios.map((scenario) => <div className={`scenario-card ${scenario.name}`} key={scenario.name}><strong>{scenario.name}</strong><span>{formatMoney(scenario.expectedProfit, currency)} de bénéfice</span><small>{Math.round(scenario.expectedSales)} vente{Math.round(scenario.expectedSales) > 1 ? "s" : ""} · {formatMoney(scenario.assumptions.budget, currency)} de budget</small></div>) : <p className="profit-help">Lance une simulation pour comparer les scénarios conservateur, central et agressif.</p>}</div></div>
-           <div className="profit-hero"><div><span className="eyebrow">Lecture instantanée</span><h2>{hasPrice ? recommendation.title : "Prix de vente manquant"}</h2><p>{hasPrice ? recommendation.description : "Ajoute le prix de vente et les coûts du produit pour savoir si ta publicité peut être rentable."}</p></div><div className={`profit-status ${hasPrice ? recommendation.tone : "warning"}`}><ShieldAlert size={18} /><strong>{hasPrice ? (result.status === "profitable" ? "Rentable" : result.status === "break_even" ? "Point mort" : "À corriger") : "À compléter"}</strong></div></div>
-        </section>
-      </div>
     </>
   );
 }
@@ -1410,7 +1324,7 @@ function AdsDecisionSummary({
         </div>
       ) : null}
       {performances.length === 0 ? (
-        <p className="profit-help">Synchronise Meta Ads pour obtenir tes premières recommandations.</p>
+        <p className="hint-line">Synchronise Meta Ads pour obtenir tes premières recommandations.</p>
       ) : (
         <>
           <div className="vendeo-kpi-grid" style={{ marginTop: compact ? 0 : 12, marginBottom: 12 }}>
@@ -1564,8 +1478,8 @@ function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
             </div>
           </section>
           <div className="vendeo-kpi-grid" style={{ marginBottom: 18 }}>
-            <div className="app-card"><div className="card-head"><h3>Meta</h3>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{metaConnected ? <p className="profit-help">{formatMoney(totalSpend, metaPerformance?.currency ?? "XOF")} dépensés sur la période</p> : <><p className="profit-help">Connecte Meta Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectMeta}>Connecter Meta</button></>}</div>
-            {tiktokAllowed ? <div className="app-card"><div className="card-head"><h3>TikTok</h3>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{tiktokConnected ? <p className="profit-help">Statistiques détaillées bientôt disponibles</p> : <><p className="profit-help">Connecte TikTok Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectTiktok}>Connecter TikTok</button></>}</div> : <div className="app-card"><div className="card-head"><h3>TikTok</h3><span className="status-info">Non inclus dans ton plan</span></div></div>}
+            <div className="app-card"><div className="card-head"><h3>Meta</h3>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{metaConnected ? <p className="hint-line">{formatMoney(totalSpend, metaPerformance?.currency ?? "XOF")} dépensés sur la période</p> : <><p className="hint-line">Connecte Meta Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectMeta}>Connecter Meta</button></>}</div>
+            {tiktokAllowed ? <div className="app-card"><div className="card-head"><h3>TikTok</h3>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{tiktokConnected ? <p className="hint-line">Statistiques détaillées bientôt disponibles</p> : <><p className="hint-line">Connecte TikTok Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectTiktok}>Connecter TikTok</button></>}</div> : <div className="app-card"><div className="card-head"><h3>TikTok</h3><span className="status-info">Non inclus dans ton plan</span></div></div>}
           </div>
         </>
       ) : channel === "meta" ? (
@@ -1576,7 +1490,7 @@ function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
           {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte Meta Ads connecté</strong><span>Autorise Vendeo à lire tes campagnes, ensembles de publicités et publicités.</span><button className="btn btn-dark" onClick={connectMeta}>Connecter Meta Ads</button></div> : <>
             <div className="app-card meta-toolbar"><label>Compte publicitaire<select value={selectedMetaAccount} onChange={(event) => setSelectedMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? "Synchronisation…" : "Synchroniser les insights"}</button></div>
-            {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d’affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="profit-help">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
+            {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d’affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="hint-line">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
             {metaPerformance.performances.length ? <section className="app-card reco-card" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Pourquoi ce verdict</span><h2>Recommandation par campagne</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="reco-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`reco-item reco-item-${verdict.tone}`} key={campaign.id}><span className="reco-icon">{verdict.emoji}</span><div className="reco-body"><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.action}</p><small>{verdict.diagnosis}</small></div><button type="button" className={`reco-action reco-action-${verdict.tone}`} onClick={() => openAI(`Analyse la campagne "${campaign.name}" et détaille les prochaines actions.`)}>{verdict.actionLabel}</button></div>; })}</div></section> : null}
             </> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
           </>}
@@ -1937,7 +1851,7 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
             <li>✓ Analyse IA de tes ventes et de tes pubs</li>
             <li>✓ Connexion boutique Chariow</li>
             <li>✓ Suivi Meta Ads et TikTok Ads</li>
-            <li>✓ Rapports et assistant de profit</li>
+            <li>✓ Rapports détaillés</li>
           </ul>
           <button className="btn btn-lime" onClick={() => void subscribe()} style={{ width: "100%" }}>
             S’abonner
