@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 import { DEFAULT_WIZARD_STATE, type WizardState } from "./types";
+import type { PlanId } from "@/lib/plans";
 import { Step1Product } from "./Step1Product";
 import { Step2NetworkCreative } from "./Step2NetworkCreative";
 import { Step3Audience } from "./Step3Audience";
@@ -14,6 +15,7 @@ const STEP_LABELS = ["Produit", "Réseau & créative", "Audience", "Estimation",
 
 interface LaunchAdWizardProps {
   storeId: string;
+  plan: PlanId;
   onClose: () => void;
   onLaunched?: (campaignId: string) => void;
 }
@@ -35,7 +37,7 @@ interface LaunchAdWizardProps {
  * champ (ex. "Lien de destination"). Les autres étapes gardent leur propre
  * pied de page interne (sticky bottom-0 dans leur zone de scroll).
  */
-export function LaunchAdWizard({ storeId, onClose, onLaunched }: LaunchAdWizardProps) {
+export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdWizardProps) {
   const [step, setStep] = useState(1);
   const [state, setState] = useState<WizardState>({ ...DEFAULT_WIZARD_STATE, storeId });
   const [step2Valid, setStep2Valid] = useState(false);
@@ -95,7 +97,7 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched }: LaunchAdWizardP
         {/* Body */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
           {step === 1 && <Step1Product state={state} patch={patch} onNext={next} />}
-          {step === 2 && <Step2NetworkCreative state={state} patch={patch} onValidityChange={setStep2Valid} />}
+          {step === 2 && <Step2NetworkCreative state={state} patch={patch} onValidityChange={setStep2Valid} plan={plan} />}
           {step === 3 && <Step3Audience state={state} patch={patch} onNext={next} onBack={back} />}
           {step === 4 && <Step4Estimation state={state} patch={patch} onNext={next} onBack={back} />}
           {step === 5 && (
