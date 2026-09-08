@@ -6,7 +6,10 @@ export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
   const body = await request.json().catch(() => null);
-  if (!body?.plan || !["starter", "pro"].includes(body.plan)) return NextResponse.json({ error: "Plan invalide" }, { status: 400 });
+  // Un seul abonnement Vendeo achetable (2 000 XOF/mois) : "pro" et "eco" restent
+  // définis dans lib/plans.ts pour compatibilité avec d'éventuels comptes existants,
+  // mais ne sont plus proposés à l'achat.
+  if (body?.plan !== "starter") return NextResponse.json({ error: "Plan invalide" }, { status: 400 });
   const { data: profile } = await supabase.from("profiles").select("email, full_name").eq("id", user.id).maybeSingle();
   try {
     const payment = await createPayment(body.plan as PaidPlan, { email: profile?.email || user.email, name: profile?.full_name || undefined }, { userId: user.id, plan: body.plan });

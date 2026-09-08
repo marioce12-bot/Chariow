@@ -1,6 +1,18 @@
 // Configuration centralisée des plans Vendeo.
-// Toute logique de prix, durée, quota IA ou accès aux réseaux pub doit passer par ce fichier
+// Toute logique de prix, durée ou accès aux réseaux pub doit passer par ce fichier
 // plutôt que d'écrire des valeurs "en dur" dans les routes API ou les composants.
+//
+// Un seul abonnement est actuellement en vente : "starter" (2 000 XOF/mois, affiché
+// "Vendeo" côté utilisateur), avec un essai gratuit de 7 jours géré par
+// subscriptions.trial_ends_at (voir supabase/migrations/20260907120000_seven_day_free_trial.sql).
+// "eco" et "pro" restent définis ici uniquement pour ne pas casser d'éventuels comptes
+// existants sur ces plans ; ils ne sont plus proposés à l'achat (voir
+// /api/subscription/checkout, qui n'accepte que "starter").
+//
+// Il n'y a plus de plafond de messages IA : consume_message_quota() autorise un
+// nombre illimité de messages tant que le compte est en essai valide ou abonné.
+// messagesLimit ci-dessous n'est conservé que pour initialiser la colonne
+// messages_limit (statistique interne), il ne bloque plus rien.
 
 export const PLAN_CONFIG = {
   eco: {
@@ -12,11 +24,14 @@ export const PLAN_CONFIG = {
     adPlatforms: ["facebook"] as const,
   },
   starter: {
-    label: "Starter",
+    label: "Vendeo",
     amount: 2000,
     periodDays: 30,
     messagesLimit: 400,
-    adPlatforms: ["facebook", "instagram", "tiktok", "whatsapp"] as const,
+    // Seul plan en vente : accès à tous les réseaux pub pris en charge (certains,
+    // comme Pinterest/LinkedIn/Google, restent affichés "Bientôt disponible" côté
+    // UI tant que l'intégration correspondante n'existe pas côté serveur).
+    adPlatforms: ["facebook", "instagram", "tiktok", "whatsapp", "pinterest", "linkedin", "google"] as const,
   },
   pro: {
     label: "Pro",

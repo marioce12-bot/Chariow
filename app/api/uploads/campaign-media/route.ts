@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
-const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime"]);
+const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif", "video/mp4", "video/quicktime", "video/webm"]);
 
 export async function POST(request: Request) {
   const { user, response } = await requireUser();
@@ -11,9 +11,15 @@ export async function POST(request: Request) {
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "Aucun fichier reçu" }, { status: 400 });
-  if (!ALLOWED.has(file.type)) return NextResponse.json({ error: "Format non supporté" }, { status: 400 });
-  const max = file.type.startsWith("video/") ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
-  if (file.size > max) return NextResponse.json({ error: `Fichier trop volumineux (maximum ${file.type.startsWith("video/") ? "100" : "10"} Mo)` }, { status: 400 });
+  // Certains navigateurs (notamment sur Android) renvoient un type MIME vide pour
+  // certains fichiers ; on retombe alors sur l'extension pour ne pas bloquer un
+  // fichier par ailleurs valide.
+  const extensionType: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", heic: "image/heic", heif: "image/heif", gif: "image/gif", mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const effectiveType = file.type || extensionType[extension] || "";
+  if (!ALLOWED.has(effectiveType)) return NextResponse.json({ error: "Format non supporté. Utilise une image (JPG, PNG, WEBP, HEIC, GIF) ou une vidéo (MP4, MOV, WEBM)." }, { status: 400 });
+  const max = effectiveType.startsWith("video/") ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+  if (file.size > max) return NextResponse.json({ error: `Fichier trop volumineux (maximum ${effectiveType.startsWith("video/") ? "100" : "10"} Mo)` }, { status: 400 });
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
@@ -28,12 +34,12 @@ export async function POST(request: Request) {
   upload.append("timestamp", timestamp);
   upload.append("folder", folder);
   upload.append("signature", signature);
-  const resourceType = file.type.startsWith("video/") ? "video" : "image";
+  const resourceType = effectiveType.startsWith("video/") ? "video" : "image";
   const result = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, { method: "POST", body: upload });
   const json = await result.json().catch(() => ({}));
   if (!result.ok || typeof json.secure_url !== "string") {
     console.error("Cloudinary campaign upload failed", { status: result.status, error: json?.error?.message });
-    return NextResponse.json({ error: "Cloudinary n’a pas accepté le fichier" }, { status: 502 });
+    return NextResponse.json({ error: json?.error?.message ? `Cloudinary a refusé le fichier : ${json.error.message}` : "Cloudinary n’a pas accepté le fichier" }, { status: 502 });
   }
   return NextResponse.json({ secure_url: json.secure_url, public_id: json.public_id, resource_type: resourceType, original_filename: json.original_filename ?? file.name });
 }
