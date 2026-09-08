@@ -247,7 +247,7 @@ export function Step2NetworkCreative({ state, patch, onValidityChange, plan }: S
         <input
           value={state.title}
           onChange={(e) => patch({ title: e.target.value })}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
         />
       </div>
 
@@ -259,7 +259,7 @@ export function Step2NetworkCreative({ state, patch, onValidityChange, plan }: S
           value={state.adText}
           onChange={(e) => patch({ adText: e.target.value })}
           rows={3}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
         />
       </div>
 
@@ -271,7 +271,7 @@ export function Step2NetworkCreative({ state, patch, onValidityChange, plan }: S
           value={state.destinationUrl}
           onChange={(e) => patch({ destinationUrl: e.target.value })}
           placeholder="https://ta-boutique.chariow.com/produit/…"
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
         />
         {state.product?.url && (
           <p className="mt-1 text-xs text-gray-400">Pré-rempli depuis la page du produit choisi.</p>
