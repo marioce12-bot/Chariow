@@ -15,11 +15,32 @@ interface StepProps {
  * Étape 4/5 — Simulation (portée/impressions estimées) + budget brut & commission Vendeo 2%.
  * Crée le brouillon de campagne (POST /api/ad-campaigns, route existante) puis
  * demande une estimation indicative (POST /api/ad-campaigns/estimate, nouvelle route).
+ *
+ * Si le budget ou la durée changent APRÈS une simulation, l'estimation affichée
+ * ne correspond plus aux champs — et surtout, le brouillon déjà créé en base
+ * garde les anciennes valeurs, donc le paiement à l'étape 5 ne matcherait plus
+ * ce qui est affiché ici. On invalide donc l'estimation ET le brouillon dès
+ * qu'un des deux champs change, pour forcer une re-simulation propre.
  */
 export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<EstimateResult | null>(null);
+
+  const invalidateEstimate = () => {
+    if (estimate) setEstimate(null);
+    if (state.campaignId) patch({ campaignId: null });
+  };
+
+  const updateDailyBudget = (value: number) => {
+    invalidateEstimate();
+    patch({ dailyBudget: value });
+  };
+
+  const updateDurationDays = (value: number) => {
+    invalidateEstimate();
+    patch({ durationDays: value });
+  };
 
   const runEstimate = async () => {
     setLoading(true);
@@ -40,7 +61,9 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
       if (!estRes.ok) throw new Error(estData?.error || "Estimation indisponible");
       setEstimate(estData.estimate as EstimateResult);
 
-      // 2) Crée le brouillon de campagne s'il n'existe pas encore
+      // 2) Crée le brouillon de campagne (toujours avec les valeurs actuelles :
+      //    campaignId a été remis à null dès que budget/durée ont changé, donc
+      //    on ne réutilise jamais un brouillon avec de vieux montants).
       if (!state.campaignId) {
         const draftRes = await fetch("/api/ad-campaigns", {
           method: "POST",
@@ -82,7 +105,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
           type="number"
           min={100}
           value={state.dailyBudget}
-          onChange={(e) => patch({ dailyBudget: Number(e.target.value) })}
+          onChange={(e) => updateDailyBudget(Number(e.target.value))}
           className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
         />
       </div>
@@ -96,7 +119,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
           min={1}
           max={90}
           value={state.durationDays}
-          onChange={(e) => patch({ durationDays: Number(e.target.value) })}
+          onChange={(e) => updateDurationDays(Number(e.target.value))}
           className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
         />
       </div>
