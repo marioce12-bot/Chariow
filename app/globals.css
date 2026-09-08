@@ -20,6 +20,7 @@ button { cursor:pointer; }
 .btn-lime { background:var(--lime); color:var(--ink); }
 .btn-ghost { border:1px solid var(--line); background:transparent; color:var(--ink); }
 .btn-white { background:white; color:var(--ink); }
+.marketing-header .btn-white { background:#ffffff; color:#000c2e; font-weight:800; }
 .pill { border:1px solid rgba(255,255,255,.24); border-radius:999px; color:#dce8dd; display:inline-flex; gap:8px; align-items:center; padding:6px 10px; font-size:11px; }
 .dot { width:6px; height:6px; background:var(--lime); border-radius:50%; display:inline-block; }
 .counter-highlight { color:#16a34a; font-weight:800; }
