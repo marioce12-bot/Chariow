@@ -22,6 +22,7 @@ button { cursor:pointer; }
 .btn-white { background:white; color:var(--ink); }
 .pill { border:1px solid rgba(255,255,255,.24); border-radius:999px; color:#dce8dd; display:inline-flex; gap:8px; align-items:center; padding:6px 10px; font-size:11px; }
 .dot { width:6px; height:6px; background:var(--lime); border-radius:50%; display:inline-block; }
+.counter-highlight { color:#16a34a; font-weight:800; }
 
 /* Marketing */
 .marketing-header { position:fixed; z-index:1000; width:100%; color:white; background:rgba(15,42,31,.48); border-bottom:1px solid rgba(255,255,255,.12); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%); }
@@ -867,6 +868,7 @@ html[data-theme="dark"] .feature-card.light p { color:#93a1c0; }
 html[data-theme="dark"] .pricing-wrap { background:rgba(10,23,52,.7); border-color:var(--line); }
 html[data-theme="dark"] .glass-strip { background:rgba(10,23,52,.5); border-color:var(--line); }
 html[data-theme="dark"] .logos { color:#8fa0c4; }
+html[data-theme="dark"] .counter-highlight { color:#4ade80; }
 
 /* Wizard "Lancer une pub" (composants Tailwind purs, hors ancien système .campaign-*) */
 html[data-theme="dark"] .bg-white { background-color:#0b1734 !important; }
