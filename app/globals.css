@@ -777,7 +777,7 @@ html[data-theme="dark"] .side-label, html[data-theme="dark"] .store-selector spa
 html[data-theme="dark"] .side-usage { background:#0d1c42; border-color:var(--line); }
 html[data-theme="dark"] .side-usage-value { color:#7da2ff; }
 html[data-theme="dark"] .store-selector select, html[data-theme="dark"] .home-controls select, html[data-theme="dark"] .home-store-selector select, html[data-theme="dark"] .sales-toolbar select, html[data-theme="dark"] .meta-toolbar select { background:#0b1734; border-color:var(--line); color:var(--ink); }
-html[data-theme="dark"] .app-card, html[data-theme="dark"] .metric, html[data-theme="dark"] .home-kpi, html[data-theme="dark"] .home-header, html[data-theme="dark"] .mobile-settings-card, html[data-theme="dark"] .theme-choice, html[data-theme="dark"] .settings-integration-card, html[data-theme="dark"] .vendeo-kpi, html[data-theme="dark"] .vendeo-priority-card, html[data-theme="dark"] .vendeo-resume-card, html[data-theme="dark"] .vendeo-product-card, html[data-theme="dark"] .vendeo-progress { background:#0b1734; }
+html[data-theme="dark"] .app-card, html[data-theme="dark"] .metric, html[data-theme="dark"] .home-kpi, html[data-theme="dark"] .home-header, html[data-theme="dark"] .home-greeting, html[data-theme="dark"] .mobile-settings-card, html[data-theme="dark"] .theme-choice, html[data-theme="dark"] .settings-integration-card, html[data-theme="dark"] .vendeo-kpi, html[data-theme="dark"] .vendeo-priority-card, html[data-theme="dark"] .vendeo-resume-card, html[data-theme="dark"] .vendeo-product-card, html[data-theme="dark"] .vendeo-progress { background:#0b1734; }
 html[data-theme="dark"] .vendeo-badge, html[data-theme="dark"] .vendeo-section-icon, html[data-theme="dark"] .vendeo-step-check { background:rgba(16,62,248,.16); color:#7da2ff; }
 html[data-theme="dark"] .mobile-settings-icon { background:rgba(16,62,248,.16); color:#8fa8ff; }
 html[data-theme="dark"] .mobile-nav { background:#071129; border-top-color:var(--line); }
@@ -867,3 +867,18 @@ html[data-theme="dark"] .feature-card.light p { color:#93a1c0; }
 html[data-theme="dark"] .pricing-wrap { background:rgba(10,23,52,.7); border-color:var(--line); }
 html[data-theme="dark"] .glass-strip { background:rgba(10,23,52,.5); border-color:var(--line); }
 html[data-theme="dark"] .logos { color:#8fa0c4; }
+
+/* Wizard "Lancer une pub" (composants Tailwind purs, hors ancien système .campaign-*) */
+html[data-theme="dark"] .bg-white { background-color:#0b1734 !important; }
+html[data-theme="dark"] .bg-gray-50 { background-color:#0a1733 !important; }
+html[data-theme="dark"] .bg-gray-100 { background-color:#12224a !important; }
+html[data-theme="dark"] .text-gray-900 { color:#e7edfb !important; }
+html[data-theme="dark"] .text-gray-700 { color:#c7d6ff !important; }
+html[data-theme="dark"] .text-gray-600 { color:#9aa8c9 !important; }
+html[data-theme="dark"] .text-gray-500 { color:#94a3c4 !important; }
+html[data-theme="dark"] .text-gray-400 { color:#7484a8 !important; }
+html[data-theme="dark"] .text-gray-300 { color:#5a6a94 !important; }
+html[data-theme="dark"] .border-gray-100 { border-color:#1e2c52 !important; }
+html[data-theme="dark"] .border-gray-200 { border-color:#1e2c52 !important; }
+html[data-theme="dark"] .border-gray-300 { border-color:#31427a !important; }
+html[data-theme="dark"] .border-t.border-gray-100 { background-color:#0b1734 !important; }
