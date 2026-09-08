@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Check, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { JOEL_PROOF_IMAGE, ELENA_PROOF_IMAGE, KARIM_PROOF_IMAGE } from "@/lib/social-proof-images";
+import { JOEL_PROOF_IMAGE, ELENA_PROOF_IMAGE, KARIM_PROOF_IMAGE, LOIC_PROOF_IMAGE, ALBINE_PROOF_IMAGE } from "@/lib/social-proof-images";
 import "@/app/proof-images.css";
 
 const faqs = [
@@ -65,6 +65,8 @@ export function Marketing() {
     [JOEL_PROOF_IMAGE, "Tableau de bord Chariow de Joël, connecté à Vendeo", 763],
     [ELENA_PROOF_IMAGE, "Tableau de bord Chariow d’Elena, connectée à Vendeo", 763],
     [KARIM_PROOF_IMAGE, "Tableau de bord Chariow de Karim, connecté à Vendeo", 759],
+    [LOIC_PROOF_IMAGE, "Tableau de bord Chariow de Loïc, connecté à Vendeo", 763],
+    [ALBINE_PROOF_IMAGE, "Tableau de bord Chariow d’Albine, connectée à Vendeo", 763],
   ] as const;
   return <main>
       <header className="marketing-header"><div className="container"><nav className="marketing-nav"><Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo-light.svg" alt="Vendeo" width={150} height={40}/></Link><div className="nav-links"><a href="#fonctionnalites">Fonctionnalités</a><a href="#comment">Comment ça marche</a><a href="#tarifs">Tarifs</a><a href="#faq">FAQ</a></div><div className="marketing-actions"><Link className="btn btn-ghost" href="/login">Se connecter</Link><Link className="btn btn-white" href="/register">Commencer <ArrowRight size={15}/></Link></div></nav></div></header>
