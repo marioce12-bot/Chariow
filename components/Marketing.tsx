@@ -4,8 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Check, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { JOEL_PROOF_IMAGE, ELENA_PROOF_IMAGE, KARIM_PROOF_IMAGE, LOIC_PROOF_IMAGE, ALBINE_PROOF_IMAGE } from "@/lib/social-proof-images";
 import "@/app/proof-images.css";
+
+type ProofImage = { src: string; alt: string; height: number };
 
 const faqs = [
   ["Est-ce que je dois installer quelque chose ?", "Non. Tout se passe dans ton navigateur, sur ordinateur ou mobile. Connecte ta boutique et commence à poser tes questions."],
@@ -59,15 +60,8 @@ function Preview() {
   </div>;
 }
 
-export function Marketing() {
+export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) {
   const [open, setOpen] = useState<number | null>(null);
-  const proofImages = [
-    [JOEL_PROOF_IMAGE, "Tableau de bord Chariow de Joël, connecté à Vendeo", 763],
-    [ELENA_PROOF_IMAGE, "Tableau de bord Chariow d’Elena, connectée à Vendeo", 763],
-    [KARIM_PROOF_IMAGE, "Tableau de bord Chariow de Karim, connecté à Vendeo", 759],
-    [LOIC_PROOF_IMAGE, "Tableau de bord Chariow de Loïc, connecté à Vendeo", 763],
-    [ALBINE_PROOF_IMAGE, "Tableau de bord Chariow d’Albine, connectée à Vendeo", 763],
-  ] as const;
   return <main>
       <header className="marketing-header"><div className="container"><nav className="marketing-nav"><Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo-light.svg" alt="Vendeo" width={150} height={40}/></Link><div className="nav-links"><a href="#fonctionnalites">Fonctionnalités</a><a href="#comment">Comment ça marche</a><a href="#tarifs">Tarifs</a><a href="#faq">FAQ</a></div><div className="marketing-actions"><Link className="btn btn-ghost" href="/login">Se connecter</Link><Link className="btn btn-white" href="/register">Commencer <ArrowRight size={15}/></Link></div></nav></div></header>
        <section className="hero">
@@ -103,7 +97,7 @@ export function Marketing() {
         </div>
       </section>
       <section className="section" id="comment"><div className="container"><div className="section-head"><div><span className="eyebrow">Une seule plateforme</span><h2>Moins d’allers-retours.<br/>Plus de visibilité.</h2></div><p>Connecte tes outils et retrouve au même endroit les informations nécessaires pour piloter et optimiser ton activité.</p></div><div className="how-grid"><article className="step-card"><span className="step-num mono">01 / CONNECTER</span><h3>Ta boutique</h3><p>Centralise tes produits, tes ventes et tes données commerciales.</p></article><article className="step-card"><span className="step-num mono">02 / CONNECTER</span><h3>Tes publicités</h3><p>Regroupe tes campagnes, tes dépenses et tes performances publicitaires.</p></article><article className="step-card"><span className="step-num mono">03 / ANALYSER</span><h3>Tes résultats</h3><p>Compare ventes, dépenses, clics, conversions, ROAS et CPA.</p></article><article className="step-card"><span className="step-num mono">04 / OPTIMISER</span><h3>Ta prochaine action</h3><p>Identifie ce qui fonctionne et applique des recommandations concrètes.</p></article></div></div></section>
-      <section className="section proof-section"><div className="container"><div className="section-head"><div><span className="eyebrow">Ils utilisent déjà Vendeo</span><h2>Plus de <AnimatedCounter end={150}/> créateurs<br/>pilotent déjà leur boutique.</h2></div><p>Des boutiques Chariow connectées à Vendeo, avec des ventes bien réelles.</p></div></div><div className="proof-carousel"><div className="proof-track">{[...proofImages, ...proofImages].map(([src, alt, h], i) => <figure className="proof-card" key={i} aria-hidden={i >= proofImages.length}><img src={src} alt={alt} width={480} height={h} loading="lazy"/></figure>)}</div></div></section>
+      {proofImages.length > 0 && <section className="section proof-section"><div className="container"><div className="section-head"><div><span className="eyebrow">Ils utilisent déjà Vendeo</span><h2>Plus de <AnimatedCounter end={150}/> créateurs<br/>pilotent déjà leur boutique.</h2></div><p>Des boutiques Chariow connectées à Vendeo, avec des ventes bien réelles.</p></div></div><div className="proof-carousel"><div className="proof-track">{[...proofImages, ...proofImages].map((img, i) => <figure className="proof-card" key={i} aria-hidden={i >= proofImages.length}><img src={img.src} alt={img.alt} width={480} height={img.height} loading="lazy"/></figure>)}</div></div></section>}
       <section className="section features-section" id="fonctionnalites"><div className="container"><div className="section-head"><div><span className="eyebrow">Pensé pour progresser</span><h2>Comprends ce qui fonctionne<br/>et quoi améliorer.</h2></div><p>Vendeo relie tes ventes, tes produits et tes publicités pour t’aider à comprendre tes résultats et à optimiser tes décisions.</p></div><div className="feature-grid"><article className="feature-card dark"><h3>Suis la performance réelle de ton activité.</h3><p>Compare ton chiffre d’affaires, tes dépenses publicitaires, tes ventes et tes indicateurs de rentabilité au même endroit.</p><ul className="mini-list"><li>Ventes et dépenses publicitaires réunies</li><li>ROAS, CPA et taux de conversion</li><li>Recommandations concrètes basées sur tes données</li></ul></article><article className="feature-card light"><h3>Passe de l’analyse à l’action.</h3><p>Repère les campagnes qui fonctionnent, les dépenses qui produisent moins de résultats et les points qui peuvent limiter tes ventes.</p><div className="feature-line"/></article></div></div></section>
      <section className="section" id="tarifs"><div className="container"><div className="section-head"><div><span className="eyebrow">Un prix simple</span><h2>Un seul plan.<br/>Tout inclus.</h2></div><p>7 jours d'essai gratuit, puis un abonnement unique pour continuer à utiliser Vendeo.</p></div><div className="pricing-wrap" style={{maxWidth:400,margin:'0 auto'}}><article className="price-card pro"><span className="pill" style={{marginBottom:18}}>Essai gratuit — 7 jours</span><h3>Vendeo</h3><div className="price">2 000 XOF <small>/ mois</small></div><ul><li><Check className="check" size={15}/>Analyse IA illimitée de tes ventes et de tes pubs</li><li><Check className="check" size={15}/>Connexion boutique Chariow</li><li><Check className="check" size={15}/>Facebook, Instagram, TikTok, WhatsApp et plus</li><li><Check className="check" size={15}/>Rapports détaillés</li><li><Check className="check" size={15}/>Support standard</li></ul><Link href="/register" className="btn btn-lime" style={{width:'100%'}}>Démarrer mon essai gratuit <ArrowRight size={15}/></Link></article></div></div></section>
     <section className="section" id="faq"><div className="container"><div className="section-head"><div><span className="eyebrow">Questions fréquentes</span><h2>Tout est<br/>plus clair.</h2></div><p>Une question que tu ne vois pas ici ? Écris-nous, on te répond.</p></div><div className="faq-list">{faqs.map(([q,a],i)=><div className="faq-item" key={q}><button className="faq-question" onClick={()=>setOpen(open===i?null:i)} aria-expanded={open===i}>{q}<span>{open===i?'−':'+'}</span></button>{open===i&&<div className="faq-answer">{a}</div>}</div>)}</div></div></section>
