@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ArrowRight, Check, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { JOEL_PROOF_IMAGE, ELENA_PROOF_IMAGE, KARIM_PROOF_IMAGE } from "@/lib/social-proof-images";
+import "@/app/proof-images.css";
 
 const faqs = [
   ["Est-ce que je dois installer quelque chose ?", "Non. Tout se passe dans ton navigateur, sur ordinateur ou mobile. Connecte ta boutique et commence à poser tes questions."],
