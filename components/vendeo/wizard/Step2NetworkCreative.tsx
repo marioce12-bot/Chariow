@@ -7,8 +7,7 @@ import type { Objective, Platform, WizardState } from "./types";
 interface StepProps {
   state: WizardState;
   patch: (p: Partial<WizardState>) => void;
-  onNext: () => void;
-  onBack: () => void;
+  onValidityChange: (valid: boolean) => void;
 }
 
 const OBJECTIVES: { value: Objective; label: string }[] = [
@@ -18,10 +17,6 @@ const OBJECTIVES: { value: Objective; label: string }[] = [
   { value: "leads", label: "Leads" },
 ];
 
-// Les descriptions produit Chariow sont du HTML (issu d'un éditeur riche côté
-// boutique) : "<h3><strong style=...>Titre</strong></h3><p>...</p>". Sans nettoyage,
-// ce balisage se retrouvait affiché tel quel dans le texte de l'annonce. On retire
-// les balises et on décode les entités les plus courantes avant de préremplir.
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]*>/g, " ")
@@ -35,25 +30,13 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-/**
- * Étape 2/5 — Réseau (Meta/TikTok), objectif, visuel et texte de l'annonce.
- *
- * NB : la sélection du compte Meta Ads (metaAdAccountId/metaPageId) ou du
- * compte TikTok Ads (tiktokAdAccountId/tiktokIdentityId) n'est pas gérée ici :
- * branche-la sur tes sélecteurs existants (ceux utilisés dans le flux actuel
- * de connexion Meta/TikTok) et passe les valeurs via `patch(...)`.
- *
- * NB2 : l'upload du visuel utilise POST /api/uploads/campaign-media (route
- * existante, backée par Cloudinary) qui renvoie { secure_url, public_id, ... }.
- */
-export function Step2NetworkCreative({ state, patch, onNext, onBack }: StepProps) {
+export function Step2NetworkCreative({ state, patch, onValidityChange }: StepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [mediaKind, setMediaKind] = useState<"image" | "video" | null>(null);
 
-  // Pré-remplit le texte/titre à partir du produit choisi à l'étape 1.
   useEffect(() => {
     if (state.product && !state.adText) {
       patch({
@@ -64,15 +47,24 @@ export function Step2NetworkCreative({ state, patch, onNext, onBack }: StepProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.product]);
 
-  // Pré-remplit le lien de destination avec la page produit Chariow si
-  // disponible — sans ça, le bouton "Continuer" restait bloqué tant que
-  // personne ne collait un lien à la main.
   useEffect(() => {
     if (state.product?.url && !state.destinationUrl) {
       patch({ destinationUrl: state.product.url });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.product]);
+
+  const canContinue =
+    state.mediaUrl.trim().length > 0 &&
+    !uploading &&
+    state.adText.trim().length > 0 &&
+    state.destinationUrl.trim().length > 0;
+
+  // Prévient le pied de page (rendu par LaunchAdWizard, hors de cette zone
+  // qui défile) dès que la validité de l'étape change.
+  useEffect(() => {
+    onValidityChange(canContinue);
+  }, [canContinue, onValidityChange]);
 
   async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -109,12 +101,6 @@ export function Step2NetworkCreative({ state, patch, onNext, onBack }: StepProps
     patch({ mediaUrl: "" });
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
-
-  const canContinue =
-    state.mediaUrl.trim().length > 0 &&
-    !uploading &&
-    state.adText.trim().length > 0 &&
-    state.destinationUrl.trim().length > 0;
 
   return (
     <div className="space-y-4">
@@ -251,31 +237,17 @@ export function Step2NetworkCreative({ state, patch, onNext, onBack }: StepProps
         )}
       </div>
 
-      <div className="sticky bottom-0 -mx-5 border-t border-gray-100 bg-white px-5 pb-1 pt-3">
-        {!canContinue && !uploading && (
-          <p className="pb-1 text-right text-xs text-gray-400">
-            {!state.mediaUrl.trim()
-              ? "Ajoute un visuel pour continuer."
-              : !state.destinationUrl.trim()
-              ? "Renseigne un lien de destination pour continuer."
-              : !state.adText.trim()
-              ? "Ajoute un texte d'annonce pour continuer."
-              : ""}
-          </p>
-        )}
-        <div className="flex justify-between">
-          <button onClick={onBack} className="text-sm font-medium text-gray-500">
-            Retour
-          </button>
-          <button
-            disabled={!canContinue}
-            onClick={onNext}
-            className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
-          >
-            Continuer
-          </button>
-        </div>
-      </div>
+      {!canContinue && !uploading && (
+        <p className="text-right text-xs text-gray-400">
+          {!state.mediaUrl.trim()
+            ? "Ajoute un visuel pour continuer."
+            : !state.destinationUrl.trim()
+            ? "Renseigne un lien de destination pour continuer."
+            : !state.adText.trim()
+            ? "Ajoute un texte d'annonce pour continuer."
+            : ""}
+        </p>
+      )}
     </div>
   );
 }
