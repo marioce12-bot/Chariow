@@ -2,6 +2,10 @@
 
 export type Platform = "meta" | "tiktok";
 export type Objective = "sales" | "traffic" | "engagement" | "leads";
+// "whatsapp_status" n'est valable que pour platform === "meta" : les pubs dans
+// le Statut WhatsApp sont un placement de Meta Ads, pas un réseau à part (pas
+// de compte à connecter en plus — voir Step2NetworkCreative pour le détail).
+export type Placement = "auto" | "whatsapp_status";
 
 export interface ChariowProductLite {
   id: string;
@@ -21,6 +25,7 @@ export interface WizardState {
   // Étape 2
   platform: Platform;
   objective: Objective;
+  placement: Placement;
   mediaUrl: string;
   adText: string;
   title: string;
@@ -50,6 +55,7 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   product: null,
   platform: "meta",
   objective: "sales",
+  placement: "auto",
   mediaUrl: "",
   adText: "",
   title: "",
