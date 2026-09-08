@@ -151,7 +151,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
         </div>
       )}
 
-      <div className="flex justify-between pt-2">
+      <div className="sticky bottom-0 -mx-5 flex justify-between border-t border-gray-100 bg-white px-5 pb-1 pt-3">
         <button onClick={onBack} className="text-sm font-medium text-gray-500">
           Retour
         </button>
