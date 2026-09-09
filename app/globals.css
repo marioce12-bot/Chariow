@@ -766,6 +766,33 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .product-perf-stats { display:flex; flex:none; gap:16px; }
 .product-perf-stats small { color:var(--muted); display:block; font-size:9px; }
 .product-perf-stats strong { display:block; font-size:13px; }
+
+/* Diagnostic publicitaire (entonnoir : audience, créative, attribution, checkout) */
+.diag-section { margin-bottom:18px; }
+.diag-actions { display:flex; gap:8px; flex:none; }
+.diag-actions .btn { font-size:11px; padding:9px 12px; }
+.diag-reports { display:grid; gap:12px; }
+.diag-card { border:1px solid var(--line); border-radius:12px; padding:14px; }
+.diag-card-ok { background:rgba(47,166,106,.07); }
+.diag-card-alert { background:#fff8ec; }
+.diag-card-head { align-items:center; display:flex; gap:10px; justify-content:space-between; margin-bottom:6px; }
+.diag-card-head strong { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.diag-badge { align-items:center; border-radius:999px; display:inline-flex; flex:none; font-size:10px; font-weight:800; gap:5px; padding:4px 9px; white-space:nowrap; }
+.diag-badge-ok { background:#dcf3e0; color:#15803d; }
+.diag-badge-alert { background:#fdead0; color:#b96f20; }
+.diag-sev-critical { background:#fde2e2; color:#c2414b; }
+.diag-sev-high { background:#ffedd5; color:#c2410c; }
+.diag-sev-medium { background:#fef9c3; color:#a16207; }
+.diag-sev-low { background:#e0eaff; color:#294b98; }
+.diag-anomaly { border-top:1px dashed var(--line); margin-top:8px; padding-top:10px; }
+.diag-anomaly-head { align-items:center; display:flex; gap:8px; justify-content:space-between; margin-bottom:8px; }
+.diag-stage { color:var(--ink); font-size:12px; font-weight:800; }
+.diag-evidence { display:flex; flex-wrap:wrap; gap:8px; }
+.diag-evidence-item { background:white; border:1px solid var(--line); border-radius:9px; display:flex; flex-direction:column; gap:3px; padding:8px 10px; }
+.diag-evidence-item small { color:var(--muted); font-size:9px; }
+.diag-evidence-item strong { color:var(--ink); font-size:12px; letter-spacing:-.02em; }
+.diag-analysis { background:#0d1c42; border:1px solid var(--line); border-radius:12px; color:#dbe4ff; display:grid; gap:9px; margin-bottom:14px; padding:16px 18px; font-size:12px; line-height:1.65; }
+.diag-analysis p { margin:0; }
 @media (max-width: 900px) {
   .home-primary-grid { grid-template-columns:1fr; }
 }
@@ -848,6 +875,15 @@ html[data-theme="dark"] .meta-conversion-info { background:#0e1c3f; border-color
 html[data-theme="dark"] .meta-status.profitable { color:#6fd394; }
 html[data-theme="dark"] .meta-status.loss { color:#f19999; }
 html[data-theme="dark"] .meta-status.warning { color:#eec488; }
+html[data-theme="dark"] .diag-card-alert { background:rgba(210,139,61,.12); }
+html[data-theme="dark"] .diag-card-ok { background:rgba(47,166,106,.10); }
+html[data-theme="dark"] .diag-badge-ok { background:rgba(47,166,106,.16); color:#6fd394; }
+html[data-theme="dark"] .diag-badge-alert { background:rgba(210,139,61,.16); color:#eec488; }
+html[data-theme="dark"] .diag-sev-critical { background:rgba(217,93,93,.16); color:#f19999; }
+html[data-theme="dark"] .diag-sev-high { background:rgba(217,119,6,.16); color:#f0b47a; }
+html[data-theme="dark"] .diag-sev-medium { background:rgba(202,138,4,.16); color:#e7c66b; }
+html[data-theme="dark"] .diag-sev-low { background:rgba(77,126,216,.16); color:#93b8f5; }
+html[data-theme="dark"] .diag-evidence-item { background:#0e1c3f; }
 html[data-theme="dark"] .campaign-modal { background:#071129; }
 html[data-theme="dark"] .campaign-modal-header, html[data-theme="dark"] .campaign-stepper, html[data-theme="dark"] .campaign-modal-footer, html[data-theme="dark"] .campaign-form-card { background:#0b1734; }
 html[data-theme="dark"] .campaign-field input, html[data-theme="dark"] .campaign-field select, html[data-theme="dark"] .campaign-field textarea { background:#0a1733; border-color:var(--line); color:var(--ink); }
