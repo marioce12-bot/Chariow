@@ -76,6 +76,29 @@ function firstText(...candidates: unknown[]): string | null {
   return null;
 }
 
+// Chariow renvoie parfois "settled" ou "paid" plutôt que "completed" pour une
+// vente réussie, selon le type de compte (produits digitaux notamment). On les
+// traite comme équivalents partout où on doit distinguer une vente confirmée
+// des autres statuts (abandonnée, échouée, en attente).
+const COMPLETED_LIKE_STATUSES = new Set(["completed", "settled", "paid"]);
+
+function isCompletedSale(row: Record<string, unknown>): boolean {
+  return COMPLETED_LIKE_STATUSES.has(String(row.status ?? row.state ?? ""));
+}
+
+function readSaleProductRef(row: Record<string, unknown>): { id: string | null; name: string | null } {
+  const product = asRecord(row.product);
+  return {
+    id: firstText(row.product_id, row.productId, product.id, product.uuid),
+    name: firstText(row.product_name, row.productName, product.name, product.title),
+  };
+}
+
+function readSaleCustomerRef(row: Record<string, unknown>): string | null {
+  const customer = asRecord(row.customer);
+  return firstText(row.customer_id, customer.id, customer.email, row.email, customer.phone, row.phone);
+}
+
 // Construit un lien produit à partir d'une boutique + d'un slug quand l'API ne
 // renvoie pas d'URL complète toute faite (seulement un identifiant/slug produit).
 function buildProductUrl(store: Record<string, unknown>, product: Record<string, unknown>): string | null {
@@ -97,6 +120,25 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
   const customers = asRecord(storeAnalytics.customers ?? salesAnalytics.customers);
   const analyticsProducts = asRecord(storeAnalytics.products ?? salesAnalytics.products);
   const productRows = firstArray(snapshot.products);
+
+  // Source de vérité pour tout ce qui doit être compté : la liste brute des
+  // ventes (list_sales), qui elle remonte bien les événements individuels —
+  // contrairement aux compteurs agrégés (get_sales_analytics /
+  // get_store_analytics) qui se sont révélés à 0 ou absents sur certains
+  // comptes (notamment vente de produits digitaux), alors que des ventes
+  // confirmées existent bel et bien.
+  const rawSales = firstArray(snapshot.sales)
+    .map((item) => (item && typeof item === "object" ? (item as Record<string, unknown>) : null))
+    .filter((item): item is Record<string, unknown> => item !== null);
+  const completedSales = rawSales.filter(isCompletedSale);
+  const saleAmount = (row: Record<string, unknown>) => {
+    const value = row.amount;
+    const numeric = typeof value === "object" && value !== null ? Number((value as Record<string, unknown>).value ?? (value as Record<string, unknown>).amount) : Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+  };
+  const computedRevenue = completedSales.reduce((sum, row) => sum + saleAmount(row), 0);
+  const computedCustomers = new Set(completedSales.map(readSaleCustomerRef).filter((value): value is string => Boolean(value))).size;
+
   let loggedUnresolvedFields = false;
   const products: ChariowProduct[] = productRows.map((item, index) => {
     const product = asRecord(item);
@@ -158,9 +200,26 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       loggedUnresolvedFields = true;
     }
 
+    const productId = String(product.id ?? product.uuid ?? index);
+    const productName = text(product.name ?? product.title) ?? "Produit sans nom";
+    // Le champ `sales` renvoyé directement par list_products s'est révélé
+    // absent ou toujours à 0 sur certains comptes (voir capture utilisateur :
+    // des ventes "settled" bien réelles dans list_sales, mais 0 partout dans
+    // le catalogue). On recoupe donc avec la liste brute des ventes, en
+    // matchant par id produit puis, à défaut, par nom — et on ne retombe sur
+    // le champ du catalogue que si aucune vente n'a pu être rattachée.
+    const matchingSales = completedSales.filter((row) => {
+      const ref = readSaleProductRef(row);
+      if (ref.id && ref.id === productId) return true;
+      if (ref.name && productName && ref.name.trim().toLowerCase() === productName.trim().toLowerCase()) return true;
+      return false;
+    });
+    const computedProductSales = matchingSales.length;
+    const catalogSales = typeof product.sales === "number" ? product.sales : null;
+
     return {
-      id: String(product.id ?? product.uuid ?? index),
-      name: text(product.name ?? product.title) ?? "Produit sans nom",
+      id: productId,
+      name: productName,
       description: text(product.description),
       price: resolvedPrice,
       currency: firstText(product.currency, price.currency, price.currency_code, product.currency_code, pricingEntry.currency, pricingEntry.currency_code, store.currency),
@@ -168,13 +227,21 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       image: text(product.image ?? product.image_url ?? product.thumbnail),
       url: resolvedUrl,
       createdAt: text(product.created_at ?? product.createdAt),
-      sales: typeof product.sales === "number" ? product.sales : null,
+      sales: computedProductSales > 0 ? computedProductSales : catalogSales,
     };
   });
   const revenue = asRecord(sales.value);
   const currency = revenue.currency ?? sales.currency ?? store.currency;
-  const revenueValue = numberValue(revenue.value ?? sales.value);
+  const analyticsRevenueValue = numberValue(revenue.value ?? sales.value);
   const conversion = asRecord(visits.conversion_rate ?? visits.conversionRate);
+  const analyticsSalesCount = numericValue(sales.count);
+  // Même logique de repli que pour les produits : si l'endpoint d'analytics
+  // agrégées ne renvoie rien d'exploitable, on recalcule depuis la liste brute
+  // des ventes plutôt que d'afficher 0 alors que des ventes existent.
+  const salesCount = analyticsSalesCount && analyticsSalesCount > 0 ? analyticsSalesCount : completedSales.length;
+  const revenueValue = numericValue(analyticsRevenueValue) && numericValue(analyticsRevenueValue)! > 0 ? analyticsRevenueValue : (computedRevenue > 0 ? computedRevenue : analyticsRevenueValue);
+  const analyticsCustomersCount = numericValue(customers.total ?? customers.count);
+  const customersCount = analyticsCustomersCount && analyticsCustomersCount > 0 ? analyticsCustomersCount : computedCustomers;
   return {
     storeName: text(store.name ?? store.store_name) ?? "Boutique Chariow",
     storeStatus: text(store.status ?? store.connection_status) ?? "connected",
@@ -183,10 +250,10 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
     kpis: {
       period,
       revenue: { value: revenueValue, formatted: text(revenue.formatted) ?? (numericValue(revenueValue) === 0 ? formattedZero(currency) : (revenueValue?.toString() ?? formattedZero(currency))) },
-      sales: numericValue(sales.count) ?? 0,
-      visits: numericValue(visits.total) ?? 0,
+      sales: salesCount,
+      visits: numericValue(visits.total ?? visits.count ?? visits.unique ?? visits.unique_visitors ?? visits.sessions) ?? 0,
       conversionRate: text(conversion.formatted) ?? "0 %",
-      customers: numericValue(customers.total) ?? 0,
+      customers: customersCount,
       productsSold: numericValue(analyticsProducts.sold) ?? 0,
     },
   };
