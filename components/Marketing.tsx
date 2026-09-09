@@ -60,7 +60,7 @@ export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) 
        <section className="hero">
         <div className="container hero-grid hero-vendeo-grid">
           <div className="hero-title hero-copy">
-            <h1>Gère, analyse et<br/>optimise ton activité<br/>digitale.</h1>
+            <h1>Gère, analyse et<br/>optimise ton activité<br/><em>digitale</em>.</h1>
             <p className="hero-tagline">Depuis un seul espace.</p>
           </div>
 
