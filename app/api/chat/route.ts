@@ -5,6 +5,7 @@ import { askGemini } from "@/lib/ai/gemini";
 import { getChariowSnapshot, serializeChariowContext } from "@/lib/chariow/analytics";
 import { cleanAiText } from "@/lib/ai/format";
 import { calculateProfitabilityAggregate } from "@/lib/profitability-aggregates";
+import { buildDiagnosticReports } from "@/lib/meta/diagnostic-server";
 
 const VENDEO_SYSTEM_PROMPT = `Tu es l'analyste business de Vendeo pour les créateurs de produits digitaux francophones.
 
@@ -22,7 +23,13 @@ Règles importantes :
 - N'utilise pas de Markdown gras avec des astérisques ; écris les titres directement.
  - Adapte tes recommandations aux créateurs africains et aux paiements en XOF.
 - Quand c'est pertinent, propose une liste d'actions prioritaires.
-- Réponds de manière concise mais utile.`;
+-- Réponds de manière concise mais utile.
+
+Diagnostic publicitaire (quand le contexte contient un "Rapport de diagnostic publicitaire") :
+- Le moteur Vendeo a déjà calculé les anomalies : ne recalcule rien, ne fabrique aucun chiffre, cite les preuves ("preuves") telles quelles.
+- Annonce d'abord l'étage de l'entonnoir concerné en une phrase claire, puis justifie avec les chiffres exacts.
+- Ne propose que des actions liées à l'"étage" détecté : audience → ajuster ciblage, tester un lookalike, élargir/réduire l'audience ; creative → renouveler visuel/vidéo, nouvel angle créatif ; attribution → vérifier Pixel/CAPI, ne pas juger sur le ROAS Meta seul ; offer → prix, preuve sociale, clarté de la page produit ; checkout → alerter sur la méthode de paiement en cause, sans proposer de correctif technique ; technical → signaler le device/placement suspect.
+- Une campagne "ok" n'a pas de problème : dis-le simplement, n'invente pas d'anomalie.`;
 
 export async function GET() {
   const { supabase, user, response } = await requireUser();
@@ -65,6 +72,25 @@ export async function POST(request: Request) {
   if (!quota) return NextResponse.json({ error: "Ton essai gratuit est terminé. Active ton abonnement pour continuer.", code: "PLANS_REQUIRED" }, { status: 429 });
   const { error: insertError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "user", content: message });
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+  // Rapport de diagnostic publicitaire : le moteur déterministe a déjà calculé les
+  // anomalies (étages audience / créative / attribution). On injecte le JSON tel quel
+  // dans le contexte ; l'IA du chat ne recalcule rien, elle lit et cite les preuves.
+  // Placé en tête du contexte pour survivre à la troncature.
+  let diagnosticContext = "";
+  try {
+    const diagnostic = await buildDiagnosticReports(supabase, user, {});
+    if (!("error" in diagnostic) && diagnostic.reports.length) {
+      const compact = diagnostic.reports.map((report) => ({
+        campagne: report.campaignName,
+        statut: report.status,
+        anomalies: report.anomalies.map((anomaly) => ({ etage: anomaly.stage, gravite: anomaly.severity, preuves: anomaly.evidence })),
+      }));
+      diagnosticContext = `Rapport de diagnostic publicitaire (calculé par le moteur Vendeo, période ${diagnostic.reports[0]?.period.from} → ${diagnostic.reports[0]?.period.to}, devise ${diagnostic.currency}) — ne recalcule rien, cite les preuves : ${JSON.stringify(compact)}`;
+      if (diagnosticContext.length > 1600) diagnosticContext = `${diagnosticContext.slice(0, 1600)}[...tronqué...]`;
+    }
+  } catch (diagnosticError) {
+    console.error("diagnostic context error", diagnosticError instanceof Error ? diagnosticError.message : diagnosticError);
+  }
   let context = "Aucune boutique n'est encore connectée.";
 
   if (stores && stores.length > 0) {
@@ -90,7 +116,7 @@ export async function POST(request: Request) {
         })
       );
 
-      context = `Données réelles de toutes tes boutiques actives pour la période du mois en cours :\n${snapshots.join("\n\n")}`;
+      context = `${diagnosticContext ? `${diagnosticContext}\n\n` : ""}Données réelles de toutes tes boutiques actives pour la période du mois en cours :\n${snapshots.join("\n\n")}`;
     } catch {
       context = "Données Chariow momentanément indisponibles pour l'une ou plusieurs boutiques. Ne fabrique aucun chiffre.";
     }

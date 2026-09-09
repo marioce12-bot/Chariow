@@ -135,15 +135,6 @@ button { cursor:pointer; }
 .footer-row { align-items:center; display:flex; justify-content:space-between; }
 .footer-links { color:#aec2b4; display:flex; gap:20px; font-size:12px; }
 
-/* Carrousel de captures — défilement continu de droite à gauche */
-.screens-track { align-items:center; animation:screensScroll 46s linear infinite; display:flex; width:max-content; }
-.screens-group { align-items:center; display:flex; gap:18px; padding-right:18px; }
-.screens-image { border:1px solid var(--line); border-radius:16px; box-shadow:0 18px 45px rgba(0,12,46,.10); height:auto; max-width:100%; width:min(560px,78vw); }
-.screens-marquee { overflow:hidden; }
-.screens-marquee:hover .screens-track { animation-play-state:paused; }
-@keyframes screensScroll { from { transform:translateX(0); } to { transform:translateX(-50%); } }
-@media (prefers-reduced-motion: reduce) { .screens-track { animation:none; } }
-
 @keyframes riseIn { from { opacity:0; transform:translateY(22px); } to { opacity:1; transform:translateY(0); } }
 @keyframes navIn { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
 @keyframes previewFloat { 0%,100% { transform:rotate(2deg) translateY(0); } 50% { transform:rotate(1deg) translateY(-9px); } }
