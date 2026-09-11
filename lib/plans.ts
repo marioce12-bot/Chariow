@@ -1,8 +1,9 @@
-// Configuration centralisée du plan Vendeo.
-// Un seul abonnement, un seul prix : 2 000 XOF / mois, avec 7 jours d'essai
-// gratuit à l'inscription. Toute logique de prix ou de durée doit passer par
-// ce fichier plutôt que d'écrire des valeurs "en dur" dans les routes API ou
-// les composants.
+// Configuration centralisée des plans Vendeo.
+// Deux plans : Vendeo (2 000 XOF/mois, 1 boutique) et Vendeo Premium
+// (3 000 XOF/mois, 3 boutiques), avec 7 jours d'essai gratuit à l'inscription
+// (sur le plan Vendeo standard). Toute logique de prix, de durée ou de
+// limites doit passer par ce fichier plutôt que d'écrire des valeurs
+// "en dur" dans les routes API ou les composants.
 //
 // Il n'y a plus de quota de messages IA : tant que l'essai de 7 jours ou
 // l'abonnement est actif, l'usage de l'assistant IA est illimité (voir
@@ -13,6 +14,14 @@ export const PLAN_CONFIG = {
     label: "Vendeo",
     amount: 2000,
     periodDays: 30,
+    maxStores: 1,
+    adPlatforms: ["facebook", "instagram", "tiktok", "whatsapp", "pinterest", "linkedin", "google"] as const,
+  },
+  premium: {
+    label: "Vendeo Premium",
+    amount: 3000,
+    periodDays: 30,
+    maxStores: 3,
     adPlatforms: ["facebook", "instagram", "tiktok", "whatsapp", "pinterest", "linkedin", "google"] as const,
   },
 } as const;
@@ -37,9 +46,23 @@ export function planAmount(plan: PlanId) {
   return PLAN_CONFIG[plan].amount;
 }
 
-// Un seul plan existe désormais et il inclut tous les réseaux pub : cette
-// fonction est conservée pour ne pas casser les appels existants (UI de
-// verrouillage par plateforme), mais elle retourne toujours vrai en pratique.
+export function planMaxStores(plan: PlanId) {
+  return PLAN_CONFIG[plan].maxStores;
+}
+
+// Lit le plan actif de l'utilisateur et retourne le nombre de boutiques
+// autorisées. Centralisé ici pour que /api/stores, /api/integrations/chariow/
+// connect et /connect/check restent cohérents entre eux.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function resolveUserMaxStores(supabase: any, userId: string): Promise<number> {
+  const { data } = await supabase.from("subscriptions").select("plan").eq("user_id", userId).maybeSingle();
+  const plan = isPlanId(data?.plan) ? data.plan : "starter";
+  return planMaxStores(plan);
+}
+
+// Les deux plans incluent actuellement tous les réseaux pub : cette
+// fonction est conservée pour l'UI de verrouillage par plateforme, au cas où
+// un plan futur restreindrait certains réseaux.
 export function isAdPlatformAllowed(plan: PlanId, platform: AdPlatform) {
   return (PLAN_CONFIG[plan].adPlatforms as readonly string[]).includes(platform);
 }
