@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getChariowSnapshot } from "@/lib/chariow/analytics";
+import { resolveUserMaxStores } from "@/lib/plans";
 
 const platforms = ["chariow", "selar", "gumroad"] as const;
 
@@ -35,9 +36,8 @@ export async function POST(request: Request) {
   }
   if (mcp_url && !String(mcp_url).startsWith("https://")) return NextResponse.json({ error: "L'URL MCP doit utiliser HTTPS" }, { status: 400 });
   const { count } = await supabase.from("stores").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("is_active", true);
-  // Un seul plan existe désormais : 1 boutique Chariow connectée.
-  const maxStores = 1;
-  if ((count ?? 0) >= maxStores) return NextResponse.json({ error: `Ton abonnement autorise ${maxStores} boutique(s)` }, { status: 403 });
+  const maxStores = await resolveUserMaxStores(supabase, user.id);
+  if ((count ?? 0) >= maxStores) return NextResponse.json({ error: `Ton abonnement autorise ${maxStores} boutique(s). Passe au plan Vendeo Premium pour en connecter jusqu'à 3.`, code: "STORE_LIMIT", maxStores }, { status: 403 });
   const { data, error } = await supabase
     .from("stores")
     .insert({
