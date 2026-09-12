@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 import { formatMoney } from "@/lib/format";
-import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
+import { isAdPlatformAllowed, planMaxStores, type AdPlatform, type PlanId } from "@/lib/plans";
 import {
   VerdictBanner,
   ImpactFinancierCard,
@@ -100,7 +100,7 @@ type StoreData = {
 };
 
 type SubscriptionData = {
-  plan: "eco" | "starter" | "pro";
+  plan: "eco" | "starter" | "premium" | "pro";
   messages_used_this_month: number;
   messages_limit: number;
   free_messages_used: number;
@@ -353,7 +353,7 @@ export function Dashboard() {
           ) : active === "Pubs" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} />
           ) : active === "Mes boutiques" ? (
-            <StoresView stores={stores} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
+            <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Abonnement" ? (
             <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Rapports" ? (
@@ -1685,12 +1685,35 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
   );
 }
 
-function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: StoreData[]; onStoresChange: (stores: StoreData[]) => void; onBackToSettings?: () => void }) {
+function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: { stores: StoreData[]; subscription: SubscriptionData | null; onStoresChange: (stores: StoreData[]) => void; onBackToSettings?: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const maxStores = stores.length > 1 ? 3 : 1;
+  const currentPlan: PlanId = subscription?.plan === "premium" ? "premium" : "starter";
+  const maxStores = planMaxStores(currentPlan);
+
+  async function upgradeToPremium() {
+    setUpgrading(true);
+    try {
+      const response = await fetch("/api/subscription/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: "premium" }),
+      });
+      const data = await response.json();
+      if (response.ok && data.payment?.url) {
+        window.location.href = data.payment.url;
+      } else {
+        window.alert(data.error ?? "Impossible de lancer le paiement.");
+        setUpgrading(false);
+      }
+    } catch {
+      window.alert("Impossible de lancer le paiement.");
+      setUpgrading(false);
+    }
+  }
 
   async function connectChariow(storeId?: string) {
     setError("");
@@ -1803,7 +1826,7 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
         {stores.length === 0 && <div className="empty-state compact">Aucune boutique connectée.</div>}
 
       </div>
-      {showUpgrade && <div className="modal-backdrop" role="presentation" onClick={() => setShowUpgrade(false)}><div className="upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setShowUpgrade(false)} aria-label="Fermer">×</button><span className="eyebrow">Limite de ton abonnement</span><h2 id="upgrade-title">Connecte plusieurs boutiques</h2><p>Contacte le support pour connecter davantage de boutiques.</p></div></div>}
+      {showUpgrade && <div className="modal-backdrop" role="presentation" onClick={() => setShowUpgrade(false)}><div className="upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setShowUpgrade(false)} aria-label="Fermer">×</button><span className="eyebrow">Limite de ton abonnement</span><h2 id="upgrade-title">Connecte jusqu'à 3 boutiques</h2><p>Ton plan Vendeo actuel autorise 1 boutique. Passe à Vendeo Premium pour en connecter jusqu'à 3.</p><div className="sale-detail-grid" style={{ marginTop: 16, marginBottom: 18 }}><div><small>Vendeo Premium</small><strong>3 000 XOF / mois</strong></div><div><small>Boutiques incluses</small><strong>Jusqu'à 3</strong></div></div><button type="button" className="btn btn-lime" style={{ width: "100%" }} onClick={() => void upgradeToPremium()} disabled={upgrading}>{upgrading ? "Redirection…" : "Passer à Vendeo Premium"}</button></div></div>}
     </>
   );
 }
@@ -1811,27 +1834,60 @@ function StoresView({ stores, onStoresChange, onBackToSettings }: { stores: Stor
 function SubscriptionView({ subscription, onBackToSettings }: { subscription: SubscriptionData | null; onBackToSettings?: () => void }) {
   const trial = subscription?.trial_active ?? true;
   const isActive = subscription?.status === "active" && !trial;
+  const currentPlan: PlanId = subscription?.plan === "premium" ? "premium" : "starter";
   const trialEndsAt = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null;
   const trialDaysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / 86400000)) : null;
+  const [changingPlan, setChangingPlan] = useState<PlanId | null>(null);
 
-  async function subscribe() {
-    const response = await fetch("/api/subscription/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan: "starter" }),
-    });
-    const data = await response.json();
-    if (response.ok && data.payment?.url) {
-      window.location.href = data.payment.url;
-    } else {
-      window.alert(data.error ?? "Impossible de lancer le paiement.");
+  async function subscribe(plan: PlanId) {
+    setChangingPlan(plan);
+    try {
+      const response = await fetch("/api/subscription/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await response.json();
+      if (response.ok && data.payment?.url) {
+        window.location.href = data.payment.url;
+      } else {
+        window.alert(data.error ?? "Impossible de lancer le paiement.");
+        setChangingPlan(null);
+      }
+    } catch {
+      window.alert("Impossible de lancer le paiement.");
+      setChangingPlan(null);
     }
   }
 
   if (isActive) {
     const periodStart = subscription?.current_period_start ? new Date(subscription.current_period_start).toLocaleDateString("fr-FR") : "Non disponible";
     const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("fr-FR") : "Non disponible";
-    return <><div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>Abonnement Vendeo actif</h1><p>Accès illimité à ton analyste IA.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div><div className="app-card" style={{ maxWidth: 520 }}><span className="eyebrow">Abonnement en cours</span><h2 style={{ marginTop: 6 }}>Vendeo — 2 000 XOF / mois</h2><div className="sale-detail-grid" style={{ marginTop: 18 }}><div><small>Période en cours depuis</small><strong>{periodStart}</strong></div><div><small>Renouvellement</small><strong>{periodEnd}</strong></div><div><small>Usage IA</small><strong>Illimité</strong></div></div></div></>;
+    return (
+      <>
+        <div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>{currentPlan === "premium" ? "Vendeo Premium actif" : "Abonnement Vendeo actif"}</h1><p>Accès illimité à ton analyste IA.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div>
+        <div className="app-card" style={{ maxWidth: 520 }}>
+          <span className="eyebrow">Abonnement en cours</span>
+          <h2 style={{ marginTop: 6 }}>{currentPlan === "premium" ? "Vendeo Premium — 3 000 XOF / mois" : "Vendeo — 2 000 XOF / mois"}</h2>
+          <div className="sale-detail-grid" style={{ marginTop: 18 }}>
+            <div><small>Période en cours depuis</small><strong>{periodStart}</strong></div>
+            <div><small>Renouvellement</small><strong>{periodEnd}</strong></div>
+            <div><small>Boutiques incluses</small><strong>{planMaxStores(currentPlan)}</strong></div>
+            <div><small>Usage IA</small><strong>Illimité</strong></div>
+          </div>
+        </div>
+        {currentPlan === "starter" ? (
+          <div className="app-card" style={{ maxWidth: 520, marginTop: 16 }}>
+            <span className="eyebrow">Besoin de plus de boutiques ?</span>
+            <h2 style={{ marginTop: 6 }}>Passe à Vendeo Premium</h2>
+            <p style={{ color: "var(--muted)", fontSize: 13, margin: "8px 0 16px" }}>3 000 XOF/mois — connecte jusqu'à 3 boutiques au lieu d'une seule.</p>
+            <button className="btn btn-dark" onClick={() => void subscribe("premium")} disabled={changingPlan === "premium"} style={{ width: "100%" }}>
+              {changingPlan === "premium" ? "Redirection…" : "Passer à Vendeo Premium"}
+            </button>
+          </div>
+        ) : null}
+      </>
+    );
   }
 
   return (
@@ -1839,24 +1895,37 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
       <div className="page-top">
         <div>
           <span className="eyebrow">Ton abonnement</span>
-          <h1>Un seul plan, tout inclus.</h1>
-          <p>{trial && trialDaysLeft !== null ? `Il te reste ${trialDaysLeft} jour${trialDaysLeft > 1 ? "s" : ""} d’essai gratuit.` : "Gère ton usage IA depuis un seul endroit."}</p>
+          <h1>Choisis ton plan.</h1>
+          <p>{trial && trialDaysLeft !== null ? `Il te reste ${trialDaysLeft} jour${trialDaysLeft > 1 ? "s" : ""} d’essai gratuit.` : "Gère ton usage IA et tes boutiques depuis un seul endroit."}</p>
         </div>
         {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
       </div>
-      <div className="pricing-wrap" style={{ maxWidth: 400 }}>
-        <article className="price-card pro">
+      <div className="pricing-wrap" style={{ maxWidth: 820 }}>
+        <article className="price-card">
           <span className="eyebrow">{trial ? "Essai gratuit — 7 jours" : "Plan disponible"}</span>
           <h3>Vendeo</h3>
           <div className="price">2 000 XOF <small>/ mois</small></div>
           <ul>
             <li>✓ Analyse IA de tes ventes et de tes pubs</li>
-            <li>✓ Connexion boutique Chariow</li>
+            <li>✓ 1 boutique Chariow connectée</li>
             <li>✓ Suivi Meta Ads et TikTok Ads</li>
             <li>✓ Rapports détaillés</li>
           </ul>
-          <button className="btn btn-lime" onClick={() => void subscribe()} style={{ width: "100%" }}>
-            S’abonner
+          <button className="btn btn-ghost" onClick={() => void subscribe("starter")} disabled={changingPlan === "starter"} style={{ width: "100%" }}>
+            {changingPlan === "starter" ? "Redirection…" : "S’abonner"}
+          </button>
+        </article>
+        <article className="price-card pro">
+          <span className="eyebrow">Le plus complet</span>
+          <h3>Vendeo Premium</h3>
+          <div className="price">3 000 XOF <small>/ mois</small></div>
+          <ul>
+            <li>✓ Tout ce qui est inclus dans Vendeo</li>
+            <li>✓ Jusqu'à 3 boutiques Chariow connectées</li>
+            <li>✓ Idéal pour gérer plusieurs boutiques</li>
+          </ul>
+          <button className="btn btn-lime" onClick={() => void subscribe("premium")} disabled={changingPlan === "premium"} style={{ width: "100%" }}>
+            {changingPlan === "premium" ? "Redirection…" : "S’abonner"}
           </button>
         </article>
       </div>
