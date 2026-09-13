@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, Wand2, X } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { cleanAiText } from "@/lib/ai/format";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 import { formatMoney } from "@/lib/format";
@@ -177,6 +177,17 @@ function TrialPaywallModal({ subscription }: { subscription: SubscriptionData | 
 export function Dashboard() {
   const [active, setActive] = useState("Vue d’ensemble");
   const [moreOpen, setMoreOpen] = useState(false);
+  // Se souvient de la section affichée juste avant d'ouvrir "Vendeo AI", pour que
+  // le bouton retour de la section IA ramène exactement là d'où l'utilisateur vient
+  // (au lieu de toujours revenir à la Vue d'ensemble).
+  const [previousSection, setPreviousSection] = useState("Vue d’ensemble");
+  const activeSectionRef = useRef(active);
+  useEffect(() => {
+    if (activeSectionRef.current !== "Vendeo AI") {
+      setPreviousSection(activeSectionRef.current);
+    }
+    activeSectionRef.current = active;
+  }, [active]);
   const searchParams = useSearchParams();
   const [stores, setStores] = useState<StoreData[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
@@ -349,6 +360,8 @@ export function Dashboard() {
               onUsageChange={(patch) =>
                 setSubscription((prev) => (prev ? { ...prev, ...patch } : prev))
               }
+              onBack={() => setActive(previousSection)}
+              products={analytics?.products ?? []}
             />
           ) : active === "Pubs" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} />
@@ -375,6 +388,7 @@ export function Dashboard() {
 
       <TrialPaywallModal subscription={subscription} />
 
+        {active !== "Vendeo AI" ? (
         <nav className="mobile-nav" aria-label="Navigation mobile">
          <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
            <LayoutDashboard size={18} />
@@ -384,15 +398,16 @@ export function Dashboard() {
             <Megaphone size={18} />
             <span>Pubs</span>
           </button>
-          <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
-            <MessageSquare size={18} />
-            <span>IA</span>
-          </button>
           <button type="button" className={`nav-btn ${active === "Rapports" ? "active" : ""}`} onClick={() => setActive("Rapports")}>
             <FileText size={18} />
             <span>Rapports</span>
           </button>
+          <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
+            <MessageSquare size={18} />
+            <span>IA</span>
+          </button>
         </nav>
+        ) : null}
         {moreOpen ? <div className="mobile-more-menu" role="menu">
           <button type="button" onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
           <button type="button" onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
@@ -1525,20 +1540,35 @@ function formatProductPrice(product: ProductData) {
   return `${value}${currency ? ` ${currency}` : ""}`;
 }
 
-function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: () => void; onUsageChange: (patch: Partial<SubscriptionData>) => void }) {
-  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+type ChatMessageItem = { role: string; content: string; imageUrl?: string };
+
+const POSTER_FORMATS: { id: "square" | "story" | "banner"; label: string; hint: string }[] = [
+  { id: "square", label: "Post carré", hint: "1080×1080 — Instagram/Facebook" },
+  { id: "story", label: "Story", hint: "1080×1920 — Story/Reels" },
+  { id: "banner", label: "Bannière", hint: "1200×628 — Publicité Facebook" },
+];
+
+function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: { onGoToSubscription: () => void; onUsageChange: (patch: Partial<SubscriptionData>) => void; onBack?: () => void; products?: ProductData[] }) {
+  const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [usage, setUsage] = useState<{ trialActive: boolean; status: string; plan: string } | null>(null);
   const [plansRequired, setPlansRequired] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Record<number, boolean>>({});
 
-  const bottomRef = (node: HTMLDivElement | null) => {
-    // Ref callback for compatibility.
-    if (node) {
-      // Store the node for later scrolling.
-    }
-  };
+  // Générateur d'affiches (Imole) : choix du produit et du format, puis génération
+  // d'un visuel publicitaire directement dans la conversation.
+  const [posterOpen, setPosterOpen] = useState(false);
+  const [posterProductId, setPosterProductId] = useState<string>("");
+  const [posterFormat, setPosterFormat] = useState<"square" | "story" | "banner">("square");
+  const [posterExtra, setPosterExtra] = useState("");
+  const [posterGenerating, setPosterGenerating] = useState(false);
+  const [posterError, setPosterError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!posterProductId && products.length) setPosterProductId(products[0].id);
+  }, [products, posterProductId]);
+
   const [bottomNode, setBottomNode] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -1618,8 +1648,50 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
     setSending(false);
   }
 
+  async function generatePoster() {
+    const product = products.find((item) => item.id === posterProductId);
+    if (!product) {
+      setPosterError("Sélectionne un produit.");
+      return;
+    }
+    setPosterGenerating(true);
+    setPosterError(null);
+    try {
+      const response = await fetch("/api/ai/poster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productName: product.name,
+          description: product.description,
+          price: product.price,
+          currency: product.currency,
+          format: posterFormat,
+          extra: posterExtra,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.imageUrl) {
+        setPosterError(data.error ?? "Impossible de générer l'affiche pour le moment.");
+        return;
+      }
+      setMessages((current) => [...current, { role: "assistant", content: `Affiche générée pour « ${product.name} ».`, imageUrl: data.imageUrl }]);
+      setPosterOpen(false);
+      setPosterExtra("");
+    } catch {
+      setPosterError("Impossible de contacter le générateur d'affiches.");
+    } finally {
+      setPosterGenerating(false);
+    }
+  }
+
   return (
     <div className="app-card chat-card" style={{ maxWidth: 760 }}>
+      {onBack ? (
+        <button type="button" className="chat-back-button" onClick={onBack}>
+          <ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Retour
+        </button>
+      ) : null}
+
       {usage && plansRequired && (
         <div className="trial-banner">
           <strong>Ton essai gratuit est terminé.</strong>{" "}
@@ -1647,9 +1719,18 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
           const expanded = expandedMessages[index] === true;
           return (
             <div key={index} className={message.role === "user" ? "chat-bubble user" : "chat-bubble assistant"}>
-              <div className={!expanded && isLong ? "chat-message-preview" : undefined}>
-                {expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}…`}
-              </div>
+              {message.imageUrl ? (
+                <div className="chat-image-message">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={message.imageUrl} alt="Affiche générée" />
+                  <a className="btn btn-ghost" href={message.imageUrl} target="_blank" rel="noreferrer" download>Télécharger</a>
+                </div>
+              ) : null}
+              {content ? (
+                <div className={!expanded && isLong ? "chat-message-preview" : undefined}>
+                  {expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}…`}
+                </div>
+              ) : null}
               {isLong && <button type="button" className="chat-see-more" onClick={() => setExpandedMessages((current) => ({ ...current, [index]: !expanded }))}>{expanded ? "Voir moins" : "Voir plus"}</button>}
             </div>
           );
@@ -1657,6 +1738,43 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
 
         <div ref={setBottomNode} />
       </div>
+
+      {posterOpen ? (
+        <div className="poster-generator">
+          <div className="poster-generator-head">
+            <strong><Wand2 size={15} /> Générer une affiche</strong>
+            <button type="button" className="poster-close" aria-label="Fermer" onClick={() => setPosterOpen(false)}><X size={16} /></button>
+          </div>
+          {!products.length ? (
+            <p className="hint-line">Connecte une boutique avec au moins un produit pour générer une affiche.</p>
+          ) : (
+            <>
+              <label className="campaign-field">
+                Produit
+                <select value={posterProductId} onChange={(event) => setPosterProductId(event.target.value)}>
+                  {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+                </select>
+              </label>
+              <div className="poster-format-grid">
+                {POSTER_FORMATS.map((item) => (
+                  <button key={item.id} type="button" className={`poster-format-btn ${posterFormat === item.id ? "selected" : ""}`} onClick={() => setPosterFormat(item.id)}>
+                    <strong>{item.label}</strong>
+                    <small>{item.hint}</small>
+                  </button>
+                ))}
+              </div>
+              <label className="campaign-field">
+                Message ou hook (optionnel)
+                <textarea rows={2} placeholder="Ex : Livraison offerte ce week-end" value={posterExtra} onChange={(event) => setPosterExtra(event.target.value)} />
+              </label>
+              {posterError ? <p className="store-error" role="alert">{posterError}</p> : null}
+              <button type="button" className="btn btn-dark" style={{ width: "100%" }} disabled={posterGenerating} onClick={() => void generatePoster()}>
+                {posterGenerating ? "Génération en cours…" : "Générer l'affiche"}
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
 
       <div className="chat-composer">
         <form
@@ -1666,6 +1784,9 @@ function ChatView({ onGoToSubscription, onUsageChange }: { onGoToSubscription: (
           }}
           className="chat-input-form"
         >
+          <button type="button" className="chat-poster-toggle" aria-label="Générer une affiche" title="Générer une affiche" onClick={() => setPosterOpen((open) => !open)}>
+            <Wand2 size={16} />
+          </button>
           <input
             disabled={plansRequired}
             value={input}
