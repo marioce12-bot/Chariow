@@ -188,6 +188,29 @@ export function Dashboard() {
     }
     activeSectionRef.current = active;
   }, [active]);
+
+  // Bouton retour Android / geste retour navigateur : sans ceci, le retour
+  // système quitte directement l'appli au lieu de revenir à la section
+  // précédente. On pousse une entrée d'historique à chaque changement de
+  // section déclenché dans l'app, et on écoute "popstate" pour ramener
+  // "active" à l'état précédent au lieu de laisser le navigateur naviguer.
+  const isPopStateNav = useRef(false);
+  useEffect(() => {
+    function handlePopState(event: PopStateEvent) {
+      isPopStateNav.current = true;
+      setActive((event.state && event.state.vendeoView) || "Vue d’ensemble");
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+  useEffect(() => {
+    if (isPopStateNav.current) {
+      isPopStateNav.current = false;
+      return;
+    }
+    window.history.pushState({ vendeoView: active }, "", window.location.href);
+  }, [active]);
+
   const searchParams = useSearchParams();
   const [stores, setStores] = useState<StoreData[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
@@ -1686,11 +1709,20 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
 
   return (
     <div className="app-card chat-card" style={{ maxWidth: 760 }}>
-      {onBack ? (
-        <button type="button" className="chat-back-button" onClick={onBack}>
-          <ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Retour
-        </button>
-      ) : null}
+      <div className="chat-header">
+        {onBack ? (
+          <button type="button" className="chat-back-button" onClick={onBack} aria-label="Retour">
+            <ArrowRight size={17} style={{ transform: "rotate(180deg)" }} />
+          </button>
+        ) : null}
+        <div className="chat-header-title">
+          <span className="chat-header-icon"><Sparkles size={15} /></span>
+          <div>
+            <strong>Vendeo AI</strong>
+            <small>Ton analyste business</small>
+          </div>
+        </div>
+      </div>
 
       {usage && plansRequired && (
         <div className="trial-banner">
