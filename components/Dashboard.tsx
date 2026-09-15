@@ -314,21 +314,23 @@ export function Dashboard() {
 
   return (
     <main className="app-shell">
-      <header className="app-header">
-        <Link href="/" className="brand">
-          <Image className="brand-logo" src="/vendeo-logo-light.svg" alt="Vendeo" width={150} height={40} />
-        </Link>
-        <div className="app-user">
-          <span className="app-greeting">Bonjour, {userName}</span>
-          <button type="button" className={`mobile-more-trigger ${moreOpen || ["Mes boutiques", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" onClick={() => setMoreOpen((open) => !open)}>
-            <Settings size={18} />
-          </button>
-          <button className="desktop-signout" onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
-            Déconnexion
-          </button>
-        </div>
-      </header>
-      <div className="app-layout">
+      {active !== "Vendeo AI" ? (
+        <header className="app-header">
+          <Link href="/" className="brand">
+            <Image className="brand-logo" src="/vendeo-logo-light.svg" alt="Vendeo" width={150} height={40} />
+          </Link>
+          <div className="app-user">
+            <span className="app-greeting">Bonjour, {userName}</span>
+            <button type="button" className={`mobile-more-trigger ${moreOpen || ["Mes boutiques", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" onClick={() => setMoreOpen((open) => !open)}>
+              <Settings size={18} />
+            </button>
+            <button className="desktop-signout" onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
+              Déconnexion
+            </button>
+          </div>
+        </header>
+      ) : null}
+      <div className={active === "Vendeo AI" ? "app-layout app-layout-flush" : "app-layout"}>
         <aside className="sidebar">
           <div className="side-label">Workspace</div>
           <label className="store-selector">
@@ -1767,7 +1769,6 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
             </button>
           ) : null}
           <div className="chat-header-title">
-            <span className="chat-header-icon"><Sparkles size={16} /></span>
             <div>
               <strong>Vendeo AI</strong>
               <span>Ton analyste de ventes, de pubs et de rentabilité</span>
