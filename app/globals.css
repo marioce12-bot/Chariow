@@ -1066,3 +1066,16 @@ html[data-theme="dark"] .poster-generator { background:#0b1734; border-top-color
 html[data-theme="dark"] .poster-close { background:#101f45; color:#8fa0c4; }
 html[data-theme="dark"] .poster-format-btn { background:#0f1b3d; border-color:var(--line); }
 html[data-theme="dark"] .poster-format-btn strong { color:var(--ink); }
+
+/* Corrige le vide en haut de la section IA : la classe app-layout-flush était
+   déjà posée dans le JSX (Dashboard.tsx) quand active === "Vendeo AI" — pour
+   compenser le header masqué dans cette vue — mais aucune règle CSS ne la
+   définissait, donc le padding-top réservé pour ce header (68px desktop /
+   60px mobile) restait actif et laissait un grand vide au-dessus de l'en-tête
+   "Vendeo AI". On force ce padding à 0 ici, et on retire aussi le padding
+   haut du .app-card qui enveloppe le chat pour que .chat-header (qui a déjà
+   son propre padding interne) forme directement le haut visuel de la section.
+*/
+.app-layout.app-layout-flush { padding-top: 0; }
+.app-main.chat-page { padding-top: 0; }
+.chat-card.ai-main { padding-top: 0; }
