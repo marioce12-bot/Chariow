@@ -43,9 +43,8 @@ export async function POST(_request: Request, context: Context) {
     return NextResponse.json({ checkout });
   } catch (error) {
     console.error("SasPay ad-campaign checkout error", error instanceof Error ? error.message : "unknown error");
-    // Le paiement n'a pas pu être créé : on remet la campagne à "paused" (elle reste
-    // valide chez Meta/TikTok, prête à être payée) plutôt que de la laisser bloquée.
-    await supabase.from("ad_campaigns").update({ status: "paused" }).eq("id", campaign.id).eq("user_id", user.id).eq("status", "pending_payment");
+    // La campagne reste "paused" (aucune mise à jour n'a eu lieu avant cette erreur) :
+    // elle est toujours valide chez Meta/TikTok, prête à être payée à un nouvel essai.
     return NextResponse.json({ error: "Impossible de créer le paiement pour le moment" }, { status: 502 });
   }
 }
