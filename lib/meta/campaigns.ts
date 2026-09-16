@@ -6,7 +6,7 @@ async function graphPost(path: string, accessToken: string, params: Record<strin
   const body = new URLSearchParams({ ...params, access_token: accessToken });
   const response = await fetch(`${META_GRAPH_BASE_URL}/${path}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body, cache: "no-store" });
   const json = await response.json().catch(() => ({})) as GraphResponse;
-  if (!response.ok || typeof json.id !== "string") {
+  if (!response.ok || (typeof json.id !== "string" && json.success !== true)) {
     const message = typeof (json.error as GraphResponse | undefined)?.message === "string" ? String((json.error as GraphResponse).message) : `Meta request failed (${response.status})`;
     throw new Error(message);
   }
@@ -32,21 +32,26 @@ export async function createMetaCampaign(input: {
   name: string;
   objective: "sales" | "traffic" | "engagement" | "leads";
   dailyBudget: number;
+  status?: "ACTIVE" | "PAUSED";
 }) {
   // Meta keeps its objective names separate from the simpler Vendeo labels.
   const objective = input.objective === "sales" ? "OUTCOME_SALES" : input.objective === "traffic" ? "OUTCOME_TRAFFIC" : input.objective === "leads" ? "OUTCOME_LEADS" : "OUTCOME_ENGAGEMENT";
   const campaign = await graphPost(`${input.accountId}/campaigns`, input.accessToken, {
     name: input.name.slice(0, 200),
     objective,
-    // ACTIVE (et non PAUSED) : c'est ce qui soumet la campagne à la modération de Meta.
-    // Une campagne PAUSED n'est jamais examinée par Meta.
-    status: "ACTIVE",
+    // PAUSED par défaut : on crée d'abord la campagne (et l'adset/l'ad qui suivent)
+    // sans jamais dépenser un centime, pour vérifier que Meta accepte bien la
+    // création avant de demander le paiement. C'est seulement au moment
+    // d'activateMetaCampaign() (après paiement confirmé) que le statut passe à
+    // ACTIVE — c'est ce basculement, et lui seul, qui soumet la campagne à la
+    // modération de Meta et démarre la diffusion.
+    status: input.status ?? "PAUSED",
     special_ad_categories: "[]",
   });
   return { id: String(campaign.id), objective };
 }
 
-export async function createMetaAdSet(input: { accountId: string; accessToken: string; campaignId: string; name: string; dailyBudget: number; countries: string[]; minAge: number; maxAge: number; publisherPlatforms?: string[] }) {
+export async function createMetaAdSet(input: { accountId: string; accessToken: string; campaignId: string; name: string; dailyBudget: number; countries: string[]; minAge: number; maxAge: number; publisherPlatforms?: string[]; status?: "ACTIVE" | "PAUSED" }) {
   const targeting: Record<string, unknown> = { geo_locations: { countries: input.countries }, age_min: input.minAge, age_max: input.maxAge };
   // Plan Éco : diffusion restreinte à Facebook uniquement (pas Instagram).
   // Sans ce champ, Meta diffuse automatiquement sur tous les emplacements disponibles.
@@ -59,7 +64,7 @@ export async function createMetaAdSet(input: { accountId: string; accessToken: s
     optimization_goal: "LINK_CLICKS",
     bid_strategy: "LOWEST_COST_WITHOUT_CAP",
     targeting: JSON.stringify(targeting),
-    status: "ACTIVE",
+    status: input.status ?? "PAUSED",
   });
 }
 
@@ -70,8 +75,28 @@ export async function createMetaCreative(input: { accountId: string; accessToken
   });
 }
 
-export async function createMetaAd(input: { accountId: string; accessToken: string; name: string; adsetId: string; creativeId: string }) {
-  return graphPost(`${input.accountId}/ads`, input.accessToken, { name: input.name.slice(0, 200), adset_id: input.adsetId, creative: JSON.stringify({ creative_id: input.creativeId }), status: "ACTIVE" });
+export async function createMetaAd(input: { accountId: string; accessToken: string; name: string; adsetId: string; creativeId: string; status?: "ACTIVE" | "PAUSED" }) {
+  return graphPost(`${input.accountId}/ads`, input.accessToken, { name: input.name.slice(0, 200), adset_id: input.adsetId, creative: JSON.stringify({ creative_id: input.creativeId }), status: input.status ?? "PAUSED" });
+}
+
+/**
+ * Basule le statut d'un objet Meta déjà créé (campagne, adset ou ad — l'API Graph
+ * accepte "status" sur les trois types de nœud de la même façon). Utilisé pour
+ * l'activation post-paiement : on ne recrée rien, on passe juste PAUSED → ACTIVE.
+ */
+export async function setMetaObjectStatus(input: { id: string; accessToken: string; status: "ACTIVE" | "PAUSED" }) {
+  return graphPost(input.id, input.accessToken, { status: input.status });
+}
+
+/**
+ * Active une campagne Meta déjà créée en PAUSED (campagne, adset et ad) : c'est ce
+ * basculement — et seulement lui — qui soumet la publicité à la modération de Meta
+ * et démarre la diffusion réelle. Appelé uniquement après confirmation du paiement.
+ */
+export async function activateMetaCampaign(input: { campaignId: string; adSetId: string; adId: string; accessToken: string }) {
+  await setMetaObjectStatus({ id: input.campaignId, accessToken: input.accessToken, status: "ACTIVE" });
+  await setMetaObjectStatus({ id: input.adSetId, accessToken: input.accessToken, status: "ACTIVE" });
+  await setMetaObjectStatus({ id: input.adId, accessToken: input.accessToken, status: "ACTIVE" });
 }
 
 /**
@@ -79,7 +104,7 @@ export async function createMetaAd(input: { accountId: string; accessToken: stri
  * effective_status possibles (doc Meta) : PENDING_REVIEW, IN_PROCESS, PREAPPROVED,
  * PENDING_BILLING_INFO (encore en cours) ; ACTIVE (approuvée, diffusion en cours) ;
  * DISAPPROVED, WITH_ISSUES (refusée) ; CAMPAIGN_PAUSED / ADSET_PAUSED (mis en pause
- * en amont, ne devrait pas arriver ici puisqu'on crée tout en ACTIVE).
+ * en amont — normal tant que activateMetaCampaign() n'a pas encore été appelé).
  */
 export async function getMetaAdReviewStatus(input: { adId: string; accessToken: string }) {
   const json = await graphGet(input.adId, input.accessToken, "effective_status,ad_review_feedback");
