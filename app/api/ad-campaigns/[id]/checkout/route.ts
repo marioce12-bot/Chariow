@@ -17,8 +17,11 @@ export async function POST(_request: Request, context: Context) {
     .maybeSingle();
   if (campaignError) return NextResponse.json({ error: "Impossible de charger la campagne" }, { status: 500 });
   if (!campaign) return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
-  if (!["draft", "error"].includes(campaign.status)) {
-    return NextResponse.json({ error: "Cette campagne n'est plus en attente de paiement" }, { status: 409 });
+  // Le paiement n'est proposé qu'une fois la campagne créée gratuitement en PAUSED
+  // chez Meta/TikTok (cf. /launch) — status "paused". Impossible de payer une
+  // campagne qui n'a pas encore été validée par la plateforme publicitaire.
+  if (campaign.status !== "paused") {
+    return NextResponse.json({ error: "Cette campagne doit d'abord être créée (gratuitement) avant de pouvoir être payée." }, { status: 409 });
   }
 
   const netAdBudget = Number(campaign.daily_budget) * Number(campaign.duration_days);
@@ -40,6 +43,9 @@ export async function POST(_request: Request, context: Context) {
     return NextResponse.json({ checkout });
   } catch (error) {
     console.error("SasPay ad-campaign checkout error", error instanceof Error ? error.message : "unknown error");
+    // Le paiement n'a pas pu être créé : on remet la campagne à "paused" (elle reste
+    // valide chez Meta/TikTok, prête à être payée) plutôt que de la laisser bloquée.
+    await supabase.from("ad_campaigns").update({ status: "paused" }).eq("id", campaign.id).eq("user_id", user.id).eq("status", "pending_payment");
     return NextResponse.json({ error: "Impossible de créer le paiement pour le moment" }, { status: 502 });
   }
 }
