@@ -100,7 +100,11 @@ export function Step2NetworkCreative({ state, patch, onValidityChange, plan }: S
         setMetaPages(pages);
         if (pages.length === 1) patch({ metaPageId: pages[0].id });
         else if (state.metaPageId && !pages.some((page) => page.id === state.metaPageId)) patch({ metaPageId: undefined });
-        if (pages.length === 0) setMetaPagesError("Aucune page Facebook trouvée sur ce compte publicitaire.");
+        if (pages.length === 0) {
+          // data.pages_error : l'appel "pages" lui-même a échoué côté Meta (permission,
+          // token…) — message plus utile que le générique "aucune page trouvée".
+          setMetaPagesError(data.pages_error || "Aucune page Facebook trouvée sur ce compte publicitaire.");
+        }
       })
       .catch((err) => setMetaPagesError(err instanceof Error ? err.message : "Impossible de charger les pages Facebook"))
       .finally(() => setLoadingMetaPages(false));
