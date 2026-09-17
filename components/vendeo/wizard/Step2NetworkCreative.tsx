@@ -32,12 +32,26 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+type MetaAccountOption = { id: string; name: string | null; currency: string };
+type MetaPageOption = { id: string; name: string };
+
 export function Step2NetworkCreative({ state, patch, onValidityChange, plan }: StepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [mediaKind, setMediaKind] = useState<"image" | "video" | null>(null);
+
+  // Compte publicitaire Meta et page Facebook à utiliser pour la campagne.
+  // C'était la pièce manquante du wizard : sans ça, l'étape 5 (test gratuit
+  // chez Meta) échouait systématiquement avec "Sélectionne un compte Meta Ads",
+  // car rien ici ne renseignait jamais metaAdAccountId / metaPageId.
+  const [metaAccounts, setMetaAccounts] = useState<MetaAccountOption[]>([]);
+  const [loadingMetaAccounts, setLoadingMetaAccounts] = useState(false);
+  const [metaAccountsError, setMetaAccountsError] = useState<string | null>(null);
+  const [metaPages, setMetaPages] = useState<MetaPageOption[]>([]);
+  const [loadingMetaPages, setLoadingMetaPages] = useState(false);
+  const [metaPagesError, setMetaPagesError] = useState<string | null>(null);
 
   useEffect(() => {
     if (state.product && !state.adText) {
@@ -56,11 +70,51 @@ export function Step2NetworkCreative({ state, patch, onValidityChange, plan }: S
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.product]);
 
+  useEffect(() => {
+    if (state.platform !== "meta" || metaAccounts.length > 0 || loadingMetaAccounts) return;
+    setLoadingMetaAccounts(true);
+    setMetaAccountsError(null);
+    fetch("/api/integrations/meta/accounts")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Impossible de charger tes comptes Meta Ads"))))
+      .then((data) => {
+        const accounts: MetaAccountOption[] = data.accounts ?? [];
+        setMetaAccounts(accounts);
+        if (accounts.length === 1 && !state.metaAdAccountId) patch({ metaAdAccountId: accounts[0].id });
+        if (accounts.length === 0) setMetaAccountsError("Aucun compte Meta Ads connecté. Connecte-en un depuis Paramètres avant de lancer une pub.");
+      })
+      .catch((err) => setMetaAccountsError(err instanceof Error ? err.message : "Impossible de charger tes comptes Meta Ads"))
+      .finally(() => setLoadingMetaAccounts(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.platform]);
+
+  useEffect(() => {
+    if (state.platform !== "meta" || !state.metaAdAccountId) return;
+    setLoadingMetaPages(true);
+    setMetaPagesError(null);
+    setMetaPages([]);
+    fetch(`/api/integrations/meta/resources?account_id=${encodeURIComponent(state.metaAdAccountId)}`)
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data?.error || "Impossible de charger les pages Facebook de ce compte");
+        const pages: MetaPageOption[] = data.pages ?? [];
+        setMetaPages(pages);
+        if (pages.length === 1) patch({ metaPageId: pages[0].id });
+        else if (state.metaPageId && !pages.some((page) => page.id === state.metaPageId)) patch({ metaPageId: undefined });
+        if (pages.length === 0) setMetaPagesError("Aucune page Facebook trouvée sur ce compte publicitaire.");
+      })
+      .catch((err) => setMetaPagesError(err instanceof Error ? err.message : "Impossible de charger les pages Facebook"))
+      .finally(() => setLoadingMetaPages(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.platform, state.metaAdAccountId]);
+
+  const metaAccountReady = state.platform !== "meta" || (Boolean(state.metaAdAccountId) && Boolean(state.metaPageId));
+
   const canContinue =
     state.mediaUrl.trim().length > 0 &&
     !uploading &&
     state.adText.trim().length > 0 &&
-    state.destinationUrl.trim().length > 0;
+    state.destinationUrl.trim().length > 0 &&
+    metaAccountReady;
 
   // Prévient le pied de page (rendu par LaunchAdWizard, hors de cette zone
   // qui défile) dès que la validité de l'étape change.
@@ -124,6 +178,48 @@ export function Step2NetworkCreative({ state, patch, onValidityChange, plan }: S
           ))}
         </div>
       </div>
+
+      {state.platform === "meta" && (
+        <div>
+          <p className="mb-1.5 text-sm font-semibold text-gray-700">Compte publicitaire Meta</p>
+          {loadingMetaAccounts ? (
+            <p className="flex items-center gap-2 text-xs text-gray-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement de tes comptes Meta Ads…</p>
+          ) : metaAccounts.length > 1 ? (
+            <select
+              value={state.metaAdAccountId ?? ""}
+              onChange={(e) => patch({ metaAdAccountId: e.target.value || undefined, metaPageId: undefined })}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              <option value="">Choisir un compte…</option>
+              {metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}
+            </select>
+          ) : metaAccounts.length === 1 ? (
+            <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">{metaAccounts[0].name ?? metaAccounts[0].id}</p>
+          ) : null}
+          {metaAccountsError && <p className="mt-1 text-xs text-[#991B1B]">{metaAccountsError}</p>}
+
+          {state.metaAdAccountId && (
+            <div className="mt-3">
+              <p className="mb-1.5 text-sm font-semibold text-gray-700">Page Facebook</p>
+              {loadingMetaPages ? (
+                <p className="flex items-center gap-2 text-xs text-gray-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement de tes pages Facebook…</p>
+              ) : metaPages.length > 1 ? (
+                <select
+                  value={state.metaPageId ?? ""}
+                  onChange={(e) => patch({ metaPageId: e.target.value || undefined })}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+                >
+                  <option value="">Choisir une page…</option>
+                  {metaPages.map((page) => <option key={page.id} value={page.id}>{page.name}</option>)}
+                </select>
+              ) : metaPages.length === 1 ? (
+                <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">{metaPages[0].name}</p>
+              ) : null}
+              {metaPagesError && <p className="mt-1 text-xs text-[#991B1B]">{metaPagesError}</p>}
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <p className="mb-1.5 text-sm font-semibold text-gray-700">Objectif</p>
@@ -280,7 +376,9 @@ export function Step2NetworkCreative({ state, patch, onValidityChange, plan }: S
 
       {!canContinue && !uploading && (
         <p className="text-right text-xs text-gray-400">
-          {!state.mediaUrl.trim()
+          {!metaAccountReady
+            ? "Sélectionne un compte Meta Ads et une page Facebook pour continuer."
+            : !state.mediaUrl.trim()
             ? "Ajoute un visuel pour continuer."
             : !state.destinationUrl.trim()
             ? "Renseigne un lien de destination pour continuer."
