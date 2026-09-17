@@ -106,7 +106,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
           min={100}
           value={state.dailyBudget}
           onChange={(e) => updateDailyBudget(Number(e.target.value))}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
         />
       </div>
 
@@ -120,7 +120,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
           max={90}
           value={state.durationDays}
           onChange={(e) => updateDurationDays(Number(e.target.value))}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
         />
       </div>
 
@@ -153,17 +153,21 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
               </p>
             </div>
           </div>
+          {/* Couleurs en valeurs fixes (pas les classes text-gray-600/900) : cette carte
+              garde toujours son fond clair (#EEF2FF), y compris en thème sombre — si on
+              utilisait les classes grises standard, la surcharge globale du thème sombre
+              les rendrait presque blanches sur ce fond clair, donc quasi invisibles. */}
           <div className="border-t border-[#C7D2FE] pt-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-600">Budget pub (98%)</span>
-              <span className="font-medium text-gray-900">{formatXOF(estimate.netAdBudget)}</span>
+              <span className="text-[#4b5563]">Budget pub (98%)</span>
+              <span className="font-medium text-[#111827]">{formatXOF(estimate.netAdBudget)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Commission Vendeo (2%)</span>
-              <span className="font-medium text-gray-900">{formatXOF(estimate.vendeoCommission)}</span>
+              <span className="text-[#4b5563]">Commission Vendeo (2%)</span>
+              <span className="font-medium text-[#111827]">{formatXOF(estimate.vendeoCommission)}</span>
             </div>
             <div className="mt-1 flex justify-between border-t border-[#C7D2FE] pt-1.5">
-              <span className="font-semibold text-gray-900">Total à payer</span>
+              <span className="font-semibold text-[#111827]">Total à payer</span>
               <span className="font-bold text-[#3730A3]">{formatXOF(estimate.grossBudget)}</span>
             </div>
           </div>
