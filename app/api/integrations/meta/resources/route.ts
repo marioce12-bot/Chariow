@@ -13,8 +13,23 @@ export async function GET(request: Request) {
   if (!account) return NextResponse.json({ error: "Aucun compte Meta connecté" }, { status: 404 });
   try {
     const resources = await fetchMetaResources(`act_${account.meta_account_id}`, decryptSecret(account.access_token_encrypted));
-    const status = Number(resources.account.account_status ?? account.account_status ?? 0);
-    return NextResponse.json({ account: { id: account.id, status, restricted: status !== 1 }, account_quality_url: "https://www.facebook.com/accountquality", pages: resources.pages.map((page: Record<string, unknown>) => ({ id: page.id, name: page.name, instagram_business_account: page.instagram_business_account ?? null })), pixels: resources.pixels.map((pixel: Record<string, unknown>) => ({ id: pixel.id, name: pixel.name })) });
+    // Les pages sont ce dont le wizard a le plus besoin (choix de la page Facebook) :
+    // si seul l'appel "compte" échoue (ex. champ restreint, permission manquante), on
+    // ne bloque plus tout — les pages restent utilisables, et le statut du compte
+    // retombe simplement sur la valeur déjà connue en base plutôt que sur une erreur.
+    if (!Object.keys(resources.account).length && resources.pagesError) {
+      // Les deux appels ont échoué : là, il n'y a vraiment rien à afficher.
+      return NextResponse.json({ error: resources.accountError || resources.pagesError }, { status: 502 });
+    }
+    const status = Number((resources.account as Record<string, unknown>).account_status ?? account.account_status ?? 0);
+    return NextResponse.json({
+      account: { id: account.id, status, restricted: resources.accountError ? null : status !== 1 },
+      account_error: resources.accountError,
+      account_quality_url: "https://www.facebook.com/accountquality",
+      pages: resources.pages.map((page: Record<string, unknown>) => ({ id: page.id, name: page.name, instagram_business_account: page.instagram_business_account ?? null })),
+      pages_error: resources.pagesError,
+      pixels: resources.pixels.map((pixel: Record<string, unknown>) => ({ id: pixel.id, name: pixel.name })),
+    });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ressources Meta indisponibles" }, { status: 502 });
   }
