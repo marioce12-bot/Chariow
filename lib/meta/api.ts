@@ -16,14 +16,39 @@ export async function fetchMetaAccounts(accessToken: string) {
   return Array.isArray(json.data) ? json.data as Array<Record<string, unknown>> : [];
 }
 
+/**
+ * Récupère compte, pages et pixels en parallèle, mais SANS laisser l'échec
+ * d'un seul de ces trois appels faire échouer les autres : on a vu en
+ * production un cas ("API access blocked.") où l'appel sur le nœud du compte
+ * (demandant le champ sensible "business") échouait alors que "me/accounts"
+ * (les pages) répondait normalement — et bloquait donc à tort la sélection
+ * de page dans le wizard alors que les pages étaient parfaitement accessibles.
+ * On ne demande plus le champ "business" (non utilisé par l'appelant), et
+ * chaque appel a maintenant son propre résultat/erreur.
+ */
 export async function fetchMetaResources(accountId: string, accessToken: string) {
-  const account = graphUrl(accountId, { fields: "id,name,account_status,currency,business", access_token: accessToken });
+  const account = graphUrl(accountId, { fields: "id,name,account_status,currency", access_token: accessToken });
   const pages = graphUrl("me/accounts", { fields: "id,name,access_token,instagram_business_account", limit: "100", access_token: accessToken });
   const pixels = graphUrl(`${accountId}/adspixels`, { fields: "id,name", limit: "100", access_token: accessToken });
-  const [accountResponse, pagesResponse, pixelsResponse] = await Promise.all([fetch(account, { cache: "no-store" }), fetch(pages, { cache: "no-store" }), fetch(pixels, { cache: "no-store" })]);
-  const [accountJson, pagesJson, pixelsJson] = await Promise.all([accountResponse.json().catch(() => ({})), pagesResponse.json().catch(() => ({})), pixelsResponse.json().catch(() => ({}))]);
-  if (!accountResponse.ok) throw new Error(typeof accountJson?.error?.message === "string" ? accountJson.error.message : "Impossible de lire le compte Meta");
-  return { account: accountJson, pages: Array.isArray(pagesJson?.data) ? pagesJson.data : [], pixels: Array.isArray(pixelsJson?.data) ? pixelsJson.data : [] };
+
+  const [accountResult, pagesResult, pixelsResult] = await Promise.all([
+    fetch(account, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) })),
+    fetch(pages, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) })),
+    fetch(pixels, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) })),
+  ]);
+
+  const errorMessage = (result: { ok: boolean; json: Record<string, unknown> }) =>
+    typeof (result.json as { error?: { message?: unknown } })?.error?.message === "string"
+      ? String((result.json as { error?: { message?: string } }).error!.message)
+      : null;
+
+  return {
+    account: accountResult.ok ? accountResult.json : {},
+    accountError: accountResult.ok ? null : errorMessage(accountResult) ?? "Impossible de lire le compte Meta",
+    pages: pagesResult.ok && Array.isArray((pagesResult.json as { data?: unknown }).data) ? (pagesResult.json as { data: unknown[] }).data : [],
+    pagesError: pagesResult.ok ? null : errorMessage(pagesResult) ?? "Impossible de lire les pages Facebook",
+    pixels: pixelsResult.ok && Array.isArray((pixelsResult.json as { data?: unknown }).data) ? (pixelsResult.json as { data: unknown[] }).data : [],
+  };
 }
 
 export async function fetchMetaPageAccessToken(pageId: string, accessToken: string) {
