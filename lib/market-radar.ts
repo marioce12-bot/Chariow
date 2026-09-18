@@ -1,6 +1,7 @@
 export type MarketRadarInput = {
   idea: string;
   country: string;
+  countries?: string[];
   audience: string;
   format: "ebook" | "formation" | "template" | "abonnement";
 };
@@ -97,15 +98,29 @@ function scoreTrend(data: Awaited<ReturnType<typeof fetchGoogleTrends>>) {
 export async function buildMarketRadar(input: MarketRadarInput, supabase?: MarketSignalClient): Promise<MarketRadarReport> {
   const fallback = fallbackReport(input);
   try {
-    const cached = supabase ? await fetchCachedTrends(supabase, input.idea, input.country) : null;
-    const trends = cached?.payload as Awaited<ReturnType<typeof fetchGoogleTrends>> ?? await fetchGoogleTrends(input);
-    const scored = scoreTrend(trends);
-    if (!scored) return fallback;
-    const competition = clamp(100 - scored.demand * 0.35);
-    const countryFit = input.country ? clamp(60 + scored.demand * 0.4) : 40;
+    const countries = (input.countries?.length ? input.countries : [input.country]).slice(0, 5);
+    const analyses = await Promise.all(countries.map(async (country) => {
+      const cached = supabase ? await fetchCachedTrends(supabase, input.idea, country) : null;
+      const trends = cached?.payload as Awaited<ReturnType<typeof fetchGoogleTrends>> ?? await fetchGoogleTrends({ ...input, country });
+      return { country, source: cached?.source ?? "live", scored: scoreTrend(trends) };
+    }));
+    const valid = analyses.filter((item) => item.scored !== null) as Array<{ country: string; source: string; scored: NonNullable<ReturnType<typeof scoreTrend>> }>;
+    if (!valid.length) return fallback;
+    const scored = valid.reduce((total, item) => ({ demand: total.demand + item.scored.demand, growth: total.growth + item.scored.growth, current: total.current + item.scored.current, previous: total.previous + item.scored.previous }), { demand: 0, growth: 0, current: 0, previous: 0 });
+    const count = valid.length;
+    const averageDemand = clamp(scored.demand / count);
+    const averageGrowth = clamp(scored.growth / count);
+    const averageCurrent = clamp(scored.current / count);
+    const averagePrevious = clamp(scored.previous / count);
+    const direction = averageCurrent > averagePrevious + 5 ? "up" : averageCurrent < averagePrevious - 5 ? "down" : "stable";
+    const competition = clamp(100 - averageDemand * 0.35);
+    const countryFit = clamp(60 + averageDemand * 0.4);
     const monetization = input.format === "ebook" ? 76 : input.format === "template" ? 71 : 64;
-    const score = clamp(scored.demand * 0.3 + scored.growth * 0.25 + competition * 0.1 + countryFit * 0.2 + monetization * 0.15);
-    return { ...fallback, score, confidence: "medium", liveSources: [`Google Trends via SerpApi${cached ? ` (${cached.source})` : ""}`], trend: { current: scored.current, previous: scored.previous, direction: scored.direction, points: scored.values.slice(-12) }, dimensions: { demand: scored.demand, growth: scored.growth, competition, countryFit, monetization }, evidence: [{ label: "Recherche", value: `${scored.demand}/100 sur les 12 derniers mois` }, { label: "Évolution récente", value: `${scored.current} contre ${scored.previous} précédemment (${scored.direction === "up" ? "en hausse" : scored.direction === "down" ? "en baisse" : "stable"})` }, { label: "Pays analysé", value: COUNTRY_NAMES[input.country] ?? input.country }, { label: "Source", value: `Google Trends via SerpApi${cached ? ` · ${cached.source}` : ""}` }], risks: ["La tendance mesure l’intérêt de recherche, pas les ventes garanties.", "La dernière période partielle est exclue du calcul.", "Valide l’idée avec une prévente ou une page d’attente avant de produire."], };
+    const score = clamp(averageDemand * 0.3 + averageGrowth * 0.25 + competition * 0.1 + countryFit * 0.2 + monetization * 0.15);
+    const points = valid[0].scored.values.slice(-12);
+    const countryNames = valid.map((item) => COUNTRY_NAMES[item.country] ?? item.country).join(", ");
+    const sources = [...new Set(valid.map((item) => item.source))].join(", ");
+    return { ...fallback, score, confidence: "medium", liveSources: [`Google Trends via SerpApi · ${sources}`], trend: { current: averageCurrent, previous: averagePrevious, direction, points }, dimensions: { demand: averageDemand, growth: averageGrowth, competition, countryFit, monetization }, evidence: [{ label: "Recherche moyenne", value: `${averageDemand}/100 sur les 12 derniers mois` }, { label: "Évolution récente", value: `${averageCurrent} contre ${averagePrevious} précédemment (${direction === "up" ? "en hausse" : direction === "down" ? "en baisse" : "stable"})` }, { label: "Pays analysés", value: countryNames }, { label: "Source", value: `Google Trends via SerpApi · ${sources}` }], risks: ["La tendance mesure l’intérêt de recherche, pas les ventes garanties.", "La dernière période partielle est exclue du calcul.", "Valide l’idée avec une prévente ou une page d’attente avant de produire."], };
   } catch (error) {
     return { ...fallback, risks: [`La source live est momentanément indisponible: ${error instanceof Error ? error.message : "erreur inconnue"}`, ...fallback.risks] };
   }
