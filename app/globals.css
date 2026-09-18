@@ -1096,3 +1096,24 @@ html[data-theme="dark"] .poster-format-btn strong { color:var(--ink); }
 .app-layout.app-layout-flush { padding-top: 0; }
 .app-main.chat-page { padding-top: 0; }
 .chat-card.ai-main { padding-top: 0; }
+.profitability-alert-hero { align-items:center; border:1px solid #d8e4f5; border-radius:16px; display:flex; gap:14px; margin-bottom:18px; padding:18px; }
+.profitability-alert-hero.critical { background:#fff3f2; border-color:#f2c5c0; }
+.profitability-alert-hero.warning { background:#fff8e9; border-color:#f2d79e; }
+.profitability-alert-hero.safe { background:#edf9f0; border-color:#c8e7cf; }
+.profitability-alert-icon { align-items:center; background:#fff; border-radius:12px; color:#c45148; display:flex; flex:none; height:42px; justify-content:center; width:42px; }
+.profitability-alert-copy { flex:1; min-width:0; }
+.profitability-alert-copy h2 { color:var(--ink); font-size:17px; letter-spacing:-.04em; margin:4px 0; }
+.profitability-alert-copy p { color:var(--muted); font-size:11px; line-height:1.5; margin:0; }
+.profitability-alert-action { flex:none; font-size:11px; padding:9px 12px; }
+.profitability-signal-grid { display:grid; gap:12px; grid-template-columns:repeat(3,1fr); margin-bottom:18px; }
+.profitability-signal-card { min-width:0; padding:16px; }
+.profitability-signal-card strong { color:var(--ink); display:block; font-size:21px; letter-spacing:-.05em; margin:11px 0 5px; overflow-wrap:anywhere; }
+.profitability-signal-card p { color:var(--muted); font-size:10px; margin:0; }
+.profitability-explainer { margin-bottom:18px; }
+.profitability-compare { align-items:center; display:flex; gap:16px; margin-bottom:12px; }
+.profitability-compare div { background:#f5f7ff; border:1px solid #e1e7f1; border-radius:10px; flex:1; padding:12px; }
+.profitability-compare small { color:var(--muted); display:block; font-size:10px; }
+.profitability-compare strong { color:var(--ink); display:block; font-size:21px; margin-top:6px; }
+.profitability-compare > span { color:var(--muted); font-size:11px; font-weight:800; }
+.profitability-explainer > p { color:var(--muted); font-size:11px; line-height:1.55; margin:0; }
+@media (max-width:760px) { .profitability-alert-hero { align-items:flex-start; flex-wrap:wrap; padding:15px; }.profitability-alert-copy { flex-basis:calc(100% - 58px); }.profitability-alert-action { margin-left:56px; width:calc(100% - 56px); }.profitability-signal-grid { grid-template-columns:1fr; }.profitability-compare { align-items:stretch; flex-direction:column; gap:8px; }.profitability-compare > span { text-align:center; } }

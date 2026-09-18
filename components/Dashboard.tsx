@@ -1498,6 +1498,14 @@ function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
   const tiktokConnected = tiktokAccounts.length > 0;
   const tiktokAllowed = isAdPlatformAllowed(plan, "tiktok");
   const totalSpend = metaPerformance?.overview.spend ?? 0;
+  const totalSales = metaPerformance?.overview.sales ?? 0;
+  const realRoas = metaPerformance?.overview.realRoas ?? null;
+  const metaRoas = metaPerformance?.overview.metaRoas ?? null;
+  const attributionGap = metaRoas !== null && realRoas !== null ? Math.max(0, metaRoas - realRoas) : null;
+  const highestRisk = (metaPerformance?.performances ?? []).reduce<MetaPerformance["performances"][number] | null>((worst, campaign) => {
+    if (!worst) return campaign;
+    return campaign.spend > worst.spend && campaign.conversions === 0 ? campaign : worst;
+  }, null);
 
   const channels: Array<{ id: "overview" | "meta" | "tiktok"; label: string }> = [{ id: "overview", label: "Vue générale" }, { id: "meta", label: "Meta" }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: "TikTok" }] : [])];
 
@@ -1511,6 +1519,20 @@ function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
 
       {channel === "overview" ? (
         <>
+          <section className={`profitability-alert-hero ${highestRisk ? "critical" : realRoas !== null && realRoas < 1 ? "warning" : "safe"}`}>
+            <div className="profitability-alert-icon"><ShieldAlert size={22} /></div>
+            <div className="profitability-alert-copy">
+              <span className="eyebrow">Gardien anti-saignement</span>
+              <h2>{highestRisk ? "Une campagne dépense sans vente confirmée" : realRoas !== null && realRoas < 1 ? "Ta rentabilité mérite une vérification" : "Aucun saignement critique détecté"}</h2>
+              <p>{highestRisk ? `« ${highestRisk.name} » a dépensé ${formatMoney(highestRisk.spend, metaPerformance?.currency ?? "XOF")} avec ${highestRisk.clicks} clics et aucune conversion déclarée.` : realRoas !== null && realRoas < 1 ? "Le revenu réellement attribué à Chariow reste inférieur aux dépenses publicitaires sur la période." : "Vendeo compare les dépenses média aux ventes confirmées par Chariow au lieu de se fier uniquement aux chiffres publicitaires."}</p>
+            </div>
+            <button type="button" className="btn btn-dark profitability-alert-action" onClick={() => openAI(highestRisk ? `Pourquoi la campagne ${highestRisk.name} dépense sans vente ? Donne-moi les vérifications prioritaires.` : "Analyse ma rentabilité réelle et donne-moi la prochaine action prioritaire.")}>Analyser le risque</button>
+          </section>
+          <section className="profitability-signal-grid">
+            <div className="app-card profitability-signal-card"><span className="eyebrow">Données réelles</span><strong>{formatMoney(metaPerformance?.overview.chariowRevenue ?? 0, metaPerformance?.currency ?? "XOF")}</strong><p>revenus confirmés par Chariow</p></div>
+            <div className="app-card profitability-signal-card"><span className="eyebrow">Paiement</span><strong>{totalSales}</strong><p>ventes réellement encaissées</p></div>
+            <div className="app-card profitability-signal-card"><span className="eyebrow">Écart attribution</span><strong>{attributionGap === null ? "Non disponible" : `${attributionGap.toFixed(2)}x`}</strong><p>ROAS Meta déclaré moins ROAS réel</p></div>
+          </section>
           <AdsDecisionSummary performances={metaPerformance?.performances ?? []} currency={metaPerformance?.currency ?? "XOF"} onOpenAI={openAI} />
           <AdsSavingsSummary performances={metaPerformance?.performances ?? []} currency={metaPerformance?.currency ?? "XOF"} />
           <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><h2>Vue générale</h2><BarChart3 size={19} /></div>
@@ -1518,7 +1540,8 @@ function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
               <div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires totales" description="Somme des dépenses sur les canaux connectés et synchronisés." /><strong>{metaConnected ? formatMoney(totalSpend, metaPerformance?.currency ?? "XOF") : "Non disponible"}</strong></div>
             </div>
           </section>
-          <div className="vendeo-kpi-grid" style={{ marginBottom: 18 }}>
+           <section className="app-card profitability-explainer"><div className="card-head"><div><span className="eyebrow">Lecture cross-canal</span><h2>Ce que les plateformes ne te montrent pas</h2></div><LineChart size={19} /></div><div className="profitability-compare"><div><small>ROAS déclaré Meta</small><strong>{metaRoas === null ? "Non disponible" : `${metaRoas.toFixed(2)}x`}</strong></div><span>vs</span><div><small>ROAS réel Chariow</small><strong>{realRoas === null ? "Non disponible" : `${realRoas.toFixed(2)}x`}</strong></div></div><p>Le premier chiffre vient de la plateforme publicitaire. Le second repose sur les revenus réellement attribués ou encaissés dans ta boutique.</p></section>
+           <div className="vendeo-kpi-grid" style={{ marginBottom: 18 }}>
             <div className="app-card"><div className="card-head"><h3>Meta</h3>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{metaConnected ? <p className="hint-line">{formatMoney(totalSpend, metaPerformance?.currency ?? "XOF")} dépensés sur la période</p> : <><p className="hint-line">Connecte Meta Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectMeta}>Connecter Meta</button></>}</div>
             {tiktokAllowed ? <div className="app-card"><div className="card-head"><h3>TikTok</h3>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{tiktokConnected ? <p className="hint-line">Statistiques détaillées bientôt disponibles</p> : <><p className="hint-line">Connecte TikTok Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectTiktok}>Connecter TikTok</button></>}</div> : <div className="app-card"><div className="card-head"><h3>TikTok</h3><span className="status-info">Non inclus dans ton plan</span></div></div>}
           </div>
