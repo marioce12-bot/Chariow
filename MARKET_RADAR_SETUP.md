@@ -2,6 +2,8 @@
 
 Le module `Radar marché` utilise Google Trends via SerpApi lorsqu'une clé serveur est configurée. Sans clé, l'interface reste disponible mais indique que les données live sont insuffisantes.
 
+Les résultats sont mis en cache 7 jours dans Supabase. Une analyse utilisateur ne consomme donc pas SerpApi si le même mot-clé et le même pays ont déjà été récupérés récemment. Le quota applicatif est limité à 200 appels SerpApi par mois; en cas de quota atteint, un cache périmé est utilisé lorsqu'il existe.
+
 ## Variable nécessaire
 
 ```env
@@ -14,6 +16,10 @@ Créer la clé sur `https://serpapi.com/` après inscription, puis l'ajouter dan
 2. Aller dans `Settings` puis `Environment Variables`.
 3. Ajouter `SERPAPI_KEY` pour `Production`, `Preview` et `Development` selon l'environnement souhaité.
 4. Redéployer le projet.
+
+## Cron de préchauffage
+
+Le cron Vercel `/api/market/warm` préchauffe chaque lundi les thèmes populaires pour les pays configurés. Si `CRON_SECRET` est défini, configurer le même secret dans Vercel afin que l'appel soit protégé.
 
 ## Limites actuelles
 

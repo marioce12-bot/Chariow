@@ -5,6 +5,11 @@ export type MarketRadarInput = {
   format: "ebook" | "formation" | "template" | "abonnement";
 };
 
+export type MarketSignalClient = {
+  from: (table: string) => any;
+  rpc: (name: string, args: Record<string, unknown>) => any;
+};
+
 export type MarketRadarReport = {
   query: MarketRadarInput;
   score: number;
@@ -19,6 +24,10 @@ export type MarketRadarReport = {
 };
 
 const COUNTRY_NAMES: Record<string, string> = { BJ: "Bénin", CI: "Côte d’Ivoire", TG: "Togo", SN: "Sénégal", CM: "Cameroun", BF: "Burkina Faso" };
+const TRENDS_TTL_MS = 7 * 86400000;
+const SERPAPI_MONTHLY_LIMIT = 200;
+
+export function normalizeMarketQuery(value: string) { return value.toLowerCase().trim().replace(/\s+/g, " "); }
 
 function clamp(value: number) { return Math.max(0, Math.min(100, Math.round(value))); }
 
@@ -54,6 +63,27 @@ async function fetchGoogleTrends(input: MarketRadarInput) {
   return await response.json() as { interest_over_time?: { timeline_data?: Array<{ values?: Array<{ value?: number }> }> }; related_queries?: Record<string, unknown> };
 }
 
+export async function fetchCachedTrends(supabase: MarketSignalClient, query: string, country: string) {
+  const normalized = normalizeMarketQuery(query);
+  const cacheKey = `trends:${country}:TIMESERIES:${normalized}`;
+  const { data: cached } = await supabase.from("market_signals").select("payload,fetched_at").eq("cache_key", cacheKey).maybeSingle();
+  const isFresh = cached?.fetched_at && Date.now() - new Date(cached.fetched_at).getTime() < TRENDS_TTL_MS;
+  if (isFresh) return { payload: cached.payload as Record<string, unknown>, source: "cache" as const };
+
+  const month = new Date().toISOString().slice(0, 7);
+  const { data: usage } = await supabase.from("api_usage").select("count").eq("provider", "serpapi").eq("month", month).maybeSingle();
+  if (Number(usage?.count ?? 0) >= SERPAPI_MONTHLY_LIMIT) {
+    if (cached?.payload) return { payload: cached.payload as Record<string, unknown>, source: "stale" as const };
+    throw new Error("Quota SerpApi atteint pour ce mois");
+  }
+  const input: MarketRadarInput = { idea: normalized, country, audience: "", format: "ebook" };
+  const payload = await fetchGoogleTrends(input);
+  if (!payload) throw new Error("SERPAPI_KEY non configurée");
+  await supabase.from("market_signals").upsert({ cache_key: cacheKey, provider: "serpapi", payload, fetched_at: new Date().toISOString() });
+  await supabase.rpc("increment_api_usage", { p_provider: "serpapi", p_month: month });
+  return { payload: payload as Record<string, unknown>, source: "live" as const };
+}
+
 function scoreTrend(data: Awaited<ReturnType<typeof fetchGoogleTrends>>) {
   const values = data?.interest_over_time?.timeline_data?.filter((row) => !(row as { partial_data?: boolean }).partial_data).flatMap((row) => row.values?.map((item) => Number((item as { extracted_value?: number | string }).extracted_value ?? item.value ?? 0)) ?? []).filter(Number.isFinite) ?? [];
   if (!values.length) return null;
@@ -64,17 +94,18 @@ function scoreTrend(data: Awaited<ReturnType<typeof fetchGoogleTrends>>) {
   return { demand: clamp(recent), growth, values, current: clamp(recent), previous: clamp(previous), direction: growthDelta > 8 ? "up" as const : growthDelta < -8 ? "down" as const : "stable" as const };
 }
 
-export async function buildMarketRadar(input: MarketRadarInput): Promise<MarketRadarReport> {
+export async function buildMarketRadar(input: MarketRadarInput, supabase?: MarketSignalClient): Promise<MarketRadarReport> {
   const fallback = fallbackReport(input);
   try {
-    const trends = await fetchGoogleTrends(input);
+    const cached = supabase ? await fetchCachedTrends(supabase, input.idea, input.country) : null;
+    const trends = cached?.payload as Awaited<ReturnType<typeof fetchGoogleTrends>> ?? await fetchGoogleTrends(input);
     const scored = scoreTrend(trends);
     if (!scored) return fallback;
     const competition = clamp(100 - scored.demand * 0.35);
     const countryFit = input.country ? clamp(60 + scored.demand * 0.4) : 40;
     const monetization = input.format === "ebook" ? 76 : input.format === "template" ? 71 : 64;
     const score = clamp(scored.demand * 0.3 + scored.growth * 0.25 + competition * 0.1 + countryFit * 0.2 + monetization * 0.15);
-    return { ...fallback, score, confidence: "medium", liveSources: ["Google Trends via SerpApi"], trend: { current: scored.current, previous: scored.previous, direction: scored.direction, points: scored.values.slice(-12) }, dimensions: { demand: scored.demand, growth: scored.growth, competition, countryFit, monetization }, evidence: [{ label: "Recherche", value: `${scored.demand}/100 sur les 12 derniers mois` }, { label: "Évolution récente", value: `${scored.current} contre ${scored.previous} précédemment (${scored.direction === "up" ? "en hausse" : scored.direction === "down" ? "en baisse" : "stable"})` }, { label: "Pays analysé", value: COUNTRY_NAMES[input.country] ?? input.country }, { label: "Source", value: "Google Trends via SerpApi" }], risks: ["La tendance mesure l’intérêt de recherche, pas les ventes garanties.", "La dernière période partielle est exclue du calcul.", "Valide l’idée avec une prévente ou une page d’attente avant de produire."], };
+    return { ...fallback, score, confidence: "medium", liveSources: [`Google Trends via SerpApi${cached ? ` (${cached.source})` : ""}`], trend: { current: scored.current, previous: scored.previous, direction: scored.direction, points: scored.values.slice(-12) }, dimensions: { demand: scored.demand, growth: scored.growth, competition, countryFit, monetization }, evidence: [{ label: "Recherche", value: `${scored.demand}/100 sur les 12 derniers mois` }, { label: "Évolution récente", value: `${scored.current} contre ${scored.previous} précédemment (${scored.direction === "up" ? "en hausse" : scored.direction === "down" ? "en baisse" : "stable"})` }, { label: "Pays analysé", value: COUNTRY_NAMES[input.country] ?? input.country }, { label: "Source", value: `Google Trends via SerpApi${cached ? ` · ${cached.source}` : ""}` }], risks: ["La tendance mesure l’intérêt de recherche, pas les ventes garanties.", "La dernière période partielle est exclue du calcul.", "Valide l’idée avec une prévente ou une page d’attente avant de produire."], };
   } catch (error) {
     return { ...fallback, risks: [`La source live est momentanément indisponible: ${error instanceof Error ? error.message : "erreur inconnue"}`, ...fallback.risks] };
   }

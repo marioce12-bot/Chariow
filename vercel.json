@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/meta/sync", "schedule": "0 3 * * *" },
-    { "path": "/api/cron/chariow/sync", "schedule": "0 3 * * *" }
+    { "path": "/api/cron/chariow/sync", "schedule": "0 3 * * *" },
+    { "path": "/api/market/warm", "schedule": "0 4 * * 1" }
   ]
 }
