@@ -1798,13 +1798,20 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
         <div className="chat-messages">
           {!hasConversation && (
             <div className="chat-empty-hero">
-              <span className="chat-empty-icon"><Sparkles size={20} /></span>
-              <strong>Pose n’importe quelle question sur ta boutique</strong>
-              <p>Vendeo AI croise tes ventes Chariow, tes pubs Meta/TikTok et ta rentabilité pour te dire précisément quoi faire.</p>
-              <div className="chat-capabilities">
-                <span><Megaphone size={13} /> Pubs à arrêter ou scaler</span>
-                <span><Package size={13} /> Produits les plus vendus</span>
-                <span><Wand2 size={13} /> Génération d’affiches</span>
+              <div className="ai-welcome-top"><span className="chat-empty-icon"><Sparkles size={20} /></span><span className="ai-live-label"><i /> Analyse prête</span></div>
+              <span className="eyebrow">Centre de décision</span>
+              <strong>Que veux-tu comprendre aujourd’hui ?</strong>
+              <p>Vendeo croise tes ventes Chariow, tes campagnes et ta rentabilité pour transformer tes données en prochaine action.</p>
+              <div className="ai-action-grid">
+                {[
+                  { icon: <ShieldAlert size={16} />, title: "Protéger ma marge", text: "Repérer les campagnes qui brûlent du budget.", prompt: "Où est-ce que je perds de l'argent cette semaine ?" },
+                  { icon: <TrendingUp size={16} />, title: "Trouver une opportunité", text: "Identifier ce qui mérite plus d’attention.", prompt: "Quelle est ma meilleure opportunité cette semaine ?" },
+                  { icon: <Package size={16} />, title: "Comprendre mes produits", text: "Voir ce qui se vend vraiment.", prompt: "Quels produits se vendent le mieux et pourquoi ?" },
+                ].map((item) => (
+                  <button type="button" className="ai-action-card" key={item.title} onClick={() => void send(item.prompt)} disabled={sending || plansRequired}>
+                    <span className="ai-action-icon">{item.icon}</span><span><strong>{item.title}</strong><small>{item.text}</small></span><ArrowRight size={14} />
+                  </button>
+                ))}
               </div>
             </div>
           )}
