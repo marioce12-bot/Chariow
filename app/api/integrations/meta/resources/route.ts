@@ -26,9 +26,15 @@ export async function GET(request: Request) {
       account: { id: account.id, status, restricted: resources.accountError ? null : status !== 1 },
       account_error: resources.accountError,
       account_quality_url: "https://www.facebook.com/accountquality",
-      pages: resources.pages.map((page: Record<string, unknown>) => ({ id: page.id, name: page.name, instagram_business_account: page.instagram_business_account ?? null })),
+      pages: resources.pages.map((page) => {
+        const item = page as Record<string, unknown>;
+        return { id: item.id, name: item.name, instagram_business_account: item.instagram_business_account ?? null };
+      }),
       pages_error: resources.pagesError,
-      pixels: resources.pixels.map((pixel: Record<string, unknown>) => ({ id: pixel.id, name: pixel.name })),
+      pixels: resources.pixels.map((pixel) => {
+        const item = pixel as Record<string, unknown>;
+        return { id: item.id, name: item.name };
+      }),
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ressources Meta indisponibles" }, { status: 502 });

@@ -19,7 +19,7 @@ export function ImpactFinancierCard({ data }: ImpactFinancierCardProps) {
           +{formatXOF(data.budgetEconomise)}
         </p>
         <p className="mt-1 text-xs text-gray-500">
-          Grâce aux pubs arrêtées à temps ce mois-ci.
+          Montant actuellement exposé sur les campagnes signalées.
         </p>
       </div>
 
@@ -29,7 +29,7 @@ export function ImpactFinancierCard({ data }: ImpactFinancierCardProps) {
           +{formatXOF(data.revenuAdditionnelEstime)}
         </p>
         <p className="mt-1 text-xs text-gray-500">
-          Si tu appliques les recommandations de Scale/Prix.
+          Si tu appliques les recommandations d'analyse et de prix.
         </p>
       </div>
     </div>

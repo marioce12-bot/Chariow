@@ -20,18 +20,18 @@ export function VerdictBanner({ data, onPrimaryAction, onSecondaryAction }: Verd
         <OctagonAlert className="mt-0.5 h-8 w-8 shrink-0 text-[#EF4444]" strokeWidth={2.2} />
         <div className="flex-1">
           <h3 className="text-lg font-bold text-[#991B1B]">
-            🛑 Action requise : Coupe {data.activeCampaignsCount ?? 1} publicité immédiatement
+            🛑 Alerte rentabilité : vérifie {data.activeCampaignsCount ?? 1} campagne immédiatement
           </h3>
           <p className="mt-1 text-sm text-[#7F1D1D]">
             La campagne « {data.campaignName ?? "—"} » a dépensé {formatXOF(data.spend ?? 0)} sans
-            générer aucune vente confirmée sur Chariow.
+            générer de vente confirmée sur Chariow. Vérifie ton lien de paiement, ton offre et ton suivi avant de laisser le budget continuer.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-4">
             <button
               onClick={onPrimaryAction}
               className="rounded-lg bg-[#991B1B] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#7F1D1D]"
             >
-              Voir la pub à couper
+              Voir le signal détecté
             </button>
             <button
               onClick={onSecondaryAction}
@@ -64,7 +64,7 @@ export function VerdictBanner({ data, onPrimaryAction, onSecondaryAction }: Verd
               onClick={onPrimaryAction}
               className="rounded-lg bg-[#10B981] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#059669]"
             >
-              Scaler la campagne
+              Analyser l'opportunité
             </button>
           </div>
         </div>
@@ -81,12 +81,12 @@ export function VerdictBanner({ data, onPrimaryAction, onSecondaryAction }: Verd
       <Lightbulb className="mt-0.5 h-8 w-8 shrink-0 text-[#6366F1]" strokeWidth={2.2} />
       <div className="flex-1">
         <h3 className="text-lg font-bold text-[#3730A3]">
-          {noActiveCampaigns ? "💡 Aucune publicité en cours" : "💡 Tes publicités tournent normalement"}
+          {noActiveCampaigns ? "💡 Aucun signal publicitaire à analyser" : "💡 Aucun signal critique détecté"}
         </h3>
         <p className="mt-1 text-sm text-[#3730A3]/90">
           {noActiveCampaigns
-            ? "Tu n'as aucune campagne active pour le moment. Lance une pub pour commencer à suivre sa rentabilité ici."
-            : `Aucune perte critique détectée. Tes ${activeCount} campagnes actives sont rentables.`}
+            ? "Connecte Meta Ads ou TikTok Ads pour croiser leurs données avec les ventes confirmées de ta boutique."
+            : `Aucune perte critique détectée sur tes ${activeCount} campagnes analysées.`}
         </p>
         <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#4338CA]">
           <CheckCircle2 className="h-4 w-4" />

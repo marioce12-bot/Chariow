@@ -227,7 +227,7 @@ export function Dashboard() {
   const links = [
     ["Vue d’ensemble", LayoutDashboard],
     ["Vendeo AI", MessageSquare],
-    ["Pubs", Megaphone],
+    ["Rentabilité", Megaphone],
     ["Mes boutiques", Store],
     ["Rapports", FileText],
     ["Abonnement", CreditCard],
@@ -388,7 +388,7 @@ export function Dashboard() {
               onBack={() => setActive(previousSection)}
               products={analytics?.products ?? []}
             />
-          ) : active === "Pubs" ? (
+          ) : active === "Rentabilité" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
@@ -419,9 +419,9 @@ export function Dashboard() {
            <LayoutDashboard size={18} />
            <span>Accueil</span>
          </button>
-          <button type="button" className={`nav-btn ${active === "Pubs" ? "active" : ""}`} onClick={() => setActive("Pubs")}>
+          <button type="button" className={`nav-btn ${active === "Rentabilité" ? "active" : ""}`} onClick={() => setActive("Rentabilité")}>
             <Megaphone size={18} />
-            <span>Pubs</span>
+            <span>Rentabilité</span>
           </button>
           <button type="button" className={`nav-btn ${active === "Rapports" ? "active" : ""}`} onClick={() => setActive("Rapports")}>
             <FileText size={18} />
@@ -1503,7 +1503,7 @@ function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
 
   return (
     <>
-      <div className="page-top"><div><span className="eyebrow">Analyse publicitaire</span><h1>Pubs</h1><p>Vendeo analyse tes campagnes déjà diffusées sur Meta et TikTok et te dit quoi arrêter ou optimiser.</p></div></div>
+      <div className="page-top"><div><span className="eyebrow">Gardien de rentabilité</span><h1>Rentabilité</h1><p>Vendeo lit tes campagnes Meta et TikTok et les compare à tes ventes confirmées pour te dire où ton budget produit réellement du revenu.</p></div></div>
 
       <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8 }}>{channels.map((item) => <button key={item.id} type="button" className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.label}</button>)}</div>
 
@@ -1962,11 +1962,18 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
                 <Lightbulb size={16} />
               </button>
             )}
-            <input
+            <textarea
               disabled={plansRequired}
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder={plansRequired ? "Active ton abonnement pour continuer" : "Pose ta question..."}
+              rows={1}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void send();
+                }
+              }}
             />
             <button
               className="btn btn-dark"
