@@ -120,7 +120,14 @@ export async function buildMarketRadar(input: MarketRadarInput, supabase?: Marke
     const points = valid[0].scored.values.slice(-12);
     const countryNames = valid.map((item) => COUNTRY_NAMES[item.country] ?? item.country).join(", ");
     const sources = [...new Set(valid.map((item) => item.source))].join(", ");
-    return { ...fallback, score, confidence: "medium", liveSources: [`Google Trends via SerpApi · ${sources}`], trend: { current: averageCurrent, previous: averagePrevious, direction, points }, dimensions: { demand: averageDemand, growth: averageGrowth, competition, countryFit, monetization }, evidence: [{ label: "Recherche moyenne", value: `${averageDemand}/100 sur les 12 derniers mois` }, { label: "Évolution récente", value: `${averageCurrent} contre ${averagePrevious} précédemment (${direction === "up" ? "en hausse" : direction === "down" ? "en baisse" : "stable"})` }, { label: "Pays analysés", value: countryNames }, { label: "Source", value: `Google Trends via SerpApi · ${sources}` }], risks: ["La tendance mesure l’intérêt de recherche, pas les ventes garanties.", "La dernière période partielle est exclue du calcul.", "Valide l’idée avec une prévente ou une page d’attente avant de produire."], };
+    const risks = [
+      ...(averageDemand < 45 ? ["Demande faible: le sujet est peu recherché dans les pays sélectionnés. Teste un problème plus précis ou une promesse plus directe."] : []),
+      ...(direction === "down" ? ["Intérêt en baisse: la recherche recule sur les dernières semaines. Évite de produire un produit long sans test de prévente."] : []),
+      ...(competition < 65 ? ["Concurrence élevée: le sujet est déjà très visible. Différencie-toi avec un angle local, un résultat mesurable ou des modèles prêts à l’emploi."] : []),
+      ...(input.format === "ebook" && monetization < 80 ? ["Prix sensible: pour un e-book, une promesse trop générale sera difficile à vendre. Ajoute un bonus concret ou un template pour renforcer la valeur."] : []),
+    ];
+    if (!risks.length) risks.push("Risque de validation: le signal est favorable, mais teste une page d’attente ou une prévente avant de produire le contenu complet.");
+    return { ...fallback, score, confidence: "medium", liveSources: [`Google Trends via SerpApi · ${sources}`], trend: { current: averageCurrent, previous: averagePrevious, direction, points }, dimensions: { demand: averageDemand, growth: averageGrowth, competition, countryFit, monetization }, evidence: [{ label: "Recherche moyenne", value: `${averageDemand}/100 sur les 12 derniers mois` }, { label: "Évolution récente", value: `${averageCurrent} contre ${averagePrevious} précédemment (${direction === "up" ? "en hausse" : direction === "down" ? "en baisse" : "stable"})` }, { label: "Pays analysés", value: countryNames }, { label: "Source", value: `Google Trends via SerpApi · ${sources}` }], risks };
   } catch (error) {
     return { ...fallback, risks: [`La source live est momentanément indisponible: ${error instanceof Error ? error.message : "erreur inconnue"}`, ...fallback.risks] };
   }
