@@ -228,6 +228,7 @@ export function Dashboard() {
     ["Vue d’ensemble", LayoutDashboard],
     ["Vendeo AI", MessageSquare],
     ["Rentabilité", Megaphone],
+    ["Radar marché", Lightbulb],
     ["Mes boutiques", Store],
     ["Rapports", FileText],
     ["Abonnement", CreditCard],
@@ -390,6 +391,8 @@ export function Dashboard() {
             />
           ) : active === "Rentabilité" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} />
+          ) : active === "Radar marché" ? (
+             <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); setActive("Vendeo AI"); }} />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Abonnement" ? (
@@ -422,6 +425,10 @@ export function Dashboard() {
           <button type="button" className={`nav-btn ${active === "Rentabilité" ? "active" : ""}`} onClick={() => setActive("Rentabilité")}>
             <Megaphone size={18} />
             <span>Rentabilité</span>
+          </button>
+          <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
+            <Lightbulb size={18} />
+            <span>Radar</span>
           </button>
           <button type="button" className={`nav-btn ${active === "Rapports" ? "active" : ""}`} onClick={() => setActive("Rapports")}>
             <FileText size={18} />
@@ -762,6 +769,44 @@ function Overview({
 }
 
 function HomeKpi({ label, value, help, tone, action }: { label: string; value: string; help: string; tone: string; action?: () => void }) { return <div className={`home-kpi ${tone}`}><small>{label}</small><strong>{value}</strong><span>{help}</span>{action ? <button className="btn btn-ghost" onClick={action}>Configurer</button> : null}</div>; }
+
+function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => void }) {
+  const [idea, setIdea] = useState("");
+  const [country, setCountry] = useState("BJ");
+  const [audience, setAudience] = useState("");
+  const [format, setFormat] = useState("ebook");
+  const [report, setReport] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function analyze(event: React.FormEvent) {
+    event.preventDefault();
+    setLoading(true); setError("");
+    try {
+      const response = await fetch("/api/market/radar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idea, country, audience, format }) });
+      const data = await response.json();
+      if (!response.ok) { setError(data.error ?? "Analyse impossible."); return; }
+      setReport(data.report ?? null);
+    } catch { setError("Le radar marché est momentanément indisponible."); } finally { setLoading(false); }
+  }
+
+  const dimensions = (report?.dimensions ?? {}) as Record<string, number>;
+  const ideas = Array.isArray(report?.ideas) ? report.ideas as Array<Record<string, unknown>> : [];
+  return <div className="market-radar-page">
+    <div className="page-top"><div><span className="eyebrow">Axe 3 · Sourcing</span><h1>Radar marché</h1><p>Teste une idée de produit digital avant de passer du temps à la produire.</p></div></div>
+    <section className="market-radar-hero"><div><span className="eyebrow">Validation en temps réel</span><h2>Quelle idée veux-tu lancer ?</h2><p>Vendeo mesure les signaux de recherche disponibles et transforme ton idée en concept d’e-book exploitable.</p></div><TrendingUp size={32} /></section>
+    <form className="app-card market-radar-form" onSubmit={analyze}>
+      <label>Ton idée<input value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="Ex : ebook pour gérer son argent avec Mobile Money" /></label>
+      <div className="market-radar-fields"><label>Pays<select value={country} onChange={(event) => setCountry(event.target.value)}><option value="BJ">Bénin</option><option value="CI">Côte d’Ivoire</option><option value="TG">Togo</option><option value="SN">Sénégal</option><option value="CM">Cameroun</option><option value="BF">Burkina Faso</option></select></label><label>Audience<input value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="Ex : jeunes actifs" /></label><label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}><option value="ebook">E-book</option><option value="formation">Formation</option><option value="template">Templates</option><option value="abonnement">Abonnement</option></select></label></div>
+      {error && <p className="store-error">{error}</p>}<button className="btn btn-dark" disabled={loading || idea.trim().length < 8}>{loading ? "Analyse des signaux…" : "Analyser le potentiel"}</button>
+    </form>
+    {report ? <>
+      <section className="market-radar-score"><div><span className="eyebrow">Potentiel estimé</span><strong>{String(report.score ?? 0)}<small>/100</small></strong><p>Confiance {String(report.confidence ?? "low")} · {Array.isArray(report.liveSources) && report.liveSources.length ? String(report.liveSources.join(", ")) : "Aucune source live configurée"}</p></div><div className="market-dimension-grid">{[["Demande","demand"],["Croissance","growth"],["Concurrence","competition"],["Adéquation pays","countryFit"],["Monétisation","monetization"]].map(([label,key]) => <div key={key}><small>{label}</small><strong>{dimensions[key] ?? 0}</strong><i><b style={{ width: `${dimensions[key] ?? 0}%` }} /></i></div>)}</div></section>
+      <section className="market-evidence-grid"><div className="app-card"><div className="card-head"><div><span className="eyebrow">Preuves</span><h2>Pourquoi ce score ?</h2></div><Activity size={18} /></div>{(report.evidence as Array<Record<string, string>> ?? []).map((item) => <div className="market-evidence" key={`${item.label}-${item.value}`}><small>{item.label}</small><strong>{item.value}</strong></div>)}</div><div className="app-card"><div className="card-head"><div><span className="eyebrow">Décision</span><h2>Risques à connaître</h2></div><ShieldAlert size={18} /></div>{(report.risks as string[] ?? []).map((risk) => <p className="market-risk" key={risk}>{risk}</p>)}<p className="market-price">Prix de test: {String((report.recommendedPrice as Record<string, unknown>)?.min)} à {String((report.recommendedPrice as Record<string, unknown>)?.max)} XOF</p></div></section>
+      <section className="app-card market-ideas"><div className="card-head"><div><span className="eyebrow">Concepts exploitables</span><h2>Ce que tu peux lancer</h2></div><Lightbulb size={18} /></div>{ideas.map((item) => <article className="market-idea" key={String(item.title)}><div><h3>{String(item.title)}</h3><p>{String(item.promise)}</p><small>Pour: {String(item.audience)}</small></div><button className="btn btn-ghost" onClick={() => onGoToAI(`Développe le concept d'e-book « ${String(item.title)} » avec un plan détaillé, une promesse commerciale et un upsell adapté au marché ${country}.`)}>Développer avec l’IA</button></article>)}</section>
+    </> : <div className="app-card market-empty"><Lightbulb size={24} /><strong>Entre une idée pour obtenir un score de potentialité</strong><span>Le score indique la force des signaux disponibles. Il ne garantit pas les ventes.</span></div>}
+  </div>;
+}
 function EmptyState({ title, text }: { title: string; text: string }) { return <div className="home-empty"><strong>{title}</strong><span>{text}</span></div>; }
 function ActionItem({ title, proof, action, onClick }: { title: string; proof: string; action: string; onClick: () => void }) { return <div className="home-action-item"><div><strong>{title}</strong><p>{proof}</p></div><button className="btn btn-dark" onClick={onClick}>{action}</button></div>; }
 function SummaryTable({ title, columns, rows, empty }: { title: string; columns: string[]; rows: Array<Array<string | number>>; empty: string }) { return <section className="home-summary app-card"><div className="card-head"><h2>{title}</h2><BarChart3 size={18} /></div>{rows.length ? <div className="home-table"><div className="home-table-row home-table-head">{columns.map((column) => <span key={column}>{column}</span>)}</div>{rows.map((row, index) => <div className="home-table-row" key={index}>{row.map((value, valueIndex) => <span key={valueIndex}>{value}</span>)}</div>)}</div> : <EmptyState title={empty} text="Les données apparaîtront après synchronisation." />}</section>; }
