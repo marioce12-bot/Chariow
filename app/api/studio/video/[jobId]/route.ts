@@ -11,6 +11,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
 
   try {
     const job = await getImoleVideoJob(jobId);
+    const admin = (await import("@/lib/supabase/admin")).createAdminClient();
+    const { data: generation } = await admin.from("studio_generations").select("id,status").eq("user_id", user.id).eq("video_job_id", jobId).maybeSingle();
+    if (generation && ["completed", "failed"].includes(job.status)) await admin.from("studio_generations").update({ status: job.status === "completed" ? "completed" : "failed", error: job.status === "completed" ? null : `Statut vidéo : ${job.status}` }).eq("id", generation.id);
     const contentUrl = `/api/studio/video/${encodeURIComponent(jobId)}/content`;
     return NextResponse.json({ ...job, contentUrl: job.status === "completed" ? contentUrl : null });
   } catch (error) {

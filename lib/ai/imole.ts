@@ -186,3 +186,10 @@ export async function getImoleVideoJob(jobId: string) {
   if (!response.ok) throw new Error(data.error?.message || `Imole media job API returned ${response.status}`);
   return { id: data.id || jobId, status: data.status || "queued" };
 }
+
+export async function downloadImoleVideo(jobId: string) {
+  const { apiKey, baseUrl } = getConfig();
+  const response = await fetch(`${baseUrl}/media/jobs/${encodeURIComponent(jobId)}/content`, { headers: { Authorization: `Bearer ${apiKey}` }, cache: "no-store" });
+  if (!response.ok) throw new Error(`Imole video content API returned ${response.status}`);
+  return { body: await response.arrayBuffer(), contentType: response.headers.get("content-type") || "video/mp4" };
+}

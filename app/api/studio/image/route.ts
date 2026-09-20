@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { requireUser } from "@/lib/auth";
 import { generateImoleImage, type StudioImageOptions } from "@/lib/ai/imole";
 import { imageCreditCost } from "@/lib/studio/credits";
+import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
 
 const imageModes = ["fast", "advanced"] as const;
 const qualities = ["medium", "high", "xhigh", "max"] as const;
@@ -35,6 +36,8 @@ export async function POST(request: Request) {
   };
 
   const cost = imageCreditCost(options.resolution ?? "hd", options.quality ?? "medium");
+  const { data: generation, error: generationError } = await supabase.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options, status: "processing", credits_cost: cost }).select("id").single();
+  if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
   const requestId = crypto.randomUUID();
   const reservation = await supabase.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image", model_name: "imole-image", provider_amount: Math.round(cost / 1.5), request_id: requestId });
   if (reservation.error) {
@@ -47,9 +50,13 @@ export async function POST(request: Request) {
   try {
     const imageUrl = await generateImoleImage(prompt, "square", options);
     await supabase.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
-    return NextResponse.json({ imageUrl });
+    let storagePath: string | null = null;
+    try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat); } catch (storageError) { console.error("Studio image storage error", storageError); }
+    await supabase.from("studio_generations").update({ status: "completed", storage_path: storagePath }).eq("id", generation.id).eq("user_id", user.id);
+    return NextResponse.json({ imageUrl: storagePath ? await signedStudioUrl(storagePath) : imageUrl, generationId: generation.id, cost });
   } catch (error) {
     await supabase.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });
+    await supabase.from("studio_generations").update({ status: "failed", error: error instanceof Error ? error.message : "Erreur de génération" }).eq("id", generation.id).eq("user_id", user.id);
     const message = error instanceof Error ? error.message : "Erreur de génération d'image.";
     console.error("Imole studio image error", message);
     return NextResponse.json({ error: "Impossible de générer l'image pour le moment." }, { status: 502 });
