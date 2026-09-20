@@ -46,7 +46,7 @@ export function AdminDashboard() {
   }
 
   if (loading) return <main className="admin-shell"><div className="admin-loading">Chargement de la console administrateur…</div></main>;
-  if (error || !data) return <main className="admin-shell"><div className="admin-error"><ShieldCheck size={25} /><h1>Accès administrateur</h1><p>{error || "Ton compte est connecté, mais il n’a pas encore été autorisé comme administrateur."}</p>{error?.includes("Authentification") ? <a className="admin-link" href="/admin/login">Se connecter</a> : <p className="admin-help">Un administrateur doit ajouter ton utilisateur dans la table <code>admin_users</code>.</p>}</div></main>;
+  if (error || !data) return <main className="admin-shell"><div className="admin-error"><ShieldCheck size={25} /><h1>Console indisponible</h1><p>{error || "Impossible de charger la console administrateur."}</p>{error?.includes("Authentification") ? <a className="admin-link" href="/admin/login">Se connecter</a> : null}</div></main>;
 
   return <main className="admin-shell">
     <header className="admin-header"><div><span className="admin-kicker">Vendeo interne</span><h1>Console administrateur</h1></div><div className="admin-header-actions"><span className="admin-role">{data.admin.role}</span><button type="button" onClick={signOut} className="admin-logout"><LogOut size={15} /> Déconnexion</button></div></header>

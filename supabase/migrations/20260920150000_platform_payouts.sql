@@ -1,6 +1,6 @@
 create table if not exists public.platform_payouts (
   id uuid primary key default gen_random_uuid(),
-  requested_by uuid not null references public.admin_users(id),
+  requested_by uuid references public.admin_users(id) on delete set null,
   provider text not null default 'saspay',
   provider_payout_id text unique,
   idempotency_key text not null unique,
