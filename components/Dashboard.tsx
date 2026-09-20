@@ -506,6 +506,7 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
   const [error, setError] = useState("");
   const [balance, setBalance] = useState(0);
   const [creditAmount, setCreditAmount] = useState("200");
+  const [rechargeOpen, setRechargeOpen] = useState(false);
   const [recharging, setRecharging] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [productSearch, setProductSearch] = useState("");
@@ -589,6 +590,9 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
     } catch (rechargeError) { setError(rechargeError instanceof Error ? rechargeError.message : "Paiement indisponible."); setRecharging(false); }
   }
 
+  const rechargeCredits = Number(creditAmount);
+  const rechargePrice = Number.isInteger(rechargeCredits) && rechargeCredits >= 200 ? Math.round(rechargeCredits * 1.5) : 0;
+
   async function editImage() {
     if (!selectedGenerationId || !editInstruction.trim()) return;
     setEditSubmitting(true); setError("");
@@ -650,7 +654,7 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
             <Sparkles size={17} /> {loading ? "Création en cours…" : kind === "image" ? "Créer l'image" : "Créer la vidéo"}
           </button>
           <p className="studio-cost">{kind === "image" ? "Image : coût selon la qualité et la résolution choisies." : `Vidéo : ${videoResolution === "768p" ? "25" : "10"} cauris par seconde.`}</p>
-          <div className="studio-balance"><div><span className="eyebrow">Solde Studio</span><strong>{balance} crédits</strong></div><div className="studio-recharge"><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} aria-label="Nombre de crédits à acheter" /><button type="button" className="btn btn-ghost" onClick={() => void recharge()} disabled={recharging}>{recharging ? "Redirection…" : "Recharger"}</button></div><small>Minimum 200 crédits · 1 crédit = 1,50 XOF</small></div>
+          <div className="studio-balance"><div><span className="eyebrow">Solde Studio</span><strong>{balance} crédits</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>Recharger</button><small>Les crédits servent à générer et modifier tes médias.</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>Recharger des crédits</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label="Fermer">×</button></div><label className="studio-field"><span>Quantité de crédits</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>Prix : <strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>Minimum 200 crédits · 1 crédit = 1,50 XOF</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? "Préparation du paiement…" : "Payer"}</button></div> : null}</div>
         </section>
 
         <section className="app-card studio-result" aria-busy={loading || editSubmitting || Boolean(videoJob && !["completed", "failed", "cancelled"].includes(videoJob.status))}>

@@ -211,6 +211,15 @@ html[data-theme="dark"] .studio-product-picker { background:#0b1734; border-colo
 .studio-recharge { align-items:center; display:flex; gap:6px; }
 .studio-recharge input { border:1px solid #ceddce; border-radius:7px; font-size:12px; padding:9px; width:90px; }
 .studio-recharge .btn { font-size:11px; padding:9px 11px; }
+.studio-recharge-panel { background:#fff; border:1px solid #cfe0cf; border-radius:10px; display:flex; flex-basis:100%; flex-direction:column; gap:10px; padding:13px; }
+.studio-recharge-panel > div { align-items:center; display:flex; justify-content:space-between; }
+.studio-recharge-panel > div strong { color:#26382c; font-size:14px; margin:0; }
+.studio-recharge-panel .studio-field { gap:5px; }
+.studio-recharge-panel input { width:100%; }
+.studio-recharge-panel p { color:#53665a; font-size:13px; margin:0; }
+.studio-recharge-panel p strong { color:var(--green); }
+.studio-recharge-panel small { color:#718276; font-size:10px; }
+.studio-recharge-close { background:transparent; border:0; color:#718276; cursor:pointer; font-size:20px; line-height:1; padding:0 2px; }
 .studio-result { display:flex; flex-direction:column; gap:14px; min-height:480px; }
 .studio-result .card-head { margin-bottom:0; }
 .studio-result h2 { font-size:22px; margin:5px 0 0; }
@@ -1190,6 +1199,10 @@ html[data-theme="dark"] .studio-balance { background:#102a24; border-color:#2452
 html[data-theme="dark"] .studio-balance strong { color:#d9f99d; }
 html[data-theme="dark"] .studio-balance small { color:#9ac3a8; }
 html[data-theme="dark"] .studio-recharge input { background:#0a1733; border-color:#31427a; color:#e7edfb; }
+html[data-theme="dark"] .studio-recharge-panel { background:#101f45; border-color:#31427a; }
+html[data-theme="dark"] .studio-recharge-panel > div strong { color:#f1f5ff; }
+html[data-theme="dark"] .studio-recharge-panel p { color:#b9c8e8; }
+html[data-theme="dark"] .studio-recharge-panel small { color:#9ac3c0; }
 html[data-theme="dark"] .studio-result h2 { color:#f1f5ff; }
 html[data-theme="dark"] .studio-media { background:#0a1733; }
 html[data-theme="dark"] .studio-empty { background:linear-gradient(145deg,#0d1c3f,#101f45); border-color:#31427a; color:#9ac3c0; }
