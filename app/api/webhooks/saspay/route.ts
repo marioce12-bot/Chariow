@@ -73,7 +73,8 @@ export async function POST(request: Request) {
   if (!userId || !plan || !isPlanId(plan)) return NextResponse.json({ error: "Métadonnées de paiement manquantes" }, { status: 400 });
   const amount = Number(data.amount);
   if (data.status !== "SUCCESS" || amount !== planAmount(plan) || data.currency !== "XOF") return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: 400 });
-  const { error: eventError } = await admin.from("payment_events").insert({ provider: "saspay", provider_event_id: data.id, transaction_id: data.id, user_id: userId, plan, status: "approved" });
+  // Le montant est conservé dans metadata pour le calcul des revenus d'abonnements (admin_business_metrics).
+  const { error: eventError } = await admin.from("payment_events").insert({ provider: "saspay", provider_event_id: data.id, transaction_id: data.id, user_id: userId, plan, status: "approved", metadata: { provider: "saspay", amount_xof: amount } });
   if (eventError?.code === "23505") return NextResponse.json({ received: true });
   if (eventError) return NextResponse.json({ error: "Événement de paiement non enregistré" }, { status: 500 });
   const now = new Date();
