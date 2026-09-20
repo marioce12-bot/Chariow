@@ -23,7 +23,10 @@ export async function POST(request: Request) {
   const cost = videoCreditCost(resolution, duration);
   const requestId = crypto.randomUUID();
   const reservation = await supabase.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_video", model_name: "imole-video", provider_amount: Math.round(cost / 1.5), request_id: requestId });
-  if (reservation.error) return NextResponse.json({ error: "Le système de crédits n'est pas encore configuré." }, { status: 503 });
+  if (reservation.error) {
+    console.error("Studio credit reservation error", reservation.error.message, reservation.error.code);
+    return NextResponse.json({ error: "Le système de crédits n'est pas encore configuré.", details: process.env.NODE_ENV === "development" ? reservation.error.message : undefined }, { status: 503 });
+  }
   const reserveResult = reservation.data as { ok?: boolean; balance?: number; transaction_id?: string } | null;
   if (!reserveResult?.ok) return NextResponse.json({ error: `Solde insuffisant. Cette vidéo nécessite ${cost} crédits, ton solde est de ${reserveResult?.balance ?? 0}.`, required: cost, balance: reserveResult?.balance ?? 0 }, { status: 402 });
 
