@@ -228,11 +228,12 @@ html[data-theme="dark"] .studio-product-picker { background:#0b1734; border-colo
 .studio-empty { align-items:center; background:linear-gradient(145deg,#f6f9f4,#edf3e9); border:1px dashed #cbd9cd; border-radius:10px; color:#62806d; display:flex; flex:1; flex-direction:column; justify-content:center; min-height:300px; padding:28px; text-align:center; }
 .studio-empty strong { color:var(--green); margin-top:13px; }
 .studio-empty p { color:#74847a; font-size:13px; line-height:1.5; margin:8px 0 0; max-width:280px; }
-.studio-history-toolbar { align-items:center; display:flex; justify-content:space-between; margin:18px 0 10px; }
+.studio-history-toolbar { align-items:center; display:flex; flex-wrap:wrap; gap:8px 14px; justify-content:space-between; margin:18px 0 10px; min-width:0; }
+.studio-history-toolbar > div { display:flex; flex-wrap:wrap; gap:2px; min-width:0; }
 .studio-history-toolbar button { background:transparent; border:0; border-radius:7px; color:var(--muted); font-size:11px; padding:7px 10px; }
 .studio-history-toolbar button.active { background:#e5f0df; color:var(--green); font-weight:700; }
 .studio-history { display:grid; gap:8px; margin-bottom:18px; }
-.studio-history-card { align-items:center; background:#fff; border:1px solid var(--line); border-radius:10px; cursor:pointer; display:flex; gap:11px; padding:10px; }
+.studio-history-card { align-items:center; background:#fff; border:1px solid var(--line); border-radius:10px; cursor:pointer; display:flex; gap:11px; min-width:0; padding:10px; }
 .studio-history-thumb { align-items:center; background:#eef3ed; border-radius:7px; color:var(--green); display:flex; flex:none; height:58px; justify-content:center; overflow:hidden; width:58px; }
 .studio-history-thumb img { height:100%; object-fit:cover; width:100%; }
 .studio-history-copy { min-width:0; }
@@ -241,6 +242,7 @@ html[data-theme="dark"] .studio-product-picker { background:#0b1734; border-colo
 .studio-history-copy small { color:#829087; font-size:10px; }
 .studio-history-actions { display:flex; flex-wrap:wrap; gap:4px; margin-left:auto; }
 .studio-history-actions button { background:transparent; border:1px solid var(--line); border-radius:6px; color:var(--green); font-size:10px; padding:6px 7px; }
+.studio-history-actions { min-width:0; }
 .studio-history-empty { border:1px dashed #cbd9cd; border-radius:10px; color:var(--muted); padding:22px; text-align:center; }
 .studio-load-more { justify-self:center; font-size:11px; padding:9px 13px; }
 .studio-result-actions { display:flex; flex-wrap:wrap; gap:8px; }
@@ -600,6 +602,7 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .empty-state b { align-items:center; display:inline-flex; gap:5px; }
 
 @media (max-width:800px) { .nav-links { display:none; } .hero { padding-top:125px; } .hero-grid,.feature-grid,.content-grid,.studio-grid { grid-template-columns:1fr; } .dashboard-preview { margin-top:10px; transform:none; } .how-grid { grid-template-columns:repeat(2,1fr); } .pricing-wrap { grid-template-columns:1fr; } .section { padding:75px 0; } .section-head { display:block; } .section-head p { margin-top:20px; } .logos { flex-wrap:wrap; gap:16px; } .app-layout { grid-template-columns:1fr; } .sidebar { display:none; } .app-main { grid-column:1; } .overview-grid { grid-template-columns:repeat(2,1fr); } .app-header { padding:0 14px; } .cta { padding:45px 22px; } .studio-powered { display:inline-block; margin-top:10px; } }
+@media (max-width:600px) { .studio-history-toolbar { align-items:flex-start; flex-direction:column; } .studio-history-toolbar > div { width:100%; } .studio-history-toolbar button { flex:1; } .studio-history-card { align-items:flex-start; flex-wrap:wrap; } .studio-history-copy { flex:1 1 calc(100% - 69px); } .studio-history-copy small { display:block; line-height:1.4; } .studio-history-actions { flex-basis:100%; margin-left:69px; } }
 
 @media (max-width:800px) {
   .hero-vendeo-grid { grid-template-columns:1fr; grid-template-areas: "title" "logos" "actions" "preview" "paragraph"; gap:26px; align-items:start; }
