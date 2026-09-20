@@ -28,9 +28,9 @@ const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 const DASHBOARD_CACHE_KEY = "vendeo_dashboard_cache_v1";
 const ADS_CACHE_KEY = "vendeo_ads_cache_v1";
 
-// Petit cache en sessionStorage : permet d'afficher instantanément les dernières
-// données connues au lieu d'un écran "Chargement…" à chaque changement de section,
-// pendant qu'une version fraîche est récupérée silencieusement en arrière-plan.
+// Petit cache en sessionStorage : permet d'afficher instantanÃ©ment les derniÃ¨res
+// donnÃ©es connues au lieu d'un Ã©cran "Chargementâ€¦" Ã  chaque changement de section,
+// pendant qu'une version fraÃ®che est rÃ©cupÃ©rÃ©e silencieusement en arriÃ¨re-plan.
 function readCache<T>(key: string): T | null {
   if (typeof window === "undefined") return null;
   try {
@@ -46,7 +46,7 @@ function writeCache(key: string, value: unknown) {
   try {
     window.sessionStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // Stockage indisponible (navigation privée, quota plein…) — on ignore simplement.
+    // Stockage indisponible (navigation privÃ©e, quota pleinâ€¦) â€” on ignore simplement.
   }
 }
 
@@ -55,7 +55,7 @@ function MetricHelp({ label, description }: { label: string; description: string
   return <span className="metric-label">{label}<button type="button" className="metric-help" aria-label={`Explication : ${label}`} title={description} onClick={(event) => { event.preventDefault(); event.stopPropagation(); window.alert(description); }}>?</button></span>;
 }
 
-// Logo Google officiel (marque "G" multicolore) — utilisé tel quel par Google dans ses boutons de connexion.
+// Logo Google officiel (marque "G" multicolore) â€” utilisÃ© tel quel par Google dans ses boutons de connexion.
 function GoogleLogo() {
   return (
     <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
@@ -126,10 +126,10 @@ function subscriptionLimitFromStores(stores: StoreData[]) {
   return stores.length > 1 ? 3 : 1;
 }
 
-// Pop-up bloquante affichée dès que l'essai gratuit de 7 jours (ou l'abonnement payant)
-// est expiré côté base (subscriptions.status = 'past_due'). "Plus tard" masque la pop-up
-// pour la session en cours seulement — elle réapparaîtra à la prochaine connexion tant
-// que l'abonnement n'est pas activé.
+// Pop-up bloquante affichÃ©e dÃ¨s que l'essai gratuit de 7 jours (ou l'abonnement payant)
+// est expirÃ© cÃ´tÃ© base (subscriptions.status = 'past_due'). "Plus tard" masque la pop-up
+// pour la session en cours seulement â€” elle rÃ©apparaÃ®tra Ã  la prochaine connexion tant
+// que l'abonnement n'est pas activÃ©.
 function TrialPaywallModal({ subscription }: { subscription: SubscriptionData | null }) {
   const [dismissed, setDismissed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
@@ -160,13 +160,13 @@ function TrialPaywallModal({ subscription }: { subscription: SubscriptionData | 
   return (
     <div className="account-delete-backdrop" role="presentation">
       <section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="trial-paywall-title" onClick={(event) => event.stopPropagation()}>
-        <button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setDismissed(true)}>×</button>
-        <span className="eyebrow">Essai terminé</span>
-        <h2 id="trial-paywall-title">Ton essai gratuit de 7 jours est terminé</h2>
-        <p>Active l’abonnement Vendeo — 2 000 XOF/mois — pour continuer à utiliser l’analyse IA, les rapports et le suivi de tes pubs.</p>
+        <button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setDismissed(true)}>Ã—</button>
+        <span className="eyebrow">Essai terminÃ©</span>
+        <h2 id="trial-paywall-title">Ton essai gratuit de 7 jours est terminÃ©</h2>
+        <p>Active lâ€™abonnement Vendeo â€” 2 000 XOF/mois â€” pour continuer Ã  utiliser lâ€™analyse IA, les rapports et le suivi de tes pubs.</p>
         <div className="account-delete-actions">
           <button type="button" className="btn btn-ghost" onClick={() => setDismissed(true)}>Plus tard</button>
-          <button type="button" className="btn btn-dark" onClick={() => void subscribe()} disabled={subscribing}>{subscribing ? "Redirection…" : "Activer mon abonnement"}</button>
+          <button type="button" className="btn btn-dark" onClick={() => void subscribe()} disabled={subscribing}>{subscribing ? "Redirectionâ€¦" : "Activer mon abonnement"}</button>
         </div>
       </section>
     </div>
@@ -174,12 +174,12 @@ function TrialPaywallModal({ subscription }: { subscription: SubscriptionData | 
 }
 
 export function Dashboard() {
-  const [active, setActive] = useState("Vue d’ensemble");
+  const [active, setActive] = useState("Vue dâ€™ensemble");
   const [moreOpen, setMoreOpen] = useState(false);
-  // Se souvient de la section affichée juste avant d'ouvrir "Vendeo AI", pour que
-  // le bouton retour de la section IA ramène exactement là d'où l'utilisateur vient
-  // (au lieu de toujours revenir à la Vue d'ensemble).
-  const [previousSection, setPreviousSection] = useState("Vue d’ensemble");
+  // Se souvient de la section affichÃ©e juste avant d'ouvrir "Vendeo AI", pour que
+  // le bouton retour de la section IA ramÃ¨ne exactement lÃ  d'oÃ¹ l'utilisateur vient
+  // (au lieu de toujours revenir Ã  la Vue d'ensemble).
+  const [previousSection, setPreviousSection] = useState("Vue dâ€™ensemble");
   const activeSectionRef = useRef(active);
   useEffect(() => {
     if (activeSectionRef.current !== "Vendeo AI") {
@@ -189,15 +189,15 @@ export function Dashboard() {
   }, [active]);
 
   // Bouton retour Android / geste retour navigateur : sans ceci, le retour
-  // système quitte directement l'appli au lieu de revenir à la section
-  // précédente. On pousse une entrée d'historique à chaque changement de
-  // section déclenché dans l'app, et on écoute "popstate" pour ramener
-  // "active" à l'état précédent au lieu de laisser le navigateur naviguer.
+  // systÃ¨me quitte directement l'appli au lieu de revenir Ã  la section
+  // prÃ©cÃ©dente. On pousse une entrÃ©e d'historique Ã  chaque changement de
+  // section dÃ©clenchÃ© dans l'app, et on Ã©coute "popstate" pour ramener
+  // "active" Ã  l'Ã©tat prÃ©cÃ©dent au lieu de laisser le navigateur naviguer.
   const isPopStateNav = useRef(false);
   useEffect(() => {
     function handlePopState(event: PopStateEvent) {
       isPopStateNav.current = true;
-      setActive((event.state && event.state.vendeoView) || "Vue d’ensemble");
+      setActive((event.state && event.state.vendeoView) || "Vue dâ€™ensemble");
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -216,19 +216,19 @@ export function Dashboard() {
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
-  const [userName, setUserName] = useState("créateur");
+  const [userName, setUserName] = useState("crÃ©ateur");
 
-  const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
-  // Plus de quota de messages IA : l'accès est illimité tant que l'essai de
+  const userFirstName = (userName || "crÃ©ateur").trim().split(/\s+/)[0] ?? "crÃ©ateur";
+  // Plus de quota de messages IA : l'accÃ¨s est illimitÃ© tant que l'essai de
   // 7 jours ou l'abonnement Vendeo est actif.
   const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
 
   const links = [
-    ["Vue d’ensemble", LayoutDashboard],
+    ["Vue dâ€™ensemble", LayoutDashboard],
     ["Vendeo AI", MessageSquare],
     ["Studio", Sparkles],
-    ["Rentabilité", Megaphone],
-    ["Radar marché", Lightbulb],
+    ["RentabilitÃ©", Megaphone],
+    ["Radar marchÃ©", Lightbulb],
     ["Mes boutiques", Store],
     ["Rapports", FileText],
     ["Abonnement", CreditCard],
@@ -259,8 +259,8 @@ export function Dashboard() {
     async function loadDashboard() {
       const cached = readCache<{ stores: StoreData[]; selectedStoreId: string | null; subscription: SubscriptionData | null; analytics: AnalyticsData }>(DASHBOARD_CACHE_KEY);
       if (cached && !cancelled) {
-        // On affiche tout de suite les dernières données connues : plus d'écran
-        // "Chargement de ton espace…" à chaque ouverture, la mise à jour se fait en silence.
+        // On affiche tout de suite les derniÃ¨res donnÃ©es connues : plus d'Ã©cran
+        // "Chargement de ton espaceâ€¦" Ã  chaque ouverture, la mise Ã  jour se fait en silence.
         setStores(cached.stores);
         if (cached.selectedStoreId) setSelectedStoreId(cached.selectedStoreId);
         setSubscription(cached.subscription);
@@ -322,11 +322,11 @@ export function Dashboard() {
           </Link>
           <div className="app-user">
             <span className="app-greeting">Bonjour, {userName}</span>
-             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Mes boutiques", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" onClick={() => setMoreOpen((open) => !open)}>
+             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Mes boutiques", "Abonnement", "ParamÃ¨tres"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" onClick={() => setMoreOpen((open) => !open)}>
               <Settings size={18} />
             </button>
             <button className="desktop-signout" onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
-              Déconnexion
+              DÃ©connexion
             </button>
           </div>
         </header>
@@ -335,7 +335,7 @@ export function Dashboard() {
         <aside className="sidebar">
           <div className="side-label">Workspace</div>
           <label className="store-selector">
-            <span>Boutique affichée</span>
+            <span>Boutique affichÃ©e</span>
             <select
               value={selectedStoreId ?? ""}
               disabled={!stores.length}
@@ -357,28 +357,28 @@ export function Dashboard() {
           <button
             className="side-link"
             type="button"
-            onClick={() => setActive("Paramètres")}
+            onClick={() => setActive("ParamÃ¨tres")}
           >
-            <Settings size={16} />Paramètres
+            <Settings size={16} />ParamÃ¨tres
           </button>
           <div style={{ background: "linear-gradient(135deg,#ede9fe,#e0f2fe)", borderRadius: 10, margin: "35px 4px 0", padding: 14 }}>
             <span className="eyebrow" style={{ fontSize: 9 }}>
-              {isActivePlan ? "Abonnement actif" : subscription?.status === "past_due" ? "Abonnement expiré" : "Essai gratuit"}
+              {isActivePlan ? "Abonnement actif" : subscription?.status === "past_due" ? "Abonnement expirÃ©" : "Essai gratuit"}
             </span>
-            {isActivePlan ? <p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>Ton abonnement Vendeo est actif.</p> : <><p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>{subscription?.status === "past_due" ? "Ton abonnement a expiré. Réactive-le pour continuer." : "Choisis l’abonnement pour continuer après ton essai."}</p><button className="btn btn-dark" style={{ fontSize: 10, padding: "8px 10px", width: "100%" }} onClick={() => setActive("Abonnement")}>Voir l’abonnement</button></>}
+            {isActivePlan ? <p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>Ton abonnement Vendeo est actif.</p> : <><p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>{subscription?.status === "past_due" ? "Ton abonnement a expirÃ©. RÃ©active-le pour continuer." : "Choisis lâ€™abonnement pour continuer aprÃ¨s ton essai."}</p><button className="btn btn-dark" style={{ fontSize: 10, padding: "8px 10px", width: "100%" }} onClick={() => setActive("Abonnement")}>Voir lâ€™abonnement</button></>}
           </div>
 
           <div className="side-usage">
             <div className="side-usage-label">Usage IA</div>
-            <div className="side-usage-value">Accès illimité</div>
+            <div className="side-usage-value">AccÃ¨s illimitÃ©</div>
           </div>
         </aside>
         <section className={active === "Vendeo AI" ? "app-main chat-page" : "app-main"}>
           {loadingData ? (
-            <div className="app-card">Chargement de ton espace…</div>
-          ) : stores.length === 0 && !analytics && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
+            <div className="app-card">Chargement de ton espaceâ€¦</div>
+          ) : stores.length === 0 && !analytics && active !== "Mes boutiques" && active !== "ParamÃ¨tres" && active !== "Abonnement" ? (
             <StoreOnboarding />
-          ) : active === "Paramètres" ? (
+          ) : active === "ParamÃ¨tres" ? (
             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
           ) : active === "Vendeo AI" ? (
             <ChatView
@@ -391,14 +391,14 @@ export function Dashboard() {
             />
           ) : active === "Studio" ? (
             <StudioView />
-          ) : active === "Rentabilité" ? (
+          ) : active === "RentabilitÃ©" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} />
-          ) : active === "Radar marché" ? (
+          ) : active === "Radar marchÃ©" ? (
              <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); setActive("Vendeo AI"); }} />
           ) : active === "Mes boutiques" ? (
-            <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
+            <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={() => setActive("ParamÃ¨tres")} />
           ) : active === "Abonnement" ? (
-            <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("Paramètres")} />
+            <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("ParamÃ¨tres")} />
           ) : active === "Rapports" ? (
             <Reports stores={stores} analytics={analytics} selectedStoreId={selectedStoreId} />
           ) : (
@@ -420,19 +420,19 @@ export function Dashboard() {
 
         {active !== "Vendeo AI" ? (
         <nav className="mobile-nav" aria-label="Navigation mobile">
-         <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
+         <button type="button" className={`nav-btn ${active === "Vue dâ€™ensemble" ? "active" : ""}`} onClick={() => setActive("Vue dâ€™ensemble")}>
            <LayoutDashboard size={18} />
            <span>Accueil</span>
          </button>
-          <button type="button" className={`nav-btn ${active === "Rentabilité" ? "active" : ""}`} onClick={() => setActive("Rentabilité")}>
+          <button type="button" className={`nav-btn ${active === "RentabilitÃ©" ? "active" : ""}`} onClick={() => setActive("RentabilitÃ©")}>
             <Megaphone size={18} />
-            <span>Rentabilité</span>
+            <span>RentabilitÃ©</span>
           </button>
            <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
              <MessageSquare size={18} />
              <span>Assistant</span>
            </button>
-           <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
+           <button type="button" className={`nav-btn ${active === "Radar marchÃ©" ? "active" : ""}`} onClick={() => setActive("Radar marchÃ©")}>
              <Lightbulb size={18} />
              <span>Radar</span>
            </button>
@@ -446,7 +446,7 @@ export function Dashboard() {
            <button type="button" onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
            <button type="button" onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
           <button type="button" onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
-          <button type="button" onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
+          <button type="button" onClick={() => { setActive("ParamÃ¨tres"); setMoreOpen(false); }}><Settings size={16} /> ParamÃ¨tres</button>
         </div> : null}
     </main>
   );
@@ -474,12 +474,12 @@ function StoreOnboarding() {
         <span className="onboarding-icon">
           <Store size={26} />
         </span>
-        <span className="eyebrow">Première étape</span>
+        <span className="eyebrow">PremiÃ¨re Ã©tape</span>
         <h1>Connecter ma boutique Chariow</h1>
-        <p className="onboarding-lead">Chariow ouvre la connexion et vous autorisez Vendeo. Aucun token à copier.</p>
+        <p className="onboarding-lead">Chariow ouvre la connexion et vous autorisez Vendeo. Aucun token Ã  copier.</p>
         {error && <p className="form-error">{error}</p>}
         <button className="btn btn-dark" disabled={saving} style={{ width: "100%", marginTop: 18 }} onClick={connect}>
-          {saving ? "Connexion en cours…" : "Connecter ma boutique Chariow"} <ArrowRight size={15} />
+          {saving ? "Connexion en coursâ€¦" : "Connecter ma boutique Chariow"} <ArrowRight size={15} />
         </button>
       </div>
     </div>
@@ -543,7 +543,7 @@ function StudioView() {
 
   async function generate() {
     if (!prompt.trim()) {
-      setError(kind === "image" ? "Décris l'image que tu souhaites créer." : "Décris la vidéo que tu souhaites créer.");
+      setError(kind === "image" ? "DÃ©cris l'image que tu souhaites crÃ©er." : "DÃ©cris la vidÃ©o que tu souhaites crÃ©er.");
       return;
     }
     setLoading(true);
@@ -559,7 +559,7 @@ function StudioView() {
           : { prompt, duration, resolution: videoResolution, aspectRatio }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "La génération a échoué.");
+      if (!response.ok) throw new Error(result.error || "La gÃ©nÃ©ration a Ã©chouÃ©.");
       if (kind === "image") setImageUrl(result.imageUrl);
       if (kind === "image") setSelectedGenerationId(result.generationId);
       else setVideoJob({ id: result.jobId, status: result.status || "queued" });
@@ -567,7 +567,7 @@ function StudioView() {
       const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
       if (credits) setBalance(credits.balance ?? 0);
     } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : "La génération a échoué.");
+      setError(generationError instanceof Error ? generationError.message : "La gÃ©nÃ©ration a Ã©chouÃ©.");
     } finally {
       setLoading(false);
     }
@@ -575,7 +575,7 @@ function StudioView() {
 
   async function recharge() {
     const credits = Number(creditAmount);
-    if (!Number.isInteger(credits) || credits < 200) { setError("Le minimum de recharge est de 200 crédits."); return; }
+    if (!Number.isInteger(credits) || credits < 200) { setError("Le minimum de recharge est de 200 crÃ©dits."); return; }
     setRecharging(true);
     try {
       const response = await fetch("/api/studio/credits/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credits }) });
@@ -603,57 +603,57 @@ function StudioView() {
     <div className="studio-page">
       <div className="page-top studio-head">
         <div>
-          <span className="eyebrow">Studio créatif</span>
-          <h1>Crée tes médias avec l'IA</h1>
-          <p>Génère une image ou une vidéo directement depuis Vendeo.</p>
+          <span className="eyebrow">Studio crÃ©atif</span>
+          <h1>CrÃ©e tes mÃ©dias avec l'IA</h1>
+          <p>GÃ©nÃ¨re une image ou une vidÃ©o directement depuis Vendeo.</p>
         </div>
       </div>
 
-      <div className="studio-tabs" role="tablist" aria-label="Type de média">
+      <div className="studio-tabs" role="tablist" aria-label="Type de mÃ©dia">
         <button type="button" role="tab" aria-selected={kind === "image"} className={kind === "image" ? "active" : ""} onClick={() => setKind("image")}><ImageIcon size={17} /> Image</button>
-        <button type="button" role="tab" aria-selected={kind === "video"} className={kind === "video" ? "active" : ""} onClick={() => setKind("video")}><Video size={17} /> Vidéo</button>
+        <button type="button" role="tab" aria-selected={kind === "video"} className={kind === "video" ? "active" : ""} onClick={() => setKind("video")}><Video size={17} /> VidÃ©o</button>
       </div>
       <div className="studio-grid">
         <section className="app-card studio-form">
           <label className="studio-field">
-            <span>Décris ta création</span>
-            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={kind === "image" ? "Ex. Une photo éditoriale d'un sac artisanal sur un socle ocre, lumière naturelle douce, composition carrée." : "Ex. Une mise en scène cinématique d'un produit sur une table, travelling lent, ambiance chaleureuse, sons légers."} maxLength={4000} rows={7} />
+            <span>DÃ©cris ta crÃ©ation</span>
+            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={kind === "image" ? "Ex. Une photo Ã©ditoriale d'un sac artisanal sur un socle ocre, lumiÃ¨re naturelle douce, composition carrÃ©e." : "Ex. Une mise en scÃ¨ne cinÃ©matique d'un produit sur une table, travelling lent, ambiance chaleureuse, sons lÃ©gers."} maxLength={4000} rows={7} />
             <small>{prompt.length}/4 000</small>
           </label>
 
           {kind === "image" ? (
             <div className="studio-options">
-              <StudioSelect label="Mode" value={imageMode} onChange={(value) => setImageMode(value as "fast" | "advanced")} options={[['fast', 'Rapide'], ['advanced', 'Avancé']]} />
-              <StudioSelect label="Qualité" value={quality} onChange={setQuality} options={[['medium', 'Moyenne'], ['high', 'Haute'], ['xhigh', 'Très haute'], ['max', 'Maximum']]} />
-              <StudioSelect label="Résolution" value={imageResolution} onChange={setImageResolution} options={[['hd', 'HD'], ['full_hd', 'Full HD'], ['2k', '2K'], ['4k', '4K']]} />
-              <StudioSelect label="Format" value={orientation} onChange={setOrientation} options={[['square', 'Carré'], ['landscape', 'Paysage'], ['portrait', 'Portrait']]} />
+              <StudioSelect label="Mode" value={imageMode} onChange={(value) => setImageMode(value as "fast" | "advanced")} options={[['fast', 'Rapide'], ['advanced', 'AvancÃ©']]} />
+              <StudioSelect label="QualitÃ©" value={quality} onChange={setQuality} options={[['medium', 'Moyenne'], ['high', 'Haute'], ['xhigh', 'TrÃ¨s haute'], ['max', 'Maximum']]} />
+              <StudioSelect label="RÃ©solution" value={imageResolution} onChange={setImageResolution} options={[['hd', 'HD'], ['full_hd', 'Full HD'], ['2k', '2K'], ['4k', '4K']]} />
+              <StudioSelect label="Format" value={orientation} onChange={setOrientation} options={[['square', 'CarrÃ©'], ['landscape', 'Paysage'], ['portrait', 'Portrait']]} />
               <StudioSelect label="Fond" value={background} onChange={setBackground} options={[['auto', 'Auto'], ['opaque', 'Opaque'], ['transparent', 'Transparent PNG']]} />
             </div>
           ) : (
             <div className="studio-options">
-              <label className="studio-field"><span>Durée</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{[4, 5, 6, 8, 10, 12, 15].map((value) => <option key={value} value={value}>{value} secondes</option>)}</select></label>
-              <StudioSelect label="Résolution" value={videoResolution} onChange={(value) => setVideoResolution(value as "480p" | "768p")} options={[['480p', '480p'], ['768p', '768p']]} />
-              <StudioSelect label="Format" value={aspectRatio} onChange={setAspectRatio} options={[['16:9', '16:9 paysage'], ['9:16', '9:16 vertical'], ['1:1', '1:1 carré'], ['4:3', '4:3'], ['3:4', '3:4'], ['21:9', '21:9 cinéma']]} />
+              <label className="studio-field"><span>DurÃ©e</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{[4, 5, 6, 8, 10, 12, 15].map((value) => <option key={value} value={value}>{value} secondes</option>)}</select></label>
+              <StudioSelect label="RÃ©solution" value={videoResolution} onChange={(value) => setVideoResolution(value as "480p" | "768p")} options={[['480p', '480p'], ['768p', '768p']]} />
+              <StudioSelect label="Format" value={aspectRatio} onChange={setAspectRatio} options={[['16:9', '16:9 paysage'], ['9:16', '9:16 vertical'], ['1:1', '1:1 carrÃ©'], ['4:3', '4:3'], ['3:4', '3:4'], ['21:9', '21:9 cinÃ©ma']]} />
             </div>
           )}
 
           {error ? <p className="form-error">{error}</p> : null}
           <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading}>
-            <Sparkles size={17} /> {loading ? "Création en cours…" : kind === "image" ? "Créer l'image" : "Créer la vidéo"}
+            <Sparkles size={17} /> {loading ? "CrÃ©ation en coursâ€¦" : kind === "image" ? "CrÃ©er l'image" : "CrÃ©er la vidÃ©o"}
           </button>
-          <p className="studio-cost">{kind === "image" ? "Image : coût selon la qualité et la résolution choisies." : `Vidéo : ${videoResolution === "768p" ? "25" : "10"} cauris par seconde.`}</p>
-          <div className="studio-balance"><div><span className="eyebrow">Solde Studio</span><strong>{balance} crédits</strong></div><div className="studio-recharge"><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} aria-label="Nombre de crédits à acheter" /><button type="button" className="btn btn-ghost" onClick={() => void recharge()} disabled={recharging}>{recharging ? "Redirection…" : "Recharger"}</button></div><small>Minimum 200 crédits · 1 crédit = 1,50 XOF</small></div>
+          <p className="studio-cost">{kind === "image" ? "Image : coÃ»t selon la qualitÃ© et la rÃ©solution choisies." : `VidÃ©o : ${videoResolution === "768p" ? "25" : "10"} cauris par seconde.`}</p>
+          <div className="studio-balance"><div><span className="eyebrow">Solde Studio</span><strong>{balance} crÃ©dits</strong></div><div className="studio-recharge"><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} aria-label="Nombre de crÃ©dits Ã  acheter" /><button type="button" className="btn btn-ghost" onClick={() => void recharge()} disabled={recharging}>{recharging ? "Redirectionâ€¦" : "Recharger"}</button></div><small>Minimum 200 crÃ©dits Â· 1 crÃ©dit = 1,50 XOF</small></div>
         </section>
 
         <section className="app-card studio-result" aria-busy={loading || editing || Boolean(videoJob && !["completed", "failed", "cancelled"].includes(videoJob.status))}>
-          <div className="card-head"><div><span className="eyebrow">Résultat</span><h2>{kind === "image" ? "Ton image" : "Ta vidéo"}</h2></div>{kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>
-          {imageUrl ? <><div className={editing ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imageUrl} alt="Image générée" /></div><div className="studio-result-actions"><a className="btn btn-ghost" href={imageUrl} download="vendeo-studio-image">Télécharger l'image</a><button className="btn btn-ghost" onClick={() => setEditing(true)} disabled={editing}>Modifier</button></div>{editing ? <div className="studio-edit-box"><label><span>Décris la modification souhaitée</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} /></label><small>Coût : crédits de l'image d'origine</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editing || !editInstruction.trim()}>{editing ? "Modification…" : "Modifier"}</button><button className="btn btn-ghost" onClick={() => { setEditing(false); setEditInstruction(""); }}>Annuler</button></div></div> : null}</> : null}
-          {videoReady ? <><video className="studio-media" src={videoJob.contentUrl ?? undefined} controls playsInline /><a className="btn btn-ghost" href={videoJob.contentUrl ?? undefined} download="vendeo-studio-video.mp4">Télécharger la vidéo</a></> : null}
-          {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>Génération en cours…</strong><p>{videoJob ? `Statut : ${videoJob.status}. La vidéo peut prendre quelques minutes.` : "Encore quelques secondes…"}</p></> : <><Sparkles size={32} /><strong>Prêt à créer</strong><p>Décris ton idée, ajuste les réglages puis lance la génération.</p></>}</div> : null}
+          <div className="card-head"><div><span className="eyebrow">RÃ©sultat</span><h2>{kind === "image" ? "Ton image" : "Ta vidÃ©o"}</h2></div>{kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>
+          {imageUrl ? <><div className={editing ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imageUrl} alt="Image gÃ©nÃ©rÃ©e" /></div><div className="studio-result-actions"><a className="btn btn-ghost" href={imageUrl} download="vendeo-studio-image">TÃ©lÃ©charger l'image</a><button className="btn btn-ghost" onClick={() => setEditing(true)} disabled={editing}>Modifier</button></div>{editing ? <div className="studio-edit-box"><label><span>DÃ©cris la modification souhaitÃ©e</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} /></label><small>CoÃ»t : crÃ©dits de l'image d'origine</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editing || !editInstruction.trim()}>{editing ? "Modificationâ€¦" : "Modifier"}</button><button className="btn btn-ghost" onClick={() => { setEditing(false); setEditInstruction(""); }}>Annuler</button></div></div> : null}</> : null}
+          {videoReady ? <><video className="studio-media" src={videoJob.contentUrl ?? undefined} controls playsInline /><a className="btn btn-ghost" href={videoJob.contentUrl ?? undefined} download="vendeo-studio-video.mp4">TÃ©lÃ©charger la vidÃ©o</a></> : null}
+          {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>GÃ©nÃ©ration en coursâ€¦</strong><p>{videoJob ? `Statut : ${videoJob.status}. La vidÃ©o peut prendre quelques minutes.` : "Encore quelques secondesâ€¦"}</p></> : <><Sparkles size={32} /><strong>PrÃªt Ã  crÃ©er</strong><p>DÃ©cris ton idÃ©e, ajuste les rÃ©glages puis lance la gÃ©nÃ©ration.</p></>}</div> : null}
         </section>
       </div>
-      <div className="studio-history-toolbar"><span className="eyebrow">Historique</span><div><button className={historyKind === "all" ? "active" : ""} onClick={() => setHistoryKind("all")}>Tout</button><button className={historyKind === "image" ? "active" : ""} onClick={() => setHistoryKind("image")}>Images</button><button className={historyKind === "video" ? "active" : ""} onClick={() => setHistoryKind("video")}>Vidéos</button></div></div>
-      <section className="studio-history">{history.length ? history.map((item) => <article className="studio-history-card" key={item.id} onClick={() => { setSelectedGenerationId(item.id); setKind(item.kind); if (item.kind === "image") setImageUrl(item.mediaUrl ?? null); else if (item.video_job_id) setVideoJob({ id: item.video_job_id, status: item.status, contentUrl: item.mediaUrl }); }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt="Création" /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{item.kind === "image" ? "Image" : "Vidéo"}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "…" : ""}</p><small>{new Date(item.created_at).toLocaleString("fr-FR")} · {item.credits_cost} crédits · {item.status === "processing" ? "En cours" : item.status === "failed" ? "Échec" : "Terminée"}</small></div><div className="studio-history-actions"><button onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>Réutiliser</button>{item.kind === "image" ? <button onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditing(true); }}>Modifier</button> : null}<button onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette création ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>Supprimer</button></div></article>) : <div className="studio-history-empty">Aucune création pour l'instant</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? "Chargement…" : "Charger plus"}</button> : null}</section>
+      <div className="studio-history-toolbar"><span className="eyebrow">Historique</span><div><button className={historyKind === "all" ? "active" : ""} onClick={() => setHistoryKind("all")}>Tout</button><button className={historyKind === "image" ? "active" : ""} onClick={() => setHistoryKind("image")}>Images</button><button className={historyKind === "video" ? "active" : ""} onClick={() => setHistoryKind("video")}>VidÃ©os</button></div></div>
+      <section className="studio-history">{history.length ? history.map((item) => <article className="studio-history-card" key={item.id} onClick={() => { setSelectedGenerationId(item.id); setKind(item.kind); if (item.kind === "image") setImageUrl(item.mediaUrl ?? null); else if (item.video_job_id) setVideoJob({ id: item.video_job_id, status: item.status, contentUrl: item.mediaUrl }); }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt="CrÃ©ation" /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{item.kind === "image" ? "Image" : "VidÃ©o"}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "â€¦" : ""}</p><small>{new Date(item.created_at).toLocaleString("fr-FR")} Â· {item.credits_cost} crÃ©dits Â· {item.status === "processing" ? "En cours" : item.status === "failed" ? "Ã‰chec" : "TerminÃ©e"}</small></div><div className="studio-history-actions"><button onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>RÃ©utiliser</button>{item.kind === "image" ? <button onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditing(true); }}>Modifier</button> : null}<button onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette crÃ©ation ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>Supprimer</button></div></article>) : <div className="studio-history-empty">Aucune crÃ©ation pour l'instant</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? "Chargementâ€¦" : "Charger plus"}</button> : null}</section>
     </div>
   );
 }
@@ -681,7 +681,7 @@ function Overview({
   selectedStoreId: string | null;
   onStoreChange: (storeId: string) => void;
 }) {
-  const greeting = (userFirstName || "créateur").trim().split(/\s+/)[0] || "créateur";
+  const greeting = (userFirstName || "crÃ©ateur").trim().split(/\s+/)[0] || "crÃ©ateur";
   const store = stores[0];
   const connected = store?.connection_status === "connected";
   const products = analytics?.products ?? [];
@@ -697,9 +697,9 @@ function Overview({
   const [customTo, setCustomTo] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
 
-  // Avant : on vérifiait juste si Meta était connecté, sans jamais récupérer
-  // les performances. Résultat : la carte "Recommandations" restait vide en
-  // permanence sur la Vue d'ensemble. On récupère maintenant les vraies données.
+  // Avant : on vÃ©rifiait juste si Meta Ã©tait connectÃ©, sans jamais rÃ©cupÃ©rer
+  // les performances. RÃ©sultat : la carte "Recommandations" restait vide en
+  // permanence sur la Vue d'ensemble. On rÃ©cupÃ¨re maintenant les vraies donnÃ©es.
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -725,21 +725,21 @@ function Overview({
   const adsCurrency = metaPerformance?.currency ?? currency;
 
   const statusText = !connected
-    ? "Connecte ta boutique Chariow pour commencer l’analyse."
+    ? "Connecte ta boutique Chariow pour commencer lâ€™analyse."
     : !metaConnected
-    ? "Ta boutique est connectée. Connecte Meta Ads pour relier tes dépenses à tes ventes."
+    ? "Ta boutique est connectÃ©e. Connecte Meta Ads pour relier tes dÃ©penses Ã  tes ventes."
     : sales === 0 && spend > 0
-    ? "Les dépenses Meta ne produisent pas encore de vente confirmée."
+    ? "Les dÃ©penses Meta ne produisent pas encore de vente confirmÃ©e."
     : sales === 0
-    ? "Aucune vente confirmée sur la période. Commence par observer ton trafic et tes campagnes."
-    : "Ton activité est suivie. Voici ce que Vendeo recommande de faire maintenant.";
+    ? "Aucune vente confirmÃ©e sur la pÃ©riode. Commence par observer ton trafic et tes campagnes."
+    : "Ton activitÃ© est suivie. Voici ce que Vendeo recommande de faire maintenant.";
 
   const productsRanked = [...products].sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0));
   const productsSummary = productsRanked.slice(0, 3).map((product, index) => {
     const productSales = product.sales ?? 0;
-    // Cette étiquette décrit uniquement les ventes Chariow du produit — elle ne dit
-    // rien sur une pub, qui peut ne même pas exister pour ce produit. On évite donc
-    // tout vocabulaire de verdict publicitaire ("Arrêter"/"Optimiser") ici : ce
+    // Cette Ã©tiquette dÃ©crit uniquement les ventes Chariow du produit â€” elle ne dit
+    // rien sur une pub, qui peut ne mÃªme pas exister pour ce produit. On Ã©vite donc
+    // tout vocabulaire de verdict publicitaire ("ArrÃªter"/"Optimiser") ici : ce
     // langage n'a de sens que sur une campagne, pas sur une fiche produit.
     const state = productSales === 0
       ? { label: "Aucune vente", tone: "none" as const }
@@ -751,10 +751,10 @@ function Overview({
 
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
 
-  // --- Refonte dashboard : verdict global, tableau croisé, diagnostic boutique ---
-  // Ces trois blocs réutilisent le même moteur de décision (getCampaignVerdict, plus
-  // bas dans ce fichier) que les pages "Pubs" et "Rapports", pour rester cohérents
-  // avec les verdicts déjà affichés ailleurs plutôt que d'inventer une seconde logique.
+  // --- Refonte dashboard : verdict global, tableau croisÃ©, diagnostic boutique ---
+  // Ces trois blocs rÃ©utilisent le mÃªme moteur de dÃ©cision (getCampaignVerdict, plus
+  // bas dans ce fichier) que les pages "Pubs" et "Rapports", pour rester cohÃ©rents
+  // avec les verdicts dÃ©jÃ  affichÃ©s ailleurs plutÃ´t que d'inventer une seconde logique.
   const withVerdict = performances.map((campaign) => ({ campaign, verdict: getCampaignVerdict(campaign, adsCurrency) }));
 
   const verdictData: VerdictBannerData = (() => {
@@ -785,9 +785,9 @@ function Overview({
       .reduce((sum, item) => sum + item.campaign.spend * 0.2 * (item.campaign.roas ?? 1), 0)
   );
 
-  // Pas encore d'attribution campagne → produit branchée ici (cf. lib/attribution) :
-  // on affiche donc le nom de campagne et les métriques réelles, sans inventer un
-  // produit ou une audience que Vendeo ne connaît pas encore pour cette campagne.
+  // Pas encore d'attribution campagne â†’ produit branchÃ©e ici (cf. lib/attribution) :
+  // on affiche donc le nom de campagne et les mÃ©triques rÃ©elles, sans inventer un
+  // produit ou une audience que Vendeo ne connaÃ®t pas encore pour cette campagne.
   const campaignRows: CampaignRow[] = performances.map((campaign) => {
     const verdict = getCampaignVerdict(campaign, adsCurrency);
     const badge: CampaignVerdictBadge = verdict.tone === "stop" ? "stop" : verdict.tone === "optimize" ? "scale" : "test";
@@ -805,10 +805,10 @@ function Overview({
     };
   });
 
-  // Diagnostic boutique : s'appuie sur les ventes déjà confirmées par Chariow pour ce
-  // produit (mêmes données que "Produits les plus performants" ci-dessous). On reste
-  // volontairement prudent — pas de calcul d'abandon de panier ici, contrairement au
-  // moteur complet de lib/pricing.ts — donc le texte évite d'affirmer "sans abandon".
+  // Diagnostic boutique : s'appuie sur les ventes dÃ©jÃ  confirmÃ©es par Chariow pour ce
+  // produit (mÃªmes donnÃ©es que "Produits les plus performants" ci-dessous). On reste
+  // volontairement prudent â€” pas de calcul d'abandon de panier ici, contrairement au
+  // moteur complet de lib/pricing.ts â€” donc le texte Ã©vite d'affirmer "sans abandon".
   const topProduct = productsRanked[0];
   const diagnosticCards: DiagnosticCard[] =
     topProduct && (topProduct.sales ?? 0) >= 2
@@ -817,9 +817,9 @@ function Overview({
             id: `price-${topProduct.name}`,
             type: "price_up",
             title: "Ajustement de prix",
-            description: `« ${topProduct.name} » a déjà ${topProduct.sales} vente${(topProduct.sales ?? 0) > 1 ? "s" : ""} confirmée${(topProduct.sales ?? 0) > 1 ? "s" : ""} sur Chariow. Demande à Vendeo AI si une légère hausse de prix est jouable sans perdre de volume.`,
-            actionLabel: "Demander à Vendeo AI",
-            onAction: () => openAI(`Le produit "${topProduct.name}" a ${topProduct.sales} ventes confirmées. Est-ce que je peux augmenter son prix sans perdre de volume ?`),
+            description: `Â« ${topProduct.name} Â» a dÃ©jÃ  ${topProduct.sales} vente${(topProduct.sales ?? 0) > 1 ? "s" : ""} confirmÃ©e${(topProduct.sales ?? 0) > 1 ? "s" : ""} sur Chariow. Demande Ã  Vendeo AI si une lÃ©gÃ¨re hausse de prix est jouable sans perdre de volume.`,
+            actionLabel: "Demander Ã  Vendeo AI",
+            onAction: () => openAI(`Le produit "${topProduct.name}" a ${topProduct.sales} ventes confirmÃ©es. Est-ce que je peux augmenter son prix sans perdre de volume ?`),
           },
         ]
       : [];
@@ -834,33 +834,33 @@ function Overview({
 
   return (
     <div className="dashboard-home">
-      <div className="home-greeting"><h1>Bonjour, {greeting}</h1><p>Voici la performance de tes publicités et de ta boutique.</p></div>
+      <div className="home-greeting"><h1>Bonjour, {greeting}</h1><p>Voici la performance de tes publicitÃ©s et de ta boutique.</p></div>
 
       <div className="home-header">
-        <div className="home-context"><span className="eyebrow">Vue d’ensemble</span></div>
+        <div className="home-context"><span className="eyebrow">Vue dâ€™ensemble</span></div>
         <div className="home-controls">
           <label className="home-store-selector">
-            <span>Boutique analysée</span>
-            <select aria-label="Boutique analysée" value={selectedStoreId ?? ""} disabled={!stores.length} onChange={(event) => onStoreChange(event.target.value)}>
+            <span>Boutique analysÃ©e</span>
+            <select aria-label="Boutique analysÃ©e" value={selectedStoreId ?? ""} disabled={!stores.length} onChange={(event) => onStoreChange(event.target.value)}>
               {!stores.length && <option value="">Aucune boutique</option>}
               {stores.map((item) => <option key={item.id} value={item.id}>{item.store_name}</option>)}
             </select>
           </label>
           <div className="home-statuses">
-            <span className={connected ? "status-positive" : "status-warning"}>{connected ? "Chariow connectée" : "Chariow non connectée"}</span>
-            <span className={metaConnected ? "status-positive" : "status-info"}>{metaConnected ? "Meta Ads connectée" : "Meta Ads non connectée"}</span>
+            <span className={connected ? "status-positive" : "status-warning"}>{connected ? "Chariow connectÃ©e" : "Chariow non connectÃ©e"}</span>
+            <span className={metaConnected ? "status-positive" : "status-info"}>{metaConnected ? "Meta Ads connectÃ©e" : "Meta Ads non connectÃ©e"}</span>
           </div>
           <div className="home-period">
-            <span>Période</span>
-            <select aria-label="Période" value={period} onChange={(event) => setPeriod(event.target.value)}>
-              <option>Aujourd’hui</option><option>Hier</option><option>7 derniers jours</option><option>30 derniers jours</option><option>Ce mois-ci</option><option>Mois dernier</option><option>Personnalisé</option>
+            <span>PÃ©riode</span>
+            <select aria-label="PÃ©riode" value={period} onChange={(event) => setPeriod(event.target.value)}>
+              <option>Aujourdâ€™hui</option><option>Hier</option><option>7 derniers jours</option><option>30 derniers jours</option><option>Ce mois-ci</option><option>Mois dernier</option><option>PersonnalisÃ©</option>
             </select>
           </div>
-          {period === "Personnalisé" ? <>
-            <input aria-label="Date de début" type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} />
+          {period === "PersonnalisÃ©" ? <>
+            <input aria-label="Date de dÃ©but" type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} />
             <input aria-label="Date de fin" type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} />
           </> : null}
-          <button className="btn btn-ghost" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "Actualisation…" : "Actualiser"}</button>
+          <button className="btn btn-ghost" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "Actualisationâ€¦" : "Actualiser"}</button>
         </div>
       </div>
 
@@ -868,19 +868,19 @@ function Overview({
 
       <VerdictBanner
         data={verdictData}
-        onPrimaryAction={() => openAI("Analyse mes campagnes et dis-moi précisément quoi arrêter ou scaler en priorité.")}
+        onPrimaryAction={() => openAI("Analyse mes campagnes et dis-moi prÃ©cisÃ©ment quoi arrÃªter ou scaler en prioritÃ©.")}
         onSecondaryAction={() => openAI("Explique-moi pourquoi ce verdict et ce que je risque si je ne fais rien.")}
       />
 
       <ImpactFinancierCard data={{ budgetEconomise, revenuAdditionnelEstime }} />
 
-      <section className="home-ai-state app-card"><div><span className="eyebrow">Analyse IA</span><h2>État de votre activité</h2><p>{statusText}</p></div><Brain size={24} /></section>
+      <section className="home-ai-state app-card"><div><span className="eyebrow">Analyse IA</span><h2>Ã‰tat de votre activitÃ©</h2><p>{statusText}</p></div><Brain size={24} /></section>
 
       <section className="home-kpis">
-        <HomeKpi label="Chiffre d’affaires" value={connected ? format(revenue) : "Non disponible"} tone={revenue > 0 ? "positive" : "neutral"} help="Revenu commercial remonté par Chariow." />
-        <HomeKpi label="Dépenses pub" value={metaConnected ? format(spend) : "Non disponible"} tone="info" help="Dépenses synchronisées depuis Meta Insights." />
-        <HomeKpi label="Ventes" value={connected ? String(sales) : "Non disponible"} tone={sales > 0 ? "positive" : "neutral"} help="Paiements confirmés par Chariow." />
-        <HomeKpi label="ROAS (réel)" value={roas === null ? "Non disponible" : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help="Revenu Chariow attribué divisé par les dépenses publicitaires." />
+        <HomeKpi label="Chiffre dâ€™affaires" value={connected ? format(revenue) : "Non disponible"} tone={revenue > 0 ? "positive" : "neutral"} help="Revenu commercial remontÃ© par Chariow." />
+        <HomeKpi label="DÃ©penses pub" value={metaConnected ? format(spend) : "Non disponible"} tone="info" help="DÃ©penses synchronisÃ©es depuis Meta Insights." />
+        <HomeKpi label="Ventes" value={connected ? String(sales) : "Non disponible"} tone={sales > 0 ? "positive" : "neutral"} help="Paiements confirmÃ©s par Chariow." />
+        <HomeKpi label="ROAS (rÃ©el)" value={roas === null ? "Non disponible" : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help="Revenu Chariow attribuÃ© divisÃ© par les dÃ©penses publicitaires." />
       </section>
 
       <div className="home-primary-grid">
@@ -918,17 +918,17 @@ function Overview({
               </div>
             ))}
           </div>
-        ) : <EmptyState title="Aucun produit avec des ventes" text="Les produits apparaîtront ici une fois des ventes confirmées." />}
+        ) : <EmptyState title="Aucun produit avec des ventes" text="Les produits apparaÃ®tront ici une fois des ventes confirmÃ©es." />}
       </section>
 
       <section className="home-chart app-card">
-        <div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Évolution du chiffre d’affaires</h2><p>Ventes des 7 derniers jours, par produit.</p></div><LineChart size={19} /></div>
-        {!connected ? <EmptyState title="Données indisponibles" text="Connecte ta boutique Chariow pour afficher l’évolution." /> : <RealTrendChart sales={analytics?.sales ?? []} products={products} currency={currency} />}
+        <div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Ã‰volution du chiffre dâ€™affaires</h2><p>Ventes des 7 derniers jours, par produit.</p></div><LineChart size={19} /></div>
+        {!connected ? <EmptyState title="DonnÃ©es indisponibles" text="Connecte ta boutique Chariow pour afficher lâ€™Ã©volution." /> : <RealTrendChart sales={analytics?.sales ?? []} products={products} currency={currency} />}
       </section>
 
       <section className="home-activity app-card">
-        <div className="card-head"><div><span className="eyebrow">Chariow</span><h2>Activité récente</h2><p>Les derniers événements remontés par ta boutique.</p></div><Activity size={19} /></div>
-        {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu’ils seront synchronisés." />}
+        <div className="card-head"><div><span className="eyebrow">Chariow</span><h2>ActivitÃ© rÃ©cente</h2><p>Les derniers Ã©vÃ©nements remontÃ©s par ta boutique.</p></div><Activity size={19} /></div>
+        {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente rÃ©cente" text="Les ventes et statuts Chariow apparaÃ®tront ici lorsquâ€™ils seront synchronisÃ©s." />}
       </section>
 
       {wizardOpen && store?.id ? (
@@ -937,7 +937,7 @@ function Overview({
           plan={(subscription?.plan ?? "starter") as PlanId}
           onClose={() => setWizardOpen(false)}
           onLaunched={() => {
-            // Rafraîchit les performances Meta pour refléter la nouvelle campagne
+            // RafraÃ®chit les performances Meta pour reflÃ©ter la nouvelle campagne
             // dans le tableau de croisement et le verdict global.
             void refresh();
           }}
@@ -958,7 +958,7 @@ function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const countryOptions = [
-    ["DZ", "Algérie"], ["AO", "Angola"], ["BJ", "Bénin"], ["BW", "Botswana"], ["BF", "Burkina Faso"], ["BI", "Burundi"], ["CV", "Cap-Vert"], ["CM", "Cameroun"], ["CF", "Centrafrique"], ["TD", "Tchad"], ["KM", "Comores"], ["CG", "Congo"], ["CD", "RDC"], ["CI", "Côte d’Ivoire"], ["DJ", "Djibouti"], ["EG", "Égypte"], ["GQ", "Guinée équatoriale"], ["ER", "Érythrée"], ["SZ", "Eswatini"], ["ET", "Éthiopie"], ["GA", "Gabon"], ["GM", "Gambie"], ["GH", "Ghana"], ["GN", "Guinée"], ["GW", "Guinée-Bissau"], ["KE", "Kenya"], ["LS", "Lesotho"], ["LR", "Liberia"], ["LY", "Libye"], ["MG", "Madagascar"], ["MW", "Malawi"], ["ML", "Mali"], ["MR", "Mauritanie"], ["MU", "Maurice"], ["MA", "Maroc"], ["MZ", "Mozambique"], ["NA", "Namibie"], ["NE", "Niger"], ["NG", "Nigeria"], ["RW", "Rwanda"], ["ST", "Sao Tomé-et-Principe"], ["SN", "Sénégal"], ["SC", "Seychelles"], ["SL", "Sierra Leone"], ["SO", "Somalie"], ["ZA", "Afrique du Sud"], ["SS", "Soudan du Sud"], ["SD", "Soudan"], ["TZ", "Tanzanie"], ["TG", "Togo"], ["TN", "Tunisie"], ["UG", "Ouganda"], ["ZM", "Zambie"], ["ZW", "Zimbabwe"],
+    ["DZ", "AlgÃ©rie"], ["AO", "Angola"], ["BJ", "BÃ©nin"], ["BW", "Botswana"], ["BF", "Burkina Faso"], ["BI", "Burundi"], ["CV", "Cap-Vert"], ["CM", "Cameroun"], ["CF", "Centrafrique"], ["TD", "Tchad"], ["KM", "Comores"], ["CG", "Congo"], ["CD", "RDC"], ["CI", "CÃ´te dâ€™Ivoire"], ["DJ", "Djibouti"], ["EG", "Ã‰gypte"], ["GQ", "GuinÃ©e Ã©quatoriale"], ["ER", "Ã‰rythrÃ©e"], ["SZ", "Eswatini"], ["ET", "Ã‰thiopie"], ["GA", "Gabon"], ["GM", "Gambie"], ["GH", "Ghana"], ["GN", "GuinÃ©e"], ["GW", "GuinÃ©e-Bissau"], ["KE", "Kenya"], ["LS", "Lesotho"], ["LR", "Liberia"], ["LY", "Libye"], ["MG", "Madagascar"], ["MW", "Malawi"], ["ML", "Mali"], ["MR", "Mauritanie"], ["MU", "Maurice"], ["MA", "Maroc"], ["MZ", "Mozambique"], ["NA", "Namibie"], ["NE", "Niger"], ["NG", "Nigeria"], ["RW", "Rwanda"], ["ST", "Sao TomÃ©-et-Principe"], ["SN", "SÃ©nÃ©gal"], ["SC", "Seychelles"], ["SL", "Sierra Leone"], ["SO", "Somalie"], ["ZA", "Afrique du Sud"], ["SS", "Soudan du Sud"], ["SD", "Soudan"], ["TZ", "Tanzanie"], ["TG", "Togo"], ["TN", "Tunisie"], ["UG", "Ouganda"], ["ZM", "Zambie"], ["ZW", "Zimbabwe"],
   ] as const;
   function toggleCountry(code: string) { setSelectedCountries((selected) => selected.includes(code) ? selected.filter((country) => country !== code) : selected.length < 5 ? [...selected, code] : selected); }
 
@@ -970,35 +970,35 @@ function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => void }) {
       const data = await response.json();
       if (!response.ok) { setError(data.error ?? "Analyse impossible."); return; }
       setReport(data.report ?? null);
-    } catch { setError("Le radar marché est momentanément indisponible."); } finally { setLoading(false); }
+    } catch { setError("Le radar marchÃ© est momentanÃ©ment indisponible."); } finally { setLoading(false); }
   }
 
   const dimensions = (report?.dimensions ?? {}) as Record<string, number>;
   const ideas = Array.isArray(report?.ideas) ? report.ideas as Array<Record<string, unknown>> : [];
   return <div className="market-radar-page">
-    <div className="page-top"><div><span className="eyebrow">Axe 3 · Sourcing</span><h1>Radar marché</h1><p>Teste une idée de produit digital avant de passer du temps à la produire.</p></div></div>
-    <section className="market-radar-hero"><div><span className="eyebrow">Validation en temps réel</span><h2>Quelle idée veux-tu lancer ?</h2><p>Vendeo mesure les signaux de recherche disponibles et transforme ton idée en concept d’e-book exploitable.</p><label className="market-idea-input"><span>Idée à analyser</span><input value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="Ex : ebook pour gérer son argent avec Mobile Money" /></label></div><TrendingUp size={32} /></section>
+    <div className="page-top"><div><span className="eyebrow">Axe 3 Â· Sourcing</span><h1>Radar marchÃ©</h1><p>Teste une idÃ©e de produit digital avant de passer du temps Ã  la produire.</p></div></div>
+    <section className="market-radar-hero"><div><span className="eyebrow">Validation en temps rÃ©el</span><h2>Quelle idÃ©e veux-tu lancer ?</h2><p>Vendeo mesure les signaux de recherche disponibles et transforme ton idÃ©e en concept dâ€™e-book exploitable.</p><label className="market-idea-input"><span>IdÃ©e Ã  analyser</span><input value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="Ex : ebook pour gÃ©rer son argent avec Mobile Money" /></label></div><TrendingUp size={32} /></section>
     <form className="app-card market-radar-form" onSubmit={analyze}>
-      <div className="market-radar-fields"><fieldset className="market-country-picker"><legend>Pays à analyser <small>{selectedCountries.length}/5 sélectionnés</small></legend><div>{countryOptions.map(([code, name]) => <label key={code}><input type="checkbox" checked={selectedCountries.includes(code)} onChange={() => toggleCountry(code)} disabled={!selectedCountries.includes(code) && selectedCountries.length >= 5} /><span>{name}</span></label>)}</div></fieldset><label>Audience<select value={audience} onChange={(event) => setAudience(event.target.value)}><option value="entrepreneurs">Entrepreneurs et indépendants</option><option value="jeunes actifs">Jeunes actifs</option><option value="étudiants">Étudiants</option><option value="femmes entrepreneures">Femmes entrepreneures</option><option value="créateurs de contenu">Créateurs de contenu</option><option value="vendeurs en ligne">Vendeurs en ligne</option><option value="petites entreprises">Petites entreprises</option></select></label><label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}><option value="ebook">E-book</option><option value="formation">Formation</option><option value="template">Templates</option><option value="abonnement">Abonnement</option></select></label></div>
-      {error && <p className="store-error">{error}</p>}<button className="btn btn-dark" disabled={loading || idea.trim().length < 8}>{loading ? "Analyse des signaux…" : "Analyser le potentiel"}</button>
+      <div className="market-radar-fields"><fieldset className="market-country-picker"><legend>Pays Ã  analyser <small>{selectedCountries.length}/5 sÃ©lectionnÃ©s</small></legend><div>{countryOptions.map(([code, name]) => <label key={code}><input type="checkbox" checked={selectedCountries.includes(code)} onChange={() => toggleCountry(code)} disabled={!selectedCountries.includes(code) && selectedCountries.length >= 5} /><span>{name}</span></label>)}</div></fieldset><label>Audience<select value={audience} onChange={(event) => setAudience(event.target.value)}><option value="entrepreneurs">Entrepreneurs et indÃ©pendants</option><option value="jeunes actifs">Jeunes actifs</option><option value="Ã©tudiants">Ã‰tudiants</option><option value="femmes entrepreneures">Femmes entrepreneures</option><option value="crÃ©ateurs de contenu">CrÃ©ateurs de contenu</option><option value="vendeurs en ligne">Vendeurs en ligne</option><option value="petites entreprises">Petites entreprises</option></select></label><label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}><option value="ebook">E-book</option><option value="formation">Formation</option><option value="template">Templates</option><option value="abonnement">Abonnement</option></select></label></div>
+      {error && <p className="store-error">{error}</p>}<button className="btn btn-dark" disabled={loading || idea.trim().length < 8}>{loading ? "Analyse des signauxâ€¦" : "Analyser le potentiel"}</button>
     </form>
     {report ? <>
-      <section className="market-radar-score"><div><span className="eyebrow">Potentiel estimé</span><strong>{String(report.score ?? 0)}<small>/100</small></strong><p>Confiance {String(report.confidence ?? "low")} · {Array.isArray(report.liveSources) && report.liveSources.length ? String(report.liveSources.join(", ")) : "Aucune source live configurée"}</p></div><div><div className="market-dimension-grid">{[["Demande","demand"],["Croissance","growth"],["Concurrence","competition"],["Adéquation pays","countryFit"],["Monétisation","monetization"]].map(([label,key]) => <div key={key}><small>{label}</small><strong>{dimensions[key] ?? 0}</strong><i><b style={{ width: `${dimensions[key] ?? 0}%` }} /></i></div>)}</div><div className="market-trend"><span>Signal récent</span><strong>{String((report.trend as Record<string, unknown>)?.current ?? 0)} <small>{(report.trend as Record<string, unknown>)?.direction === "up" ? "↗ en hausse" : (report.trend as Record<string, unknown>)?.direction === "down" ? "↘ en baisse" : "→ stable"}</small></strong><div>{((report.trend as Record<string, unknown>)?.points as number[] ?? []).map((point, index) => <i key={`${point}-${index}`} style={{ height: `${Math.max(8, point)}%` }} />)}</div></div></div></section>
-      <section className="market-evidence-grid"><div className="app-card"><div className="card-head"><div><span className="eyebrow">Preuves</span><h2>Pourquoi ce score ?</h2></div><Activity size={18} /></div>{(report.evidence as Array<Record<string, string>> ?? []).map((item) => <div className="market-evidence" key={`${item.label}-${item.value}`}><small>{item.label}</small><strong>{item.value}</strong></div>)}</div><div className="app-card"><div className="card-head"><div><span className="eyebrow">Décision</span><h2>Risques à connaître</h2></div><ShieldAlert size={18} /></div>{(report.risks as string[] ?? []).map((risk) => <p className="market-risk" key={risk}>{risk}</p>)}<p className="market-price">Prix de test: {String((report.recommendedPrice as Record<string, unknown>)?.min)} à {String((report.recommendedPrice as Record<string, unknown>)?.max)} XOF</p></div></section>
-      <section className="app-card market-ideas"><div className="card-head"><div><span className="eyebrow">Concepts exploitables</span><h2>Ce que tu peux lancer</h2></div><Lightbulb size={18} /></div>{ideas.map((item) => <article className="market-idea" key={String(item.title)}><div><h3>{String(item.title)}</h3><p>{String(item.promise)}</p><small>Pour: {String(item.audience)}</small></div><button className="btn btn-ghost" onClick={() => onGoToAI(`Développe le concept d'e-book « ${String(item.title)} » avec un plan détaillé, une promesse commerciale et un upsell adapté aux marchés ${selectedCountries.join(", ")}.`)}>Développer avec l’IA</button></article>)}</section>
-    </> : <div className="app-card market-empty"><Lightbulb size={24} /><strong>Entre une idée pour obtenir un score de potentialité</strong><span>Le score indique la force des signaux disponibles. Il ne garantit pas les ventes.</span></div>}
+      <section className="market-radar-score"><div><span className="eyebrow">Potentiel estimÃ©</span><strong>{String(report.score ?? 0)}<small>/100</small></strong><p>Confiance {String(report.confidence ?? "low")} Â· {Array.isArray(report.liveSources) && report.liveSources.length ? String(report.liveSources.join(", ")) : "Aucune source live configurÃ©e"}</p></div><div><div className="market-dimension-grid">{[["Demande","demand"],["Croissance","growth"],["Concurrence","competition"],["AdÃ©quation pays","countryFit"],["MonÃ©tisation","monetization"]].map(([label,key]) => <div key={key}><small>{label}</small><strong>{dimensions[key] ?? 0}</strong><i><b style={{ width: `${dimensions[key] ?? 0}%` }} /></i></div>)}</div><div className="market-trend"><span>Signal rÃ©cent</span><strong>{String((report.trend as Record<string, unknown>)?.current ?? 0)} <small>{(report.trend as Record<string, unknown>)?.direction === "up" ? "â†— en hausse" : (report.trend as Record<string, unknown>)?.direction === "down" ? "â†˜ en baisse" : "â†’ stable"}</small></strong><div>{((report.trend as Record<string, unknown>)?.points as number[] ?? []).map((point, index) => <i key={`${point}-${index}`} style={{ height: `${Math.max(8, point)}%` }} />)}</div></div></div></section>
+      <section className="market-evidence-grid"><div className="app-card"><div className="card-head"><div><span className="eyebrow">Preuves</span><h2>Pourquoi ce score ?</h2></div><Activity size={18} /></div>{(report.evidence as Array<Record<string, string>> ?? []).map((item) => <div className="market-evidence" key={`${item.label}-${item.value}`}><small>{item.label}</small><strong>{item.value}</strong></div>)}</div><div className="app-card"><div className="card-head"><div><span className="eyebrow">DÃ©cision</span><h2>Risques Ã  connaÃ®tre</h2></div><ShieldAlert size={18} /></div>{(report.risks as string[] ?? []).map((risk) => <p className="market-risk" key={risk}>{risk}</p>)}<p className="market-price">Prix de test: {String((report.recommendedPrice as Record<string, unknown>)?.min)} Ã  {String((report.recommendedPrice as Record<string, unknown>)?.max)} XOF</p></div></section>
+      <section className="app-card market-ideas"><div className="card-head"><div><span className="eyebrow">Concepts exploitables</span><h2>Ce que tu peux lancer</h2></div><Lightbulb size={18} /></div>{ideas.map((item) => <article className="market-idea" key={String(item.title)}><div><h3>{String(item.title)}</h3><p>{String(item.promise)}</p><small>Pour: {String(item.audience)}</small></div><button className="btn btn-ghost" onClick={() => onGoToAI(`DÃ©veloppe le concept d'e-book Â« ${String(item.title)} Â» avec un plan dÃ©taillÃ©, une promesse commerciale et un upsell adaptÃ© aux marchÃ©s ${selectedCountries.join(", ")}.`)}>DÃ©velopper avec lâ€™IA</button></article>)}</section>
+    </> : <div className="app-card market-empty"><Lightbulb size={24} /><strong>Entre une idÃ©e pour obtenir un score de potentialitÃ©</strong><span>Le score indique la force des signaux disponibles. Il ne garantit pas les ventes.</span></div>}
   </div>;
 }
 function EmptyState({ title, text }: { title: string; text: string }) { return <div className="home-empty"><strong>{title}</strong><span>{text}</span></div>; }
 function ActionItem({ title, proof, action, onClick }: { title: string; proof: string; action: string; onClick: () => void }) { return <div className="home-action-item"><div><strong>{title}</strong><p>{proof}</p></div><button className="btn btn-dark" onClick={onClick}>{action}</button></div>; }
-function SummaryTable({ title, columns, rows, empty }: { title: string; columns: string[]; rows: Array<Array<string | number>>; empty: string }) { return <section className="home-summary app-card"><div className="card-head"><h2>{title}</h2><BarChart3 size={18} /></div>{rows.length ? <div className="home-table"><div className="home-table-row home-table-head">{columns.map((column) => <span key={column}>{column}</span>)}</div>{rows.map((row, index) => <div className="home-table-row" key={index}>{row.map((value, valueIndex) => <span key={valueIndex}>{value}</span>)}</div>)}</div> : <EmptyState title={empty} text="Les données apparaîtront après synchronisation." />}</section>; }
+function SummaryTable({ title, columns, rows, empty }: { title: string; columns: string[]; rows: Array<Array<string | number>>; empty: string }) { return <section className="home-summary app-card"><div className="card-head"><h2>{title}</h2><BarChart3 size={18} /></div>{rows.length ? <div className="home-table"><div className="home-table-row home-table-head">{columns.map((column) => <span key={column}>{column}</span>)}</div>{rows.map((row, index) => <div className="home-table-row" key={index}>{row.map((value, valueIndex) => <span key={valueIndex}>{value}</span>)}</div>)}</div> : <EmptyState title={empty} text="Les donnÃ©es apparaÃ®tront aprÃ¨s synchronisation." />}</section>; }
 
 function SalesView({ stores, analytics }: { stores: StoreData[]; analytics: AnalyticsData }) {
   const [filter, setFilter] = useState("all");
   const sales = (analytics?.sales ?? []).filter((sale) => filter === "all" || String((sale as Record<string, unknown>)?.status ?? "") === filter);
   const completed = sales.filter((sale) => String((sale as Record<string, unknown>)?.status) === "completed");
   const revenue = completed.reduce<number>((sum, sale) => sum + Number(((sale as Record<string, unknown>)?.amount as Record<string, unknown>)?.value ?? (sale as Record<string, unknown>)?.amount ?? 0), 0);
-  return <div className="sales-page"><div className="page-top"><div><span className="eyebrow">Chariow</span><h1>Ventes</h1><p>Suivi des événements et revenus remontés par ta boutique.</p></div></div><div className="sales-kpis"><HomeKpi label="Ventes confirmées" value={String(completed.length)} tone="positive" help="Paiements validés par Chariow." /><HomeKpi label="Revenu brut" value={revenue ? `${revenue.toLocaleString("fr-FR")} ${analytics?.products?.[0]?.currency ?? "XOF"}` : "0"} tone="info" help="Montant des ventes confirmées." /><HomeKpi label="Événements suivis" value={String(sales.length)} tone="neutral" help="Ventes et statuts remontés." /></div><div className="sales-toolbar"><label>Statut<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Tous</option><option value="completed">Réussies</option><option value="awaiting_payment">En attente</option><option value="failed">Échouées</option><option value="abandoned">Abandonnées</option><option value="refunded">Remboursées</option></select></label></div><section className="app-card sales-list"><div className="card-head"><h2>Activité Chariow</h2><Activity size={18} /></div>{sales.length ? <ul className="activity">{sales.map((sale, index) => <RecentSale key={index} sale={sale} currency={analytics?.products?.[0]?.currency ?? "XOF"} />)}</ul> : <EmptyState title="Aucun événement" text="Les événements Chariow apparaîtront après synchronisation." />}</section></div>;
+  return <div className="sales-page"><div className="page-top"><div><span className="eyebrow">Chariow</span><h1>Ventes</h1><p>Suivi des Ã©vÃ©nements et revenus remontÃ©s par ta boutique.</p></div></div><div className="sales-kpis"><HomeKpi label="Ventes confirmÃ©es" value={String(completed.length)} tone="positive" help="Paiements validÃ©s par Chariow." /><HomeKpi label="Revenu brut" value={revenue ? `${revenue.toLocaleString("fr-FR")} ${analytics?.products?.[0]?.currency ?? "XOF"}` : "0"} tone="info" help="Montant des ventes confirmÃ©es." /><HomeKpi label="Ã‰vÃ©nements suivis" value={String(sales.length)} tone="neutral" help="Ventes et statuts remontÃ©s." /></div><div className="sales-toolbar"><label>Statut<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Tous</option><option value="completed">RÃ©ussies</option><option value="awaiting_payment">En attente</option><option value="failed">Ã‰chouÃ©es</option><option value="abandoned">AbandonnÃ©es</option><option value="refunded">RemboursÃ©es</option></select></label></div><section className="app-card sales-list"><div className="card-head"><h2>ActivitÃ© Chariow</h2><Activity size={18} /></div>{sales.length ? <ul className="activity">{sales.map((sale, index) => <RecentSale key={index} sale={sale} currency={analytics?.products?.[0]?.currency ?? "XOF"} />)}</ul> : <EmptyState title="Aucun Ã©vÃ©nement" text="Les Ã©vÃ©nements Chariow apparaÃ®tront aprÃ¨s synchronisation." />}</section></div>;
 }
 
 const STACK_DAYS = 7;
@@ -1021,8 +1021,8 @@ function RealTrendChart({ sales, products, currency }: { sales: unknown[]; produ
     const ranked = Array.from(perProduct.entries()).sort((a, b) => b[1].total - a[1].total); const top = ranked.slice(0, STACK_COLORS.length); const rest = ranked.slice(STACK_COLORS.length); const series: StackSeries[] = top.map(([key, entry], index) => ({ key, label: entry.label, color: STACK_COLORS[index] })); const matrix: number[][] = days.map((_, dayPos) => top.map(([, entry]) => entry.days[dayPos])); if (rest.length) { series.push({ key: "__others", label: "Autres", color: STACK_OTHERS_COLOR }); matrix.forEach((row, dayPos) => row.push(rest.reduce((sum, [, entry]) => sum + entry.days[dayPos], 0))); } const dayTotals = matrix.map((row) => row.reduce((sum, value) => sum + value, 0)); const grand = dayTotals.reduce((sum, value) => sum + value, 0); const scale = stackScale(Math.max(...dayTotals)); const ticks = Array.from({ length: Math.round(scale.max / scale.step) + 1 }, (_, index) => index * scale.step); return { days, series, matrix, dayTotals, grand, scale, ticks };
   }, [sales, products]);
   const money = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} ${currency}`;
-  if (!chart.grand) return <EmptyState title="Aucune vente sur 7 jours" text="Les ventes confirmées des 7 derniers jours apparaîtront ici, empilées par produit." />;
-  return <div className="stack-chart" ref={rootRef} role="group" aria-label={`Chiffre d’affaires des 7 derniers jours par produit, total ${money(chart.grand)}`}><ul className="stack-legend">{chart.series.map((item) => <li key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span></li>)}</ul><div className="stack-body"><div className="stack-y" aria-hidden="true">{chart.ticks.map((tick) => <span key={tick} style={{ bottom: `${(tick / chart.scale.max) * 100}%` }}>{stackCompact.format(tick)}</span>)}</div><div className="stack-plot">{chart.ticks.map((tick) => <i key={tick} className="stack-grid" aria-hidden="true" style={{ bottom: `${(tick / chart.scale.max) * 100}%` }} />)}<div className="stack-cols">{chart.days.map((day, index) => { const total = chart.dayTotals[index]; return <button type="button" key={day.key} className={`stack-col${active === index ? " active" : ""}`} aria-label={`${day.long} : ${money(total)}`} onPointerEnter={(event) => { if (event.pointerType === "mouse") setActive(index); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") setActive(null); }} onClick={(event) => { if ((event.nativeEvent as PointerEvent).pointerType === "mouse") return; setActive((current) => current === index ? null : index); }}><span className="stack-bar" style={{ height: `${(total / chart.scale.max) * 100}%` }}>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[index][seriesIndex]; return value > 0 ? <span key={item.key} className="stack-seg" style={{ height: `${(value / total) * 100}%`, background: item.color }} /> : null; })}</span></button>; })}</div>{active !== null ? <div className="stack-tip" style={{ left: `${((active + 0.5) / STACK_DAYS) * 100}%`, transform: `translateX(${active <= 1 ? "-20%" : active >= STACK_DAYS - 2 ? "-80%" : "-50%"})` }}><strong>{chart.days[active].long}</strong>{chart.dayTotals[active] > 0 ? <>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[active][seriesIndex]; return value > 0 ? <span key={item.key}><i style={{ background: item.color }} />{item.label}<b>{money(value)}</b></span> : null; })}<em>Total {money(chart.dayTotals[active])}</em></> : <span>Aucune vente</span>}</div> : null}</div></div><div className="stack-x" aria-hidden="true">{chart.days.map((day) => <span key={day.key}><b>{day.weekday}</b><small>{day.num}</small></span>)}</div><div className="stack-foot"><span className="stack-unit">Montants en {currency}</span><span className="chart-total">Total : {money(chart.grand)}</span></div></div>;
+  if (!chart.grand) return <EmptyState title="Aucune vente sur 7 jours" text="Les ventes confirmÃ©es des 7 derniers jours apparaÃ®tront ici, empilÃ©es par produit." />;
+  return <div className="stack-chart" ref={rootRef} role="group" aria-label={`Chiffre dâ€™affaires des 7 derniers jours par produit, total ${money(chart.grand)}`}><ul className="stack-legend">{chart.series.map((item) => <li key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span></li>)}</ul><div className="stack-body"><div className="stack-y" aria-hidden="true">{chart.ticks.map((tick) => <span key={tick} style={{ bottom: `${(tick / chart.scale.max) * 100}%` }}>{stackCompact.format(tick)}</span>)}</div><div className="stack-plot">{chart.ticks.map((tick) => <i key={tick} className="stack-grid" aria-hidden="true" style={{ bottom: `${(tick / chart.scale.max) * 100}%` }} />)}<div className="stack-cols">{chart.days.map((day, index) => { const total = chart.dayTotals[index]; return <button type="button" key={day.key} className={`stack-col${active === index ? " active" : ""}`} aria-label={`${day.long} : ${money(total)}`} onPointerEnter={(event) => { if (event.pointerType === "mouse") setActive(index); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") setActive(null); }} onClick={(event) => { if ((event.nativeEvent as PointerEvent).pointerType === "mouse") return; setActive((current) => current === index ? null : index); }}><span className="stack-bar" style={{ height: `${(total / chart.scale.max) * 100}%` }}>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[index][seriesIndex]; return value > 0 ? <span key={item.key} className="stack-seg" style={{ height: `${(value / total) * 100}%`, background: item.color }} /> : null; })}</span></button>; })}</div>{active !== null ? <div className="stack-tip" style={{ left: `${((active + 0.5) / STACK_DAYS) * 100}%`, transform: `translateX(${active <= 1 ? "-20%" : active >= STACK_DAYS - 2 ? "-80%" : "-50%"})` }}><strong>{chart.days[active].long}</strong>{chart.dayTotals[active] > 0 ? <>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[active][seriesIndex]; return value > 0 ? <span key={item.key}><i style={{ background: item.color }} />{item.label}<b>{money(value)}</b></span> : null; })}<em>Total {money(chart.dayTotals[active])}</em></> : <span>Aucune vente</span>}</div> : null}</div></div><div className="stack-x" aria-hidden="true">{chart.days.map((day) => <span key={day.key}><b>{day.weekday}</b><small>{day.num}</small></span>)}</div><div className="stack-foot"><span className="stack-unit">Montants en {currency}</span><span className="chart-total">Total : {money(chart.grand)}</span></div></div>;
 }
 
 function displayValue(value: unknown, keys: string[] = ["name", "label", "title", "value", "text", "code"]): string | undefined {
@@ -1035,7 +1035,7 @@ function displayValue(value: unknown, keys: string[] = ["name", "label", "title"
       const result = displayValue(object[key]);
       if (result) return result;
     }
-    return Object.values(object).map((item) => displayValue(item)).filter(Boolean).join(" · ") || undefined;
+    return Object.values(object).map((item) => displayValue(item)).filter(Boolean).join(" Â· ") || undefined;
   }
   return undefined;
 }
@@ -1051,32 +1051,44 @@ function displayPhone(value: unknown) {
 
 function RecentSale({ sale, currency }: { sale: unknown; currency: string }) {
   const [open, setOpen] = useState(false);
-  const row = sale && typeof sale === "object" ? sale as Record<string, unknown> : {};
+  const rec = (value: unknown): Record<string, unknown> => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
+  const row = rec(sale);
   const status = String(row.status ?? row.state ?? "unknown");
-  const label = status === "completed" ? "Vente réussie" : status === "awaiting_payment" ? "Paiement en attente" : status === "failed" ? "Paiement échoué" : status === "abandoned" ? "Vente abandonnée" : status === "refunded" ? "Remboursement" : status;
-  const amount = Number((row.amount as Record<string, unknown>)?.value ?? row.amount ?? 0);
+  const label = status === "completed" ? "Vente réussie" : status === "awaiting_payment" ? "Paiement en attente" : status === "failed" ? "Paiement échoué" : status === "abandoned" ? "Vente abandonnée" : status === "refunded" ? "Remboursement" : status === "settled" ? "Vente réglée" : status;
+  const saleCurrency = String(rec(row.amount).currency ?? currency);
+  const amount = Number(rec(row.amount).value ?? row.amount ?? 0) || 0;
   const date = row.created_at ?? row.createdAt ?? row.occurred_at;
-  const customer = (row.customer as Record<string, unknown> | undefined) ?? {};
-  const error = (row.error as Record<string, unknown> | undefined) ?? {};
-  const payment = (row.payment as Record<string, unknown> | undefined) ?? {};
-  const context = (row.context as Record<string, unknown> | undefined) ?? {};
+  const customer = rec(row.customer);
+  const payment = rec(row.payment);
+  const context = rec(row.context);
+  const settlement = rec(row.settlement);
+  const discountInfo = rec(row.discount);
+  const failure = rec(payment.failure_error);
+  const legacyError = rec(row.error);
+  const money = (value: unknown): string | null => { if (value === null || value === undefined) return null; const numeric = Number(rec(value).value ?? value); if (!Number.isFinite(numeric) || numeric <= 0) return null; return `${numeric.toLocaleString("fr-FR")} ${String(rec(value).currency ?? saleCurrency)}`; };
   const phone = displayPhone(customer.phone ?? row.phone ?? customer.phone_number ?? row.phone_number);
-  const price = row.price ?? payment.price ?? row.amount;
-  const discount = row.discount ?? payment.discount ?? row.discount_amount;
-  const netAmount = row.net_amount ?? row.netAmount ?? payment.net_amount ?? payment.netAmount ?? row.amount;
-  const source = displayValue(row.source ?? payment.source) ?? "Non fourni";
+  const customerName = displayValue(customer.name) ?? ([customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Non fourni");
+  const productName = String(row.product_name ?? rec(row.product).name ?? "Produit Chariow");
+  const price = money(row.original_amount ?? row.price ?? payment.price ?? row.amount);
+  const netAmount = money(row.amount ?? row.net_amount ?? row.netAmount ?? payment.net_amount);
+  const discountAmount = money(row.discount_amount);
+  const discountCode = displayValue(discountInfo.code ?? discountInfo.name);
+  const discountText = discountAmount ? (discountCode ? `${discountAmount} (${discountCode})` : discountAmount) : (discountCode ?? "Aucune");
+  const payoutAmount = money(settlement.amount);
+  const serviceFee = money(settlement.service_fee);
+  const paymentMethod = displayValue(rec(payment.method).name) ?? displayValue(payment.gateway);
+  const channelLabel = displayValue(rec(row.channel).label ?? row.channel);
+  const campaignName = displayValue(rec(row.campaign).name);
+  const source = [channelLabel, campaignName].filter(Boolean).join(" · ") || displayValue(row.source ?? payment.source) || "Non fourni";
   const shop = displayValue(row.store_name ?? row.store ?? row.shop) ?? "Non fourni";
-  const description = displayValue(row.description ?? row.sale_description) ?? "Non fournie";
-  const country = displayValue(row.country ?? context.country ?? customer.country) ?? "Non fourni";
-  const language = displayValue(row.language ?? context.language ?? customer.language) ?? "Non fournie";
-  const device = displayValue(row.device ?? context.device) ?? "Non fourni";
-  const productName = String(row.product_name ?? (row.product as Record<string, unknown>)?.name ?? "Produit Chariow");
-  const customerName = customer.name ?? ([customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Non fourni");
-  const failureReason = displayValue(error.message ?? error.description ?? row.failure_reason ?? row.failureReason ?? row.error_message ?? row.reason ?? row.status_reason ?? row.payment_error ?? row.failure ?? row.payment_status_reason ?? (row.payment as Record<string, unknown> | undefined)?.error) ?? "Non fournie par Chariow";
-  const money = (value: unknown) => { const numeric = Number((value as Record<string, unknown>)?.value ?? value); return Number.isFinite(numeric) && numeric > 0 ? `${numeric.toLocaleString("fr-FR")} ${String((value as Record<string, unknown>)?.currency ?? currency)}` : "Non fourni"; };
-  return <><li><i className={`activity-dot activity-${status}`} /><span><b>{label}</b><br />{productName} · {amount ? `${amount.toLocaleString("fr-FR")} ${currency}` : "Montant indisponible"} · {date ? new Date(String(date)).toLocaleDateString("fr-FR") : "Date indisponible"}</span><button type="button" className="activity-detail" onClick={() => setOpen(true)}>Détail</button></li>{open ? <div className="sale-modal-backdrop" role="presentation" onClick={() => setOpen(false)}><section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-detail-title" onClick={(event) => event.stopPropagation()}><button type="button" className="sale-modal-close" aria-label="Fermer" onClick={() => setOpen(false)}>×</button><span className="eyebrow">Détail Chariow</span><h2 id="sale-detail-title">{label}</h2><h3 className="sale-modal-section-title">Client</h3><div className="sale-detail-grid"><div><small>Nom</small><strong>{String(customerName)}</strong></div><div><small>Email</small><strong>{String(customer.email ?? row.email ?? "Non fourni")}</strong></div><div><small>Téléphone</small><strong>{String(phone ?? "Non fourni")}</strong></div></div><h3 className="sale-modal-section-title">Informations de paiement</h3><div className="sale-detail-grid"><div><small>Prix</small><strong>{money(price)}</strong></div><div><small>Réduction</small><strong>{money(discount)}</strong></div><div><small>Montant net</small><strong>{money(netAmount)}</strong></div><div><small>Source</small><strong>{String(source)}</strong></div><div><small>Boutique</small><strong>{String(shop)}</strong></div><div><small>Description</small><strong>{String(description)}</strong></div></div><h3 className="sale-modal-section-title">Contexte</h3><div className="sale-detail-grid"><div><small>Pays</small><strong>{String(country)}</strong></div><div><small>Langue</small><strong>{String(language)}</strong></div><div><small>Appareil</small><strong>{String(device)}</strong></div><div><small>Date</small><strong>{date ? new Date(String(date)).toLocaleString("fr-FR") : "Non fournie"}</strong></div><div><small>Raison de l’échec</small><strong>{status === "failed" ? String(failureReason) : "Aucune"}</strong></div></div><button type="button" className="btn btn-dark sale-modal-action" onClick={() => setOpen(false)}>Fermer</button></section></div> : null}</>;
+  const country = displayValue(row.country ?? context.country ?? rec(row.shipping).country ?? customer.country) ?? "Non fourni";
+  const localeRaw = displayValue(context.locale ?? context.language ?? row.language ?? customer.language);
+  const language = localeRaw ? (() => { try { return new Intl.DisplayNames(["fr"], { type: "language" }).of(localeRaw.replace("_", "-")) ?? localeRaw; } catch { return localeRaw; } })() : "Non fournie";
+  const deviceRaw = displayValue(context.device_type ?? context.device ?? row.device);
+  const device = deviceRaw ? (({ desktop: "Ordinateur", mobile: "Mobile", tablet: "Tablette" } as Record<string, string>)[deviceRaw.toLowerCase()] ?? deviceRaw) : "Non fourni";
+  const failureReason = displayValue(failure.message ?? failure.description ?? failure.code ?? legacyError.message ?? legacyError.description ?? row.failure_reason ?? row.error_message ?? row.status_reason) ?? "Non fournie par Chariow";
+  return <><li><i className={`activity-dot activity-${status}`} /><span><b>{label}</b><br />{productName} · {amount ? `${amount.toLocaleString("fr-FR")} ${saleCurrency}` : "Montant indisponible"} · {date ? new Date(String(date)).toLocaleDateString("fr-FR") : "Date indisponible"}</span><button type="button" className="activity-detail" onClick={() => setOpen(true)}>Détail</button></li>{open ? <div className="sale-modal-backdrop" role="presentation" onClick={() => setOpen(false)}><section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-detail-title" onClick={(event) => event.stopPropagation()}><button type="button" className="sale-modal-close" aria-label="Fermer" onClick={() => setOpen(false)}>×</button><span className="eyebrow">Détail Chariow</span><h2 id="sale-detail-title">{label}</h2><h3 className="sale-modal-section-title">Client</h3><div className="sale-detail-grid"><div><small>Nom</small><strong>{customerName}</strong></div><div><small>Email</small><strong>{String(customer.email ?? row.email ?? "Non fourni")}</strong></div><div><small>Téléphone</small><strong>{phone ?? "Non fourni"}</strong></div></div><h3 className="sale-modal-section-title">Informations de paiement</h3><div className="sale-detail-grid"><div><small>Produit</small><strong>{productName}</strong></div><div><small>Prix</small><strong>{price ?? "Non fourni"}</strong></div><div><small>Réduction</small><strong>{discountText}</strong></div><div><small>Montant net</small><strong>{netAmount ?? "Non fourni"}</strong></div>{payoutAmount ? <div><small>Reversé après frais</small><strong>{payoutAmount}</strong></div> : null}{serviceFee ? <div><small>Frais Chariow</small><strong>{serviceFee}</strong></div> : null}{paymentMethod ? <div><small>Moyen de paiement</small><strong>{paymentMethod}</strong></div> : null}<div><small>Source</small><strong>{source}</strong></div><div><small>Boutique</small><strong>{shop}</strong></div></div><h3 className="sale-modal-section-title">Contexte</h3><div className="sale-detail-grid"><div><small>Pays</small><strong>{country}</strong></div><div><small>Langue</small><strong>{language}</strong></div><div><small>Appareil</small><strong>{device}</strong></div><div><small>Date</small><strong>{date ? new Date(String(date)).toLocaleString("fr-FR") : "Non fournie"}</strong></div><div><small>Raison de l’échec</small><strong>{status === "failed" ? failureReason : "Aucune"}</strong></div></div><button type="button" className="btn btn-dark sale-modal-action" onClick={() => setOpen(false)}>Fermer</button></section></div> : null}</>;
 }
-
 function BusinessSignals({ analytics, health }: { analytics: AnalyticsData; health: StoreHealth }) {
   if (!analytics) return null;
   const { kpis, products } = analytics;
@@ -1084,18 +1096,18 @@ function BusinessSignals({ analytics, health }: { analytics: AnalyticsData; heal
   const recommendation = getRecommendation(analytics);
   return <div className="business-signals">
     <div className="signal-health app-card">
-      <div className="card-head"><div><span className="eyebrow">Lecture Vendeo</span><h2>Score de santé</h2></div><Activity size={18} color="#34684d" /></div>
+      <div className="card-head"><div><span className="eyebrow">Lecture Vendeo</span><h2>Score de santÃ©</h2></div><Activity size={18} color="#34684d" /></div>
       <div className="health-score"><strong>{health.score}</strong><span>/ 100</span></div>
       <p>{health.label}</p>
       <div className="health-progress"><i style={{ width: `${health.score}%` }} /></div>
       <small>{health.details}</small>
     </div>
     <div className="signal-alerts app-card">
-      <div className="card-head"><div><span className="eyebrow">À surveiller</span><h2>Signaux utiles</h2></div><AlertTriangle size={18} color="#d28b3d" /></div>
-      {alerts.length ? <div className="signal-list">{alerts.map((alert) => <div className={`signal-item ${alert.tone}`} key={alert.title}><span>{alert.icon}</span><div><strong>{alert.title}</strong><p>{alert.description}</p></div></div>)}</div> : <div className="signal-item positive"><span><TrendingUp size={15} /></span><div><strong>Tout est stable</strong><p>Aucun signal critique n’a été détecté sur cette période.</p></div></div>}
+      <div className="card-head"><div><span className="eyebrow">Ã€ surveiller</span><h2>Signaux utiles</h2></div><AlertTriangle size={18} color="#d28b3d" /></div>
+      {alerts.length ? <div className="signal-list">{alerts.map((alert) => <div className={`signal-item ${alert.tone}`} key={alert.title}><span>{alert.icon}</span><div><strong>{alert.title}</strong><p>{alert.description}</p></div></div>)}</div> : <div className="signal-item positive"><span><TrendingUp size={15} /></span><div><strong>Tout est stable</strong><p>Aucun signal critique nâ€™a Ã©tÃ© dÃ©tectÃ© sur cette pÃ©riode.</p></div></div>}
       <PersistentAlerts />
     </div>
-    <div className="signal-action app-card"><div className="card-head"><div><span className="eyebrow">Prochaine action</span><h2>Ton meilleur levier</h2></div><Target size={18} color="#34684d" /></div><strong>{recommendation.title}</strong><p>{recommendation.description}</p><div className="signal-meta">{products.length} produit{products.length > 1 ? "s" : ""} · {kpis.sales} vente{kpis.sales > 1 ? "s" : ""} · {kpis.visits} visite{kpis.visits > 1 ? "s" : ""}</div></div>
+    <div className="signal-action app-card"><div className="card-head"><div><span className="eyebrow">Prochaine action</span><h2>Ton meilleur levier</h2></div><Target size={18} color="#34684d" /></div><strong>{recommendation.title}</strong><p>{recommendation.description}</p><div className="signal-meta">{products.length} produit{products.length > 1 ? "s" : ""} Â· {kpis.sales} vente{kpis.sales > 1 ? "s" : ""} Â· {kpis.visits} visite{kpis.visits > 1 ? "s" : ""}</div></div>
   </div>;
 }
 
@@ -1109,7 +1121,7 @@ function PersistentAlerts() {
 type StoreHealth = { score: number; label: string; details: string };
 
 function getStoreHealth(analytics: AnalyticsData): StoreHealth {
-  if (!analytics) return { score: 0, label: "Données indisponibles", details: "Reconnecte ta boutique pour recalculer le score." };
+  if (!analytics) return { score: 0, label: "DonnÃ©es indisponibles", details: "Reconnecte ta boutique pour recalculer le score." };
   const { kpis, products } = analytics;
   let score = 35;
   if (products.length > 0) score += 20;
@@ -1118,38 +1130,38 @@ function getStoreHealth(analytics: AnalyticsData): StoreHealth {
   if (kpis.customers > 0) score += 5;
   if (kpis.conversionRate !== "0 %") score += 5;
   const bounded = Math.min(score, 100);
-  return { score: bounded, label: bounded >= 75 ? "Ta boutique est en bonne dynamique." : bounded >= 50 ? "Ta boutique a une base solide à développer." : "Ta priorité est de générer du trafic et des premières ventes.", details: `${products.length} produit${products.length > 1 ? "s" : ""} au catalogue, ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} et ${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} sur la période.` };
+  return { score: bounded, label: bounded >= 75 ? "Ta boutique est en bonne dynamique." : bounded >= 50 ? "Ta boutique a une base solide Ã  dÃ©velopper." : "Ta prioritÃ© est de gÃ©nÃ©rer du trafic et des premiÃ¨res ventes.", details: `${products.length} produit${products.length > 1 ? "s" : ""} au catalogue, ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} et ${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} sur la pÃ©riode.` };
 }
 
 function getBusinessAlerts(analytics: AnalyticsData) {
   if (!analytics) return [];
   const { kpis, products } = analytics;
   const alerts: { title: string; description: string; tone: string; icon: React.ReactNode }[] = [];
-  if (!products.length) alerts.push({ title: "Ton catalogue est vide", description: "Ajoute un produit pour commencer à mesurer ta boutique.", tone: "warning", icon: <Package size={15} /> });
-  if (kpis.visits > 0 && kpis.sales === 0) alerts.push({ title: "Trafic sans vente", description: "Tes visiteurs ne convertissent pas encore. Travaille l’offre ou la page de vente.", tone: "warning", icon: <Eye size={15} /> });
-  if (kpis.visits === 0) alerts.push({ title: "Aucune visite enregistrée", description: "Partage ta boutique auprès d’une audience ciblée pour créer tes premiers signaux.", tone: "neutral", icon: <Eye size={15} /> });
+  if (!products.length) alerts.push({ title: "Ton catalogue est vide", description: "Ajoute un produit pour commencer Ã  mesurer ta boutique.", tone: "warning", icon: <Package size={15} /> });
+  if (kpis.visits > 0 && kpis.sales === 0) alerts.push({ title: "Trafic sans vente", description: "Tes visiteurs ne convertissent pas encore. Travaille lâ€™offre ou la page de vente.", tone: "warning", icon: <Eye size={15} /> });
+  if (kpis.visits === 0) alerts.push({ title: "Aucune visite enregistrÃ©e", description: "Partage ta boutique auprÃ¨s dâ€™une audience ciblÃ©e pour crÃ©er tes premiers signaux.", tone: "neutral", icon: <Eye size={15} /> });
   if (kpis.sales === 0 && kpis.customers === 0) alerts.push({ title: "Pas encore de clients", description: "Commence par promouvoir ton produit principal avec un message clair et une offre simple.", tone: "neutral", icon: <Users size={15} /> });
   return alerts.slice(0, 3);
 }
 
 function getRecommendation(analytics: AnalyticsData) {
-  if (!analytics) return { title: "Reconnecter ta boutique", description: "Les données sont nécessaires pour proposer une action utile." };
+  if (!analytics) return { title: "Reconnecter ta boutique", description: "Les donnÃ©es sont nÃ©cessaires pour proposer une action utile." };
   const { kpis, products } = analytics;
   if (!products.length) return { title: "Ajouter ton premier produit", description: "Sans produit dans le catalogue, Vendeo ne peut pas identifier ton meilleur levier commercial." };
-  if (kpis.visits === 0) return { title: "Créer du trafic qualifié", description: "Partage ton produit auprès d’une audience précise et suis les visites sur la prochaine période." };
-  if (kpis.sales === 0) return { title: "Améliorer la conversion", description: "Tes prochaines actions doivent rassurer les visiteurs : bénéfice clair, preuve sociale et appel à l’action visible." };
-  return { title: "Capitaliser sur tes ventes", description: "Analyse ton produit principal et teste une offre complémentaire pour augmenter la valeur de chaque client." };
+  if (kpis.visits === 0) return { title: "CrÃ©er du trafic qualifiÃ©", description: "Partage ton produit auprÃ¨s dâ€™une audience prÃ©cise et suis les visites sur la prochaine pÃ©riode." };
+  if (kpis.sales === 0) return { title: "AmÃ©liorer la conversion", description: "Tes prochaines actions doivent rassurer les visiteurs : bÃ©nÃ©fice clair, preuve sociale et appel Ã  lâ€™action visible." };
+  return { title: "Capitaliser sur tes ventes", description: "Analyse ton produit principal et teste une offre complÃ©mentaire pour augmenter la valeur de chaque client." };
 }
 
 function ProductCatalog({ products, onPromote }: { products: ProductData[]; onPromote?: (product: ProductData) => void }) {
   return (
     <div className="app-card" style={{ marginTop: 18 }}>
-      <div className="card-head"><div><h2>Ton catalogue</h2><p>{products.length ? "Les produits récupérés depuis ta boutique Chariow." : "Aucun produit n’a été trouvé dans ta boutique Chariow."}</p></div></div>
+      <div className="card-head"><div><h2>Ton catalogue</h2><p>{products.length ? "Les produits rÃ©cupÃ©rÃ©s depuis ta boutique Chariow." : "Aucun produit nâ€™a Ã©tÃ© trouvÃ© dans ta boutique Chariow."}</p></div></div>
       {products.length > 0 && <div style={{ display: "grid", gap: 10, marginTop: 15 }}>
         {products.map((product) => <div key={product.id} className="store-row">
           <div className="store-logo">{product.image ? <img src={product.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} /> : <Package size={18} />}</div>
           <div className="store-info"><strong>{product.name}</strong><span>{formatProductPrice(product)}</span></div>
-           <span className="status">{product.status ?? "Statut non renseigné"}</span>
+           <span className="status">{product.status ?? "Statut non renseignÃ©"}</span>
            {onPromote ? <button className="btn btn-dark" type="button" onClick={() => onPromote(product)}>Promouvoir</button> : null}
         </div>)}
       </div>}
@@ -1158,19 +1170,19 @@ function ProductCatalog({ products, onPromote }: { products: ProductData[]; onPr
 }
 
 function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; analytics: AnalyticsData; selectedStoreId: string | null }) {
-  // Date par défaut alignée sur celle du backend (lib/chariow/analytics.ts) :
-  // du 1er du mois en cours jusqu'à aujourd'hui, tant que l'utilisateur n'a
-  // rien choisi lui-même.
+  // Date par dÃ©faut alignÃ©e sur celle du backend (lib/chariow/analytics.ts) :
+  // du 1er du mois en cours jusqu'Ã  aujourd'hui, tant que l'utilisateur n'a
+  // rien choisi lui-mÃªme.
   const defaultFrom = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
   const defaultTo = new Date().toISOString().slice(0, 10);
   const [from, setFrom] = useState(analytics?.kpis.period.from || defaultFrom);
   const [to, setTo] = useState(analytics?.kpis.period.to || defaultTo);
 
-  // Les Rapports ont leur propre jeu de données Chariow, réellement filtré par
-  // la période choisie (le bouton "Actualiser" appelait auparavant rien du
-  // tout : la période affichée à l'écran ne changeait jamais). On part des
-  // données déjà chargées par le tableau de bord, puis on ré-interroge
-  // /api/analytics avec from/to dès que l'utilisateur clique sur Actualiser.
+  // Les Rapports ont leur propre jeu de donnÃ©es Chariow, rÃ©ellement filtrÃ© par
+  // la pÃ©riode choisie (le bouton "Actualiser" appelait auparavant rien du
+  // tout : la pÃ©riode affichÃ©e Ã  l'Ã©cran ne changeait jamais). On part des
+  // donnÃ©es dÃ©jÃ  chargÃ©es par le tableau de bord, puis on rÃ©-interroge
+  // /api/analytics avec from/to dÃ¨s que l'utilisateur clique sur Actualiser.
   const [reportAnalytics, setReportAnalytics] = useState<AnalyticsData>(analytics);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
@@ -1178,11 +1190,11 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
   const [loadingAds, setLoadingAds] = useState(true);
   const kpis = reportAnalytics?.kpis;
-  const period = from && to ? `${formatReportDate(from)} – ${formatReportDate(to)}` : "Période sélectionnée";
+  const period = from && to ? `${formatReportDate(from)} â€“ ${formatReportDate(to)}` : "PÃ©riode sÃ©lectionnÃ©e";
   const currency = reportAnalytics?.products?.[0]?.currency ?? "XOF";
 
   async function runReport(nextFrom: string, nextTo: string) {
-    if (!selectedStoreId) { setReportError("Sélectionne une boutique pour lancer un rapport."); return; }
+    if (!selectedStoreId) { setReportError("SÃ©lectionne une boutique pour lancer un rapport."); return; }
     setLoadingReport(true);
     setReportError(null);
     try {
@@ -1192,19 +1204,19 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
       const response = await fetch(`/api/analytics?${params.toString()}`);
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setReportError(data.error ?? "Impossible de charger le rapport pour cette période.");
+        setReportError(data.error ?? "Impossible de charger le rapport pour cette pÃ©riode.");
         return;
       }
       setReportAnalytics(data.snapshot ?? null);
     } catch {
-      setReportError("Impossible de contacter le serveur. Réessaie dans un instant.");
+      setReportError("Impossible de contacter le serveur. RÃ©essaie dans un instant.");
     } finally {
       setLoadingReport(false);
     }
   }
 
-  // Si la boutique analysée change ailleurs dans l'app, on revient à la
-  // période par défaut et on recharge un rapport frais pour cette boutique.
+  // Si la boutique analysÃ©e change ailleurs dans l'app, on revient Ã  la
+  // pÃ©riode par dÃ©faut et on recharge un rapport frais pour cette boutique.
   useEffect(() => {
     if (!selectedStoreId) return;
     setFrom(defaultFrom);
@@ -1237,34 +1249,34 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
   const topOptimize = withVerdict.find((item) => item.verdict.tone === "optimize");
 
   return <>
-    <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui s’est passé, ce que ça a coûté en pub, et ce que Vendeo recommande de faire.</p></div></div>
+    <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui sâ€™est passÃ©, ce que Ã§a a coÃ»tÃ© en pub, et ce que Vendeo recommande de faire.</p></div></div>
     <div className="app-card report-filters" style={{ marginBottom: 18 }}>
-      <div className="report-filter-title"><CalendarDays size={17} /><div><strong>Période du rapport</strong><span>Les données Chariow sont analysées au format jour.</span></div></div>
+      <div className="report-filter-title"><CalendarDays size={17} /><div><strong>PÃ©riode du rapport</strong><span>Les donnÃ©es Chariow sont analysÃ©es au format jour.</span></div></div>
       <div className="report-filter-fields">
         <label>Du<input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} /></label>
         <label>Au<input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} /></label>
-        <button type="button" className="btn btn-dark" disabled={!stores.length || !selectedStoreId || loadingReport} onClick={() => void runReport(from, to)}>{loadingReport ? "Actualisation…" : "Actualiser"}</button>
+        <button type="button" className="btn btn-dark" disabled={!stores.length || !selectedStoreId || loadingReport} onClick={() => void runReport(from, to)}>{loadingReport ? "Actualisationâ€¦" : "Actualiser"}</button>
       </div>
       {reportError ? <p className="store-error" role="alert" style={{ marginTop: 10 }}>{reportError}</p> : null}
     </div>
-    {!reportAnalytics || !kpis ? <div className="empty-state">{loadingReport ? "Chargement du rapport…" : "Aucune donnée pour cette période."}</div> : <>
-      <div className="report-period"><span>Rapport analysé</span><strong>{period}</strong></div>
+    {!reportAnalytics || !kpis ? <div className="empty-state">{loadingReport ? "Chargement du rapportâ€¦" : "Aucune donnÃ©e pour cette pÃ©riode."}</div> : <>
+      <div className="report-period"><span>Rapport analysÃ©</span><strong>{period}</strong></div>
       <div className="report-summary">
-        <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{kpis.revenue.formatted ?? "0"}</strong><p>{kpis.sales === 0 ? "Aucune vente enregistrée pour cette période." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} enregistrée${kpis.sales > 1 ? "s" : ""}.`}</p></div>
+        <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{kpis.revenue.formatted ?? "0"}</strong><p>{kpis.sales === 0 ? "Aucune vente enregistrÃ©e pour cette pÃ©riode." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} enregistrÃ©e${kpis.sales > 1 ? "s" : ""}.`}</p></div>
         <div className="report-summary-side"><ReportStat icon={<ShoppingBag size={16} />} label="Ventes" value={kpis.sales} /><ReportStat icon={<Eye size={16} />} label="Visites" value={kpis.visits} /><ReportStat icon={<Users size={16} />} label="Clients" value={kpis.customers} /><ReportStat icon={<BarChart3 size={16} />} label="Conversion" value={kpis.conversionRate} /></div>
       </div>
 
       <section className="app-card report-section" style={{ marginBottom: 18 }}>
-        <div className="card-head"><div><span className="eyebrow">Croisement Chariow × Publicité</span><h2>Dépense pub → trafic → ventes réelles</h2><p>Le calcul central de Vendeo : ce que tu dépenses en pub, comparé à ce que Chariow confirme réellement.</p></div><Activity size={18} color="#103ef8" /></div>
-        {loadingAds ? <p className="hint-line">Analyse des campagnes en cours…</p> : !performances.length ? <p className="hint-line">Connecte et synchronise Meta Ads pour voir le croisement avec tes ventes Chariow.</p> : <>
+        <div className="card-head"><div><span className="eyebrow">Croisement Chariow Ã— PublicitÃ©</span><h2>DÃ©pense pub â†’ trafic â†’ ventes rÃ©elles</h2><p>Le calcul central de Vendeo : ce que tu dÃ©penses en pub, comparÃ© Ã  ce que Chariow confirme rÃ©ellement.</p></div><Activity size={18} color="#103ef8" /></div>
+        {loadingAds ? <p className="hint-line">Analyse des campagnes en coursâ€¦</p> : !performances.length ? <p className="hint-line">Connecte et synchronise Meta Ads pour voir le croisement avec tes ventes Chariow.</p> : <>
           <div className="vendeo-kpi-grid" style={{ marginBottom: 14 }}>
-            <div className="vendeo-kpi"><MetricHelp label="Dépensé (Meta)" description="Somme des dépenses publicitaires synchronisées sur la période." /><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, adsCurrency)}</strong></div>
-            <div className="vendeo-kpi"><MetricHelp label="Revenu confirmé (Chariow)" description="Ventes réellement payées, remontées par Chariow — pas les conversions déclarées par Meta." /><strong>{formatMoney(metaPerformance?.overview.chariowRevenue ?? 0, adsCurrency)}</strong></div>
-            <div className="vendeo-kpi"><MetricHelp label="Écart Meta / Chariow" description="Revenu déclaré par Meta comparé au revenu réellement confirmé par Chariow. Un grand écart signale une sur-attribution côté Meta." /><strong>{formatMoney((metaPerformance?.overview.metaReportedRevenue ?? 0) - (metaPerformance?.overview.chariowRevenue ?? 0), adsCurrency)}</strong></div>
+            <div className="vendeo-kpi"><MetricHelp label="DÃ©pensÃ© (Meta)" description="Somme des dÃ©penses publicitaires synchronisÃ©es sur la pÃ©riode." /><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, adsCurrency)}</strong></div>
+            <div className="vendeo-kpi"><MetricHelp label="Revenu confirmÃ© (Chariow)" description="Ventes rÃ©ellement payÃ©es, remontÃ©es par Chariow â€” pas les conversions dÃ©clarÃ©es par Meta." /><strong>{formatMoney(metaPerformance?.overview.chariowRevenue ?? 0, adsCurrency)}</strong></div>
+            <div className="vendeo-kpi"><MetricHelp label="Ã‰cart Meta / Chariow" description="Revenu dÃ©clarÃ© par Meta comparÃ© au revenu rÃ©ellement confirmÃ© par Chariow. Un grand Ã©cart signale une sur-attribution cÃ´tÃ© Meta." /><strong>{formatMoney((metaPerformance?.overview.metaReportedRevenue ?? 0) - (metaPerformance?.overview.chariowRevenue ?? 0), adsCurrency)}</strong></div>
           </div>
-          <p className="hint-line" style={{ marginBottom: 10 }}>Les dépenses ci-dessus viennent de la dernière synchronisation Meta Ads (page Pubs) et ne sont pas encore filtrées par la période du rapport ci-dessus — seules les données Chariow (ventes, visites, clients) le sont.</p>
+          <p className="hint-line" style={{ marginBottom: 10 }}>Les dÃ©penses ci-dessus viennent de la derniÃ¨re synchronisation Meta Ads (page Pubs) et ne sont pas encore filtrÃ©es par la pÃ©riode du rapport ci-dessus â€” seules les donnÃ©es Chariow (ventes, visites, clients) le sont.</p>
           <div className="report-table">
-            <div className="report-table-head"><span>Campagne</span><span>Dépense</span><span>Conversions liées</span><span>Verdict Vendeo</span></div>
+            <div className="report-table-head"><span>Campagne</span><span>DÃ©pense</span><span>Conversions liÃ©es</span><span>Verdict Vendeo</span></div>
             {withVerdict.map(({ campaign, verdict }) => (
               <div className="report-table-row" key={campaign.id}>
                 <strong>{campaign.name}</strong>
@@ -1278,11 +1290,11 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
       </section>
 
       <div className="report-columns">
-        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Inventaire et performance</span><h2>Détail des produits</h2></div><strong>{reportAnalytics.products.length} produit{reportAnalytics.products.length > 1 ? "s" : ""}</strong></div>{reportAnalytics.products.length === 0 ? <p className="report-muted">Aucun produit trouvé dans ton catalogue.</p> : <div className="report-table"><div className="report-table-head"><span>Produit</span><span>Statut</span><span>Ventes</span></div>{reportAnalytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong title={product.name}>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseigné"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
-        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Lecture rapide</span><h2>À retenir</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="report-insight"><strong>{kpis.sales === 0 ? "Pas encore de ventes" : "Ton activité commerciale"}</strong><p>{kpis.sales === 0 ? "Teste un partage ciblé de ton produit et observe les visites sur la prochaine période." : "Compare cette période à la précédente pour identifier les produits qui tirent ta croissance."}</p></div><div className="report-insight"><strong>{kpis.visits === 0 ? "Aucune visite enregistrée" : `${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} observée${kpis.visits > 1 ? "s" : ""}`}</strong><p>{kpis.visits === 0 ? "Ta prochaine priorité est d’amener du trafic vers ta boutique." : `Le taux de conversion actuel est de ${kpis.conversionRate}.`}</p></div></section>
+        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Inventaire et performance</span><h2>DÃ©tail des produits</h2></div><strong>{reportAnalytics.products.length} produit{reportAnalytics.products.length > 1 ? "s" : ""}</strong></div>{reportAnalytics.products.length === 0 ? <p className="report-muted">Aucun produit trouvÃ© dans ton catalogue.</p> : <div className="report-table"><div className="report-table-head"><span>Produit</span><span>Statut</span><span>Ventes</span></div>{reportAnalytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong title={product.name}>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseignÃ©"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
+        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Lecture rapide</span><h2>Ã€ retenir</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="report-insight"><strong>{kpis.sales === 0 ? "Pas encore de ventes" : "Ton activitÃ© commerciale"}</strong><p>{kpis.sales === 0 ? "Teste un partage ciblÃ© de ton produit et observe les visites sur la prochaine pÃ©riode." : "Compare cette pÃ©riode Ã  la prÃ©cÃ©dente pour identifier les produits qui tirent ta croissance."}</p></div><div className="report-insight"><strong>{kpis.visits === 0 ? "Aucune visite enregistrÃ©e" : `${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} observÃ©e${kpis.visits > 1 ? "s" : ""}`}</strong><p>{kpis.visits === 0 ? "Ta prochaine prioritÃ© est dâ€™amener du trafic vers ta boutique." : `Le taux de conversion actuel est de ${kpis.conversionRate}.`}</p></div></section>
       </div>
 
-      <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s’est passé</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La période est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi c’est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion n’est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action publicitaire</small><strong>{topStop ? topStop.verdict.label : topOptimize ? topOptimize.verdict.label : getRecommendation(reportAnalytics).title}</strong></div></div></div>
+      <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui sâ€™est passÃ©</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La pÃ©riode est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi câ€™est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion nâ€™est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action publicitaire</small><strong>{topStop ? topStop.verdict.label : topOptimize ? topOptimize.verdict.label : getRecommendation(reportAnalytics).title}</strong></div></div></div>
     </>}
   </>;
 }
@@ -1290,7 +1302,7 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
 const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; label: string; description: string; badge: AdPlatform; live: boolean }> = [
   { id: "meta", label: "Meta (Facebook & Instagram)", description: "Diffuse tes campagnes sur Facebook et Instagram.", badge: "facebook", live: true },
   { id: "tiktok", label: "TikTok", description: "Diffuse tes campagnes sur TikTok Ads.", badge: "tiktok", live: true },
-  { id: "pinterest", label: "Pinterest", description: "Bientôt disponible.", badge: "pinterest", live: false },
+  { id: "pinterest", label: "Pinterest", description: "BientÃ´t disponible.", badge: "pinterest", live: false },
 ];
 
 function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId }) {
@@ -1337,13 +1349,13 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
     try {
       const response = await fetch(`/api/integrations/${platform}/disconnect`, { method: "POST" });
       if (!response.ok) {
-        setConnectionError("Impossible de déconnecter ce compte pour le moment.");
+        setConnectionError("Impossible de dÃ©connecter ce compte pour le moment.");
         return;
       }
       if (platform === "meta") setMetaConnected(false);
       else setTiktokConnected(false);
     } catch {
-      setConnectionError("Impossible de déconnecter ce compte pour le moment.");
+      setConnectionError("Impossible de dÃ©connecter ce compte pour le moment.");
     } finally {
       setConnectionBusy(null);
     }
@@ -1373,7 +1385,7 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
     try {
       localStorage.setItem("vendeo-theme", next);
     } catch {
-      // Stockage indisponible : le choix s'applique seulement à la session.
+      // Stockage indisponible : le choix s'applique seulement Ã  la session.
     }
   }
   return (
@@ -1381,44 +1393,44 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
       <div className="page-top">
         <div>
           <span className="eyebrow">Compte</span>
-          <h1>Paramètres</h1>
-          <p>Gère tes boutiques et ton abonnement depuis cet espace.</p>
+          <h1>ParamÃ¨tres</h1>
+          <p>GÃ¨re tes boutiques et ton abonnement depuis cet espace.</p>
         </div>
       </div>
       <div className="mobile-settings-grid">
         <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
           <span className="mobile-settings-icon"><Store size={20} /></span>
-          <span><strong>Mes boutiques</strong><small>Connecter et gérer tes boutiques Chariow.</small></span>
+          <span><strong>Mes boutiques</strong><small>Connecter et gÃ©rer tes boutiques Chariow.</small></span>
           <ArrowRight size={16} />
         </button>
         <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Abonnement")}>
           <span className="mobile-settings-icon"><CreditCard size={20} /></span>
-          <span><strong>Abonnement</strong><small>Voir ton plan et gérer ton accès Vendeo.</small></span>
+          <span><strong>Abonnement</strong><small>Voir ton plan et gÃ©rer ton accÃ¨s Vendeo.</small></span>
           <ArrowRight size={16} />
         </button>
          <button type="button" className="mobile-settings-card mobile-settings-danger" onClick={onSignOut}>
           <span className="mobile-settings-icon"><LogOut size={20} /></span>
-          <span><strong>Déconnexion</strong><small>Quitter ton espace Vendeo en toute sécurité.</small></span>
+          <span><strong>DÃ©connexion</strong><small>Quitter ton espace Vendeo en toute sÃ©curitÃ©.</small></span>
            <ArrowRight size={16} />
          </button>
          {accountMessage ? <p className="settings-inline-message settings-account-error" role="alert">{accountMessage}</p> : null}
          <button type="button" className="mobile-settings-card mobile-settings-danger settings-delete-account" onClick={() => setShowDeleteAccountModal(true)} disabled={deletingAccount}>
            <span className="mobile-settings-icon"><Trash2 size={20} /></span>
-           <span><strong>{deletingAccount ? "Suppression du compte…" : "Supprimer mon compte"}</strong><small>Supprimer définitivement ton compte et toutes tes données.</small></span>
+           <span><strong>{deletingAccount ? "Suppression du compteâ€¦" : "Supprimer mon compte"}</strong><small>Supprimer dÃ©finitivement ton compte et toutes tes donnÃ©es.</small></span>
            <ArrowRight size={16} />
          </button>
       </div>
       <div className="page-top" style={{ marginTop: 28 }}>
         <div>
           <span className="eyebrow">Apparence</span>
-          <h2>Thème</h2>
-          <p>Choisis l’apparence de ton espace Vendeo.</p>
+          <h2>ThÃ¨me</h2>
+          <p>Choisis lâ€™apparence de ton espace Vendeo.</p>
         </div>
       </div>
       <div className="theme-choice-grid">
         <button type="button" className={`theme-choice ${theme === "light" ? "selected" : ""}`} onClick={() => applyTheme("light")} aria-pressed={theme === "light"}>
           <span className="mobile-settings-icon"><Sun size={20} /></span>
-          <span><strong>Clair</strong><small>L’apparence par défaut de Vendeo.</small></span>
+          <span><strong>Clair</strong><small>Lâ€™apparence par dÃ©faut de Vendeo.</small></span>
           {theme === "light" ? <CheckCircle2 size={16} /> : null}
         </button>
         <button type="button" className={`theme-choice ${theme === "dark" ? "selected" : ""}`} onClick={() => applyTheme("dark")} aria-pressed={theme === "dark"}>
@@ -1430,8 +1442,8 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
       <div className="page-top" style={{ marginTop: 28 }}>
         <div>
           <span className="eyebrow">Canaux publicitaires</span>
-          <h2>Comptes connectés</h2>
-          <p>Connecte ou déconnecte les comptes publicitaires que Vendeo utilise pour analyser tes performances.</p>
+          <h2>Comptes connectÃ©s</h2>
+          <p>Connecte ou dÃ©connecte les comptes publicitaires que Vendeo utilise pour analyser tes performances.</p>
         </div>
       </div>
       {connectionError ? <p className="settings-inline-message settings-account-error" role="alert">{connectionError}</p> : null}
@@ -1447,24 +1459,24 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
                 <strong>{platform.label}</strong>
                 <small>
                   {!platform.live
-                    ? "Bientôt disponible"
+                    ? "BientÃ´t disponible"
                     : !allowed
                     ? "Non inclus dans ton plan"
                     : loadingAccounts
-                    ? "Vérification…"
+                    ? "VÃ©rificationâ€¦"
                     : isConnected
-                    ? "Connecté"
+                    ? "ConnectÃ©"
                     : platform.description}
                 </small>
               </div>
             </div>
             {!platform.live || !allowed ? (
               <button type="button" className="settings-connect" disabled>
-                {!platform.live ? "Bientôt" : "Indisponible"}
+                {!platform.live ? "BientÃ´t" : "Indisponible"}
               </button>
             ) : isConnected ? (
               <button type="button" className="settings-disconnect" onClick={() => void disconnectAccount(platform.id as "meta" | "tiktok")} disabled={busy}>
-                {busy ? "Déconnexion…" : "Déconnecter"}
+                {busy ? "DÃ©connexionâ€¦" : "DÃ©connecter"}
               </button>
             ) : (
               <button type="button" className="settings-connect" onClick={() => connectAccount(platform.id as "meta" | "tiktok")} disabled={busy}>
@@ -1474,7 +1486,7 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
           </div>
         );
       })}
-      {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>×</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">Action irréversible</span><h2 id="account-delete-title">Supprimer ton compte ?</h2><p>Ton profil, tes boutiques, tes conversations et tes connexions publicitaires seront définitivement supprimés.</p><div className="account-delete-warning">Cette action ne peut pas être annulée.</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>Annuler</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? "Suppression…" : "Oui, supprimer"}</button></div></section></div> : null}
+      {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>Ã—</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">Action irrÃ©versible</span><h2 id="account-delete-title">Supprimer ton compte ?</h2><p>Ton profil, tes boutiques, tes conversations et tes connexions publicitaires seront dÃ©finitivement supprimÃ©s.</p><div className="account-delete-warning">Cette action ne peut pas Ãªtre annulÃ©e.</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>Annuler</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? "Suppressionâ€¦" : "Oui, supprimer"}</button></div></section></div> : null}
     </>
   );
 }
@@ -1495,22 +1507,22 @@ type AdsCache = {
   tiktokAccounts: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>;
 };
 
-// --- Moteur de décision Vendeo -------------------------------------------------
-// Vendeo n'est plus un outil de lancement de pubs : il lit les campagnes déjà
-// diffusées sur Meta/TikTok, les croise avec les ventes réelles Chariow, et dit
-// explicitement STOP / OPTIMISER / SURVEILLER — avec un montant chiffré à l'appui.
-// Tant que le module d'attribution campagne → produit (cf. lib/attribution) n'est
-// pas branché ici, les verdicts s'appuient sur les métriques déjà disponibles
-// (dépenses, conversions, CPA, ROAS) ; le niveau de confiance reste donc modéré
-// et c'est assumé dans le texte plutôt que présenté comme une certitude.
+// --- Moteur de dÃ©cision Vendeo -------------------------------------------------
+// Vendeo n'est plus un outil de lancement de pubs : il lit les campagnes dÃ©jÃ 
+// diffusÃ©es sur Meta/TikTok, les croise avec les ventes rÃ©elles Chariow, et dit
+// explicitement STOP / OPTIMISER / SURVEILLER â€” avec un montant chiffrÃ© Ã  l'appui.
+// Tant que le module d'attribution campagne â†’ produit (cf. lib/attribution) n'est
+// pas branchÃ© ici, les verdicts s'appuient sur les mÃ©triques dÃ©jÃ  disponibles
+// (dÃ©penses, conversions, CPA, ROAS) ; le niveau de confiance reste donc modÃ©rÃ©
+// et c'est assumÃ© dans le texte plutÃ´t que prÃ©sentÃ© comme une certitude.
 type AdVerdictTone = "stop" | "optimize" | "watch" | "none";
 type AdVerdict = {
   tone: AdVerdictTone;
   emoji: string;
-  label: string;       // titre affiché ("Arrête cette pub", "Cette pub fonctionne !")
+  label: string;       // titre affichÃ© ("ArrÃªte cette pub", "Cette pub fonctionne !")
   diagnosis: string;    // pourquoi ce verdict
-  action: string;       // l'action chiffrée à faire
-  actionLabel: string;  // texte du bouton ("Arrêter", "Scaler", "Surveiller")
+  action: string;       // l'action chiffrÃ©e Ã  faire
+  actionLabel: string;  // texte du bouton ("ArrÃªter", "Scaler", "Surveiller")
 };
 
 function getCampaignVerdict(campaign: MetaPerformance["performances"][number], currency: string): AdVerdict {
@@ -1519,10 +1531,10 @@ function getCampaignVerdict(campaign: MetaPerformance["performances"][number], c
   if (spend <= 0) {
     return {
       tone: "none",
-      emoji: "⚪",
-      label: "Pas assez de données",
-      diagnosis: "Aucune dépense enregistrée sur cette campagne pendant la période.",
-      action: "Attends que la campagne dépense avant de juger sa performance.",
+      emoji: "âšª",
+      label: "Pas assez de donnÃ©es",
+      diagnosis: "Aucune dÃ©pense enregistrÃ©e sur cette campagne pendant la pÃ©riode.",
+      action: "Attends que la campagne dÃ©pense avant de juger sa performance.",
       actionLabel: "Suivre",
     };
   }
@@ -1530,44 +1542,44 @@ function getCampaignVerdict(campaign: MetaPerformance["performances"][number], c
   if (conversions === 0) {
     return {
       tone: "stop",
-      emoji: "🛑",
-      label: "Arrête cette pub",
-      diagnosis: `${formatMoney(spend, currency)} dépensés sans aucune vente confirmée sur la période. L’audience touchée ne convertit pas, ou le prix ne correspond pas à cette audience.`,
-      action: `Coupe cette campagne maintenant — ${formatMoney(spend, currency)} dépensés sans vente.`,
-      actionLabel: "Arrêter",
+      emoji: "ðŸ›‘",
+      label: "ArrÃªte cette pub",
+      diagnosis: `${formatMoney(spend, currency)} dÃ©pensÃ©s sans aucune vente confirmÃ©e sur la pÃ©riode. Lâ€™audience touchÃ©e ne convertit pas, ou le prix ne correspond pas Ã  cette audience.`,
+      action: `Coupe cette campagne maintenant â€” ${formatMoney(spend, currency)} dÃ©pensÃ©s sans vente.`,
+      actionLabel: "ArrÃªter",
     };
   }
 
   if (status === "loss") {
     return {
       tone: "stop",
-      emoji: "🛑",
-      label: "Arrête cette pub",
-      diagnosis: cpa !== null ? `Coût par conversion de ${formatMoney(cpa, currency)} : trop élevé pour rester rentable au prix actuel du produit.` : "Le coût par conversion est trop élevé par rapport aux résultats obtenus.",
-      action: "Mets cette campagne en pause et vérifie ta marge avant de relancer un budget dessus.",
-      actionLabel: "Arrêter",
+      emoji: "ðŸ›‘",
+      label: "ArrÃªte cette pub",
+      diagnosis: cpa !== null ? `CoÃ»t par conversion de ${formatMoney(cpa, currency)} : trop Ã©levÃ© pour rester rentable au prix actuel du produit.` : "Le coÃ»t par conversion est trop Ã©levÃ© par rapport aux rÃ©sultats obtenus.",
+      action: "Mets cette campagne en pause et vÃ©rifie ta marge avant de relancer un budget dessus.",
+      actionLabel: "ArrÃªter",
     };
   }
 
   if (status === "profitable") {
-    // Palier d'augmentation suggéré : 20 % de la dépense actuelle, arrondi au millier, jamais < 2 000.
+    // Palier d'augmentation suggÃ©rÃ© : 20 % de la dÃ©pense actuelle, arrondi au millier, jamais < 2 000.
     const suggestedIncrease = Math.max(2000, Math.round((spend * 0.2) / 1000) * 1000);
     return {
       tone: "optimize",
-      emoji: "✅",
+      emoji: "âœ…",
       label: "Cette pub fonctionne !",
-      diagnosis: roas !== null ? `Retour de ${roas.toFixed(2)}x rapporté par Meta pour ${formatMoney(spend, currency)} dépensés.` : `Cette campagne génère des ventes confirmées pour ${formatMoney(spend, currency)} dépensés.`,
-      action: `Augmente le budget de ${formatMoney(suggestedIncrease, currency)}/jour sur cette audience, par paliers, en surveillant le coût par conversion.`,
+      diagnosis: roas !== null ? `Retour de ${roas.toFixed(2)}x rapportÃ© par Meta pour ${formatMoney(spend, currency)} dÃ©pensÃ©s.` : `Cette campagne gÃ©nÃ¨re des ventes confirmÃ©es pour ${formatMoney(spend, currency)} dÃ©pensÃ©s.`,
+      action: `Augmente le budget de ${formatMoney(suggestedIncrease, currency)}/jour sur cette audience, par paliers, en surveillant le coÃ»t par conversion.`,
       actionLabel: "Scaler",
     };
   }
 
   return {
     tone: "watch",
-    emoji: "⚠️",
+    emoji: "âš ï¸",
     label: "Surveille cette pub",
-    diagnosis: "Pas encore assez de signal fiable pour recommander d’arrêter ou d’augmenter le budget.",
-    action: "Laisse tourner sans y toucher et réanalyse dans quelques jours.",
+    diagnosis: "Pas encore assez de signal fiable pour recommander dâ€™arrÃªter ou dâ€™augmenter le budget.",
+    action: "Laisse tourner sans y toucher et rÃ©analyse dans quelques jours.",
     actionLabel: "Surveiller",
   };
 }
@@ -1577,9 +1589,9 @@ function AdVerdictBadge({ verdict }: { verdict: AdVerdict }) {
   return <span className={className}>{verdict.emoji} {verdict.label}</span>;
 }
 
-// Carte "Recommandations Vendeo" — utilisée en compact sur la Vue d'ensemble
-// et en complet sur la page Pubs. compact=true masque le titre (déjà affiché
-// par le parent) et limite la liste à 3 recommandations.
+// Carte "Recommandations Vendeo" â€” utilisÃ©e en compact sur la Vue d'ensemble
+// et en complet sur la page Pubs. compact=true masque le titre (dÃ©jÃ  affichÃ©
+// par le parent) et limite la liste Ã  3 recommandations.
 function AdsDecisionSummary({
   performances,
   currency,
@@ -1602,18 +1614,18 @@ function AdsDecisionSummary({
     <Wrapper className={compact ? "reco-card-body" : "app-card reco-card"} style={compact ? undefined : { marginBottom: 18 }}>
       {!compact ? (
         <div className="card-head">
-          <div><span className="eyebrow">Recommandations Vendeo</span><h2>Que faire maintenant ?</h2><p>Vendeo dit explicitement quoi arrêter, quoi optimiser et quoi surveiller.</p></div>
+          <div><span className="eyebrow">Recommandations Vendeo</span><h2>Que faire maintenant ?</h2><p>Vendeo dit explicitement quoi arrÃªter, quoi optimiser et quoi surveiller.</p></div>
           <Target size={19} />
         </div>
       ) : null}
       {performances.length === 0 ? (
-        <p className="hint-line">Synchronise Meta Ads pour obtenir tes premières recommandations.</p>
+        <p className="hint-line">Synchronise Meta Ads pour obtenir tes premiÃ¨res recommandations.</p>
       ) : (
         <>
           <div className="vendeo-kpi-grid" style={{ marginTop: compact ? 0 : 12, marginBottom: 12 }}>
-            <div className="vendeo-kpi"><span className="metric-label">🛑 À arrêter</span><strong>{stop.length}</strong></div>
-            <div className="vendeo-kpi"><span className="metric-label">✅ À optimiser</span><strong>{optimize.length}</strong></div>
-            <div className="vendeo-kpi"><span className="metric-label">⚠️ À surveiller</span><strong>{watch.length}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">ðŸ›‘ Ã€ arrÃªter</span><strong>{stop.length}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">âœ… Ã€ optimiser</span><strong>{optimize.length}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">âš ï¸ Ã€ surveiller</span><strong>{watch.length}</strong></div>
           </div>
           <div className="reco-list">
             {highlighted.map(({ campaign, verdict }) => (
@@ -1627,7 +1639,7 @@ function AdsDecisionSummary({
                 <button
                   type="button"
                   className={`reco-action reco-action-${verdict.tone}`}
-                  onClick={() => onOpenAI(`Analyse la campagne "${campaign.name}" (verdict Vendeo : ${verdict.label}) et détaille les prochaines actions à prendre.`)}
+                  onClick={() => onOpenAI(`Analyse la campagne "${campaign.name}" (verdict Vendeo : ${verdict.label}) et dÃ©taille les prochaines actions Ã  prendre.`)}
                 >
                   {verdict.actionLabel}
                 </button>
@@ -1640,8 +1652,8 @@ function AdsDecisionSummary({
   );
 }
 
-// Carte "Économies & gains" — budget économisé en arrêtant les pubs qui brûlent
-// du cash, et revenu additionnel estimé si les recommandations de scale sont suivies.
+// Carte "Ã‰conomies & gains" â€” budget Ã©conomisÃ© en arrÃªtant les pubs qui brÃ»lent
+// du cash, et revenu additionnel estimÃ© si les recommandations de scale sont suivies.
 function AdsSavingsSummary({ performances, currency }: { performances: MetaPerformance["performances"]; currency: string }) {
   const withVerdict = performances.map((campaign) => ({ campaign, verdict: getCampaignVerdict(campaign, currency) }));
   const stop = withVerdict.filter((item) => item.verdict.tone === "stop");
@@ -1651,31 +1663,31 @@ function AdsSavingsSummary({ performances, currency }: { performances: MetaPerfo
 
   return (
     <section className="app-card savings-card">
-      <div className="card-head"><div><span className="eyebrow">Économies & gains</span><h2>Impact potentiel</h2></div></div>
+      <div className="card-head"><div><span className="eyebrow">Ã‰conomies & gains</span><h2>Impact potentiel</h2></div></div>
       <div className="savings-block">
         <span className="savings-icon savings-icon-stop"><ShieldAlert size={16} /></span>
-        <div><small>Budget potentiel économisé</small><strong>{formatMoney(budgetToStop, currency)}</strong><p>sur les pubs sous-performantes</p></div>
+        <div><small>Budget potentiel Ã©conomisÃ©</small><strong>{formatMoney(budgetToStop, currency)}</strong><p>sur les pubs sous-performantes</p></div>
       </div>
       <div className="savings-block">
         <span className="savings-icon savings-icon-scale"><TrendingUp size={16} /></span>
-        <div><small>Revenu additionnel estimé</small><strong>+ {formatMoney(Math.round(revenueFromScale), currency)}</strong><p>si tu appliques les recommandations</p></div>
+        <div><small>Revenu additionnel estimÃ©</small><strong>+ {formatMoney(Math.round(revenueFromScale), currency)}</strong><p>si tu appliques les recommandations</p></div>
       </div>
     </section>
   );
 }
 
-// AdsView : uniquement de l'analyse en lecture seule des campagnes déjà diffusées sur Meta/TikTok.
-// Le lancement de pub depuis Vendeo (création de campagnes) a été retiré ; il reviendra une fois
-// toutes les permissions Meta obtenues. Ce que Vendeo affiche à la place, c'est un verdict explicite
-// (STOP / OPTIMISER / SURVEILLER) par campagne, calculé à partir des dépenses, conversions, CPA et
-// ROAS déjà synchronisés — voir getCampaignVerdict ci-dessus.
+// AdsView : uniquement de l'analyse en lecture seule des campagnes dÃ©jÃ  diffusÃ©es sur Meta/TikTok.
+// Le lancement de pub depuis Vendeo (crÃ©ation de campagnes) a Ã©tÃ© retirÃ© ; il reviendra une fois
+// toutes les permissions Meta obtenues. Ce que Vendeo affiche Ã  la place, c'est un verdict explicite
+// (STOP / OPTIMISER / SURVEILLER) par campagne, calculÃ© Ã  partir des dÃ©penses, conversions, CPA et
+// ROAS dÃ©jÃ  synchronisÃ©s â€” voir getCampaignVerdict ci-dessus.
 function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
-  // On ne montre l'écran de chargement que la toute première fois : si on a déjà
-  // des données en cache (venant d'un précédent passage sur "Pubs"), on les affiche
-  // tout de suite et on rafraîchit silencieusement derrière.
+  // On ne montre l'Ã©cran de chargement que la toute premiÃ¨re fois : si on a dÃ©jÃ 
+  // des donnÃ©es en cache (venant d'un prÃ©cÃ©dent passage sur "Pubs"), on les affiche
+  // tout de suite et on rafraÃ®chit silencieusement derriÃ¨re.
   const [loading, setLoading] = useState(!cachedOnce);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -1730,11 +1742,11 @@ function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
       const response = await fetch("/api/meta/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: selectedMetaAccount }) });
       const data = await response.json();
       if (!response.ok) setMessage(data.error ?? "Synchronisation impossible.");
-      else { setMessage("Données Meta Ads synchronisées."); const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(selectedMetaAccount)}`); if (metrics.ok) setMetaPerformance(await metrics.json()); }
+      else { setMessage("DonnÃ©es Meta Ads synchronisÃ©es."); const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(selectedMetaAccount)}`); if (metrics.ok) setMetaPerformance(await metrics.json()); }
     } finally { setMetaSyncing(false); }
   }
 
-  if (loading) return <div className="app-card">Chargement de tes pubs…</div>;
+  if (loading) return <div className="app-card">Chargement de tes pubsâ€¦</div>;
 
   const metaConnected = metaAccounts.length > 0;
   const tiktokConnected = tiktokAccounts.length > 0;
@@ -1749,11 +1761,11 @@ function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
     return campaign.spend > worst.spend && campaign.conversions === 0 ? campaign : worst;
   }, null);
 
-  const channels: Array<{ id: "overview" | "meta" | "tiktok"; label: string }> = [{ id: "overview", label: "Vue générale" }, { id: "meta", label: "Meta" }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: "TikTok" }] : [])];
+  const channels: Array<{ id: "overview" | "meta" | "tiktok"; label: string }> = [{ id: "overview", label: "Vue gÃ©nÃ©rale" }, { id: "meta", label: "Meta" }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: "TikTok" }] : [])];
 
   return (
     <>
-      <div className="page-top"><div><span className="eyebrow">Gardien de rentabilité</span><h1>Rentabilité</h1><p>Vendeo lit tes campagnes Meta et TikTok et les compare à tes ventes confirmées pour te dire où ton budget produit réellement du revenu.</p></div></div>
+      <div className="page-top"><div><span className="eyebrow">Gardien de rentabilitÃ©</span><h1>RentabilitÃ©</h1><p>Vendeo lit tes campagnes Meta et TikTok et les compare Ã  tes ventes confirmÃ©es pour te dire oÃ¹ ton budget produit rÃ©ellement du revenu.</p></div></div>
 
       <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8 }}>{channels.map((item) => <button key={item.id} type="button" className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.label}</button>)}</div>
 
@@ -1765,47 +1777,47 @@ function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
             <div className="profitability-alert-icon"><ShieldAlert size={22} /></div>
             <div className="profitability-alert-copy">
               <span className="eyebrow">Gardien anti-saignement</span>
-              <h2>{highestRisk ? "Une campagne dépense sans vente confirmée" : realRoas !== null && realRoas < 1 ? "Ta rentabilité mérite une vérification" : "Aucun saignement critique détecté"}</h2>
-              <p>{highestRisk ? `« ${highestRisk.name} » a dépensé ${formatMoney(highestRisk.spend, metaPerformance?.currency ?? "XOF")} avec ${highestRisk.clicks} clics et aucune conversion déclarée.` : realRoas !== null && realRoas < 1 ? "Le revenu réellement attribué à Chariow reste inférieur aux dépenses publicitaires sur la période." : "Vendeo compare les dépenses média aux ventes confirmées par Chariow au lieu de se fier uniquement aux chiffres publicitaires."}</p>
+              <h2>{highestRisk ? "Une campagne dÃ©pense sans vente confirmÃ©e" : realRoas !== null && realRoas < 1 ? "Ta rentabilitÃ© mÃ©rite une vÃ©rification" : "Aucun saignement critique dÃ©tectÃ©"}</h2>
+              <p>{highestRisk ? `Â« ${highestRisk.name} Â» a dÃ©pensÃ© ${formatMoney(highestRisk.spend, metaPerformance?.currency ?? "XOF")} avec ${highestRisk.clicks} clics et aucune conversion dÃ©clarÃ©e.` : realRoas !== null && realRoas < 1 ? "Le revenu rÃ©ellement attribuÃ© Ã  Chariow reste infÃ©rieur aux dÃ©penses publicitaires sur la pÃ©riode." : "Vendeo compare les dÃ©penses mÃ©dia aux ventes confirmÃ©es par Chariow au lieu de se fier uniquement aux chiffres publicitaires."}</p>
             </div>
-            <button type="button" className="btn btn-dark profitability-alert-action" onClick={() => openAI(highestRisk ? `Pourquoi la campagne ${highestRisk.name} dépense sans vente ? Donne-moi les vérifications prioritaires.` : "Analyse ma rentabilité réelle et donne-moi la prochaine action prioritaire.")}>Analyser le risque</button>
+            <button type="button" className="btn btn-dark profitability-alert-action" onClick={() => openAI(highestRisk ? `Pourquoi la campagne ${highestRisk.name} dÃ©pense sans vente ? Donne-moi les vÃ©rifications prioritaires.` : "Analyse ma rentabilitÃ© rÃ©elle et donne-moi la prochaine action prioritaire.")}>Analyser le risque</button>
           </section>
           <section className="profitability-signal-grid">
-            <div className="app-card profitability-signal-card"><span className="eyebrow">Données réelles</span><strong>{formatMoney(metaPerformance?.overview.chariowRevenue ?? 0, metaPerformance?.currency ?? "XOF")}</strong><p>revenus confirmés par Chariow</p></div>
-            <div className="app-card profitability-signal-card"><span className="eyebrow">Paiement</span><strong>{totalSales}</strong><p>ventes réellement encaissées</p></div>
-            <div className="app-card profitability-signal-card"><span className="eyebrow">Écart attribution</span><strong>{attributionGap === null ? "Non disponible" : `${attributionGap.toFixed(2)}x`}</strong><p>ROAS Meta déclaré moins ROAS réel</p></div>
+            <div className="app-card profitability-signal-card"><span className="eyebrow">DonnÃ©es rÃ©elles</span><strong>{formatMoney(metaPerformance?.overview.chariowRevenue ?? 0, metaPerformance?.currency ?? "XOF")}</strong><p>revenus confirmÃ©s par Chariow</p></div>
+            <div className="app-card profitability-signal-card"><span className="eyebrow">Paiement</span><strong>{totalSales}</strong><p>ventes rÃ©ellement encaissÃ©es</p></div>
+            <div className="app-card profitability-signal-card"><span className="eyebrow">Ã‰cart attribution</span><strong>{attributionGap === null ? "Non disponible" : `${attributionGap.toFixed(2)}x`}</strong><p>ROAS Meta dÃ©clarÃ© moins ROAS rÃ©el</p></div>
           </section>
           <AdsDecisionSummary performances={metaPerformance?.performances ?? []} currency={metaPerformance?.currency ?? "XOF"} onOpenAI={openAI} />
           <AdsSavingsSummary performances={metaPerformance?.performances ?? []} currency={metaPerformance?.currency ?? "XOF"} />
-          <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><h2>Vue générale</h2><BarChart3 size={19} /></div>
+          <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><h2>Vue gÃ©nÃ©rale</h2><BarChart3 size={19} /></div>
             <div className="vendeo-kpi-grid" style={{ marginTop: 12 }}>
-              <div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires totales" description="Somme des dépenses sur les canaux connectés et synchronisés." /><strong>{metaConnected ? formatMoney(totalSpend, metaPerformance?.currency ?? "XOF") : "Non disponible"}</strong></div>
+              <div className="vendeo-kpi"><MetricHelp label="DÃ©penses publicitaires totales" description="Somme des dÃ©penses sur les canaux connectÃ©s et synchronisÃ©s." /><strong>{metaConnected ? formatMoney(totalSpend, metaPerformance?.currency ?? "XOF") : "Non disponible"}</strong></div>
             </div>
           </section>
-           <section className="app-card profitability-explainer"><div className="card-head"><div><span className="eyebrow">Lecture cross-canal</span><h2>Ce que les plateformes ne te montrent pas</h2></div><LineChart size={19} /></div><div className="profitability-compare"><div><small>ROAS déclaré Meta</small><strong>{metaRoas === null ? "Non disponible" : `${metaRoas.toFixed(2)}x`}</strong></div><span>vs</span><div><small>ROAS réel Chariow</small><strong>{realRoas === null ? "Non disponible" : `${realRoas.toFixed(2)}x`}</strong></div></div><p>Le premier chiffre vient de la plateforme publicitaire. Le second repose sur les revenus réellement attribués ou encaissés dans ta boutique.</p></section>
+           <section className="app-card profitability-explainer"><div className="card-head"><div><span className="eyebrow">Lecture cross-canal</span><h2>Ce que les plateformes ne te montrent pas</h2></div><LineChart size={19} /></div><div className="profitability-compare"><div><small>ROAS dÃ©clarÃ© Meta</small><strong>{metaRoas === null ? "Non disponible" : `${metaRoas.toFixed(2)}x`}</strong></div><span>vs</span><div><small>ROAS rÃ©el Chariow</small><strong>{realRoas === null ? "Non disponible" : `${realRoas.toFixed(2)}x`}</strong></div></div><p>Le premier chiffre vient de la plateforme publicitaire. Le second repose sur les revenus rÃ©ellement attribuÃ©s ou encaissÃ©s dans ta boutique.</p></section>
            <div className="vendeo-kpi-grid" style={{ marginBottom: 18 }}>
-            <div className="app-card"><div className="card-head"><h3>Meta</h3>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{metaConnected ? <p className="hint-line">{formatMoney(totalSpend, metaPerformance?.currency ?? "XOF")} dépensés sur la période</p> : <><p className="hint-line">Connecte Meta Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectMeta}>Connecter Meta</button></>}</div>
-            {tiktokAllowed ? <div className="app-card"><div className="card-head"><h3>TikTok</h3>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <span className="status-info">Non connecté</span>}</div>{tiktokConnected ? <p className="hint-line">Statistiques détaillées bientôt disponibles</p> : <><p className="hint-line">Connecte TikTok Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectTiktok}>Connecter TikTok</button></>}</div> : <div className="app-card"><div className="card-head"><h3>TikTok</h3><span className="status-info">Non inclus dans ton plan</span></div></div>}
+            <div className="app-card"><div className="card-head"><h3>Meta</h3>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> ConnectÃ©</span> : <span className="status-info">Non connectÃ©</span>}</div>{metaConnected ? <p className="hint-line">{formatMoney(totalSpend, metaPerformance?.currency ?? "XOF")} dÃ©pensÃ©s sur la pÃ©riode</p> : <><p className="hint-line">Connecte Meta Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectMeta}>Connecter Meta</button></>}</div>
+            {tiktokAllowed ? <div className="app-card"><div className="card-head"><h3>TikTok</h3>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> ConnectÃ©</span> : <span className="status-info">Non connectÃ©</span>}</div>{tiktokConnected ? <p className="hint-line">Statistiques dÃ©taillÃ©es bientÃ´t disponibles</p> : <><p className="hint-line">Connecte TikTok Ads pour voir tes statistiques ici.</p><button className="btn btn-ghost" type="button" onClick={connectTiktok}>Connecter TikTok</button></>}</div> : <div className="app-card"><div className="card-head"><h3>TikTok</h3><span className="status-info">Non inclus dans ton plan</span></div></div>}
           </div>
         </>
       ) : channel === "meta" ? (
         <>
-          <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Meta Ads connectée</span> : <button className="btn btn-dark" onClick={connectMeta}><Plus size={15} /> Connecter Meta Ads</button>}</div>
-          {metaPerformance && metaPerformance.overview.conversions === 0 && <div className="meta-conversion-info" role="status">Meta ne rapporte actuellement aucune conversion attribuée. Cela peut être normal si aucune campagne n’a diffusé ou si aucun Pixel/Conversions API n’est configuré sur le parcours de vente Chariow.</div>}
-          {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n’est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
-          {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
-          {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte Meta Ads connecté</strong><span>Autorise Vendeo à lire tes campagnes, ensembles de publicités et publicités.</span><button className="btn btn-dark" onClick={connectMeta}>Connecter Meta Ads</button></div> : <>
-            <div className="app-card meta-toolbar"><label>Compte publicitaire<select value={selectedMetaAccount} onChange={(event) => setSelectedMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? "Synchronisation…" : "Synchroniser les insights"}</button></div>
-            {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d’affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="hint-line">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
-            {metaPerformance.performances.length ? <section className="app-card reco-card" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Pourquoi ce verdict</span><h2>Recommandation par campagne</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="reco-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`reco-item reco-item-${verdict.tone}`} key={campaign.id}><span className="reco-icon">{verdict.emoji}</span><div className="reco-body"><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.action}</p><small>{verdict.diagnosis}</small></div><button type="button" className={`reco-action reco-action-${verdict.tone}`} onClick={() => openAI(`Analyse la campagne "${campaign.name}" et détaille les prochaines actions.`)}>{verdict.actionLabel}</button></div>; })}</div></section> : null}
+          <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Meta Ads connectÃ©e</span> : <button className="btn btn-dark" onClick={connectMeta}><Plus size={15} /> Connecter Meta Ads</button>}</div>
+          {metaPerformance && metaPerformance.overview.conversions === 0 && <div className="meta-conversion-info" role="status">Meta ne rapporte actuellement aucune conversion attribuÃ©e. Cela peut Ãªtre normal si aucune campagne nâ€™a diffusÃ© ou si aucun Pixel/Conversions API nâ€™est configurÃ© sur le parcours de vente Chariow.</div>}
+          {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut Ãªtre incomplÃ¨te tant que la restriction nâ€™est pas levÃ©e.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">VÃ©rifier dans Meta</a></div></div> : null}
+          {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvÃ©e sur ce Business Manager.</div> : null}
+          {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte Meta Ads connectÃ©</strong><span>Autorise Vendeo Ã  lire tes campagnes, ensembles de publicitÃ©s et publicitÃ©s.</span><button className="btn btn-dark" onClick={connectMeta}>Connecter Meta Ads</button></div> : <>
+            <div className="app-card meta-toolbar"><label>Compte publicitaire<select value={selectedMetaAccount} onChange={(event) => setSelectedMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? "Synchronisationâ€¦" : "Synchroniser les insights"}</button></div>
+            {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="DÃ©penses publicitaires" description="Montant dÃ©pensÃ© sur Meta Ads pendant la pÃ©riode analysÃ©e." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre dâ€™affaires rÃ©el Chariow" description="Revenus rÃ©ellement enregistrÃ©s par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="CoÃ»t moyen par conversion" description="DÃ©penses divisÃ©es par le nombre de conversions dÃ©clarÃ©es par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="CoÃ»t moyen pour obtenir une vente" description="DÃ©penses divisÃ©es par les ventes rÃ©ellement enregistrÃ©es dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire dÃ©clarÃ© par Meta" description="Valeur des achats estimÃ©e par Meta divisÃ©e par les dÃ©penses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire rÃ©el attribuÃ©" description="Revenus Chariow reliÃ©s Ã  une publicitÃ© par attribution, divisÃ©s par les dÃ©penses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse mÃ©dia</span><h2>Campagnes qui gagnent ou brÃ»lent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>DÃ©penses</span><span>CoÃ»t par conversion</span><span>Retour publicitaire</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="hint-line">Aucune campagne synchronisÃ©e. Lance une synchronisation Meta Ads.</p>}</section>
+            {metaPerformance.performances.length ? <section className="app-card reco-card" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Pourquoi ce verdict</span><h2>Recommandation par campagne</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="reco-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`reco-item reco-item-${verdict.tone}`} key={campaign.id}><span className="reco-icon">{verdict.emoji}</span><div className="reco-body"><strong>{campaign.name} â€” {verdict.label}</strong><p>{verdict.action}</p><small>{verdict.diagnosis}</small></div><button type="button" className={`reco-action reco-action-${verdict.tone}`} onClick={() => openAI(`Analyse la campagne "${campaign.name}" et dÃ©taille les prochaines actions.`)}>{verdict.actionLabel}</button></div>; })}</div></section> : null}
             {metaConnected ? <div style={{ marginTop: 18 }}><DiagnosticFunnel accountId={selectedMetaAccount || null} /></div> : null}
             </> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
           </>}
         </>
       ) : (
         <>
-          <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> TikTok Ads connecté</span> : <button className="btn btn-dark" onClick={connectTiktok}><Plus size={15} /> Connecter TikTok Ads</button>}</div>
-          {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte TikTok Ads connecté</strong><span>Autorise Vendeo à lire les performances de ton compte publicitaire TikTok.</span><button className="btn btn-dark" onClick={connectTiktok}>Connecter TikTok Ads</button></div> : <div className="meta-conversion-info" role="status">Les statistiques détaillées TikTok Ads (dépenses, ROAS) arrivent bientôt.</div>}
+          <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> TikTok Ads connectÃ©</span> : <button className="btn btn-dark" onClick={connectTiktok}><Plus size={15} /> Connecter TikTok Ads</button>}</div>
+          {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte TikTok Ads connectÃ©</strong><span>Autorise Vendeo Ã  lire les performances de ton compte publicitaire TikTok.</span><button className="btn btn-dark" onClick={connectTiktok}>Connecter TikTok Ads</button></div> : <div className="meta-conversion-info" role="status">Les statistiques dÃ©taillÃ©es TikTok Ads (dÃ©penses, ROAS) arrivent bientÃ´t.</div>}
         </>
       )}
     </>
@@ -1826,7 +1838,7 @@ function formatProductPrice(product: ProductData) {
   const raw = product.price as unknown;
   const value = raw && typeof raw === "object" ? (raw as Record<string, unknown>).value ?? (raw as Record<string, unknown>).amount ?? (raw as Record<string, unknown>).price : raw;
   const currency = product.currency ?? (raw && typeof raw === "object" ? String((raw as Record<string, unknown>).currency ?? (raw as Record<string, unknown>).currency_code ?? "") : "");
-  if (value === null || value === undefined || value === "") return "Prix non renseigné";
+  if (value === null || value === undefined || value === "") return "Prix non renseignÃ©";
   return `${value}${currency ? ` ${currency}` : ""}`;
 }
 
@@ -1834,22 +1846,22 @@ type ChatMessageItem = { role: string; content: string; imageUrl?: string };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
 
 const POSTER_FORMATS: { id: "square" | "story" | "banner"; label: string; hint: string }[] = [
-  { id: "square", label: "Post carré", hint: "1080×1080 — Instagram/Facebook" },
-  { id: "story", label: "Story", hint: "1080×1920 — Story/Reels" },
-  { id: "banner", label: "Bannière", hint: "1200×628 — Publicité Facebook" },
+  { id: "square", label: "Post carrÃ©", hint: "1080Ã—1080 â€” Instagram/Facebook" },
+  { id: "story", label: "Story", hint: "1080Ã—1920 â€” Story/Reels" },
+  { id: "banner", label: "BanniÃ¨re", hint: "1200Ã—628 â€” PublicitÃ© Facebook" },
 ];
 
-// Suggestions de démarrage : chacune correspond à une capacité réellement disponible
-// dans Vendeo AI (verdicts pub, produits, résumé d'activité, génération d'affiche)
-// plutôt qu'à des questions génériques qui ne mèneraient nulle part.
+// Suggestions de dÃ©marrage : chacune correspond Ã  une capacitÃ© rÃ©ellement disponible
+// dans Vendeo AI (verdicts pub, produits, rÃ©sumÃ© d'activitÃ©, gÃ©nÃ©ration d'affiche)
+// plutÃ´t qu'Ã  des questions gÃ©nÃ©riques qui ne mÃ¨neraient nulle part.
 type QuickPrompt = { icon: React.ReactNode; label: string; prompt?: string; action?: "poster" };
 const AI_QUICK_PROMPTS: QuickPrompt[] = [
-  { icon: <Megaphone size={14} />, label: "Pubs à arrêter", prompt: "Quelles publicités dois-je arrêter cette semaine et pourquoi ?" },
-  { icon: <TrendingUp size={14} />, label: "Pubs à scaler", prompt: "Quelles campagnes performent le mieux et méritent plus de budget ?" },
+  { icon: <Megaphone size={14} />, label: "Pubs Ã  arrÃªter", prompt: "Quelles publicitÃ©s dois-je arrÃªter cette semaine et pourquoi ?" },
+  { icon: <TrendingUp size={14} />, label: "Pubs Ã  scaler", prompt: "Quelles campagnes performent le mieux et mÃ©ritent plus de budget ?" },
   { icon: <Package size={14} />, label: "Meilleur produit", prompt: "Quel est mon produit le plus vendu en ce moment et pourquoi ?" },
-  { icon: <Activity size={14} />, label: "Résumé de la semaine", prompt: "Fais-moi un résumé de mes ventes et de mes dépenses publicitaires des 7 derniers jours." },
-  { icon: <Target size={14} />, label: "Prochaine action", prompt: "Quelle est la seule action que je dois faire aujourd’hui pour améliorer mes résultats ?" },
-  { icon: <Wand2 size={14} />, label: "Générer une affiche", action: "poster" },
+  { icon: <Activity size={14} />, label: "RÃ©sumÃ© de la semaine", prompt: "Fais-moi un rÃ©sumÃ© de mes ventes et de mes dÃ©penses publicitaires des 7 derniers jours." },
+  { icon: <Target size={14} />, label: "Prochaine action", prompt: "Quelle est la seule action que je dois faire aujourdâ€™hui pour amÃ©liorer mes rÃ©sultats ?" },
+  { icon: <Wand2 size={14} />, label: "GÃ©nÃ©rer une affiche", action: "poster" },
 ];
 
 function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: { onGoToSubscription: () => void; onUsageChange: (patch: Partial<SubscriptionData>) => void; onBack?: () => void; products?: ProductData[] }) {
@@ -1862,7 +1874,7 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [quickPromptsOpen, setQuickPromptsOpen] = useState(true);
 
-  // Générateur d'affiches (Imole) : choix du produit et du format, puis génération
+  // GÃ©nÃ©rateur d'affiches (Imole) : choix du produit et du format, puis gÃ©nÃ©ration
   // d'un visuel publicitaire directement dans la conversation.
   const [posterOpen, setPosterOpen] = useState(false);
   const [posterProductId, setPosterProductId] = useState<string>("");
@@ -1903,9 +1915,9 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
             }
           : null;
         setUsage(nextUsage);
-        // La limite de l'essai gratuit est désormais la date trial_ends_at (7 jours),
+        // La limite de l'essai gratuit est dÃ©sormais la date trial_ends_at (7 jours),
         // pas un nombre de messages : le serveur (consume_message_quota) est la seule
-        // source de vérité. Côté client on se contente de refléter le statut renvoyé.
+        // source de vÃ©ritÃ©. CÃ´tÃ© client on se contente de reflÃ©ter le statut renvoyÃ©.
         if (nextUsage) setPlansRequired(nextUsage.status === "past_due");
       });
   }, []);
@@ -1949,7 +1961,7 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
         setPlansRequired(true);
         setMessages((current) => [
           ...current,
-          { role: "assistant", content: "Ton essai gratuit de 7 jours est terminé. Active ton abonnement pour continuer." },
+          { role: "assistant", content: "Ton essai gratuit de 7 jours est terminÃ©. Active ton abonnement pour continuer." },
         ]);
       } else {
         setMessages((current) => [...current, { role: "assistant", content: data.error ?? "Une erreur est survenue." }]);
@@ -1961,7 +1973,7 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
   async function generatePoster() {
     const product = products.find((item) => item.id === posterProductId);
     if (!product) {
-      setPosterError("Sélectionne un produit.");
+      setPosterError("SÃ©lectionne un produit.");
       return;
     }
     setPosterGenerating(true);
@@ -1981,14 +1993,14 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.imageUrl) {
-        setPosterError(data.error ?? "Impossible de générer l'affiche pour le moment.");
+        setPosterError(data.error ?? "Impossible de gÃ©nÃ©rer l'affiche pour le moment.");
         return;
       }
-      setMessages((current) => [...current, { role: "assistant", content: `Affiche générée pour « ${product.name} ».`, imageUrl: data.imageUrl }]);
+      setMessages((current) => [...current, { role: "assistant", content: `Affiche gÃ©nÃ©rÃ©e pour Â« ${product.name} Â».`, imageUrl: data.imageUrl }]);
       setPosterOpen(false);
       setPosterExtra("");
     } catch {
-      setPosterError("Impossible de contacter le générateur d'affiches.");
+      setPosterError("Impossible de contacter le gÃ©nÃ©rateur d'affiches.");
     } finally {
       setPosterGenerating(false);
     }
@@ -2018,9 +2030,9 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
   const statusPillLabel = !usage
     ? null
     : plansRequired
-    ? "Essai terminé"
+    ? "Essai terminÃ©"
     : usage.trialActive && trialDaysLeft !== null
-    ? `Essai — ${trialDaysLeft} j restant${trialDaysLeft > 1 ? "s" : ""}`
+    ? `Essai â€” ${trialDaysLeft} j restant${trialDaysLeft > 1 ? "s" : ""}`
     : "Abonnement actif";
   const hasConversation = messages.length > 0;
 
@@ -2036,7 +2048,7 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
           <div className="chat-header-title">
             <div>
               <strong>Vendeo AI</strong>
-              <span>Ton analyste de ventes, de pubs et de rentabilité</span>
+              <span>Ton analyste de ventes, de pubs et de rentabilitÃ©</span>
             </div>
           </div>
           {statusPillLabel ? (
@@ -2048,14 +2060,14 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
 
         {plansRequired && (
           <div className="trial-banner">
-            <strong>Ton essai gratuit est terminé.</strong>{" "}
+            <strong>Ton essai gratuit est terminÃ©.</strong>{" "}
             <button
               className="btn btn-dark"
               onClick={onGoToSubscription}
               style={{ fontSize: 10, padding: "7px 10px", marginLeft: 8 }}
               type="button"
             >
-              Activer l’abonnement
+              Activer lâ€™abonnement
             </button>
           </div>
         )}
@@ -2063,14 +2075,14 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
         <div className="chat-messages">
           {!hasConversation && (
             <div className="chat-empty-hero">
-              <div className="ai-welcome-top"><span className="chat-empty-icon"><Sparkles size={20} /></span><span className="ai-live-label"><i /> Analyse prête</span></div>
-              <span className="eyebrow">Centre de décision</span>
-              <strong>Que veux-tu comprendre aujourd’hui ?</strong>
-              <p>Vendeo croise tes ventes Chariow, tes campagnes et ta rentabilité pour transformer tes données en prochaine action.</p>
+              <div className="ai-welcome-top"><span className="chat-empty-icon"><Sparkles size={20} /></span><span className="ai-live-label"><i /> Analyse prÃªte</span></div>
+              <span className="eyebrow">Centre de dÃ©cision</span>
+              <strong>Que veux-tu comprendre aujourdâ€™hui ?</strong>
+              <p>Vendeo croise tes ventes Chariow, tes campagnes et ta rentabilitÃ© pour transformer tes donnÃ©es en prochaine action.</p>
               <div className="ai-action-grid">
                 {[
-                  { icon: <ShieldAlert size={16} />, title: "Protéger ma marge", text: "Repérer les campagnes qui brûlent du budget.", prompt: "Où est-ce que je perds de l'argent cette semaine ?" },
-                  { icon: <TrendingUp size={16} />, title: "Trouver une opportunité", text: "Identifier ce qui mérite plus d’attention.", prompt: "Quelle est ma meilleure opportunité cette semaine ?" },
+                  { icon: <ShieldAlert size={16} />, title: "ProtÃ©ger ma marge", text: "RepÃ©rer les campagnes qui brÃ»lent du budget.", prompt: "OÃ¹ est-ce que je perds de l'argent cette semaine ?" },
+                  { icon: <TrendingUp size={16} />, title: "Trouver une opportunitÃ©", text: "Identifier ce qui mÃ©rite plus dâ€™attention.", prompt: "Quelle est ma meilleure opportunitÃ© cette semaine ?" },
                   { icon: <Package size={16} />, title: "Comprendre mes produits", text: "Voir ce qui se vend vraiment.", prompt: "Quels produits se vendent le mieux et pourquoi ?" },
                 ].map((item) => (
                   <button type="button" className="ai-action-card" key={item.title} onClick={() => void send(item.prompt)} disabled={sending || plansRequired}>
@@ -2096,15 +2108,15 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
                 {message.imageUrl ? (
                   <div className="chat-image-message">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={message.imageUrl} alt="Affiche générée" />
+                    <img src={message.imageUrl} alt="Affiche gÃ©nÃ©rÃ©e" />
                     <a className="btn btn-ghost" href={message.imageUrl} target="_blank" rel="noreferrer" download>
-                      Télécharger
+                      TÃ©lÃ©charger
                     </a>
                   </div>
                 ) : null}
                 {content ? (
                   <div className={!expanded && isLong ? "chat-message-preview" : undefined}>
-                    {expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}…`}
+                    {expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}â€¦`}
                   </div>
                 ) : null}
                 {(isLong || (isAssistant && content)) && (
@@ -2120,7 +2132,7 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
                     )}
                     {isAssistant && content && (
                       <button type="button" className="chat-copy" onClick={() => copyMessage(index, content)}>
-                        <Copy size={11} /> {copiedIndex === index ? "Copié" : "Copier"}
+                        <Copy size={11} /> {copiedIndex === index ? "CopiÃ©" : "Copier"}
                       </button>
                     )}
                   </div>
@@ -2146,13 +2158,13 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
         {posterOpen ? (
           <div className="poster-generator">
             <div className="poster-generator-head">
-              <strong><Wand2 size={15} /> Générer une affiche</strong>
+              <strong><Wand2 size={15} /> GÃ©nÃ©rer une affiche</strong>
               <button type="button" className="poster-close" aria-label="Fermer" onClick={() => setPosterOpen(false)}>
                 <X size={16} />
               </button>
             </div>
             {!products.length ? (
-              <p className="hint-line">Connecte une boutique avec au moins un produit pour générer une affiche.</p>
+              <p className="hint-line">Connecte une boutique avec au moins un produit pour gÃ©nÃ©rer une affiche.</p>
             ) : (
               <>
                 <label className="campaign-field">
@@ -2184,7 +2196,7 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
                 </label>
                 {posterError ? <p className="store-error" role="alert">{posterError}</p> : null}
                 <button type="button" className="btn btn-dark" style={{ width: "100%" }} disabled={posterGenerating} onClick={() => void generatePoster()}>
-                  {posterGenerating ? "Génération en cours…" : "Générer l’affiche"}
+                  {posterGenerating ? "GÃ©nÃ©ration en coursâ€¦" : "GÃ©nÃ©rer lâ€™affiche"}
                 </button>
               </>
             )}
@@ -2217,8 +2229,8 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
             <button
               type="button"
               className="chat-poster-toggle"
-              aria-label="Générer une affiche"
-              title="Générer une affiche"
+              aria-label="GÃ©nÃ©rer une affiche"
+              title="GÃ©nÃ©rer une affiche"
               onClick={() => setPosterOpen((open) => !open)}
             >
               <Wand2 size={16} />
@@ -2252,7 +2264,7 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
               disabled={sending || plansRequired}
               style={{ borderRadius: 6, fontSize: 11, padding: "9px 14px" }}
             >
-              {sending ? "…" : plansRequired ? "Abonnement" : "Envoyer"}
+              {sending ? "â€¦" : plansRequired ? "Abonnement" : "Envoyer"}
             </button>
           </form>
         </div>
@@ -2265,10 +2277,10 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
             <Brain size={17} />
           </div>
           <ul className="ai-capability-list">
-            <li><Megaphone size={14} /> Dire explicitement quelle pub arrêter ou scaler, avec le montant à l’appui</li>
-            <li><Package size={14} /> Identifier ton produit le plus vendu à partir des ventes Chariow</li>
-            <li><Wand2 size={14} /> Générer une affiche produit prête à publier</li>
-            <li><Activity size={14} /> Résumer ton activité récente en langage simple</li>
+            <li><Megaphone size={14} /> Dire explicitement quelle pub arrÃªter ou scaler, avec le montant Ã  lâ€™appui</li>
+            <li><Package size={14} /> Identifier ton produit le plus vendu Ã  partir des ventes Chariow</li>
+            <li><Wand2 size={14} /> GÃ©nÃ©rer une affiche produit prÃªte Ã  publier</li>
+            <li><Activity size={14} /> RÃ©sumer ton activitÃ© rÃ©cente en langage simple</li>
           </ul>
         </div>
         <div className="app-card ai-side-card">
@@ -2276,7 +2288,7 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
             <h2>Astuce</h2>
             <Lightbulb size={17} color="#d28b3d" />
           </div>
-          <p className="ai-tip">Sois précis dans tes questions. Plutôt que « comment ça va ? », essaie « quelle campagne perd de l’argent cette semaine ? ».</p>
+          <p className="ai-tip">Sois prÃ©cis dans tes questions. PlutÃ´t que Â« comment Ã§a va ? Â», essaie Â« quelle campagne perd de lâ€™argent cette semaine ? Â».</p>
         </div>
       </aside>
     </div>
@@ -2347,7 +2359,7 @@ function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: 
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? "Impossible de déconnecter.");
+        setError(data.error ?? "Impossible de dÃ©connecter.");
         return;
       }
       onStoresChange(stores.map((s) => (s.id === id ? data.store : s)));
@@ -2358,7 +2370,7 @@ function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: 
 
 
   async function deleteStore(id: string) {
-    if (!window.confirm("Supprimer cette boutique ? Ses identifiants de connexion seront supprimés de Vendeo.")) return;
+    if (!window.confirm("Supprimer cette boutique ? Ses identifiants de connexion seront supprimÃ©s de Vendeo.")) return;
     setError("");
     setDeletingId(id);
     try {
@@ -2380,11 +2392,11 @@ function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: 
         <div>
           <span className="eyebrow">Connexions</span>
           <h1>Mes boutiques</h1>
-          <p>Une source de vérité pour toutes tes ventes. <strong className="store-count">{stores.length}/{maxStores}</strong></p>
+          <p>Une source de vÃ©ritÃ© pour toutes tes ventes. <strong className="store-count">{stores.length}/{maxStores}</strong></p>
         </div>
-        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
+        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> ParamÃ¨tres</button>}
         <button type="button" className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}>
-          <Plus size={16} /> {saving ? "Ajout en cours…" : "Ajouter une boutique"}
+          <Plus size={16} /> {saving ? "Ajout en coursâ€¦" : "Ajouter une boutique"}
         </button>
       </div>
 
@@ -2402,29 +2414,29 @@ function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: 
               <div className="store-info">
                 <strong>{store.store_name}</strong>
                 <span>
-                  {store.platform} · {status === "failed" ? "Connexion échouée — relance l’autorisation" : status}
+                  {store.platform} Â· {status === "failed" ? "Connexion Ã©chouÃ©e â€” relance lâ€™autorisation" : status}
                 </span>
               </div>
-              <span className="status">● {status}</span>
+              <span className="status">â— {status}</span>
               {canDisconnect ? (
                 <button className="btn btn-ghost" onClick={() => disconnectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
-                  Déconnecter
+                  DÃ©connecter
                 </button>
               ) : (
                   <button type="button" className="btn btn-ghost" onClick={() => connectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
-                  {status === "failed" || status === "expired" ? "Reconnecter Chariow" : "Réessayer"}
+                  {status === "failed" || status === "expired" ? "Reconnecter Chariow" : "RÃ©essayer"}
                  </button>
                )}
                <button className="btn btn-danger-ghost" onClick={() => deleteStore(store.id)} disabled={saving || deletingId === store.id} style={{ fontSize: 10, padding: "7px 10px" }}>
-                 {deletingId === store.id ? "Suppression…" : "Supprimer"}
+                 {deletingId === store.id ? "Suppressionâ€¦" : "Supprimer"}
                </button>
             </div>
           );
         })}
-        {stores.length === 0 && <div className="empty-state compact">Aucune boutique connectée.</div>}
+        {stores.length === 0 && <div className="empty-state compact">Aucune boutique connectÃ©e.</div>}
 
       </div>
-      {showUpgrade && <div className="modal-backdrop" role="presentation" onClick={() => setShowUpgrade(false)}><div className="upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setShowUpgrade(false)} aria-label="Fermer">×</button><span className="eyebrow">Limite de ton abonnement</span><h2 id="upgrade-title">Connecte jusqu'à 3 boutiques</h2><p>Ton plan Vendeo actuel autorise 1 boutique. Passe à Vendeo Premium pour en connecter jusqu'à 3.</p><div className="sale-detail-grid" style={{ marginTop: 16, marginBottom: 18 }}><div><small>Vendeo Premium</small><strong>3 000 XOF / mois</strong></div><div><small>Boutiques incluses</small><strong>Jusqu'à 3</strong></div></div><button type="button" className="btn btn-lime" style={{ width: "100%" }} onClick={() => void upgradeToPremium()} disabled={upgrading}>{upgrading ? "Redirection…" : "Passer à Vendeo Premium"}</button></div></div>}
+      {showUpgrade && <div className="modal-backdrop" role="presentation" onClick={() => setShowUpgrade(false)}><div className="upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setShowUpgrade(false)} aria-label="Fermer">Ã—</button><span className="eyebrow">Limite de ton abonnement</span><h2 id="upgrade-title">Connecte jusqu'Ã  3 boutiques</h2><p>Ton plan Vendeo actuel autorise 1 boutique. Passe Ã  Vendeo Premium pour en connecter jusqu'Ã  3.</p><div className="sale-detail-grid" style={{ marginTop: 16, marginBottom: 18 }}><div><small>Vendeo Premium</small><strong>3 000 XOF / mois</strong></div><div><small>Boutiques incluses</small><strong>Jusqu'Ã  3</strong></div></div><button type="button" className="btn btn-lime" style={{ width: "100%" }} onClick={() => void upgradeToPremium()} disabled={upgrading}>{upgrading ? "Redirectionâ€¦" : "Passer Ã  Vendeo Premium"}</button></div></div>}
     </>
   );
 }
@@ -2463,24 +2475,24 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
     const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("fr-FR") : "Non disponible";
     return (
       <>
-        <div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>{currentPlan === "premium" ? "Vendeo Premium actif" : "Abonnement Vendeo actif"}</h1><p>Accès illimité à ton analyste IA.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div>
+        <div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>{currentPlan === "premium" ? "Vendeo Premium actif" : "Abonnement Vendeo actif"}</h1><p>AccÃ¨s illimitÃ© Ã  ton analyste IA.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> ParamÃ¨tres</button>}</div>
         <div className="app-card" style={{ maxWidth: 520 }}>
           <span className="eyebrow">Abonnement en cours</span>
-          <h2 style={{ marginTop: 6 }}>{currentPlan === "premium" ? "Vendeo Premium — 3 000 XOF / mois" : "Vendeo — 2 000 XOF / mois"}</h2>
+          <h2 style={{ marginTop: 6 }}>{currentPlan === "premium" ? "Vendeo Premium â€” 3 000 XOF / mois" : "Vendeo â€” 2 000 XOF / mois"}</h2>
           <div className="sale-detail-grid" style={{ marginTop: 18 }}>
-            <div><small>Période en cours depuis</small><strong>{periodStart}</strong></div>
+            <div><small>PÃ©riode en cours depuis</small><strong>{periodStart}</strong></div>
             <div><small>Renouvellement</small><strong>{periodEnd}</strong></div>
             <div><small>Boutiques incluses</small><strong>{planMaxStores(currentPlan)}</strong></div>
-            <div><small>Usage IA</small><strong>Illimité</strong></div>
+            <div><small>Usage IA</small><strong>IllimitÃ©</strong></div>
           </div>
         </div>
         {currentPlan === "starter" ? (
           <div className="app-card" style={{ maxWidth: 520, marginTop: 16 }}>
             <span className="eyebrow">Besoin de plus de boutiques ?</span>
-            <h2 style={{ marginTop: 6 }}>Passe à Vendeo Premium</h2>
-            <p style={{ color: "var(--muted)", fontSize: 13, margin: "8px 0 16px" }}>3 000 XOF/mois — connecte jusqu'à 3 boutiques au lieu d'une seule.</p>
+            <h2 style={{ marginTop: 6 }}>Passe Ã  Vendeo Premium</h2>
+            <p style={{ color: "var(--muted)", fontSize: 13, margin: "8px 0 16px" }}>3 000 XOF/mois â€” connecte jusqu'Ã  3 boutiques au lieu d'une seule.</p>
             <button className="btn btn-dark" onClick={() => void subscribe("premium")} disabled={changingPlan === "premium"} style={{ width: "100%" }}>
-              {changingPlan === "premium" ? "Redirection…" : "Passer à Vendeo Premium"}
+              {changingPlan === "premium" ? "Redirectionâ€¦" : "Passer Ã  Vendeo Premium"}
             </button>
           </div>
         ) : null}
@@ -2494,23 +2506,23 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
         <div>
           <span className="eyebrow">Ton abonnement</span>
           <h1>Choisis ton plan.</h1>
-          <p>{trial && trialDaysLeft !== null ? `Il te reste ${trialDaysLeft} jour${trialDaysLeft > 1 ? "s" : ""} d’essai gratuit.` : "Gère ton usage IA et tes boutiques depuis un seul endroit."}</p>
+          <p>{trial && trialDaysLeft !== null ? `Il te reste ${trialDaysLeft} jour${trialDaysLeft > 1 ? "s" : ""} dâ€™essai gratuit.` : "GÃ¨re ton usage IA et tes boutiques depuis un seul endroit."}</p>
         </div>
-        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
+        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> ParamÃ¨tres</button>}
       </div>
       <div className="pricing-wrap" style={{ maxWidth: 820 }}>
         <article className="price-card">
-          <span className="eyebrow">{trial ? "Essai gratuit — 7 jours" : "Plan disponible"}</span>
+          <span className="eyebrow">{trial ? "Essai gratuit â€” 7 jours" : "Plan disponible"}</span>
           <h3>Vendeo</h3>
           <div className="price">2 000 XOF <small>/ mois</small></div>
           <ul>
-            <li>✓ Analyse IA de tes ventes et de tes pubs</li>
-            <li>✓ 1 boutique Chariow connectée</li>
-            <li>✓ Suivi Meta Ads et TikTok Ads</li>
-            <li>✓ Rapports détaillés</li>
+            <li>âœ“ Analyse IA de tes ventes et de tes pubs</li>
+            <li>âœ“ 1 boutique Chariow connectÃ©e</li>
+            <li>âœ“ Suivi Meta Ads et TikTok Ads</li>
+            <li>âœ“ Rapports dÃ©taillÃ©s</li>
           </ul>
           <button className="btn btn-ghost" onClick={() => void subscribe("starter")} disabled={changingPlan === "starter"} style={{ width: "100%" }}>
-            {changingPlan === "starter" ? "Redirection…" : "S’abonner"}
+            {changingPlan === "starter" ? "Redirectionâ€¦" : "Sâ€™abonner"}
           </button>
         </article>
         <article className="price-card pro">
@@ -2518,12 +2530,12 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
           <h3>Vendeo Premium</h3>
           <div className="price">3 000 XOF <small>/ mois</small></div>
           <ul>
-            <li>✓ Tout ce qui est inclus dans Vendeo</li>
-            <li>✓ Jusqu'à 3 boutiques Chariow connectées</li>
-            <li>✓ Idéal pour gérer plusieurs boutiques</li>
+            <li>âœ“ Tout ce qui est inclus dans Vendeo</li>
+            <li>âœ“ Jusqu'Ã  3 boutiques Chariow connectÃ©es</li>
+            <li>âœ“ IdÃ©al pour gÃ©rer plusieurs boutiques</li>
           </ul>
           <button className="btn btn-lime" onClick={() => void subscribe("premium")} disabled={changingPlan === "premium"} style={{ width: "100%" }}>
-            {changingPlan === "premium" ? "Redirection…" : "S’abonner"}
+            {changingPlan === "premium" ? "Redirectionâ€¦" : "Sâ€™abonner"}
           </button>
         </article>
       </div>
