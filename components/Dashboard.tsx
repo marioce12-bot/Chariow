@@ -5,7 +5,7 @@ import Image from "next/image";
 import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, Wand2, X, Copy, ImageIcon, Video } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { cleanAiText } from "@/lib/ai/format";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 import { formatMoney } from "@/lib/format";
@@ -50,7 +50,6 @@ function writeCache(key: string, value: unknown) {
   }
 }
 
-const bars = [32, 44, 39, 55, 48, 65, 57, 71, 64, 82, 74, 91, 79, 96];
 
 function MetricHelp({ label, description }: { label: string; description: string }) {
   return <span className="metric-label">{label}<button type="button" className="metric-help" aria-label={`Explication : ${label}`} title={description} onClick={(event) => { event.preventDefault(); event.stopPropagation(); window.alert(description); }}>?</button></span>;
@@ -323,7 +322,7 @@ export function Dashboard() {
           </Link>
           <div className="app-user">
             <span className="app-greeting">Bonjour, {userName}</span>
-            <button type="button" className={`mobile-more-trigger ${moreOpen || ["Mes boutiques", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" onClick={() => setMoreOpen((open) => !open)}>
+             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Mes boutiques", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" onClick={() => setMoreOpen((open) => !open)}>
               <Settings size={18} />
             </button>
             <button className="desktop-signout" onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
@@ -429,17 +428,13 @@ export function Dashboard() {
             <Megaphone size={18} />
             <span>Rentabilité</span>
           </button>
-          <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
-            <Lightbulb size={18} />
-            <span>Radar</span>
-          </button>
-          <button type="button" className={`nav-btn ${active === "Rapports" ? "active" : ""}`} onClick={() => setActive("Rapports")}>
-            <FileText size={18} />
-            <span>Rapports</span>
-          </button>
            <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
              <MessageSquare size={18} />
-             <span>IA</span>
+             <span>Assistant</span>
+           </button>
+           <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
+             <Lightbulb size={18} />
+             <span>Radar</span>
            </button>
            <button type="button" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
              <Sparkles size={18} />
@@ -447,8 +442,9 @@ export function Dashboard() {
            </button>
         </nav>
         ) : null}
-        {moreOpen ? <div className="mobile-more-menu" role="menu">
-          <button type="button" onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
+         {moreOpen ? <div className="mobile-more-menu" role="menu">
+           <button type="button" onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
+           <button type="button" onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
           <button type="button" onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
           <button type="button" onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
         </div> : null}
@@ -927,8 +923,8 @@ function Overview({
       </section>
 
       <section className="home-chart app-card">
-        <div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Évolution du chiffre d’affaires et des dépenses</h2><p>Compare les résultats commerciaux aux dépenses publicitaires.</p></div><LineChart size={19} /></div>
-        {!connected && !metaConnected ? <EmptyState title="Données indisponibles" text="Connecte Chariow et Meta Ads pour afficher l’évolution." /> : <RealTrendChart sales={analytics?.sales ?? []} spend={spend} currency={currency} />}
+        <div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Évolution du chiffre d’affaires</h2><p>Ventes des 7 derniers jours, par produit.</p></div><LineChart size={19} /></div>
+        {!connected ? <EmptyState title="Données indisponibles" text="Connecte ta boutique Chariow pour afficher l’évolution." /> : <RealTrendChart sales={analytics?.sales ?? []} products={products} currency={currency} />}
       </section>
 
       <section className="home-activity app-card">
@@ -1006,13 +1002,28 @@ function SalesView({ stores, analytics }: { stores: StoreData[]; analytics: Anal
   return <div className="sales-page"><div className="page-top"><div><span className="eyebrow">Chariow</span><h1>Ventes</h1><p>Suivi des événements et revenus remontés par ta boutique.</p></div></div><div className="sales-kpis"><HomeKpi label="Ventes confirmées" value={String(completed.length)} tone="positive" help="Paiements validés par Chariow." /><HomeKpi label="Revenu brut" value={revenue ? `${revenue.toLocaleString("fr-FR")} ${analytics?.products?.[0]?.currency ?? "XOF"}` : "0"} tone="info" help="Montant des ventes confirmées." /><HomeKpi label="Événements suivis" value={String(sales.length)} tone="neutral" help="Ventes et statuts remontés." /></div><div className="sales-toolbar"><label>Statut<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Tous</option><option value="completed">Réussies</option><option value="awaiting_payment">En attente</option><option value="failed">Échouées</option><option value="abandoned">Abandonnées</option><option value="refunded">Remboursées</option></select></label></div><section className="app-card sales-list"><div className="card-head"><h2>Activité Chariow</h2><Activity size={18} /></div>{sales.length ? <ul className="activity">{sales.map((sale, index) => <RecentSale key={index} sale={sale} currency={analytics?.products?.[0]?.currency ?? "XOF"} />)}</ul> : <EmptyState title="Aucun événement" text="Les événements Chariow apparaîtront après synchronisation." />}</section></div>;
 }
 
-function RealTrendChart({ sales, spend, currency }: { sales: unknown[]; spend: number; currency: string }) {
-  const rows = sales.map((item) => item && typeof item === "object" ? item as Record<string, unknown> : {}).filter((item) => (item.status === "completed" || item.status === "settled") && (item.created_at || item.createdAt || item.occurred_at));
-  const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() - (6 - index)); return date.toISOString().slice(0, 10); });
-  const values = days.map((day) => rows.filter((row) => String(row.created_at ?? row.createdAt ?? row.occurred_at).slice(0, 10) === day).reduce<number>((sum, row) => sum + Number((row.amount as Record<string, unknown>)?.value ?? row.amount ?? 0), 0));
-  const max = Math.max(...values, spend, 1);
-  const points = values.map((value, index) => `${index * 100 / 6},${100 - value / max * 78}`).join(" ");
-  return <div className="real-chart"><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Evolution réelle du chiffre d’affaires Chariow"><line x1="0" y1="90" x2="100" y2="90" /><polyline points={points} /></svg><div className="chart-legend"><span><i className="legend-dot revenue-dot" /> CA Chariow</span><span className="chart-total">Total : {new Intl.NumberFormat("fr-FR").format(values.reduce((sum, value) => sum + value, 0))} {currency}</span></div></div>;
+const STACK_DAYS = 7;
+const STACK_COLORS = ["#4c21f6", "#029bfc", "#43a765", "#f5a524"];
+const STACK_OTHERS_COLOR = "#94a3b8";
+const stackCompact = new Intl.NumberFormat("fr-FR", { notation: "compact", maximumFractionDigits: 1 });
+type StackSeries = { key: string; label: string; color: string };
+function stackRecord(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+function stackDayKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
+function stackSaleDay(raw: unknown): string | null { if (typeof raw !== "string" || !raw) return null; if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw; const date = new Date(raw); return Number.isNaN(date.getTime()) ? null : stackDayKey(date); }
+function stackAmount(raw: unknown): number { const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>).value : raw; const parsed = typeof source === "number" ? source : typeof source === "string" ? Number(source.replace(/[^\d.,-]/g, "").replace(",", ".")) : 0; return Number.isFinite(parsed) ? parsed : 0; }
+function stackScale(maxValue: number) { const rough = Math.max(maxValue, 1) / 4; const magnitude = 10 ** Math.floor(Math.log10(rough)); const residual = rough / magnitude; const factor = residual <= 1 ? 1 : residual <= 2 ? 2 : residual <= 5 ? 5 : 10; const step = factor * magnitude; return { step, max: Math.ceil(Math.max(maxValue, 1) / step) * step }; }
+function RealTrendChart({ sales, products, currency }: { sales: unknown[]; products: Array<{ id: string; name: string }>; currency: string }) {
+  const [active, setActive] = useState<number | null>(null); const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { const close = (event: PointerEvent) => { if (rootRef.current && !rootRef.current.contains(event.target as Node)) setActive(null); }; document.addEventListener("pointerdown", close); return () => document.removeEventListener("pointerdown", close); }, []);
+  const chart = useMemo(() => {
+    const days = Array.from({ length: STACK_DAYS }, (_, index) => { const date = new Date(); date.setHours(12, 0, 0, 0); date.setDate(date.getDate() - (STACK_DAYS - 1 - index)); return { key: stackDayKey(date), weekday: date.toLocaleDateString("fr-FR", { weekday: "short" }), num: String(date.getDate()), long: date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) }; });
+    const dayIndex = new Map(days.map((day, index) => [day.key, index] as const)); const names = new Map(products.map((product) => [String(product.id), product.name] as const)); const perProduct = new Map<string, { label: string; total: number; days: number[] }>();
+    for (const item of sales) { const row = stackRecord(item); const status = row.status ?? row.state; if (status !== "completed" && status !== "settled") continue; const index = stackSaleDay(row.created_at ?? row.createdAt ?? row.occurred_at); const dayPos = index ? dayIndex.get(index) : undefined; if (dayPos === undefined) continue; const product = stackRecord(row.product); const rawId = row.product_id ?? product.id ?? product.uuid; const id = rawId === undefined || rawId === null ? "" : String(rawId); const label = (id && names.get(id)) || String(row.product_name ?? product.name ?? product.title ?? "") || "Produit"; const key = id || label; const amount = stackAmount(row.amount); const entry = perProduct.get(key) ?? { label, total: 0, days: new Array<number>(STACK_DAYS).fill(0) }; entry.days[dayPos] += amount; entry.total += amount; perProduct.set(key, entry); }
+    const ranked = Array.from(perProduct.entries()).sort((a, b) => b[1].total - a[1].total); const top = ranked.slice(0, STACK_COLORS.length); const rest = ranked.slice(STACK_COLORS.length); const series: StackSeries[] = top.map(([key, entry], index) => ({ key, label: entry.label, color: STACK_COLORS[index] })); const matrix: number[][] = days.map((_, dayPos) => top.map(([, entry]) => entry.days[dayPos])); if (rest.length) { series.push({ key: "__others", label: "Autres", color: STACK_OTHERS_COLOR }); matrix.forEach((row, dayPos) => row.push(rest.reduce((sum, [, entry]) => sum + entry.days[dayPos], 0))); } const dayTotals = matrix.map((row) => row.reduce((sum, value) => sum + value, 0)); const grand = dayTotals.reduce((sum, value) => sum + value, 0); const scale = stackScale(Math.max(...dayTotals)); const ticks = Array.from({ length: Math.round(scale.max / scale.step) + 1 }, (_, index) => index * scale.step); return { days, series, matrix, dayTotals, grand, scale, ticks };
+  }, [sales, products]);
+  const money = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} ${currency}`;
+  if (!chart.grand) return <EmptyState title="Aucune vente sur 7 jours" text="Les ventes confirmées des 7 derniers jours apparaîtront ici, empilées par produit." />;
+  return <div className="stack-chart" ref={rootRef} role="group" aria-label={`Chiffre d’affaires des 7 derniers jours par produit, total ${money(chart.grand)}`}><ul className="stack-legend">{chart.series.map((item) => <li key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span></li>)}</ul><div className="stack-body"><div className="stack-y" aria-hidden="true">{chart.ticks.map((tick) => <span key={tick} style={{ bottom: `${(tick / chart.scale.max) * 100}%` }}>{stackCompact.format(tick)}</span>)}</div><div className="stack-plot">{chart.ticks.map((tick) => <i key={tick} className="stack-grid" aria-hidden="true" style={{ bottom: `${(tick / chart.scale.max) * 100}%` }} />)}<div className="stack-cols">{chart.days.map((day, index) => { const total = chart.dayTotals[index]; return <button type="button" key={day.key} className={`stack-col${active === index ? " active" : ""}`} aria-label={`${day.long} : ${money(total)}`} onPointerEnter={(event) => { if (event.pointerType === "mouse") setActive(index); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") setActive(null); }} onClick={(event) => { if ((event.nativeEvent as PointerEvent).pointerType === "mouse") return; setActive((current) => current === index ? null : index); }}><span className="stack-bar" style={{ height: `${(total / chart.scale.max) * 100}%` }}>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[index][seriesIndex]; return value > 0 ? <span key={item.key} className="stack-seg" style={{ height: `${(value / total) * 100}%`, background: item.color }} /> : null; })}</span></button>; })}</div>{active !== null ? <div className="stack-tip" style={{ left: `${((active + 0.5) / STACK_DAYS) * 100}%`, transform: `translateX(${active <= 1 ? "-20%" : active >= STACK_DAYS - 2 ? "-80%" : "-50%"})` }}><strong>{chart.days[active].long}</strong>{chart.dayTotals[active] > 0 ? <>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[active][seriesIndex]; return value > 0 ? <span key={item.key}><i style={{ background: item.color }} />{item.label}<b>{money(value)}</b></span> : null; })}<em>Total {money(chart.dayTotals[active])}</em></> : <span>Aucune vente</span>}</div> : null}</div></div><div className="stack-x" aria-hidden="true">{chart.days.map((day) => <span key={day.key}><b>{day.weekday}</b><small>{day.num}</small></span>)}</div><div className="stack-foot"><span className="stack-unit">Montants en {currency}</span><span className="chart-total">Total : {money(chart.grand)}</span></div></div>;
 }
 
 function displayValue(value: unknown, keys: string[] = ["name", "label", "title", "value", "text", "code"]): string | undefined {
