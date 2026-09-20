@@ -5,6 +5,9 @@ import { CHARIOW_MCP_URL } from "@/lib/chariow/types";
 import { resolveUserMaxStores } from "@/lib/plans";
 import crypto from "node:crypto";
 
+// Cookie lu par ChariowStatusNotice pour afficher un message clair au retour sur le dashboard.
+const STATUS_COOKIE = "vendeo_chariow_status";
+
 function base64UrlEncode(buffer: Buffer) {
   return buffer
     .toString("base64")
@@ -42,6 +45,22 @@ export async function GET(request: Request) {
     if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 });
     existing = data;
     if (!existing) return NextResponse.json({ error: "Boutique Chariow introuvable" }, { status: 404 });
+  } else {
+    // Sans store_id : on réutilise une boutique Chariow déjà présente mais pas connectée
+    // (déconnectée, expirée, en échec) au lieu d'en créer une nouvelle à chaque tentative.
+    // Avant, chaque essai raté (Chariow indisponible) laissait une boutique « Chariow boutique »
+    // en plus, ce qui faussait la boutique affichée et pouvait bloquer sur la limite du plan.
+    const { data: reusable } = await supabase
+      .from("stores")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("platform", "chariow")
+      .eq("is_active", true)
+      .neq("connection_status", "connected")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    existing = reusable ?? null;
   }
 
   if (!existing) {
@@ -62,10 +81,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Chariow OAuth n'est pas configuré" }, { status: 500 });
   }
 
-  // Si store_id est fourni (reconnexion), on réutilise cette entrée.
-  // Sinon on crée une nouvelle boutique (tant que le plan le permet).
+  // Si une boutique existante est réutilisable (store_id fourni, ou boutique non connectée), on la
+  // réutilise. Sinon on crée une nouvelle boutique (tant que le plan le permet).
   let storeId: string;
-  if (requestedStoreId && existing?.id) {
+  let createdNew = false;
+  if (existing?.id) {
     storeId = existing.id;
     const { error: upErr } = await supabase
       .from("stores")
@@ -93,31 +113,46 @@ export async function GET(request: Request) {
       .single();
     if (createErr) return NextResponse.json({ error: createErr.message }, { status: 500 });
     storeId = created.id;
+    createdNew = true;
   }
 
   const state = base64UrlEncode(crypto.randomBytes(32));
   const { codeVerifier, codeChallenge } = generatePkce();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-  const registerResponse = await fetch("https://mcp.chariow.com/public/oauth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      client_name: "Vendeo",
-      redirect_uris: [redirectUri],
-      grant_types: ["authorization_code"],
-      response_types: ["code"],
-      scopes: ["store:mcp"],
-      token_endpoint_auth_method: "none",
-    }),
-    cache: "no-store",
-  });
-  const registration = await registerResponse.json().catch(() => ({}));
+  let registerResponse: Response | null = null;
+  let registration: Record<string, unknown> = {};
+  try {
+    registerResponse = await fetch("https://mcp.chariow.com/public/oauth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        client_name: "Vendeo",
+        redirect_uris: [redirectUri],
+        grant_types: ["authorization_code"],
+        response_types: ["code"],
+        scopes: ["store:mcp"],
+        token_endpoint_auth_method: "none",
+      }),
+      cache: "no-store",
+      // Sans délai maximum, une panne de Chariow pouvait laisser la requête pendre.
+      signal: AbortSignal.timeout(15_000),
+    });
+    registration = await registerResponse.json().catch(() => ({}));
+  } catch (registerError) {
+    console.error("Chariow OAuth dynamic registration unreachable", registerError instanceof Error ? registerError.message : String(registerError));
+  }
   const oauthClientId = typeof registration.client_id === "string" ? registration.client_id : null;
-  if (!registerResponse.ok || !oauthClientId) {
-    await supabase.from("stores").update({ connection_status: "failed", connection_error: "Impossible d’enregistrer l’application auprès de Chariow" }).eq("id", storeId).eq("user_id", user.id);
-    console.error("Chariow OAuth dynamic registration failed", registerResponse.status, registration.error ?? "missing client_id");
-    return NextResponse.json({ error: "Impossible de préparer la connexion Chariow" }, { status: 502 });
+  if (!registerResponse?.ok || !oauthClientId) {
+    const failure = { connection_status: "failed", connection_error: "Chariow ne répond pas pour le moment. Réessaie dans quelques minutes." };
+    // Une boutique créée uniquement pour cette tentative est désactivée pour ne pas laisser de doublon ;
+    // une boutique déjà existante reste en place, simplement marquée en échec.
+    await supabase.from("stores").update(createdNew ? { ...failure, is_active: false } : failure).eq("id", storeId).eq("user_id", user.id);
+    console.error("Chariow OAuth dynamic registration failed", registerResponse?.status ?? "no response", registration.error ?? "missing client_id");
+    // On renvoie l'utilisateur sur le dashboard (au lieu d'une page JSON brute) ; le bandeau explique la panne.
+    const failed = NextResponse.redirect(new URL("/dashboard?chariow=failed", request.url));
+    failed.cookies.set(STATUS_COOKIE, "unavailable", { path: "/", maxAge: 15 * 60, sameSite: "lax" });
+    return failed;
   }
 
   const { error: attemptErr } = await supabase.from("oauth_connection_attempts").insert({
@@ -130,7 +165,8 @@ export async function GET(request: Request) {
     expires_at: expiresAt.toISOString(),
   });
   if (attemptErr) {
-    await supabase.from("stores").update({ is_active: false, connection_status: "failed", connection_error: "Impossible de préparer la connexion Chariow" }).eq("id", storeId).eq("user_id", user.id);
+    const failure = { connection_status: "failed", connection_error: "Impossible de préparer la connexion Chariow" };
+    await supabase.from("stores").update(createdNew ? { ...failure, is_active: false } : failure).eq("id", storeId).eq("user_id", user.id);
     return NextResponse.json({ error: "Impossible de préparer la connexion Chariow" }, { status: 500 });
   }
 
