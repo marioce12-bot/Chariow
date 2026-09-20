@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, Wand2, X, Copy } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Clock3, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, Wand2, X, Copy, ImageIcon, Video } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { cleanAiText } from "@/lib/ai/format";
 import { useEffect, useRef, useState } from "react";
@@ -227,6 +227,7 @@ export function Dashboard() {
   const links = [
     ["Vue d’ensemble", LayoutDashboard],
     ["Vendeo AI", MessageSquare],
+    ["Studio", Sparkles],
     ["Rentabilité", Megaphone],
     ["Radar marché", Lightbulb],
     ["Mes boutiques", Store],
@@ -389,6 +390,8 @@ export function Dashboard() {
               onBack={() => setActive(previousSection)}
               products={analytics?.products ?? []}
             />
+          ) : active === "Studio" ? (
+            <StudioView />
           ) : active === "Rentabilité" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} />
           ) : active === "Radar marché" ? (
@@ -434,10 +437,14 @@ export function Dashboard() {
             <FileText size={18} />
             <span>Rapports</span>
           </button>
-          <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
-            <MessageSquare size={18} />
-            <span>IA</span>
-          </button>
+           <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
+             <MessageSquare size={18} />
+             <span>IA</span>
+           </button>
+           <button type="button" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
+             <Sparkles size={18} />
+             <span>Studio</span>
+           </button>
         </nav>
         ) : null}
         {moreOpen ? <div className="mobile-more-menu" role="menu">
@@ -481,6 +488,149 @@ function StoreOnboarding() {
       </div>
     </div>
   );
+}
+
+type StudioVideoJob = { id: string; status: string; contentUrl?: string | null };
+
+function StudioView() {
+  const [kind, setKind] = useState<"image" | "video">("image");
+  const [prompt, setPrompt] = useState("");
+  const [imageMode, setImageMode] = useState<"fast" | "advanced">("fast");
+  const [quality, setQuality] = useState("medium");
+  const [imageResolution, setImageResolution] = useState("hd");
+  const [orientation, setOrientation] = useState("square");
+  const [background, setBackground] = useState("auto");
+  const [duration, setDuration] = useState(5);
+  const [videoResolution, setVideoResolution] = useState<"480p" | "768p">("480p");
+  const [aspectRatio, setAspectRatio] = useState("16:9");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [videoJob, setVideoJob] = useState<StudioVideoJob | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [balance, setBalance] = useState(0);
+  const [creditAmount, setCreditAmount] = useState("200");
+  const [recharging, setRecharging] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).then((data) => { if (data) setBalance(data.balance ?? 0); }).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!videoJob || ["completed", "failed", "cancelled"].includes(videoJob.status)) return;
+    const timer = window.setInterval(async () => {
+      const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`);
+      const result = await response.json().catch(() => ({}));
+      if (response.ok) setVideoJob(result);
+      else if (result.error) setError(result.error);
+    }, 4_000);
+    return () => window.clearInterval(timer);
+  }, [videoJob]);
+
+  async function generate() {
+    if (!prompt.trim()) {
+      setError(kind === "image" ? "Décris l'image que tu souhaites créer." : "Décris la vidéo que tu souhaites créer.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setImageUrl(null);
+    if (kind === "video") setVideoJob(null);
+    try {
+      const response = await fetch(kind === "image" ? "/api/studio/image" : "/api/studio/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(kind === "image"
+          ? { prompt, imageMode, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg" }
+          : { prompt, duration, resolution: videoResolution, aspectRatio }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "La génération a échoué.");
+      if (kind === "image") setImageUrl(result.imageUrl);
+      else setVideoJob({ id: result.jobId, status: result.status || "queued" });
+      const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
+      if (credits) setBalance(credits.balance ?? 0);
+    } catch (generationError) {
+      setError(generationError instanceof Error ? generationError.message : "La génération a échoué.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function recharge() {
+    const credits = Number(creditAmount);
+    if (!Number.isInteger(credits) || credits < 200) { setError("Le minimum de recharge est de 200 crédits."); return; }
+    setRecharging(true);
+    try {
+      const response = await fetch("/api/studio/credits/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credits }) });
+      const result = await response.json();
+      if (!response.ok || !result.payment?.url) throw new Error(result.error || "Paiement indisponible.");
+      window.location.href = result.payment.url;
+    } catch (rechargeError) { setError(rechargeError instanceof Error ? rechargeError.message : "Paiement indisponible."); setRecharging(false); }
+  }
+
+  const videoReady = videoJob?.status === "completed" && videoJob.contentUrl;
+
+  return (
+    <div className="studio-page">
+      <div className="page-top studio-head">
+        <div>
+          <span className="eyebrow">Studio créatif</span>
+          <h1>Crée tes médias avec l'IA</h1>
+          <p>Génère une image ou une vidéo directement depuis Vendeo avec les modèles Imọlẹ.</p>
+        </div>
+        <span className="studio-powered">Propulsé par Imọlẹ</span>
+      </div>
+
+      <div className="studio-tabs" role="tablist" aria-label="Type de média">
+        <button type="button" role="tab" aria-selected={kind === "image"} className={kind === "image" ? "active" : ""} onClick={() => setKind("image")}><ImageIcon size={17} /> Image</button>
+        <button type="button" role="tab" aria-selected={kind === "video"} className={kind === "video" ? "active" : ""} onClick={() => setKind("video")}><Video size={17} /> Vidéo</button>
+      </div>
+
+      <div className="studio-grid">
+        <section className="app-card studio-form">
+          <label className="studio-field">
+            <span>Décris ta création</span>
+            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={kind === "image" ? "Ex. Une photo éditoriale d'un sac artisanal sur un socle ocre, lumière naturelle douce, composition carrée." : "Ex. Une mise en scène cinématique d'un produit sur une table, travelling lent, ambiance chaleureuse, sons légers."} maxLength={4000} rows={7} />
+            <small>{prompt.length}/4 000</small>
+          </label>
+
+          {kind === "image" ? (
+            <div className="studio-options">
+              <StudioSelect label="Mode" value={imageMode} onChange={(value) => setImageMode(value as "fast" | "advanced")} options={[['fast', 'Rapide'], ['advanced', 'Avancé']]} />
+              <StudioSelect label="Qualité" value={quality} onChange={setQuality} options={[['medium', 'Moyenne'], ['high', 'Haute'], ['xhigh', 'Très haute'], ['max', 'Maximum']]} />
+              <StudioSelect label="Résolution" value={imageResolution} onChange={setImageResolution} options={[['hd', 'HD'], ['full_hd', 'Full HD'], ['2k', '2K'], ['4k', '4K']]} />
+              <StudioSelect label="Format" value={orientation} onChange={setOrientation} options={[['square', 'Carré'], ['landscape', 'Paysage'], ['portrait', 'Portrait']]} />
+              <StudioSelect label="Fond" value={background} onChange={setBackground} options={[['auto', 'Auto'], ['opaque', 'Opaque'], ['transparent', 'Transparent PNG']]} />
+            </div>
+          ) : (
+            <div className="studio-options">
+              <label className="studio-field"><span>Durée</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{[4, 5, 6, 8, 10, 12, 15].map((value) => <option key={value} value={value}>{value} secondes</option>)}</select></label>
+              <StudioSelect label="Résolution" value={videoResolution} onChange={(value) => setVideoResolution(value as "480p" | "768p")} options={[['480p', '480p'], ['768p', '768p']]} />
+              <StudioSelect label="Format" value={aspectRatio} onChange={setAspectRatio} options={[['16:9', '16:9 paysage'], ['9:16', '9:16 vertical'], ['1:1', '1:1 carré'], ['4:3', '4:3'], ['3:4', '3:4'], ['21:9', '21:9 cinéma']]} />
+            </div>
+          )}
+
+          {error ? <p className="form-error">{error}</p> : null}
+          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading}>
+            <Sparkles size={17} /> {loading ? "Création en cours…" : kind === "image" ? "Créer l'image" : "Créer la vidéo"}
+          </button>
+          <p className="studio-cost">{kind === "image" ? "Image : coût selon la qualité et la résolution choisies." : `Vidéo : ${videoResolution === "768p" ? "25" : "10"} cauris par seconde.`}</p>
+          <div className="studio-balance"><div><span className="eyebrow">Solde Studio</span><strong>{balance} crédits</strong></div><div className="studio-recharge"><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} aria-label="Nombre de crédits à acheter" /><button type="button" className="btn btn-ghost" onClick={() => void recharge()} disabled={recharging}>{recharging ? "Redirection…" : "Recharger"}</button></div><small>Minimum 200 crédits · 1 crédit = 1,50 XOF</small></div>
+        </section>
+
+        <section className="app-card studio-result">
+          <div className="card-head"><div><span className="eyebrow">Résultat</span><h2>{kind === "image" ? "Ton image" : "Ta vidéo"}</h2></div>{kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>
+          {imageUrl ? <><img className="studio-media" src={imageUrl} alt="Image générée par Imọlẹ" /><a className="btn btn-ghost" href={imageUrl} download="vendeo-studio-image">Télécharger l'image</a></> : null}
+          {videoReady ? <><video className="studio-media" src={videoJob.contentUrl ?? undefined} controls playsInline /><a className="btn btn-ghost" href={videoJob.contentUrl ?? undefined} download="vendeo-studio-video.mp4">Télécharger la vidéo</a></> : null}
+          {!imageUrl && !videoReady ? <div className="studio-empty">{videoJob ? <><Clock3 size={32} /><strong>Vidéo en préparation</strong><p>Statut : {videoJob.status}. Le résultat apparaîtra ici automatiquement.</p></> : <><Sparkles size={32} /><strong>Prêt à créer</strong><p>Décris ton idée, ajuste les réglages puis lance la génération.</p></>}</div> : null}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function StudioSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<[string, string]> }) {
+  return <label className="studio-field"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}>{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label>;
 }
 
 function Overview({

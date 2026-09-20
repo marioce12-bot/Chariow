@@ -21,7 +21,7 @@ type SasPayEvent = {
     status?: string;
     amount?: string | number;
     currency?: string;
-    metadata?: { userId?: string; plan?: PlanId; type?: string; campaignId?: string };
+    metadata?: { userId?: string; plan?: PlanId; type?: string; campaignId?: string; credits?: number };
   };
 };
 
@@ -36,6 +36,17 @@ export async function POST(request: Request) {
   if (!data?.id) return NextResponse.json({ error: "Transaction invalide" }, { status: 400 });
 
   const admin = createAdminClient();
+
+  if (data.metadata?.type === "studio_credits") {
+    const userId = data.metadata.userId;
+    const credits = Number(data.metadata.credits);
+    if (!userId || !Number.isInteger(credits) || credits < 200) return NextResponse.json({ error: "Métadonnées de crédits manquantes" }, { status: 400 });
+    if (data.status !== "SUCCESS" || data.currency !== "XOF" || Number(data.amount) !== Math.round(credits * 1.5)) return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: 400 });
+    const result = await admin.rpc("add_credits", { target_user_id: userId, amount: credits, payment_id: data.id, metadata_value: { provider: "saspay", amount_xof: Number(data.amount) } });
+    if (result.error) return NextResponse.json({ error: "Crédits non ajoutés" }, { status: 500 });
+    await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "studio_credits_purchased", resource_name: "credit_account", resource_key: userId, metadata_value: { transaction_id: data.id, credits, amount_xof: Number(data.amount) } });
+    return NextResponse.json({ received: true });
+  }
 
   // --- Paiement de lancement de campagne pub ---
   if (data.metadata?.type === "ad_campaign") {
@@ -69,5 +80,6 @@ export async function POST(request: Request) {
   const periodEnd = computePeriodEnd(plan, now);
   const { error } = await admin.from("subscriptions").update({ plan, status: "active", trial_active: false, messages_used_this_month: 0, current_period_start: now.toISOString().slice(0, 10), current_period_end: periodEnd, updated_at: now.toISOString() }).eq("user_id", userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "subscription_payment_confirmed", resource_name: "subscription", resource_key: userId, metadata_value: { transaction_id: data.id, plan, amount_xof: amount } });
   return NextResponse.json({ received: true });
 }

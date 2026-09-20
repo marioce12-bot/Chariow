@@ -22,7 +22,7 @@ type SasPayCheckout = {
   status?: string;
   amount?: string | number;
   currency?: string;
-  metadata?: { userId?: string; plan?: PaidPlan; type?: string; campaignId?: string };
+  metadata?: { userId?: string; plan?: PaidPlan; type?: string; campaignId?: string; credits?: number };
 };
 
 type SasPayTransaction = {
@@ -42,6 +42,14 @@ export async function createPayment(plan: PaidPlan, customer: { email?: string; 
     id: checkout.id,
     url: checkout.checkout_url,
   };
+}
+
+export async function createCreditsPayment(credits: number, amount: number, customer: { email?: string; name?: string }, metadata: { userId: string; credits: number }) {
+  const returnUrl = process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?credits=success` : undefined;
+  const response = await saspayRequest<{ data?: SasPayCheckout }>("/checkout-sessions/", { method: "POST", body: JSON.stringify({ amount: amount.toFixed(2), currency: "XOF", description: `Vendeo - Recharge de ${credits} crédits Studio`, customer_email: customer.email, customer_name: customer.name || "Créateur", return_url: returnUrl, metadata: { ...metadata, type: "studio_credits" } }) });
+  const checkout = response.data;
+  if (!checkout?.id || !checkout.checkout_url) throw new Error("SasPay did not return a checkout session URL");
+  return { id: checkout.id, url: checkout.checkout_url };
 }
 
 /**
