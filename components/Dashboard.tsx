@@ -576,9 +576,8 @@ function StudioView() {
         <div>
           <span className="eyebrow">Studio créatif</span>
           <h1>Crée tes médias avec l'IA</h1>
-          <p>Génère une image ou une vidéo directement depuis Vendeo avec les modèles Imọlẹ.</p>
+          <p>Génère une image ou une vidéo directement depuis Vendeo.</p>
         </div>
-        <span className="studio-powered">Propulsé par Imọlẹ</span>
       </div>
 
       <div className="studio-tabs" role="tablist" aria-label="Type de média">
@@ -620,7 +619,7 @@ function StudioView() {
 
         <section className="app-card studio-result">
           <div className="card-head"><div><span className="eyebrow">Résultat</span><h2>{kind === "image" ? "Ton image" : "Ta vidéo"}</h2></div>{kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>
-          {imageUrl ? <><img className="studio-media" src={imageUrl} alt="Image générée par Imọlẹ" /><a className="btn btn-ghost" href={imageUrl} download="vendeo-studio-image">Télécharger l'image</a></> : null}
+          {imageUrl ? <><img className="studio-media" src={imageUrl} alt="Image générée" /><a className="btn btn-ghost" href={imageUrl} download="vendeo-studio-image">Télécharger l'image</a></> : null}
           {videoReady ? <><video className="studio-media" src={videoJob.contentUrl ?? undefined} controls playsInline /><a className="btn btn-ghost" href={videoJob.contentUrl ?? undefined} download="vendeo-studio-video.mp4">Télécharger la vidéo</a></> : null}
           {!imageUrl && !videoReady ? <div className="studio-empty">{videoJob ? <><Clock3 size={32} /><strong>Vidéo en préparation</strong><p>Statut : {videoJob.status}. Le résultat apparaîtra ici automatiquement.</p></> : <><Sparkles size={32} /><strong>Prêt à créer</strong><p>Décris ton idée, ajuste les réglages puis lance la génération.</p></>}</div> : null}
         </section>
