@@ -924,6 +924,19 @@ html[data-theme="dark"] .mcp-steps span { color:#9aa8c9; }
 html[data-theme="dark"] .manual-divider { color:#64748b; }
 html[data-theme="dark"] code { background:#12224a; color:#8fa8ff; }
 html[data-theme="dark"] .report-product-icon, html[data-theme="dark"] .store-logo { background:#12224a; color:#d9c07a; }
+html[data-theme="dark"] .report-section,
+html[data-theme="dark"] .report-conclusion,
+html[data-theme="dark"] .report-filters { color:#e7edfb; }
+html[data-theme="dark"] .report-section h2,
+html[data-theme="dark"] .report-conclusion h2,
+html[data-theme="dark"] .report-filters strong,
+html[data-theme="dark"] .report-product strong,
+html[data-theme="dark"] .report-table-row > strong { color:#f1f5ff; }
+html[data-theme="dark"] .report-section p,
+html[data-theme="dark"] .report-conclusion p,
+html[data-theme="dark"] .report-filters span,
+html[data-theme="dark"] .report-muted { color:#aab8d6; }
+html[data-theme="dark"] .report-status { color:#c7d6ff; }
 html[data-theme="dark"] .report-stat > span { background:rgba(255,255,255,.14); color:#fff; }
 html[data-theme="dark"] .report-summary-main .eyebrow, html[data-theme="dark"] .report-summary-main p, html[data-theme="dark"] .report-stat small { color:#c7d6ff; }
 html[data-theme="dark"] .progress, html[data-theme="dark"] .health-progress { background:#12224a; }
