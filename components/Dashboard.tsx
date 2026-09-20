@@ -515,7 +515,8 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedGenerationId, setSelectedGenerationId] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const [editInstruction, setEditInstruction] = useState("");
 
   useEffect(() => {
@@ -590,14 +591,14 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
 
   async function editImage() {
     if (!selectedGenerationId || !editInstruction.trim()) return;
-    setEditing(true); setError("");
+    setEditSubmitting(true); setError("");
     try {
       const response = await fetch("/api/studio/image/edit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ generationId: selectedGenerationId, instruction: editInstruction }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Modification impossible.");
-      setImageUrl(result.imageUrl); setSelectedGenerationId(result.generationId); setEditInstruction(""); setHistoryCursor(null); await loadHistory(true);
+      setImageUrl(result.imageUrl); setSelectedGenerationId(result.generationId); setEditInstruction(""); setEditOpen(false); setHistoryCursor(null); await loadHistory(true);
       const credits = await fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).catch(() => null); if (credits) setBalance(credits.balance ?? 0);
-    } catch (editError) { setError(editError instanceof Error ? editError.message : "Modification impossible."); } finally { setEditing(false); }
+    } catch (editError) { setError(editError instanceof Error ? editError.message : "Modification impossible."); } finally { setEditSubmitting(false); }
   }
 
   const videoReady = videoJob?.status === "completed" && videoJob.contentUrl;
@@ -652,15 +653,14 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
           <div className="studio-balance"><div><span className="eyebrow">Solde Studio</span><strong>{balance} crédits</strong></div><div className="studio-recharge"><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} aria-label="Nombre de crédits à acheter" /><button type="button" className="btn btn-ghost" onClick={() => void recharge()} disabled={recharging}>{recharging ? "Redirection…" : "Recharger"}</button></div><small>Minimum 200 crédits · 1 crédit = 1,50 XOF</small></div>
         </section>
 
-        <section className="app-card studio-result" aria-busy={loading || editing || Boolean(videoJob && !["completed", "failed", "cancelled"].includes(videoJob.status))}>
+        <section className="app-card studio-result" aria-busy={loading || editSubmitting || Boolean(videoJob && !["completed", "failed", "cancelled"].includes(videoJob.status))}>
           <div className="card-head"><div><span className="eyebrow">Résultat</span><h2>{kind === "image" ? "Ton image" : "Ta vidéo"}</h2></div>{kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>
-          {imageUrl ? <><div className={editing ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imageUrl} alt="Image générée" /></div><div className="studio-result-actions"><a className="btn btn-ghost" href={imageUrl} download="vendeo-studio-image">Télécharger l'image</a><button className="btn btn-ghost" onClick={() => setEditing(true)} disabled={editing}>Modifier</button></div>{editing ? <div className="studio-edit-box"><label><span>Décris la modification souhaitée</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} /></label><small>Coût : crédits de l'image d'origine</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editing || !editInstruction.trim()}>{editing ? "Modification…" : "Modifier"}</button><button className="btn btn-ghost" onClick={() => { setEditing(false); setEditInstruction(""); }}>Annuler</button></div></div> : null}</> : null}
+          {imageUrl ? <><div className={editSubmitting ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imageUrl} alt="Image générée" /></div><div className="studio-result-actions"><a className="btn btn-ghost" href={imageUrl} download="vendeo-studio-image">Télécharger l'image</a><button className="btn btn-ghost" onClick={() => setEditOpen(true)} disabled={editSubmitting}>Modifier</button></div>{editOpen ? <div className="studio-edit-box"><label><span>Décris la modification souhaitée</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} disabled={editSubmitting} /></label><small>Coût : crédits de l'image d'origine</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editSubmitting || !editInstruction.trim()}>{editSubmitting ? "Modification…" : "Modifier"}</button><button className="btn btn-ghost" onClick={() => { setEditOpen(false); setEditInstruction(""); }} disabled={editSubmitting}>Annuler</button></div></div> : null}</> : null}
           {videoReady ? <><video className="studio-media" src={videoJob.contentUrl ?? undefined} controls playsInline /><a className="btn btn-ghost" href={videoJob.contentUrl ?? undefined} download="vendeo-studio-video.mp4">Télécharger la vidéo</a></> : null}
           {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>Génération en cours…</strong><p>{videoJob ? `Statut : ${videoJob.status}. La vidéo peut prendre quelques minutes.` : "Encore quelques secondes…"}</p></> : <><Sparkles size={32} /><strong>Prêt à créer</strong><p>Décris ton idée, ajuste les réglages puis lance la génération.</p></>}</div> : null}
         </section>
       </div>
       <div className="studio-history-toolbar"><span className="eyebrow">Historique</span><div><button className={historyKind === "all" ? "active" : ""} onClick={() => setHistoryKind("all")}>Tout</button><button className={historyKind === "image" ? "active" : ""} onClick={() => setHistoryKind("image")}>Images</button><button className={historyKind === "video" ? "active" : ""} onClick={() => setHistoryKind("video")}>Vidéos</button></div></div>
-      <section className="studio-history">{history.length ? history.map((item) => <article className="studio-history-card" key={item.id} onClick={() => { setSelectedGenerationId(item.id); setKind(item.kind); if (item.kind === "image") setImageUrl(item.mediaUrl ?? null); else if (item.video_job_id) setVideoJob({ id: item.video_job_id, status: item.status, contentUrl: item.mediaUrl }); }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt="Création" /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{item.kind === "image" ? "Image" : "Vidéo"}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "…" : ""}</p><small>{new Date(item.created_at).toLocaleString("fr-FR")} · {item.credits_cost} crédits · {item.status === "processing" ? "En cours" : item.status === "failed" ? "Échec" : "Terminée"}</small></div><div className="studio-history-actions"><button onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>Réutiliser</button>{item.kind === "image" ? <button onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditing(true); }}>Modifier</button> : null}<button onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette création ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>Supprimer</button></div></article>) : <div className="studio-history-empty">Aucune création pour l'instant</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? "Chargement…" : "Charger plus"}</button> : null}</section>
     </div>
   );
 }
