@@ -87,6 +87,42 @@ function buildProductUrl(store: Record<string, unknown>, product: Record<string,
   return `https://${host.replace(/\/$/, "")}/${slug.replace(/^\//, "")}`;
 }
 
+// Une vente est considérée comme confirmée (encaissée) si Chariow lui donne un
+// statut "completed" ou "settled" — mêmes statuts que ceux déjà utilisés pour
+// les KPIs de la page "Ventes" (Dashboard.tsx). Les paiements en attente,
+// échoués, abandonnés ou remboursés ne comptent pas.
+function isConfirmedSale(sale: Record<string, unknown>): boolean {
+  const status = text(sale.status ?? sale.state);
+  return status === "completed" || status === "settled";
+}
+
+// Chariow ne renvoie pas de compteur de ventes fiable directement sur chaque
+// produit via list_products (le champ `sales` y est presque toujours absent ou
+// null) : c'est ce qui affichait "0 vente" devant chaque produit alors que les
+// ventes totales (get_sales_analytics) étaient correctes. On calcule donc
+// nous-mêmes le nombre de ventes confirmées par produit à partir de la liste
+// brute des ventes (list_sales), en les regroupant par identifiant produit —
+// avec un repli sur le nom du produit si Chariow ne fournit pas d'identifiant
+// sur la vente.
+function buildProductSalesIndex(rawSales: Record<string, unknown>[]): { byId: Map<string, number>; byName: Map<string, number> } {
+  const byId = new Map<string, number>();
+  const byName = new Map<string, number>();
+  for (const sale of rawSales) {
+    if (!isConfirmedSale(sale)) continue;
+    const saleProduct = asRecord(sale.product);
+    const productId = firstText(sale.product_id, saleProduct.id, saleProduct.uuid);
+    if (productId) {
+      byId.set(productId, (byId.get(productId) ?? 0) + 1);
+      continue;
+    }
+    const productName = firstText(sale.product_name, saleProduct.name, saleProduct.title);
+    if (productName) {
+      byName.set(productName, (byName.get(productName) ?? 0) + 1);
+    }
+  }
+  return { byId, byName };
+}
+
 export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period: { from: string; to: string }): ChariowNormalizedSnapshot {
   const store = asRecord(snapshot.store);
   const storeAnalytics = asRecord(snapshot.storeAnalytics);
@@ -97,6 +133,8 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
   const customers = asRecord(storeAnalytics.customers ?? salesAnalytics.customers);
   const analyticsProducts = asRecord(storeAnalytics.products ?? salesAnalytics.products);
   const productRows = firstArray(snapshot.products);
+  const rawSales = firstArray(snapshot.sales).map((item) => asRecord(item));
+  const productSalesIndex = buildProductSalesIndex(rawSales);
   let loggedUnresolvedFields = false;
   const products: ChariowProduct[] = productRows.map((item, index) => {
     const product = asRecord(item);
@@ -158,9 +196,18 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       loggedUnresolvedFields = true;
     }
 
+    const productId = String(product.id ?? product.uuid ?? index);
+    const productName = text(product.name ?? product.title) ?? "Produit sans nom";
+    // On calcule le nombre réel de ventes confirmées pour ce produit à partir
+    // de la liste brute des ventes Chariow (voir buildProductSalesIndex
+    // ci-dessus), plutôt que de faire confiance à un champ `sales` sur le
+    // produit qui n'est presque jamais fourni par l'API Chariow.
+    const computedSales = productSalesIndex.byId.get(productId) ?? productSalesIndex.byName.get(productName) ?? null;
+    const fallbackSales = typeof product.sales === "number" ? product.sales : null;
+
     return {
-      id: String(product.id ?? product.uuid ?? index),
-      name: text(product.name ?? product.title) ?? "Produit sans nom",
+      id: productId,
+      name: productName,
       description: text(product.description),
       price: resolvedPrice,
       currency: firstText(product.currency, price.currency, price.currency_code, product.currency_code, pricingEntry.currency, pricingEntry.currency_code, store.currency),
@@ -168,7 +215,7 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       image: text(product.image ?? product.image_url ?? product.thumbnail),
       url: resolvedUrl,
       createdAt: text(product.created_at ?? product.createdAt),
-      sales: typeof product.sales === "number" ? product.sales : null,
+      sales: computedSales ?? fallbackSales ?? 0,
     };
   });
   const revenue = asRecord(sales.value);
