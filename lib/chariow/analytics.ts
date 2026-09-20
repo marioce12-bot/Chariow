@@ -239,6 +239,122 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
   };
 }
 
+// Identifiant lisible : accepte aussi les identifiants numériques (firstText les ignore).
+function idText(...candidates: unknown[]): string | null {
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate;
+    if (typeof candidate === "number" && Number.isFinite(candidate)) return String(candidate);
+  }
+  return null;
+}
+
+// Montant d'une vente : Chariow renvoie soit un nombre, soit { value, currency }.
+function saleAmountValue(value: unknown): number {
+  const row = asRecord(value);
+  return numericValue(row.value ?? value) ?? 0;
+}
+
+function clip(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+function formatMoney(value: number, currency: string): string {
+  return `${Math.round(value).toLocaleString("fr-FR")} ${currency}`;
+}
+
+type ProductStat = { count: number; revenue: number };
+
+function bumpStat(map: Map<string, ProductStat>, key: string, amount: number) {
+  const current = map.get(key) ?? { count: 0, revenue: 0 };
+  current.count += 1;
+  current.revenue += amount;
+  map.set(key, current);
+}
+
+// Contexte envoyé à l'IA du chat.
+// Avant : on envoyait le JSON brut de Chariow (store + liste produits complète avec
+// descriptions/images, etc.). Ce JSON est ensuite tronqué à 6 000 caractères dans
+// /api/chat : l'IA ne voyait donc que le début (infos boutique, nombre de clients…)
+// et jamais les produits ni les ventes.
+// Maintenant : un résumé compact et structuré (KPIs, classement produits avec
+// ventes + chiffre d'affaires, dernières ventes) qui tient largement dans la limite.
 export function serializeChariowContext(snapshot: ChariowStoreSnapshot) {
-  return JSON.stringify(snapshot, null, 2).slice(0, 40000);
+  const now = new Date();
+  const period = {
+    from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10),
+    to: now.toISOString().slice(0, 10),
+  };
+  const normalized = normalizeChariowSnapshot(snapshot, period);
+  const store = asRecord(snapshot.store);
+  const rawSales = firstArray(snapshot.sales).map((item) => asRecord(item));
+  const defaultCurrency = firstText(store.currency) ?? "XOF";
+
+  const byId = new Map<string, ProductStat>();
+  const byName = new Map<string, ProductStat>();
+  let confirmedCount = 0;
+  for (const sale of rawSales) {
+    if (!isConfirmedSale(sale)) continue;
+    confirmedCount += 1;
+    const saleProduct = asRecord(sale.product);
+    const amount = saleAmountValue(sale.amount);
+    const productId = idText(sale.product_id, saleProduct.id, saleProduct.uuid);
+    if (productId) {
+      bumpStat(byId, productId, amount);
+      continue;
+    }
+    const productName = firstText(sale.product_name, saleProduct.name, saleProduct.title);
+    if (productName) bumpStat(byName, productName, amount);
+  }
+
+  const nameById = new Map(normalized.products.map((product) => [product.id, product.name] as const));
+
+  const ranked = normalized.products
+    .map((product) => {
+      const stat = byId.get(product.id) ?? byName.get(product.name);
+      return { product, count: stat?.count ?? 0, revenue: stat?.revenue ?? 0 };
+    })
+    .sort((a, b) => b.count - a.count || b.revenue - a.revenue);
+
+  const kpis = normalized.kpis;
+  const lines: string[] = [];
+  lines.push(`Boutique : ${normalized.storeName} (statut : ${normalized.storeStatus})`);
+  lines.push(`Période des indicateurs : ${period.from} → ${period.to}`);
+  lines.push(`Chiffre d'affaires : ${kpis.revenue.formatted ?? "n/d"}`);
+  lines.push(`Ventes : ${kpis.sales} | Visites : ${kpis.visits} | Taux de conversion : ${kpis.conversionRate} | Clients : ${kpis.customers} | Produits vendus : ${kpis.productsSold}`);
+  lines.push(`Catalogue : ${normalized.products.length} produit(s)`);
+
+  if (!ranked.length) {
+    lines.push("Aucun produit n'a été récupéré dans le catalogue.");
+  } else {
+    lines.push(`Classement des produits par ventes confirmées (calculé sur les ${rawSales.length} dernières ventes récupérées, dont ${confirmedCount} confirmées ; le chiffre d'affaires par produit correspond à ces mêmes ventes) :`);
+    const TOP_PRODUCTS = 12;
+    ranked.slice(0, TOP_PRODUCTS).forEach(({ product, count, revenue }, index) => {
+      const currency = product.currency ?? defaultCurrency;
+      const price = product.price !== null && product.price !== "" ? `${product.price} ${currency}` : "prix n/d";
+      lines.push(`${index + 1}. ${clip(product.name, 60)} — ${count} vente(s) — CA ${formatMoney(revenue, currency)} — prix ${price} — statut ${product.status ?? "n/d"}`);
+    });
+    if (ranked.length > TOP_PRODUCTS) {
+      lines.push(`(+ ${ranked.length - TOP_PRODUCTS} autre(s) produit(s) moins vendus, non détaillés)`);
+    }
+  }
+
+  const recent = rawSales
+    .slice()
+    .sort((a, b) => String(b.created_at ?? b.createdAt ?? "").localeCompare(String(a.created_at ?? a.createdAt ?? "")))
+    .slice(0, 8);
+  if (recent.length) {
+    lines.push("Ventes récentes :");
+    for (const sale of recent) {
+      const saleProduct = asRecord(sale.product);
+      const productId = idText(sale.product_id, saleProduct.id, saleProduct.uuid);
+      const productName = firstText(sale.product_name, saleProduct.name, saleProduct.title) ?? (productId ? nameById.get(productId) : undefined) ?? "produit inconnu";
+      const currency = firstText(asRecord(sale.amount).currency, sale.currency) ?? defaultCurrency;
+      const date = String(sale.created_at ?? sale.createdAt ?? "").slice(0, 10) || "date n/d";
+      lines.push(`- ${date} | ${clip(productName, 50)} | ${formatMoney(saleAmountValue(sale.amount), currency)} | ${text(sale.status ?? sale.state) ?? "n/d"}`);
+    }
+  } else {
+    lines.push("Aucune vente récente récupérée.");
+  }
+
+  return lines.join("\n").slice(0, 4000);
 }
