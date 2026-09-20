@@ -1,0 +1,43 @@
+name: Reparer l'encodage
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ftfy
+
+      - name: Supprimer le fichier parasite a la racine
+        run: |
+          python - <<'PY'
+          import subprocess
+          out = subprocess.check_output(["git", "ls-files", "-z"])
+          for f in out.decode("utf-8", "surrogateescape").split("\0"):
+              if f.startswith("ersDELLChariow"):
+                  print("suppression :", repr(f))
+                  subprocess.run(["git", "rm", "--quiet", "--", f], check=True)
+          PY
+
+      - name: Reparer le mojibake
+        run: python scripts/fix-encoding.py --write
+
+      - name: Verifier qu'il ne reste rien
+        run: python scripts/fix-encoding.py
+
+      - name: Commiter
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then echo "Rien a corriger."; exit 0; fi
+          git add -A
+          git commit -m "fix(encodage): repare le double-encodage de Dashboard.tsx"
+          git push
