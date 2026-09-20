@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { requireUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { generateImoleImage, generateImoleImageWithReferences, type StudioImageOptions } from "@/lib/ai/imole";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
@@ -19,7 +20,7 @@ function oneOf<T extends readonly string[]>(value: unknown, values: T, fallback:
 }
 
 export async function POST(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { user, response } = await requireUser();
   if (!user) return response;
 
   const body = await request.json().catch(() => ({}));
@@ -41,10 +42,13 @@ export async function POST(request: Request) {
   const prompt = buildStudioPrompt("image", userPrompt, product, Boolean(reference));
 
   const cost = imageCreditCost(options.resolution ?? "hd", options.quality ?? "medium");
-  const { data: generation, error: generationError } = await supabase.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options, status: "processing", credits_cost: cost }).select("id").single();
+  // Ecritures + RPC credits : client service-role. RLS n'expose que le SELECT
+  // aux utilisateurs, et les fonctions de credits sont revoquees pour `authenticated`.
+  const admin = createAdminClient();
+  const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options, status: "processing", credits_cost: cost }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
   const requestId = crypto.randomUUID();
-  const reservation = await supabase.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image", model_name: "imole-image", provider_amount: Math.round(cost / 1.5), request_id: requestId });
+  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image", model_name: "imole-image", provider_amount: Math.round(cost / 1.5), request_id: requestId });
   if (reservation.error) {
     console.error("Studio credit reservation error", reservation.error.message, reservation.error.code);
     return NextResponse.json({ error: "Le système de crédits n'est pas encore configuré.", details: process.env.NODE_ENV === "development" ? reservation.error.message : undefined }, { status: 503 });
@@ -54,14 +58,14 @@ export async function POST(request: Request) {
 
   try {
     const imageUrl = reference ? await generateImoleImageWithReferences(prompt, [reference], options) : await generateImoleImage(prompt, "square", options);
-    await supabase.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
+    await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     let storagePath: string | null = null;
     try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat); } catch (storageError) { console.error("Studio image storage error", storageError); }
-    await supabase.from("studio_generations").update({ status: "completed", storage_path: storagePath }).eq("id", generation.id).eq("user_id", user.id);
+    await admin.from("studio_generations").update({ status: "completed", storage_path: storagePath }).eq("id", generation.id).eq("user_id", user.id);
     return NextResponse.json({ imageUrl: storagePath ? await signedStudioUrl(storagePath) : imageUrl, generationId: generation.id, cost });
   } catch (error) {
-    await supabase.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });
-    await supabase.from("studio_generations").update({ status: "failed", error: error instanceof Error ? error.message : "Erreur de génération" }).eq("id", generation.id).eq("user_id", user.id);
+    await admin.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });
+    await admin.from("studio_generations").update({ status: "failed", error: error instanceof Error ? error.message : "Erreur de génération" }).eq("id", generation.id).eq("user_id", user.id);
     const message = error instanceof Error ? error.message : "Erreur de génération d'image.";
     console.error("Imole studio image error", message);
     return NextResponse.json({ error: "Impossible de générer l'image pour le moment." }, { status: 502 });
