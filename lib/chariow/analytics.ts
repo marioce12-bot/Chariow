@@ -27,6 +27,15 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+// L'API Chariow enveloppe ses réponses ({ message, data, errors }). Pour la boutique
+// (get_store), l'objet utile est donc dans `data` : sans ce déballage, ni le nom, ni
+// l'URL de la boutique (nécessaire pour construire le lien produit) n'étaient lus.
+function unwrapData(value: unknown): Record<string, unknown> {
+  const record = asRecord(value);
+  const inner = record.data;
+  return inner && typeof inner === "object" && !Array.isArray(inner) ? inner as Record<string, unknown> : record;
+}
+
 function firstArray(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   const record = asRecord(value);
@@ -78,10 +87,12 @@ function firstText(...candidates: unknown[]): string | null {
 
 // Construit un lien produit à partir d'une boutique + d'un slug quand l'API ne
 // renvoie pas d'URL complète toute faite (seulement un identifiant/slug produit).
+// Chariow documente `url` sur la boutique (domaine personnalisé ou sous-domaine) :
+// on le lit en premier, avant les anciens noms de champ.
 function buildProductUrl(store: Record<string, unknown>, product: Record<string, unknown>): string | null {
   const slug = firstText(product.slug, product.handle, product.reference);
   if (!slug) return null;
-  const storeDomain = firstText(store.domain, store.subdomain, store.slug, store.store_slug, store.url, store.storefront_url);
+  const storeDomain = firstText(store.url, asRecord(product.store).url, store.storefront_url, store.domain, store.subdomain, store.slug, store.store_slug);
   if (!storeDomain) return null;
   const host = storeDomain.includes(".") ? storeDomain.replace(/^https?:\/\//, "") : `${storeDomain}.mychariow.com`;
   return `https://${host.replace(/\/$/, "")}/${slug.replace(/^\//, "")}`;
@@ -124,7 +135,7 @@ function buildProductSalesIndex(rawSales: Record<string, unknown>[]): { byId: Ma
 }
 
 export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period: { from: string; to: string }): ChariowNormalizedSnapshot {
-  const store = asRecord(snapshot.store);
+  const store = unwrapData(snapshot.store);
   const storeAnalytics = asRecord(snapshot.storeAnalytics);
   const salesAnalytics = asRecord(snapshot.salesAnalytics);
   const analytics = { ...salesAnalytics, ...storeAnalytics };
@@ -144,6 +155,10 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
     // les deux pour ne rater ni l'un ni l'autre.
     const pricingRaw = product.pricing;
     const pricingEntry = asRecord(Array.isArray(pricingRaw) ? pricingRaw[0] : pricingRaw);
+    // Dans `pricing`, chaque montant est un objet { value, formatted, short, currency }.
+    const currentPrice = asRecord(pricingEntry.current_price);
+    const effectivePrice = asRecord(pricingEntry.effective);
+    const basePrice = asRecord(pricingEntry.price);
     const resolvedPrice = firstNumeric(
       product.price,
       price.value,
@@ -157,8 +172,10 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       product.price_formatted,
       pricingEntry.amount,
       pricingEntry.price,
-      asRecord(pricingEntry.current_price).value,
-      asRecord(pricingEntry.price).value,
+      currentPrice.value,
+      effectivePrice.value,
+      basePrice.value,
+      currentPrice.formatted,
       pricingEntry.value,
       pricingEntry.unit_price,
       pricingRaw
@@ -203,7 +220,13 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
     // prochain sync plutôt que de deviner à l'aveugle.
     if (!loggedUnresolvedFields && index < 2 && (resolvedPrice === null || !resolvedUrl)) {
       console.warn(
-        "[chariow] champ prix/lien non résolu pour un produit — clés disponibles:",
+        "[chariow] champ prix/lien non résolu pour un produit — prix résolu:",
+        resolvedPrice !== null,
+        "lien résolu:",
+        Boolean(resolvedUrl),
+        "clés boutique (get_store):",
+        Object.keys(store),
+        "clés produit:",
         Object.keys(product),
         "clés price:",
         Object.keys(price),
@@ -229,7 +252,9 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       name: productName,
       description: text(product.description),
       price: resolvedPrice,
-      currency: firstText(product.currency, price.currency, price.currency_code, product.currency_code, pricingEntry.currency, pricingEntry.currency_code, store.currency),
+      // La devise d'un produit Chariow se trouve dans ses montants `pricing`
+      // (ex. pricing.current_price.currency), pas sur le produit lui-même.
+      currency: firstText(product.currency, price.currency, price.currency_code, product.currency_code, currentPrice.currency, effectivePrice.currency, basePrice.currency, pricingEntry.currency, pricingEntry.currency_code, store.currency),
       status: text(product.status ?? product.state),
       image: resolvedImage,
       url: resolvedUrl,
@@ -304,9 +329,9 @@ export function serializeChariowContext(snapshot: ChariowStoreSnapshot) {
     to: now.toISOString().slice(0, 10),
   };
   const normalized = normalizeChariowSnapshot(snapshot, period);
-  const store = asRecord(snapshot.store);
+  const store = unwrapData(snapshot.store);
   const rawSales = firstArray(snapshot.sales).map((item) => asRecord(item));
-  const defaultCurrency = firstText(store.currency) ?? "XOF";
+  const defaultCurrency = firstText(store.currency, normalized.products.find((product) => product.currency)?.currency) ?? "XOF";
 
   const byId = new Map<string, ProductStat>();
   const byName = new Map<string, ProductStat>();
