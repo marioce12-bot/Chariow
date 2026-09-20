@@ -25,3 +25,20 @@ export async function signedStudioUrl(path: string) {
   if (error) throw error;
   return data.signedUrl;
 }
+
+// Recupere l'image deja stockee (bucket prive studio-media) pour la reutiliser
+// comme reference lors d'une edition. Contrairement a fetchReferenceImage, cette
+// fonction n'est pas limitee a un hote public : elle lit directement le bucket
+// via le client service-role.
+export async function downloadStudioImage(path: string): Promise<{ buffer: Buffer; type: string } | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage.from("studio-media").download(path);
+  if (error || !data) return null;
+  const buffer = Buffer.from(await data.arrayBuffer());
+  const type = data.type && data.type !== "application/octet-stream"
+    ? data.type
+    : path.toLowerCase().endsWith(".jpg") || path.toLowerCase().endsWith(".jpeg")
+      ? "image/jpeg"
+      : "image/png";
+  return { buffer, type };
+}
