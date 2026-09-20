@@ -377,7 +377,7 @@ export function Dashboard() {
         <section className={active === "Vendeo AI" ? "app-main chat-page" : "app-main"}>
           {loadingData ? (
             <div className="app-card">Chargement de ton espace…</div>
-          ) : stores.length === 0 && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
+          ) : stores.length === 0 && !analytics && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
             <StoreOnboarding />
           ) : active === "Paramètres" ? (
             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />

@@ -23,6 +23,8 @@ export async function middleware(request: NextRequest) {
   const isAdminPath = request.nextUrl.pathname.startsWith("/admin");
   const isAdminLogin = request.nextUrl.pathname === "/admin/login";
   if (!user && request.nextUrl.pathname.startsWith("/dashboard")) return NextResponse.redirect(new URL("/login", request.url));
+  // The admin page performs the final server-side check. Do not let a stale or
+  // edge-incompatible cookie fall through to the Supabase admin error screen.
   if (isAdminPath && !isAdminLogin && !(await isAdminSessionValidEdge(request.cookies.get(ADMIN_COOKIE)?.value))) return NextResponse.redirect(new URL("/admin/login", request.url));
   if (user && ["/login", "/register"].includes(request.nextUrl.pathname)) return NextResponse.redirect(new URL("/dashboard", request.url));
   return response;
