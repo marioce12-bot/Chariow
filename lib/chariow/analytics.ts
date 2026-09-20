@@ -157,6 +157,8 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       product.price_formatted,
       pricingEntry.amount,
       pricingEntry.price,
+      asRecord(pricingEntry.current_price).value,
+      asRecord(pricingEntry.price).value,
       pricingEntry.value,
       pricingEntry.unit_price,
       pricingRaw
@@ -176,6 +178,23 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       product.sales_url,
       product.link
     ) ?? buildProductUrl(store, product);
+
+    // Chariow renvoie les visuels dans `pictures` : { thumbnail, cover } (URL ou null).
+    // thumbnail = image carrée de la liste produits ; cover = bannière. On préfère le thumbnail.
+    const pictures = asRecord(product.pictures);
+    const resolvedImage = firstText(
+      pictures.thumbnail,
+      pictures.cover,
+      product.image,
+      product.image_url,
+      product.thumbnail,
+      product.thumbnail_url,
+      product.cover,
+      product.cover_url
+    );
+    if (index < 2 && !resolvedImage) {
+      console.warn("[chariow] image produit non résolue — clés produit:", Object.keys(product), "clés pictures:", Object.keys(pictures));
+    }
 
     // Diagnostic ponctuel : si on n'arrive toujours pas à lire le prix ou le lien
     // sur les deux premiers produits, on log les clés brutes renvoyées par
@@ -212,7 +231,7 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       price: resolvedPrice,
       currency: firstText(product.currency, price.currency, price.currency_code, product.currency_code, pricingEntry.currency, pricingEntry.currency_code, store.currency),
       status: text(product.status ?? product.state),
-      image: text(product.image ?? product.image_url ?? product.thumbnail),
+      image: resolvedImage,
       url: resolvedUrl,
       createdAt: text(product.created_at ?? product.createdAt),
       sales: computedSales ?? fallbackSales ?? 0,
