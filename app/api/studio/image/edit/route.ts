@@ -2,9 +2,9 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateImoleImage } from "@/lib/ai/imole";
+import { generateImoleImage, generateImoleImageWithReferences } from "@/lib/ai/imole";
 import { imageCreditCost } from "@/lib/studio/credits";
-import { signedStudioUrl, storeStudioImage } from "@/lib/studio/media";
+import { downloadStudioImage, signedStudioUrl, storeStudioImage } from "@/lib/studio/media";
 
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -27,9 +27,19 @@ export async function POST(request: Request) {
   const reserveResult = reservation.data as { ok?: boolean; balance?: number; transaction_id?: string } | null;
   if (reservation.error || !reserveResult?.ok) { await admin.from("studio_generations").update({ status: "failed", error: reservation.error?.message || "Solde insuffisant" }).eq("id", generation.id); return NextResponse.json({ error: `Solde insuffisant. Cette modification nécessite ${cost} crédits.`, balance: reserveResult?.balance ?? 0 }, { status: reservation.error ? 503 : 402 }); }
   try {
-    // Imọlẹ ne publie pas de contrat d'édition exploitable dans sa documentation publique.
-    // Repli volontaire : régénération avec le prompt d'origine et l'instruction.
-    const imageUrl = await generateImoleImage(`${source.prompt}. Modification demandée : ${instruction}`, "square", { ...options, outputFormat: options.outputFormat as "png" | "jpeg" });
+    // Reutilise l'image deja generee comme reference (Imole /images/edits) pour
+    // une veritable retouche plutot qu'une regeneration a l'aveugle a partir du
+    // texte. Repli sur le texte seul si le fichier n'est plus disponible dans
+    // le storage (generation tres ancienne ou stockage ayant echoue).
+    const reference = source.storage_path ? await downloadStudioImage(source.storage_path) : null;
+    const editOptions = { ...options, outputFormat: options.outputFormat as "png" | "jpeg" };
+    const imageUrl = reference
+      ? await generateImoleImageWithReferences(
+          `Modifie cette image en appliquant uniquement la consigne suivante, sans rien changer d'autre à la composition, aux couleurs ni au style : ${instruction}`,
+          [reference],
+          editOptions,
+        )
+      : await generateImoleImage(`${source.prompt}. Modification demandée : ${instruction}`, "square", editOptions);
     await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     let storagePath: string | null = null;
     try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat || "png"); } catch (storageError) { console.error("Studio edit storage error", storageError); }
