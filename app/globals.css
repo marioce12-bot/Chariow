@@ -1136,6 +1136,10 @@ html[data-theme="dark"] .studio-empty p { color:#9aa8c9; }
 .admin-payout-form { display:grid; gap:10px; grid-template-columns:repeat(2,minmax(0,1fr)); }
 .admin-payout-form input { border:1px solid var(--line); border-radius:8px; padding:11px; }
 .admin-payout-form .btn { grid-column:1/-1; }
+.admin-grant-form { align-items:center; display:inline-flex; flex-wrap:wrap; gap:5px; margin-left:5px; }
+.admin-grant-form input { border:1px solid var(--line); border-radius:6px; font-size:11px; min-width:78px; padding:6px; }
+.admin-grant-form input[aria-label="Motif du cadeau"] { min-width:130px; }
+.admin-grant-form button { background:#e5f0df; border:1px solid #c9dfc2; border-radius:6px; color:var(--green); font-size:11px; padding:6px 8px; }
 @media (max-width:600px) { .admin-payout-form { grid-template-columns:1fr; } }
 
 /* Corrige le vide en haut de la section IA : la classe app-layout-flush était
