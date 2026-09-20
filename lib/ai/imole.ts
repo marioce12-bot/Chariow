@@ -99,6 +99,17 @@ export type StudioImageOptions = {
   background?: "auto" | "opaque" | "transparent";
   outputFormat?: "png" | "jpeg";
 };
+export type StudioReferenceImage = { buffer: Buffer; type: string };
+function referenceDataUrl(image: StudioReferenceImage) { return `data:${image.type};base64,${image.buffer.toString("base64")}`; }
+export async function generateImoleImageWithReferences(prompt: string, references: StudioReferenceImage[], options: StudioImageOptions = {}) {
+  const { apiKey, baseUrl } = getConfig(); const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 60_000); const outputFormat = options.background === "transparent" ? "png" : (options.outputFormat ?? "png");
+  try {
+    const response = await fetch(`${baseUrl}/images/edits`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model: getAiImageModel(), prompt, image_mode: options.imageMode ?? "fast", quality: options.quality ?? "medium", resolution: options.resolution ?? "hd", orientation: options.orientation ?? "square", background: options.background ?? "auto", output_format: outputFormat, images: references.slice(0, 3).map((image) => ({ image_url: referenceDataUrl(image) })) }), signal: controller.signal, cache: "no-store" });
+    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    if (response.ok && contentType.startsWith("image/")) { const bytes = Buffer.from(await response.arrayBuffer()); return `data:${contentType.split(";")[0]};base64,${bytes.toString("base64")}`; }
+    const data = await response.json().catch(() => ({})) as ImoleImageResponse; if (!response.ok) throw new Error(data.error?.message || `Imole image edit API returned ${response.status}`); const item = data.data?.[0]; const url = data.url || data.image_url || item?.url || item?.image_url || (item?.b64_json ? `data:image/${outputFormat};base64,${item.b64_json}` : null); if (!url) throw new Error("Imole n'a renvoyé aucune image"); return url;
+  } finally { clearTimeout(timeout); }
+}
 
 export async function generateImoleImage(
   prompt: string,
@@ -146,7 +157,7 @@ export async function generateImoleImage(
   }
 }
 
-export async function createImoleVideo(prompt: string, options: { duration: number; resolution: "480p" | "768p"; aspectRatio: string }) {
+export async function createImoleVideo(prompt: string, options: { duration: number; resolution: "480p" | "768p"; aspectRatio: string; referenceUrl?: string | null; referenceMode?: "image" | "reference" }) {
   const { apiKey, baseUrl } = getConfig();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 45_000);
@@ -158,10 +169,12 @@ export async function createImoleVideo(prompt: string, options: { duration: numb
       body: JSON.stringify({
         model: getAiVideoModel(),
         prompt,
-        mode: "text",
+        mode: options.referenceUrl ? (options.referenceMode === "image" ? "image" : "reference") : "text",
         duration: options.duration,
         resolution: options.resolution,
-        aspect_ratio: options.aspectRatio,
+        aspect_ratio: options.referenceUrl && options.referenceMode === "image" ? "auto" : options.aspectRatio,
+        ...(options.referenceUrl && options.referenceMode === "image" ? { first_frame: options.referenceUrl } : {}),
+        ...(options.referenceUrl && options.referenceMode !== "image" ? { references: [options.referenceUrl] } : {}),
       }),
       signal: controller.signal,
       cache: "no-store",

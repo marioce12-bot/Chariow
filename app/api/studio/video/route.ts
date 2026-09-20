@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { requireUser } from "@/lib/auth";
 import { createImoleVideo } from "@/lib/ai/imole";
 import { videoCreditCost } from "@/lib/studio/credits";
+import { buildStudioPrompt, parseStudioProduct } from "@/lib/studio/product-prompt";
 
 const resolutions = ["480p", "768p"] as const;
 const aspectRatios = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"] as const;
@@ -12,14 +13,18 @@ export async function POST(request: Request) {
   if (!user) return response;
 
   const body = await request.json().catch(() => ({}));
-  const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+  const userPrompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+  const product = parseStudioProduct(body?.product);
   const duration = Number(body?.duration);
   const resolution = typeof body?.resolution === "string" && resolutions.includes(body.resolution as (typeof resolutions)[number]) ? body.resolution as (typeof resolutions)[number] : "480p";
   const aspectRatio = typeof body?.aspectRatio === "string" && aspectRatios.includes(body.aspectRatio as (typeof aspectRatios)[number]) ? body.aspectRatio : "16:9";
 
-  if (!prompt || prompt.length > 4_000) return NextResponse.json({ error: "Décris la vidéo à créer en 1 à 4 000 caractères." }, { status: 400 });
+  if ((!userPrompt && !product) || userPrompt.length > 4_000) return NextResponse.json({ error: "Décris la vidéo à créer ou choisis un produit." }, { status: 400 });
   if (!Number.isInteger(duration) || duration < 4 || duration > 15) return NextResponse.json({ error: "La durée doit être comprise entre 4 et 15 secondes." }, { status: 400 });
 
+  const prompt = buildStudioPrompt("video", userPrompt, product, false);
+  const referenceMode = body?.referenceMode === "image" ? "image" : "reference";
+  const referenceUrl = product?.imageUrl ?? null;
   const cost = videoCreditCost(resolution, duration);
   const { data: generation, error: generationError } = await supabase.from("studio_generations").insert({ user_id: user.id, kind: "video", prompt, options: { duration, resolution, aspectRatio }, status: "processing", credits_cost: cost }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
@@ -33,7 +38,7 @@ export async function POST(request: Request) {
   if (!reserveResult?.ok) return NextResponse.json({ error: `Solde insuffisant. Cette vidéo nécessite ${cost} crédits, ton solde est de ${reserveResult?.balance ?? 0}.`, required: cost, balance: reserveResult?.balance ?? 0 }, { status: 402 });
 
   try {
-    const jobId = await createImoleVideo(prompt, { duration, resolution, aspectRatio });
+    const jobId = await createImoleVideo(prompt, { duration, resolution, aspectRatio, referenceUrl, referenceMode });
     await supabase.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     await supabase.from("studio_generations").update({ video_job_id: jobId }).eq("id", generation.id).eq("user_id", user.id);
     return NextResponse.json({ jobId, status: "queued", cost, generationId: generation.id }, { status: 202 });

@@ -390,7 +390,7 @@ export function Dashboard() {
               products={analytics?.products ?? []}
             />
           ) : active === "Studio" ? (
-            <StudioView />
+            <StudioView products={analytics?.products ?? []} />
           ) : active === "RentabilitÃ©" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} />
           ) : active === "Radar marchÃ©" ? (
@@ -489,7 +489,7 @@ function StoreOnboarding() {
 type StudioVideoJob = { id: string; status: string; contentUrl?: string | null };
 type StudioHistoryItem = { id: string; kind: "image" | "video"; prompt: string; options: Record<string, string | number>; status: string; credits_cost: number; storage_path?: string | null; video_job_id?: string | null; mediaUrl?: string | null; created_at: string };
 
-function StudioView() {
+function StudioView({ products }: { products: Array<{ id: string; name: string; description?: string | null; price?: number | string | null; currency?: string | null; image?: string | null }> }) {
   const [kind, setKind] = useState<"image" | "video">("image");
   const [prompt, setPrompt] = useState("");
   const [imageMode, setImageMode] = useState<"fast" | "advanced">("fast");
@@ -507,6 +507,9 @@ function StudioView() {
   const [balance, setBalance] = useState(0);
   const [creditAmount, setCreditAmount] = useState("200");
   const [recharging, setRecharging] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
+  const [productSearch, setProductSearch] = useState("");
+  const [referenceMode, setReferenceMode] = useState<"image" | "reference">("reference");
   const [history, setHistory] = useState<StudioHistoryItem[]>([]);
   const [historyKind, setHistoryKind] = useState("all");
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
@@ -542,7 +545,7 @@ function StudioView() {
   }, [videoJob]);
 
   async function generate() {
-    if (!prompt.trim()) {
+    if (!prompt.trim() && !selectedProduct) {
       setError(kind === "image" ? "DÃ©cris l'image que tu souhaites crÃ©er." : "DÃ©cris la vidÃ©o que tu souhaites crÃ©er.");
       return;
     }
@@ -555,8 +558,8 @@ function StudioView() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(kind === "image"
-          ? { prompt, imageMode, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg" }
-          : { prompt, duration, resolution: videoResolution, aspectRatio }),
+          ? { prompt, imageMode, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }
+          : { prompt, duration, resolution: videoResolution, aspectRatio, referenceMode, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "La gÃ©nÃ©ration a Ã©chouÃ©.");
@@ -609,10 +612,11 @@ function StudioView() {
         </div>
       </div>
 
-      <div className="studio-tabs" role="tablist" aria-label="Type de mÃ©dia">
+      <div className="studio-tabs" role="tablist" aria-label="Type de média">
         <button type="button" role="tab" aria-selected={kind === "image"} className={kind === "image" ? "active" : ""} onClick={() => setKind("image")}><ImageIcon size={17} /> Image</button>
         <button type="button" role="tab" aria-selected={kind === "video"} className={kind === "video" ? "active" : ""} onClick={() => setKind("video")}><Video size={17} /> VidÃ©o</button>
       </div>
+      <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">Produit (optionnel)</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Rechercher un produit" /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => setSelectedProduct(null)}><Package size={18} /><span>Aucun produit</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => setSelectedProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>Connecte ta boutique Chariow pour choisir un de tes produits. La création libre reste possible.</small>}{selectedProduct ? <div className="studio-product-chip">Produit choisi : {selectedProduct.name} <button type="button" onClick={() => setSelectedProduct(null)} aria-label="Retirer le produit">×</button>{selectedProduct.image && kind === "image" ? <em>Couverture du produit utilisée comme référence</em> : null}</div> : null}</section>
       <div className="studio-grid">
         <section className="app-card studio-form">
           <label className="studio-field">
@@ -628,11 +632,14 @@ function StudioView() {
               <StudioSelect label="RÃ©solution" value={imageResolution} onChange={setImageResolution} options={[['hd', 'HD'], ['full_hd', 'Full HD'], ['2k', '2K'], ['4k', '4K']]} />
               <StudioSelect label="Format" value={orientation} onChange={setOrientation} options={[['square', 'CarrÃ©'], ['landscape', 'Paysage'], ['portrait', 'Portrait']]} />
               <StudioSelect label="Fond" value={background} onChange={setBackground} options={[['auto', 'Auto'], ['opaque', 'Opaque'], ['transparent', 'Transparent PNG']]} />
+              <div className="studio-suggestions">{["Affiche publicitaire", "Mockup 3D du livre", "Photo lifestyle", "Story verticale"].map((suggestion) => <button type="button" key={suggestion} onClick={() => { setPrompt(suggestion); if (suggestion === "Story verticale") setOrientation("portrait"); }}>{suggestion}</button>)}</div>
             </div>
           ) : (
             <div className="studio-options">
               <label className="studio-field"><span>DurÃ©e</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{[4, 5, 6, 8, 10, 12, 15].map((value) => <option key={value} value={value}>{value} secondes</option>)}</select></label>
               <StudioSelect label="RÃ©solution" value={videoResolution} onChange={(value) => setVideoResolution(value as "480p" | "768p")} options={[['480p', '480p'], ['768p', '768p']]} />
+              <div className="studio-suggestions">{["Teaser de 5 secondes", "Présentation animée du livre", "Pub pour réseaux sociaux"].map((suggestion) => <button type="button" key={suggestion} onClick={() => { setPrompt(suggestion); if (suggestion === "Pub pour réseaux sociaux") setAspectRatio("9:16"); }}>{suggestion}</button>)}</div>
+              {selectedProduct?.image ? <StudioSelect label="Utiliser la couverture comme" value={referenceMode} onChange={(value) => setReferenceMode(value as "image" | "reference")} options={[["reference", "Référence"], ["image", "Point de départ"]]} /> : null}
               <StudioSelect label="Format" value={aspectRatio} onChange={setAspectRatio} options={[['16:9', '16:9 paysage'], ['9:16', '9:16 vertical'], ['1:1', '1:1 carrÃ©'], ['4:3', '4:3'], ['3:4', '3:4'], ['21:9', '21:9 cinÃ©ma']]} />
             </div>
           )}

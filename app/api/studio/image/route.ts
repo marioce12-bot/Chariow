@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { requireUser } from "@/lib/auth";
-import { generateImoleImage, type StudioImageOptions } from "@/lib/ai/imole";
+import { generateImoleImage, generateImoleImageWithReferences, type StudioImageOptions } from "@/lib/ai/imole";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
+import { buildStudioPrompt, parseStudioProduct } from "@/lib/studio/product-prompt";
+import { fetchReferenceImage } from "@/lib/studio/reference-image";
 
 const imageModes = ["fast", "advanced"] as const;
 const qualities = ["medium", "high", "xhigh", "max"] as const;
@@ -21,8 +23,9 @@ export async function POST(request: Request) {
   if (!user) return response;
 
   const body = await request.json().catch(() => ({}));
-  const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
-  if (!prompt || prompt.length > 4_000) {
+  const userPrompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+  const product = parseStudioProduct(body?.product);
+  if ((!userPrompt && !product) || userPrompt.length > 4_000) {
     return NextResponse.json({ error: "Décris l'image à créer en 1 à 4 000 caractères." }, { status: 400 });
   }
 
@@ -34,6 +37,8 @@ export async function POST(request: Request) {
     background: oneOf(body?.background, backgrounds, "auto"),
     outputFormat: oneOf(body?.outputFormat, outputFormats, "png"),
   };
+  const reference = product?.imageUrl ? await fetchReferenceImage(product.imageUrl) : null;
+  const prompt = buildStudioPrompt("image", userPrompt, product, Boolean(reference));
 
   const cost = imageCreditCost(options.resolution ?? "hd", options.quality ?? "medium");
   const { data: generation, error: generationError } = await supabase.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options, status: "processing", credits_cost: cost }).select("id").single();
@@ -48,7 +53,7 @@ export async function POST(request: Request) {
   if (!reserveResult?.ok) return NextResponse.json({ error: `Solde insuffisant. Cette image nécessite ${cost} crédits, ton solde est de ${reserveResult?.balance ?? 0}.`, required: cost, balance: reserveResult?.balance ?? 0 }, { status: 402 });
 
   try {
-    const imageUrl = await generateImoleImage(prompt, "square", options);
+    const imageUrl = reference ? await generateImoleImageWithReferences(prompt, [reference], options) : await generateImoleImage(prompt, "square", options);
     await supabase.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     let storagePath: string | null = null;
     try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat); } catch (storageError) { console.error("Studio image storage error", storageError); }
