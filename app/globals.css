@@ -1133,6 +1133,10 @@ html[data-theme="dark"] .studio-media { background:#0a1733; }
 html[data-theme="dark"] .studio-empty { background:linear-gradient(145deg,#0d1c3f,#101f45); border-color:#31427a; color:#9ac3c0; }
 html[data-theme="dark"] .studio-empty strong { color:#dce7ff; }
 html[data-theme="dark"] .studio-empty p { color:#9aa8c9; }
+.admin-payout-form { display:grid; gap:10px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.admin-payout-form input { border:1px solid var(--line); border-radius:8px; padding:11px; }
+.admin-payout-form .btn { grid-column:1/-1; }
+@media (max-width:600px) { .admin-payout-form { grid-template-columns:1fr; } }
 
 /* Corrige le vide en haut de la section IA : la classe app-layout-flush était
    déjà posée dans le JSX (Dashboard.tsx) quand active === "Vendeo AI" — pour
