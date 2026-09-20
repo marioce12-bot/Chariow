@@ -1114,6 +1114,25 @@ html[data-theme="dark"] .poster-generator { background:#0b1734; border-top-color
 html[data-theme="dark"] .poster-close { background:#101f45; color:#8fa0c4; }
 html[data-theme="dark"] .poster-format-btn { background:#0f1b3d; border-color:var(--line); }
 html[data-theme="dark"] .poster-format-btn strong { color:var(--ink); }
+html[data-theme="dark"] .studio-powered { background:#102d22; color:#d9f99d; }
+html[data-theme="dark"] .studio-tabs { background:#101f45; }
+html[data-theme="dark"] .studio-tabs button { color:#9aa8c9; }
+html[data-theme="dark"] .studio-tabs button.active { background:#172b55; color:#dce7ff; }
+html[data-theme="dark"] .studio-field > span { color:#c7d6ff; }
+html[data-theme="dark"] .studio-field textarea,
+html[data-theme="dark"] .studio-field select { background:#0a1733; border-color:#31427a; color:#e7edfb; }
+html[data-theme="dark"] .studio-field textarea::placeholder { color:#7484a8; }
+html[data-theme="dark"] .studio-field small,
+html[data-theme="dark"] .studio-cost { color:#94a3c4; }
+html[data-theme="dark"] .studio-balance { background:#102a24; border-color:#24523e; }
+html[data-theme="dark"] .studio-balance strong { color:#d9f99d; }
+html[data-theme="dark"] .studio-balance small { color:#9ac3a8; }
+html[data-theme="dark"] .studio-recharge input { background:#0a1733; border-color:#31427a; color:#e7edfb; }
+html[data-theme="dark"] .studio-result h2 { color:#f1f5ff; }
+html[data-theme="dark"] .studio-media { background:#0a1733; }
+html[data-theme="dark"] .studio-empty { background:linear-gradient(145deg,#0d1c3f,#101f45); border-color:#31427a; color:#9ac3c0; }
+html[data-theme="dark"] .studio-empty strong { color:#dce7ff; }
+html[data-theme="dark"] .studio-empty p { color:#9aa8c9; }
 
 /* Corrige le vide en haut de la section IA : la classe app-layout-flush était
    déjà posée dans le JSX (Dashboard.tsx) quand active === "Vendeo AI" — pour
