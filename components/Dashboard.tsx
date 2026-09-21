@@ -289,9 +289,9 @@ export function Dashboard() {
       const [subscriptionResult, analyticsResult] = await Promise.all([subscriptionPromise, analyticsPromise]);
       if (cancelled) return;
       const nextSubscription = subscriptionResult.subscription ?? null;
-      const nextAnalytics = analyticsResult?.snapshot ?? null;
+      const nextAnalytics = analyticsResult?.snapshot ?? analytics ?? null;
       setSubscription(nextSubscription);
-      setAnalytics(nextAnalytics);
+      if (analyticsResult?.snapshot) setAnalytics(analyticsResult.snapshot);
       writeCache(DASHBOARD_CACHE_KEY, { stores: nextStores, selectedStoreId: nextSelected, subscription: nextSubscription, analytics: nextAnalytics });
     }
 
@@ -306,10 +306,10 @@ export function Dashboard() {
     void (async () => {
       const res = await fetch(`/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}`);
       const data = res.ok ? await res.json() : null;
-      const nextAnalytics = data?.snapshot ?? null;
-      setAnalytics(nextAnalytics);
-      const cached = readCache<{ stores: StoreData[]; selectedStoreId: string | null; subscription: SubscriptionData | null; analytics: AnalyticsData }>(DASHBOARD_CACHE_KEY);
-      writeCache(DASHBOARD_CACHE_KEY, { stores: cached?.stores ?? stores, selectedStoreId, subscription: cached?.subscription ?? subscription, analytics: nextAnalytics });
+       const nextAnalytics = data?.snapshot ?? null;
+       if (nextAnalytics) setAnalytics(nextAnalytics);
+       const cached = readCache<{ stores: StoreData[]; selectedStoreId: string | null; subscription: SubscriptionData | null; analytics: AnalyticsData }>(DASHBOARD_CACHE_KEY);
+       writeCache(DASHBOARD_CACHE_KEY, { stores: cached?.stores ?? stores, selectedStoreId, subscription: cached?.subscription ?? subscription, analytics: nextAnalytics ?? cached?.analytics ?? analytics });
     })();
   }, [selectedStoreId]);
 
