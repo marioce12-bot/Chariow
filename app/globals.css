@@ -1245,6 +1245,18 @@ html[data-theme="dark"] .studio-loading { background:linear-gradient(110deg,#0d1
 .app-layout.app-layout-flush { padding-top: 0; }
 .app-main.chat-page { padding-top: 0; }
 .chat-card.ai-main { padding-top: 0; }
+/* .app-main.chat-page's height formula (desktop: calc(100vh - 68px), mobile:
+   calc(100dvh - 60px)) reserves space for the fixed .app-header — but in the
+   flush/AI-view layout that header isn't rendered at all (see Dashboard.tsx:
+   `active !== "Vendeo AI"` guards the <header>), and .app-layout-flush above
+   already zeroes the padding-top that used to reserve that space. Without this
+   override, .app-main.chat-page still comes up short by the header's height
+   (68px desktop / 60px mobile), leaving an empty gap at the bottom of the
+   screen instead of the chat filling it. */
+.app-layout-flush .app-main.chat-page { height: 100vh; max-height: 100vh; }
+@media (max-width: 760px) {
+  .app-layout-flush .app-main.chat-page { height: 100dvh; max-height: 100dvh; }
+}
 .market-radar-page { display:grid; gap:18px; }
 .market-radar-hero { align-items:flex-start; background:linear-gradient(135deg,#151d45,#293c83); border-radius:16px; color:#fff; display:flex; gap:18px; justify-content:space-between; padding:24px; }
 .market-radar-hero h2 { font-size:24px; letter-spacing:-.05em; margin:6px 0; }
