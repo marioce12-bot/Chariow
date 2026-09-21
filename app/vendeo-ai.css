@@ -62,6 +62,7 @@
 @media (max-width:760px) { .ai-page .chat-input-form textarea { font-size:16px; } }
 
 /* Thème sombre */
+html[data-theme="dark"] .ai-page { background:#071129; }
 html[data-theme="dark"] .ai-page .ai-main { background:#071129; }
 html[data-theme="dark"] .ai-page .chat-header { background:#0b1734; border-bottom-color:var(--line); }
 html[data-theme="dark"] .ai-page .chat-header-title strong { color:var(--ink); }
