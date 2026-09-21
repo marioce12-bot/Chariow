@@ -6,8 +6,20 @@ import type { WizardState } from "./types";
 
 interface StepProps {
   state: WizardState;
-  onBack: () => void;
+  onBack?: () => void;
   onLaunched: (campaignId: string) => void;
+  /**
+   * Statut déjà connu côté serveur quand on REPREND une campagne existante
+   * (ex. depuis la liste "Mes campagnes") au lieu de venir de l'étape 4 du
+   * wizard. Permet de sauter directement à la bonne phase au lieu de relancer
+   * /launch, ce qui est interdit une fois la campagne déjà créée chez
+   * Meta/TikTok (voir la garde côté route : seuls "draft"/"error" acceptent
+   * un nouvel appel à /launch).
+   * - undefined/"draft"/"error" → comportement historique : on appelle /launch.
+   * - "paused" → campagne déjà créée en pause, prête à payer.
+   * - "paid"   → paiement déjà confirmé, il ne reste qu'à activer.
+   */
+  initialStatus?: "draft" | "error" | "paused" | "paid";
 }
 
 type Phase =
@@ -16,6 +28,7 @@ type Phase =
   | "ready"           // créée en PAUSED avec succès, prête à être payée
   | "creating_checkout"
   | "waiting_payment"
+  | "paid_ready"      // paiement déjà confirmé (repris depuis la liste), en attente du clic "Activer"
   | "activating"      // paiement confirmé, bascule PAUSED -> ACTIVE en cours
   | "done"
   | "error";           // erreur après paiement confirmé (le paiement N'est PAS perdu)
@@ -31,8 +44,13 @@ type Phase =
  *    status === "paid".
  * 3) POST /api/ad-campaigns/[id]/activate bascule la campagne déjà créée de
  *    PAUSED à ACTIVE — c'est ce basculement qui la soumet réellement à Meta.
+ *
+ * Ce composant est aussi utilisé hors du wizard (via ResumeCampaignModal) pour
+ * reprendre une campagne déjà créée depuis la liste "Mes campagnes" — d'où
+ * `initialStatus`, qui permet de sauter l'étape 1 (test gratuit) quand elle a
+ * déjà réussi lors d'une session précédente.
  */
-export function Step5Payment({ state, onBack, onLaunched }: StepProps) {
+export function Step5Payment({ state, onBack, onLaunched, initialStatus }: StepProps) {
   const [phase, setPhase] = useState<Phase>("testing");
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +62,17 @@ export function Step5Payment({ state, onBack, onLaunched }: StepProps) {
   }, []);
 
   useEffect(() => {
-    void testLaunch();
+    if (initialStatus === "paused") {
+      // Déjà créée en pause lors d'un précédent passage — inutile (et interdit
+      // côté API) de rappeler /launch, on propose directement le paiement.
+      setPhase("ready");
+    } else if (initialStatus === "paid") {
+      // Paiement déjà confirmé mais l'activation n'était pas allée au bout
+      // (onglet fermé, etc.) — on propose directement d'activer.
+      setPhase("paid_ready");
+    } else {
+      void testLaunch();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -183,6 +211,22 @@ export function Step5Payment({ state, onBack, onLaunched }: StepProps) {
         </div>
       )}
 
+      {phase === "paid_ready" && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 rounded-xl bg-[#ECFDF5] p-4 text-sm text-[#065F46]">
+            <CheckCircle2 className="h-4 w-4 flex-none" />
+            <span>Le paiement de cette campagne est déjà confirmé. Il ne reste qu'à l'activer chez {platformLabel}.</span>
+          </div>
+          {error && <p className="text-sm text-[#991B1B]">{error}</p>}
+          <button
+            onClick={() => void activateCampaign()}
+            className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            Activer la campagne
+          </button>
+        </div>
+      )}
+
       {phase === "activating" && (
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin" /> Paiement confirmé — activation chez {platformLabel}…
@@ -209,7 +253,7 @@ export function Step5Payment({ state, onBack, onLaunched }: StepProps) {
         </div>
       )}
 
-      {!["done"].includes(phase) && (
+      {onBack && !["done"].includes(phase) && (
         <div className="sticky bottom-0 -mx-5 mt-4 flex justify-between border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button onClick={onBack} className="text-sm font-medium text-gray-500">
             Retour
