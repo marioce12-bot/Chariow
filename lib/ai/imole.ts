@@ -74,8 +74,20 @@ export async function askImole(messages: ChatMessage[]) {
       cache: "no-store",
     });
 
-    const data = await response.json().catch(() => ({})) as ImoleResponse;
-    if (!response.ok) throw new Error(data.error?.message || `Imole API returned ${response.status}`);
+    // On lit le corps brut : quand Imole refuse la requête (400, 404...), le message
+    // n'est pas toujours dans { error: { message } }. Sans ce détail, les logs ne
+    // disaient que "Imole API returned 400" et la cause restait introuvable.
+    const raw = await response.text().catch(() => "");
+    let data: ImoleResponse = {};
+    try {
+      data = JSON.parse(raw) as ImoleResponse;
+    } catch {
+      data = {};
+    }
+    if (!response.ok) {
+      const detail = data.error?.message || raw.replace(/\s+/g, " ").trim().slice(0, 300);
+      throw new Error(`Imole API returned ${response.status}${detail ? `: ${detail}` : ""} (modèle ${model})`);
+    }
 
     const answer = data.choices?.[0]?.message?.content || data.output_text || data.output;
     if (!answer) throw new Error("Imole returned an empty response");
