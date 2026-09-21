@@ -1165,7 +1165,7 @@ html[data-theme="dark"] .proof-card { border-color: var(--line); box-shadow: 0 2
 }
 @media (max-width:760px) {
   .ai-page { background:#f5f7fb; border:0; border-radius:0; display:block; padding:0; }
-  .ai-main { background:#f5f7fb; border:0; border-radius:14px; box-shadow:none; height:100%; }
+  .ai-main { background:#f5f7fb; border:0; border-radius:0; box-shadow:none; height:100%; }
   .chat-header { border-radius:0 0 16px 16px; margin:0; padding:14px; }
   .chat-empty-hero { margin:8px 2px; padding:18px; }
   .chat-empty-hero strong { font-size:20px; }
