@@ -194,7 +194,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
           onClick={onNext}
           className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
-          Continuer vers le paiement
+            Créer la campagne
         </button>
       </div>
     </div>

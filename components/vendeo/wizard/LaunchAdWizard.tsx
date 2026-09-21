@@ -9,9 +9,8 @@ import { Step1Product } from "./Step1Product";
 import { Step2NetworkCreative } from "./Step2NetworkCreative";
 import { Step3Audience } from "./Step3Audience";
 import { Step4Estimation } from "./Step4Estimation";
-import { Step5Payment } from "./Step5Payment";
 
-const STEP_LABELS = ["Produit", "Réseau & créative", "Audience", "Estimation", "Paiement"];
+const STEP_LABELS = ["Produit", "Réseau & créative", "Audience", "Estimation", "Création"];
 
 interface LaunchAdWizardProps {
   storeId: string;
@@ -100,15 +99,12 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
           {step === 2 && <Step2NetworkCreative state={state} patch={patch} onValidityChange={setStep2Valid} plan={plan} />}
           {step === 3 && <Step3Audience state={state} patch={patch} onNext={next} onBack={back} />}
           {step === 4 && <Step4Estimation state={state} patch={patch} onNext={next} onBack={back} />}
-          {step === 5 && (
-            <Step5Payment
-              state={state}
-              onBack={back}
-              onLaunched={(campaignId) => {
-                onLaunched?.(campaignId);
-                onClose();
-              }}
-            />
+          {step === 5 && state.campaignId && (
+            <div className="space-y-4">
+              <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm text-[#065F46]"><strong className="block">Campagne créée</strong><span>Ta campagne est enregistrée dans la page Pub. Tu peux vérifier ou modifier ses paramètres avant de la lancer.</span></div>
+              <p className="text-sm text-gray-500">Le paiement sera demandé uniquement lorsque tu cliqueras sur « Lancer la campagne » depuis la page Pub.</p>
+              <button type="button" onClick={() => { onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">Voir ma campagne dans Pub</button>
+            </div>
           )}
         </div>
 

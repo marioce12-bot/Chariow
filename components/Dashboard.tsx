@@ -228,7 +228,8 @@ export function Dashboard() {
     ["Vue d’ensemble", LayoutDashboard],
     ["Vendeo AI", MessageSquare],
     ["Studio", Sparkles],
-    ["Rentabilité", Megaphone],
+    ["Pub", Megaphone],
+    ["Comptes publicitaires", BarChart3],
     ["Radar marché", Lightbulb],
     ["Mes boutiques", Store],
     ["Rapports", FileText],
@@ -393,8 +394,10 @@ export function Dashboard() {
             />
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
-          ) : active === "Rentabilité" ? (
-             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} />
+          ) : active === "Pub" ? (
+             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Comptes publicitaires")} onLaunchAd={() => { if (!stores.length) setActive("Mes boutiques"); else setActive("Comptes publicitaires"); }} />
+          ) : active === "Comptes publicitaires" ? (
+             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
           ) : active === "Radar marché" ? (
              <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); setActive("Vendeo AI"); }} />
           ) : active === "Mes boutiques" ? (
@@ -426,9 +429,9 @@ export function Dashboard() {
            <LayoutDashboard size={18} />
            <span>Accueil</span>
          </button>
-          <button type="button" className={`nav-btn ${active === "Rentabilité" ? "active" : ""}`} onClick={() => setActive("Rentabilité")}>
-            <Megaphone size={18} />
-            <span>Rentabilité</span>
+           <button type="button" className={`nav-btn ${active === "Pub" ? "active" : ""}`} onClick={() => setActive("Pub")}>
+             <Megaphone size={18} />
+             <span>Pub</span>
           </button>
            <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
              <MessageSquare size={18} />
@@ -448,7 +451,8 @@ export function Dashboard() {
            <button type="button" onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
            <button type="button" onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
           <button type="button" onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
-          <button type="button" onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
+           <button type="button" onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
+           <button type="button" onClick={() => { setActive("Comptes publicitaires"); setMoreOpen(false); }}><BarChart3 size={16} /> Comptes publicitaires</button>
         </div> : null}
     </main>
   );
@@ -1726,7 +1730,7 @@ function AdsSavingsSummary({ performances, currency }: { performances: MetaPerfo
 // toutes les permissions Meta obtenues. Ce que Vendeo affiche à la place, c'est un verdict explicite
 // (STOP / OPTIMISER / SURVEILLER) par campagne, calculé à partir des dépenses, conversions, CPA et
 // ROAS déjà synchronisés — voir getCampaignVerdict ci-dessus.
-function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
+function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd }: { plan: PlanId; onGoToAI: () => void; onGoToAccounts: () => void; onLaunchAd: () => void }) {
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
@@ -1810,9 +1814,9 @@ function AdsView({ plan, onGoToAI }: { plan: PlanId; onGoToAI: () => void }) {
 
   return (
     <>
-      <div className="page-top"><div><span className="eyebrow">Gardien de rentabilité</span><h1>Rentabilité</h1><p>Vendeo lit tes campagnes Meta et TikTok et les compare à tes ventes confirmées pour te dire où ton budget produit réellement du revenu.</p></div></div>
+      <div className="page-top"><div><span className="eyebrow">Pilotage publicitaire</span><h1>Pub</h1><p>Lance tes campagnes, consulte leurs statistiques et mesure leur impact réel sur tes ventes.</p></div><button type="button" className="btn btn-dark" onClick={onLaunchAd}><Plus size={15} /> Lancer une pub</button></div>
 
-      <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8 }}>{channels.map((item) => <button key={item.id} type="button" className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.label}</button>)}</div>
+      <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8, flexWrap: "wrap" }}><button type="button" className="btn btn-dark" onClick={onLaunchAd}><Plus size={15} /> Lancer une pub</button><button type="button" className="btn btn-ghost" onClick={onGoToAccounts}>Comptes publicitaires</button><span style={{ flex: 1 }} />{channels.map((item) => <button key={item.id} type="button" className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.label}</button>)}</div>
 
       {message && <p className="store-error" role="status">{message}</p>}
 

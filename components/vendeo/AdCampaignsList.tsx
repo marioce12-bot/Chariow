@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, PlayCircle, Plus, RefreshCw } from "lucide-react";
+import { Loader2, PlayCircle, Plus, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
 import type { Platform } from "./wizard/types";
 
@@ -10,12 +10,20 @@ type AdCampaign = {
   product_id: string;
   platform: Platform;
   status: string;
+  objective: string;
   title: string | null;
   daily_budget: number;
   duration_days: number;
   estimated_budget: number;
   external_error: string | null;
   created_at: string;
+  product_name?: string | null;
+  ad_text?: string | null;
+  destination_url?: string | null;
+  countries?: string[] | null;
+  min_age?: number | null;
+  max_age?: number | null;
+  media_url?: string | null;
 };
 
 const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
@@ -44,6 +52,9 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
+  const [selected, setSelected] = useState<AdCampaign | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,9 +90,9 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
     <section className="app-card ad-campaigns-list">
       <div className="card-head">
         <div>
-          <span className="eyebrow">Publicité</span>
-          <h2>Mes campagnes</h2>
-          <p>Chaque campagne créée apparaît ici avec son statut, et tu peux la lancer directement.</p>
+          <span className="eyebrow">Pub</span>
+          <h2>Mes campagnes publicitaires</h2>
+          <p>Retrouve tes campagnes, vérifie leur aperçu et lance-les quand tu es prêt.</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button type="button" className="btn btn-ghost" onClick={() => void load()} aria-label="Rafraîchir">
@@ -119,7 +130,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                 }}
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                  <strong style={{ fontSize: 13 }}>{c.title || c.product_id}</strong>
+                   <button type="button" onClick={() => setSelected(c)} style={{ fontSize: 13, textAlign: "left", fontWeight: 700 }}>{c.title || c.product_name || c.product_id}</button>
                   <span className="hint-line">
                     {c.platform === "meta" ? "Meta" : "TikTok"} · {Number(c.daily_budget).toLocaleString("fr-FR")} XOF/j · {c.duration_days} j
                   </span>
@@ -148,11 +159,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                     <button type="button" className="btn btn-dark" onClick={() => setResuming(c)}>
                       <PlayCircle size={14} /> {c.status === "paused" ? "Lancer" : "Activer"}
                     </button>
-                  ) : c.status === "error" ? (
-                    <button type="button" className="btn btn-ghost" onClick={onNewCampaign}>
-                      Recommencer
-                    </button>
-                  ) : null}
+                   ) : null}
                 </div>
               </div>
             );
@@ -173,6 +180,24 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
           }}
         />
       ) : null}
+      {selected ? (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4" onClick={() => setSelected(null)}>
+          <div className="app-card" style={{ maxWidth: 620, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onClick={(event) => event.stopPropagation()}>
+            <div className="card-head"><div><span className="eyebrow">Détail de la pub</span><h2>{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="btn btn-ghost" onClick={() => setSelected(null)} aria-label="Fermer"><X size={16} /></button></div>
+            {selected.media_url ? <img src={selected.media_url} alt="Aperçu de la publicité" style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} /> : null}
+            {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>Texte :</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>Réseau :</strong> {selected.platform === "meta" ? "Facebook / Instagram" : "TikTok"}</div><div><strong>Objectif :</strong> {selected.objective}</div><div><strong>Audience :</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} ans</div><div><strong>Budget :</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} XOF/jour · {selected.duration_days} jours</div>{selected.destination_url ? <div><strong>Lien :</strong> {selected.destination_url}</div> : null}</div>}
+            {selected.external_error ? <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}><strong>Rejet / erreur :</strong> {selected.external_error}<br /><span>Modifie les paramètres puis relance. Aucun paiement supplémentaire ne sera demandé.</span></div> : null}
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => setEditing(true)}>Modifier</button> : null}{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}</div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function EditCampaignForm({ campaign, saving, onCancel, onSave }: { campaign: AdCampaign; saving: boolean; onCancel: () => void; onSave: (updates: Record<string, unknown>) => Promise<void> }) {
+  const [text, setText] = useState(campaign.ad_text || "");
+  const [title, setTitle] = useState(campaign.title || "");
+  const [link, setLink] = useState(campaign.destination_url || "");
+  return <form style={{ display: "grid", gap: 10 }} onSubmit={(event) => { event.preventDefault(); void onSave({ title, ad_text: text, destination_url: link }); }}><label className="hint-line">Titre<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label className="hint-line">Texte de la publicité<textarea value={text} onChange={(event) => setText(event.target.value)} rows={4} required /></label><label className="hint-line">Lien de destination<input value={link} onChange={(event) => setLink(event.target.value)} required /></label><div style={{ display: "flex", gap: 8 }}><button type="button" className="btn btn-ghost" onClick={onCancel}>Annuler</button><button type="submit" className="btn btn-dark" disabled={saving}>{saving ? "Enregistrement…" : "Enregistrer"}</button></div></form>;
 }
