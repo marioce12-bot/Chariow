@@ -10,6 +10,10 @@ interface ResumeCampaignModalProps {
   platform: Platform;
   /** "paused" = créée gratuitement, prête à payer ; "paid" = payée, prête à activer. */
   initialStatus: "paused" | "paid";
+  /** Motif du dernier refus Meta/TikTok, déjà enregistré côté serveur (le
+   *  paiement reste "paid" après un refus — voir /api/ad-campaigns/[id]/launch).
+   *  Affiché dès l'ouverture pour ne pas faire retenter l'utilisateur à l'aveugle. */
+  initialError?: string | null;
   onClose: () => void;
   onLaunched: () => void;
 }
@@ -21,7 +25,7 @@ interface ResumeCampaignModalProps {
  * d'autre. Rendu via portail comme LaunchAdWizard pour éviter les soucis de
  * positionnement `fixed` dans un conteneur avec overflow.
  */
-export function ResumeCampaignModal({ campaignId, platform, initialStatus, onClose, onLaunched }: ResumeCampaignModalProps) {
+export function ResumeCampaignModal({ campaignId, platform, initialStatus, initialError, onClose, onLaunched }: ResumeCampaignModalProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -44,7 +48,7 @@ export function ResumeCampaignModal({ campaignId, platform, initialStatus, onClo
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-          <Step5Payment state={state} initialStatus={initialStatus} onLaunched={onLaunched} />
+          <Step5Payment state={state} initialStatus={initialStatus} initialError={initialError} onLaunched={onLaunched} />
         </div>
       </div>
     </div>,

@@ -60,6 +60,19 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
     void load();
   }, [load]);
 
+  // Auto-sync : tant qu'une campagne Meta est "en revue", on revérifie son
+  // statut aupres de Meta toutes les 15s (au lieu d'attendre le cron
+  // quotidien ou une synchro manuelle). S'arrete des que plus aucune
+  // campagne n'est en revue.
+  useEffect(() => {
+    const reviewingIds = campaigns.filter((c) => c.platform === "meta" && c.status === "review").map((c) => c.id);
+    if (reviewingIds.length === 0) return;
+    const interval = setInterval(() => {
+      void Promise.all(reviewingIds.map((id) => fetch(`/api/ad-campaigns/${id}/status`).catch(() => null))).then(() => load());
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [campaigns, load]);
+
   if (!storeId) return null;
 
   return (
@@ -110,7 +123,10 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                   <span className="hint-line">
                     {c.platform === "meta" ? "Meta" : "TikTok"} · {Number(c.daily_budget).toLocaleString("fr-FR")} XOF/j · {c.duration_days} j
                   </span>
-                  {c.status === "error" && c.external_error ? (
+                  {/* /launch garde le statut "paid" (jamais "error") apres un refus Meta/TikTok
+                      pour permettre un nouvel essai sans repayer : le motif doit donc s'afficher
+                      aussi sur "paid", sinon il reste invisible dans la liste. */}
+                  {(c.status === "error" || c.status === "paid") && c.external_error ? (
                     <span className="hint-line" style={{ color: "#991B1B" }}>{c.external_error}</span>
                   ) : null}
                 </div>
@@ -149,6 +165,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
           campaignId={resuming.id}
           platform={resuming.platform}
           initialStatus={resuming.status as "paused" | "paid"}
+          initialError={resuming.external_error}
           onClose={() => setResuming(null)}
           onLaunched={() => {
             setResuming(null);
