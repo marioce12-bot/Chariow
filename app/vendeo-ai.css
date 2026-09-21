@@ -1,0 +1,76 @@
+/* ============================================================
+   Vendeo AI v2 : mise en page de l'assistant (importé par components/ChatView.tsx).
+   Tous les sélecteurs sont préfixés .ai-page pour prendre le dessus sur les anciens
+   blocs .chat-* / .ai-* de globals.css, quel que soit l'ordre de chargement.
+   ============================================================ */
+.ai-page .ai-main { background:#f5f7fb; }
+
+/* En-tête : blanc, fin, avec logo et statut des données */
+.ai-page .chat-header { align-items:center; background:#fff; border:0; border-bottom:1px solid var(--line); border-radius:0; box-shadow:none; color:var(--ink); display:flex; flex:none; gap:10px; margin:0; padding:11px 12px; }
+.ai-page .chat-header-avatar { align-items:center; background:var(--blue); border-radius:10px; color:#fff; display:flex; flex:none; height:34px; justify-content:center; width:34px; }
+.ai-page .chat-header-title { display:flex; flex:1; flex-direction:column; gap:2px; min-width:0; }
+.ai-page .chat-header-title strong { color:var(--ink); font-size:14px; font-weight:600; line-height:1.2; }
+.ai-page .chat-header-title .chat-header-status { align-items:center; color:var(--muted); display:flex; font-size:11px; gap:5px; margin:0; }
+.ai-page .chat-header-status i { background:#94a3b8; border-radius:50%; display:inline-block; height:6px; width:6px; }
+.ai-page .chat-header-status i.is-live { background:#38b56a; }
+
+/* Bande Ventes / Dépenses pub / ROAS : compacte */
+.ai-page .chat-insights { display:grid; flex:none; gap:8px; grid-template-columns:repeat(3,minmax(0,1fr)); padding:10px 12px 0; }
+.ai-page .chat-insight { background:#fff; border:1px solid var(--line); border-radius:12px; min-width:0; padding:8px 10px; }
+.ai-page .chat-insight small { color:var(--muted); display:block; font-size:10px; }
+.ai-page .chat-insight strong { color:var(--ink); display:block; font-size:13px; font-weight:600; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Accueil : titre + 3 cartes d'action empilées */
+.ai-page .chat-empty-hero { background:transparent; border:0; border-radius:0; gap:0; margin:0; padding:18px 4px 6px; text-align:left; }
+.ai-page .ai-eyebrow { color:var(--blue); font-size:11px; font-weight:600; margin-bottom:6px; }
+.ai-page .chat-empty-hero > strong { color:var(--ink); font-size:20px; font-weight:600; letter-spacing:-.02em; line-height:1.25; }
+.ai-page .chat-empty-hero > p { color:var(--muted); font-size:12px; line-height:1.5; margin:8px 0 0; max-width:none; }
+.ai-page .ai-action-grid { display:flex; flex-direction:column; gap:8px; grid-template-columns:none; margin-top:16px; }
+.ai-page .ai-action-card { align-items:center; background:#fff; border:1px solid var(--line); border-radius:14px; display:flex; gap:11px; padding:11px 12px; text-align:left; width:100%; }
+.ai-page .ai-action-card:hover { box-shadow:0 6px 16px rgba(33,50,92,.08); transform:none; }
+.ai-page .ai-action-text { display:flex; flex:1; flex-direction:column; gap:2px; min-width:0; }
+.ai-page .ai-action-card strong { color:var(--ink); font-size:13px; font-weight:600; }
+.ai-page .ai-action-card small { color:var(--muted); font-size:11px; line-height:1.35; }
+.ai-page .ai-action-card > svg { color:#94a3b8; flex:none; }
+.ai-page .ai-action-icon { align-items:center; border-radius:10px; display:flex; flex:none; height:34px; justify-content:center; width:34px; }
+.ai-page .ai-action-card.tone-red .ai-action-icon { background:#fff1f2; color:#b4233c; }
+.ai-page .ai-action-card.tone-green .ai-action-icon { background:#e7f5e9; color:#287443; }
+.ai-page .ai-action-card.tone-blue .ai-action-icon { background:#e7f0ff; color:#2857a5; }
+
+/* Conversation */
+.ai-page .chat-messages { gap:14px; padding:14px 12px 10px; }
+.ai-page .chat-bubble { border-radius:16px; font-size:13px; line-height:1.55; max-width:88%; padding:10px 13px; white-space:pre-wrap; }
+.ai-page .chat-bubble.user { align-self:flex-end; background:var(--vendeo-gradient); border-radius:16px 16px 4px 16px; color:#fff; }
+.ai-page .chat-bubble.assistant { align-self:flex-start; background:#fff; border:1px solid var(--line); border-radius:4px 16px 16px 16px; color:var(--ink); max-width:92%; padding:12px 13px; }
+.ai-page .chat-bubble-label { align-items:center; color:var(--muted); display:flex; font-size:11px; font-weight:500; gap:6px; letter-spacing:0; margin:0 0 6px; text-transform:none; }
+.ai-page .chat-mini-avatar { align-items:center; background:var(--blue); border-radius:6px; color:#fff; display:inline-flex; height:20px; justify-content:center; width:20px; }
+.ai-page .chat-bubble-actions { border-top:1px solid var(--line); display:flex; gap:8px; margin-top:10px; padding-top:9px; }
+.ai-page .chat-followups { display:flex; flex-wrap:wrap; gap:7px; }
+
+/* Suggestions (chips) : bleu, défilement horizontal */
+.ai-page .chat-quickstart { display:flex; gap:7px; margin:0 0 9px; overflow-x:auto; padding:0 2px 2px; scrollbar-width:none; }
+.ai-page .chat-chip { align-items:center; background:#eef2ff; border:0; border-radius:999px; color:#3b3fd8; display:inline-flex; flex:none; font-size:11px; font-weight:500; gap:6px; padding:8px 12px; white-space:nowrap; }
+.ai-page .chat-chip:hover { background:#e2e8ff; }
+
+/* Zone de saisie : pilule + bouton rond */
+.ai-page .chat-composer { background:transparent; margin-top:auto; padding:8px 12px calc(12px + env(safe-area-inset-bottom)); }
+.ai-page .chat-input-form { align-items:center; background:#fff; border:1px solid #c9d4ee; border-radius:999px; display:flex; gap:8px; padding:6px 6px 6px 12px; }
+.ai-page .chat-input-form textarea { background:transparent; border:0; color:var(--ink); flex:1; font-size:13px; line-height:1.4; max-height:112px; min-height:34px; min-width:0; outline:0; padding:8px 4px; resize:none; }
+.ai-page .chat-poster-toggle,.ai-page .chat-suggest-toggle { align-items:center; background:transparent; border:0; border-radius:50%; color:var(--muted); display:flex; flex:none; height:30px; justify-content:center; padding:0; width:30px; }
+.ai-page .chat-send-button { align-items:center; background:var(--vendeo-gradient); border:0; border-radius:50%; color:#fff; display:flex; flex:none; height:36px; justify-content:center; width:36px; }
+.ai-page .chat-send-button:disabled { cursor:default; opacity:.45; }
+@media (max-width:760px) { .ai-page .chat-input-form textarea { font-size:16px; } }
+
+/* Thème sombre */
+html[data-theme="dark"] .ai-page .ai-main { background:#071129; }
+html[data-theme="dark"] .ai-page .chat-header { background:#0b1734; border-bottom-color:var(--line); }
+html[data-theme="dark"] .ai-page .chat-header-title strong { color:var(--ink); }
+html[data-theme="dark"] .ai-page .chat-insight,html[data-theme="dark"] .ai-page .ai-action-card,html[data-theme="dark"] .ai-page .chat-bubble.assistant,html[data-theme="dark"] .ai-page .chat-input-form { background:#0b1734; border-color:var(--line); }
+html[data-theme="dark"] .ai-page .chat-chip { background:rgba(16,62,248,.18); color:#9db4ff; }
+html[data-theme="dark"] .ai-page .chat-chip:hover { background:rgba(16,62,248,.28); }
+html[data-theme="dark"] .ai-page .ai-action-card.tone-red .ai-action-icon { background:rgba(217,93,93,.14); color:#f19999; }
+html[data-theme="dark"] .ai-page .ai-action-card.tone-green .ai-action-icon { background:rgba(47,166,106,.15); color:#6fd394; }
+html[data-theme="dark"] .ai-page .ai-action-card.tone-blue .ai-action-icon { background:rgba(77,126,216,.16); color:#93b8f5; }
+html[data-theme="dark"] .ai-page .ai-eyebrow { color:#8fa8ff; }
+
+.ai-page .chat-poster-toggle.active { background:rgba(76,33,246,.12); color:var(--blue); }
