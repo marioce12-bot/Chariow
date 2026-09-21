@@ -22,6 +22,10 @@ interface StepProps {
    *   campagne déjà existante au lieu d'en recréer une nouvelle.
    */
   initialStatus?: "draft" | "paused" | "paid";
+  /** Motif du dernier refus Meta/TikTok deja connu cote serveur (campagne
+   *  reouverte depuis "Mes campagnes"). Affiche immediatement l'ecran
+   *  "Reessayer" au lieu de "Lancer la campagne" comme si de rien n'etait. */
+  initialError?: string | null;
 }
 
 type Phase =
@@ -53,7 +57,7 @@ type Phase =
  * reprendre une campagne déjà créée depuis la liste "Mes campagnes" — d'où
  * `initialStatus`.
  */
-export function Step5Payment({ state, onBack, onLaunched, initialStatus }: StepProps) {
+export function Step5Payment({ state, onBack, onLaunched, initialStatus, initialError }: StepProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +69,12 @@ export function Step5Payment({ state, onBack, onLaunched, initialStatus }: StepP
   }, []);
 
   useEffect(() => {
-    setPhase(initialStatus === "paid" ? "paid_ready" : "ready");
+    if (initialStatus === "paid" && initialError) {
+      setError(initialError);
+      setPhase("error");
+    } else {
+      setPhase(initialStatus === "paid" ? "paid_ready" : "ready");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

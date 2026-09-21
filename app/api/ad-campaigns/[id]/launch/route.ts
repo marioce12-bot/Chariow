@@ -31,7 +31,7 @@ export async function POST(request: Request, context: Context) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const { data: campaign, error: campaignError } = await supabase
     .from("ad_campaigns")
-    .select("id,store_id,title,product_name,platform,objective,daily_budget,countries,min_age,max_age,destination_url,ad_text,media_url,status,meta_ad_account_id,tiktok_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
+    .select("id,store_id,title,product_name,platform,objective,daily_budget,countries,min_age,max_age,destination_url,ad_text,media_url,status,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -51,7 +51,10 @@ export async function POST(request: Request, context: Context) {
 
 async function launchMeta(supabase: any, userId: string, campaign: any, body: any) {
   const accountId = typeof body?.meta_ad_account_id === "string" ? body.meta_ad_account_id : campaign.meta_ad_account_id;
-  const pageId = typeof body?.page_id === "string" ? body.page_id : null;
+  // Repli sur la page enregistree a la creation du brouillon : necessaire pour
+  // reprendre une campagne payee depuis "Mes campagnes" (onglet ferme avant la
+  // fin, cf. ResumeCampaignModal) sans repasser par l'etape 2 du wizard.
+  const pageId = typeof body?.page_id === "string" ? body.page_id : campaign.meta_page_id ?? null;
   if (!accountId) return NextResponse.json({ error: "Sélectionne un compte Meta Ads" }, { status: 400 });
   const { data: account, error: accountError } = await supabase.from("meta_ad_accounts").select("id,meta_account_id,access_token_encrypted,is_active,account_status").eq("id", accountId).eq("user_id", userId).maybeSingle();
   if (accountError) return NextResponse.json({ error: "Impossible de vérifier le compte Meta" }, { status: 500 });
