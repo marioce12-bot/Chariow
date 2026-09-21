@@ -22,6 +22,7 @@ import {
   type DiagnosticCard,
 } from "@/components/vendeo";
 import { DiagnosticFunnel } from "@/components/vendeo/DiagnosticFunnel";
+import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
@@ -734,6 +735,7 @@ function Overview({
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [campaignsVersion, setCampaignsVersion] = useState(0);
 
   // Avant : on vérifiait juste si Meta était connecté, sans jamais récupérer
   // les performances. Résultat : la carte "Recommandations" restait vide en
@@ -969,6 +971,8 @@ function Overview({
         {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu’ils seront synchronisés." />}
       </section>
 
+      <AdCampaignsList storeId={store?.id ?? null} onNewCampaign={launchAd} key={campaignsVersion} />
+
       {wizardOpen && store?.id ? (
         <LaunchAdWizard
           storeId={store.id}
@@ -976,8 +980,11 @@ function Overview({
           onClose={() => setWizardOpen(false)}
           onLaunched={() => {
             // Rafraîchit les performances Meta pour refléter la nouvelle campagne
-            // dans le tableau de croisement et le verdict global.
+            // dans le tableau de croisement et le verdict global, et force
+            // AdCampaignsList à recharger pour afficher la campagne qui vient
+            // d'être créée/payée.
             void refresh();
+            setCampaignsVersion((v) => v + 1);
           }}
         />
       ) : null}
