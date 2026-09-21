@@ -20,6 +20,14 @@ export async function storeStudioImage(imageUrl: string, userId: string, generat
   return path;
 }
 
+export async function storeStudioVideo(video: { body: ArrayBuffer; contentType?: string }, userId: string, generationId: string) {
+  const admin = createAdminClient();
+  const path = `${userId}/${generationId}.mp4`;
+  const { error } = await admin.storage.from("studio-media").upload(path, video.body, { contentType: video.contentType || "video/mp4", upsert: true });
+  if (error) throw error;
+  return path;
+}
+
 export async function signedStudioUrl(path: string) {
   const { data, error } = await createAdminClient().storage.from("studio-media").createSignedUrl(path, 3600);
   if (error) throw error;
