@@ -88,11 +88,14 @@ function firstText(...candidates: unknown[]): string | null {
 // Construit un lien produit à partir d'une boutique + d'un slug quand l'API ne
 // renvoie pas d'URL complète toute faite (seulement un identifiant/slug produit).
 // Chariow documente `url` sur la boutique (domaine personnalisé ou sous-domaine) :
-// on le lit en premier, avant les anciens noms de champ.
+// on le lit en premier, avant les anciens noms de champ. `custom_slug` est le champ
+// qui porte le sous-domaine mychariow.com réel quand aucun domaine personnalisé
+// n'est configuré (auquel cas `url`/`domain` valent souvent null) — vu dans les
+// clés de get_store en prod sur une boutique où le lien restait non résolu.
 function buildProductUrl(store: Record<string, unknown>, product: Record<string, unknown>): string | null {
   const slug = firstText(product.slug, product.handle, product.reference);
   if (!slug) return null;
-  const storeDomain = firstText(store.url, asRecord(product.store).url, store.storefront_url, store.domain, store.subdomain, store.slug, store.store_slug);
+  const storeDomain = firstText(store.url, asRecord(product.store).url, store.storefront_url, store.domain, store.custom_slug, store.subdomain, store.slug, store.store_slug);
   if (!storeDomain) return null;
   const host = storeDomain.includes(".") ? storeDomain.replace(/^https?:\/\//, "") : `${storeDomain}.mychariow.com`;
   return `https://${host.replace(/\/$/, "")}/${slug.replace(/^\//, "")}`;
