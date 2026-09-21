@@ -69,7 +69,9 @@ export async function askImole(messages: ChatMessage[]) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ model, messages, temperature: 0.4 }),
+      // Pas de `temperature` : les modèles GPT-5.x d'Imole n'acceptent que la valeur par défaut
+      // et répondent 400 (model_validation_failed) si on envoie autre chose, ex. 0.4.
+      body: JSON.stringify({ model, messages }),
       signal: controller.signal,
       cache: "no-store",
     });
