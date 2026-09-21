@@ -64,6 +64,10 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
       // 2) Crée le brouillon de campagne (toujours avec les valeurs actuelles :
       //    campaignId a été remis à null dès que budget/durée ont changé, donc
       //    on ne réutilise jamais un brouillon avec de vieux montants).
+      //    Le compte pub (et la page Meta) choisis à l'étape 2 sont envoyés ici
+      //    pour être enregistrés sur le brouillon : la campagne pourra ainsi être
+      //    reprise depuis "Mes campagnes" — après paiement — sans repasser par le
+      //    wizard pour les resélectionner.
       if (!state.campaignId) {
         const draftRes = await fetch("/api/ad-campaigns", {
           method: "POST",
@@ -82,6 +86,9 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
             maxAge: state.maxAge,
             daily_budget: state.dailyBudget,
             duration_days: state.durationDays,
+            meta_ad_account_id: state.metaAdAccountId,
+            meta_page_id: state.metaPageId,
+            tiktok_ad_account_id: state.tiktokAdAccountId,
           }),
         });
         const draftData = await draftRes.json();
