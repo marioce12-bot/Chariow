@@ -388,6 +388,7 @@ export function Dashboard() {
               }
               onBack={() => setActive(previousSection)}
               products={analytics?.products ?? []}
+              analytics={analytics}
             />
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
@@ -1901,7 +1902,7 @@ const AI_QUICK_PROMPTS: QuickPrompt[] = [
   { icon: <Wand2 size={14} />, label: "Générer une affiche", action: "poster" },
 ];
 
-function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: { onGoToSubscription: () => void; onUsageChange: (patch: Partial<SubscriptionData>) => void; onBack?: () => void; products?: ProductData[] }) {
+function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [], analytics = null }: { onGoToSubscription: () => void; onUsageChange: (patch: Partial<SubscriptionData>) => void; onBack?: () => void; products?: ProductData[]; analytics?: AnalyticsData }) {
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -1923,6 +1924,27 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
   useEffect(() => {
     if (!posterProductId && products.length) setPosterProductId(products[0].id);
   }, [products, posterProductId]);
+
+  // Bande d'indicateurs (ventes / dépenses pub / ROAS) affichée en permanence
+  // sous l'en-tête, pour donner du contexte sans avoir à poser de question.
+  const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const accountsResponse = await fetch("/api/integrations/meta/accounts");
+      const accountsData = accountsResponse.ok ? await accountsResponse.json() : { accounts: [] };
+      const accounts = accountsData.accounts ?? [];
+      if (!accounts[0]) { if (!cancelled) setMetaPerformance(null); return; }
+      const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accounts[0].id)}`);
+      if (metrics.ok && !cancelled) setMetaPerformance(await metrics.json());
+    })().catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+  const insightCurrency = products[0]?.currency ?? metaPerformance?.currency ?? "XOF";
+  const insightFormat = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} ${insightCurrency}`;
+  const insightSales = analytics?.kpis.sales ?? 0;
+  const insightSpend = metaPerformance?.overview.spend ?? null;
+  const insightRoas = metaPerformance?.overview.realRoas ?? null;
 
   const [bottomNode, setBottomNode] = useState<HTMLDivElement | null>(null);
 
@@ -2109,6 +2131,12 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
           </div>
         )}
 
+        <div className="chat-insights">
+          <div className="chat-insight"><small>Ventes</small><strong>{insightSales}</strong></div>
+          <div className="chat-insight"><small>Dépenses pub</small><strong>{insightSpend !== null ? insightFormat(insightSpend) : "—"}</strong></div>
+          <div className="chat-insight"><small>ROAS réel</small><strong>{insightRoas !== null ? `${insightRoas.toFixed(2)}x` : "—"}</strong></div>
+        </div>
+
         <div className="chat-messages">
           {!hasConversation && (
             <div className="chat-empty-hero">
@@ -2121,6 +2149,7 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
                   { icon: <ShieldAlert size={16} />, title: "Protéger ma marge", text: "Repérer les campagnes qui brûlent du budget.", prompt: "Où est-ce que je perds de l'argent cette semaine ?" },
                   { icon: <TrendingUp size={16} />, title: "Trouver une opportunité", text: "Identifier ce qui mérite plus d’attention.", prompt: "Quelle est ma meilleure opportunité cette semaine ?" },
                   { icon: <Package size={16} />, title: "Comprendre mes produits", text: "Voir ce qui se vend vraiment.", prompt: "Quels produits se vendent le mieux et pourquoi ?" },
+                  { icon: <Activity size={16} />, title: "Résumé de la semaine", text: "Ventes, pubs et rentabilité en un coup d’œil.", prompt: "Fais-moi un résumé de mes ventes et de mes dépenses publicitaires des 7 derniers jours." },
                 ].map((item) => (
                   <button type="button" className="ai-action-card" key={item.title} onClick={() => void send(item.prompt)} disabled={sending || plansRequired}>
                     <span className="ai-action-icon">{item.icon}</span><span><strong>{item.title}</strong><small>{item.text}</small></span><ArrowRight size={14} />
@@ -2172,6 +2201,11 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
                         <Copy size={11} /> {copiedIndex === index ? "Copié" : "Copier"}
                       </button>
                     )}
+                    {isAssistant && content && (
+                      <button type="button" className="chat-detail" disabled={sending || plansRequired} onClick={() => void send("Peux-tu détailler ta réponse précédente avec plus de contexte ?")}>
+                        <Lightbulb size={11} /> Détailler
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2204,33 +2238,45 @@ function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [] }: 
               <p className="hint-line">Connecte une boutique avec au moins un produit pour générer une affiche.</p>
             ) : (
               <>
-                <label className="campaign-field">
-                  Produit
-                  <select value={posterProductId} onChange={(event) => setPosterProductId(event.target.value)}>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="poster-format-grid">
-                  {POSTER_FORMATS.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`poster-format-btn ${posterFormat === item.id ? "selected" : ""}`}
-                      onClick={() => setPosterFormat(item.id)}
-                    >
-                      <strong>{item.label}</strong>
-                      <small>{item.hint}</small>
-                    </button>
-                  ))}
+                <div className="poster-body">
+                  <div className="poster-fields">
+                    <label className="campaign-field">
+                      Produit
+                      <select value={posterProductId} onChange={(event) => setPosterProductId(event.target.value)}>
+                        {products.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="poster-format-grid">
+                      {POSTER_FORMATS.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`poster-format-btn ${posterFormat === item.id ? "selected" : ""}`}
+                          onClick={() => setPosterFormat(item.id)}
+                        >
+                          <strong>{item.label}</strong>
+                          <small>{item.hint}</small>
+                        </button>
+                      ))}
+                    </div>
+                    <label className="campaign-field">
+                      Message ou hook (optionnel)
+                      <textarea rows={2} placeholder="Ex : Livraison offerte ce week-end" value={posterExtra} onChange={(event) => setPosterExtra(event.target.value)} />
+                    </label>
+                  </div>
+                  <div className="poster-preview">
+                    {products.find((product) => product.id === posterProductId)?.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={products.find((product) => product.id === posterProductId)?.image ?? undefined} alt="" />
+                    ) : (
+                      <span>Aperçu de l’affiche généré ici</span>
+                    )}
+                  </div>
                 </div>
-                <label className="campaign-field">
-                  Message ou hook (optionnel)
-                  <textarea rows={2} placeholder="Ex : Livraison offerte ce week-end" value={posterExtra} onChange={(event) => setPosterExtra(event.target.value)} />
-                </label>
                 {posterError ? <p className="store-error" role="alert">{posterError}</p> : null}
                 <button type="button" className="btn btn-dark" style={{ width: "100%" }} disabled={posterGenerating} onClick={() => void generatePoster()}>
                   {posterGenerating ? "Génération en cours…" : "Générer l’affiche"}
