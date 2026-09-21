@@ -236,6 +236,27 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
         Object.keys(pricingEntry)
       );
       loggedUnresolvedFields = true;
+
+      // Diagnostic temporaire (valeurs, pas seulement les clés cette fois) pour
+      // identifier pourquoi ni un champ URL direct sur le produit, ni la
+      // reconstruction slug + domaine boutique n'aboutissent. Ce sont les
+      // propres données de la boutique connectée (pas de données tierces) — à
+      // retirer une fois le bon champ identifié.
+      if (!resolvedUrl) {
+        console.warn("[chariow] diagnostic valeurs lien produit —", {
+          product_id: product.id,
+          product_slug: product.slug,
+          product_handle: product.handle,
+          product_reference: product.reference,
+          store_url: store.url,
+          store_domain: store.domain,
+          store_storefront_url: store.storefront_url,
+          store_subdomain: store.subdomain,
+          store_slug: store.slug,
+          store_store_slug: store.store_slug,
+          store_custom_slug: store.custom_slug,
+        });
+      }
     }
 
     const productId = String(product.id ?? product.uuid ?? index);
