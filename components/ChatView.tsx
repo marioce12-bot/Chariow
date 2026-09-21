@@ -7,7 +7,7 @@ import "../app/vendeo-ai.css";
 
 // Assistant Vendeo AI : composant autonome (sorti de Dashboard.tsx).
 // Les styles de cette mise en page sont dans app/vendeo-ai.css (sélecteurs préfixés .ai-page).
-// Contrat de design : voir VENDEO_AI_LAYOUT.md.
+// Contrat de design : voir docs/VENDEO_AI_LAYOUT.md.
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 
@@ -30,7 +30,7 @@ const POSTER_FORMATS: { id: "square" | "story" | "banner"; label: string; hint: 
 
 // Suggestions de démarrage : chacune correspond à une capacité réellement disponible
 // dans Vendeo AI (verdicts pub, produits, résumé d'activité, génération d'affiche)
-// plutôt qu'à des questions génériques qui ne mowèneraient nulle part.
+// plutôt qu'à des questions génériques qui ne mèneraient nulle part.
 type QuickPrompt = { icon: React.ReactNode; label: string; prompt?: string; action?: "poster" };
 const AI_QUICK_PROMPTS: QuickPrompt[] = [
   { icon: <Megaphone size={14} />, label: "Pubs à arrêter", prompt: "Quelles publicités dois-je arrêter cette semaine et pourquoi ?" },
