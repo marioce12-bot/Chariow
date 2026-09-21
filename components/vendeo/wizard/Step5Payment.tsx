@@ -11,47 +11,50 @@ interface StepProps {
   /**
    * Statut déjà connu côté serveur quand on REPREND une campagne existante
    * (ex. depuis la liste "Mes campagnes") au lieu de venir de l'étape 4 du
-   * wizard. Permet de sauter directement à la bonne phase au lieu de relancer
-   * /launch, ce qui est interdit une fois la campagne déjà créée chez
-   * Meta/TikTok (voir la garde côté route : seuls "draft"/"error" acceptent
-   * un nouvel appel à /launch).
-   * - undefined/"draft"/"error" → comportement historique : on appelle /launch.
-   * - "paused" → campagne déjà créée en pause, prête à payer.
-   * - "paid"   → paiement déjà confirmé, il ne reste qu'à activer.
+   * wizard.
+   * - undefined/"draft" → comportement par défaut : la campagne n'a jamais
+   *   été envoyée à Meta/TikTok, on propose directement le paiement.
+   * - "paid"   → paiement déjà confirmé (ex. onglet fermé avant la fin), il
+   *   ne reste qu'à envoyer la campagne à Meta/TikTok.
+   * - "paused" → compatibilité avec d'éventuelles campagnes créées sous
+   *   l'ancien flux (gratuitement chez Meta avant paiement) : on propose le
+   *   paiement comme pour "draft", /launch se charge ensuite d'activer la
+   *   campagne déjà existante au lieu d'en recréer une nouvelle.
    */
-  initialStatus?: "draft" | "error" | "paused" | "paid";
+  initialStatus?: "draft" | "paused" | "paid";
 }
 
 type Phase =
-  | "testing"        // création gratuite chez Meta/TikTok en PAUSED, en cours
-  | "test_error"      // la création gratuite a échoué — aucun paiement n'a eu lieu
-  | "ready"           // créée en PAUSED avec succès, prête à être payée
+  | "ready"            // prêt à payer (campagne encore un simple brouillon côté Vendeo)
   | "creating_checkout"
   | "waiting_payment"
-  | "paid_ready"      // paiement déjà confirmé (repris depuis la liste), en attente du clic "Activer"
-  | "activating"      // paiement confirmé, bascule PAUSED -> ACTIVE en cours
+  | "paid_ready"       // paiement confirmé, en attente du clic pour envoyer à Meta/TikTok
+  | "launching"        // paiement confirmé, envoi à Meta/TikTok en cours
   | "done"
-  | "error";           // erreur après paiement confirmé (le paiement N'est PAS perdu)
+  | "error";            // erreur après paiement confirmé (le paiement N'est PAS perdu)
 
 /**
- * Étape 5/5 — Vérification gratuite, puis paiement, puis activation.
+ * Étape 5/5 — Paiement, puis envoi à Meta/TikTok.
  *
- * 1) POST /api/ad-campaigns/[id]/launch → crée la campagne chez Meta/TikTok en
- *    PAUSED (aucune dépense). Si Meta refuse (permission manquante, compte
- *    restreint…), l'utilisateur le voit ici, sans avoir payé un centime.
- * 2) Une fois la création réussie, POST /api/ad-campaigns/[id]/checkout ouvre le
- *    paiement SasPay, puis on poll GET /api/ad-campaigns/[id]/status jusqu'à
- *    status === "paid".
- * 3) POST /api/ad-campaigns/[id]/activate bascule la campagne déjà créée de
- *    PAUSED à ACTIVE — c'est ce basculement qui la soumet réellement à Meta.
+ * Pour que la capture d'écran de vérification Meta Business montre le bon
+ * ordre des opérations, le paiement est demandé AVANT tout appel à Meta :
+ *
+ * 1) La campagne existe déjà côté Vendeo (brouillon créé à l'étape 4, jamais
+ *    envoyé à Meta/TikTok).
+ * 2) POST /api/ad-campaigns/[id]/checkout ouvre le paiement SasPay, puis on
+ *    poll GET /api/ad-campaigns/[id]/status jusqu'à status === "paid".
+ * 3) Une fois le paiement confirmé, POST /api/ad-campaigns/[id]/launch envoie
+ *    RÉELLEMENT la campagne à Meta/TikTok (créée directement active). Si la
+ *    plateforme publicitaire refuse, l'erreur est affichée et l'utilisateur
+ *    peut réessayer sans jamais payer une seconde fois — le paiement reste
+ *    acquis (statut "paid" conservé côté serveur).
  *
  * Ce composant est aussi utilisé hors du wizard (via ResumeCampaignModal) pour
  * reprendre une campagne déjà créée depuis la liste "Mes campagnes" — d'où
- * `initialStatus`, qui permet de sauter l'étape 1 (test gratuit) quand elle a
- * déjà réussi lors d'une session précédente.
+ * `initialStatus`.
  */
 export function Step5Payment({ state, onBack, onLaunched, initialStatus }: StepProps) {
-  const [phase, setPhase] = useState<Phase>("testing");
+  const [phase, setPhase] = useState<Phase>("ready");
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -62,46 +65,9 @@ export function Step5Payment({ state, onBack, onLaunched, initialStatus }: StepP
   }, []);
 
   useEffect(() => {
-    if (initialStatus === "paused") {
-      // Déjà créée en pause lors d'un précédent passage — inutile (et interdit
-      // côté API) de rappeler /launch, on propose directement le paiement.
-      setPhase("ready");
-    } else if (initialStatus === "paid") {
-      // Paiement déjà confirmé mais l'activation n'était pas allée au bout
-      // (onglet fermé, etc.) — on propose directement d'activer.
-      setPhase("paid_ready");
-    } else {
-      void testLaunch();
-    }
+    setPhase(initialStatus === "paid" ? "paid_ready" : "ready");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const testLaunch = async () => {
-    if (!state.campaignId) return;
-    setPhase("testing");
-    setError(null);
-    try {
-      const body =
-        state.platform === "meta"
-          ? { meta_ad_account_id: state.metaAdAccountId, page_id: state.metaPageId }
-          : {
-              tiktok_ad_account_id: state.tiktokAdAccountId,
-              identity_id: state.tiktokIdentityId,
-              identity_type: state.tiktokIdentityType,
-            };
-      const res = await fetch(`/api/ad-campaigns/${state.campaignId}/launch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || `${platformLabel} n'a pas accepté la création de la campagne`);
-      setPhase("ready");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur inconnue");
-      setPhase("test_error");
-    }
-  };
 
   const startPayment = async () => {
     if (!state.campaignId) return;
@@ -118,7 +84,7 @@ export function Step5Payment({ state, onBack, onLaunched, initialStatus }: StepP
         const s = await fetch(`/api/ad-campaigns/${state.campaignId}/status`).then((r) => r.json());
         if (s?.status === "paid") {
           if (pollRef.current) clearInterval(pollRef.current);
-          await activateCampaign();
+          await launchCampaign();
         }
       }, 4000);
     } catch (e) {
@@ -127,13 +93,26 @@ export function Step5Payment({ state, onBack, onLaunched, initialStatus }: StepP
     }
   };
 
-  const activateCampaign = async () => {
+  const launchCampaign = async () => {
     if (!state.campaignId) return;
-    setPhase("activating");
+    setPhase("launching");
+    setError(null);
     try {
-      const res = await fetch(`/api/ad-campaigns/${state.campaignId}/activate`, { method: "POST" });
+      const body =
+        state.platform === "meta"
+          ? { meta_ad_account_id: state.metaAdAccountId, page_id: state.metaPageId }
+          : {
+              tiktok_ad_account_id: state.tiktokAdAccountId,
+              identity_id: state.tiktokIdentityId,
+              identity_type: state.tiktokIdentityType,
+            };
+      const res = await fetch(`/api/ad-campaigns/${state.campaignId}/launch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "L'activation a échoué");
+      if (!res.ok) throw new Error(data?.error || `${platformLabel} n'a pas accepté la campagne`);
       setPhase("done");
       onLaunched(state.campaignId);
     } catch (e) {
@@ -144,44 +123,22 @@ export function Step5Payment({ state, onBack, onLaunched, initialStatus }: StepP
 
   return (
     <div className="space-y-4">
-      {phase === "testing" && (
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Loader2 className="h-4 w-4 animate-spin" /> Création de la campagne chez {platformLabel} (en pause, aucune dépense)…
-        </div>
-      )}
-
-      {phase === "test_error" && (
-        <div className="space-y-3 rounded-xl bg-[#FEF2F2] p-4 text-sm text-[#991B1B]">
-          <p className="font-semibold">{platformLabel} n'a pas accepté la création de la campagne.</p>
-          <p>{error}</p>
-          <p className="text-xs font-medium">Aucun paiement n'a été effectué.</p>
-          <button
-            onClick={() => void testLaunch()}
-            className="rounded-lg bg-[#6366F1] px-4 py-2 text-xs font-semibold text-white"
-          >
-            Réessayer
-          </button>
-        </div>
-      )}
-
       {phase === "ready" && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 rounded-xl bg-[#ECFDF5] p-4 text-sm text-[#065F46]">
+          <div className="flex items-center gap-2 rounded-xl bg-[#EEF2FF] p-4 text-sm text-[#3730A3]">
             <CheckCircle2 className="h-4 w-4 flex-none" />
-            <span>
-              Ta campagne est prête chez {platformLabel} (en pause). Aucun paiement n'a encore été effectué.
-            </span>
+            <span>Ta campagne est enregistrée sur Vendeo. Elle n'a pas encore été envoyée à {platformLabel}.</span>
           </div>
           <p className="text-sm text-gray-500">
             Le paiement couvre le budget publicitaire (98%) et la commission Vendeo (2%). Une fois le
-            paiement confirmé, la campagne est activée automatiquement chez {platformLabel}.
+            paiement confirmé, la campagne est envoyée automatiquement à {platformLabel}.
           </p>
           {error && <p className="text-sm text-[#991B1B]">{error}</p>}
           <button
             onClick={() => void startPayment()}
             className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white"
           >
-            Payer et activer la campagne
+            Payer et lancer la campagne
           </button>
         </div>
       )}
@@ -215,40 +172,40 @@ export function Step5Payment({ state, onBack, onLaunched, initialStatus }: StepP
         <div className="space-y-3">
           <div className="flex items-center gap-2 rounded-xl bg-[#ECFDF5] p-4 text-sm text-[#065F46]">
             <CheckCircle2 className="h-4 w-4 flex-none" />
-            <span>Le paiement de cette campagne est déjà confirmé. Il ne reste qu'à l'activer chez {platformLabel}.</span>
+            <span>Le paiement de cette campagne est confirmé. Il ne reste qu'à l'envoyer à {platformLabel}.</span>
           </div>
           {error && <p className="text-sm text-[#991B1B]">{error}</p>}
           <button
-            onClick={() => void activateCampaign()}
+            onClick={() => void launchCampaign()}
             className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white"
           >
-            Activer la campagne
+            Lancer la campagne
           </button>
         </div>
       )}
 
-      {phase === "activating" && (
+      {phase === "launching" && (
         <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Loader2 className="h-4 w-4 animate-spin" /> Paiement confirmé — activation chez {platformLabel}…
+          <Loader2 className="h-4 w-4 animate-spin" /> Paiement confirmé — envoi à {platformLabel}…
         </div>
       )}
 
       {phase === "done" && (
         <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm font-semibold text-[#065F46]">
-          ✅ Campagne activée ! Elle passe en revue avant diffusion.
+          ✅ Campagne envoyée à {platformLabel} ! Elle passe en revue avant diffusion.
         </div>
       )}
 
       {phase === "error" && (
         <div className="space-y-3 rounded-xl bg-[#FFFBEB] p-4 text-sm text-[#92400E]">
-          <p className="font-semibold">Le paiement est confirmé, mais l'activation a échoué.</p>
+          <p className="font-semibold">Le paiement est confirmé, mais {platformLabel} n'a pas accepté la campagne.</p>
           <p>{error}</p>
-          <p className="text-xs font-medium">Ton paiement n'est pas perdu — réessaie l'activation.</p>
+          <p className="text-xs font-medium">Ton paiement n'est pas perdu — réessaie le lancement.</p>
           <button
-            onClick={() => void activateCampaign()}
+            onClick={() => void launchCampaign()}
             className="rounded-lg bg-[#6366F1] px-4 py-2 text-xs font-semibold text-white"
           >
-            Réessayer l'activation
+            Réessayer
           </button>
         </div>
       )}
