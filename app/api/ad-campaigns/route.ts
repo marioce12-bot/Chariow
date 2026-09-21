@@ -22,6 +22,23 @@ export async function POST(request: Request) {
   const { data: store } = await supabase.from("stores").select("id,mcp_url,access_token_encrypted").eq("user_id", user.id).eq("connection_status", "connected").limit(1).maybeSingle();
   if (!store) return NextResponse.json({ error: "Connecte d’abord une boutique Chariow" }, { status: 400 });
 
+  // Le compte pub et (pour Meta) la page choisis à l'étape 2 du wizard sont
+  // enregistrés dès la création du brouillon — pas seulement au moment du
+  // lancement — pour que la campagne puisse être reprise depuis "Mes
+  // campagnes" (payer maintenant, envoyer à Meta plus tard) sans perdre ce
+  // choix ni repasser par le wizard. Un id de compte qui n'appartient pas à
+  // l'utilisateur est silencieusement ignoré (repris par /launch plus tard).
+  let metaAdAccountId: string | null = null;
+  if (body.platform === "meta" && typeof body.meta_ad_account_id === "string" && body.meta_ad_account_id) {
+    const { data: account } = await supabase.from("meta_ad_accounts").select("id").eq("id", body.meta_ad_account_id).eq("user_id", user.id).maybeSingle();
+    if (account) metaAdAccountId = account.id;
+  }
+  let tiktokAdAccountId: string | null = null;
+  if (body.platform === "tiktok" && typeof body.tiktok_ad_account_id === "string" && body.tiktok_ad_account_id) {
+    const { data: account } = await supabase.from("tiktok_ad_accounts").select("id").eq("id", body.tiktok_ad_account_id).eq("user_id", user.id).maybeSingle();
+    if (account) tiktokAdAccountId = account.id;
+  }
+
   const { data, error } = await supabase.from("ad_campaigns").insert({
     user_id: user.id,
     store_id: store.id,
@@ -40,6 +57,9 @@ export async function POST(request: Request) {
     daily_budget: dailyBudget,
     duration_days: durationDays,
     estimated_budget: dailyBudget * durationDays,
+    meta_ad_account_id: metaAdAccountId,
+    meta_page_id: body.platform === "meta" && typeof body.meta_page_id === "string" ? body.meta_page_id.trim() || null : null,
+    tiktok_ad_account_id: tiktokAdAccountId,
   }).select("id,status").single();
   if (error) {
     console.error("Ad campaign insert failed", { userId: user.id, storeId: store.id, productId: body.product_id, code: error.code, message: error.message, details: error.details, hint: error.hint });
