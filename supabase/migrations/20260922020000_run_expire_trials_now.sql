@@ -1,0 +1,11 @@
+-- La migration précédente (20260922010000_unified_subscription_and_trial.sql)
+-- a réétendu trial_ends_at à created_at + 15 jours pour tous les comptes en
+-- essai, puis changé le comportement attendu (nouvelle durée d'essai). Comme
+-- la fonction expire_trials() n'était jusqu'ici jamais déclenchée (route cron
+-- absente de vercel.json, corrigé séparément), aucun essai réellement expiré
+-- n'était basculé vers "past_due". On applique donc immédiatement la
+-- vérification une première fois, sans attendre le prochain passage du cron
+-- (planifié à 3h), pour que les comptes dont l'essai est déjà dépassé
+-- affichent tout de suite "Essai terminé" au lieu de rester bloqués en
+-- "trialing".
+select public.expire_trials();
