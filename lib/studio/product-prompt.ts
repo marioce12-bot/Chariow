@@ -25,27 +25,45 @@ export function parseStudioProduct(raw: unknown): StudioProductInput | null {
   return { id: clean(source.id, 80) || undefined, name, description: clean(source.description, 1200) || undefined, price: price || undefined, currency: clean(source.currency, 8) || undefined, imageUrl };
 }
 
+// Consigne anti-narration : sans elle, le modèle vidéo (qui génère aussi la
+// voix) n'a rien d'autre à "lire" que la description de scène, et finit par la
+// réciter telle quelle en voix off ("vidéo UGC montrant..."). On la répète en
+// toute fin de prompt — la position la plus lue par la plupart des modèles
+// vidéo — et jamais entre guillemets, pour qu'elle ne soit pas elle-même prise
+// pour du dialogue.
+const NO_NARRATION_RULE =
+  "Règle audio impérative : le seul son parlé est la voix de la personne filmée qui s'exprime naturellement, dans ses propres mots, dans la langue du brief. Elle n'improvise jamais en citant ou paraphrasant ces instructions de mise en scène, ne dit jamais des phrases comme « vidéo montrant » ou « publicité UGC », et il n'y a aucune voix off qui décrit ou résume la scène de l'extérieur.";
+
 export function buildStudioPrompt(kind: "image" | "video", userPrompt: string, product: StudioProductInput | null, hasReference = false) {
   const brief = userPrompt.trim();
   if (kind === "video" && !product) {
     return [
-      "Crée une vidéo publicitaire UGC authentique et naturelle, pensée pour promouvoir une offre ou un produit.",
-      "La demande de l'utilisateur est prioritaire : respecte son produit, son angle, son ton, sa cible et ses contraintes.",
-      `Brief utilisateur : ${brief || "présente clairement l'offre avec un bénéfice concret et un appel à l'action."}`,
-      "Structure la vidéo comme un mini-scénario cohérent adapté à la durée : accroche immédiate dans les premières secondes, scène humaine crédible avec un créateur ou client qui parle naturellement à la caméra, démonstration ou usage réel, preuve ou bénéfice concret, puis appel à l'action clair.",
-      "Utilise des scènes vivantes et distinctes, des gestes humains réalistes, des expressions naturelles, un cadrage smartphone vertical si le format est vertical, une lumière quotidienne, une caméra légèrement imparfaite mais stable, et des transitions simples. Maintiens la même personne, le même produit, les mêmes vêtements et le même décor lorsque la continuité l'exige.",
-      "Le dialogue doit être court, oral, crédible et adapté à la langue du brief. Évite les monologues trop rapides, les scènes abstraites, les changements de visage, les mains déformées, les mouvements impossibles et les plans sans rapport avec le produit. N'invente ni prix, ni logo, ni caractéristique, ni promesse absents du brief.",
-      "Si aucun texte ou dialogue n'est demandé, privilégie une narration visuelle claire et des réactions humaines plutôt que du texte incrusté illisible.",
+      "Plan-séquence filmé au smartphone, style UGC : une personne (créatrice ou cliente) se trouve dans un décor quotidien et s'adresse directement à la caméra, avec le naturel d'une story Instagram.",
+      `Ce qu'elle raconte, dans ses propres mots : elle parle librement pour promouvoir ceci — ${brief || "l'offre, avec un bénéfice concret et un appel à l'action clair"} — sans jamais lire ni paraphraser la consigne elle-même.`,
+      "Mise en scène (ne décrit pas ce qui est dit, seulement ce qui est filmé) : accroche visuelle dans les toutes premières secondes, scène humaine crédible, démonstration ou usage réel du produit ou de l'offre, geste ou réaction qui montre le bénéfice, puis un signe clair d'appel à l'action (regard caméra, pointage, produit levé...).",
+      "Réalisation : scènes vivantes et distinctes mais cohérentes entre elles, gestes et expressions naturels, cadrage smartphone vertical si le format est vertical, lumière quotidienne, caméra légèrement imparfaite mais stable, transitions simples. Continuité du visage, des vêtements, du produit et du décor d'un plan à l'autre. Pas de mains ou visages déformés, pas de changement d'identité, pas de plan abstrait, pas de texte incrusté illisible.",
+      NO_NARRATION_RULE,
     ].join(" ").slice(0, 4000);
   }
   if (!product) return brief;
   const priceLine = product.price ? `Prix : ${product.price}${product.currency ? ` ${product.currency}` : ""}.` : "";
   const defaultBrief = kind === "image" ? "visuel promotionnel soigné mettant le produit en valeur" : "vidéo promotionnelle soignée mettant le produit en valeur";
+  if (kind === "image") {
+    return [
+      "Crée un visuel professionnel pour ce produit numérique de la boutique.",
+      `Produit : « ${product.name} ».`, product.description ? `Description : ${product.description}` : "", priceLine,
+      `Demande de l'utilisateur : ${brief || defaultBrief}.`,
+      hasReference ? "Image de référence : c'est la couverture du produit ; conserve fidèlement son apparence (forme, couleurs, titre) et ne la déforme pas." : "",
+      "Consignes : composition professionnelle, produit bien mis en valeur, aucun texte flou ni faute d'orthographe, n'invente ni prix, ni logo, ni promesse absents des informations ci-dessus.",
+    ].filter(Boolean).join(" ").slice(0, 4000);
+  }
   return [
-    kind === "image" ? "Crée un visuel professionnel pour ce produit numérique de la boutique." : "Crée une courte vidéo promotionnelle professionnelle pour ce produit numérique de la boutique.",
-    `Produit : « ${product.name} ».`, product.description ? `Description : ${product.description}` : "", priceLine,
-    `Demande de l'utilisateur : ${brief || defaultBrief}.`,
+    "Plan-séquence filmé au smartphone, style UGC : une personne (créatrice ou cliente) se trouve dans un décor quotidien et présente ce produit numérique à la caméra, avec le naturel d'une story Instagram.",
+    `Produit présenté : « ${product.name} ».`, product.description ? `Description du produit : ${product.description}` : "", priceLine,
+    `Ce qu'elle raconte, dans ses propres mots : elle parle librement pour promouvoir ce produit selon cette demande — ${brief || defaultBrief} — sans jamais lire ni paraphraser la consigne elle-même.`,
     hasReference ? "Image de référence : c'est la couverture du produit ; conserve fidèlement son apparence (forme, couleurs, titre) et ne la déforme pas." : "",
-    kind === "image" ? "Consignes : composition professionnelle, produit bien mis en valeur, aucun texte flou ni faute d'orthographe, n'invente ni prix, ni logo, ni promesse absents des informations ci-dessus." : "Consignes : crée une publicité UGC structurée comme un mini-scénario adapté à la durée : accroche immédiate, scène humaine avec un créateur ou client qui présente naturellement le produit, démonstration ou usage réel, bénéfice concret, puis appel à l'action. Respecte la demande de l'utilisateur comme priorité pour l'angle, le ton, la cible et le message. Utilise des scènes distinctes mais cohérentes, des gestes et expressions réalistes, une caméra smartphone naturelle, une lumière quotidienne et des mouvements fluides. Garde le même visage, les mêmes vêtements, le même produit et la continuité du décor entre les plans. Le dialogue doit être court, oral et crédible dans la langue du brief. Évite les mains ou visages déformés, les changements d'identité, les plans abstraits, les transitions excessives et le texte incrusté illisible. N'invente ni prix, ni logo, ni caractéristique, ni promesse absents des informations ci-dessus.",
+    "Mise en scène (ne décrit pas ce qui est dit, seulement ce qui est filmé) : accroche visuelle immédiate, démonstration ou usage réel du produit, geste ou réaction qui montre le bénéfice concret, puis un signe clair d'appel à l'action.",
+    "Réalisation : scènes distinctes mais cohérentes, gestes et expressions réalistes, caméra smartphone naturelle, lumière quotidienne, mouvements fluides. Même visage, mêmes vêtements, même produit et continuité du décor entre les plans. Pas de mains ou visages déformés, pas de changement d'identité, pas de texte incrusté illisible. N'invente ni prix, ni logo, ni caractéristique, ni promesse absents des informations ci-dessus.",
+    NO_NARRATION_RULE,
   ].filter(Boolean).join(" ").slice(0, 4000);
 }
