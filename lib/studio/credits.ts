@@ -1,4 +1,4 @@
-export const CREDIT_PRICE_XOF = 2.5;
+export const CREDIT_PRICE_XOF = 2;
 export const MIN_CREDITS = 200;
 
 export const IMAGE_COSTS = {
