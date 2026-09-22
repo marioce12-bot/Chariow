@@ -136,6 +136,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                   ) : null}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {c.media_url ? <img src={c.media_url} alt="Affiche de la campagne" style={{ width: 42, height: 42, borderRadius: 7, objectFit: "cover", border: "1px solid var(--line)" }} /> : null}
                   <span
                     style={{
                       fontSize: 11,
