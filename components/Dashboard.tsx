@@ -395,7 +395,7 @@ export function Dashboard() {
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Pub" ? (
-             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={() => { if (!stores.length) setActive("Mes boutiques"); else setActive("Vue d’ensemble"); }} storeId={stores[0]?.id ?? null} campaignsVersion={0} />
+             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={() => { if (!stores.length) { setActive("Mes boutiques"); return; } setWizardOpen(true); }} storeId={stores[0]?.id ?? null} campaignsVersion={0} />
           ) : active === "Comptes publicitaires" ? (
              <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
           ) : active === "Radar marché" ? (
@@ -424,7 +424,7 @@ export function Dashboard() {
       <TrialPaywallModal subscription={subscription} />
 
         {active !== "Vendeo AI" ? (
-        <nav className="mobile-nav" aria-label="Navigation mobile">
+         <nav className="mobile-nav" aria-label="Navigation mobile">
          <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
            <LayoutDashboard size={18} />
            <span>Accueil</span>
@@ -433,18 +433,18 @@ export function Dashboard() {
              <Megaphone size={18} />
              <span>Pub</span>
           </button>
-           <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
-             <MessageSquare size={18} />
-             <span>Assistant</span>
-           </button>
-           <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
-             <Lightbulb size={18} />
-             <span>Radar</span>
-           </button>
-           <button type="button" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
-             <Sparkles size={18} />
-             <span>Studio</span>
-           </button>
+            <button type="button" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
+              <Sparkles size={21} strokeWidth={2.5} />
+              <span>Studio</span>
+            </button>
+            <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
+              <MessageSquare size={18} />
+              <span>Assistant</span>
+            </button>
+            <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
+              <Lightbulb size={18} />
+              <span>Radar</span>
+            </button>
         </nav>
         ) : null}
          {moreOpen ? <div className="mobile-more-menu" role="menu">
@@ -1812,7 +1812,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
 
       {message && <p className="store-error" role="status">{message}</p>}
 
-      <AdCampaignsList storeId={storeId} onNewCampaign={onLaunchAd} key={campaignsVersion} />
+      {channel === "overview" ? <AdCampaignsList storeId={storeId} onNewCampaign={onLaunchAd} key={campaignsVersion} /> : null}
 
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">Statistiques</span><h2>Performance publicitaire</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">Dépenses</span><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, metaPerformance?.currency ?? "XOF")}</strong></div><div className="vendeo-kpi"><span className="metric-label">Ventes</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">ROAS réel</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div></section> : channel === "meta" ? (
         <>
