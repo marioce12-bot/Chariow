@@ -387,6 +387,13 @@ html[data-theme="dark"] .studio-product-picker { background:#0b1734; border-colo
 .mobile-nav { position:fixed; left:0; right:0; bottom:0; z-index:1000; background:#eef3ff; border-top:1px solid var(--line); padding:8px max(8px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)); justify-content:space-around; }
 .mobile-nav .nav-btn { background:transparent; border:0; display:flex; flex:1 1 0; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-width:0; min-height:44px; padding:7px 3px; color:#64748b; border-radius:10px; }
 .mobile-nav .nav-btn.active { color:var(--green); font-weight:800; }
+.compact-action { min-height:32px; padding:6px 9px; }
+.compact-icon-button { align-items:center; background:transparent; border:1px solid var(--line); border-radius:8px; color:var(--muted); display:inline-flex; height:32px; justify-content:center; padding:0; width:32px; }
+.campaign-modal-head { align-items:flex-start; }
+.ad-campaigns-list .card-head { margin-bottom:12px; }
+.ad-campaigns-list .btn { border-radius:8px; font-size:12px; min-height:34px; padding:7px 11px; }
+.ad-campaigns-list .btn-dark { box-shadow:none; }
+.ad-campaigns-list > div > div > div[style*="border"] { background:var(--surface); padding:10px 12px !important; }
 .mobile-nav .nav-btn span { font-size:11px; line-height:1; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mobile-more-trigger { display:none; }
 .mobile-more-menu { background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 14px 40px rgba(16,24,40,.16); display:grid; gap:4px; padding:8px; position:fixed; right:12px; top:72px; z-index:1010; }

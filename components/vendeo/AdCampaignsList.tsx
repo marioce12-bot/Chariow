@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, PlayCircle, Plus, RefreshCw, X } from "lucide-react";
+import { Loader2, PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
 import type { Platform } from "./wizard/types";
 
@@ -90,17 +90,10 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   return (
     <section className="app-card ad-campaigns-list">
       <div className="card-head">
-        <div>
-          <span className="eyebrow">Pub</span>
-          <h2>Mes campagnes publicitaires</h2>
-          <p>Retrouve tes campagnes, vérifie leur aperçu et lance-les quand tu es prêt.</p>
-        </div>
+        <div><h2>Campagnes</h2></div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" className="btn btn-ghost" onClick={() => void load()} aria-label="Rafraîchir">
+          <button type="button" className="btn btn-ghost compact-action" onClick={() => void load()} aria-label="Rafraîchir">
             <RefreshCw size={16} />
-          </button>
-          <button type="button" className="btn btn-dark" onClick={onNewCampaign}>
-            <Plus size={16} /> Nouvelle campagne
           </button>
         </div>
       </div>
@@ -110,7 +103,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
           <Loader2 size={14} className="animate-spin" /> Chargement…
         </p>
       ) : campaigns.length === 0 ? (
-        <p className="hint-line">Aucune campagne pour l’instant. Crée-en une pour la voir apparaître ici.</p>
+        <p className="hint-line">Aucune campagne créée.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
           {campaigns.slice(0, showAll ? campaigns.length : 3).map((c) => {
@@ -185,7 +178,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
       {selected ? (
         <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4" onClick={() => setSelected(null)}>
           <div className="app-card" style={{ maxWidth: 620, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onClick={(event) => event.stopPropagation()}>
-            <div className="card-head"><div><span className="eyebrow">Détail de la pub</span><h2>{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="btn btn-ghost" onClick={() => setSelected(null)} aria-label="Fermer"><X size={16} /></button></div>
+            <div className="card-head campaign-modal-head"><div><span className="eyebrow">Détail</span><h2>{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="compact-icon-button" onClick={() => setSelected(null)} aria-label="Fermer"><X size={16} /></button></div>
             {selected.media_url ? <img src={selected.media_url} alt="Aperçu de la publicité" style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} /> : null}
             {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>Texte :</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>Réseau :</strong> {selected.platform === "meta" ? "Facebook / Instagram" : "TikTok"}</div><div><strong>Objectif :</strong> {selected.objective}</div><div><strong>Audience :</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} ans</div><div><strong>Budget :</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} XOF/jour · {selected.duration_days} jours</div>{selected.destination_url ? <div><strong>Lien :</strong> {selected.destination_url}</div> : null}</div>}
             {selected.external_error ? <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}><strong>Rejet / erreur :</strong> {selected.external_error}<br /><span>Modifie les paramètres puis relance. Aucun paiement supplémentaire ne sera demandé.</span></div> : null}
