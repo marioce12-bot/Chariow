@@ -244,6 +244,7 @@ export function Dashboard() {
     ["Studio", Sparkles],
     ["Pub", Megaphone],
     ["Comptes publicitaires", BarChart3],
+    ["Radar marché", Lightbulb],
     ["Mes boutiques", Store],
     ["Rapports", FileText],
     ["Abonnement", CreditCard],
@@ -409,9 +410,11 @@ export function Dashboard() {
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Pub" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={launchAd} storeId={stores[0]?.id ?? null} campaignsVersion={campaignsVersion} />
-          ) : active === "Comptes publicitaires" ? (
+           ) : active === "Comptes publicitaires" ? (
              <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
-          ) : active === "Mes boutiques" ? (
+          ) : active === "Radar marché" ? (
+             <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); setActive("Vendeo AI"); }} />
+           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Abonnement" ? (
             <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("Paramètres")} />
@@ -458,10 +461,14 @@ export function Dashboard() {
               <Sparkles size={21} strokeWidth={2.5} />
               <span>Studio</span>
             </button>
-            <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
-              <MessageSquare size={18} />
-              <span>Assistant</span>
-            </button>
+             <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
+               <MessageSquare size={18} />
+               <span>Assistant</span>
+             </button>
+             <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
+               <Lightbulb size={18} />
+               <span>Radar</span>
+             </button>
         </nav>
         ) : null}
          {moreOpen ? <div className="mobile-more-menu" role="menu">
