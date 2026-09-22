@@ -21,11 +21,10 @@ export async function GET(request: Request) {
     .eq("is_active", true);
   if (countError) return NextResponse.json({ error: "Impossible de vérifier ton abonnement." }, { status: 500 });
 
-  // Nombre de boutiques autorisées par le plan actif de l'utilisateur
-  // (1 pour Vendeo, 3 pour Vendeo Premium — cf. lib/plans.ts).
+  // Nombre de boutiques autorisées par le forfait unique Vendeo.
   const maxStores = await resolveUserMaxStores(supabase, user.id);
   if ((count ?? 0) >= maxStores) {
-    return NextResponse.json({ error: `Ton abonnement autorise ${maxStores} boutique(s). Passe au plan Vendeo Premium (3 000 XOF/mois) pour en connecter jusqu'à 3.`, code: "STORE_LIMIT", maxStores }, { status: 403 });
+    return NextResponse.json({ error: `Ton abonnement autorise ${maxStores} boutiques maximum.`, code: "STORE_LIMIT", maxStores }, { status: 403 });
   }
   return NextResponse.json({ allowed: true });
 }

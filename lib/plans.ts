@@ -1,11 +1,11 @@
-// Configuration centralisée des plans Vendeo.
-// Deux plans : Vendeo (2 000 XOF/mois, 1 boutique) et Vendeo Premium
-// (3 000 XOF/mois, 3 boutiques), avec 7 jours d'essai gratuit à l'inscription
+// Configuration centralisée du forfait unique Vendeo.
+// Vendeo coûte 2 000 XOF/mois, autorise jusqu'à 3 boutiques et inclut un essai
+// complet de 15 jours. Le Studio est facturé séparément en crédits.
 // (sur le plan Vendeo standard). Toute logique de prix, de durée ou de
 // limites doit passer par ce fichier plutôt que d'écrire des valeurs
 // "en dur" dans les routes API ou les composants.
 //
-// Il n'y a plus de quota de messages IA : tant que l'essai de 7 jours ou
+// Il n'y a plus de quota de messages IA : tant que l'essai de 15 jours ou
 // l'abonnement est actif, l'usage de l'assistant IA est illimité (voir
 // consume_message_quota côté base de données).
 
@@ -13,13 +13,6 @@ export const PLAN_CONFIG = {
   starter: {
     label: "Vendeo",
     amount: 2000,
-    periodDays: 30,
-    maxStores: 1,
-    adPlatforms: ["facebook", "instagram", "tiktok", "whatsapp", "pinterest", "linkedin", "google"] as const,
-  },
-  premium: {
-    label: "Vendeo Premium",
-    amount: 3000,
     periodDays: 30,
     maxStores: 3,
     adPlatforms: ["facebook", "instagram", "tiktok", "whatsapp", "pinterest", "linkedin", "google"] as const,
@@ -60,7 +53,7 @@ export async function resolveUserMaxStores(supabase: any, userId: string): Promi
   return planMaxStores(plan);
 }
 
-// Les deux plans incluent actuellement tous les réseaux pub : cette
+  // Le forfait unique inclut actuellement tous les réseaux pub : cette
 // fonction est conservée pour l'UI de verrouillage par plateforme, au cas où
 // un plan futur restreindrait certains réseaux.
 export function isAdPlatformAllowed(plan: PlanId, platform: AdPlatform) {

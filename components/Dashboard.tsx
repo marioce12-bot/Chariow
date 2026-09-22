@@ -100,7 +100,7 @@ type StoreData = {
 };
 
 type SubscriptionData = {
-  plan: "eco" | "starter" | "premium" | "pro";
+  plan: "starter";
   messages_used_this_month: number;
   messages_limit: number;
   free_messages_used: number;
@@ -124,10 +124,10 @@ type AnalyticsData = {
 function subscriptionLimitFromStores(stores: StoreData[]) {
   // The API remains the source of truth for enforcement. This fallback keeps
   // the visible counter useful before the subscription response is loaded.
-  return stores.length > 1 ? 3 : 1;
+  return 3;
 }
 
-// Pop-up bloquante affichée dès que l'essai gratuit de 7 jours (ou l'abonnement payant)
+  // Pop-up bloquante affichée dès que l'essai gratuit de 15 jours (ou l'abonnement payant)
 // est expiré côté base (subscriptions.status = 'past_due'). "Plus tard" masque la pop-up
 // pour la session en cours seulement — elle réapparaîtra à la prochaine connexion tant
 // que l'abonnement n'est pas activé.
@@ -163,7 +163,7 @@ function TrialPaywallModal({ subscription }: { subscription: SubscriptionData | 
       <section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="trial-paywall-title" onClick={(event) => event.stopPropagation()}>
         <button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setDismissed(true)}>×</button>
         <span className="eyebrow">Essai terminé</span>
-        <h2 id="trial-paywall-title">Ton essai gratuit de 7 jours est terminé</h2>
+        <h2 id="trial-paywall-title">Ton essai gratuit de 15 jours est terminé</h2>
         <p>Active l’abonnement Vendeo — 2 000 XOF/mois — pour continuer à utiliser l’analyse IA, les rapports et le suivi de tes pubs.</p>
         <div className="account-delete-actions">
           <button type="button" className="btn btn-ghost" onClick={() => setDismissed(true)}>Plus tard</button>
@@ -221,7 +221,7 @@ export function Dashboard() {
 
   const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
   // Plus de quota de messages IA : l'accès est illimité tant que l'essai de
-  // 7 jours ou l'abonnement Vendeo est actif.
+  // 15 jours ou l'abonnement Vendeo est actif.
   const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
 
   const links = [
@@ -395,7 +395,7 @@ export function Dashboard() {
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Pub" ? (
-             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Comptes publicitaires")} onLaunchAd={() => { if (!stores.length) setActive("Mes boutiques"); else setActive("Comptes publicitaires"); }} />
+             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={() => { if (!stores.length) setActive("Mes boutiques"); else setActive("Vue d’ensemble"); }} storeId={stores[0]?.id ?? null} campaignsVersion={0} />
           ) : active === "Comptes publicitaires" ? (
              <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
           ) : active === "Radar marché" ? (
@@ -974,8 +974,6 @@ function Overview({
         <div className="card-head"><div><span className="eyebrow">Chariow</span><h2>Activité récente</h2><p>Les derniers événements remontés par ta boutique.</p></div><Activity size={19} /></div>
         {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu’ils seront synchronisés." />}
       </section>
-
-      <AdCampaignsList storeId={store?.id ?? null} onNewCampaign={launchAd} key={campaignsVersion} />
 
       {wizardOpen && store?.id ? (
         <LaunchAdWizard
@@ -1730,7 +1728,7 @@ function AdsSavingsSummary({ performances, currency }: { performances: MetaPerfo
 // toutes les permissions Meta obtenues. Ce que Vendeo affiche à la place, c'est un verdict explicite
 // (STOP / OPTIMISER / SURVEILLER) par campagne, calculé à partir des dépenses, conversions, CPA et
 // ROAS déjà synchronisés — voir getCampaignVerdict ci-dessus.
-function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd }: { plan: PlanId; onGoToAI: () => void; onGoToAccounts: () => void; onLaunchAd: () => void }) {
+function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaignsVersion }: { plan: PlanId; onGoToAI: () => void; onGoToAccounts: () => void; onLaunchAd: () => void; storeId: string | null; campaignsVersion: number }) {
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
@@ -1814,11 +1812,13 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd }: { plan: PlanId;
 
   return (
     <>
-      <div className="page-top"><div><span className="eyebrow">Pilotage publicitaire</span><h1>Pub</h1><p>Lance tes campagnes, consulte leurs statistiques et mesure leur impact réel sur tes ventes.</p></div><button type="button" className="btn btn-dark" onClick={onLaunchAd}><Plus size={15} /> Lancer une pub</button></div>
+      <div className="page-top"><div><span className="eyebrow">Pilotage publicitaire</span><h1>Pub</h1><p>Lance tes campagnes et retrouve ici leurs statistiques.</p></div><button type="button" className="btn btn-dark" onClick={onLaunchAd}><Plus size={15} /> Lancer une pub</button></div>
 
       <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8, flexWrap: "wrap" }}><button type="button" className="btn btn-dark" onClick={onLaunchAd}><Plus size={15} /> Lancer une pub</button><button type="button" className="btn btn-ghost" onClick={onGoToAccounts}>Comptes publicitaires</button><span style={{ flex: 1 }} />{channels.map((item) => <button key={item.id} type="button" className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.label}</button>)}</div>
 
       {message && <p className="store-error" role="status">{message}</p>}
+
+      <AdCampaignsList storeId={storeId} onNewCampaign={onLaunchAd} key={campaignsVersion} />
 
       {channel === "overview" ? (
         <>
@@ -1836,8 +1836,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd }: { plan: PlanId;
             <div className="app-card profitability-signal-card"><span className="eyebrow">Paiement</span><strong>{totalSales}</strong><p>ventes réellement encaissées</p></div>
             <div className="app-card profitability-signal-card"><span className="eyebrow">Écart attribution</span><strong>{attributionGap === null ? "Non disponible" : `${attributionGap.toFixed(2)}x`}</strong><p>ROAS Meta déclaré moins ROAS réel</p></div>
           </section>
-          <AdsDecisionSummary performances={metaPerformance?.performances ?? []} currency={metaPerformance?.currency ?? "XOF"} onOpenAI={openAI} />
-          <AdsSavingsSummary performances={metaPerformance?.performances ?? []} currency={metaPerformance?.currency ?? "XOF"} />
+           <section className="app-card"><div className="card-head"><div><span className="eyebrow">Statistiques</span><h2>Performance publicitaire</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">Dépenses</span><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, metaPerformance?.currency ?? "XOF")}</strong></div><div className="vendeo-kpi"><span className="metric-label">Ventes</span><strong>{metaPerformance?.overview.sales ?? totalSales}</strong></div><div className="vendeo-kpi"><span className="metric-label">ROAS réel</span><strong>{realRoas === null ? "Non disponible" : `${realRoas.toFixed(2)}x`}</strong></div></div></section>
           <section className="app-card" style={{ marginBottom: 18 }}><div className="card-head"><h2>Vue générale</h2><BarChart3 size={19} /></div>
             <div className="vendeo-kpi-grid" style={{ marginTop: 12 }}>
               <div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires totales" description="Somme des dépenses sur les canaux connectés et synchronisés." /><strong>{metaConnected ? formatMoney(totalSpend, metaPerformance?.currency ?? "XOF") : "Non disponible"}</strong></div>
@@ -1894,32 +1893,9 @@ function formatProductPrice(product: ProductData) {
 function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: { stores: StoreData[]; subscription: SubscriptionData | null; onStoresChange: (stores: StoreData[]) => void; onBackToSettings?: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [showUpgrade, setShowUpgrade] = useState(false);
-  const [upgrading, setUpgrading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const currentPlan: PlanId = subscription?.plan === "premium" ? "premium" : "starter";
+  const currentPlan: PlanId = "starter";
   const maxStores = planMaxStores(currentPlan);
-
-  async function upgradeToPremium() {
-    setUpgrading(true);
-    try {
-      const response = await fetch("/api/subscription/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "premium" }),
-      });
-      const data = await response.json();
-      if (response.ok && data.payment?.url) {
-        window.location.href = data.payment.url;
-      } else {
-        window.alert(data.error ?? "Impossible de lancer le paiement.");
-        setUpgrading(false);
-      }
-    } catch {
-      window.alert("Impossible de lancer le paiement.");
-      setUpgrading(false);
-    }
-  }
 
   async function connectChariow(storeId?: string) {
     setError("");
@@ -1929,7 +1905,7 @@ function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: 
         const check = await fetch("/api/integrations/chariow/connect/check");
         const checkData = await check.json().catch(() => ({}));
         if (!check.ok) {
-          if (checkData.code === "STORE_LIMIT") setShowUpgrade(true);
+          if (checkData.code === "STORE_LIMIT") setError(checkData.error ?? "Limite de boutiques atteinte.");
           else setError(checkData.error ?? "Impossible de lancer la connexion Chariow.");
           return;
         }
@@ -2032,7 +2008,6 @@ function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: 
         {stores.length === 0 && <div className="empty-state compact">Aucune boutique connectée.</div>}
 
       </div>
-      {showUpgrade && <div className="modal-backdrop" role="presentation" onClick={() => setShowUpgrade(false)}><div className="upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setShowUpgrade(false)} aria-label="Fermer">×</button><span className="eyebrow">Limite de ton abonnement</span><h2 id="upgrade-title">Connecte jusqu'à 3 boutiques</h2><p>Ton plan Vendeo actuel autorise 1 boutique. Passe à Vendeo Premium pour en connecter jusqu'à 3.</p><div className="sale-detail-grid" style={{ marginTop: 16, marginBottom: 18 }}><div><small>Vendeo Premium</small><strong>3 000 XOF / mois</strong></div><div><small>Boutiques incluses</small><strong>Jusqu'à 3</strong></div></div><button type="button" className="btn btn-lime" style={{ width: "100%" }} onClick={() => void upgradeToPremium()} disabled={upgrading}>{upgrading ? "Redirection…" : "Passer à Vendeo Premium"}</button></div></div>}
     </>
   );
 }
@@ -2040,7 +2015,7 @@ function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: 
 function SubscriptionView({ subscription, onBackToSettings }: { subscription: SubscriptionData | null; onBackToSettings?: () => void }) {
   const trial = subscription?.trial_active ?? true;
   const isActive = subscription?.status === "active" && !trial;
-  const currentPlan: PlanId = subscription?.plan === "premium" ? "premium" : "starter";
+  const currentPlan: PlanId = "starter";
   const trialEndsAt = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null;
   const trialDaysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / 86400000)) : null;
   const [changingPlan, setChangingPlan] = useState<PlanId | null>(null);
@@ -2071,10 +2046,10 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
     const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("fr-FR") : "Non disponible";
     return (
       <>
-        <div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>{currentPlan === "premium" ? "Vendeo Premium actif" : "Abonnement Vendeo actif"}</h1><p>Accès illimité à ton analyste IA.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div>
+        <div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>Abonnement Vendeo actif</h1><p>Accès à toute la plateforme et jusqu'à 3 boutiques.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div>
         <div className="app-card" style={{ maxWidth: 520 }}>
           <span className="eyebrow">Abonnement en cours</span>
-          <h2 style={{ marginTop: 6 }}>{currentPlan === "premium" ? "Vendeo Premium — 3 000 XOF / mois" : "Vendeo — 2 000 XOF / mois"}</h2>
+          <h2 style={{ marginTop: 6 }}>Vendeo — 2 000 XOF / mois</h2>
           <div className="sale-detail-grid" style={{ marginTop: 18 }}>
             <div><small>Période en cours depuis</small><strong>{periodStart}</strong></div>
             <div><small>Renouvellement</small><strong>{periodEnd}</strong></div>
@@ -2082,16 +2057,6 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
             <div><small>Usage IA</small><strong>Illimité</strong></div>
           </div>
         </div>
-        {currentPlan === "starter" ? (
-          <div className="app-card" style={{ maxWidth: 520, marginTop: 16 }}>
-            <span className="eyebrow">Besoin de plus de boutiques ?</span>
-            <h2 style={{ marginTop: 6 }}>Passe à Vendeo Premium</h2>
-            <p style={{ color: "var(--muted)", fontSize: 13, margin: "8px 0 16px" }}>3 000 XOF/mois — connecte jusqu'à 3 boutiques au lieu d'une seule.</p>
-            <button className="btn btn-dark" onClick={() => void subscribe("premium")} disabled={changingPlan === "premium"} style={{ width: "100%" }}>
-              {changingPlan === "premium" ? "Redirection…" : "Passer à Vendeo Premium"}
-            </button>
-          </div>
-        ) : null}
       </>
     );
   }
@@ -2101,37 +2066,24 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
       <div className="page-top">
         <div>
           <span className="eyebrow">Ton abonnement</span>
-          <h1>Choisis ton plan.</h1>
+          <h1>Active ton abonnement.</h1>
           <p>{trial && trialDaysLeft !== null ? `Il te reste ${trialDaysLeft} jour${trialDaysLeft > 1 ? "s" : ""} d’essai gratuit.` : "Gère ton usage IA et tes boutiques depuis un seul endroit."}</p>
         </div>
         {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
       </div>
       <div className="pricing-wrap" style={{ maxWidth: 820 }}>
         <article className="price-card">
-          <span className="eyebrow">{trial ? "Essai gratuit — 7 jours" : "Plan disponible"}</span>
+          <span className="eyebrow">{trial ? "Essai gratuit — 15 jours" : "Forfait unique"}</span>
           <h3>Vendeo</h3>
           <div className="price">2 000 XOF <small>/ mois</small></div>
           <ul>
             <li>✓ Analyse IA de tes ventes et de tes pubs</li>
-            <li>✓ 1 boutique Chariow connectée</li>
+            <li>✓ Jusqu'à 3 boutiques Chariow connectées</li>
             <li>✓ Suivi Meta Ads et TikTok Ads</li>
             <li>✓ Rapports détaillés</li>
           </ul>
           <button className="btn btn-ghost" onClick={() => void subscribe("starter")} disabled={changingPlan === "starter"} style={{ width: "100%" }}>
             {changingPlan === "starter" ? "Redirection…" : "S’abonner"}
-          </button>
-        </article>
-        <article className="price-card pro">
-          <span className="eyebrow">Le plus complet</span>
-          <h3>Vendeo Premium</h3>
-          <div className="price">3 000 XOF <small>/ mois</small></div>
-          <ul>
-            <li>✓ Tout ce qui est inclus dans Vendeo</li>
-            <li>✓ Jusqu'à 3 boutiques Chariow connectées</li>
-            <li>✓ Idéal pour gérer plusieurs boutiques</li>
-          </ul>
-          <button className="btn btn-lime" onClick={() => void subscribe("premium")} disabled={changingPlan === "premium"} style={{ width: "100%" }}>
-            {changingPlan === "premium" ? "Redirection…" : "S’abonner"}
           </button>
         </article>
       </div>

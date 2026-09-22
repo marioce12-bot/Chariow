@@ -11,7 +11,7 @@ import "../app/vendeo-ai.css";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 
-type UsagePlan = "eco" | "starter" | "premium" | "pro";
+type UsagePlan = "starter";
 type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
 
 // Sous-ensembles des types de Dashboard.tsx : uniquement les champs lus ici.
@@ -113,7 +113,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
             }
           : null;
         setUsage(nextUsage);
-        // La limite de l'essai gratuit est désormais la date trial_ends_at (7 jours),
+        // La limite de l'essai gratuit est désormais la date trial_ends_at (15 jours),
         // pas un nombre de messages : le serveur (consume_message_quota) est la seule
         // source de vérité. Côté client on se contente de refléter le statut renvoyé.
         if (nextUsage) setPlansRequired(nextUsage.status === "past_due");
@@ -159,7 +159,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
         setPlansRequired(true);
         setMessages((current) => [
           ...current,
-          { role: "assistant", content: "Ton essai gratuit de 7 jours est terminé. Active ton abonnement pour continuer." },
+          { role: "assistant", content: "Ton essai gratuit de 15 jours est terminé. Active ton abonnement pour continuer." },
         ]);
       } else {
         setMessages((current) => [...current, { role: "assistant", content: data.error ?? "Une erreur est survenue." }]);
