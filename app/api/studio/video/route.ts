@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActiveSubscription } from "@/lib/subscription/access";
 import { createImoleVideo } from "@/lib/ai/imole";
 import { videoCreditCost } from "@/lib/studio/credits";
 import { buildStudioPrompt, parseStudioProduct } from "@/lib/studio/product-prompt";
@@ -12,6 +13,8 @@ const aspectRatios = ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"] as const;
 export async function POST(request: Request) {
   const { user, response } = await requireUser();
   if (!user) return response;
+  const subscriptionBlock = await requireActiveSubscription(user.id);
+  if (subscriptionBlock) return subscriptionBlock;
 
   const body = await request.json().catch(() => ({}));
   const userPrompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
