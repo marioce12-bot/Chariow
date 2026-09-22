@@ -395,7 +395,7 @@ export function Dashboard() {
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Pub" ? (
-             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={() => { if (!stores.length) { setActive("Mes boutiques"); return; } setWizardOpen(true); }} storeId={stores[0]?.id ?? null} campaignsVersion={0} />
+             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={() => { if (!stores.length) setActive("Mes boutiques"); else setActive("Vue d’ensemble"); }} storeId={stores[0]?.id ?? null} campaignsVersion={0} />
           ) : active === "Comptes publicitaires" ? (
              <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
           ) : active === "Radar marché" ? (
