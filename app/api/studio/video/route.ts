@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   if ((!userPrompt && !product) || userPrompt.length > 4_000) return NextResponse.json({ error: "Décris la vidéo à créer ou choisis un produit." }, { status: 400 });
   if (!Number.isInteger(duration) || duration < 4 || duration > 40) return NextResponse.json({ error: "La durée doit être comprise entre 4 et 40 secondes." }, { status: 400 });
 
-  const prompt = buildStudioPrompt("video", userPrompt, product, false);
+  const prompt = buildStudioPrompt("video", userPrompt, product, Boolean(product?.imageUrl));
   const referenceMode = body?.referenceMode === "image" ? "image" : "reference";
   const referenceUrl = product?.imageUrl ?? null;
   const cost = videoCreditCost(resolution, duration);
