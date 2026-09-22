@@ -244,7 +244,6 @@ export function Dashboard() {
     ["Studio", Sparkles],
     ["Pub", Megaphone],
     ["Comptes publicitaires", BarChart3],
-    ["Radar marché", Lightbulb],
     ["Mes boutiques", Store],
     ["Rapports", FileText],
     ["Abonnement", CreditCard],
@@ -412,8 +411,6 @@ export function Dashboard() {
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={launchAd} storeId={stores[0]?.id ?? null} campaignsVersion={campaignsVersion} />
           ) : active === "Comptes publicitaires" ? (
              <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
-          ) : active === "Radar marché" ? (
-             <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); setActive("Vendeo AI"); }} />
           ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Abonnement" ? (
@@ -464,10 +461,6 @@ export function Dashboard() {
             <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
               <MessageSquare size={18} />
               <span>Assistant</span>
-            </button>
-            <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
-              <Lightbulb size={18} />
-              <span>Radar</span>
             </button>
         </nav>
         ) : null}
@@ -1029,7 +1022,7 @@ function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => void }) {
   const dimensions = (report?.dimensions ?? {}) as Record<string, number>;
   const ideas = Array.isArray(report?.ideas) ? report.ideas as Array<Record<string, unknown>> : [];
   return <div className="market-radar-page">
-    <div className="page-top"><div><span className="eyebrow">Axe 3 · Sourcing</span><h1>Radar marché</h1><p>Teste une idée de produit digital avant de passer du temps à la produire.</p></div></div>
+    <div className="page-top"><div><h1>Radar marché</h1><p>Teste une idée de produit digital avant de passer du temps à la produire.</p></div></div>
     <section className="market-radar-hero"><div><span className="eyebrow">Validation en temps réel</span><h2>Quelle idée veux-tu lancer ?</h2><p>Vendeo mesure les signaux de recherche disponibles et transforme ton idée en concept d’e-book exploitable.</p><label className="market-idea-input"><span>Idée à analyser</span><input value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="Ex : ebook pour gérer son argent avec Mobile Money" /></label></div><TrendingUp size={32} /></section>
     <form className="app-card market-radar-form" onSubmit={analyze}>
       <div className="market-radar-fields"><fieldset className="market-country-picker"><legend>Pays à analyser <small>{selectedCountries.length}/5 sélectionnés</small></legend><div>{countryOptions.map(([code, name]) => <label key={code}><input type="checkbox" checked={selectedCountries.includes(code)} onChange={() => toggleCountry(code)} disabled={!selectedCountries.includes(code) && selectedCountries.length >= 5} /><span>{name}</span></label>)}</div></fieldset><label>Audience<select value={audience} onChange={(event) => setAudience(event.target.value)}><option value="entrepreneurs">Entrepreneurs et indépendants</option><option value="jeunes actifs">Jeunes actifs</option><option value="étudiants">Étudiants</option><option value="femmes entrepreneures">Femmes entrepreneures</option><option value="créateurs de contenu">Créateurs de contenu</option><option value="vendeurs en ligne">Vendeurs en ligne</option><option value="petites entreprises">Petites entreprises</option></select></label><label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}><option value="ebook">E-book</option><option value="formation">Formation</option><option value="template">Templates</option><option value="abonnement">Abonnement</option></select></label></div>
