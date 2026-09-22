@@ -223,6 +223,19 @@ export function Dashboard() {
   // Plus de quota de messages IA : l'accès est illimité tant que l'essai de
   // 15 jours ou l'abonnement Vendeo est actif.
   const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [campaignsVersion, setCampaignsVersion] = useState(0);
+  // Le formulaire de création de pub (LaunchAdWizard) vit ici, au niveau de l'appli,
+  // pour que le bouton "Lancer une pub" de l'accueil ET celui de l'onglet "Pub"
+  // ouvrent directement le même formulaire, au lieu que celui de "Pub" se contente
+  // de changer d'onglet en laissant l'utilisateur cliquer une seconde fois.
+  function launchAd() {
+    if (!stores[0]?.id) {
+      setActive("Mes boutiques");
+      return;
+    }
+    setWizardOpen(true);
+  }
 
   const links = [
     ["Vue d’ensemble", LayoutDashboard],
@@ -395,7 +408,7 @@ export function Dashboard() {
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Pub" ? (
-             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={() => { if (!stores.length) setActive("Mes boutiques"); else setActive("Vue d’ensemble"); }} storeId={stores[0]?.id ?? null} campaignsVersion={0} />
+             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={launchAd} storeId={stores[0]?.id ?? null} campaignsVersion={campaignsVersion} />
           ) : active === "Comptes publicitaires" ? (
              <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
           ) : active === "Radar marché" ? (
@@ -416,9 +429,19 @@ export function Dashboard() {
               onGoToStores={() => setActive("Mes boutiques")}
               selectedStoreId={selectedStoreId}
               onStoreChange={setSelectedStoreId}
+              onLaunchAd={launchAd}
+              campaignsVersion={campaignsVersion}
             />
           )}
          </section>
+         {wizardOpen && stores[0]?.id ? (
+           <LaunchAdWizard
+             storeId={stores[0].id}
+             plan={(subscription?.plan ?? "starter") as PlanId}
+             onClose={() => setWizardOpen(false)}
+             onLaunched={() => setCampaignsVersion((v) => v + 1)}
+           />
+         ) : null}
       </div>
 
       <TrialPaywallModal subscription={subscription} />
@@ -714,6 +737,8 @@ function Overview({
   onGoToStores,
   selectedStoreId,
   onStoreChange,
+  onLaunchAd,
+  campaignsVersion,
 }: {
   stores: StoreData[];
   subscription: SubscriptionData | null;
@@ -723,6 +748,8 @@ function Overview({
   onGoToStores: () => void;
   selectedStoreId: string | null;
   onStoreChange: (storeId: string) => void;
+  onLaunchAd: () => void;
+  campaignsVersion: number;
 }) {
   const openAI = (prompt: string) => {
     sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt);
@@ -742,8 +769,6 @@ function Overview({
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [campaignsVersion, setCampaignsVersion] = useState(0);
 
   // Avant : on vérifiait juste si Meta était connecté, sans jamais récupérer
   // les performances. Résultat : la carte "Recommandations" restait vide en
@@ -765,7 +790,7 @@ function Overview({
       setRefreshing(false);
     }
   };
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => { void refresh(); }, [campaignsVersion]);
 
   const spend = metaPerformance?.overview.spend ?? 0;
   const roas = metaPerformance?.overview.realRoas ?? metaPerformance?.overview.metaRoas ?? null;
@@ -871,14 +896,6 @@ function Overview({
         ]
       : [];
 
-  function launchAd() {
-    if (!store?.id) {
-      onGoToStores();
-      return;
-    }
-    setWizardOpen(true);
-  }
-
   return (
     <div className="dashboard-home">
       <div className="home-greeting"><h1>Bonjour, {greeting}</h1><p>Voici la performance de tes publicités et de ta boutique.</p></div>
@@ -911,7 +928,7 @@ function Overview({
         </div>
       </div>
 
-      <LaunchAdBar onLaunch={launchAd} />
+      <LaunchAdBar onLaunch={onLaunchAd} />
 
       <VerdictBanner
         data={verdictData}
@@ -978,21 +995,6 @@ function Overview({
         {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu’ils seront synchronisés." />}
       </section>
 
-      {wizardOpen && store?.id ? (
-        <LaunchAdWizard
-          storeId={store.id}
-          plan={(subscription?.plan ?? "starter") as PlanId}
-          onClose={() => setWizardOpen(false)}
-          onLaunched={() => {
-            // Rafraîchit les performances Meta pour refléter la nouvelle campagne
-            // dans le tableau de croisement et le verdict global, et force
-            // AdCampaignsList à recharger pour afficher la campagne qui vient
-            // d'être créée/payée.
-            void refresh();
-            setCampaignsVersion((v) => v + 1);
-          }}
-        />
-      ) : null}
     </div>
   );
 }
