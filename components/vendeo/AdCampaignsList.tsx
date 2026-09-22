@@ -53,6 +53,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   const [loading, setLoading] = useState(true);
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
   const [selected, setSelected] = useState<AdCampaign | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -112,7 +113,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
         <p className="hint-line">Aucune campagne pour l’instant. Crée-en une pour la voir apparaître ici.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
-          {campaigns.map((c) => {
+          {campaigns.slice(0, showAll ? campaigns.length : 3).map((c) => {
             const meta = STATUS_META[c.status] ?? { label: c.status, bg: "#F3F4F6", fg: "#374151" };
             const canResume = c.status === "paused" || c.status === "paid";
             return (
@@ -164,6 +165,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
               </div>
             );
           })}
+          {campaigns.length > 3 ? <button type="button" className="btn btn-ghost" onClick={() => setShowAll((value) => !value)}>{showAll ? "Réduire" : `Voir plus (${campaigns.length - 3})`}</button> : null}
         </div>
       )}
 
@@ -187,7 +189,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
             {selected.media_url ? <img src={selected.media_url} alt="Aperçu de la publicité" style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} /> : null}
             {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>Texte :</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>Réseau :</strong> {selected.platform === "meta" ? "Facebook / Instagram" : "TikTok"}</div><div><strong>Objectif :</strong> {selected.objective}</div><div><strong>Audience :</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} ans</div><div><strong>Budget :</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} XOF/jour · {selected.duration_days} jours</div>{selected.destination_url ? <div><strong>Lien :</strong> {selected.destination_url}</div> : null}</div>}
             {selected.external_error ? <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}><strong>Rejet / erreur :</strong> {selected.external_error}<br /><span>Modifie les paramètres puis relance. Aucun paiement supplémentaire ne sera demandé.</span></div> : null}
-            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => setEditing(true)}>Modifier</button> : null}{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => setEditing(true)}>Modifier</button> : null}{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}<button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>Supprimer</button></div>
           </div>
         </div>
       ) : null}

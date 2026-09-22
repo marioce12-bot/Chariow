@@ -75,3 +75,13 @@ export async function GET() {
   if (error) return NextResponse.json({ error: "Impossible de charger les campagnes" }, { status: 500 });
   return NextResponse.json({ campaigns: data ?? [] });
 }
+
+export async function DELETE(request: Request) {
+  const { supabase, user, response } = await requireUser();
+  if (!user) return response;
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "Campagne requise" }, { status: 400 });
+  const { error } = await supabase.from("ad_campaigns").delete().eq("id", id).eq("user_id", user.id);
+  if (error) return NextResponse.json({ error: "Impossible de supprimer la campagne" }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
