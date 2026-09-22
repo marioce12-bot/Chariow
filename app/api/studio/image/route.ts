@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateImoleImage, generateImoleImageWithReferences, type StudioImageOptions } from "@/lib/ai/imole";
-import { imageCreditCost } from "@/lib/studio/credits";
+import { imageCreditCost, CREDIT_PRICE_XOF } from "@/lib/studio/credits";
 import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
 import { buildStudioPrompt, parseStudioProduct } from "@/lib/studio/product-prompt";
 import { fetchReferenceImage } from "@/lib/studio/reference-image";
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options, status: "processing", credits_cost: cost }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
   const requestId = crypto.randomUUID();
-  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image", model_name: "imole-image", provider_amount: Math.round(cost / 1.5), request_id: requestId });
+  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image", model_name: "imole-image", provider_amount: Math.round(cost / CREDIT_PRICE_XOF), request_id: requestId });
   if (reservation.error) {
     console.error("Studio credit reservation error", reservation.error.message, reservation.error.code);
     return NextResponse.json({ error: "Le système de crédits n'est pas encore configuré.", details: process.env.NODE_ENV === "development" ? reservation.error.message : undefined }, { status: 503 });

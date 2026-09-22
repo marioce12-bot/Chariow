@@ -24,6 +24,7 @@ import {
 import { DiagnosticFunnel } from "@/components/vendeo/DiagnosticFunnel";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
+import { CREDIT_PRICE_XOF } from "@/lib/studio/credits";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 const DASHBOARD_CACHE_KEY = "vendeo_dashboard_cache_v1";
@@ -620,7 +621,7 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
   }
 
   const rechargeCredits = Number(creditAmount);
-  const rechargePrice = Number.isInteger(rechargeCredits) && rechargeCredits >= 200 ? Math.round(rechargeCredits * 1.5) : 0;
+  const rechargePrice = Number.isInteger(rechargeCredits) && rechargeCredits >= 200 ? Math.round(rechargeCredits * CREDIT_PRICE_XOF) : 0;
 
   async function editImage() {
     if (!selectedGenerationId || !editInstruction.trim()) return;

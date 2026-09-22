@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createImoleVideo } from "@/lib/ai/imole";
-import { videoCreditCost } from "@/lib/studio/credits";
+import { videoCreditCost, CREDIT_PRICE_XOF } from "@/lib/studio/credits";
 import { buildStudioPrompt, parseStudioProduct } from "@/lib/studio/product-prompt";
 
 const resolutions = ["480p", "768p"] as const;
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "video", prompt, options: { duration, resolution, aspectRatio }, status: "processing", credits_cost: cost }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
   const requestId = crypto.randomUUID();
-  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_video", model_name: "imole-video", provider_amount: Math.round(cost / 1.5), request_id: requestId });
+  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_video", model_name: "imole-video", provider_amount: Math.round(cost / CREDIT_PRICE_XOF), request_id: requestId });
   if (reservation.error) {
     console.error("Studio credit reservation error", reservation.error.message, reservation.error.code);
     return NextResponse.json({ error: "Le système de crédits n'est pas encore configuré.", details: process.env.NODE_ENV === "development" ? reservation.error.message : undefined }, { status: 503 });

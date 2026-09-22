@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { creditPrice } from "@/lib/studio/credits";
 import { isPlanId, planAmount, computePeriodEnd, type PlanId } from "@/lib/plans";
 
 function validSignature(rawBody: string, signature: string | null, timestamp: string | null) {
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
     const userId = data.metadata.userId;
     const credits = Number(data.metadata.credits);
     if (!userId || !Number.isInteger(credits) || credits < 200) return NextResponse.json({ error: "Métadonnées de crédits manquantes" }, { status: 400 });
-    if (data.status !== "SUCCESS" || data.currency !== "XOF" || Number(data.amount) !== Math.round(credits * 1.5)) return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: 400 });
+    if (data.status !== "SUCCESS" || data.currency !== "XOF" || Number(data.amount) !== creditPrice(credits)) return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: 400 });
     const result = await admin.rpc("add_credits", { target_user_id: userId, amount: credits, payment_id: data.id, metadata_value: { provider: "saspay", amount_xof: Number(data.amount) } });
     if (result.error) return NextResponse.json({ error: "Crédits non ajoutés" }, { status: 500 });
     await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "studio_credits_purchased", resource_name: "credit_account", resource_key: userId, metadata_value: { transaction_id: data.id, credits, amount_xof: Number(data.amount) } });

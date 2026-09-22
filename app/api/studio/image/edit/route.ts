@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateImoleImage } from "@/lib/ai/imole";
-import { imageCreditCost } from "@/lib/studio/credits";
+import { imageCreditCost, CREDIT_PRICE_XOF } from "@/lib/studio/credits";
 import { signedStudioUrl, storeStudioImage } from "@/lib/studio/media";
 
 export async function POST(request: Request) {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt: `${source.prompt}\nModification demandée : ${instruction}`, options, status: "processing", credits_cost: cost, parent_id: source.id }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
-  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image_edit", model_name: "imole-image", provider_amount: Math.round(cost / 1.5), request_id: crypto.randomUUID() });
+  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image_edit", model_name: "imole-image", provider_amount: Math.round(cost / CREDIT_PRICE_XOF), request_id: crypto.randomUUID() });
   const reserveResult = reservation.data as { ok?: boolean; balance?: number; transaction_id?: string } | null;
   if (reservation.error || !reserveResult?.ok) { await admin.from("studio_generations").update({ status: "failed", error: reservation.error?.message || "Solde insuffisant" }).eq("id", generation.id); return NextResponse.json({ error: `Solde insuffisant. Cette modification nécessite ${cost} crédits.`, balance: reserveResult?.balance ?? 0 }, { status: reservation.error ? 503 : 402 }); }
   try {
