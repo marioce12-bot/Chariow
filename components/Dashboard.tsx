@@ -724,6 +724,10 @@ function Overview({
   selectedStoreId: string | null;
   onStoreChange: (storeId: string) => void;
 }) {
+  const openAI = (prompt: string) => {
+    sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt);
+    onGoToAI();
+  };
   const greeting = (userFirstName || "créateur").trim().split(/\s+/)[0] || "créateur";
   const store = stores[0];
   const connected = store?.connection_status === "connected";
