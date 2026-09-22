@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireActiveSubscription } from "@/lib/subscription/access";
 import { generateImoleImage } from "@/lib/ai/imole";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { signedStudioUrl, storeStudioImage } from "@/lib/studio/media";
@@ -9,6 +10,8 @@ import { signedStudioUrl, storeStudioImage } from "@/lib/studio/media";
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
+  const subscriptionBlock = await requireActiveSubscription(user.id);
+  if (subscriptionBlock) return subscriptionBlock;
   const body = await request.json().catch(() => ({}));
   const generationId = typeof body?.generationId === "string" ? body.generationId : "";
   const instruction = typeof body?.instruction === "string" ? body.instruction.trim() : "";
