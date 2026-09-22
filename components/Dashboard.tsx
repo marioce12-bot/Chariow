@@ -1729,7 +1729,6 @@ function AdsSavingsSummary({ performances, currency }: { performances: MetaPerfo
 // ROAS déjà synchronisés — voir getCampaignVerdict ci-dessus.
 function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaignsVersion }: { plan: PlanId; onGoToAI: () => void; onGoToAccounts: () => void; onLaunchAd: () => void; storeId: string | null; campaignsVersion: number }) {
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
-  const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
   // On ne montre l'écran de chargement que la toute première fois : si on a déjà
