@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const aspectRatio = typeof body?.aspectRatio === "string" && aspectRatios.includes(body.aspectRatio as (typeof aspectRatios)[number]) ? body.aspectRatio : "16:9";
 
   if ((!userPrompt && !product) || userPrompt.length > 4_000) return NextResponse.json({ error: "Décris la vidéo à créer ou choisis un produit." }, { status: 400 });
-  if (!Number.isInteger(duration) || duration < 4 || duration > 15) return NextResponse.json({ error: "La durée doit être comprise entre 4 et 15 secondes." }, { status: 400 });
+  if (!Number.isInteger(duration) || duration < 4 || duration > 40) return NextResponse.json({ error: "La durée doit être comprise entre 4 et 40 secondes." }, { status: 400 });
 
   const prompt = buildStudioPrompt("video", userPrompt, product, false);
   const referenceMode = body?.referenceMode === "image" ? "image" : "reference";

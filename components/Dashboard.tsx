@@ -695,7 +695,7 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
             </div>
           ) : (
             <div className="studio-options">
-              <label className="studio-field"><span>Durée</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{[4, 5, 6, 8, 10, 12, 15].map((value) => <option key={value} value={value}>{value} secondes</option>)}</select></label>
+              <label className="studio-field"><span>Durée</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{[4, 5, 6, 8, 10, 12, 15, 20, 30, 40].map((value) => <option key={value} value={value}>{value} secondes</option>)}</select></label>
               <StudioSelect label="Résolution" value={videoResolution} onChange={(value) => setVideoResolution(value as "480p" | "768p")} options={[['480p', '480p'], ['768p', '768p']]} />
               <div className="studio-suggestions">{["Teaser de 5 secondes", "Présentation animée du livre", "Pub pour réseaux sociaux"].map((suggestion) => <button type="button" key={suggestion} onClick={() => { setPrompt(suggestion); if (suggestion === "Pub pour réseaux sociaux") setAspectRatio("9:16"); }}>{suggestion}</button>)}</div>
               {selectedProduct?.image ? <StudioSelect label="Utiliser la couverture comme" value={referenceMode} onChange={(value) => setReferenceMode(value as "image" | "reference")} options={[["reference", "Référence"], ["image", "Point de départ"]]} /> : null}
