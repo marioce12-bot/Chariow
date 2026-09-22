@@ -31,19 +31,38 @@ export function parseStudioProduct(raw: unknown): StudioProductInput | null {
 // toute fin de prompt — la position la plus lue par la plupart des modèles
 // vidéo — et jamais entre guillemets, pour qu'elle ne soit pas elle-même prise
 // pour du dialogue.
-const NO_NARRATION_RULE =
-  "Règle audio impérative : le seul son parlé est la voix de la personne filmée qui s'exprime naturellement, dans ses propres mots, dans la langue du brief. Elle n'improvise jamais en citant ou paraphrasant ces instructions de mise en scène, ne dit jamais des phrases comme « vidéo montrant » ou « publicité UGC », et il n'y a aucune voix off qui décrit ou résume la scène de l'extérieur.";
+const AUDIO_SECTION =
+  "AUDIO : le seul son parlé vient des personnes filmées, qui s'expriment ou dialoguent naturellement entre elles dans leurs propres mots, dans la langue du brief. Personne ne cite ni ne paraphrase les sections ci-dessus, personne ne dit de phrases comme « vidéo montrant » ou « publicité UGC », et il n'y a aucune voix off extérieure qui décrit ou résume la scène.";
+
+// Palette de mises en scène possibles — le modèle choisit ou combine celle(s)
+// qui servent le mieux le brief, plutôt que de se limiter au seul format
+// "témoignage face caméra".
+const STYLE_SECTION =
+  "STYLE : choisis, seul ou en combinaison, le type de mise en scène qui capte le mieux l'attention pour ce brief — témoignage UGC solo filmé au smartphone façon story ; plan cinématographique d'ouverture pour poser l'ambiance (ex. un lever ou coucher de soleil en accéléré, une ville qui s'éveille ou s'endort, un plan large qui installe un lieu) ; une personne montrée en train de vivre concrètement le problème que résout le produit ; ou une scène/dialogue entre deux personnages ou plus, comme un mini-film, avec un échange naturel plutôt qu'un monologue face caméra. Le format n'est pas figé : varie les plans (large, moyen, gros plan) comme dans un vrai montage publicitaire.";
+
+function narrativeStructure(showcaseLine: string) {
+  return [
+    "STRUCTURE (adapte le nombre de plans à la durée, mais garde cet enchaînement) :",
+    "1. Accroche (0-3 s) — un plan qui capte immédiatement l'œil : image forte, mise en situation, ou ouverture cinématographique.",
+    "2. Problème — une scène concrète qui montre la situation ou la frustration que le produit résout, incarnée par un ou plusieurs personnages.",
+    `3. Révélation du produit — ${showcaseLine}`,
+    "4. Bénéfice / transformation — la situation change visiblement : soulagement, résultat, réaction positive des personnages.",
+    "5. Appel à l'action clair — un geste ou une réplique qui invite explicitement à agir maintenant.",
+  ].join(" ");
+}
 
 export function buildStudioPrompt(kind: "image" | "video", userPrompt: string, product: StudioProductInput | null, hasReference = false) {
   const brief = userPrompt.trim();
   if (kind === "video" && !product) {
     return [
-      "Plan-séquence filmé au smartphone, style UGC : une personne (créatrice ou cliente) se trouve dans un décor quotidien et s'adresse directement à la caméra, avec le naturel d'une story Instagram.",
-      `Ce qu'elle raconte, dans ses propres mots : elle parle librement pour promouvoir ceci — ${brief || "l'offre, avec un bénéfice concret et un appel à l'action clair"} — sans jamais lire ni paraphraser la consigne elle-même.`,
-      "Mise en scène (ne décrit pas ce qui est dit, seulement ce qui est filmé) : accroche visuelle dans les toutes premières secondes, scène humaine crédible, démonstration ou usage réel du produit ou de l'offre, geste ou réaction qui montre le bénéfice, puis un signe clair d'appel à l'action (regard caméra, pointage, produit levé...).",
-      "Réalisation : scènes vivantes et distinctes mais cohérentes entre elles, gestes et expressions naturels, cadrage smartphone vertical si le format est vertical, lumière quotidienne, caméra légèrement imparfaite mais stable, transitions simples. Continuité du visage, des vêtements, du produit et du décor d'un plan à l'autre. Pas de mains ou visages déformés, pas de changement d'identité, pas de plan abstrait, pas de texte incrusté illisible.",
-      NO_NARRATION_RULE,
-    ].join(" ").slice(0, 4000);
+      STYLE_SECTION,
+      narrativeStructure(
+        "le produit ou l'offre doit être clairement visible à l'écran à un moment du plan-séquence (objet, écran qui l'affiche, ou représentation concrète), pas seulement évoqué en parole.",
+      ),
+      `SUJET : ${brief || "présente clairement l'offre avec un bénéfice concret et un appel à l'action."} Les personnages improvisent leurs propres mots pour parler de ce sujet, jamais en lisant cette consigne.`,
+      "RÉALISATION : gestes et expressions naturels, lumière quotidienne ou cinématographique selon la scène choisie, caméra stable (légèrement mobile si style UGC), cadrage vertical si le format est vertical, transitions simples entre les plans. Continuité des visages, vêtements, du produit et du décor quand la même scène se poursuit. Pas de mains ou visages déformés, pas de changement d'identité incohérent, pas de texte incrusté illisible.",
+      AUDIO_SECTION,
+    ].join("\n").slice(0, 4000);
   }
   if (!product) return brief;
   const priceLine = product.price ? `Prix : ${product.price}${product.currency ? ` ${product.currency}` : ""}.` : "";
@@ -58,12 +77,13 @@ export function buildStudioPrompt(kind: "image" | "video", userPrompt: string, p
     ].filter(Boolean).join(" ").slice(0, 4000);
   }
   return [
-    "Plan-séquence filmé au smartphone, style UGC : une personne (créatrice ou cliente) se trouve dans un décor quotidien et présente ce produit numérique à la caméra, avec le naturel d'une story Instagram.",
-    `Produit présenté : « ${product.name} ».`, product.description ? `Description du produit : ${product.description}` : "", priceLine,
-    `Ce qu'elle raconte, dans ses propres mots : elle parle librement pour promouvoir ce produit selon cette demande — ${brief || defaultBrief} — sans jamais lire ni paraphraser la consigne elle-même.`,
-    hasReference ? "Image de référence : c'est la couverture du produit ; conserve fidèlement son apparence (forme, couleurs, titre) et ne la déforme pas." : "",
-    "Mise en scène (ne décrit pas ce qui est dit, seulement ce qui est filmé) : accroche visuelle immédiate, démonstration ou usage réel du produit, geste ou réaction qui montre le bénéfice concret, puis un signe clair d'appel à l'action.",
-    "Réalisation : scènes distinctes mais cohérentes, gestes et expressions réalistes, caméra smartphone naturelle, lumière quotidienne, mouvements fluides. Même visage, mêmes vêtements, même produit et continuité du décor entre les plans. Pas de mains ou visages déformés, pas de changement d'identité, pas de texte incrusté illisible. N'invente ni prix, ni logo, ni caractéristique, ni promesse absents des informations ci-dessus.",
-    NO_NARRATION_RULE,
-  ].filter(Boolean).join(" ").slice(0, 4000);
+    STYLE_SECTION,
+    `PRODUIT : « ${product.name} ».${product.description ? ` Description : ${product.description}` : ""}${priceLine ? ` ${priceLine}` : ""}${hasReference ? " Une image de référence donne sa couverture : conserve fidèlement son apparence (forme, couleurs, titre), ne la déforme pas." : ""}`,
+    narrativeStructure(
+      `on doit voir clairement « ${product.name} » à l'écran à un moment de la scène (couverture, appareil qui l'affiche, ou représentation concrète), pas seulement en entendre parler.`,
+    ),
+    `SUJET : ${brief || defaultBrief} Les personnages improvisent leurs propres mots pour parler de ce produit, jamais en lisant cette consigne.`,
+    "RÉALISATION : gestes et expressions naturels, lumière quotidienne ou cinématographique selon la scène choisie, caméra stable (légèrement mobile si style UGC), transitions simples entre les plans. Continuité des visages, vêtements, du produit et du décor quand la même scène se poursuit. Pas de mains ou visages déformés, pas de changement d'identité incohérent, pas de texte incrusté illisible. N'invente ni prix, ni logo, ni caractéristique, ni promesse absents des informations ci-dessus.",
+    AUDIO_SECTION,
+  ].join("\n").slice(0, 4000);
 }
