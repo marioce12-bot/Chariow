@@ -549,6 +549,15 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
   const [editOpen, setEditOpen] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editInstruction, setEditInstruction] = useState("");
+  // Verrou synchrone contre le double-tap mobile : `loading` (state React) ne
+  // se reflète dans le DOM qu'au prochain rendu, donc deux `touchend`/`click`
+  // rapprochés peuvent tous les deux lire `loading === false` et déclencher
+  // deux générations (et donc deux débits de crédits) pour un seul tap.
+  const generatingRef = useRef(false);
+  // Jobs vidéo déjà vérifiés une fois depuis l'historique au chargement de la
+  // page, pour ne relancer la vérification serveur qu'une seule fois par job
+  // (évite une boucle de re-render infinie sur l'effet ci-dessous).
+  const reconciledJobsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).then((data) => { if (data) setBalance(data.balance ?? 0); }).catch(() => undefined);
@@ -565,6 +574,37 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
   }
   useEffect(() => { void loadHistory(true); }, [historyKind]);
 
+  // Sans ceci, une vidéo qui continue à traiter côté serveur pendant qu'on
+  // ferme ou quitte l'appli restait bloquée sur "processing" pour toujours au
+  // retour : rien ne relançait jamais sa vérification tant que l'utilisateur
+  // ne rouvrait pas explicitement cette création précise. Au chargement (ou
+  // rafraîchissement) de l'historique, on revérifie donc une fois chaque job
+  // vidéo encore "processing" — la route appelée applique déjà la bascule en
+  // "completed"/"failed" (y compris l'abandon après un délai anormalement
+  // long), il suffit de la déclencher.
+  useEffect(() => {
+    const pending = history.filter(
+      (item) => item.kind === "video" && item.status === "processing" && item.video_job_id && !reconciledJobsRef.current.has(item.video_job_id),
+    );
+    if (!pending.length) return;
+    pending.forEach((item) => reconciledJobsRef.current.add(item.video_job_id as string));
+    void (async () => {
+      let changed = false;
+      for (const item of pending) {
+        try {
+          const response = await fetch(`/api/studio/video/${encodeURIComponent(item.video_job_id as string)}`);
+          const data = await response.json().catch(() => null);
+          if (response.ok && data?.status && data.status !== "processing") changed = true;
+        } catch {
+          // Vérification en tâche de fond : un échec réseau ici n'empêche pas
+          // de continuer à utiliser le Studio, on retentera à la prochaine
+          // ouverture de la page.
+        }
+      }
+      if (changed) await loadHistory(true);
+    })();
+  }, [history]);
+
   useEffect(() => {
     if (!videoJob || ["completed", "failed", "cancelled"].includes(videoJob.status)) return;
     const timer = window.setInterval(async () => {
@@ -577,10 +617,12 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
   }, [videoJob]);
 
   async function generate() {
+    if (generatingRef.current) return;
     if (!prompt.trim() && !selectedProduct) {
       setError(kind === "image" ? "Décris l'image que tu souhaites créer." : "Décris la vidéo que tu souhaites créer.");
       return;
     }
+    generatingRef.current = true;
     setLoading(true);
     setError("");
     setImageUrl(null);
@@ -605,6 +647,7 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
       setError(generationError instanceof Error ? generationError.message : "La génération a échoué.");
     } finally {
       setLoading(false);
+      generatingRef.current = false;
     }
   }
 
@@ -720,7 +763,7 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
         </section>
       </div>
       <div className="studio-history-toolbar"><span className="eyebrow">Historique</span><div><button className={historyKind === "all" ? "active" : ""} onClick={() => setHistoryKind("all")}>Tout</button><button className={historyKind === "image" ? "active" : ""} onClick={() => setHistoryKind("image")}>Images</button><button className={historyKind === "video" ? "active" : ""} onClick={() => setHistoryKind("video")}>Vidéos</button></div></div>
-      <section className="studio-history">{history.length ? history.map((item) => <article className="studio-history-card" key={item.id} onClick={() => { setSelectedGenerationId(item.id); setKind(item.kind); if (item.kind === "image") setImageUrl(item.mediaUrl ?? null); else if (item.video_job_id) setVideoJob({ id: item.video_job_id, status: item.status, contentUrl: item.mediaUrl }); }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt="Création" loading="lazy" decoding="async" /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{item.kind === "image" ? "Image" : "Vidéo"}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "…" : ""}</p><small>{new Date(item.created_at).toLocaleString("fr-FR")} · {item.credits_cost} crédits · {item.status === "processing" ? "En cours" : item.status === "failed" ? "Échec" : "Terminée"}</small></div><div className="studio-history-actions"><button onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>Réutiliser</button>{item.kind === "image" ? <button onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditOpen(true); }}>Modifier</button> : null}<button onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette création ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>Supprimer</button></div></article>) : <div className="studio-history-empty">Aucune création pour l'instant</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? "Chargement…" : "Charger plus"}</button> : null}</section>
+      <section className="studio-history">{history.length ? history.map((item) => <article className="studio-history-card" key={item.id} onClick={() => { setSelectedGenerationId(item.id); setKind(item.kind); if (item.kind === "image") setImageUrl(item.mediaUrl ?? null); else if (item.video_job_id) setVideoJob({ id: item.video_job_id, status: item.status, contentUrl: item.mediaUrl }); }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt="Création" loading="lazy" decoding="async" /> : item.mediaUrl && item.kind === "video" ? <video src={`${item.mediaUrl}#t=0.5`} muted playsInline preload="metadata" aria-label="Aperçu de la vidéo" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{item.kind === "image" ? "Image" : "Vidéo"}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "…" : ""}</p><small>{new Date(item.created_at).toLocaleString("fr-FR")} · {item.credits_cost} crédits · {item.status === "processing" ? "En cours" : item.status === "failed" ? "Échec" : "Terminée"}</small></div><div className="studio-history-actions"><button onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>Réutiliser</button>{item.kind === "image" ? <button onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditOpen(true); }}>Modifier</button> : null}<button onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette création ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>Supprimer</button></div></article>) : <div className="studio-history-empty">Aucune création pour l'instant</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? "Chargement…" : "Charger plus"}</button> : null}</section>
     </div>
   );
 }
