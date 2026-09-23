@@ -37,42 +37,24 @@ export function parseStudioProduct(raw: unknown): StudioProductInput | null {
   return { id: clean(source.id, 80) || undefined, name, description: clean(source.description, 4000) || undefined, price: price || undefined, currency: clean(source.currency, 8) || undefined, imageUrl };
 }
 
-// Plusieurs tentatives précédentes ajoutaient au prompt vidéo tout un
-// scénario imposé : structure en plans (accroche/problème/révélation/
-// bénéfice/CTA), consignes de style, interdiction stricte de parole et de
-// texte à l'écran, exigence de fidélité exacte à la couverture produit...
-// Résultat en usage réel : voix étrange ou inintelligible malgré
-// l'interdiction, texte à l'écran malgré l'interdiction, couverture du
-// produit non fidèle malgré la consigne — le modèle vidéo d'Imole ne suit pas
-// ces contraintes de façon fiable, quel que soit le degré de détail du
-// prompt. On reste donc minimal : pas de scénario en plans imposé, pas de
-// mise en scène détaillée. On corrige uniquement deux défauts précis et
-// récurrents remontés par les utilisateurs — une voix off qui récite la
-// fiche produit au lieu de jouer la scène ("vidéo présentant..."), et une fin
-// de vidéo qui coupe en plein mouvement au lieu de refermer la scène — avec
-// deux phrases courtes plutôt qu'un cahier des charges complet. Les options
-// (thème, ambiance, personnage, type de vidéo) restent elles aussi de simples
-// bouts de phrase optionnels, jamais une mise en scène imposée en plans.
+// Quatre tentatives successives ont ajouté des consignes de plus en plus
+// précises au prompt vidéo (structure en plans, interdiction de parole, de
+// texte à l'écran, règles de fin de plan, options théme/ambiance/personnage
+// glissées en phrases imposées...). Constat après plusieurs mises en
+// production : le modèle vidéo d'Imole ne suit fiablement aucune de ces
+// consignes, quel que soit leur degré de détail — la qualité perçue ne s'est
+// jamais améliorée, seul le prompt est devenu plus long et plus rigide. À la
+// demande explicite de l'équipe produit, on repart au plus simple : pour la
+// vidéo, on transmet uniquement le sujet (le brief de l'utilisateur, et le
+// strict nécessaire pour savoir de quel produit il s'agit s'il y en a un),
+// sans aucune instruction de réalisation, de voix, de texte ou de mise en
+// scène. Imole gère l'intégralité du résultat lui-même.
 export function buildStudioPrompt(kind: "image" | "video", userPrompt: string, product: StudioProductInput | null, hasReference = false, videoOptions: StudioVideoOptions = {}) {
   const brief = userPrompt.trim();
   if (kind === "video") {
-    const parts: string[] = [];
-    if (product) {
-      // Formulé comme une scène filmée, pas comme une fiche produit récitable :
-      // "Produit : X. Description : Y." ressemble à un texte qu'on peut lire à
-      // voix haute tel quel, ce que le modèle fait littéralement dans certains cas.
-      parts.push(`Scène filmée montrant le produit « ${product.name} » utilisé ou présenté naturellement à l'écran, sans jamais énoncer ces informations telles quelles à l'oral.`);
-      if (product.description) parts.push(`Éléments de contexte pour la mise en scène (à ne pas réciter) : ${product.description}`);
-      if (product.price) parts.push(`Prix (à ne mentionner que si un personnage en parle naturellement) : ${product.price}${product.currency ? ` ${product.currency}` : ""}.`);
-    }
-    if (videoOptions.videoType) parts.push(`Type de vidéo : ${videoOptions.videoType}.`);
-    if (videoOptions.characterType) parts.push(`Personnage à l'écran : ${videoOptions.characterType}.`);
-    if (videoOptions.theme) parts.push(`Thème visuel : ${videoOptions.theme}.`);
-    if (videoOptions.ambiance) parts.push(`Ambiance : ${videoOptions.ambiance}.`);
-    parts.push(brief || "Vidéo promotionnelle soignée mettant le produit en valeur.");
-    parts.push("Si la vidéo contient une voix, elle doit sonner comme une personne qui parle naturellement dans la scène filmée — jamais comme une description de la vidéo elle-même (ne jamais dire des phrases du type « vidéo présentant... » ou « voici une vidéo qui... ») — avec un débit calme et clair, sans jamais tomber dans un discours confus ou incompréhensible.");
-    parts.push("La vidéo se termine par un dernier plan net et posé qui referme la scène, pas par une coupe brutale en plein mouvement.");
-    return parts.filter(Boolean).join(" ").slice(0, 6000);
+    if (!product) return brief;
+    const priceLine = product.price ? ` Prix : ${product.price}${product.currency ? ` ${product.currency}` : ""}.` : "";
+    return [`Produit : « ${product.name} ».${product.description ? ` ${product.description}` : ""}${priceLine}`, brief].filter(Boolean).join(" ").slice(0, 6000);
   }
   if (!product) return brief;
   const priceLine = product.price ? `Prix : ${product.price}${product.currency ? ` ${product.currency}` : ""}.` : "";
