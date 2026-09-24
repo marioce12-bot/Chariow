@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
+import { AdBalanceCard } from "./AdBalanceCard";
 import type { Platform } from "./wizard/types";
 
 type AdCampaign = {
@@ -47,6 +48,8 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
  * du lendemain). Chaque campagne créée apparaît ici immédiatement avec son
  * statut, et un bouton permet de reprendre le paiement/l'activation sans
  * jamais payer deux fois pour la même campagne.
+ *
+ * La carte "Solde publicitaire" (AdBalanceCard) est rendue tout en haut de ce bloc.
  */
 export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | null; onNewCampaign: () => void }) {
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
@@ -56,6 +59,9 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Incrémenté après chaque chargement des campagnes : le solde (paiement, lancement, rejet…)
+  // est ainsi rafraîchi en même temps que les statuts.
+  const [balanceVersion, setBalanceVersion] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,6 +71,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
       setCampaigns(res.ok && Array.isArray(data?.campaigns) ? data.campaigns : []);
     } finally {
       setLoading(false);
+      setBalanceVersion((value) => value + 1);
     }
   }, []);
 
@@ -88,6 +95,8 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   if (!storeId) return null;
 
   return (
+    <>
+    <AdBalanceCard refreshToken={balanceVersion} />
     <section className="app-card ad-campaigns-list">
       <div className="card-head">
         <div><h2>Campagnes</h2></div>
@@ -188,6 +197,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
         </div>
       ) : null}
     </section>
+    </>
   );
 }
 
