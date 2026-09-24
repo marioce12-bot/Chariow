@@ -6,11 +6,11 @@ import { Check } from "lucide-react";
 import { DEFAULT_WIZARD_STATE, type WizardState } from "./types";
 import type { PlanId } from "@/lib/plans";
 import { Step1Product } from "./Step1Product";
-import { Step2NetworkCreative } from "./Step2NetworkCreative";
+import { Step2NetworkCreative, type Step2FooterState } from "./Step2NetworkCreative";
 import { Step3Audience } from "./Step3Audience";
 import { Step4Estimation } from "./Step4Estimation";
 
-const STEP_LABELS = ["Produit", "Réseau & créative", "Audience", "Estimation", "Création"];
+const STEP_LABELS = ["Produit", "Ensemble & publicité", "Audience", "Estimation", "Création"];
 
 interface LaunchAdWizardProps {
   storeId: string;
@@ -33,13 +33,16 @@ interface LaunchAdWizardProps {
  *
  * Étape 2 : Retour/Continuer sont rendus ici, hors de la zone qui défile,
  * pour ne jamais être masqués par le clavier mobile pendant la saisie d'un
- * champ (ex. "Lien de destination"). Les autres étapes gardent leur propre
- * pied de page interne (sticky bottom-0 dans leur zone de scroll).
+ * champ (ex. "Lien de destination"). L'Étape 2 est elle-même découpée en deux
+ * écrans internes ("Ensemble de publicités" / "Publicité", façon Meta Ads
+ * Manager) qui pilotent ce pied de page via onFooterChange — voir
+ * Step2NetworkCreative.tsx pour le détail. Les autres étapes gardent leur
+ * propre pied de page interne (sticky bottom-0 dans leur zone de scroll).
  */
 export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdWizardProps) {
   const [step, setStep] = useState(1);
   const [state, setState] = useState<WizardState>({ ...DEFAULT_WIZARD_STATE, storeId });
-  const [step2Valid, setStep2Valid] = useState(false);
+  const [step2Footer, setStep2Footer] = useState<Step2FooterState | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -96,7 +99,16 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
         {/* Body */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
           {step === 1 && <Step1Product state={state} patch={patch} onNext={next} />}
-          {step === 2 && <Step2NetworkCreative state={state} patch={patch} onValidityChange={setStep2Valid} plan={plan} />}
+          {step === 2 && (
+            <Step2NetworkCreative
+              state={state}
+              patch={patch}
+              onFooterChange={setStep2Footer}
+              onBackToStep1={back}
+              onAdvanceToStep3={next}
+              plan={plan}
+            />
+          )}
           {step === 3 && <Step3Audience state={state} patch={patch} onNext={next} onBack={back} />}
           {step === 4 && <Step4Estimation state={state} patch={patch} onNext={next} onBack={back} />}
           {step === 5 && state.campaignId && (
@@ -109,19 +121,23 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
         </div>
 
         {/* Pied de page de l'étape 2 : hors de la zone qui défile, donc jamais
-            masqué par le clavier mobile pendant la saisie d'un champ. */}
-        {step === 2 && (
+            masqué par le clavier mobile pendant la saisie d'un champ. Piloté par
+            Step2NetworkCreative via onFooterChange (deux écrans internes + les
+            sous-écrans d'édition par champ ont chacun leur propre libellé/action). */}
+        {step === 2 && step2Footer && (
           <div className="flex shrink-0 items-center justify-between border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            <button onClick={back} className="text-sm font-medium text-gray-500">
-              Retour
+            <button onClick={step2Footer.onBack} className="text-sm font-medium text-gray-500">
+              {step2Footer.backLabel}
             </button>
-            <button
-              disabled={!step2Valid}
-              onClick={next}
-              className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              Continuer
-            </button>
+            {step2Footer.nextLabel && step2Footer.onNext && (
+              <button
+                disabled={step2Footer.nextDisabled}
+                onClick={step2Footer.onNext}
+                className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {step2Footer.nextLabel}
+              </button>
+            )}
           </div>
         )}
       </div>
