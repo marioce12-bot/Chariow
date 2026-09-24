@@ -24,6 +24,30 @@ Pour la production, remplace ces URLs par le domaine réel.
 
 L’inscription utilise la confirmation email Supabase. Le lien de confirmation doit rediriger vers `/auth/confirm`.
 
+## 2b. Emails d’authentification depuis ton domaine (Brevo)
+
+Les emails de confirmation d'inscription et de réinitialisation de mot de passe sont envoyés par Supabase Auth. Par défaut ils partent d'une adresse Supabase ; pour qu'ils partent de `vendeo-studio.site`, configure le relais SMTP Brevo dans Supabase.
+
+Dans Supabase → **Authentication → Emails** :
+
+1. Ouvre **SMTP Settings** → active **Enable Custom SMTP**.
+2. Renseigne :
+
+   ```text
+   Host:        smtp-relay.brevo.com
+   Port:        587
+   Username:    <login SMTP Brevo>
+   Password:    <clé SMTP Brevo>
+   Sender name: Vendeo
+   Sender email: notifications@vendeo-studio.site
+   ```
+
+3. Enregistre et teste l'envoi.
+
+Les identifiants SMTP Brevo se trouvent dans Brevo → **SMTP & API**. Le domaine `vendeo-studio.site` doit d'abord être vérifié comme expéditeur dans Brevo (Sender → Domains & Senders).
+
+Les templates de confirmation et de réinitialisation restent personnalisables dans cette même page (rubriques **Confirm signup** et **Reset password**).
+
 ## 3. Variables locales
 
 Crée un fichier `.env.local` à la racine du projet à partir de `.env.example` :

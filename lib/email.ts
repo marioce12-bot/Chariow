@@ -1,9 +1,9 @@
-// Envoi d'emails transactionnels et de notifications via l'API Resend.
-// Un seul fournisseur (Resend) couvre à la fois les emails d'authentification
-// Supabase (via son endpoint SMTP, configuré dans le dashboard Supabase) et
-// les notifications administrateur ci-dessous (via son API HTTP).
+// Envoi d'emails transactionnels et de notifications via l'API Brevo.
+// Un seul fournisseur (Brevo) couvre à la fois les emails d'authentification
+// Supabase (via son relais SMTP, configuré dans le dashboard Supabase) et les
+// notifications administrateur ci-dessous (via son API HTTP).
 
-const RESEND_API_URL = "https://api.resend.com/emails";
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
 type SendEmailInput = {
   to: string | string[];
@@ -13,24 +13,31 @@ type SendEmailInput = {
 };
 
 export async function sendEmail(input: SendEmailInput): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = process.env.BREVO_API_KEY;
   const from = process.env.EMAIL_FROM;
   if (!apiKey || !from) {
-    console.warn("Email non envoyé : RESEND_API_KEY ou EMAIL_FROM manquant.");
+    console.warn("Email non envoyé : BREVO_API_KEY ou EMAIL_FROM manquant.");
     return;
   }
   try {
-    const response = await fetch(RESEND_API_URL, {
+    const recipients = (Array.isArray(input.to) ? input.to : [input.to]).map((email) => ({ email }));
+    const response = await fetch(BREVO_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ from, to: input.to, subject: input.subject, html: input.html, text: input.text }),
+      headers: { "Content-Type": "application/json", "api-key": apiKey },
+      body: JSON.stringify({
+        sender: { email: from, name: process.env.EMAIL_FROM_NAME || "Vendeo" },
+        to: recipients,
+        subject: input.subject,
+        htmlContent: input.html,
+        ...(input.text ? { textContent: input.text } : {}),
+      }),
     });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      console.error("Resend email error", response.status, body);
+      console.error("Brevo email error", response.status, body);
     }
   } catch (error) {
-    console.error("Resend email send error", error instanceof Error ? error.message : "unknown");
+    console.error("Brevo email send error", error instanceof Error ? error.message : "unknown");
   }
 }
 
