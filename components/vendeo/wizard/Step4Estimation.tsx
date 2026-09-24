@@ -67,7 +67,8 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
       //    Le compte pub (et la page Meta) choisis à l'étape 2 sont envoyés ici
       //    pour être enregistrés sur le brouillon : la campagne pourra ainsi être
       //    reprise depuis "Mes campagnes" — après paiement — sans repasser par le
-      //    wizard pour les resélectionner.
+      //    wizard pour les resélectionner. Idem pour les noms d'ensemble/publicité
+      //    (ad_set_name/ad_name), saisis à l'étape 2.
       if (!state.campaignId) {
         const draftRes = await fetch("/api/ad-campaigns", {
           method: "POST",
@@ -77,6 +78,8 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
             product_name: state.product?.name,
             platform: state.platform,
             objective: state.objective,
+            ad_set_name: state.adSetName,
+            ad_name: state.adName,
             text: state.adText,
             title: state.title,
             link: state.destinationUrl,
