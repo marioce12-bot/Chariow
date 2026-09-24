@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
 import { notifyAdmin } from "@/lib/email";
 
-// Reçoit les hooks d'authentification Supabase (Authentication → Hooks).
-// On utilise ici l'événement "Nouvel utilisateur" (user.created) pour notifier
-// les administrateurs à chaque inscription. L'URL doit être configurée dans le
-// dashboard Supabase avec l'en-tête Authorization : Bearer <SUPABASE_AUTH_HOOK_SECRET>.
+// Reçoit le webhook de base de données Supabase déclenché à chaque insertion
+// dans la table `profiles` (créée par le trigger handle_new_user à l'inscription).
+// Configuration : Supabase → Database → Webhooks → table `profiles`, event INSERT.
+// Accepte aussi l'ancien format de hook Auth (user.created) par compatibilité.
+
+type SupabaseDbWebhook = {
+  type?: string;
+  table?: string;
+  schema?: string;
+  record?: {
+    id?: string;
+    email?: string;
+    full_name?: string;
+  };
+};
 
 type SupabaseAuthHook = {
   type?: string;
@@ -24,15 +35,27 @@ export async function POST(request: Request) {
     }
   }
 
-  const hook = (await request.json().catch(() => null)) as SupabaseAuthHook | null;
-  if (!hook || hook.type !== "user.created" || !hook.user?.email) {
-    return NextResponse.json({ received: true });
+  const payload = (await request.json().catch(() => null)) as (SupabaseDbWebhook | SupabaseAuthHook) | null;
+  if (!payload) return NextResponse.json({ received: true });
+
+  let email: string | undefined;
+  let name = "Utilisateur";
+
+  if ("record" in payload && payload.record?.email) {
+    // Format Database Webhook (insertion dans `profiles`)
+    email = payload.record.email;
+    name = payload.record.full_name || name;
+  } else if ("user" in payload && payload.user?.email && payload.type === "user.created") {
+    // Format Auth Hook (user.created)
+    email = payload.user.email;
+    name = payload.user.user_metadata?.full_name ?? payload.user.user_metadata?.name ?? name;
   }
 
-  const name = hook.user.user_metadata?.full_name ?? hook.user.user_metadata?.name ?? "Utilisateur";
+  if (!email) return NextResponse.json({ received: true });
+
   await notifyAdmin(
     "Nouvelle inscription",
-    `<p><strong>${name}</strong> vient de créer un compte avec l'email <strong>${hook.user.email}</strong>.</p>`
+    `<p><strong>${name}</strong> vient de créer un compte avec l'email <strong>${email}</strong>.</p>`
   );
 
   return NextResponse.json({ received: true });
