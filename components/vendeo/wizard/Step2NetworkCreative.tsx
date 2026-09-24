@@ -147,7 +147,12 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   // important ici pour l'éditeur "Contenu publicitaire", qui a des champs texte).
   useEffect(() => {
     if (editingField) {
-      onFooterChange({ backLabel: "Retour", onBack: () => setEditingField(null) });
+      onFooterChange({
+        backLabel: "Annuler",
+        onBack: () => setEditingField(null),
+        nextLabel: "Enregistrer",
+        onNext: () => setEditingField(null),
+      });
       return;
     }
     if (subStep === "adset") {
