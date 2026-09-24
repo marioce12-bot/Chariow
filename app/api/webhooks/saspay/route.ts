@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { creditPrice } from "@/lib/studio/credits";
 import { isPlanId, planAmount, computePeriodEnd, type PlanId } from "@/lib/plans";
+import { notifyAdmin, moneyXOF } from "@/lib/email";
 
 function validSignature(rawBody: string, signature: string | null, timestamp: string | null) {
   const secret = process.env.SASPAY_WEBHOOK_SECRET;
@@ -64,6 +65,11 @@ export async function POST(request: Request) {
     const result = await admin.rpc("add_credits", { target_user_id: userId, amount: credits, payment_id: data.id, metadata_value: { provider: "saspay", amount_xof: Number(data.amount) } });
     if (result.error) return NextResponse.json({ error: "Crédits non ajoutés" }, { status: 500 });
     await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "studio_credits_purchased", resource_name: "credit_account", resource_key: userId, metadata_value: { transaction_id: data.id, credits, amount_xof: Number(data.amount) } });
+    const { data: profile } = await admin.from("profiles").select("email,full_name").eq("id", userId).maybeSingle();
+    await notifyAdmin(
+      "Recharge de crédits Studio",
+      `<p><strong>${profile?.full_name || "Utilisateur"}</strong> (${profile?.email || userId}) a rechargé <strong>${credits} crédits</strong> pour ${moneyXOF(Number(data.amount))}.</p>`
+    );
     return NextResponse.json({ received: true });
   }
 
@@ -107,5 +113,14 @@ export async function POST(request: Request) {
   const { error } = await admin.from("subscriptions").update({ plan, status: "active", trial_active: false, messages_used_this_month: 0, current_period_start: now.toISOString().slice(0, 10), current_period_end: periodEnd, updated_at: now.toISOString() }).eq("user_id", userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "subscription_payment_confirmed", resource_name: "subscription", resource_key: userId, metadata_value: { transaction_id: data.id, plan, amount_xof: amount } });
+  const { data: profile } = await admin.from("profiles").select("email,full_name").eq("id", userId).maybeSingle();
+  await notifyAdmin(
+    "Nouvel abonnement Vendeo",
+    `<p><strong>${profile?.full_name || "Utilisateur"}</strong> (${profile?.email || userId}) a activé l'abonnement Vendeo (${planLabelForEmail(plan)}) pour ${moneyXOF(amount)}.</p>`
+  );
   return NextResponse.json({ received: true });
+}
+
+function planLabelForEmail(plan: PlanId): string {
+  return plan === "starter" ? "2 000 XOF/mois" : String(plan);
 }
