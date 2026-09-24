@@ -22,7 +22,7 @@ type SasPayEvent = {
     status?: string;
     amount?: string | number;
     currency?: string;
-    metadata?: { userId?: string; plan?: PlanId; type?: string; campaignId?: string; credits?: number };
+    metadata?: { userId?: string; plan?: PlanId; type?: string; campaignId?: string; credits?: number; withdrawalId?: string };
   };
 };
 
@@ -32,6 +32,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Signature invalide" }, { status: 400 });
   }
   const event = JSON.parse(rawBody) as SasPayEvent;
+
+  // --- Retrait du solde publicitaire (payout) : issue asynchrone du retrait ---
+  // Traité avant le filtre "transaction.success" ci-dessous, car l'échec d'un retrait
+  // (transaction.failed / transaction.cancelled) doit aussi libérer le montant réservé.
+  if (event.data?.metadata?.type === "ad_balance_withdrawal") {
+    const withdrawalId = event.data.metadata.withdrawalId;
+    if (!withdrawalId) return NextResponse.json({ error: "Métadonnées de retrait manquantes" }, { status: 400 });
+    const admin = createAdminClient();
+    if (event.event === "transaction.success" && event.data.status === "SUCCESS") {
+      const result = await admin.rpc("finalize_ad_withdrawal", { withdrawal_id: withdrawalId, new_status: "completed", payout_id: event.data.id ?? null });
+      if (result.error) return NextResponse.json({ error: "Retrait non finalisé" }, { status: 500 });
+    } else if (event.event === "transaction.failed" || event.event === "transaction.cancelled") {
+      const result = await admin.rpc("finalize_ad_withdrawal", { withdrawal_id: withdrawalId, new_status: "failed", payout_id: event.data.id ?? null, error_text: event.event });
+      if (result.error) return NextResponse.json({ error: "Retrait non finalisé" }, { status: 500 });
+    }
+    return NextResponse.json({ received: true });
+  }
+
   if (event.event !== "transaction.success") return NextResponse.json({ received: true });
   const data = event.data;
   if (!data?.id) return NextResponse.json({ error: "Transaction invalide" }, { status: 400 });
@@ -65,6 +83,12 @@ export async function POST(request: Request) {
       .eq("user_id", userId)
       .eq("status", "pending_payment");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Crédite le solde publicitaire du budget NET (sans les 2 % de commission Vendeo).
+    // Idempotent sur l'id de transaction : un renvoi du webhook ne crédite jamais deux fois.
+    // En cas d'erreur on répond 500 pour que SasPay renvoie l'event.
+    const deposit = await admin.rpc("credit_ad_campaign_deposit", { target_user_id: userId, target_campaign_id: campaignId, payment_id: data.id, gross_amount: Number(data.amount) });
+    if (deposit.error) return NextResponse.json({ error: "Solde publicitaire non crédité" }, { status: 500 });
     return NextResponse.json({ received: true });
   }
 

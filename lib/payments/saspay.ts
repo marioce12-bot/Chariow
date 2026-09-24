@@ -12,7 +12,11 @@ async function saspayRequest<T>(path: string, init: RequestInit = {}) {
   if (!key) throw new Error("SASPAY_API_KEY is not configured");
   const response = await fetch(`${endpoint}${path}`, { ...init, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...(init.headers || {}) }, cache: "no-store", signal: AbortSignal.timeout(20_000) });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || (data && typeof data === "object" && "success" in data && data.success === false)) throw new Error(`SasPay ${response.status}: ${JSON.stringify(data)}`);
+  if (!response.ok || (data && typeof data === "object" && "success" in data && data.success === false)) {
+    // Le statut HTTP est exposé pour que l'appelant distingue un refus définitif (4xx)
+    // d'un échec ambigu (5xx/timeout) — indispensable pour les retraits.
+    throw Object.assign(new Error(`SasPay ${response.status}: ${JSON.stringify(data)}`), { status: response.ok ? 422 : response.status });
+  }
   return data as T;
 }
 
@@ -80,6 +84,46 @@ export async function createAdCampaignPayment(
   const checkout = response.data;
   if (!checkout?.id || !checkout.checkout_url) throw new Error("SasPay did not return a checkout session URL");
   return { id: checkout.id, url: checkout.checkout_url };
+}
+
+/**
+ * Retrait du solde publicitaire vers le mobile money de l'utilisateur (payout SasPay).
+ * - `Idempotency-Key` = id du retrait : un retry réseau ne peut jamais envoyer l'argent deux fois.
+ * - `fee_charge_mode: DEDUCTED` : les frais d'opérateur sont déduits du montant reçu par
+ *   l'utilisateur, jamais payés par Vendeo.
+ * Prérequis côté SasPay : clé API avec le scope PAYOUT (ou BOTH), IP du serveur whitelistée,
+ * retraits activés pour le marchand.
+ */
+export async function createPayout(input: {
+  amount: number;
+  msisdn: string;
+  network: string;
+  idempotencyKey: string;
+  customer: { email?: string; name?: string };
+  metadata: { type: "ad_balance_withdrawal"; withdrawalId: string; userId: string };
+}) {
+  const [firstName, ...rest] = (input.customer.name || "Créateur").trim().split(/\s+/);
+  const response = await saspayRequest<{ id?: string; message?: string }>("/payouts/initialize/", {
+    method: "POST",
+    headers: { "Idempotency-Key": input.idempotencyKey },
+    body: JSON.stringify({
+      amount: input.amount.toFixed(2),
+      currency: "XOF",
+      country: "BJ",
+      description: "Vendeo - Retrait du solde publicitaire",
+      customer: { email: input.customer.email, first_name: firstName, last_name: rest.join(" ") || firstName },
+      method: input.network,
+      recipient: { msisdn: input.msisdn },
+      fee_charge_mode: "DEDUCTED",
+      metadata: input.metadata,
+    }),
+  });
+  if (!response.id) throw Object.assign(new Error("SasPay did not return a payout id"), { status: 502 });
+  return { id: response.id };
+}
+
+export async function getPayoutStatus(id: string) {
+  return saspayRequest<{ id?: string; status?: string }>(`/payouts/${encodeURIComponent(id)}/verify/`, { method: "GET" });
 }
 
 export async function getCheckoutSession(id: string) {
