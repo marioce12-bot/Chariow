@@ -41,13 +41,20 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
   }
 }
 
-// Envoie une notification à l'email administrateur configuré. Ne lève jamais
-// d'erreur : une notification qui échoue ne doit pas casser le flux métier
-// (webhook de paiement, hook d'inscription, etc.).
+// Envoie une notification aux emails administrateur configurés. La variable
+// ADMIN_NOTIFICATION_EMAIL accepte une liste séparée par des virgules pour
+// notifier plusieurs administrateurs (ex. "a@domaine.com,b@domaine.com").
+// Ne lève jamais d'erreur : une notification qui échoue ne doit pas casser le
+// flux métier (webhook de paiement, hook d'inscription, etc.).
 export async function notifyAdmin(subject: string, html: string): Promise<void> {
-  const to = process.env.ADMIN_NOTIFICATION_EMAIL;
-  if (!to) return;
-  await sendEmail({ to, subject, html });
+  const raw = process.env.ADMIN_NOTIFICATION_EMAIL;
+  if (!raw) return;
+  const recipients = raw
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+  if (recipients.length === 0) return;
+  await sendEmail({ to: recipients, subject, html });
 }
 
 export function moneyXOF(value: number): string {
