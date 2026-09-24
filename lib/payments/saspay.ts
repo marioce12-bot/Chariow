@@ -87,6 +87,37 @@ export async function createAdCampaignPayment(
 }
 
 /**
+ * Rechargement direct du solde publicitaire Vendeo. `netAmount` est le montant
+ * NET crédité sur le solde ; l'utilisateur paie le brut (net / 0.98) pour
+ * conserver la commission Vendeo de 2 %, comme pour le paiement de campagne.
+ */
+export async function createAdWalletTopupPayment(
+  netAmount: number,
+  customer: { email?: string; name?: string },
+  metadata: { userId: string; amount: number },
+) {
+  const grossAmount = Math.round((netAmount / 0.98) * 100) / 100;
+  const returnUrl = process.env.NEXT_PUBLIC_APP_URL
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?wallet=success`
+    : undefined;
+  const response = await saspayRequest<{ data?: SasPayCheckout }>("/checkout-sessions/", {
+    method: "POST",
+    body: JSON.stringify({
+      amount: grossAmount.toFixed(2),
+      currency: "XOF",
+      description: `Vendeo - Recharge de ${netAmount} XOF de solde publicitaire`,
+      customer_email: customer.email,
+      customer_name: customer.name || "Créateur",
+      return_url: returnUrl,
+      metadata: { ...metadata, type: "ad_wallet_topup" },
+    }),
+  });
+  const checkout = response.data;
+  if (!checkout?.id || !checkout.checkout_url) throw new Error("SasPay did not return a checkout session URL");
+  return { id: checkout.id, url: checkout.checkout_url };
+}
+
+/**
  * Retrait du solde publicitaire vers le mobile money de l'utilisateur (payout SasPay).
  * - `Idempotency-Key` = id du retrait : un retry réseau ne peut jamais envoyer l'argent deux fois.
  * - `fee_charge_mode: DEDUCTED` : les frais d'opérateur sont déduits du montant reçu par

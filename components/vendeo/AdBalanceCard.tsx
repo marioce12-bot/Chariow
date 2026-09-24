@@ -31,6 +31,11 @@ export function AdBalanceCard({ refreshToken = 0 }: { refreshToken?: number }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [topupOpen, setTopupOpen] = useState(false);
+  const [topupAmount, setTopupAmount] = useState("");
+  const [topupSubmitting, setTopupSubmitting] = useState(false);
+  const [topupError, setTopupError] = useState<string | null>(null);
+  const [topupUrl, setTopupUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -87,6 +92,30 @@ export function AdBalanceCard({ refreshToken = 0 }: { refreshToken?: number }) {
     }
   }
 
+  function openTopup() {
+    setTopupError(null);
+    setTopupUrl(null);
+    setTopupAmount("");
+    setTopupOpen(true);
+  }
+
+  async function submitTopup(event: React.FormEvent) {
+    event.preventDefault();
+    setTopupError(null);
+    const value = Number(topupAmount);
+    if (!Number.isInteger(value) || value < 2000) return setTopupError("Le montant minimum de recharge est de 2 000 XOF.");
+    setTopupSubmitting(true);
+    try {
+      const res = await fetch("/api/ad-balance/topup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: value }) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { setTopupError(data?.error ?? "Recharge impossible."); return; }
+      setTopupUrl(data.payment.url);
+      window.open(data.payment.url, "_blank", "noopener,noreferrer");
+    } finally {
+      setTopupSubmitting(false);
+    }
+  }
+
   if (failed && !summary) return null;
 
   return (
@@ -103,7 +132,10 @@ export function AdBalanceCard({ refreshToken = 0 }: { refreshToken?: number }) {
             )}
           </div>
         </div>
-        <button type="button" className="btn btn-dark" onClick={openModal} disabled={!canWithdraw} title={blockedReason ?? undefined}>Retirer</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" className="btn btn-dark" onClick={openTopup}>Recharger</button>
+          <button type="button" className="btn btn-ghost" onClick={openModal} disabled={!canWithdraw} title={blockedReason ?? undefined}>Retirer</button>
+        </div>
       </div>
 
       {summary && summary.reserved > 0 ? <p className="hint-line" style={{ marginTop: 10 }}>dont {formatXof(summary.reserved)} réservés à une campagne payée en attente de lancement.</p> : null}
@@ -146,6 +178,33 @@ export function AdBalanceCard({ refreshToken = 0 }: { refreshToken?: number }) {
             <p className="hint-line">Les frais de l'opérateur Mobile Money peuvent être déduits du montant reçu.</p>
             {error ? <p className="store-error" role="alert">{error}</p> : null}
             <button type="submit" className="btn btn-dark" disabled={submitting}>{submitting ? "Envoi en cours…" : "Confirmer le retrait"}</button>
+          </form>
+        </div>
+      ) : null}
+
+      {topupOpen ? (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4" onClick={() => !topupSubmitting && setTopupOpen(false)}>
+          <form className="app-card" style={{ maxWidth: 420, width: "100%", display: "grid", gap: 12 }} onClick={(event) => event.stopPropagation()} onSubmit={submitTopup}>
+            <div className="card-head campaign-modal-head">
+              <div><span className="eyebrow">Solde publicitaire</span><h2>Recharger le solde</h2></div>
+              <button type="button" className="compact-icon-button" onClick={() => setTopupOpen(false)} aria-label="Fermer" disabled={topupSubmitting}><X size={16} /></button>
+            </div>
+            {topupUrl ? (
+              <div className="space-y-2">
+                <p className="hint-line" style={{ color: "#92400E" }}>Termine le paiement dans l'onglet ouvert. Ton solde sera crédité automatiquement.</p>
+                <a href={topupUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost">Rouvrir le paiement</a>
+                <button type="button" className="btn btn-dark" style={{ width: "100%" }} onClick={() => { setTopupOpen(false); void load(); }}>J'ai payé, actualiser</button>
+              </div>
+            ) : (
+              <>
+                <p className="hint-line">Montant crédité sur ton solde (2 % de commission Vendeo appliquée au paiement).</p>
+                <label className="hint-line">Montant à créditer (XOF)
+                  <input type="number" inputMode="numeric" min={2000} step={100} value={topupAmount} onChange={(event) => setTopupAmount(event.target.value)} required autoFocus />
+                </label>
+                {topupError ? <p className="store-error" role="alert">{topupError}</p> : null}
+                <button type="submit" className="btn btn-dark" disabled={topupSubmitting}>{topupSubmitting ? "Création du paiement…" : "Recharger"}</button>
+              </>
+            )}
           </form>
         </div>
       ) : null}

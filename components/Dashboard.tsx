@@ -1781,10 +1781,6 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
-  // On ne montre l'écran de chargement que la toute première fois : si on a déjà
-  // des données en cache (venant d'un précédent passage sur "Pubs"), on les affiche
-  // tout de suite et on rafraîchit silencieusement derrière.
-  const [loading, setLoading] = useState(!cachedOnce);
   const [message, setMessage] = useState<string | null>(null);
 
   const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null }>>(cachedOnce?.metaAccounts ?? []);
@@ -1821,7 +1817,6 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
       nextTiktokAccounts = tiktokData.accounts ?? [];
       setTiktokAccounts(nextTiktokAccounts);
     }
-    setLoading(false);
     writeCache(ADS_CACHE_KEY, { metaAccounts: nextMetaAccounts, selectedMetaAccount: nextSelectedMetaAccount, metaPerformance: nextMetaPerformance, metaResources: nextMetaResources, metaAccountRestricted: nextMetaAccountRestricted, tiktokAccounts: nextTiktokAccounts });
   }
 
@@ -1841,8 +1836,6 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
       else { setMessage("Données Meta Ads synchronisées."); const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(selectedMetaAccount)}`); if (metrics.ok) setMetaPerformance(await metrics.json()); }
     } finally { setMetaSyncing(false); }
   }
-
-  if (loading) return <div className="app-card">Chargement de tes pubs…</div>;
 
   const tiktokAllowed = isAdPlatformAllowed(plan, "tiktok");
   const metaConnected = metaAccounts.length > 0;

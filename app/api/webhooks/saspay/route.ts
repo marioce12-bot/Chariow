@@ -73,6 +73,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true });
   }
 
+  // --- Rechargement direct du solde publicitaire ---
+  if (data.metadata?.type === "ad_wallet_topup") {
+    const userId = data.metadata.userId;
+    const netAmount = Number(data.metadata.amount);
+    if (!userId || !Number.isInteger(netAmount) || netAmount < 2000) return NextResponse.json({ error: "Métadonnées de rechargement manquantes" }, { status: 400 });
+    const grossExpected = Math.round((netAmount / 0.98) * 100) / 100;
+    if (data.status !== "SUCCESS" || data.currency !== "XOF" || Number(data.amount) !== grossExpected) return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: 400 });
+    const result = await admin.rpc("credit_ad_wallet_topup", { target_user_id: userId, net_amount: netAmount, payment_id: data.id });
+    if (result.error) return NextResponse.json({ error: "Solde non crédité" }, { status: 500 });
+    await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "ad_wallet_topup", resource_name: "ad_wallet", resource_key: userId, metadata_value: { transaction_id: data.id, net_amount: netAmount, gross_amount: Number(data.amount) } });
+    const { data: profile } = await admin.from("profiles").select("email,full_name").eq("id", userId).maybeSingle();
+    await notifyAdmin(
+      "Recharge du solde publicitaire",
+      `<p><strong>${profile?.full_name || "Utilisateur"}</strong> (${profile?.email || userId}) a rechargé <strong>${moneyXOF(netAmount)}</strong> de solde publicitaire.</p>`
+    );
+    return NextResponse.json({ received: true });
+  }
+
   // --- Paiement de lancement de campagne pub ---
   if (data.metadata?.type === "ad_campaign") {
     const { userId, campaignId } = data.metadata;

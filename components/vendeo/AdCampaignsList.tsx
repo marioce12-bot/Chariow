@@ -117,7 +117,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
           {campaigns.slice(0, showAll ? campaigns.length : 3).map((c) => {
             const meta = STATUS_META[c.status] ?? { label: c.status, bg: "#F3F4F6", fg: "#374151" };
-            const canResume = c.status === "paused" || c.status === "paid";
+            const canResume = c.status === "draft" || c.status === "paused" || c.status === "paid";
             return (
               <div
                 key={c.id}
@@ -161,7 +161,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                   </span>
                   {canResume ? (
                     <button type="button" className="btn btn-dark" onClick={() => setResuming(c)}>
-                      <PlayCircle size={14} /> {c.status === "paused" ? "Lancer" : "Activer"}
+                      <PlayCircle size={14} /> {c.status === "paid" ? "Activer" : "Lancer"}
                     </button>
                    ) : null}
                 </div>
@@ -176,7 +176,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
         <ResumeCampaignModal
           campaignId={resuming.id}
           platform={resuming.platform}
-          initialStatus={resuming.status as "paused" | "paid"}
+          initialStatus={resuming.status as "draft" | "paused" | "paid"}
           initialError={resuming.external_error}
           onClose={() => setResuming(null)}
           onLaunched={() => {

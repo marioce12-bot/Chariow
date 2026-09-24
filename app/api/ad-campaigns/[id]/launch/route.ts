@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCreative } from "@/lib/meta/campaigns";
 import { fetchMetaPageAccessToken, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
@@ -37,16 +38,44 @@ export async function POST(request: Request, context: Context) {
     .maybeSingle();
   if (campaignError) return NextResponse.json({ error: "Impossible de charger la campagne" }, { status: 500 });
   if (!campaign) return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
-  if (campaign.status !== "paid") {
+
+  const admin = createAdminClient();
+  let committedFromWallet = false;
+
+  // Brouillon : on prélève le budget sur le solde publicitaire au lieu d'ouvrir un
+  // paiement. Si le solde est insuffisant, on refuse le lancement.
+  if (campaign.status === "draft") {
+    const commit = await admin.rpc("ad_wallet_commit_campaign", { target_user_id: user.id, target_campaign_id: campaign.id });
+    if (commit.error) return NextResponse.json({ error: "Impossible de vérifier le solde" }, { status: 500 });
+    const commitData = commit.data as { ok: boolean; code?: string; balance?: number; required?: number };
+    if (!commitData.ok) {
+      if (commitData.code === "insufficient_balance") {
+        return NextResponse.json({ error: "Solde insuffisant pour lancer cette campagne.", code: "insufficient_balance", balance: commitData.balance, required: commitData.required }, { status: 402 });
+      }
+      return NextResponse.json({ error: "Impossible de lancer la campagne." }, { status: 400 });
+    }
+    committedFromWallet = true;
+  } else if (campaign.status !== "paid") {
     // Idempotent : si le lancement a déjà réussi (retry du client après un
     // rafraîchissement par ex.), on ne renvoie pas d'erreur bloquante.
     if (["review", "active"].includes(campaign.status)) return NextResponse.json({ campaign });
-    return NextResponse.json({ error: "Le paiement doit d'abord être confirmé avant de lancer la campagne." }, { status: 409 });
+    return NextResponse.json({ error: "Cette campagne ne peut pas être lancée dans son état actuel." }, { status: 409 });
   }
-  if (!campaign.media_url || !campaign.media_url.startsWith("https://")) return NextResponse.json({ error: "Ajoute une image ou une vidéo avant de lancer la campagne" }, { status: 400 });
 
-  if (campaign.platform === "tiktok") return launchTikTok(supabase, user.id, campaign, body);
-  return launchMeta(supabase, user.id, campaign, body);
+  if (!campaign.media_url || !campaign.media_url.startsWith("https://")) {
+    if (committedFromWallet) await admin.rpc("ad_wallet_release_campaign", { target_user_id: user.id, target_campaign_id: campaign.id });
+    return NextResponse.json({ error: "Ajoute une image ou une vidéo avant de lancer la campagne" }, { status: 400 });
+  }
+
+  const result = campaign.platform === "tiktok"
+    ? await launchTikTok(supabase, user.id, campaign, body)
+    : await launchMeta(supabase, user.id, campaign, body);
+
+  // Si la plateforme refuse, on rend le budget prélevé (la campagne reste en brouillon).
+  if (committedFromWallet && result.status >= 400) {
+    await admin.rpc("ad_wallet_release_campaign", { target_user_id: user.id, target_campaign_id: campaign.id });
+  }
+  return result;
 }
 
 async function launchMeta(supabase: any, userId: string, campaign: any, body: any) {

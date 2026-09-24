@@ -8,8 +8,8 @@ import { DEFAULT_WIZARD_STATE, type Platform, type WizardState } from "./types";
 interface ResumeCampaignModalProps {
   campaignId: string;
   platform: Platform;
-  /** "paused" = créée gratuitement, prête à payer ; "paid" = payée, prête à activer. */
-  initialStatus: "paused" | "paid";
+  /** "draft"/"paused" = prête à lancer ; "paid" = déjà payée, prête à activer. */
+  initialStatus: "draft" | "paused" | "paid";
   /** Motif du dernier refus Meta/TikTok, déjà enregistré côté serveur (le
    *  paiement reste "paid" après un refus — voir /api/ad-campaigns/[id]/launch).
    *  Affiché dès l'ouverture pour ne pas faire retenter l'utilisateur à l'aveugle. */
@@ -41,7 +41,7 @@ export function ResumeCampaignModal({ campaignId, platform, initialStatus, initi
       <div className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[85vh] sm:max-w-md sm:rounded-2xl">
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
           <h2 className="text-base font-bold text-gray-900">
-            {initialStatus === "paused" ? "Lancer la campagne" : "Activer la campagne"}
+            {initialStatus === "paid" ? "Activer la campagne" : "Lancer la campagne"}
           </h2>
           <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">
             Fermer
