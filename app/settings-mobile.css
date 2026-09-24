@@ -1,0 +1,115 @@
+/* Paramètres + menu « Plus » — réorganisation mobile uniquement.
+   Sur PC (> 760px) les wrappers sont en `display: contents` : la page garde
+   exactement le rendu d'origine. */
+
+/* ---------- Base (PC) : aucun changement visuel ---------- */
+.settings-page,
+.settings-section { display: contents; }
+.settings-page .settings-mobile-only { display: none; }
+.settings-page .settings-section-head { margin-top: 28px; }
+.settings-page .settings-session-grid { margin-top: 12px; }
+
+.mobile-more-backdrop { display: none; }
+
+@media (min-width: 761px) {
+  .mobile-more-menu[role="menu"] { display: none; }
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 760px) {
+  /* Menu « Plus » */
+  .mobile-more-backdrop {
+    background: transparent;
+    border: 0;
+    cursor: default;
+    display: block;
+    inset: 0;
+    padding: 0;
+    position: fixed;
+    z-index: 1005;
+  }
+  .mobile-more-menu[role="menu"] {
+    gap: 2px;
+    max-height: calc(100dvh - 140px);
+    overflow-y: auto;
+    padding: 6px;
+    right: 10px;
+    top: 68px;
+    width: min(260px, calc(100vw - 20px));
+  }
+  .mobile-more-menu[role="menu"] > button {
+    font-size: 13px;
+    width: 100%;
+  }
+  .mobile-more-menu[role="menu"] > button.active {
+    background: linear-gradient(135deg, #ede9fe, #dbeafe);
+    color: #103ef8;
+    font-weight: 700;
+  }
+  .mobile-more-menu[role="menu"] > button.danger { color: #b4233c; }
+  .mobile-more-menu[role="menu"] > .mobile-more-label {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    padding: 10px 12px 4px;
+    text-transform: uppercase;
+  }
+  .mobile-more-menu[role="menu"] > .mobile-more-label:not(:first-child) {
+    border-top: 1px solid var(--line);
+    margin-top: 4px;
+  }
+
+  /* Page Paramètres : ordre = Comptes → Canaux pub → Thème → Légal → Session */
+  .settings-page {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    width: 100%;
+  }
+  .settings-page .settings-head { margin-bottom: 18px; order: 0; }
+  .settings-page .settings-section {
+    display: block;
+    margin: 0 0 26px;
+    min-width: 0;
+    scroll-margin-top: 76px;
+  }
+  .settings-page .settings-section-account { order: 1; }
+  .settings-page .settings-section-channels { order: 2; }
+  .settings-page .settings-section-theme { order: 3; }
+  .settings-page .settings-section-legal { order: 4; }
+  .settings-page .settings-section-session {
+    border-top: 1px solid var(--line);
+    margin-bottom: 0;
+    order: 5;
+    padding-top: 22px;
+  }
+  .settings-page .settings-section-head,
+  .settings-page .settings-mobile-only { margin: 0 0 12px; }
+  .settings-page .settings-mobile-only { display: flex; }
+  .settings-page .settings-section-head h2,
+  .settings-page .settings-mobile-only h2 {
+    font-size: 18px;
+    letter-spacing: -.03em;
+    line-height: 1.2;
+    margin: 5px 0 4px;
+  }
+  .settings-page .settings-section-head p,
+  .settings-page .settings-mobile-only p { font-size: 12px; line-height: 1.5; }
+  .settings-page .mobile-settings-grid,
+  .settings-page .theme-choice-grid { margin-top: 0; }
+  .settings-page .settings-session-grid { margin-top: 0; }
+  .settings-page .mobile-settings-card,
+  .settings-page .theme-choice { padding: 14px; }
+  .settings-page .settings-integration-card { gap: 10px; }
+  .settings-page .settings-integration-card > div:first-child { flex: 1; min-width: 0; }
+  .settings-page .settings-integration-card > div:first-child > div { min-width: 0; }
+  .settings-page .settings-integration-card button { flex: none; }
+}
+
+/* ---------- Thème sombre ---------- */
+html[data-theme="dark"] .mobile-more-menu[role="menu"] > button.active {
+  background: rgba(16, 62, 248, .22);
+  color: #7da2ff;
+}
+html[data-theme="dark"] .mobile-more-menu[role="menu"] > button.danger { color: #f19999; }
