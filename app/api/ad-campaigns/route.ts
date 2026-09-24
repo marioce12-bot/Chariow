@@ -47,6 +47,11 @@ export async function POST(request: Request) {
     platform: body.platform,
     status: "draft",
     objective: body.objective,
+    // "Ensemble de publicités" / "Publicité" (façon Meta Ads Manager) : simples
+    // libellés d'organisation côté Vendeo, pas encore transmis à Meta/TikTok
+    // lors du lancement (/api/ad-campaigns/[id]/launch génère ses propres noms).
+    ad_set_name: typeof body.ad_set_name === "string" ? body.ad_set_name.trim() || null : null,
+    ad_name: typeof body.ad_name === "string" ? body.ad_name.trim() || null : null,
     ad_text: body.text.trim(),
     title: typeof body.title === "string" ? body.title.trim() : null,
     destination_url: body.link.trim(),
@@ -71,7 +76,7 @@ export async function POST(request: Request) {
 export async function GET() {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
-  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,title,ad_text,media_url,destination_url,countries,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,ad_set_name,ad_name,title,ad_text,media_url,destination_url,countries,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "Impossible de charger les campagnes" }, { status: 500 });
   return NextResponse.json({ campaigns: data ?? [] });
 }
