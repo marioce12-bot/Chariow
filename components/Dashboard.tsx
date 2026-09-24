@@ -1537,6 +1537,30 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
       </div>
       <div className="page-top" style={{ marginTop: 28 }}>
         <div>
+          <span className="eyebrow">À propos & légal</span>
+          <h2>Vendeo</h2>
+          <p>En savoir plus sur la plateforme et tes droits.</p>
+        </div>
+      </div>
+      <div className="mobile-settings-grid">
+        <a className="mobile-settings-card" href="/about" target="_blank" rel="noopener noreferrer">
+          <span className="mobile-settings-icon"><Lightbulb size={20} /></span>
+          <span><strong>À propos</strong><small>Découvrir Vendeo et Digital store global.</small></span>
+          <ArrowRight size={16} />
+        </a>
+        <a className="mobile-settings-card" href="/terms" target="_blank" rel="noopener noreferrer">
+          <span className="mobile-settings-icon"><FileText size={20} /></span>
+          <span><strong>Conditions d’utilisation</strong><small>Les règles d’utilisation de la plateforme.</small></span>
+          <ArrowRight size={16} />
+        </a>
+        <a className="mobile-settings-card" href="/privacy" target="_blank" rel="noopener noreferrer">
+          <span className="mobile-settings-icon"><Eye size={20} /></span>
+          <span><strong>Politique de confidentialité</strong><small>Comment tes données sont traitées.</small></span>
+          <ArrowRight size={16} />
+        </a>
+      </div>
+      <div className="page-top" style={{ marginTop: 28 }}>
+        <div>
           <span className="eyebrow">Canaux publicitaires</span>
           <h2>Comptes connectés</h2>
           <p>Connecte ou déconnecte les comptes publicitaires que Vendeo utilise pour analyser tes performances.</p>

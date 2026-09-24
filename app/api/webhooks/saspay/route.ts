@@ -23,7 +23,7 @@ type SasPayEvent = {
     status?: string;
     amount?: string | number;
     currency?: string;
-    metadata?: { userId?: string; plan?: PlanId; type?: string; campaignId?: string; credits?: number; withdrawalId?: string };
+    metadata?: { userId?: string; plan?: PlanId; type?: string; campaignId?: string; credits?: number; withdrawalId?: string; amount?: number };
   };
 };
 
