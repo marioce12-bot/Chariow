@@ -63,6 +63,14 @@ export function Auth({ mode, configurationError = false }: { mode: "login" | "re
         setError(result.error.message);
         return;
       }
+      if (register) {
+        // Notification administrateur, sans bloquer la suite (fire-and-forget).
+        void fetch("/api/emails/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, fullName }),
+        });
+      }
       if (forgot || (register && "session" in result.data && !result.data.session)) {
         setSubmitted(true);
         return;
