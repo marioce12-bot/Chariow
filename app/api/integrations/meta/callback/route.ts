@@ -60,6 +60,17 @@ export async function GET(request: Request) {
         is_selected: true,
       }, { onConflict: "user_id,meta_account_id" });
     }
+    // Le jeton Meta a bien été obtenu, mais si Facebook ne renvoie aucun compte
+    // publicitaire (permissions insuffisantes, aucun compte pub sur ce profil,
+    // erreur transitoire de l'API Graph...), aucune ligne n'est créée dans
+    // meta_ad_accounts. Rediriger vers "connected" dans ce cas donnait
+    // l'impression trompeuse d'une connexion réussie, alors que le wizard
+    // "Lancer une pub" et Paramètres affichaient ensuite "aucun compte publicitaire" —
+    // sans que rien n'explique pourquoi vu que l'écran venait de dire "connecté".
+    if (accounts.length === 0) {
+      console.warn("Meta OAuth: token obtenu mais aucun compte publicitaire renvoyé par l'API Graph", { userId: user.id });
+      return redirect("no_ad_account");
+    }
     return redirect("connected");
   } catch (error) {
     console.error("Meta OAuth callback failed", error instanceof Error ? error.message : error);
