@@ -22,18 +22,23 @@ export interface WizardState {
   storeId: string | null;
   product: ChariowProductLite | null;
 
-  // Étape 2
+  // Étape 2 — Ensemble de publicités
   platform: Platform;
-  objective: Objective;
+  objective: Objective; // toujours "sales" : pas de sélecteur, pas d'écran "Campagne" (nom/budget) — voir Step2NetworkCreative
+  adSetName: string;
   placement: Placement;
+  // Comptes déjà connectés (à fournir par le parent, cf. INTEGRATION_WIZARD.md)
+  metaAdAccountId?: string;
+  tiktokAdAccountId?: string;
+
+  // Étape 2 — Publicité
+  adName: string;
   mediaUrl: string;
   adText: string;
   title: string;
   destinationUrl: string;
-  // Comptes déjà connectés (à fournir par le parent, cf. INTEGRATION_WIZARD.md)
-  metaAdAccountId?: string;
+  // "Identité" de la publicité (page Meta / identité TikTok)
   metaPageId?: string;
-  tiktokAdAccountId?: string;
   tiktokIdentityId?: string;
   tiktokIdentityType?: string;
 
@@ -55,7 +60,9 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   product: null,
   platform: "meta",
   objective: "sales",
+  adSetName: "",
   placement: "auto",
+  adName: "",
   mediaUrl: "",
   adText: "",
   title: "",
