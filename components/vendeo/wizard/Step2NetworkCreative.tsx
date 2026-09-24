@@ -52,6 +52,10 @@ type MetaPageOption = { id: string; name: string };
  * - le choix d'objectif (Notoriété / Trafic / Ventes / …) : figé sur "Ventes"
  *   (state.objective reste "sales", cf. DEFAULT_WIZARD_STATE dans types.ts),
  *   Vendeo n'a qu'un seul entonnoir (produit → achat sur la boutique).
+ * - la ligne "Programmation" (durée) : réglée à l'Étape 4 (Budget), qui est
+ *   son seul et unique endroit d'édition — l'afficher ici en lecture seule
+ *   n'apportait rien et créait de la confusion ("pourquoi c'est affiché mais
+ *   pas modifiable ici ?").
  */
 export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToStep1, onAdvanceToStep3, plan }: StepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -237,7 +241,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     return (
       <div className="mb-3 flex gap-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
         <AlertTriangle className="h-4 w-4 shrink-0 text-[#DC2626]" />
-        <p>{children}</p>
+        <div>{children}</div>
       </div>
     );
   }
@@ -278,7 +282,17 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
         <Breadcrumb />
         {state.platform === "meta" && !state.metaAdAccountId && (
           <WarningBanner>
-            Aucun compte publicitaire indiqué : sélectionne le compte Meta Ads qui financera cette publicité.
+            {metaAccounts.length === 0 && !loadingMetaAccounts
+              ? metaAccountsError ?? "Aucun compte Meta Ads connecté. Connecte-en un pour financer cette publicité."
+              : "Aucun compte publicitaire indiqué : sélectionne le compte Meta Ads qui financera cette publicité."}
+            {metaAccounts.length === 0 && !loadingMetaAccounts && (
+              <a
+                href="/api/integrations/meta/connect"
+                className="mt-2 block font-semibold text-[#3730A3] underline underline-offset-2"
+              >
+                Connecter un compte Meta Ads
+              </a>
+            )}
           </WarningBanner>
         )}
         <div>
@@ -296,7 +310,6 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             />
           )}
           <Row label="Conversion" value="Ventes sur ta boutique (fixé)" />
-          <Row label="Programmation" value={`${state.durationDays} jour(s) — réglée à l'étape Budget`} />
           {state.platform === "meta" && (
             <Row
               label="Placements"
@@ -407,7 +420,14 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
         ) : metaAccounts.length === 1 ? (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">{metaAccounts[0].name ?? metaAccounts[0].id}</p>
         ) : null}
-        {metaAccountsError && <p className="mt-1 text-xs text-[#991B1B]">{metaAccountsError}</p>}
+        {metaAccountsError && (
+          <div className="mt-2 rounded-lg bg-[#FEF2F2] p-3 text-xs text-[#991B1B]">
+            <p>{metaAccountsError}</p>
+            <a href="/api/integrations/meta/connect" className="mt-1 block font-semibold underline underline-offset-2">
+              Connecter un compte Meta Ads
+            </a>
+          </div>
+        )}
       </div>
     );
   }
