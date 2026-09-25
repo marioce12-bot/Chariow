@@ -14,12 +14,24 @@ function ensureConfigured() {
   configured = true;
 }
 
-export function getAiImageModel() {
-  return process.env.FAL_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL;
+// Variable d'environnement par catégorie de produit (ex.
+// FAL_IMAGE_EDIT_MODEL_EBOOK), utilisée en priorité si définie ; sinon on
+// retombe sur la variable générique puis sur le modèle par défaut. Ceci
+// centralise le choix du modèle (cf. selectImageWorkflow dans
+// lib/studio/creative-workflows.ts) sans jamais changer le comportement
+// actuel tant qu'aucune variable par catégorie n'est configurée.
+function categoryEnvOverride(base: string, category?: string) {
+  if (!category) return undefined;
+  const key = `${base}_${category.toUpperCase()}`;
+  return process.env[key]?.trim() || undefined;
 }
 
-export function getAiImageEditModel() {
-  return process.env.FAL_IMAGE_EDIT_MODEL?.trim() || DEFAULT_IMAGE_EDIT_MODEL;
+export function getAiImageModel(category?: string) {
+  return categoryEnvOverride("FAL_IMAGE_MODEL", category) || process.env.FAL_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL;
+}
+
+export function getAiImageEditModel(category?: string) {
+  return categoryEnvOverride("FAL_IMAGE_EDIT_MODEL", category) || process.env.FAL_IMAGE_EDIT_MODEL?.trim() || DEFAULT_IMAGE_EDIT_MODEL;
 }
 
 export function getAiVideoTextModel() {
@@ -46,8 +58,10 @@ function referenceDataUrl(image: StudioReferenceImage) {
 
 // fal ne propose pas de réglage "quality"/"resolution"/"background" identique à
 // Imole sur ses modèles d'image grand public : on ne mappe que ce qui a un
-// équivalent direct (l'orientation, via image_size) et on ignore le reste sans
-// faire échouer la génération.
+// équivalent direct (l'orientation, via image_size) ; le "background" est
+// traduit en instruction textuelle dans le prompt (cf.
+// lib/studio/product-prompt.ts::buildAdvertisingImagePrompt) plutôt qu'ignoré,
+// puisque le modèle n'a pas de paramètre API dédié pour ça.
 const ORIENTATION_TO_IMAGE_SIZE: Record<string, string> = {
   square: "square_hd",
   landscape: "landscape_16_9",
@@ -73,9 +87,10 @@ export async function generateFalImage(
   prompt: string,
   format: "square" | "story" | "banner" = "square",
   options: StudioImageOptions = {},
+  category?: string,
 ) {
   const orientation = options.orientation ?? (format === "story" ? "portrait" : format === "banner" ? "landscape" : "square");
-  const model = getAiImageModel();
+  const model = getAiImageModel(category);
   return runImageModel(
     model,
     { prompt, image_size: ORIENTATION_TO_IMAGE_SIZE[orientation] ?? "square_hd", num_images: 1 },
@@ -87,8 +102,9 @@ export async function generateFalImageWithReferences(
   prompt: string,
   references: StudioReferenceImage[],
   _options: StudioImageOptions = {},
+  category?: string,
 ) {
-  const model = getAiImageEditModel();
+  const model = getAiImageEditModel(category);
   return runImageModel(
     model,
     { prompt, image_urls: references.slice(0, 3).map(referenceDataUrl), num_images: 1 },

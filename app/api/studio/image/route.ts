@@ -6,7 +6,9 @@ import { requireActiveSubscription } from "@/lib/subscription/access";
 import { generateFalImage, generateFalImageWithReferences, type StudioImageOptions } from "@/lib/ai/fal";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
-import { buildStudioPrompt, parseStudioProduct } from "@/lib/studio/product-prompt";
+import { buildAdvertisingImagePrompt, parseStudioProduct } from "@/lib/studio/product-prompt";
+import { buildCreativeBrief } from "@/lib/studio/creative-brief";
+import { selectImageWorkflow } from "@/lib/studio/creative-workflows";
 import { fetchReferenceImage } from "@/lib/studio/reference-image";
 
 const imageModes = ["fast", "advanced"] as const;
@@ -42,13 +44,25 @@ export async function POST(request: Request) {
     outputFormat: oneOf(body?.outputFormat, outputFormats, "png"),
   };
   const reference = product?.imageUrl ? await fetchReferenceImage(product.imageUrl) : null;
-  const prompt = buildStudioPrompt("image", userPrompt, product, Boolean(reference));
+  const hasReference = Boolean(reference);
+
+  // Moteur créatif : la demande libre de l'utilisateur devient le point de
+  // départ d'un brief publicitaire structuré (type de produit détecté,
+  // direction artistique, composition...) plutôt qu'un simple prompt plat.
+  // Voir lib/studio/creative-brief.ts pour le détail de la logique.
+  const creativeBrief = buildCreativeBrief(userPrompt, product, hasReference, options.orientation ?? "square");
+  const prompt = buildAdvertisingImagePrompt(creativeBrief, product, options.background);
+  const workflow = selectImageWorkflow(creativeBrief, hasReference);
 
   const cost = imageCreditCost(options.resolution ?? "hd", options.quality ?? "medium");
   // Ecritures + RPC credits : client service-role. RLS n'expose que le SELECT
   // aux utilisateurs, et les fonctions de credits sont revoquees pour `authenticated`.
   const admin = createAdminClient();
-  const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options, status: "processing", credits_cost: cost }).select("id").single();
+  // Le brief créatif et le workflow choisi sont conservés dans la colonne
+  // `options` (déjà en JSON, aucune migration nécessaire) pour pouvoir plus
+  // tard analyser quelles configurations produisent les créations les plus
+  // appréciées (cf. doc produit §13).
+  const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options: { ...options, creativeBrief, workflowId: workflow.workflowId, model: workflow.model }, status: "processing", credits_cost: cost }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
   const requestId = crypto.randomUUID();
   const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image", model_name: "fal-image", provider_amount: Math.round(cost / 1.5), request_id: requestId });
@@ -60,7 +74,9 @@ export async function POST(request: Request) {
   if (!reserveResult?.ok) return NextResponse.json({ error: `Solde insuffisant. Cette image nécessite ${cost} crédits, ton solde est de ${reserveResult?.balance ?? 0}.`, required: cost, balance: reserveResult?.balance ?? 0 }, { status: 402 });
 
   try {
-    const imageUrl = reference ? await generateFalImageWithReferences(prompt, [reference], options) : await generateFalImage(prompt, "square", options);
+    const imageUrl = reference
+      ? await generateFalImageWithReferences(prompt, [reference], options, creativeBrief.productType)
+      : await generateFalImage(prompt, "square", options, creativeBrief.productType);
     await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     let storagePath: string | null = null;
     try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat); } catch (storageError) { console.error("Studio image storage error", storageError); }
