@@ -166,7 +166,7 @@ function TrialPaywallModal({ subscription }: { subscription: SubscriptionData | 
         <button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setDismissed(true)}>×</button>
         <span className="eyebrow">Essai terminé</span>
         <h2 id="trial-paywall-title">Ton essai gratuit de 15 jours est terminé</h2>
-        <p>Active l’abonnement Vendeo — 2 000 XOF/mois — pour continuer à utiliser l’analyse IA, les rapports et le suivi de tes pubs.</p>
+        <p>Active l'abonnement Vendeo — 2 000 XOF/mois — pour continuer à utiliser l'analyse IA, les rapports et le suivi de tes pubs.</p>
         <div className="account-delete-actions">
           <button type="button" className="btn btn-ghost" onClick={() => setDismissed(true)}>Plus tard</button>
           <button type="button" className="btn btn-dark" onClick={() => void subscribe()} disabled={subscribing}>{subscribing ? "Redirection…" : "Activer mon abonnement"}</button>
@@ -177,12 +177,12 @@ function TrialPaywallModal({ subscription }: { subscription: SubscriptionData | 
 }
 
 export function Dashboard() {
-  const [active, setActive] = useState("Vue d’ensemble");
+  const [active, setActive] = useState("Vue d'ensemble");
   const [moreOpen, setMoreOpen] = useState(false);
   // Se souvient de la section affichée juste avant d'ouvrir "Vendeo AI", pour que
   // le bouton retour de la section IA ramène exactement là d'où l'utilisateur vient
   // (au lieu de toujours revenir à la Vue d'ensemble).
-  const [previousSection, setPreviousSection] = useState("Vue d’ensemble");
+  const [previousSection, setPreviousSection] = useState("Vue d'ensemble");
   const activeSectionRef = useRef(active);
   useEffect(() => {
     if (activeSectionRef.current !== "Vendeo AI") {
@@ -200,7 +200,7 @@ export function Dashboard() {
   useEffect(() => {
     function handlePopState(event: PopStateEvent) {
       isPopStateNav.current = true;
-      setActive((event.state && event.state.vendeoView) || "Vue d’ensemble");
+      setActive((event.state && event.state.vendeoView) || "Vue d'ensemble");
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -240,7 +240,7 @@ export function Dashboard() {
   }
 
   const links = [
-    ["Vue d’ensemble", LayoutDashboard],
+    ["Vue d'ensemble", LayoutDashboard],
     ["Vendeo AI", MessageSquare],
     ["Studio", Sparkles],
     ["Pub", Megaphone],
@@ -382,7 +382,7 @@ export function Dashboard() {
             <span className="eyebrow" style={{ fontSize: 9 }}>
               {isActivePlan ? "Abonnement actif" : subscription?.status === "past_due" ? "Abonnement expiré" : "Essai gratuit"}
             </span>
-            {isActivePlan ? <p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>Ton abonnement Vendeo est actif.</p> : <><p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>{subscription?.status === "past_due" ? "Ton abonnement a expiré. Réactive-le pour continuer." : "Choisis l’abonnement pour continuer après ton essai."}</p><button className="btn btn-dark" style={{ fontSize: 10, padding: "8px 10px", width: "100%" }} onClick={() => setActive("Abonnement")}>Voir l’abonnement</button></>}
+            {isActivePlan ? <p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>Ton abonnement Vendeo est actif.</p> : <><p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>{subscription?.status === "past_due" ? "Ton abonnement a expiré. Réactive-le pour continuer." : "Choisis l'abonnement pour continuer après ton essai."}</p><button className="btn btn-dark" style={{ fontSize: 10, padding: "8px 10px", width: "100%" }} onClick={() => setActive("Abonnement")}>Voir l'abonnement</button></>}
           </div>
 
           <div className="side-usage">
@@ -450,7 +450,7 @@ export function Dashboard() {
 
         {active !== "Vendeo AI" ? (
          <nav className="mobile-nav" aria-label="Navigation mobile">
-         <button type="button" className={`nav-btn ${active === "Vue d’ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d’ensemble")}>
+         <button type="button" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
            <LayoutDashboard size={18} />
            <span>Accueil</span>
          </button>
@@ -852,7 +852,7 @@ function Overview({
   const adsCurrency = metaPerformance?.currency ?? currency;
 
   const statusText = !connected
-    ? "Connecte ta boutique Chariow pour commencer l’analyse."
+    ? "Connecte ta boutique Chariow pour commencer l'analyse."
     : !metaConnected
     ? "Ta boutique est connectée. Connecte Meta Ads pour relier tes dépenses à tes ventes."
     : sales === 0 && spend > 0
@@ -955,7 +955,7 @@ function Overview({
       <div className="home-greeting"><h1>Bonjour, {greeting}</h1><p>Voici la performance de tes publicités et de ta boutique.</p></div>
 
       <div className="home-header">
-        <div className="home-context"><span className="eyebrow">Vue d’ensemble</span></div>
+        <div className="home-context"><span className="eyebrow">Vue d'ensemble</span></div>
         <div className="home-controls">
           <label className="home-store-selector">
             <span>Boutique analysée</span>
@@ -971,7 +971,7 @@ function Overview({
           <div className="home-period">
             <span>Période</span>
             <select aria-label="Période" value={period} onChange={(event) => setPeriod(event.target.value)}>
-              <option>Aujourd’hui</option><option>Hier</option><option>7 derniers jours</option><option>30 derniers jours</option><option>Ce mois-ci</option><option>Mois dernier</option><option>Personnalisé</option>
+              <option>Aujourd'hui</option><option>Hier</option><option>7 derniers jours</option><option>30 derniers jours</option><option>Ce mois-ci</option><option>Mois dernier</option><option>Personnalisé</option>
             </select>
           </div>
           {period === "Personnalisé" ? <>
@@ -995,7 +995,7 @@ function Overview({
       <section className="home-ai-state app-card"><div><span className="eyebrow">Analyse IA</span><h2>État de votre activité</h2><p>{statusText}</p></div><Brain size={24} /></section>
 
       <section className="home-kpis">
-        <HomeKpi label="Chiffre d’affaires" value={connected ? format(revenue) : "Non disponible"} tone={revenue > 0 ? "positive" : "neutral"} help="Revenu commercial remonté par Chariow." />
+        <HomeKpi label="Chiffre d'affaires" value={connected ? format(revenue) : "Non disponible"} tone={revenue > 0 ? "positive" : "neutral"} help="Revenu commercial remonté par Chariow." />
         <HomeKpi label="Dépenses pub" value={metaConnected ? format(spend) : "Non disponible"} tone="info" help="Dépenses synchronisées depuis Meta Insights." />
         <HomeKpi label="Ventes" value={connected ? String(sales) : "Non disponible"} tone={sales > 0 ? "positive" : "neutral"} help="Paiements confirmés par Chariow." />
         <HomeKpi label="ROAS (réel)" value={roas === null ? "Non disponible" : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help="Revenu Chariow attribué divisé par les dépenses publicitaires." />
@@ -1040,13 +1040,13 @@ function Overview({
       </section>
 
       <section className="home-chart app-card">
-        <div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Évolution du chiffre d’affaires</h2><p>Ventes des 7 derniers jours, par produit.</p></div><LineChart size={19} /></div>
-        {!connected ? <EmptyState title="Données indisponibles" text="Connecte ta boutique Chariow pour afficher l’évolution." /> : <RealTrendChart sales={analytics?.sales ?? []} products={products} currency={currency} />}
+        <div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Évolution du chiffre d'affaires</h2><p>Ventes des 7 derniers jours, par produit.</p></div><LineChart size={19} /></div>
+        {!connected ? <EmptyState title="Données indisponibles" text="Connecte ta boutique Chariow pour afficher l'évolution." /> : <RealTrendChart sales={analytics?.sales ?? []} products={products} currency={currency} />}
       </section>
 
       <section className="home-activity app-card">
         <div className="card-head"><div><span className="eyebrow">Chariow</span><h2>Activité récente</h2><p>Les derniers événements remontés par ta boutique.</p></div><Activity size={19} /></div>
-        {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu’ils seront synchronisés." />}
+        {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu'ils seront synchronisés." />}
       </section>
 
     </div>
@@ -1064,9 +1064,9 @@ function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const countryOptions = [
-    ["DZ", "Algérie"], ["AO", "Angola"], ["BJ", "Bénin"], ["BW", "Botswana"], ["BF", "Burkina Faso"], ["BI", "Burundi"], ["CV", "Cap-Vert"], ["CM", "Cameroun"], ["CF", "Centrafrique"], ["TD", "Tchad"], ["KM", "Comores"], ["CG", "Congo"], ["CD", "RDC"], ["CI", "Côte d’Ivoire"], ["DJ", "Djibouti"], ["EG", "Égypte"], ["GQ", "Guinée équatoriale"], ["ER", "Érythrée"], ["SZ", "Eswatini"], ["ET", "Éthiopie"], ["GA", "Gabon"], ["GM", "Gambie"], ["GH", "Ghana"], ["GN", "Guinée"], ["GW", "Guinée-Bissau"], ["KE", "Kenya"], ["LS", "Lesotho"], ["LR", "Liberia"], ["LY", "Libye"], ["MG", "Madagascar"], ["MW", "Malawi"], ["ML", "Mali"], ["MR", "Mauritanie"], ["MU", "Maurice"], ["MA", "Maroc"], ["MZ", "Mozambique"], ["NA", "Namibie"], ["NE", "Niger"], ["NG", "Nigeria"], ["RW", "Rwanda"], ["ST", "Sao Tomé-et-Principe"], ["SN", "Sénégal"], ["SC", "Seychelles"], ["SL", "Sierra Leone"], ["SO", "Somalie"], ["ZA", "Afrique du Sud"], ["SS", "Soudan du Sud"], ["SD", "Soudan"], ["TZ", "Tanzanie"], ["TG", "Togo"], ["TN", "Tunisie"], ["UG", "Ouganda"], ["ZM", "Zambie"], ["ZW", "Zimbabwe"],
+    ["DZ", "Algérie"], ["AO", "Angola"], ["BJ", "Bénin"], ["BW", "Botswana"], ["BF", "Burkina Faso"], ["BI", "Burundi"], ["CV", "Cap-Vert"], ["CM", "Cameroun"], ["CF", "Centrafrique"], ["TD", "Tchad"], ["KM", "Comores"], ["CG", "Congo"], ["CD", "RDC"], ["CI", "Côte d'Ivoire"], ["DJ", "Djibouti"], ["EG", "Égypte"], ["GQ", "Guinée équatoriale"], ["ER", "Érythrée"], ["SZ", "Eswatini"], ["ET", "Éthiopie"], ["GA", "Gabon"], ["GM", "Gambie"], ["GH", "Ghana"], ["GN", "Guinée"], ["GW", "Guinée-Bissau"], ["KE", "Kenya"], ["LS", "Lesotho"], ["LR", "Liberia"], ["LY", "Libye"], ["MG", "Madagascar"], ["MW", "Malawi"], ["ML", "Mali"], ["MR", "Mauritanie"], ["MU", "Maurice"], ["MA", "Maroc"], ["MZ", "Mozambique"], ["NA", "Namibie"], ["NE", "Niger"], ["NG", "Nigeria"], ["RW", "Rwanda"], ["ST", "Sao Tomé-et-Principe"], ["SN", "Sénégal"], ["SC", "Seychelles"], ["SL", "Sierra Leone"], ["SO", "Somalie"], ["ZA", "Afrique du Sud"], ["SS", "Soudan du Sud"], ["SD", "Soudan"], ["TZ", "Tanzanie"], ["TG", "Togo"], ["TN", "Tunisie"], ["UG", "Ouganda"], ["ZM", "Zambie"], ["ZW", "Zimbabwe"],
   ] as const;
-  function toggleCountry(code: string) { setSelectedCountries((selected) => selected.includes(code) ? selected.filter((country) => country !== code) : selected.length < 5 ? [...selected, code] : selected); }
+  function toggleCountry(code: string) { setSelectedCountries((selected) => selected.includes(code) ? selected.filter((country) => country !== code) : [...selected, code]); }
 
   async function analyze(event: React.FormEvent) {
     event.preventDefault();
@@ -1083,15 +1083,15 @@ function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => void }) {
   const ideas = Array.isArray(report?.ideas) ? report.ideas as Array<Record<string, unknown>> : [];
   return <div className="market-radar-page">
     <div className="page-top"><div><h1>Radar marché</h1><p>Teste une idée de produit digital avant de passer du temps à la produire.</p></div></div>
-    <section className="market-radar-hero"><div><span className="eyebrow">Validation en temps réel</span><h2>Quelle idée veux-tu lancer ?</h2><p>Vendeo mesure les signaux de recherche disponibles et transforme ton idée en concept d’e-book exploitable.</p><label className="market-idea-input"><span>Idée à analyser</span><input value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="Ex : ebook pour gérer son argent avec Mobile Money" /></label></div><TrendingUp size={32} /></section>
+    <section className="market-radar-hero"><div><span className="eyebrow">Validation en temps réel</span><h2>Quelle idée veux-tu lancer ?</h2><p>Vendeo mesure les signaux de recherche disponibles et transforme ton idée en concept d'e-book exploitable.</p><label className="market-idea-input"><span>Idée à analyser</span><input value={idea} onChange={(event) => setIdea(event.target.value)} placeholder="Ex : ebook pour gérer son argent avec Mobile Money" /></label></div><TrendingUp size={32} /></section>
     <form className="app-card market-radar-form" onSubmit={analyze}>
-      <div className="market-radar-fields"><fieldset className="market-country-picker"><legend>Pays à analyser <small>{selectedCountries.length}/5 sélectionnés</small></legend><div>{countryOptions.map(([code, name]) => <label key={code}><input type="checkbox" checked={selectedCountries.includes(code)} onChange={() => toggleCountry(code)} disabled={!selectedCountries.includes(code) && selectedCountries.length >= 5} /><span>{name}</span></label>)}</div></fieldset><label>Audience<select value={audience} onChange={(event) => setAudience(event.target.value)}><option value="entrepreneurs">Entrepreneurs et indépendants</option><option value="jeunes actifs">Jeunes actifs</option><option value="étudiants">Étudiants</option><option value="femmes entrepreneures">Femmes entrepreneures</option><option value="créateurs de contenu">Créateurs de contenu</option><option value="vendeurs en ligne">Vendeurs en ligne</option><option value="petites entreprises">Petites entreprises</option></select></label><label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}><option value="ebook">E-book</option><option value="formation">Formation</option><option value="template">Templates</option><option value="abonnement">Abonnement</option></select></label></div>
+      <div className="market-radar-fields"><fieldset className="market-country-picker"><legend>Pays à analyser <small>{selectedCountries.length} sélectionné{selectedCountries.length > 1 ? "s" : ""}</small></legend><div>{countryOptions.map(([code, name]) => <label key={code}><input type="checkbox" checked={selectedCountries.includes(code)} onChange={() => toggleCountry(code)} /><span>{name}</span></label>)}</div></fieldset><label>Audience<select value={audience} onChange={(event) => setAudience(event.target.value)}><option value="entrepreneurs">Entrepreneurs et indépendants</option><option value="jeunes actifs">Jeunes actifs</option><option value="étudiants">Étudiants</option><option value="femmes entrepreneures">Femmes entrepreneures</option><option value="créateurs de contenu">Créateurs de contenu</option><option value="vendeurs en ligne">Vendeurs en ligne</option><option value="petites entreprises">Petites entreprises</option><option value="freelances">Freelances</option><option value="parents">Parents</option><option value="salariés">Salariés en reconversion</option><option value="coachs et formateurs">Coachs et formateurs</option><option value="artisans">Artisans et créateurs</option><option value="influenceurs">Influenceurs et créateurs de contenu</option><option value="expatriés">Expatriés et diaspora</option><option value="retraités">Retraités actifs</option></select></label><label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}><option value="ebook">E-book</option><option value="formation">Formation</option><option value="template">Templates</option><option value="abonnement">Abonnement</option></select></label></div>
       {error && <p className="store-error">{error}</p>}<button className="btn btn-dark" disabled={loading || idea.trim().length < 8}>{loading ? "Analyse des signaux…" : "Analyser le potentiel"}</button>
     </form>
     {report ? <>
       <section className="market-radar-score"><div><span className="eyebrow">Potentiel estimé</span><strong>{String(report.score ?? 0)}<small>/100</small></strong><p>Confiance {String(report.confidence ?? "low")} · {Array.isArray(report.liveSources) && report.liveSources.length ? String(report.liveSources.join(", ")) : "Aucune source live configurée"}</p></div><div><div className="market-dimension-grid">{[["Demande","demand"],["Croissance","growth"],["Concurrence","competition"],["Adéquation pays","countryFit"],["Monétisation","monetization"]].map(([label,key]) => <div key={key}><small>{label}</small><strong>{dimensions[key] ?? 0}</strong><i><b style={{ width: `${dimensions[key] ?? 0}%` }} /></i></div>)}</div><div className="market-trend"><span>Signal récent</span><strong>{String((report.trend as Record<string, unknown>)?.current ?? 0)} <small>{(report.trend as Record<string, unknown>)?.direction === "up" ? "↗ en hausse" : (report.trend as Record<string, unknown>)?.direction === "down" ? "↘ en baisse" : "→ stable"}</small></strong><div>{((report.trend as Record<string, unknown>)?.points as number[] ?? []).map((point, index) => <i key={`${point}-${index}`} style={{ height: `${Math.max(8, point)}%` }} />)}</div></div></div></section>
       <section className="market-evidence-grid"><div className="app-card"><div className="card-head"><div><span className="eyebrow">Preuves</span><h2>Pourquoi ce score ?</h2></div><Activity size={18} /></div>{(report.evidence as Array<Record<string, string>> ?? []).map((item) => <div className="market-evidence" key={`${item.label}-${item.value}`}><small>{item.label}</small><strong>{item.value}</strong></div>)}</div><div className="app-card"><div className="card-head"><div><span className="eyebrow">Décision</span><h2>Risques à connaître</h2></div><ShieldAlert size={18} /></div>{(report.risks as string[] ?? []).map((risk) => <p className="market-risk" key={risk}>{risk}</p>)}<p className="market-price">Prix de test: {String((report.recommendedPrice as Record<string, unknown>)?.min)} à {String((report.recommendedPrice as Record<string, unknown>)?.max)} XOF</p></div></section>
-      <section className="app-card market-ideas"><div className="card-head"><div><span className="eyebrow">Concepts exploitables</span><h2>Ce que tu peux lancer</h2></div><Lightbulb size={18} /></div>{ideas.map((item) => <article className="market-idea" key={String(item.title)}><div><h3>{String(item.title)}</h3><p>{String(item.promise)}</p><small>Pour: {String(item.audience)}</small></div><button className="btn btn-ghost" onClick={() => onGoToAI(`Développe le concept d'e-book « ${String(item.title)} » avec un plan détaillé, une promesse commerciale et un upsell adapté aux marchés ${selectedCountries.join(", ")}.`)}>Développer avec l’IA</button></article>)}</section>
+      <section className="app-card market-ideas"><div className="card-head"><div><span className="eyebrow">Concepts exploitables</span><h2>Ce que tu peux lancer</h2></div><Lightbulb size={18} /></div>{ideas.map((item) => <article className="market-idea" key={String(item.title)}><div><h3>{String(item.title)}</h3><p>{String(item.promise)}</p><small>Pour: {String(item.audience)}</small></div><button className="btn btn-ghost" onClick={() => onGoToAI(`Développe le concept d'e-book « ${String(item.title)} » avec un plan détaillé, une promesse commerciale et un upsell adapté aux marchés ${selectedCountries.join(", ")}.`)}>Développer avec l'IA</button></article>)}</section>
     </> : <div className="app-card market-empty"><Lightbulb size={24} /><strong>Entre une idée pour obtenir un score de potentialité</strong><span>Le score indique la force des signaux disponibles. Il ne garantit pas les ventes.</span></div>}
   </div>;
 }
@@ -1128,7 +1128,7 @@ function RealTrendChart({ sales, products, currency }: { sales: unknown[]; produ
   }, [sales, products]);
   const money = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} ${currency}`;
   if (!chart.grand) return <EmptyState title="Aucune vente sur 7 jours" text="Les ventes confirmées des 7 derniers jours apparaîtront ici, empilées par produit." />;
-  return <div className="stack-chart" ref={rootRef} role="group" aria-label={`Chiffre d’affaires des 7 derniers jours par produit, total ${money(chart.grand)}`}><ul className="stack-legend">{chart.series.map((item) => <li key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span></li>)}</ul><div className="stack-body"><div className="stack-y" aria-hidden="true">{chart.ticks.map((tick) => <span key={tick} style={{ bottom: `${(tick / chart.scale.max) * 100}%` }}>{stackCompact.format(tick)}</span>)}</div><div className="stack-plot">{chart.ticks.map((tick) => <i key={tick} className="stack-grid" aria-hidden="true" style={{ bottom: `${(tick / chart.scale.max) * 100}%` }} />)}<div className="stack-cols">{chart.days.map((day, index) => { const total = chart.dayTotals[index]; return <button type="button" key={day.key} className={`stack-col${active === index ? " active" : ""}`} aria-label={`${day.long} : ${money(total)}`} onPointerEnter={(event) => { if (event.pointerType === "mouse") setActive(index); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") setActive(null); }} onClick={(event) => { if ((event.nativeEvent as PointerEvent).pointerType === "mouse") return; setActive((current) => current === index ? null : index); }}><span className="stack-bar" style={{ height: `${(total / chart.scale.max) * 100}%` }}>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[index][seriesIndex]; return value > 0 ? <span key={item.key} className="stack-seg" style={{ height: `${(value / total) * 100}%`, background: item.color }} /> : null; })}</span></button>; })}</div>{active !== null ? <div className="stack-tip" style={{ left: `${((active + 0.5) / STACK_DAYS) * 100}%`, transform: `translateX(${active <= 1 ? "-20%" : active >= STACK_DAYS - 2 ? "-80%" : "-50%"})` }}><strong>{chart.days[active].long}</strong>{chart.dayTotals[active] > 0 ? <>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[active][seriesIndex]; return value > 0 ? <span key={item.key}><i style={{ background: item.color }} />{item.label}<b>{money(value)}</b></span> : null; })}<em>Total {money(chart.dayTotals[active])}</em></> : <span>Aucune vente</span>}</div> : null}</div></div><div className="stack-x" aria-hidden="true">{chart.days.map((day) => <span key={day.key}><b>{day.weekday}</b><small>{day.num}</small></span>)}</div><div className="stack-foot"><span className="stack-unit">Montants en {currency}</span><span className="chart-total">Total : {money(chart.grand)}</span></div></div>;
+  return <div className="stack-chart" ref={rootRef} role="group" aria-label={`Chiffre d'affaires des 7 derniers jours par produit, total ${money(chart.grand)}`}><ul className="stack-legend">{chart.series.map((item) => <li key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span></li>)}</ul><div className="stack-body"><div className="stack-y" aria-hidden="true">{chart.ticks.map((tick) => <span key={tick} style={{ bottom: `${(tick / chart.scale.max) * 100}%` }}>{stackCompact.format(tick)}</span>)}</div><div className="stack-plot">{chart.ticks.map((tick) => <i key={tick} className="stack-grid" aria-hidden="true" style={{ bottom: `${(tick / chart.scale.max) * 100}%` }} />)}<div className="stack-cols">{chart.days.map((day, index) => { const total = chart.dayTotals[index]; return <button type="button" key={day.key} className={`stack-col${active === index ? " active" : ""}`} aria-label={`${day.long} : ${money(total)}`} onPointerEnter={(event) => { if (event.pointerType === "mouse") setActive(index); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") setActive(null); }} onClick={(event) => { if ((event.nativeEvent as PointerEvent).pointerType === "mouse") return; setActive((current) => current === index ? null : index); }}><span className="stack-bar" style={{ height: `${(total / chart.scale.max) * 100}%` }}>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[index][seriesIndex]; return value > 0 ? <span key={item.key} className="stack-seg" style={{ height: `${(value / total) * 100}%`, background: item.color }} /> : null; })}</span></button>; })}</div>{active !== null ? <div className="stack-tip" style={{ left: `${((active + 0.5) / STACK_DAYS) * 100}%`, transform: `translateX(${active <= 1 ? "-20%" : active >= STACK_DAYS - 2 ? "-80%" : "-50%"})` }}><strong>{chart.days[active].long}</strong>{chart.dayTotals[active] > 0 ? <>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[active][seriesIndex]; return value > 0 ? <span key={item.key}><i style={{ background: item.color }} />{item.label}<b>{money(value)}</b></span> : null; })}<em>Total {money(chart.dayTotals[active])}</em></> : <span>Aucune vente</span>}</div> : null}</div></div><div className="stack-x" aria-hidden="true">{chart.days.map((day) => <span key={day.key}><b>{day.weekday}</b><small>{day.num}</small></span>)}</div><div className="stack-foot"><span className="stack-unit">Montants en {currency}</span><span className="chart-total">Total : {money(chart.grand)}</span></div></div>;
 }
 
 function displayValue(value: unknown, keys: string[] = ["name", "label", "title", "value", "text", "code"]): string | undefined {
@@ -1193,7 +1193,7 @@ function RecentSale({ sale, currency }: { sale: unknown; currency: string }) {
   const deviceRaw = displayValue(context.device_type ?? context.device ?? row.device);
   const device = deviceRaw ? (({ desktop: "Ordinateur", mobile: "Mobile", tablet: "Tablette" } as Record<string, string>)[deviceRaw.toLowerCase()] ?? deviceRaw) : "Non fourni";
   const failureReason = displayValue(failure.message ?? failure.description ?? failure.code ?? legacyError.message ?? legacyError.description ?? row.failure_reason ?? row.error_message ?? row.status_reason) ?? "Non fournie par Chariow";
-  return <><li><i className={`activity-dot activity-${status}`} /><span><b>{label}</b><br />{productName} · {amount ? `${amount.toLocaleString("fr-FR")} ${saleCurrency}` : "Montant indisponible"} · {date ? new Date(String(date)).toLocaleDateString("fr-FR") : "Date indisponible"}</span><button type="button" className="activity-detail" onClick={() => setOpen(true)}>Détail</button></li>{open ? <div className="sale-modal-backdrop" role="presentation" onClick={() => setOpen(false)}><section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-detail-title" onClick={(event) => event.stopPropagation()}><button type="button" className="sale-modal-close" aria-label="Fermer" onClick={() => setOpen(false)}>×</button><span className="eyebrow">Détail Chariow</span><h2 id="sale-detail-title">{label}</h2><h3 className="sale-modal-section-title">Client</h3><div className="sale-detail-grid"><div><small>Nom</small><strong>{customerName}</strong></div><div><small>Email</small><strong>{String(customer.email ?? row.email ?? "Non fourni")}</strong></div><div><small>Téléphone</small><strong>{phone ?? "Non fourni"}</strong></div></div><h3 className="sale-modal-section-title">Informations de paiement</h3><div className="sale-detail-grid"><div><small>Produit</small><strong>{productName}</strong></div><div><small>Prix</small><strong>{price ?? "Non fourni"}</strong></div><div><small>Réduction</small><strong>{discountText}</strong></div><div><small>Montant net</small><strong>{netAmount ?? "Non fourni"}</strong></div>{payoutAmount ? <div><small>Reversé après frais</small><strong>{payoutAmount}</strong></div> : null}{serviceFee ? <div><small>Frais Chariow</small><strong>{serviceFee}</strong></div> : null}{paymentMethod ? <div><small>Moyen de paiement</small><strong>{paymentMethod}</strong></div> : null}<div><small>Source</small><strong>{source}</strong></div><div><small>Boutique</small><strong>{shop}</strong></div></div><h3 className="sale-modal-section-title">Contexte</h3><div className="sale-detail-grid"><div><small>Pays</small><strong>{country}</strong></div><div><small>Langue</small><strong>{language}</strong></div><div><small>Appareil</small><strong>{device}</strong></div><div><small>Date</small><strong>{date ? new Date(String(date)).toLocaleString("fr-FR") : "Non fournie"}</strong></div><div><small>Raison de l’échec</small><strong>{status === "failed" ? failureReason : "Aucune"}</strong></div></div><button type="button" className="btn btn-dark sale-modal-action" onClick={() => setOpen(false)}>Fermer</button></section></div> : null}</>;
+  return <><li><i className={`activity-dot activity-${status}`} /><span><b>{label}</b><br />{productName} · {amount ? `${amount.toLocaleString("fr-FR")} ${saleCurrency}` : "Montant indisponible"} · {date ? new Date(String(date)).toLocaleDateString("fr-FR") : "Date indisponible"}</span><button type="button" className="activity-detail" onClick={() => setOpen(true)}>Détail</button></li>{open ? <div className="sale-modal-backdrop" role="presentation" onClick={() => setOpen(false)}><section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-detail-title" onClick={(event) => event.stopPropagation()}><button type="button" className="sale-modal-close" aria-label="Fermer" onClick={() => setOpen(false)}>×</button><span className="eyebrow">Détail Chariow</span><h2 id="sale-detail-title">{label}</h2><h3 className="sale-modal-section-title">Client</h3><div className="sale-detail-grid"><div><small>Nom</small><strong>{customerName}</strong></div><div><small>Email</small><strong>{String(customer.email ?? row.email ?? "Non fourni")}</strong></div><div><small>Téléphone</small><strong>{phone ?? "Non fourni"}</strong></div></div><h3 className="sale-modal-section-title">Informations de paiement</h3><div className="sale-detail-grid"><div><small>Produit</small><strong>{productName}</strong></div><div><small>Prix</small><strong>{price ?? "Non fourni"}</strong></div><div><small>Réduction</small><strong>{discountText}</strong></div><div><small>Montant net</small><strong>{netAmount ?? "Non fourni"}</strong></div>{payoutAmount ? <div><small>Reversé après frais</small><strong>{payoutAmount}</strong></div> : null}{serviceFee ? <div><small>Frais Chariow</small><strong>{serviceFee}</strong></div> : null}{paymentMethod ? <div><small>Moyen de paiement</small><strong>{paymentMethod}</strong></div> : null}<div><small>Source</small><strong>{source}</strong></div><div><small>Boutique</small><strong>{shop}</strong></div></div><h3 className="sale-modal-section-title">Contexte</h3><div className="sale-detail-grid"><div><small>Pays</small><strong>{country}</strong></div><div><small>Langue</small><strong>{language}</strong></div><div><small>Appareil</small><strong>{device}</strong></div><div><small>Date</small><strong>{date ? new Date(String(date)).toLocaleString("fr-FR") : "Non fournie"}</strong></div><div><small>Raison de l'échec</small><strong>{status === "failed" ? failureReason : "Aucune"}</strong></div></div><button type="button" className="btn btn-dark sale-modal-action" onClick={() => setOpen(false)}>Fermer</button></section></div> : null}</>;
 }
 function BusinessSignals({ analytics, health }: { analytics: AnalyticsData; health: StoreHealth }) {
   if (!analytics) return null;
@@ -1210,7 +1210,7 @@ function BusinessSignals({ analytics, health }: { analytics: AnalyticsData; heal
     </div>
     <div className="signal-alerts app-card">
       <div className="card-head"><div><span className="eyebrow">À surveiller</span><h2>Signaux utiles</h2></div><AlertTriangle size={18} color="#d28b3d" /></div>
-      {alerts.length ? <div className="signal-list">{alerts.map((alert) => <div className={`signal-item ${alert.tone}`} key={alert.title}><span>{alert.icon}</span><div><strong>{alert.title}</strong><p>{alert.description}</p></div></div>)}</div> : <div className="signal-item positive"><span><TrendingUp size={15} /></span><div><strong>Tout est stable</strong><p>Aucun signal critique n’a été détecté sur cette période.</p></div></div>}
+      {alerts.length ? <div className="signal-list">{alerts.map((alert) => <div className={`signal-item ${alert.tone}`} key={alert.title}><span>{alert.icon}</span><div><strong>{alert.title}</strong><p>{alert.description}</p></div></div>)}</div> : <div className="signal-item positive"><span><TrendingUp size={15} /></span><div><strong>Tout est stable</strong><p>Aucun signal critique n'a été détecté sur cette période.</p></div></div>}
       <PersistentAlerts />
     </div>
     <div className="signal-action app-card"><div className="card-head"><div><span className="eyebrow">Prochaine action</span><h2>Ton meilleur levier</h2></div><Target size={18} color="#34684d" /></div><strong>{recommendation.title}</strong><p>{recommendation.description}</p><div className="signal-meta">{products.length} produit{products.length > 1 ? "s" : ""} · {kpis.sales} vente{kpis.sales > 1 ? "s" : ""} · {kpis.visits} visite{kpis.visits > 1 ? "s" : ""}</div></div>
@@ -1244,8 +1244,8 @@ function getBusinessAlerts(analytics: AnalyticsData) {
   const { kpis, products } = analytics;
   const alerts: { title: string; description: string; tone: string; icon: React.ReactNode }[] = [];
   if (!products.length) alerts.push({ title: "Ton catalogue est vide", description: "Ajoute un produit pour commencer à mesurer ta boutique.", tone: "warning", icon: <Package size={15} /> });
-  if (kpis.visits > 0 && kpis.sales === 0) alerts.push({ title: "Trafic sans vente", description: "Tes visiteurs ne convertissent pas encore. Travaille l’offre ou la page de vente.", tone: "warning", icon: <Eye size={15} /> });
-  if (kpis.visits === 0) alerts.push({ title: "Aucune visite enregistrée", description: "Partage ta boutique auprès d’une audience ciblée pour créer tes premiers signaux.", tone: "neutral", icon: <Eye size={15} /> });
+  if (kpis.visits > 0 && kpis.sales === 0) alerts.push({ title: "Trafic sans vente", description: "Tes visiteurs ne convertissent pas encore. Travaille l'offre ou la page de vente.", tone: "warning", icon: <Eye size={15} /> });
+  if (kpis.visits === 0) alerts.push({ title: "Aucune visite enregistrée", description: "Partage ta boutique auprès d'une audience ciblée pour créer tes premiers signaux.", tone: "neutral", icon: <Eye size={15} /> });
   if (kpis.sales === 0 && kpis.customers === 0) alerts.push({ title: "Pas encore de clients", description: "Commence par promouvoir ton produit principal avec un message clair et une offre simple.", tone: "neutral", icon: <Users size={15} /> });
   return alerts.slice(0, 3);
 }
@@ -1254,15 +1254,15 @@ function getRecommendation(analytics: AnalyticsData) {
   if (!analytics) return { title: "Reconnecter ta boutique", description: "Les données sont nécessaires pour proposer une action utile." };
   const { kpis, products } = analytics;
   if (!products.length) return { title: "Ajouter ton premier produit", description: "Sans produit dans le catalogue, Vendeo ne peut pas identifier ton meilleur levier commercial." };
-  if (kpis.visits === 0) return { title: "Créer du trafic qualifié", description: "Partage ton produit auprès d’une audience précise et suis les visites sur la prochaine période." };
-  if (kpis.sales === 0) return { title: "Améliorer la conversion", description: "Tes prochaines actions doivent rassurer les visiteurs : bénéfice clair, preuve sociale et appel à l’action visible." };
+  if (kpis.visits === 0) return { title: "Créer du trafic qualifié", description: "Partage ton produit auprès d'une audience précise et suis les visites sur la prochaine période." };
+  if (kpis.sales === 0) return { title: "Améliorer la conversion", description: "Tes prochaines actions doivent rassurer les visiteurs : bénéfice clair, preuve sociale et appel à l'action visible." };
   return { title: "Capitaliser sur tes ventes", description: "Analyse ton produit principal et teste une offre complémentaire pour augmenter la valeur de chaque client." };
 }
 
 function ProductCatalog({ products, onPromote }: { products: ProductData[]; onPromote?: (product: ProductData) => void }) {
   return (
     <div className="app-card" style={{ marginTop: 18 }}>
-      <div className="card-head"><div><h2>Ton catalogue</h2><p>{products.length ? "Les produits récupérés depuis ta boutique Chariow." : "Aucun produit n’a été trouvé dans ta boutique Chariow."}</p></div></div>
+      <div className="card-head"><div><h2>Ton catalogue</h2><p>{products.length ? "Les produits récupérés depuis ta boutique Chariow." : "Aucun produit n'a été trouvé dans ta boutique Chariow."}</p></div></div>
       {products.length > 0 && <div style={{ display: "grid", gap: 10, marginTop: 15 }}>
         {products.map((product) => <div key={product.id} className="store-row">
           <div className="store-logo">{product.image ? <img src={product.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} /> : <Package size={18} />}</div>
@@ -1355,7 +1355,7 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
   const topOptimize = withVerdict.find((item) => item.verdict.tone === "optimize");
 
   return <>
-    <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui s’est passé, ce que ça a coûté en pub, et ce que Vendeo recommande de faire.</p></div></div>
+    <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui s'est passé, ce que ça a coûté en pub, et ce que Vendeo recommande de faire.</p></div></div>
     <div className="app-card report-filters" style={{ marginBottom: 18 }}>
       <div className="report-filter-title"><CalendarDays size={17} /><div><strong>Période du rapport</strong><span>Les données Chariow sont analysées au format jour.</span></div></div>
       <div className="report-filter-fields">
@@ -1397,10 +1397,10 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
 
       <div className="report-columns">
         <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Inventaire et performance</span><h2>Détail des produits</h2></div><strong>{reportAnalytics.products.length} produit{reportAnalytics.products.length > 1 ? "s" : ""}</strong></div>{reportAnalytics.products.length === 0 ? <p className="report-muted">Aucun produit trouvé dans ton catalogue.</p> : <div className="report-table"><div className="report-table-head"><span>Produit</span><span>Statut</span><span>Ventes</span></div>{reportAnalytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong title={product.name}>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseigné"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
-        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Lecture rapide</span><h2>À retenir</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="report-insight"><strong>{kpis.sales === 0 ? "Pas encore de ventes" : "Ton activité commerciale"}</strong><p>{kpis.sales === 0 ? "Teste un partage ciblé de ton produit et observe les visites sur la prochaine période." : "Compare cette période à la précédente pour identifier les produits qui tirent ta croissance."}</p></div><div className="report-insight"><strong>{kpis.visits === 0 ? "Aucune visite enregistrée" : `${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} observée${kpis.visits > 1 ? "s" : ""}`}</strong><p>{kpis.visits === 0 ? "Ta prochaine priorité est d’amener du trafic vers ta boutique." : `Le taux de conversion actuel est de ${kpis.conversionRate}.`}</p></div></section>
+        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Lecture rapide</span><h2>À retenir</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="report-insight"><strong>{kpis.sales === 0 ? "Pas encore de ventes" : "Ton activité commerciale"}</strong><p>{kpis.sales === 0 ? "Teste un partage ciblé de ton produit et observe les visites sur la prochaine période." : "Compare cette période à la précédente pour identifier les produits qui tirent ta croissance."}</p></div><div className="report-insight"><strong>{kpis.visits === 0 ? "Aucune visite enregistrée" : `${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} observée${kpis.visits > 1 ? "s" : ""}`}</strong><p>{kpis.visits === 0 ? "Ta prochaine priorité est d'amener du trafic vers ta boutique." : `Le taux de conversion actuel est de ${kpis.conversionRate}.`}</p></div></section>
       </div>
 
-      <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s’est passé</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La période est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi c’est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion n’est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action publicitaire</small><strong>{topStop ? topStop.verdict.label : topOptimize ? topOptimize.verdict.label : getRecommendation(reportAnalytics).title}</strong></div></div></div>
+      <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s'est passé</small><strong>{kpis.sales === 0 && kpis.visits === 0 ? "La période est encore calme." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} pour ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""}.`}</strong></div><div><small>Pourquoi c'est important</small><strong>{kpis.visits === 0 ? "Sans trafic, aucune conversion n'est possible." : kpis.sales === 0 ? "Le prochain enjeu est de convertir tes visiteurs." : `La conversion actuelle est de ${kpis.conversionRate}.`}</strong></div><div><small>Prochaine action publicitaire</small><strong>{topStop ? topStop.verdict.label : topOptimize ? topOptimize.verdict.label : getRecommendation(reportAnalytics).title}</strong></div></div></div>
     </>}
   </>;
 }
@@ -1549,13 +1549,13 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate
           <div>
             <span className="eyebrow">Apparence</span>
             <h2>Thème</h2>
-            <p>Choisis l’apparence de ton espace Vendeo.</p>
+            <p>Choisis l'apparence de ton espace Vendeo.</p>
           </div>
         </div>
         <div className="theme-choice-grid">
           <button type="button" className={`theme-choice ${theme === "light" ? "selected" : ""}`} onClick={() => applyTheme("light")} aria-pressed={theme === "light"}>
             <span className="mobile-settings-icon"><Sun size={20} /></span>
-            <span><strong>Clair</strong><small>L’apparence par défaut de Vendeo.</small></span>
+            <span><strong>Clair</strong><small>L'apparence par défaut de Vendeo.</small></span>
             {theme === "light" ? <CheckCircle2 size={16} /> : null}
           </button>
           <button type="button" className={`theme-choice ${theme === "dark" ? "selected" : ""}`} onClick={() => applyTheme("dark")} aria-pressed={theme === "dark"}>
@@ -1581,7 +1581,7 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate
           </a>
           <a className="mobile-settings-card" href="/terms" target="_blank" rel="noopener noreferrer">
             <span className="mobile-settings-icon"><FileText size={20} /></span>
-            <span><strong>Conditions d’utilisation</strong><small>Les règles d’utilisation de la plateforme.</small></span>
+            <span><strong>Conditions d'utilisation</strong><small>Les règles d'utilisation de la plateforme.</small></span>
             <ArrowRight size={16} />
           </a>
           <a className="mobile-settings-card" href="/privacy" target="_blank" rel="noopener noreferrer">
@@ -1698,7 +1698,7 @@ function getCampaignVerdict(campaign: MetaPerformance["performances"][number], c
       tone: "stop",
       emoji: "🛑",
       label: "Arrête cette pub",
-      diagnosis: `${formatMoney(spend, currency)} dépensés sans aucune vente confirmée sur la période. L’audience touchée ne convertit pas, ou le prix ne correspond pas à cette audience.`,
+      diagnosis: `${formatMoney(spend, currency)} dépensés sans aucune vente confirmée sur la période. L'audience touchée ne convertit pas, ou le prix ne correspond pas à cette audience.`,
       action: `Coupe cette campagne maintenant — ${formatMoney(spend, currency)} dépensés sans vente.`,
       actionLabel: "Arrêter",
     };
@@ -1732,7 +1732,7 @@ function getCampaignVerdict(campaign: MetaPerformance["performances"][number], c
     tone: "watch",
     emoji: "⚠️",
     label: "Surveille cette pub",
-    diagnosis: "Pas encore assez de signal fiable pour recommander d’arrêter ou d’augmenter le budget.",
+    diagnosis: "Pas encore assez de signal fiable pour recommander d'arrêter ou d'augmenter le budget.",
     action: "Laisse tourner sans y toucher et réanalyse dans quelques jours.",
     actionLabel: "Surveiller",
   };
@@ -1914,12 +1914,12 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">Statistiques</span><h2>Performance publicitaire</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">Dépenses</span><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, metaPerformance?.currency ?? "XOF")}</strong></div><div className="vendeo-kpi"><span className="metric-label">Ventes</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">ROAS réel</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div></section> : channel === "meta" ? (
         <>
           <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Meta Ads connectée</span> : <button className="btn btn-dark" onClick={connectMeta}><Plus size={15} /> Connecter Meta Ads</button>}</div>
-          {metaPerformance && metaPerformance.overview.conversions === 0 && <div className="meta-conversion-info" role="status">Meta ne rapporte actuellement aucune conversion attribuée. Cela peut être normal si aucune campagne n’a diffusé ou si aucun Pixel/Conversions API n’est configuré sur le parcours de vente Chariow.</div>}
-          {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n’est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
+          {metaPerformance && metaPerformance.overview.conversions === 0 && <div className="meta-conversion-info" role="status">Meta ne rapporte actuellement aucune conversion attribuée. Cela peut être normal si aucune campagne n'a diffusé ou si aucun Pixel/Conversions API n'est configuré sur le parcours de vente Chariow.</div>}
+          {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n'est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
           {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>Aucun compte Meta Ads connecté</strong><span>Autorise Vendeo à lire tes campagnes, ensembles de publicités et publicités.</span><button className="btn btn-dark" onClick={connectMeta}>Connecter Meta Ads</button></div> : <>
             <div className="app-card meta-toolbar"><label>Compte publicitaire<select value={selectedMetaAccount} onChange={(event) => setSelectedMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? "Synchronisation…" : "Synchroniser les insights"}</button></div>
-            {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d’affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="hint-line">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
+            {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d'affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="hint-line">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
             {metaPerformance.performances.length ? <section className="app-card reco-card" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Pourquoi ce verdict</span><h2>Recommandation par campagne</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="reco-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`reco-item reco-item-${verdict.tone}`} key={campaign.id}><span className="reco-icon">{verdict.emoji}</span><div className="reco-body"><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.action}</p><small>{verdict.diagnosis}</small></div><button type="button" className={`reco-action reco-action-${verdict.tone}`} onClick={() => openAI(`Analyse la campagne "${campaign.name}" et détaille les prochaines actions.`)}>{verdict.actionLabel}</button></div>; })}</div></section> : null}
             </> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
           </>}
@@ -2048,7 +2048,7 @@ function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: 
               <div className="store-info">
                 <strong>{store.store_name}</strong>
                 <span>
-                  {store.platform} · {status === "failed" ? "Connexion échouée — relance l’autorisation" : status}
+                  {store.platform} · {status === "failed" ? "Connexion échouée — relance l'autorisation" : status}
                 </span>
               </div>
               <span className="status">● {status}</span>
@@ -2129,7 +2129,7 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
         <div>
           <span className="eyebrow">Ton abonnement</span>
           <h1>Active ton abonnement.</h1>
-          <p>{trial && trialDaysLeft !== null ? `Il te reste ${trialDaysLeft} jour${trialDaysLeft > 1 ? "s" : ""} d’essai gratuit.` : "Gère ton usage IA et tes boutiques depuis un seul endroit."}</p>
+          <p>{trial && trialDaysLeft !== null ? `Il te reste ${trialDaysLeft} jour${trialDaysLeft > 1 ? "s" : ""} d'essai gratuit.` : "Gère ton usage IA et tes boutiques depuis un seul endroit."}</p>
         </div>
         {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
       </div>
@@ -2145,7 +2145,7 @@ function SubscriptionView({ subscription, onBackToSettings }: { subscription: Su
             <li>✓ Rapports détaillés</li>
           </ul>
           <button className="btn btn-ghost" onClick={() => void subscribe("starter")} disabled={changingPlan === "starter"} style={{ width: "100%" }}>
-            {changingPlan === "starter" ? "Redirection…" : "S’abonner"}
+            {changingPlan === "starter" ? "Redirection…" : "S'abonner"}
           </button>
         </article>
       </div>
