@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 import { formatMoney } from "@/lib/format";
+import "@/app/settings-mobile.css";
 import { isAdPlatformAllowed, planMaxStores, type AdPlatform, type PlanId } from "@/lib/plans";
 import {
   VerdictBanner,
@@ -338,8 +339,8 @@ export function Dashboard() {
           </Link>
           <div className="app-user">
             <span className="app-greeting">Bonjour, {userName}</span>
-             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Mes boutiques", "Abonnement", "Paramètres"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" onClick={() => setMoreOpen((open) => !open)}>
-              <Settings size={18} />
+             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Mes boutiques", "Abonnement", "Paramètres", "Comptes publicitaires"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
             <button className="desktop-signout" onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
               Déconnexion
@@ -411,7 +412,7 @@ export function Dashboard() {
           ) : active === "Pub" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={launchAd} storeId={stores[0]?.id ?? null} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
-             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
+             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" />
           ) : active === "Radar marché" ? (
              <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); setActive("Vendeo AI"); }} />
            ) : active === "Mes boutiques" ? (
@@ -471,13 +472,22 @@ export function Dashboard() {
              </button>
         </nav>
         ) : null}
-         {moreOpen ? <div className="mobile-more-menu" role="menu">
-           <button type="button" onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
-           <button type="button" onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
-          <button type="button" onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
-           <button type="button" onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
-           <button type="button" onClick={() => { setActive("Comptes publicitaires"); setMoreOpen(false); }}><BarChart3 size={16} /> Comptes publicitaires</button>
-        </div> : null}
+         {moreOpen ? (
+          <>
+            <button type="button" className="mobile-more-backdrop" aria-label="Fermer le menu" onClick={() => setMoreOpen(false)} />
+            <div className="mobile-more-menu" role="menu" aria-label="Plus d'options">
+              <span className="mobile-more-label">Analyse</span>
+              <button type="button" role="menuitem" className={active === "Rapports" ? "active" : ""} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
+              <span className="mobile-more-label">Mon compte</span>
+              <button type="button" role="menuitem" className={active === "Mes boutiques" ? "active" : ""} onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
+              <button type="button" role="menuitem" className={active === "Abonnement" ? "active" : ""} onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
+              <button type="button" role="menuitem" className={active === "Comptes publicitaires" ? "active" : ""} onClick={() => { setActive("Comptes publicitaires"); setMoreOpen(false); }}><BarChart3 size={16} /> Comptes publicitaires</button>
+              <span className="mobile-more-label">Application</span>
+              <button type="button" role="menuitem" className={active === "Paramètres" ? "active" : ""} onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
+              <button type="button" role="menuitem" className="danger" onClick={() => { setMoreOpen(false); signOut(); }}><LogOut size={16} /> Déconnexion</button>
+            </div>
+          </>
+        ) : null}
     </main>
   );
 }
@@ -1401,7 +1411,7 @@ const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; 
   { id: "pinterest", label: "Pinterest", description: "Bientôt disponible.", badge: "pinterest", live: false },
 ];
 
-function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId }) {
+function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: "channels" }) {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
@@ -1411,6 +1421,11 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [connectionBusy, setConnectionBusy] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const channelsRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (focus === "channels") channelsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [focus]);
 
   useEffect(() => {
     let active = true;
@@ -1485,87 +1500,105 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
     }
   }
   return (
-    <>
-      <div className="page-top">
+    <div className="settings-page">
+      <div className="page-top settings-head">
         <div>
           <span className="eyebrow">Compte</span>
           <h1>Paramètres</h1>
           <p>Gère tes boutiques et ton abonnement depuis cet espace.</p>
         </div>
       </div>
-      <div className="mobile-settings-grid">
-        <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
-          <span className="mobile-settings-icon"><Store size={20} /></span>
-          <span><strong>Mes boutiques</strong><small>Connecter et gérer tes boutiques Chariow.</small></span>
-          <ArrowRight size={16} />
-        </button>
-        <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Abonnement")}>
-          <span className="mobile-settings-icon"><CreditCard size={20} /></span>
-          <span><strong>Abonnement</strong><small>Voir ton plan et gérer ton accès Vendeo.</small></span>
-          <ArrowRight size={16} />
-        </button>
-         <button type="button" className="mobile-settings-card mobile-settings-danger" onClick={onSignOut}>
-          <span className="mobile-settings-icon"><LogOut size={20} /></span>
-          <span><strong>Déconnexion</strong><small>Quitter ton espace Vendeo en toute sécurité.</small></span>
-           <ArrowRight size={16} />
-         </button>
-         {accountMessage ? <p className="settings-inline-message settings-account-error" role="alert">{accountMessage}</p> : null}
-         <button type="button" className="mobile-settings-card mobile-settings-danger settings-delete-account" onClick={() => setShowDeleteAccountModal(true)} disabled={deletingAccount}>
-           <span className="mobile-settings-icon"><Trash2 size={20} /></span>
-           <span><strong>{deletingAccount ? "Suppression du compte…" : "Supprimer mon compte"}</strong><small>Supprimer définitivement ton compte et toutes tes données.</small></span>
-           <ArrowRight size={16} />
-         </button>
-      </div>
-      <div className="page-top" style={{ marginTop: 28 }}>
-        <div>
-          <span className="eyebrow">Apparence</span>
-          <h2>Thème</h2>
-          <p>Choisis l’apparence de ton espace Vendeo.</p>
+      <section className="settings-section settings-section-account" aria-label="Boutiques et abonnement">
+        <div className="mobile-settings-grid">
+          <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
+            <span className="mobile-settings-icon"><Store size={20} /></span>
+            <span><strong>Mes boutiques</strong><small>Connecter et gérer tes boutiques Chariow.</small></span>
+            <ArrowRight size={16} />
+          </button>
+          <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Abonnement")}>
+            <span className="mobile-settings-icon"><CreditCard size={20} /></span>
+            <span><strong>Abonnement</strong><small>Voir ton plan et gérer ton accès Vendeo.</small></span>
+            <ArrowRight size={16} />
+          </button>
         </div>
-      </div>
-      <div className="theme-choice-grid">
-        <button type="button" className={`theme-choice ${theme === "light" ? "selected" : ""}`} onClick={() => applyTheme("light")} aria-pressed={theme === "light"}>
-          <span className="mobile-settings-icon"><Sun size={20} /></span>
-          <span><strong>Clair</strong><small>L’apparence par défaut de Vendeo.</small></span>
-          {theme === "light" ? <CheckCircle2 size={16} /> : null}
-        </button>
-        <button type="button" className={`theme-choice ${theme === "dark" ? "selected" : ""}`} onClick={() => applyTheme("dark")} aria-pressed={theme === "dark"}>
-          <span className="mobile-settings-icon"><Moon size={20} /></span>
-          <span><strong>Sombre</strong><small>Plus de confort le soir.</small></span>
-          {theme === "dark" ? <CheckCircle2 size={16} /> : null}
-        </button>
-      </div>
-      <div className="page-top" style={{ marginTop: 28 }}>
-        <div>
-          <span className="eyebrow">À propos & légal</span>
-          <h2>Vendeo</h2>
-          <p>En savoir plus sur la plateforme et tes droits.</p>
+      </section>
+      <section className="settings-section settings-section-session" aria-label="Session et compte">
+        <div className="page-top settings-mobile-only">
+          <div>
+            <span className="eyebrow">Session</span>
+            <h2>Déconnexion et suppression</h2>
+            <p>Quitter ton espace ou supprimer définitivement ton compte.</p>
+          </div>
         </div>
-      </div>
-      <div className="mobile-settings-grid">
-        <a className="mobile-settings-card" href="/about" target="_blank" rel="noopener noreferrer">
-          <span className="mobile-settings-icon"><Lightbulb size={20} /></span>
-          <span><strong>À propos</strong><small>Découvrir Vendeo et Digital store global.</small></span>
-          <ArrowRight size={16} />
-        </a>
-        <a className="mobile-settings-card" href="/terms" target="_blank" rel="noopener noreferrer">
-          <span className="mobile-settings-icon"><FileText size={20} /></span>
-          <span><strong>Conditions d’utilisation</strong><small>Les règles d’utilisation de la plateforme.</small></span>
-          <ArrowRight size={16} />
-        </a>
-        <a className="mobile-settings-card" href="/privacy" target="_blank" rel="noopener noreferrer">
-          <span className="mobile-settings-icon"><Eye size={20} /></span>
-          <span><strong>Politique de confidentialité</strong><small>Comment tes données sont traitées.</small></span>
-          <ArrowRight size={16} />
-        </a>
-      </div>
-      <div className="page-top" style={{ marginTop: 28 }}>
-        <div>
-          <span className="eyebrow">Canaux publicitaires</span>
-          <h2>Comptes connectés</h2>
-          <p>Connecte ou déconnecte les comptes publicitaires que Vendeo utilise pour analyser tes performances.</p>
+        <div className="mobile-settings-grid settings-session-grid">
+          <button type="button" className="mobile-settings-card mobile-settings-danger" onClick={onSignOut}>
+            <span className="mobile-settings-icon"><LogOut size={20} /></span>
+            <span><strong>Déconnexion</strong><small>Quitter ton espace Vendeo en toute sécurité.</small></span>
+            <ArrowRight size={16} />
+          </button>
+          {accountMessage ? <p className="settings-inline-message settings-account-error" role="alert">{accountMessage}</p> : null}
+          <button type="button" className="mobile-settings-card mobile-settings-danger settings-delete-account" onClick={() => setShowDeleteAccountModal(true)} disabled={deletingAccount}>
+            <span className="mobile-settings-icon"><Trash2 size={20} /></span>
+            <span><strong>{deletingAccount ? "Suppression du compte…" : "Supprimer mon compte"}</strong><small>Supprimer définitivement ton compte et toutes tes données.</small></span>
+            <ArrowRight size={16} />
+          </button>
         </div>
-      </div>
+      </section>
+      <section className="settings-section settings-section-theme" aria-label="Apparence">
+        <div className="page-top settings-section-head">
+          <div>
+            <span className="eyebrow">Apparence</span>
+            <h2>Thème</h2>
+            <p>Choisis l’apparence de ton espace Vendeo.</p>
+          </div>
+        </div>
+        <div className="theme-choice-grid">
+          <button type="button" className={`theme-choice ${theme === "light" ? "selected" : ""}`} onClick={() => applyTheme("light")} aria-pressed={theme === "light"}>
+            <span className="mobile-settings-icon"><Sun size={20} /></span>
+            <span><strong>Clair</strong><small>L’apparence par défaut de Vendeo.</small></span>
+            {theme === "light" ? <CheckCircle2 size={16} /> : null}
+          </button>
+          <button type="button" className={`theme-choice ${theme === "dark" ? "selected" : ""}`} onClick={() => applyTheme("dark")} aria-pressed={theme === "dark"}>
+            <span className="mobile-settings-icon"><Moon size={20} /></span>
+            <span><strong>Sombre</strong><small>Plus de confort le soir.</small></span>
+            {theme === "dark" ? <CheckCircle2 size={16} /> : null}
+          </button>
+        </div>
+      </section>
+      <section className="settings-section settings-section-legal" aria-label="À propos et légal">
+        <div className="page-top settings-section-head">
+          <div>
+            <span className="eyebrow">À propos & légal</span>
+            <h2>Vendeo</h2>
+            <p>En savoir plus sur la plateforme et tes droits.</p>
+          </div>
+        </div>
+        <div className="mobile-settings-grid">
+          <a className="mobile-settings-card" href="/about" target="_blank" rel="noopener noreferrer">
+            <span className="mobile-settings-icon"><Lightbulb size={20} /></span>
+            <span><strong>À propos</strong><small>Découvrir Vendeo et Digital store global.</small></span>
+            <ArrowRight size={16} />
+          </a>
+          <a className="mobile-settings-card" href="/terms" target="_blank" rel="noopener noreferrer">
+            <span className="mobile-settings-icon"><FileText size={20} /></span>
+            <span><strong>Conditions d’utilisation</strong><small>Les règles d’utilisation de la plateforme.</small></span>
+            <ArrowRight size={16} />
+          </a>
+          <a className="mobile-settings-card" href="/privacy" target="_blank" rel="noopener noreferrer">
+            <span className="mobile-settings-icon"><Eye size={20} /></span>
+            <span><strong>Politique de confidentialité</strong><small>Comment tes données sont traitées.</small></span>
+            <ArrowRight size={16} />
+          </a>
+        </div>
+      </section>
+      <section className="settings-section settings-section-channels" ref={channelsRef} aria-label="Canaux publicitaires">
+        <div className="page-top settings-section-head">
+          <div>
+            <span className="eyebrow">Canaux publicitaires</span>
+            <h2>Comptes connectés</h2>
+            <p>Connecte ou déconnecte les comptes publicitaires que Vendeo utilise pour analyser tes performances.</p>
+          </div>
+        </div>
       {connectionError ? <p className="settings-inline-message settings-account-error" role="alert">{connectionError}</p> : null}
       {CONNECTED_ACCOUNT_PLATFORMS.map((platform) => {
         const allowed = isAdPlatformAllowed(plan, platform.badge);
@@ -1606,8 +1639,9 @@ function MobileSettingsView({ onNavigate, onSignOut, plan }: { onNavigate: (sect
           </div>
         );
       })}
+      </section>
       {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>×</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">Action irréversible</span><h2 id="account-delete-title">Supprimer ton compte ?</h2><p>Ton profil, tes boutiques, tes conversations et tes connexions publicitaires seront définitivement supprimés.</p><div className="account-delete-warning">Cette action ne peut pas être annulée.</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>Annuler</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? "Suppression…" : "Oui, supprimer"}</button></div></section></div> : null}
-    </>
+    </div>
   );
 }
 
