@@ -23,6 +23,6 @@ export async function GET(request: Request) {
   // ads_management is required to create, pause and resume campaigns.
   // pages_show_list / pages_read_engagement / pages_manage_ads are required to let the
   // user pick a Facebook Page and to attach an ad creative to it.
-  url.searchParams.set("scope", "ads_read,ads_management,business_management,pages_show_list,pages_read_engagement,pages_manage_ads");
+  url.searchParams.set("scope", "ads_read,ads_management,ads_mcp_management,business_management,pages_show_list,pages_read_engagement,pages_manage_ads");
   return NextResponse.redirect(url);
 }

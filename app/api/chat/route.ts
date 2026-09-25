@@ -6,6 +6,8 @@ import { getChariowSnapshot, serializeChariowContext } from "@/lib/chariow/analy
 import { cleanAiText } from "@/lib/ai/format";
 import { calculateProfitabilityAggregate } from "@/lib/profitability-aggregates";
 import { buildDiagnosticReports } from "@/lib/meta/diagnostic-server";
+import { decryptSecret } from "@/lib/crypto";
+import { getMetaMcpAdAccounts } from "@/lib/meta/mcp";
 
 const VENDEO_SYSTEM_PROMPT = `Tu es l'analyste business de Vendeo pour les créateurs de produits digitaux francophones.
 
@@ -134,6 +136,33 @@ export async function POST(request: Request) {
         calculateProfitabilityAggregate({ spend: 0, sales: profitabilitySales })
       ).slice(0, 3000)}`;
     }
+  }
+
+  // Contexte Meta Ads lu via le serveur MCP publicités (ads_mcp_management).
+  // Permet à l'assistant IA de voir les comptes publicitaires réels de l'utilisateur.
+  try {
+    const { data: metaAccounts } = await supabase
+      .from("meta_ad_accounts")
+      .select("id,meta_account_id,name,access_token_encrypted")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const metaAccount = metaAccounts?.[0];
+    if (metaAccount?.access_token_encrypted) {
+      const accessToken = decryptSecret(metaAccount.access_token_encrypted);
+      const adAccounts = await getMetaMcpAdAccounts(accessToken);
+      if (adAccounts.length) {
+        const summary = adAccounts.map((account) => ({
+          nom: account.ad_account_name,
+          statut: account.account_status,
+          devise: account.currency ?? "XOF",
+        }));
+        context += `\n\nComptes publicitaires Meta (lus via le serveur MCP) : ${JSON.stringify(summary)}`;
+      }
+    }
+  } catch (metaMcpError) {
+    console.error("Meta MCP context error", metaMcpError instanceof Error ? metaMcpError.message : metaMcpError);
   }
 
   // Imole peut refuser les payloads trop volumineux (400).
