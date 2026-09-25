@@ -1,0 +1,49 @@
+/* Corrige le contraste des cartes ".problem-item" en thème sombre : elles
+   utilisent un fond blanc translucide fixe (pas de variante sombre, contrairement
+   à .step-card juste au-dessus qui en a déjà une), donc le texte "--muted" y
+   devenait presque illisible une fois le thème sombre activé. */
+html[data-theme="dark"] .problem-item { background: rgba(255, 255, 255, 0.04); border-color: var(--line); }
+
+/* Bandeau "profils qui utilisent Vendeo" sous le compteur "150+ créateurs
+   actifs" du hero — bande d'avatars qui défile horizontalement en boucle,
+   même technique que .proof-carousel/.proof-track (liste dupliquée x2 puis
+   translateX(-50%)). */
+.creators-marquee {
+  margin-top: 16px;
+  max-width: 320px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+.creators-track {
+  display: flex;
+  width: max-content;
+  animation: creatorsScroll 16s linear infinite;
+}
+.creators-group {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  padding-right: 8px;
+}
+.creators-avatar {
+  align-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  color: #fff;
+  display: flex;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+@keyframes creatorsScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .creators-track { animation: none; }
+}

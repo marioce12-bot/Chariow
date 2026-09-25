@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ArrowRight, Check, Layers, Rocket, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import "@/app/proof-images.css";
+import "@/app/marketing-fixes.css";
 
 type ProofImage = { src: string; alt: string; height: number };
 
@@ -49,6 +50,46 @@ function AnimatedCounter({ end, duration = 1600, className, prefix = "", suffix 
   }, [end, duration]);
 
   return <span ref={ref} className={className}>{prefix}{count}{suffix}</span>;
+}
+
+// Bandeau d'avatars sous "150+ créateurs actifs" — pas de vraies photos de
+// profil disponibles ici, donc des initiales sur fond dégradé (façon avatar
+// par défaut), dupliquées deux fois pour boucler sans coupure visible.
+const CREATOR_AVATARS: Array<[string, string, string]> = [
+  ["AK", "#8f2afb", "#103ef8"],
+  ["MD", "#103ef8", "#029bfc"],
+  ["FT", "#029bfc", "#22d3ee"],
+  ["KY", "#f97316", "#f43f5e"],
+  ["AM", "#22c55e", "#0ea5e9"],
+  ["IB", "#8f2afb", "#ec4899"],
+  ["ND", "#103ef8", "#6366f1"],
+  ["SK", "#f59e0b", "#f97316"],
+  ["KH", "#ec4899", "#8f2afb"],
+  ["MS", "#0ea5e9", "#103ef8"],
+  ["AD", "#22c55e", "#84cc16"],
+  ["YA", "#f43f5e", "#f97316"],
+];
+
+function CreatorsMarquee() {
+  return (
+    <div className="creators-marquee" aria-hidden="true">
+      <div className="creators-track">
+        {[0, 1].map((copy) => (
+          <div className="creators-group" key={copy}>
+            {CREATOR_AVATARS.map(([initials, from, to], index) => (
+              <span
+                className="creators-avatar"
+                key={`${copy}-${index}`}
+                style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
+              >
+                {initials}
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /** Un seul hook de révélation au scroll, réutilisé pour l'unique moment animé
@@ -96,9 +137,8 @@ export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) 
             </div>
             <div className="hero-stat-row">
               <div className="hero-stat"><strong><AnimatedCounter end={150} suffix="+"/></strong><span>créateurs actifs</span></div>
-              <div className="hero-stat"><strong><AnimatedCounter end={98} suffix="%"/></strong><span>du budget va à ta pub</span></div>
-              <div className="hero-stat"><strong>2</strong><span>plateformes pub reliées</span></div>
             </div>
+            <CreatorsMarquee />
           </div>
 
           <div className="hero-preview">
