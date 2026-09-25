@@ -104,9 +104,9 @@ https://mcp.chariow.com/public
 
 Le parcours principal ouvre Chariow afin que l’utilisateur sélectionne sa boutique et autorise l’accès. Tant que Chariow ne fournit pas à Vendeo une URL OAuth/callback officielle, une saisie manuelle reste disponible en secours pour un token MCP déjà obtenu.
 
-## 5. Configuration du fournisseur IA Imole
+## 5. Configuration des fournisseurs IA (chat : Imole — image & vidéo : fal.ai)
 
-Dans Vercel et dans `.env.local`, ajoute :
+Le chat (`/api/chat`) continue d'utiliser Imole. Dans Vercel et dans `.env.local`, ajoute :
 
 ```env
 IMOLE_API_KEY=ta-cle-api-imole
@@ -121,6 +121,18 @@ La route utilise l’endpoint compatible OpenAI :
 ```text
 POST https://api.imole.app/v1/chat/completions
 ```
+
+La génération d'images et de vidéos du Studio (`/api/ai/poster`, `/api/studio/image*`, `/api/studio/video*`) utilise désormais **fal.ai** à la place d'Imole. Ajoute dans Vercel et dans `.env.local` :
+
+```env
+FAL_API_KEY=ta-cle-api-fal
+FAL_IMAGE_MODEL=fal-ai/nano-banana
+FAL_IMAGE_EDIT_MODEL=fal-ai/nano-banana/edit
+FAL_VIDEO_TEXT_MODEL=fal-ai/ltx-2.3/text-to-video
+FAL_VIDEO_IMAGE_MODEL=fal-ai/ltx-2.3/image-to-video
+```
+
+`FAL_API_KEY` se génère dans le dashboard fal.ai (`https://fal.ai/dashboard/keys`) et ne doit jamais être préfixée par `NEXT_PUBLIC_`. Les quatre variables `FAL_*MODEL` sont optionnelles : sans elles, le code utilise les mêmes valeurs par défaut.
 
 Après toute modification dans Vercel, redéploie l’application pour charger les variables.
 
