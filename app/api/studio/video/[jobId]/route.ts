@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { downloadImoleVideo, getImoleVideoJob } from "@/lib/ai/imole";
+import { downloadFalVideo, getFalVideoJob } from "@/lib/ai/fal";
 import { signedStudioUrl, storeStudioVideo } from "@/lib/studio/media";
 
 // Au-delà de cette attente, on considère la génération comme bloquée côté
-// Imole plutôt que de laisser l'utilisateur face à un statut "processing" qui
+// fal.ai plutôt que de laisser l'utilisateur face à un statut "processing" qui
 // ne bouge plus jamais (cas remonté : plus de 30 minutes sans résultat, y
 // compris après avoir quitté puis rouvert l'application). Une vidéo de 40 s
 // maximum ne devrait jamais légitimement prendre autant de temps.
@@ -14,7 +14,7 @@ const MAX_WAIT_MS = 12 * 60_000;
 // (et leurs variantes probables) pour éviter qu'un statut terminal non
 // reconnu tel quel (ex. "succeeded" au lieu de "completed", "error" au lieu
 // de "failed") ne laisse la génération bloquée indéfiniment en "processing"
-// côté Vendeo alors qu'Imole a déjà terminé ou abandonné le job.
+// côté Vendeo alors que fal.ai a déjà terminé ou abandonné le job.
 const COMPLETED_STATUSES = new Set(["completed", "complete", "succeeded", "success", "finished", "done"]);
 const FAILED_STATUSES = new Set(["failed", "fail", "error", "errored", "cancelled", "canceled", "canceling", "cancelling", "expired", "timeout", "timed_out"]);
 
@@ -30,7 +30,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
   if (!jobId) return NextResponse.json({ error: "Identifiant de tâche manquant." }, { status: 400 });
 
   try {
-    const job = await getImoleVideoJob(jobId);
+    const job = await getFalVideoJob(jobId);
     const rawStatus = normalize(job.status);
     const admin = (await import("@/lib/supabase/admin")).createAdminClient();
     const { data: generation } = await admin.from("studio_generations").select("id,status,storage_path,created_at").eq("user_id", user.id).eq("video_job_id", jobId).maybeSingle();
@@ -40,7 +40,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
 
     if (generation && COMPLETED_STATUSES.has(rawStatus) && !storagePath) {
       try {
-        const video = await downloadImoleVideo(jobId);
+        const video = await downloadFalVideo(jobId);
         storagePath = await storeStudioVideo(video, user.id, generation.id);
         await admin.from("studio_generations").update({ status: "completed", storage_path: storagePath, error: null }).eq("id", generation.id);
         effectiveStatus = "completed";
@@ -67,7 +67,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
     return NextResponse.json({ ...job, status: effectiveStatus, contentUrl: effectiveStatus === "completed" ? contentUrl : null });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur de suivi vidéo.";
-    console.error("Imole studio video status error", message);
+    console.error("fal.ai studio video status error", message);
     return NextResponse.json({ error: "Impossible de suivre la génération vidéo." }, { status: 502 });
   }
 }

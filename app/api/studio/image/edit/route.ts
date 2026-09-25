@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveSubscription } from "@/lib/subscription/access";
-import { generateImoleImage } from "@/lib/ai/imole";
+import { generateFalImage, generateFalImageFromUrl } from "@/lib/ai/fal";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { signedStudioUrl, storeStudioImage } from "@/lib/studio/media";
 
@@ -26,13 +26,18 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt: `${source.prompt}\nModification demandée : ${instruction}`, options, status: "processing", credits_cost: cost, parent_id: source.id }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
-  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image_edit", model_name: "imole-image", provider_amount: Math.round(cost / 1.5), request_id: crypto.randomUUID() });
+  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image_edit", model_name: "fal-image", provider_amount: Math.round(cost / 1.5), request_id: crypto.randomUUID() });
   const reserveResult = reservation.data as { ok?: boolean; balance?: number; transaction_id?: string } | null;
   if (reservation.error || !reserveResult?.ok) { await admin.from("studio_generations").update({ status: "failed", error: reservation.error?.message || "Solde insuffisant" }).eq("id", generation.id); return NextResponse.json({ error: `Solde insuffisant. Cette modification nécessite ${cost} crédits.`, balance: reserveResult?.balance ?? 0 }, { status: reservation.error ? 503 : 402 }); }
   try {
-    // Imọlẹ ne publie pas de contrat d'édition exploitable dans sa documentation publique.
-    // Repli volontaire : régénération avec le prompt d'origine et l'instruction.
-    const imageUrl = await generateImoleImage(`${source.prompt}. Modification demandée : ${instruction}`, "square", { ...options, outputFormat: options.outputFormat as "png" | "jpeg" });
+    // fal.ai expose un vrai modèle d'édition à partir d'une URL d'image (contrairement
+    // à Imole, qui ne documentait aucun contrat d'édition exploitable) : on repart de
+    // l'image déjà générée quand elle est disponible, sinon on retombe sur une
+    // régénération à partir du prompt d'origine et de l'instruction.
+    const sourceImageUrl = source.storage_path ? await signedStudioUrl(source.storage_path).catch(() => null) : null;
+    const imageUrl = sourceImageUrl
+      ? await generateFalImageFromUrl(instruction, sourceImageUrl)
+      : await generateFalImage(`${source.prompt}. Modification demandée : ${instruction}`, "square", { ...options, outputFormat: options.outputFormat as "png" | "jpeg" });
     await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     let storagePath: string | null = null;
     try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat || "png"); } catch (storageError) { console.error("Studio edit storage error", storageError); }

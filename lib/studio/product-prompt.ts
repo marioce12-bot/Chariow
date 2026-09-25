@@ -41,14 +41,14 @@ export function parseStudioProduct(raw: unknown): StudioProductInput | null {
 // précises au prompt vidéo (structure en plans, interdiction de parole, de
 // texte à l'écran, règles de fin de plan, options théme/ambiance/personnage
 // glissées en phrases imposées...). Constat après plusieurs mises en
-// production : le modèle vidéo d'Imole ne suit fiablement aucune de ces
-// consignes, quel que soit leur degré de détail — la qualité perçue ne s'est
-// jamais améliorée, seul le prompt est devenu plus long et plus rigide. À la
-// demande explicite de l'équipe produit, on repart au plus simple : pour la
-// vidéo, on transmet uniquement le sujet (le brief de l'utilisateur, et le
-// strict nécessaire pour savoir de quel produit il s'agit s'il y en a un),
-// sans aucune instruction de réalisation, de voix, de texte ou de mise en
-// scène. Imole gère l'intégralité du résultat lui-même.
+// production avec l'ancien fournisseur (Imole) : le modèle vidéo ne suivait
+// fiablement aucune de ces consignes, quel que soit leur degré de détail — la
+// qualité perçue ne s'est jamais améliorée, seul le prompt est devenu plus
+// long et plus rigide. À la demande explicite de l'équipe produit, on reste
+// au plus simple avec le fournisseur actuel (fal.ai) : pour la vidéo, on
+// transmet uniquement le sujet (le brief de l'utilisateur, et le strict
+// nécessaire pour savoir de quel produit il s'agit s'il y en a un), sans
+// aucune instruction de réalisation, de voix, de texte ou de mise en scène.
 export function buildStudioPrompt(kind: "image" | "video", userPrompt: string, product: StudioProductInput | null, hasReference = false, videoOptions: StudioVideoOptions = {}) {
   const brief = userPrompt.trim();
   if (kind === "video") {

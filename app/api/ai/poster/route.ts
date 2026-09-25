@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { generateImoleImage } from "@/lib/ai/imole";
+import { generateFalImage } from "@/lib/ai/fal";
 
-// Génère une affiche publicitaire (Imole) pour un produit de la boutique connectée.
+// Génère une affiche publicitaire (fal.ai) pour un produit de la boutique connectée.
 // Le client envoie directement les infos produit déjà chargées côté Dashboard
 // (nom, description, prix) plutôt que de les re-récupérer ici : ça évite une
 // dépendance supplémentaire à un store_id / provider Chariow dans cette route.
@@ -41,11 +41,11 @@ export async function POST(request: Request) {
     .join(" ");
 
   try {
-    const imageUrl = await generateImoleImage(prompt, format);
+    const imageUrl = await generateFalImage(prompt, format);
     return NextResponse.json({ imageUrl });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur lors de la génération de l'affiche.";
-    console.error("Imole poster generation error", message);
+    console.error("fal.ai poster generation error", message);
     return NextResponse.json({ error: "Impossible de générer l'affiche pour le moment. Réessaie dans un instant." }, { status: 502 });
   }
 }
