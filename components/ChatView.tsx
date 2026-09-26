@@ -390,9 +390,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
         </div>
 
         <div className="chat-composer">
-          <button type="button" className="chat-launch-campaign" onClick={() => setLaunchOpen(true)}>
-            <Rocket size={15} /> {t("chat.launchCampaign")}
-          </button>
           {attachments.length ? (
             <div className="chat-attachments">
               {attachments.map((attachment, index) => (
