@@ -20,7 +20,8 @@ type ChatProduct = { id: string; name: string; description: string | null; price
 type ChatAnalytics = { kpis: { sales: number } } | null;
 type MetaPerformance = { currency: string; overview: { spend: number; realRoas: number | null } };
 
-type ChatMessageItem = { role: string; content: string; imageUrl?: string };
+type ChatAttachment = { url: string; type: "image" | "video" };
+type ChatMessageItem = { role: string; content: string; imageUrl?: string; attachments?: ChatAttachment[] };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
 
 // Suggestions de démarrage : chacune correspond à une capacité réellement disponible
@@ -129,10 +130,13 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     setSending(true);
     setInput("");
     setQuickPromptsOpen(false);
-    const userMessage: ChatMessageItem = { role: "user", content: message };
-    setMessages((current) => [...current, userMessage]);
     const pendingAttachments = attachments;
     setAttachments([]);
+    // Les pièces jointes sont intégrées au message affiché immédiatement : sans ça,
+    // l'image/vidéo tout juste envoyée disparaissait visuellement de la conversation
+    // dès l'envoi (elle n'était plus ni dans le composeur, ni dans la bulle du message).
+    const userMessage: ChatMessageItem = { role: "user", content: message, attachments: pendingAttachments.length ? pendingAttachments : undefined };
+    setMessages((current) => [...current, userMessage]);
     const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, attachments: pendingAttachments }) });
     const data = await response.json();
     if (response.ok && data.message) {
@@ -333,6 +337,18 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
                     <span className="chat-mini-avatar"><Sparkles size={11} /></span> Vendeo AI
                   </span>
                 )}
+                {message.attachments && message.attachments.length ? (
+                  <div className="chat-attachments">
+                    {message.attachments.map((attachment, attachmentIndex) =>
+                      attachment.type === "image" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img key={attachmentIndex} src={attachment.url} alt="" className="chat-attachment-thumb" />
+                      ) : (
+                        <video key={attachmentIndex} src={attachment.url} className="chat-attachment-thumb" muted playsInline preload="metadata" controls />
+                      )
+                    )}
+                  </div>
+                ) : null}
                 {message.imageUrl ? (
                   <div className="chat-image-message">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
