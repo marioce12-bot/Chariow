@@ -6,7 +6,10 @@ import { requireActiveSubscription } from "@/lib/subscription/access";
 import { generateFalImage, generateFalImageWithReferences, type StudioImageOptions } from "@/lib/ai/fal";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
-import { buildStudioPrompt, parseStudioProduct } from "@/lib/studio/product-prompt";
+import { parseStudioProduct } from "@/lib/studio/product-prompt";
+import { buildCreativeBrief, briefToPrompt } from "@/lib/studio/creative-brief";
+import { selectImageModel, imageTaskForProductType } from "@/lib/studio/creative-models";
+import { inferProductType } from "@/lib/studio/creative-workflows";
 import { fetchReferenceImage } from "@/lib/studio/reference-image";
 
 const imageModes = ["fast", "advanced"] as const;
@@ -42,13 +45,21 @@ export async function POST(request: Request) {
     outputFormat: oneOf(body?.outputFormat, outputFormats, "png"),
   };
   const reference = product?.imageUrl ? await fetchReferenceImage(product.imageUrl) : null;
-  const prompt = buildStudioPrompt("image", userPrompt, product, Boolean(reference));
+  const productType = product ? inferProductType(product.name, product.description) : "autre";
+  const brief = buildCreativeBrief(
+    { name: product?.name ?? "création", description: product?.description, price: product?.price, currency: product?.currency },
+    userPrompt,
+    "image",
+    options.orientation ?? "square",
+  );
+  const prompt = briefToPrompt(brief, "image", Boolean(reference));
+  const model = selectImageModel(imageTaskForProductType(productType, Boolean(reference)));
 
   const cost = imageCreditCost(options.resolution ?? "hd", options.quality ?? "medium");
   // Ecritures + RPC credits : client service-role. RLS n'expose que le SELECT
   // aux utilisateurs, et les fonctions de credits sont revoquees pour `authenticated`.
   const admin = createAdminClient();
-  const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options, status: "processing", credits_cost: cost }).select("id").single();
+  const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options, metadata: { brief, workflow: imageTaskForProductType(productType, Boolean(reference)), model, productType }, status: "processing", credits_cost: cost }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
   const requestId = crypto.randomUUID();
   const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image", model_name: "fal-image", provider_amount: Math.round(cost / 1.5), request_id: requestId });
