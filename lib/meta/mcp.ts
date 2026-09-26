@@ -63,3 +63,67 @@ export async function getMetaMcpPerformanceTrend(accessToken: string, adAccountI
   const client = new MetaAdsMcpClient(accessToken);
   return client.callTool("ads_insights_performance_trend", { ad_account_id: adAccountId });
 }
+
+// Le serveur MCP Meta exige un `client_conversation_id` (20 caractères A-Za-z0-9)
+// identique sur tous les appels d'une même conversation pour les tracer ensemble.
+function generateClientConversationId(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let id = "";
+  for (let i = 0; i < 20; i++) id += chars[Math.floor(Math.random() * chars.length)];
+  return id;
+}
+
+export type CreateCampaignInput = {
+  adAccountId: string;
+  name: string;
+  objective: string; // OUTCOME_SALES, OUTCOME_TRAFFIC, OUTCOME_ENGAGEMENT, OUTCOME_LEADS, OUTCOME_AWARENESS, OUTCOME_APP_PROMOTION
+  dailyBudgetCents?: number;
+  lifetimeBudgetCents?: number;
+  buyingType?: "AUCTION" | "RESERVED";
+};
+
+export async function createMetaCampaign(accessToken: string, input: CreateCampaignInput) {
+  const client = new MetaAdsMcpClient(accessToken);
+  return client.callTool("ads_create_campaign", {
+    ad_account_id: input.adAccountId,
+    campaign_name: input.name,
+    objective: input.objective,
+    buying_type: input.buyingType ?? "AUCTION",
+    ...(input.dailyBudgetCents ? { campaign_daily_budget: input.dailyBudgetCents } : {}),
+    ...(input.lifetimeBudgetCents ? { campaign_lifetime_budget: input.lifetimeBudgetCents } : {}),
+    client_conversation_id: generateClientConversationId(),
+  });
+}
+
+export type CreateCreativeInput = {
+  adAccountId: string;
+  pageId: string;
+  imageUrl?: string;
+  videoId?: string;
+  message?: string;
+  headline?: string;
+  description?: string;
+  linkUrl?: string;
+  displayLink?: string;
+  callToActionType?: string;
+  name?: string;
+};
+
+export async function createMetaCreative(accessToken: string, input: CreateCreativeInput) {
+  const client = new MetaAdsMcpClient(accessToken);
+  const args: Record<string, unknown> = {
+    ad_account_id: input.adAccountId,
+    page_id: input.pageId,
+    client_conversation_id: generateClientConversationId(),
+  };
+  if (input.imageUrl) args.image_url = input.imageUrl;
+  if (input.videoId) args.video_id = input.videoId;
+  if (input.message) args.message = input.message;
+  if (input.headline) args.headline = input.headline;
+  if (input.description) args.description = input.description;
+  if (input.linkUrl) args.link_url = input.linkUrl;
+  if (input.displayLink) args.display_link = input.displayLink;
+  if (input.callToActionType) args.call_to_action_type = input.callToActionType;
+  if (input.name) args.name = input.name;
+  return client.callTool("ads_create_creative", args);
+}
