@@ -187,21 +187,20 @@ export function briefToPrompt(brief: CreativeBrief, mediaType: "image" | "video"
   const parts: string[] = [];
 
   if (mediaType === "image") {
-    parts.push(`Affiche publicitaire professionnelle pour ${brief.productName}.`);
+    parts.push(`Visuel publicitaire professionnel pour ${brief.productName}, sans aucun texte.`);
     parts.push(`Objectif : ${brief.objective}.`);
     parts.push(`Style : ${brief.style}, ton ${brief.tone}.`);
     parts.push(`Scène : ${brief.scene}.`);
     parts.push(`Environnement : ${brief.environment}. Éclairage : ${brief.lighting}.`);
     parts.push(`Cadrage : ${brief.camera}.`);
-    parts.push(`Composition : ${brief.composition}.`);
-    if (brief.price) parts.push(`Le prix exact à faire apparaître est : ${brief.price}.`);
-    parts.push(`Appel à l'action : ${brief.cta}.`);
+    parts.push(`Composition : produit bien mis en valeur, espace négatif réservé pour du texte ajouté ensuite.`);
+    parts.push("N'écris AUCUN texte, aucun mot, aucune lettre, aucun chiffre, aucun logo, aucun slogan dans l'image.");
   } else {
     parts.push(`Vidéo publicitaire pour ${brief.productName}.`);
     parts.push(`Objectif : ${brief.objective}.`);
     parts.push(`Scène : ${brief.scene}. ${brief.animationDirection ?? ""}.`);
     parts.push(`Lumière : ${brief.lighting}.`);
-    parts.push(`Pas de texte à l'écran, pas de voix off, pas de logo inventé.`);
+    parts.push("Pas de texte à l'écran, pas de logo inventé.");
   }
 
   if (hasReference) {
