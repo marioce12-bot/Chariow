@@ -123,6 +123,18 @@ export const translations: Record<Locale, Dict> = {
       trialEndedMessage: "Ton essai gratuit de 15 jours est terminé. Active ton abonnement pour continuer.",
       error: "Une erreur est survenue.", send: "Envoyer", sending: "Envoi en cours",
     },
+    overview: {
+      greeting: "Bonjour, {name}", subtitle: "Voici la performance de tes publicités et de ta boutique.",
+      period: "Période", today: "Aujourd'hui", yesterday: "Hier", last7: "7 derniers jours", last30: "30 derniers jours",
+      thisMonth: "Ce mois-ci", lastMonth: "Mois dernier", custom: "Personnalisé",
+      revenue: "Chiffre d'affaires", revenueHelp: "Revenu commercial remonté par Chariow.",
+      spend: "Dépenses pub", spendHelp: "Dépenses synchronisées depuis Meta Insights.",
+      sales: "Ventes", salesHelp: "Paiements confirmés par Chariow.",
+      roas: "ROAS (réel)", roasHelp: "Revenu Chariow attribué divisé par les dépenses publicitaires.",
+      unavailable: "Non disponible",
+      trend: "Tendance", trendTitle: "Évolution du chiffre d'affaires", trendSubtitle: "Ventes des 7 derniers jours, par produit.",
+      noData: "Données indisponibles", noDataText: "Connecte ta boutique Chariow pour afficher l'évolution.",
+    },
   },
   en: {
     landing: {
@@ -239,6 +251,18 @@ export const translations: Record<Locale, Dict> = {
       placeholder: "Ask your question...", placeholderBlocked: "Activate your subscription to continue",
       trialEndedMessage: "Your 15-day free trial has ended. Activate your subscription to continue.",
       error: "Something went wrong.", send: "Send", sending: "Sending",
+    },
+    overview: {
+      greeting: "Hello, {name}", subtitle: "Here's the performance of your ads and your store.",
+      period: "Period", today: "Today", yesterday: "Yesterday", last7: "Last 7 days", last30: "Last 30 days",
+      thisMonth: "This month", lastMonth: "Last month", custom: "Custom",
+      revenue: "Revenue", revenueHelp: "Business revenue reported by Chariow.",
+      spend: "Ad spend", spendHelp: "Spend synced from Meta Insights.",
+      sales: "Sales", salesHelp: "Payments confirmed by Chariow.",
+      roas: "ROAS (real)", roasHelp: "Attributed Chariow revenue divided by ad spend.",
+      unavailable: "Unavailable",
+      trend: "Trend", trendTitle: "Revenue evolution", trendSubtitle: "Sales over the last 7 days, by product.",
+      noData: "Data unavailable", noDataText: "Connect your Chariow store to display the evolution.",
     },
   },
 };

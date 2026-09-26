@@ -356,7 +356,7 @@ export function Dashboard() {
             <Image className="brand-logo" src="/vendeo-logo-light.svg" alt="Vendeo" width={150} height={40} />
           </Link>
           <div className="app-user">
-            <span className="app-greeting">Bonjour, {userName}</span>
+            <span className="app-greeting">{t("overview.greeting", { name: userName })}</span>
              <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Mes boutiques", "Abonnement", "Paramètres", "Comptes publicitaires"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
@@ -829,6 +829,7 @@ function Overview({
   onLaunchAd: () => void;
   campaignsVersion: number;
 }) {
+  const { t } = useI18n();
   const openAI = (prompt: string) => {
     sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt);
     onGoToAI();
@@ -976,7 +977,7 @@ function Overview({
 
   return (
     <div className="dashboard-home">
-      <div className="home-greeting"><h1>Bonjour, {greeting}</h1><p>Voici la performance de tes publicités et de ta boutique.</p></div>
+      <div className="home-greeting"><h1>{t("overview.greeting", { name: greeting })}</h1><p>{t("overview.subtitle")}</p></div>
 
       <div className="home-header">
         <div className="home-context"><span className="eyebrow">Vue d'ensemble</span></div>
@@ -993,9 +994,9 @@ function Overview({
             <span className={metaConnected ? "status-positive" : "status-info"}>{metaConnected ? "Meta Ads connectée" : "Meta Ads non connectée"}</span>
           </div>
           <div className="home-period">
-            <span>Période</span>
+            <span>{t("overview.period")}</span>
             <select aria-label="Période" value={period} onChange={(event) => setPeriod(event.target.value)}>
-              <option>Aujourd'hui</option><option>Hier</option><option>7 derniers jours</option><option>30 derniers jours</option><option>Ce mois-ci</option><option>Mois dernier</option><option>Personnalisé</option>
+              <option>{t("overview.today")}</option><option>{t("overview.yesterday")}</option><option>{t("overview.last7")}</option><option>{t("overview.last30")}</option><option>{t("overview.thisMonth")}</option><option>{t("overview.lastMonth")}</option><option>{t("overview.custom")}</option>
             </select>
           </div>
           {period === "Personnalisé" ? <>
@@ -1019,10 +1020,10 @@ function Overview({
       <section className="home-ai-state app-card"><div><span className="eyebrow">Analyse IA</span><h2>État de votre activité</h2><p>{statusText}</p></div><Brain size={24} /></section>
 
       <section className="home-kpis">
-        <HomeKpi label="Chiffre d'affaires" value={connected ? format(revenue) : "Non disponible"} tone={revenue > 0 ? "positive" : "neutral"} help="Revenu commercial remonté par Chariow." />
-        <HomeKpi label="Dépenses pub" value={metaConnected ? format(spend) : "Non disponible"} tone="info" help="Dépenses synchronisées depuis Meta Insights." />
-        <HomeKpi label="Ventes" value={connected ? String(sales) : "Non disponible"} tone={sales > 0 ? "positive" : "neutral"} help="Paiements confirmés par Chariow." />
-        <HomeKpi label="ROAS (réel)" value={roas === null ? "Non disponible" : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help="Revenu Chariow attribué divisé par les dépenses publicitaires." />
+        <HomeKpi label={t("overview.revenue")} value={connected ? format(revenue) : t("overview.unavailable")} tone={revenue > 0 ? "positive" : "neutral"} help={t("overview.revenueHelp")} />
+        <HomeKpi label={t("overview.spend")} value={metaConnected ? format(spend) : t("overview.unavailable")} tone="info" help={t("overview.spendHelp")} />
+        <HomeKpi label={t("overview.sales")} value={connected ? String(sales) : t("overview.unavailable")} tone={sales > 0 ? "positive" : "neutral"} help={t("overview.salesHelp")} />
+        <HomeKpi label={t("overview.roas")} value={roas === null ? t("overview.unavailable") : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help={t("overview.roasHelp")} />
       </section>
 
       <div className="home-primary-grid">
@@ -1064,8 +1065,8 @@ function Overview({
       </section>
 
       <section className="home-chart app-card">
-        <div className="card-head"><div><span className="eyebrow">Tendance</span><h2>Évolution du chiffre d'affaires</h2><p>Ventes des 7 derniers jours, par produit.</p></div><LineChart size={19} /></div>
-        {!connected ? <EmptyState title="Données indisponibles" text="Connecte ta boutique Chariow pour afficher l'évolution." /> : <RealTrendChart sales={analytics?.sales ?? []} products={products} currency={currency} />}
+        <div className="card-head"><div><span className="eyebrow">{t("overview.trend")}</span><h2>{t("overview.trendTitle")}</h2><p>{t("overview.trendSubtitle")}</p></div><LineChart size={19} /></div>
+        {!connected ? <EmptyState title={t("overview.noData")} text={t("overview.noDataText")} /> : <RealTrendChart sales={analytics?.sales ?? []} products={products} currency={currency} />}
       </section>
 
       <section className="home-activity app-card">
