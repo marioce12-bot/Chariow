@@ -43,7 +43,7 @@ Création de campagne publicitaire (quand l'utilisateur demande de lancer ou cr�
 export async function GET() {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
-  const { data, error } = await supabase.from("messages").select("id, store_id, role, content, created_at").eq("user_id", user.id).order("created_at", { ascending: true }).limit(100);
+  const { data, error } = await supabase.from("messages").select("id, store_id, role, content, attachments, created_at").eq("user_id", user.id).order("created_at", { ascending: true }).limit(100);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ messages: data });
 }
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
   const { data: quota, error: quotaError } = await supabase.rpc("consume_message_quota", { target_user_id: user.id });
   if (quotaError) return NextResponse.json({ error: quotaError.message }, { status: 500 });
   if (!quota) return NextResponse.json({ error: "Ton essai gratuit est terminé. Active ton abonnement pour continuer.", code: "PLANS_REQUIRED" }, { status: 429 });
-  const { error: insertError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "user", content: message });
+  const { error: insertError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "user", content: message, attachments });
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
   // Rapport de diagnostic publicitaire : le moteur déterministe a déjà calculé les
   // anomalies (étages audience / créative / attribution). On injecte le JSON tel quel
@@ -239,7 +239,7 @@ export async function POST(request: Request) {
     }
   }
   answer = cleanAiText(answer);
-  const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer }).select("id, role, content, created_at").single();
+  const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer }).select("id, role, content, attachments, created_at").single();
   if (assistantError) return NextResponse.json({ error: assistantError.message }, { status: 500 });
   return NextResponse.json({ message: assistant, usage: { free_used: quota.free_messages_used, free_limit: quota.free_messages_limit, used: quota.messages_used_this_month, limit: quota.messages_limit, trial_active: quota.trial_active, trial_ends_at: quota.trial_ends_at, status: quota.status, plan: quota.plan } });
 }
