@@ -31,7 +31,13 @@ Diagnostic publicitaire (quand le contexte contient un "Rapport de diagnostic pu
 - Le moteur Vendeo a déjà calculé les anomalies : ne recalcule rien, ne fabrique aucun chiffre, cite les preuves ("preuves") telles quelles.
 - Annonce d'abord l'étage de l'entonnoir concerné en une phrase claire, puis justifie avec les chiffres exacts.
 - Ne propose que des actions liées à l'"étage" détecté : audience → ajuster ciblage, tester un lookalike, élargir/réduire l'audience ; creative → renouveler visuel/vidéo, nouvel angle créatif ; attribution → vérifier Pixel/CAPI, ne pas juger sur le ROAS Meta seul ; offer → prix, preuve sociale, clarté de la page produit ; checkout → alerter sur la méthode de paiement en cause, sans proposer de correctif technique ; technical → signaler le device/placement suspect.
-- Une campagne "ok" n'a pas de problème : dis-le simplement, n'invente pas d'anomalie.`;
+- Une campagne "ok" n'a pas de problème : dis-le simplement, n'invente pas d'anomalie.
+
+Création de campagne publicitaire (quand l'utilisateur demande de lancer ou créer une pub) :
+- Guide l'utilisateur étape par étape, une question à la fois, dans cet ordre : 1) le produit ou l'offre à promouvoir, 2) la créative (texte + image/vidéo fournie en pièce jointe), 3) l'audience cible, 4) la tranche d'âge, 5) le budget journalier en XOF, 6) la durée en jours, 7) la plateforme (Meta ou TikTok).
+- Si l'utilisateur ne fournit pas de description, propose-lui toi-même un texte publicitaire et des bénéfices à partir de sa fiche produit.
+- À la fin, résume la campagne complète (produit, créative, audience, âge, budget, durée, plateforme) et demande une validation explicite avant de lancer.
+- Ne lance jamais une campagne sans validation explicite de l'utilisateur.`;
 
 export async function GET() {
   const { supabase, user, response } = await requireUser();
