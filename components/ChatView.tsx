@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowRight, Brain, Clock3, Copy, Lightbulb, Megaphone, Package, ShieldAlert, Sparkles, Target, TrendingUp, Wand2, X } from "lucide-react";
+import { Activity, ArrowRight, Brain, Clock3, Copy, Lightbulb, Megaphone, Package, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -45,27 +45,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     { icon: <Package size={14} />, label: t("chat.qBest"), prompt: t("chat.qBestPrompt") },
     { icon: <Activity size={14} />, label: t("chat.qSummary"), prompt: t("chat.qSummaryPrompt") },
     { icon: <Target size={14} />, label: t("chat.qNext"), prompt: t("chat.qNextPrompt") },
-    { icon: <Wand2 size={14} />, label: t("chat.qPoster"), action: "poster" },
   ];
-
-  const POSTER_FORMATS = [
-    { id: "square" as const, label: t("chat.fmtPost"), hint: t("chat.fmtPostHint") },
-    { id: "story" as const, label: t("chat.fmtStory"), hint: t("chat.fmtStoryHint") },
-    { id: "banner" as const, label: t("chat.fmtBanner"), hint: t("chat.fmtBannerHint") },
-  ];
-
-  // Générateur d'affiches (Imole) : choix du produit et du format, puis génération
-  // d'un visuel publicitaire directement dans la conversation.
-  const [posterOpen, setPosterOpen] = useState(false);
-  const [posterProductId, setPosterProductId] = useState<string>("");
-  const [posterFormat, setPosterFormat] = useState<"square" | "story" | "banner">("square");
-  const [posterExtra, setPosterExtra] = useState("");
-  const [posterGenerating, setPosterGenerating] = useState(false);
-  const [posterError, setPosterError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!posterProductId && products.length) setPosterProductId(products[0].id);
-  }, [products, posterProductId]);
 
   // Bande d'indicateurs (ventes / dépenses pub / ROAS) affichée en permanence
   // sous l'en-tête, pour donner du contexte sans avoir à poser de question.
@@ -171,42 +151,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     setSending(false);
   }
 
-  async function generatePoster() {
-    const product = products.find((item) => item.id === posterProductId);
-    if (!product) {
-      setPosterError(t("chat.posterSelect"));
-      return;
-    }
-    setPosterGenerating(true);
-    setPosterError(null);
-    try {
-      const response = await fetch("/api/ai/poster", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productName: product.name,
-          description: product.description,
-          price: product.price,
-          currency: product.currency,
-          format: posterFormat,
-          extra: posterExtra,
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.imageUrl) {
-        setPosterError(data.error ?? t("chat.posterError"));
-        return;
-      }
-      setMessages((current) => [...current, { role: "assistant", content: t("chat.posterDone", { name: product.name }), imageUrl: data.imageUrl }]);
-      setPosterOpen(false);
-      setPosterExtra("");
-    } catch {
-      setPosterError(t("chat.posterContact"));
-    } finally {
-      setPosterGenerating(false);
-    }
-  }
-
   function copyMessage(index: number, content: string) {
     if (typeof navigator === "undefined" || !navigator.clipboard) return;
     navigator.clipboard
@@ -219,10 +163,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
   }
 
   function handleQuickPrompt(item: QuickPrompt) {
-    if (item.action === "poster") {
-      setPosterOpen(true);
-      return;
-    }
     if (item.prompt) void send(item.prompt);
   }
 
@@ -372,68 +312,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
           <div ref={setBottomNode} />
         </div>
 
-        {posterOpen ? (
-          <div className="poster-generator">
-            <div className="poster-generator-head">
-              <strong><Wand2 size={15} /> {t("chat.posterTitle")}</strong>
-              <button type="button" className="poster-close" aria-label="Fermer" onClick={() => setPosterOpen(false)}>
-                <X size={16} />
-              </button>
-            </div>
-            {!products.length ? (
-              <p className="hint-line">{t("chat.posterNoProduct")}</p>
-            ) : (
-              <>
-                <div className="poster-body">
-                  <div className="poster-fields">
-                    <label className="campaign-field">
-                      {t("chat.posterProduct")}
-                      <select value={posterProductId} onChange={(event) => setPosterProductId(event.target.value)}>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="poster-format-grid">
-                      {POSTER_FORMATS.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className={`poster-format-btn ${posterFormat === item.id ? "selected" : ""}`}
-                          onClick={() => setPosterFormat(item.id)}
-                        >
-                          <strong>{item.label}</strong>
-                          <small>{item.hint}</small>
-                        </button>
-                      ))}
-                    </div>
-                    <label className="campaign-field">
-                      {t("chat.posterMessage")}
-                      <textarea rows={2} placeholder={t("chat.posterMessagePh")} value={posterExtra} onChange={(event) => setPosterExtra(event.target.value)} />
-                    </label>
-                  </div>
-                  <div className="poster-preview">
-                    {products.find((product) => product.id === posterProductId)?.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={products.find((product) => product.id === posterProductId)?.image ?? undefined} alt="" />
-                    ) : (
-                      <span>{t("chat.posterPreview")}</span>
-                    )}
-                  </div>
-                </div>
-                {posterError ? <p className="store-error" role="alert">{posterError}</p> : null}
-                <button type="button" className="btn btn-dark" style={{ width: "100%" }} disabled={posterGenerating} onClick={() => void generatePoster()}>
-                  {posterGenerating ? t("chat.posterGenerating") : t("chat.posterGenerate")}
-                </button>
-              </>
-            )}
-          </div>
-        ) : null}
-
         <div className="chat-composer">
-          {(quickPromptsOpen || !hasConversation) && !plansRequired && !posterOpen && (
+          {(quickPromptsOpen || !hasConversation) && !plansRequired && (
             <div className="chat-quickstart">
               {AI_QUICK_PROMPTS.map((item) => (
                 <button
@@ -455,15 +335,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
             }}
             className="chat-input-form"
           >
-            <button
-              type="button"
-              className={`chat-poster-toggle${posterOpen ? " active" : ""}`}
-              aria-label="Générer une affiche"
-              title="Générer une affiche"
-              onClick={() => setPosterOpen((open) => !open)}
-            >
-              <Wand2 size={16} />
-            </button>
             {hasConversation && !plansRequired && (
               <button
                 type="button"
