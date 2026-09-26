@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
-import { AdBalanceCard } from "./AdBalanceCard";
 import type { Platform } from "./wizard/types";
 
 type AdCampaign = {
@@ -61,7 +60,6 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   const [saving, setSaving] = useState(false);
   // Incrémenté après chaque chargement des campagnes : le solde (paiement, lancement, rejet…)
   // est ainsi rafraîchi en même temps que les statuts.
-  const [balanceVersion, setBalanceVersion] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,7 +69,6 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
       setCampaigns(res.ok && Array.isArray(data?.campaigns) ? data.campaigns : []);
     } finally {
       setLoading(false);
-      setBalanceVersion((value) => value + 1);
     }
   }, []);
 
@@ -96,7 +93,6 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
 
   return (
     <>
-    <AdBalanceCard refreshToken={balanceVersion} />
     <section className="app-card ad-campaigns-list">
       <div className="card-head">
         <div><h2>Campagnes</h2></div>
