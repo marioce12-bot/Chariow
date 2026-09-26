@@ -8,7 +8,7 @@ import { isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoA
 const DEFAULT_IMAGE_MODEL = "fal-ai/flux/schnell";
 const DEFAULT_IMAGE_EDIT_MODEL = "openai/gpt-image-2/edit";
 const DEFAULT_VIDEO_TEXT_MODEL = "bytedance/seedance-2.5/us/text-to-video";
-const DEFAULT_VIDEO_IMAGE_MODEL = "bytedance/seedance-2.5/us/image-to-video";
+const DEFAULT_VIDEO_IMAGE_MODEL = "bytedance/seedance-2.5/reference-to-video";
 
 let configured = false;
 function ensureConfigured() {
@@ -144,12 +144,11 @@ export async function createFalVideo(prompt: string, options: StudioVideoGenerat
   const useImage = Boolean(options.referenceUrl);
   const model = useImage ? getAiVideoImageModel() : getAiVideoTextModel();
 
-  // Seedance 2.5 (image-to-video) utilise l'image d'entrée comme PREMIER FRAME
-  // (point de départ). Quand une image produit est fournie, elle est le premier
-  // frame ; le modèle anime ensuite caméra, lumière et environnement.
+  // Seedance 2.5 reference-to-video : l'image produit sert de RÉFÉRENCE pour
+  // verrouiller l'identité (produit, couleurs, style) sur toute la vidéo.
   // Seedance 2.5 attend `duration` comme chaîne "4".."30" ou "auto" (sans suffixe "s").
   const input: Record<string, unknown> = { prompt, duration: String(duration), resolution, aspect_ratio: aspectRatio };
-  if (useImage) input.image_url = options.referenceUrl;
+  if (useImage) input.reference_image_urls = [options.referenceUrl];
 
   try {
     const { request_id } = await fal.queue.submit(model, { input });
