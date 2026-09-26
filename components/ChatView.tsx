@@ -19,11 +19,18 @@ type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
 // Sous-ensembles des types de Dashboard.tsx : uniquement les champs lus ici.
 type ChatProduct = { id: string; name: string; description: string | null; price: number | string | null; currency: string | null; image: string | null };
 type ChatAnalytics = { kpis: { sales: number } } | null;
-type MetaPerformance = { currency: string; overview: { spend: number; realRoas: number | null } };
 
 type ChatAttachment = { url: string; type: "image" | "video" };
 type ChatMessageItem = { role: string; content: string; imageUrl?: string; attachments?: ChatAttachment[] };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
+
+const OBJECTIVE_LABELS: Record<string, string> = {
+  OUTCOME_SALES: "Ventes / conversions",
+  OUTCOME_TRAFFIC: "Trafic",
+  OUTCOME_ENGAGEMENT: "Engagement",
+  OUTCOME_LEADS: "Leads",
+  OUTCOME_AWARENESS: "Notoriété",
+};
 
 // Payload structuré que l'IA renvoie juste après la balise [[LANCE_CAMPAGNE]], une fois
 // que l'utilisateur a validé le lancement dans le chat. Sert à pré-remplir le formulaire
@@ -82,17 +89,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [launchOpen, setLaunchOpen] = useState(false);
-  const [launchName, setLaunchName] = useState("");
-  const [launchObjective, setLaunchObjective] = useState("OUTCOME_SALES");
-  const [launchBudget, setLaunchBudget] = useState("");
-  const [launchCountries, setLaunchCountries] = useState("");
-  const [launchAgeMin, setLaunchAgeMin] = useState("18");
-  const [launchAgeMax, setLaunchAgeMax] = useState("65");
-  const [launchMessage, setLaunchMessage] = useState("");
-  const [launchLink, setLaunchLink] = useState("");
+  const [launchPayload, setLaunchPayload] = useState<LaunchPayload | null>(null);
+  const [launchImageUrl, setLaunchImageUrl] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
-  const [launchDone, setLaunchDone] = useState(false);
 
   const AI_QUICK_PROMPTS: QuickPrompt[] = [
     { icon: <Megaphone size={14} />, label: t("chat.qStop"), prompt: t("chat.qStopPrompt") },
@@ -101,27 +101,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     { icon: <Activity size={14} />, label: t("chat.qSummary"), prompt: t("chat.qSummaryPrompt") },
     { icon: <Target size={14} />, label: t("chat.qNext"), prompt: t("chat.qNextPrompt") },
   ];
-
-  // Bande d'indicateurs (ventes / dépenses pub / ROAS) affichée en permanence
-  // sous l'en-tête, pour donner du contexte sans avoir à poser de question.
-  const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const accountsResponse = await fetch("/api/integrations/meta/accounts");
-      const accountsData = accountsResponse.ok ? await accountsResponse.json() : { accounts: [] };
-      const accounts = accountsData.accounts ?? [];
-      if (!accounts[0]) { if (!cancelled) setMetaPerformance(null); return; }
-      const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accounts[0].id)}`);
-      if (metrics.ok && !cancelled) setMetaPerformance(await metrics.json());
-    })().catch(() => undefined);
-    return () => { cancelled = true; };
-  }, []);
-  const insightCurrency = products[0]?.currency ?? metaPerformance?.currency ?? "XOF";
-  const insightFormat = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} ${insightCurrency}`;
-  const insightSales = analytics?.kpis.sales ?? 0;
-  const insightSpend = metaPerformance?.overview.spend ?? null;
-  const insightRoas = metaPerformance?.overview.realRoas ?? null;
 
   const [bottomNode, setBottomNode] = useState<HTMLDivElement | null>(null);
 
@@ -232,35 +211,22 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     }
   }
 
-  // Pré-remplit le formulaire de lancement à partir de ce que l'IA a déjà collecté
-  // dans la conversation, puis ouvre la popup. Avant ce correctif, la popup s'ouvrait
-  // toujours vide : l'utilisateur devait retaper tout ce qu'il venait de valider dans
-  // le chat (nom, texte, audience, budget...), ce qui donnait l'impression que l'IA
-  // "redemandait les mêmes questions".
-  function openLaunchModal(payload: LaunchPayload | null, fallbackImageUrl?: string) {
-    if (payload) {
-      if (payload.name) setLaunchName(payload.name);
-      if (payload.objective) setLaunchObjective(payload.objective);
-      if (payload.dailyBudget != null) setLaunchBudget(String(payload.dailyBudget));
-      if (payload.countries && payload.countries.length) setLaunchCountries(payload.countries.join(", "));
-      if (payload.ageMin != null) setLaunchAgeMin(String(payload.ageMin));
-      if (payload.ageMax != null) setLaunchAgeMax(String(payload.ageMax));
-      if (payload.message) setLaunchMessage(payload.message);
-      if (payload.linkUrl) setLaunchLink(payload.linkUrl);
-    }
-    if (fallbackImageUrl && !attachments.some((a) => a.url === fallbackImageUrl)) {
-      setAttachments((current) => (current.some((a) => a.url === fallbackImageUrl) ? current : [...current, { url: fallbackImageUrl, type: "image" }]));
-    }
+  // Ouvre une popup de confirmation au lieu du formulaire complet : l'IA a déjà
+  // collecté toutes les infos dans la conversation, on ne fait que les relire et
+  // demander « confirmer et lancer » avant d'envoyer directement sur Meta.
+  function openLaunchConfirm(payload: LaunchPayload | null, fallbackImageUrl?: string) {
+    setLaunchPayload(payload);
+    setLaunchImageUrl(fallbackImageUrl ?? null);
     setLaunchError(null);
     setLaunchOpen(true);
   }
 
-  async function launchCampaign(event: React.FormEvent) {
-    event.preventDefault();
-    if (!launchName.trim() || !launchMessage.trim()) {
-      setLaunchError("Renseigne au moins le nom et le texte de la créative.");
+  async function confirmLaunch() {
+    if (!launchPayload?.name || !launchPayload.message) {
+      setLaunchError("Il manque le nom ou le texte de la créative pour lancer la campagne.");
       return;
     }
+    const payload = launchPayload;
     setLaunching(true);
     setLaunchError(null);
     try {
@@ -268,15 +234,16 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: launchName.trim(),
-          objective: launchObjective,
-          dailyBudget: Number(launchBudget) || undefined,
-          countries: launchCountries.split(",").map((c) => c.trim()).filter(Boolean),
-          ageMin: Number(launchAgeMin) || undefined,
-          ageMax: Number(launchAgeMax) || undefined,
-          message: launchMessage.trim(),
-          linkUrl: launchLink.trim() || undefined,
-          imageUrl: attachments.find((a) => a.type === "image")?.url,
+          name: payload.name,
+          objective: payload.objective,
+          dailyBudget: payload.dailyBudget,
+          countries: payload.countries,
+          ageMin: payload.ageMin,
+          ageMax: payload.ageMax,
+          message: payload.message,
+          headline: payload.headline,
+          linkUrl: payload.linkUrl,
+          imageUrl: launchImageUrl ?? undefined,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -284,8 +251,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
         setLaunchError(data.error ?? "Impossible de lancer la campagne.");
         return;
       }
-      setLaunchDone(true);
-      setMessages((current) => [...current, { role: "assistant", content: `✅ Campagne « ${launchName.trim()} » envoyée à Meta. Elle apparaît dans la page Pub.` }]);
+      setMessages((current) => [...current, { role: "assistant", content: `✅ Campagne « ${payload.name} » lancée sur Meta. Elle apparaît dans la page Pub.` }]);
       setLaunchOpen(false);
     } catch {
       setLaunchError("Erreur de connexion au lancement.");
@@ -358,12 +324,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
           </div>
         )}
 
-        <div className="chat-insights">
-          <div className="chat-insight"><small>{t("chat.sales")}</small><strong>{insightSales}</strong></div>
-          <div className="chat-insight"><small>{t("chat.spend")}</small><strong>{insightSpend !== null ? insightFormat(insightSpend) : "—"}</strong></div>
-          <div className="chat-insight"><small>{t("chat.roas")}</small><strong>{insightRoas !== null ? `${insightRoas.toFixed(2)}x` : "—"}</strong></div>
-        </div>
-
         <div className="chat-messages">
           {!hasConversation && (
             <div className="chat-empty-hero">
@@ -431,7 +391,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
                   </div>
                 ) : null}
                 {hasLaunchAction ? (
-                  <button type="button" className="btn btn-dark chat-launch-action" onClick={() => openLaunchModal(launchPayload, lastUserImage)}>
+                  <button type="button" className="btn btn-dark chat-launch-action" onClick={() => openLaunchConfirm(launchPayload, lastUserImage)}>
                     <Rocket size={15} /> {t("chat.launchNow")}
                   </button>
                 ) : null}
@@ -594,21 +554,26 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
 
       {launchOpen ? (
         <div className="chat-launch-modal-backdrop" onClick={() => !launching && setLaunchOpen(false)}>
-          <form className="chat-launch-modal" onClick={(event) => event.stopPropagation()} onSubmit={launchCampaign}>
+          <div className="chat-launch-modal" onClick={(event) => event.stopPropagation()}>
             <div className="chat-launch-head">
               <strong><Rocket size={16} /> {t("chat.launchCampaign")}</strong>
               <button type="button" onClick={() => setLaunchOpen(false)} aria-label="Fermer">×</button>
             </div>
-            <label className="campaign-field">Nom de la campagne<input value={launchName} onChange={(event) => setLaunchName(event.target.value)} required /></label>
-            <label className="campaign-field">Objectif<select value={launchObjective} onChange={(event) => setLaunchObjective(event.target.value)}><option value="OUTCOME_SALES">Ventes / conversions</option><option value="OUTCOME_TRAFFIC">Trafic</option><option value="OUTCOME_ENGAGEMENT">Engagement</option><option value="OUTCOME_LEADS">Leads</option><option value="OUTCOME_AWARENESS">Notoriété</option></select></label>
-            <label className="campaign-field">Budget journalier (XOF)<input type="number" min="1" value={launchBudget} onChange={(event) => setLaunchBudget(event.target.value)} /></label>
-            <label className="campaign-field">Pays (séparés par des virgules)<input placeholder="BJ, CI, SN" value={launchCountries} onChange={(event) => setLaunchCountries(event.target.value)} /></label>
-            <div style={{ display: "flex", gap: 8 }}><label className="campaign-field">Âge min<input type="number" min="13" max="65" value={launchAgeMin} onChange={(event) => setLaunchAgeMin(event.target.value)} /></label><label className="campaign-field">Âge max<input type="number" min="13" max="65" value={launchAgeMax} onChange={(event) => setLaunchAgeMax(event.target.value)} /></label></div>
-            <label className="campaign-field">Texte de la créative<textarea rows={3} value={launchMessage} onChange={(event) => setLaunchMessage(event.target.value)} required /></label>
-            <label className="campaign-field">Lien de destination<input placeholder="https://vendeo-studio.site" value={launchLink} onChange={(event) => setLaunchLink(event.target.value)} /></label>
+            <p className="chat-launch-question">{t("chat.launchConfirmQuestion")}</p>
+            <div className="chat-launch-summary">
+              <div className="chat-launch-row"><span>{t("chat.launchName")}</span><strong>{launchPayload?.name ?? "—"}</strong></div>
+              <div className="chat-launch-row"><span>{t("chat.launchObjective")}</span><strong>{launchPayload?.objective ? OBJECTIVE_LABELS[launchPayload.objective] ?? launchPayload.objective : "—"}</strong></div>
+              <div className="chat-launch-row"><span>{t("chat.launchBudget")}</span><strong>{launchPayload?.dailyBudget != null ? `${launchPayload.dailyBudget} XOF/jour` : "—"}</strong></div>
+              <div className="chat-launch-row"><span>{t("chat.launchCountries")}</span><strong>{launchPayload?.countries?.length ? launchPayload.countries.join(", ") : "—"}</strong></div>
+              <div className="chat-launch-row"><span>{t("chat.launchAge")}</span><strong>{launchPayload?.ageMin != null || launchPayload?.ageMax != null ? `${launchPayload?.ageMin ?? 18}–${launchPayload?.ageMax ?? 65} ans` : "—"}</strong></div>
+              <div className="chat-launch-row chat-launch-message"><span>{t("chat.launchMessage")}</span><strong>{launchPayload?.message ?? "—"}</strong></div>
+            </div>
             {launchError ? <p className="store-error" role="alert">{launchError}</p> : null}
-            <button type="submit" className="btn btn-dark" disabled={launching}>{launching ? t("chat.sending") : t("chat.launchNow")}</button>
-          </form>
+            <div className="chat-launch-actions">
+              <button type="button" className="btn btn-ghost" disabled={launching} onClick={() => setLaunchOpen(false)}>{t("chat.cancel")}</button>
+              <button type="button" className="btn btn-dark" disabled={launching} onClick={() => void confirmLaunch()}>{launching ? t("chat.sending") : t("chat.confirmLaunch")}</button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

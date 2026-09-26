@@ -123,6 +123,9 @@ export const translations: Record<Locale, Dict> = {
       trialEndedMessage: "Ton essai gratuit de 15 jours est terminé. Active ton abonnement pour continuer.",
       error: "Une erreur est survenue.", send: "Envoyer", sending: "Envoi en cours",
       launchCampaign: "Lancer une campagne", launchNow: "Lancer",
+      launchConfirmQuestion: "Ta campagne est prête. Confirmer la création et lancer directement sur Meta ?",
+      launchName: "Nom", launchObjective: "Objectif", launchBudget: "Budget", launchCountries: "Pays", launchAge: "Âge", launchMessage: "Texte",
+      confirmLaunch: "Confirmer et lancer", cancel: "Annuler",
     },
     overview: {
       greeting: "Bonjour, {name}", subtitle: "Voici la performance de tes publicités et de ta boutique.",
@@ -291,6 +294,9 @@ export const translations: Record<Locale, Dict> = {
       trialEndedMessage: "Your 15-day free trial has ended. Activate your subscription to continue.",
       error: "Something went wrong.", send: "Send", sending: "Sending",
       launchCampaign: "Launch a campaign", launchNow: "Launch",
+      launchConfirmQuestion: "Your campaign is ready. Confirm creation and launch directly on Meta?",
+      launchName: "Name", launchObjective: "Objective", launchBudget: "Budget", launchCountries: "Countries", launchAge: "Age", launchMessage: "Message",
+      confirmLaunch: "Confirm and launch", cancel: "Cancel",
     },
     overview: {
       greeting: "Hello, {name}", subtitle: "Here's the performance of your ads and your store.",

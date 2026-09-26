@@ -90,3 +90,10 @@ html[data-theme="dark"] .ai-page .ai-eyebrow { color:#8fa8ff; }
 .ai-page .chat-launch-head strong { display:inline-flex; gap:6px; }
 .ai-page .chat-launch-head button { background:transparent; border:0; color:var(--muted); cursor:pointer; font-size:20px; line-height:1; }
 .ai-page .chat-launch-action { margin:8px 0 0; }
+.ai-page .chat-launch-question { color:var(--muted); font-size:13px; line-height:1.5; margin:0; }
+.ai-page .chat-launch-summary { background:var(--surface); border:1px solid var(--line); border-radius:10px; display:grid; gap:8px; padding:12px; }
+.ai-page .chat-launch-row { display:flex; flex-direction:column; gap:2px; }
+.ai-page .chat-launch-row span { color:var(--muted); font-size:11px; }
+.ai-page .chat-launch-row strong { color:var(--ink); font-size:13px; font-weight:600; }
+.ai-page .chat-launch-message strong { line-height:1.45; white-space:pre-wrap; }
+.ai-page .chat-launch-actions { display:flex; gap:8px; justify-content:flex-end; }
