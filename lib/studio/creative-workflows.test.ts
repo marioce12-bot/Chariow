@@ -6,7 +6,8 @@ describe("creative-workflows", () => {
   it("valide uniquement les capacités réellement supportées (pas de mapping silencieux)", () => {
     expect(isSupportedVideoDuration(5)).toBe(true);
     expect(isSupportedVideoDuration(10)).toBe(true);
-    expect(isSupportedVideoDuration(30)).toBe(true);
+    expect(isSupportedVideoDuration(15)).toBe(true);
+    expect(isSupportedVideoDuration(30)).toBe(false);
     expect(isSupportedVideoDuration(40)).toBe(false);
 
     expect(isSupportedVideoResolution("1080p")).toBe(true);
@@ -20,7 +21,7 @@ describe("creative-workflows", () => {
   });
 
   it("expose des listes cohérentes pour l'interface", () => {
-    expect(VIDEO_DURATIONS).toEqual([5, 10, 15, 20, 30]);
+    expect(VIDEO_DURATIONS).toEqual([5, 10, 15]);
     expect(VIDEO_RESOLUTIONS).toEqual(["480p", "720p", "1080p"]);
     expect(VIDEO_ASPECT_RATIOS).toEqual(["16:9", "9:16", "1:1"]);
   });
@@ -58,7 +59,8 @@ describe("creative-brief", () => {
   it("le prompt de vidéo conserve le produit sans le recréer", () => {
     const brief = buildCreativeBrief(product, "Mise en scène élégante", "video");
     const prompt = briefToPrompt(brief, "video", true);
-    expect(prompt).toContain("Conserve-le à l'identique");
+    expect(prompt).toContain("conserve son apparence exacte");
+    expect(prompt).toContain("[Image1]");
     expect(prompt).toContain("Mon ebook");
   });
 });

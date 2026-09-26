@@ -4,9 +4,9 @@
 // jamais afficher une option qui serait ensuite transformée silencieusement
 // côté serveur.
 //
-// IMPORTANT : ces valeurs reflètent Seedance 2.5 (bytedance/seedance-2.5/us),
-// qui produit nativement jusqu'à 30 s en 480p/720p/1080p. Ne pas ajouter une
-// valeur non supportée (ex. 21:9) : il faudrait un workflow de reformatage.
+// IMPORTANT : ces valeurs reflètent Grok Imagine 1.5 (xai/grok-imagine-video/v1.5)
+// qui produit 480p/720p/1080p et jusqu'à ~15 s. Ne pas ajouter une valeur non
+// supportée.
 
 export const VIDEO_RESOLUTIONS = ["480p", "720p", "1080p"] as const;
 export type VideoResolution = (typeof VIDEO_RESOLUTIONS)[number];
@@ -14,8 +14,8 @@ export type VideoResolution = (typeof VIDEO_RESOLUTIONS)[number];
 export const VIDEO_ASPECT_RATIOS = ["16:9", "9:16", "1:1"] as const;
 export type VideoAspectRatio = (typeof VIDEO_ASPECT_RATIOS)[number];
 
-// Durées (en secondes) produites nativement par Seedance 2.5 (jusqu'à 30 s).
-export const VIDEO_DURATIONS = [5, 10, 15, 20, 30] as const;
+// Durées (en secondes) produites par Grok Imagine 1.5 (jusqu'à 15 s).
+export const VIDEO_DURATIONS = [5, 10, 15] as const;
 export type VideoDuration = (typeof VIDEO_DURATIONS)[number];
 
 export const VIDEO_CAPABILITIES = {
@@ -26,7 +26,7 @@ export const VIDEO_CAPABILITIES = {
   // FRAME (point de départ). Il n'a pas de mode "référence" distinct qui
   // reconstruirait la scène en gardant seulement l'identité du produit.
   referenceModes: ["image"] as const,
-  maxDurationSeconds: 30,
+  maxDurationSeconds: 15,
 } as const;
 
 export function isSupportedVideoResolution(value: string): value is VideoResolution {

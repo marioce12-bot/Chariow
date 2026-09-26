@@ -128,8 +128,8 @@ La génération d'images et de vidéos du Studio (`/api/ai/poster`, `/api/studio
 FAL_API_KEY=ta-cle-api-fal
 FAL_IMAGE_MODEL=fal-ai/flux/schnell
 FAL_IMAGE_EDIT_MODEL=openai/gpt-image-2/edit
-FAL_VIDEO_TEXT_MODEL=bytedance/seedance-2.5/us/text-to-video
-FAL_VIDEO_IMAGE_MODEL=bytedance/seedance-2.5/us/image-to-video
+FAL_VIDEO_TEXT_MODEL=xai/grok-imagine-video/v1.5/text-to-video
+FAL_VIDEO_IMAGE_MODEL=xai/grok-imagine-video/v1.5/image-to-video
 ```
 
 `FAL_API_KEY` se génère dans le dashboard fal.ai (`https://fal.ai/dashboard/keys`) et ne doit jamais être préfixée par `NEXT_PUBLIC_`. Les quatre variables `FAL_*MODEL` sont optionnelles : sans elles, le code utilise les mêmes valeurs par défaut.

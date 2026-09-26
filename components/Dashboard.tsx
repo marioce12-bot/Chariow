@@ -621,7 +621,15 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
         try {
           const response = await fetch(`/api/studio/video/${encodeURIComponent(item.video_job_id as string)}`);
           const data = await response.json().catch(() => null);
-          if (response.ok && data?.status && data.status !== "processing") changed = true;
+          if (response.ok && data?.status) {
+            if (data.status === "processing") {
+              // Toujours en cours : on reprend le polling pour terminer la
+              // génération au lieu de la laisser figée sur "processing".
+              setVideoJob((current) => current ?? { id: item.video_job_id as string, status: "processing" });
+            } else {
+              changed = true;
+            }
+          }
         } catch {
           // Vérification en tâche de fond : un échec réseau ici n'empêche pas
           // de continuer à utiliser le Studio, on retentera à la prochaine

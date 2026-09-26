@@ -206,7 +206,7 @@ export function briefToPrompt(brief: CreativeBrief, mediaType: "image" | "video"
   if (hasReference) {
     parts.push(mediaType === "image"
       ? "Image de référence = visuel réel du produit. Conserve fidèlement son apparence (forme, couleurs, titre, logo) sans la déformer ni la recréer."
-      : "Image de départ = visuel réel du produit. Conserve-le à l'identique pendant toute la vidéo, anime uniquement la caméra, la lumière et l'environnement.");
+      : "Le produit de [Image1] : conserve son apparence exacte (forme, couleurs, titre) pendant toute la vidéo. Anime uniquement la caméra, la lumière et l'environnement autour de lui, sans le déformer.");
   }
 
   return parts.join(" ").slice(0, 6000);

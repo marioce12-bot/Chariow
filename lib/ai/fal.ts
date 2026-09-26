@@ -7,8 +7,8 @@ import { isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoA
 // - Vidéo texte→vidéo et image→vidéo : Seedance 2.5 (jusqu'à 30 s, 480p/720p/1080p).
 const DEFAULT_IMAGE_MODEL = "fal-ai/flux/schnell";
 const DEFAULT_IMAGE_EDIT_MODEL = "openai/gpt-image-2/edit";
-const DEFAULT_VIDEO_TEXT_MODEL = "bytedance/seedance-2.5/us/text-to-video";
-const DEFAULT_VIDEO_IMAGE_MODEL = "bytedance/seedance-2.5/reference-to-video";
+const DEFAULT_VIDEO_TEXT_MODEL = "xai/grok-imagine-video/v1.5/text-to-video";
+const DEFAULT_VIDEO_IMAGE_MODEL = "xai/grok-imagine-video/v1.5/image-to-video";
 
 let configured = false;
 function ensureConfigured() {
@@ -144,11 +144,15 @@ export async function createFalVideo(prompt: string, options: StudioVideoGenerat
   const useImage = Boolean(options.referenceUrl);
   const model = useImage ? getAiVideoImageModel() : getAiVideoTextModel();
 
-  // Seedance 2.5 reference-to-video : l'image produit sert de RÉFÉRENCE pour
-  // verrouiller l'identité (produit, couleurs, style) sur toute la vidéo.
-  // Seedance 2.5 attend `duration` comme chaîne "4".."30" ou "auto" (sans suffixe "s").
-  const input: Record<string, unknown> = { prompt, duration: String(duration), resolution, aspect_ratio: aspectRatio };
-  if (useImage) input.reference_image_urls = [options.referenceUrl];
+  // Grok Imagine 1.5 : `duration` est un nombre (secondes), `image_url` est
+  // singulier (image-to-video), et `aspect_ratio` n'est accepté que pour le
+  // texte-to-video.
+  const input: Record<string, unknown> = { prompt, duration, resolution };
+  if (useImage) {
+    input.image_url = options.referenceUrl;
+  } else {
+    input.aspect_ratio = aspectRatio;
+  }
 
   try {
     const { request_id } = await fal.queue.submit(model, { input });
