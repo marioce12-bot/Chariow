@@ -93,9 +93,9 @@ function firstText(...candidates: unknown[]): string | null {
 // n'est configuré (auquel cas `url`/`domain` valent souvent null) — vu dans les
 // clés de get_store en prod sur une boutique où le lien restait non résolu.
 function buildProductUrl(store: Record<string, unknown>, product: Record<string, unknown>): string | null {
-  const slug = firstText(product.slug, product.handle, product.reference);
+  const slug = firstText(product.limace, product.slug, product.handle, product.reference);
   if (!slug) return null;
-  const storeDomain = firstText(store.url, asRecord(product.store).url, store.storefront_url, store.domain, store.custom_slug, store.subdomain, store.slug, store.store_slug);
+  const storeDomain = firstText(store.URL, store.domaine, store.url, asRecord(product.store).url, store.storefront_url, store.domain, store.custom_slug, store.subdomain, store.slug, store.store_slug);
   if (!storeDomain) return null;
   const host = storeDomain.includes(".") ? storeDomain.replace(/^https?:\/\//, "") : `${storeDomain}.mychariow.com`;
   return `https://${host.replace(/\/$/, "")}/${slug.replace(/^\//, "")}`;
@@ -153,16 +153,19 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
   const products: ChariowProduct[] = productRows.map((item, index) => {
     const product = asRecord(item);
     const price = asRecord(product.price);
-    // Chariow expose le prix via un champ `pricing` (objet, ou tableau de
-    // formules de prix) plutôt que `price` sur certains produits — on lit
-    // les deux pour ne rater ni l'un ni l'autre.
-    const pricingRaw = product.pricing;
+    // Chariow expose le prix via `tarification` (objet aux clés françaises :
+    // prix, current_price, sale_price, suggested_price) sur certains produits.
+    const pricingRaw = product.tarification ?? product.pricing;
     const pricingEntry = asRecord(Array.isArray(pricingRaw) ? pricingRaw[0] : pricingRaw);
     // Dans `pricing`, chaque montant est un objet { value, formatted, short, currency }.
     const currentPrice = asRecord(pricingEntry.current_price);
     const effectivePrice = asRecord(pricingEntry.effective);
     const basePrice = asRecord(pricingEntry.price);
     const resolvedPrice = firstNumeric(
+      pricingEntry.prix,
+      pricingEntry.current_price,
+      pricingEntry.sale_price,
+      pricingEntry.suggested_price,
       product.price,
       price.value,
       price.amount,
@@ -201,10 +204,11 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
 
     // Chariow renvoie les visuels dans `pictures` : { thumbnail, cover } (URL ou null).
     // thumbnail = image carrée de la liste produits ; cover = bannière. On préfère le thumbnail.
-    const pictures = asRecord(product.pictures);
+    const pictures = asRecord(product.photos ?? product.pictures);
     const resolvedImage = firstText(
       pictures.thumbnail,
       pictures.cover,
+      Array.isArray(product.photos) ? (product.photos as unknown[])[0] : product.photos,
       product.image,
       product.image_url,
       product.thumbnail,
@@ -263,7 +267,7 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
     }
 
     const productId = String(product.id ?? product.uuid ?? index);
-    const productName = text(product.name ?? product.title) ?? "Produit sans nom";
+    const productName = text(product.nom ?? product.name ?? product.title) ?? "Produit sans nom";
     // On calcule le nombre réel de ventes confirmées pour ce produit à partir
     // de la liste brute des ventes Chariow (voir buildProductSalesIndex
     // ci-dessus), plutôt que de faire confiance à un champ `sales` sur le
@@ -278,8 +282,8 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       price: resolvedPrice,
       // La devise d'un produit Chariow se trouve dans ses montants `pricing`
       // (ex. pricing.current_price.currency), pas sur le produit lui-même.
-      currency: firstText(product.currency, price.currency, price.currency_code, product.currency_code, currentPrice.currency, effectivePrice.currency, basePrice.currency, pricingEntry.currency, pricingEntry.currency_code, store.currency),
-      status: text(product.status ?? product.state),
+      currency: firstText(product.monnaie, store.monnaie, product.currency, price.currency, price.currency_code, product.currency_code, currentPrice.currency, effectivePrice.currency, basePrice.currency, pricingEntry.currency, pricingEntry.currency_code, store.currency),
+      status: text(product.statut ?? product.status ?? product.state),
       image: resolvedImage,
       url: resolvedUrl,
       createdAt: text(product.created_at ?? product.createdAt),
@@ -291,8 +295,8 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
   const revenueValue = numberValue(revenue.value ?? sales.value);
   const conversion = asRecord(visits.conversion_rate ?? visits.conversionRate);
   return {
-    storeName: text(store.name ?? store.store_name) ?? "Boutique Chariow",
-    storeStatus: text(store.status ?? store.connection_status) ?? "connected",
+    storeName: text(store.nom ?? store.name ?? store.store_name) ?? "Boutique Chariow",
+    storeStatus: text(store.statut ?? store.status ?? store.connection_status) ?? "connected",
     products,
     sales: firstArray(snapshot.sales),
     kpis: {
