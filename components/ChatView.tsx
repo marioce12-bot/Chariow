@@ -1,7 +1,7 @@
 "use client";
 
-import { Activity, ArrowRight, Brain, Clock3, Copy, Lightbulb, Megaphone, Package, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Activity, ArrowRight, Brain, Clock3, Copy, Lightbulb, Megaphone, Package, Paperclip, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { useI18n } from "@/lib/i18n/i18n";
 import "../app/vendeo-ai.css";
@@ -38,6 +38,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
   const [expandedMessages, setExpandedMessages] = useState<Record<number, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [quickPromptsOpen, setQuickPromptsOpen] = useState(true);
+  const [attachments, setAttachments] = useState<Array<{ url: string; type: "image" | "video" }>>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const AI_QUICK_PROMPTS: QuickPrompt[] = [
     { icon: <Megaphone size={14} />, label: t("chat.qStop"), prompt: t("chat.qStopPrompt") },
@@ -116,7 +119,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     setQuickPromptsOpen(false);
     const userMessage: ChatMessageItem = { role: "user", content: message };
     setMessages((current) => [...current, userMessage]);
-    const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) });
+    const pendingAttachments = attachments;
+    setAttachments([]);
+    const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, attachments: pendingAttachments }) });
     const data = await response.json();
     if (response.ok && data.message) {
       setMessages((current) => [...current, data.message]);
@@ -149,6 +154,27 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
       }
     }
     setSending(false);
+  }
+
+  async function handleAttach(files: FileList | null) {
+    if (!files || !files.length) return;
+    setUploading(true);
+    try {
+      const next: Array<{ url: string; type: "image" | "video" }> = [];
+      for (const file of Array.from(files)) {
+        const data = new FormData();
+        data.append("file", file);
+        const response = await fetch("/api/chat/upload", { method: "POST", body: data });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok && result.url) next.push({ url: result.url, type: result.type });
+      }
+      if (next.length) setAttachments((current) => [...current, ...next]);
+    } catch {
+      // Upload en arrière-plan : une erreur ne bloque pas la conversation.
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   function copyMessage(index: number, content: string) {
@@ -313,6 +339,16 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
         </div>
 
         <div className="chat-composer">
+          {attachments.length ? (
+            <div className="chat-attachments">
+              {attachments.map((attachment, index) => (
+                <span key={index} className="chat-attachment-chip">
+                  {attachment.type === "video" ? "🎬 Vidéo" : "🖼️ Image"}
+                  <button type="button" onClick={() => setAttachments((current) => current.filter((_, i) => i !== index))} aria-label="Retirer">×</button>
+                </span>
+              ))}
+            </div>
+          ) : null}
           {(quickPromptsOpen || !hasConversation) && !plansRequired && (
             <div className="chat-quickstart">
               {AI_QUICK_PROMPTS.map((item) => (
@@ -335,6 +371,24 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
             }}
             className="chat-input-form"
           >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              hidden
+              onChange={(event) => void handleAttach(event.target.files)}
+            />
+            <button
+              type="button"
+              className="chat-suggest-toggle"
+              aria-label="Joindre une image ou vidéo"
+              title="Joindre une image ou vidéo"
+              disabled={uploading || plansRequired}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip size={16} />
+            </button>
             {hasConversation && !plansRequired && (
               <button
                 type="button"

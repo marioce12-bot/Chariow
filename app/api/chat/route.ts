@@ -47,6 +47,14 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!message || message.length > 20000) return NextResponse.json({ error: "Le message doit contenir entre 1 et 20 000 caractères" }, { status: 400 });
+  // Pièces jointes (image/vidéo) envoyées par l'utilisateur : on les expose à l'IA
+  // pour qu'elle puisse s'en servir comme créative publicitaire.
+  const attachments = Array.isArray(body?.attachments)
+    ? (body.attachments as Array<{ url?: string; type?: string }>).filter((a) => typeof a?.url === "string").slice(0, 5)
+    : [];
+  const aiMessage = attachments.length
+    ? `${message}\n\nPièces jointes de l'utilisateur (utilisables comme créative publicitaire) :\n${attachments.map((a) => `${a.type === "video" ? "Vidéo" : "Image"}: ${a.url}`).join("\n")}`
+    : message;
   // Contexte IA : on agrège toutes les boutiques actives de l'utilisateur.
   // Le paramètre store_id (si envoyé) sera ignoré côté contexte pour garantir que l'IA a la vue complète.
   const storeId = body?.store_id || null;
@@ -197,7 +205,7 @@ export async function POST(request: Request) {
   // Le tour courant est toujours ajouté explicitement en dernier, avec le rôle "user" —
   // ça garantit que la conversation envoyée aux modèles ne se termine jamais par un tour
   // assistant, quel que soit le contenu de l'historique.
-  const currentTurn = { role: "user" as const, content: message.length > MAX_MESSAGE_CHARS ? `${message.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : message };
+  const currentTurn = { role: "user" as const, content: aiMessage.length > MAX_MESSAGE_CHARS ? `${aiMessage.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : aiMessage };
 
   try {
     answer = await askImole([{ role: "system", content: systemContent }, ...safeHistory, currentTurn]);
