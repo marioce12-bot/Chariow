@@ -1,10 +1,14 @@
 import { fal } from "@fal-ai/client";
 import { isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoAspectRatio, type VideoDuration, type VideoResolution, type VideoAspectRatio } from "@/lib/studio/creative-workflows";
 
-const DEFAULT_IMAGE_MODEL = "fal-ai/nano-banana";
-const DEFAULT_IMAGE_EDIT_MODEL = "fal-ai/nano-banana/edit";
-const DEFAULT_VIDEO_TEXT_MODEL = "fal-ai/ltx-2.3/text-to-video";
-const DEFAULT_VIDEO_IMAGE_MODEL = "fal-ai/ltx-2.3/image-to-video";
+// Modèles choisis :
+// - Texte→image : FLUX.1 [schnell] (génération rapide et de qualité).
+// - Édition image (conservation du produit) : GPT Image 2 (openai/gpt-image-2/edit).
+// - Vidéo texte→vidéo et image→vidéo : Seedance 2.5 (jusqu'à 30 s, 480p/720p/1080p).
+const DEFAULT_IMAGE_MODEL = "fal-ai/flux/schnell";
+const DEFAULT_IMAGE_EDIT_MODEL = "openai/gpt-image-2/edit";
+const DEFAULT_VIDEO_TEXT_MODEL = "bytedance/seedance-2.5/us/text-to-video";
+const DEFAULT_VIDEO_IMAGE_MODEL = "bytedance/seedance-2.5/us/image-to-video";
 
 let configured = false;
 function ensureConfigured() {
@@ -140,10 +144,10 @@ export async function createFalVideo(prompt: string, options: StudioVideoGenerat
   const useImage = Boolean(options.referenceUrl);
   const model = useImage ? getAiVideoImageModel() : getAiVideoTextModel();
 
-  // Le modèle image-to-video de ltx-2.3 utilise l'image d'entrée comme PREMIER
-  // FRAME (point de départ). Il n'existe pas de mode "référence" distinct : quand
-  // une image produit est fournie, elle est toujours le premier frame.
-  const input: Record<string, unknown> = { prompt, duration: String(duration), resolution, aspect_ratio: aspectRatio };
+  // Seedance 2.5 (image-to-video) utilise l'image d'entrée comme PREMIER FRAME
+  // (point de départ). Quand une image produit est fournie, elle est le premier
+  // frame ; le modèle anime ensuite caméra, lumière et environnement.
+  const input: Record<string, unknown> = { prompt, duration: `${duration}s`, resolution, aspect_ratio: aspectRatio };
   if (useImage) input.image_url = options.referenceUrl;
 
   try {

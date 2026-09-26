@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { ChatView } from "@/components/ChatView";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -27,6 +27,7 @@ import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
 import { CREDIT_PRICE_XOF } from "@/lib/studio/credits";
 import { VIDEO_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/studio/creative-workflows";
+import { useI18n } from "@/lib/i18n/i18n";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 const DASHBOARD_CACHE_KEY = "vendeo_dashboard_cache_v1";
@@ -539,7 +540,7 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
   const [orientation, setOrientation] = useState("square");
   const [background, setBackground] = useState("auto");
   const [duration, setDuration] = useState<typeof VIDEO_DURATIONS[number]>(VIDEO_DURATIONS[0]);
-  const [videoResolution, setVideoResolution] = useState(VIDEO_RESOLUTIONS[0]);
+  const [videoResolution, setVideoResolution] = useState<typeof VIDEO_RESOLUTIONS[number]>(VIDEO_RESOLUTIONS[0]);
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [videoJob, setVideoJob] = useState<StudioVideoJob | null>(null);
@@ -760,7 +761,7 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
           <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading}>
             <Sparkles size={17} /> {loading ? "Création en cours…" : kind === "image" ? "Créer l'image" : "Créer la vidéo"}
           </button>
-          <p className="studio-cost">{kind === "image" ? "Image : coût selon la qualité et la résolution choisies." : "Vidéo : 38 crédits par seconde (1080p)."}</p>
+          <p className="studio-cost">{kind === "image" ? "Image : coût selon la qualité et la résolution choisies." : `Vidéo : ${videoResolution === "1080p" ? "38" : videoResolution === "720p" ? "25" : "15"} crédits par seconde (${videoResolution}).`}</p>
           <div className="studio-balance"><div><span className="eyebrow">Solde Studio</span><strong>{balance} crédits</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>Recharger</button><small>Les crédits servent à générer et modifier tes médias.</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>Recharger des crédits</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label="Fermer">×</button></div><label className="studio-field"><span>Quantité de crédits</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>Prix : <strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>Minimum 200 crédits · 1 crédit = 2,50 XOF</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? "Préparation du paiement…" : "Payer"}</button></div> : null}</div>
         </section>
 
@@ -1411,6 +1412,7 @@ const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; 
 ];
 
 function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: "channels" }) {
+  const { locale, setLocale, t } = useI18n();
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
@@ -1561,6 +1563,27 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate
             <span className="mobile-settings-icon"><Moon size={20} /></span>
             <span><strong>Sombre</strong><small>Plus de confort le soir.</small></span>
             {theme === "dark" ? <CheckCircle2 size={16} /> : null}
+          </button>
+        </div>
+      </section>
+      <section className="settings-section settings-section-language" aria-label="Langue">
+        <div className="page-top settings-section-head">
+          <div>
+            <span className="eyebrow">{t("settings.language.title")}</span>
+            <h2>{t("settings.language.title")}</h2>
+            <p>{t("settings.language.subtitle")}</p>
+          </div>
+        </div>
+        <div className="theme-choice-grid">
+          <button type="button" className={`theme-choice ${locale === "fr" ? "selected" : ""}`} onClick={() => setLocale("fr")} aria-pressed={locale === "fr"}>
+            <span className="mobile-settings-icon"><Languages size={20} /></span>
+            <span><strong>{t("settings.language.french")}</strong><small>Français</small></span>
+            {locale === "fr" ? <CheckCircle2 size={16} /> : null}
+          </button>
+          <button type="button" className={`theme-choice ${locale === "en" ? "selected" : ""}`} onClick={() => setLocale("en")} aria-pressed={locale === "en"}>
+            <span className="mobile-settings-icon"><Languages size={20} /></span>
+            <span><strong>{t("settings.language.english")}</strong><small>English</small></span>
+            {locale === "en" ? <CheckCircle2 size={16} /> : null}
           </button>
         </div>
       </section>

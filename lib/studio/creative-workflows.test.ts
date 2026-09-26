@@ -4,25 +4,25 @@ import { buildCreativeBrief, briefToPrompt } from "./creative-brief";
 
 describe("creative-workflows", () => {
   it("valide uniquement les capacités réellement supportées (pas de mapping silencieux)", () => {
-    expect(isSupportedVideoDuration(6)).toBe(true);
-    expect(isSupportedVideoDuration(8)).toBe(true);
+    expect(isSupportedVideoDuration(5)).toBe(true);
     expect(isSupportedVideoDuration(10)).toBe(true);
-    expect(isSupportedVideoDuration(30)).toBe(false);
+    expect(isSupportedVideoDuration(30)).toBe(true);
     expect(isSupportedVideoDuration(40)).toBe(false);
 
     expect(isSupportedVideoResolution("1080p")).toBe(true);
+    expect(isSupportedVideoResolution("720p")).toBe(true);
     expect(isSupportedVideoResolution("768p")).toBe(false);
 
     expect(isSupportedVideoAspectRatio("16:9")).toBe(true);
     expect(isSupportedVideoAspectRatio("9:16")).toBe(true);
+    expect(isSupportedVideoAspectRatio("1:1")).toBe(true);
     expect(isSupportedVideoAspectRatio("21:9")).toBe(false);
-    expect(isSupportedVideoAspectRatio("1:1")).toBe(false);
   });
 
   it("expose des listes cohérentes pour l'interface", () => {
-    expect(VIDEO_DURATIONS).toEqual([6, 8, 10]);
-    expect(VIDEO_RESOLUTIONS).toEqual(["1080p"]);
-    expect(VIDEO_ASPECT_RATIOS).toEqual(["16:9", "9:16"]);
+    expect(VIDEO_DURATIONS).toEqual([5, 10, 15, 20, 30]);
+    expect(VIDEO_RESOLUTIONS).toEqual(["480p", "720p", "1080p"]);
+    expect(VIDEO_ASPECT_RATIOS).toEqual(["16:9", "9:16", "1:1"]);
   });
 
   it("infère le type de produit depuis le nom et la description", () => {

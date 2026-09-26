@@ -12,10 +12,10 @@ export function imageCreditCost(resolution: keyof typeof IMAGE_COSTS, quality: k
   return IMAGE_COSTS[resolution][quality];
 }
 
-// Une seule résolution vidéo est réellement supportée (1080p) : le coût ne dépend
-// plus d'un mapping 480p/768p trompeur.
-export function videoCreditCost(resolution: "1080p", duration: number) {
-  return duration * 38;
+// Coût vidéo par seconde selon la résolution réellement choisie.
+const VIDEO_RATE_PER_SECOND: Record<string, number> = { "480p": 15, "720p": 25, "1080p": 38 };
+export function videoCreditCost(resolution: string, duration: number) {
+  return duration * (VIDEO_RATE_PER_SECOND[resolution] ?? 38);
 }
 
 export function creditPrice(credits: number) {
