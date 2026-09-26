@@ -127,3 +127,47 @@ export async function createMetaCreative(accessToken: string, input: CreateCreat
   if (input.name) args.name = input.name;
   return client.callTool("ads_create_creative", args);
 }
+
+export type CreateAdSetInput = {
+  adAccountId: string;
+  campaignId: string;
+  name: string;
+  optimizationGoal?: string; // défaut OFFSITE_CONVERSIONS (conversions/ventes)
+  billingEvent?: string; // défaut IMPRESSIONS
+  countries?: string[];
+  ageMin?: number;
+  ageMax?: number;
+  dailyBudgetCents?: number;
+  pixelId?: string; // requis pour OUTCOME_SALES avec destination site web
+};
+
+export async function createMetaAdSet(accessToken: string, input: CreateAdSetInput) {
+  const client = new MetaAdsMcpClient(accessToken);
+  const targeting: Record<string, unknown> = {};
+  if (input.countries?.length) targeting.geo_locations = { countries: input.countries };
+  if (input.ageMin) targeting.age_min = input.ageMin;
+  if (input.ageMax) targeting.age_max = input.ageMax;
+  const args: Record<string, unknown> = {
+    ad_account_id: input.adAccountId,
+    campaign_id: input.campaignId,
+    ad_set_name: input.name,
+    optimization_goal: input.optimizationGoal ?? "OFFSITE_CONVERSIONS",
+    billing_event: input.billingEvent ?? "IMPRESSIONS",
+    ...(Object.keys(targeting).length ? { targeting: JSON.stringify(targeting) } : {}),
+    ...(input.dailyBudgetCents ? { daily_budget: input.dailyBudgetCents } : {}),
+    ...(input.pixelId ? { promoted_object: JSON.stringify({ pixel_id: input.pixelId }) } : {}),
+    client_conversation_id: generateClientConversationId(),
+  };
+  return client.callTool("ads_create_ad_set", args);
+}
+
+export async function createMetaAd(accessToken: string, input: { adAccountId: string; adSetId: string; name: string; creativeId: string }) {
+  const client = new MetaAdsMcpClient(accessToken);
+  return client.callTool("ads_create_ad", {
+    ad_account_id: input.adAccountId,
+    ad_set_id: input.adSetId,
+    ad_name: input.name,
+    creative: JSON.stringify({ creative_id: input.creativeId }),
+    client_conversation_id: generateClientConversationId(),
+  });
+}

@@ -343,7 +343,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
             <div className="chat-attachments">
               {attachments.map((attachment, index) => (
                 <span key={index} className="chat-attachment-chip">
-                  {attachment.type === "video" ? "🎬 Vidéo" : "🖼️ Image"}
+                  {attachment.type === "image" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={attachment.url} alt="" className="chat-attachment-thumb" />
+                  ) : (
+                    <video src={attachment.url} className="chat-attachment-thumb" muted playsInline preload="metadata" />
+                  )}
                   <button type="button" onClick={() => setAttachments((current) => current.filter((_, i) => i !== index))} aria-label="Retirer">×</button>
                 </span>
               ))}
