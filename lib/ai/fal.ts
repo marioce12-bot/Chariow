@@ -1,4 +1,5 @@
 import { fal } from "@fal-ai/client";
+import { isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoAspectRatio, type VideoDuration, type VideoResolution, type VideoAspectRatio } from "@/lib/studio/creative-workflows";
 
 const DEFAULT_IMAGE_MODEL = "fal-ai/nano-banana";
 const DEFAULT_IMAGE_EDIT_MODEL = "fal-ai/nano-banana/edit";
@@ -104,32 +105,11 @@ export async function generateFalImageFromUrl(prompt: string, imageUrl: string) 
   return runImageModel(model, { prompt, image_urls: [imageUrl], num_images: 1 }, "fal.ai image edit API error");
 }
 
-// Les modèles vidéo fal utilisés ici n'acceptent pas les mêmes valeurs que
-// l'ancienne API Imole (480p/768p, ratios larges type 21:9, durée libre en
-// secondes) : on rapproche chaque valeur reçue du Studio de l'option fal la
-// plus proche plutôt que de casser la génération sur une valeur refusée.
-const VIDEO_RESOLUTION_MAP: Record<string, string> = { "480p": "1080p", "768p": "1080p" };
-const VIDEO_ASPECT_RATIO_MAP: Record<string, string> = {
-  "21:9": "16:9",
-  "16:9": "16:9",
-  "4:3": "16:9",
-  "1:1": "auto",
-  "3:4": "9:16",
-  "9:16": "9:16",
-};
-const ALLOWED_VIDEO_DURATIONS = [6, 8, 10];
-function closestAllowedDuration(duration: number) {
-  return ALLOWED_VIDEO_DURATIONS.reduce((closest, value) =>
-    Math.abs(value - duration) < Math.abs(closest - duration) ? value : closest,
-  ALLOWED_VIDEO_DURATIONS[0]);
-}
-
 export type StudioVideoGenerationOptions = {
-  duration: number;
-  resolution: "480p" | "768p";
-  aspectRatio: string;
+  duration: VideoDuration;
+  resolution: VideoResolution;
+  aspectRatio: VideoAspectRatio;
   referenceUrl?: string | null;
-  referenceMode?: "image" | "reference";
 };
 
 // L'identifiant de job retourné combine le modèle fal utilisé et le request_id
@@ -147,12 +127,22 @@ function decodeJobId(jobId: string) {
 
 export async function createFalVideo(prompt: string, options: StudioVideoGenerationOptions) {
   ensureConfigured();
-  const duration = closestAllowedDuration(options.duration);
-  const resolution = VIDEO_RESOLUTION_MAP[options.resolution] ?? "1080p";
-  const aspectRatio = VIDEO_ASPECT_RATIO_MAP[options.aspectRatio] ?? "auto";
+  // Validation stricte : aucune valeur n'est transformée silencieusement. Si une
+  // valeur non supportée arrive jusqu'ici, c'est un bug de l'interface et on
+  // refuse plutôt que de générer une vidéo différente de ce que l'utilisateur attend.
+  if (!isSupportedVideoDuration(options.duration)) throw new Error(`Durée vidéo non supportée : ${options.duration}s`);
+  if (!isSupportedVideoResolution(options.resolution)) throw new Error(`Résolution vidéo non supportée : ${options.resolution}`);
+  if (!isSupportedVideoAspectRatio(options.aspectRatio)) throw new Error(`Format vidéo non supporté : ${options.aspectRatio}`);
+
+  const duration = options.duration;
+  const resolution = options.resolution;
+  const aspectRatio = options.aspectRatio;
   const useImage = Boolean(options.referenceUrl);
   const model = useImage ? getAiVideoImageModel() : getAiVideoTextModel();
 
+  // Le modèle image-to-video de ltx-2.3 utilise l'image d'entrée comme PREMIER
+  // FRAME (point de départ). Il n'existe pas de mode "référence" distinct : quand
+  // une image produit est fournie, elle est toujours le premier frame.
   const input: Record<string, unknown> = { prompt, duration: String(duration), resolution, aspect_ratio: aspectRatio };
   if (useImage) input.image_url = options.referenceUrl;
 

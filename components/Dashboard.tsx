@@ -26,6 +26,7 @@ import { DiagnosticFunnel } from "@/components/vendeo/DiagnosticFunnel";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
 import { CREDIT_PRICE_XOF } from "@/lib/studio/credits";
+import { VIDEO_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/studio/creative-workflows";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 const DASHBOARD_CACHE_KEY = "vendeo_dashboard_cache_v1";
@@ -537,8 +538,8 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
   const [imageResolution, setImageResolution] = useState("hd");
   const [orientation, setOrientation] = useState("square");
   const [background, setBackground] = useState("auto");
-  const [duration, setDuration] = useState(5);
-  const [videoResolution, setVideoResolution] = useState<"480p" | "768p">("480p");
+  const [duration, setDuration] = useState<typeof VIDEO_DURATIONS[number]>(VIDEO_DURATIONS[0]);
+  const [videoResolution, setVideoResolution] = useState(VIDEO_RESOLUTIONS[0]);
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [videoJob, setVideoJob] = useState<StudioVideoJob | null>(null);
@@ -550,7 +551,6 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
   const [recharging, setRecharging] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [productSearch, setProductSearch] = useState("");
-  const [referenceMode, setReferenceMode] = useState<"image" | "reference">("reference");
   const [history, setHistory] = useState<StudioHistoryItem[]>([]);
   const [historyKind, setHistoryKind] = useState("all");
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
@@ -643,7 +643,7 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(kind === "image"
           ? { prompt, imageMode, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }
-          : { prompt, duration, resolution: videoResolution, aspectRatio, referenceMode, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
+          : { prompt, duration, resolution: videoResolution, aspectRatio, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "La génération a échoué.");
@@ -749,11 +749,10 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
             </div>
           ) : (
             <div className="studio-options">
-              <label className="studio-field"><span>Durée</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{[4, 5, 6, 8, 10, 12, 15, 20, 30, 40].map((value) => <option key={value} value={value}>{value} secondes</option>)}</select></label>
-              <StudioSelect label="Résolution" value={videoResolution} onChange={(value) => setVideoResolution(value as "480p" | "768p")} options={[['480p', '480p'], ['768p', '768p']]} />
-              <div className="studio-suggestions">{["Teaser de 5 secondes", "Présentation animée du livre", "Pub pour réseaux sociaux"].map((suggestion) => <button type="button" key={suggestion} onClick={() => { setPrompt(suggestion); if (suggestion === "Pub pour réseaux sociaux") setAspectRatio("9:16"); }}>{suggestion}</button>)}</div>
-              {selectedProduct?.image ? <StudioSelect label="Utiliser la couverture comme" value={referenceMode} onChange={(value) => setReferenceMode(value as "image" | "reference")} options={[["reference", "Référence"], ["image", "Point de départ"]]} /> : null}
-              <StudioSelect label="Format" value={aspectRatio} onChange={setAspectRatio} options={[['16:9', '16:9 paysage'], ['9:16', '9:16 vertical'], ['1:1', '1:1 carré'], ['4:3', '4:3'], ['3:4', '3:4'], ['21:9', '21:9 cinéma']]} />
+              <label className="studio-field"><span>Durée</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value) as typeof VIDEO_DURATIONS[number])}>{VIDEO_DURATIONS.map((value) => <option key={value} value={value}>{value} secondes</option>)}</select></label>
+              <StudioSelect label="Résolution" value={videoResolution} onChange={(value) => setVideoResolution(value as typeof VIDEO_RESOLUTIONS[number])} options={VIDEO_RESOLUTIONS.map((value) => [value, value])} />
+              {selectedProduct?.image ? <p className="studio-cost" style={{ marginTop: 8 }}>La couverture du produit servira de point de départ (première image de la vidéo).</p> : null}
+              <StudioSelect label="Format" value={aspectRatio} onChange={setAspectRatio} options={VIDEO_ASPECT_RATIOS.map((value) => [value, value === "16:9" ? "16:9 paysage" : "9:16 vertical"])} />
             </div>
           )}
 
@@ -761,7 +760,7 @@ function StudioView({ products }: { products: Array<{ id: string; name: string; 
           <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading}>
             <Sparkles size={17} /> {loading ? "Création en cours…" : kind === "image" ? "Créer l'image" : "Créer la vidéo"}
           </button>
-          <p className="studio-cost">{kind === "image" ? "Image : coût selon la qualité et la résolution choisies." : `Vidéo : ${videoResolution === "768p" ? "25" : "10"} cauris par seconde.`}</p>
+          <p className="studio-cost">{kind === "image" ? "Image : coût selon la qualité et la résolution choisies." : "Vidéo : 38 crédits par seconde (1080p)."}</p>
           <div className="studio-balance"><div><span className="eyebrow">Solde Studio</span><strong>{balance} crédits</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>Recharger</button><small>Les crédits servent à générer et modifier tes médias.</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>Recharger des crédits</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label="Fermer">×</button></div><label className="studio-field"><span>Quantité de crédits</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>Prix : <strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>Minimum 200 crédits · 1 crédit = 2,50 XOF</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? "Préparation du paiement…" : "Payer"}</button></div> : null}</div>
         </section>
 
