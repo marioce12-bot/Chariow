@@ -122,6 +122,7 @@ export const translations: Record<Locale, Dict> = {
       placeholder: "Pose ta question...", placeholderBlocked: "Active ton abonnement pour continuer",
       trialEndedMessage: "Ton essai gratuit de 15 jours est terminé. Active ton abonnement pour continuer.",
       error: "Une erreur est survenue.", send: "Envoyer", sending: "Envoi en cours",
+      launchCampaign: "Lancer une campagne", launchNow: "Lancer",
     },
     overview: {
       greeting: "Bonjour, {name}", subtitle: "Voici la performance de tes publicités et de ta boutique.",
@@ -289,6 +290,7 @@ export const translations: Record<Locale, Dict> = {
       placeholder: "Ask your question...", placeholderBlocked: "Activate your subscription to continue",
       trialEndedMessage: "Your 15-day free trial has ended. Activate your subscription to continue.",
       error: "Something went wrong.", send: "Send", sending: "Sending",
+      launchCampaign: "Launch a campaign", launchNow: "Launch",
     },
     overview: {
       greeting: "Hello, {name}", subtitle: "Here's the performance of your ads and your store.",

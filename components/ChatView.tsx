@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowRight, Brain, Clock3, Copy, Lightbulb, Megaphone, Package, Paperclip, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
+import { Activity, ArrowRight, Brain, Clock3, Copy, Lightbulb, Megaphone, Package, Paperclip, Rocket, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -41,6 +41,18 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
   const [attachments, setAttachments] = useState<Array<{ url: string; type: "image" | "video" }>>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [launchOpen, setLaunchOpen] = useState(false);
+  const [launchName, setLaunchName] = useState("");
+  const [launchObjective, setLaunchObjective] = useState("OUTCOME_SALES");
+  const [launchBudget, setLaunchBudget] = useState("");
+  const [launchCountries, setLaunchCountries] = useState("");
+  const [launchAgeMin, setLaunchAgeMin] = useState("18");
+  const [launchAgeMax, setLaunchAgeMax] = useState("65");
+  const [launchMessage, setLaunchMessage] = useState("");
+  const [launchLink, setLaunchLink] = useState("");
+  const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState<string | null>(null);
+  const [launchDone, setLaunchDone] = useState(false);
 
   const AI_QUICK_PROMPTS: QuickPrompt[] = [
     { icon: <Megaphone size={14} />, label: t("chat.qStop"), prompt: t("chat.qStopPrompt") },
@@ -174,6 +186,45 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function launchCampaign(event: React.FormEvent) {
+    event.preventDefault();
+    if (!launchName.trim() || !launchMessage.trim()) {
+      setLaunchError("Renseigne au moins le nom et le texte de la créative.");
+      return;
+    }
+    setLaunching(true);
+    setLaunchError(null);
+    try {
+      const response = await fetch("/api/ai/launch-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: launchName.trim(),
+          objective: launchObjective,
+          dailyBudget: Number(launchBudget) || undefined,
+          countries: launchCountries.split(",").map((c) => c.trim()).filter(Boolean),
+          ageMin: Number(launchAgeMin) || undefined,
+          ageMax: Number(launchAgeMax) || undefined,
+          message: launchMessage.trim(),
+          linkUrl: launchLink.trim() || undefined,
+          imageUrl: attachments.find((a) => a.type === "image")?.url,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setLaunchError(data.error ?? "Impossible de lancer la campagne.");
+        return;
+      }
+      setLaunchDone(true);
+      setMessages((current) => [...current, { role: "assistant", content: `✅ Campagne « ${launchName.trim()} » envoyée à Meta. Elle apparaît dans la page Pub.` }]);
+      setLaunchOpen(false);
+    } catch {
+      setLaunchError("Erreur de connexion au lancement.");
+    } finally {
+      setLaunching(false);
     }
   }
 
@@ -339,6 +390,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
         </div>
 
         <div className="chat-composer">
+          <button type="button" className="chat-launch-campaign" onClick={() => setLaunchOpen(true)}>
+            <Rocket size={15} /> {t("chat.launchCampaign")}
+          </button>
           {attachments.length ? (
             <div className="chat-attachments">
               {attachments.map((attachment, index) => (
@@ -451,6 +505,26 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
           <p className="ai-tip">{t("chat.tipText")}</p>
         </div>
       </aside>
+
+      {launchOpen ? (
+        <div className="chat-launch-modal-backdrop" onClick={() => !launching && setLaunchOpen(false)}>
+          <form className="chat-launch-modal" onClick={(event) => event.stopPropagation()} onSubmit={launchCampaign}>
+            <div className="chat-launch-head">
+              <strong><Rocket size={16} /> {t("chat.launchCampaign")}</strong>
+              <button type="button" onClick={() => setLaunchOpen(false)} aria-label="Fermer">×</button>
+            </div>
+            <label className="campaign-field">Nom de la campagne<input value={launchName} onChange={(event) => setLaunchName(event.target.value)} required /></label>
+            <label className="campaign-field">Objectif<select value={launchObjective} onChange={(event) => setLaunchObjective(event.target.value)}><option value="OUTCOME_SALES">Ventes / conversions</option><option value="OUTCOME_TRAFFIC">Trafic</option><option value="OUTCOME_ENGAGEMENT">Engagement</option><option value="OUTCOME_LEADS">Leads</option><option value="OUTCOME_AWARENESS">Notoriété</option></select></label>
+            <label className="campaign-field">Budget journalier (XOF)<input type="number" min="1" value={launchBudget} onChange={(event) => setLaunchBudget(event.target.value)} /></label>
+            <label className="campaign-field">Pays (séparés par des virgules)<input placeholder="BJ, CI, SN" value={launchCountries} onChange={(event) => setLaunchCountries(event.target.value)} /></label>
+            <div style={{ display: "flex", gap: 8 }}><label className="campaign-field">Âge min<input type="number" min="13" max="65" value={launchAgeMin} onChange={(event) => setLaunchAgeMin(event.target.value)} /></label><label className="campaign-field">Âge max<input type="number" min="13" max="65" value={launchAgeMax} onChange={(event) => setLaunchAgeMax(event.target.value)} /></label></div>
+            <label className="campaign-field">Texte de la créative<textarea rows={3} value={launchMessage} onChange={(event) => setLaunchMessage(event.target.value)} required /></label>
+            <label className="campaign-field">Lien de destination<input placeholder="https://vendeo-studio.site" value={launchLink} onChange={(event) => setLaunchLink(event.target.value)} /></label>
+            {launchError ? <p className="store-error" role="alert">{launchError}</p> : null}
+            <button type="submit" className="btn btn-dark" disabled={launching}>{launching ? t("chat.sending") : t("chat.launchNow")}</button>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }
