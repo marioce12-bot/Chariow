@@ -54,14 +54,15 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!message || message.length > 20000) return NextResponse.json({ error: "Le message doit contenir entre 1 et 20 000 caractères" }, { status: 400 });
-  // Pièces jointes (image/vidéo) envoyées par l'utilisateur : on les expose à l'IA
-  // pour qu'elle puisse s'en servir comme créative publicitaire.
+  // Pièces jointes (image/vidéo) envoyées par l'utilisateur : on les transmet à l'IA
+  // comme parts structurées (pas juste une URL en texte) pour qu'elle puisse
+  // réellement "voir" l'image et s'en servir comme créative publicitaire.
   const attachments = Array.isArray(body?.attachments)
-    ? (body.attachments as Array<{ url?: string; type?: string }>).filter((a) => typeof a?.url === "string").slice(0, 5)
+    ? (body.attachments as Array<{ url?: string; type?: string }>)
+        .filter((a): a is { url: string; type?: string } => typeof a?.url === "string")
+        .slice(0, 5)
+        .map((a) => ({ url: a.url, type: (a.type === "video" ? "video" : "image") as "image" | "video" }))
     : [];
-  const aiMessage = attachments.length
-    ? `${message}\n\nPièces jointes de l'utilisateur (utilisables comme créative publicitaire) :\n${attachments.map((a) => `${a.type === "video" ? "Vidéo" : "Image"}: ${a.url}`).join("\n")}`
-    : message;
   // Contexte IA : on agrège toutes les boutiques actives de l'utilisateur.
   // Le paramètre store_id (si envoyé) sera ignoré côté contexte pour garantir que l'IA a la vue complète.
   const storeId = body?.store_id || null;
@@ -211,8 +212,18 @@ export async function POST(request: Request) {
 
   // Le tour courant est toujours ajouté explicitement en dernier, avec le rôle "user" —
   // ça garantit que la conversation envoyée aux modèles ne se termine jamais par un tour
-  // assistant, quel que soit le contenu de l'historique.
-  const currentTurn = { role: "user" as const, content: aiMessage.length > MAX_MESSAGE_CHARS ? `${aiMessage.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : aiMessage };
+  // assistant, quel que soit le contenu de l'historique. Les pièces jointes sont
+  // rattachées ici (attachments), en plus d'une courte note textuelle de secours au cas
+  // où le modèle utilisé ne supporte pas la vision.
+  const attachmentNote = attachments.length
+    ? `\n\n(Pièce(s) jointe(s) envoyée(s) par l'utilisateur : ${attachments.map((a) => (a.type === "video" ? "vidéo" : "image")).join(", ")})`
+    : "";
+  const currentTurnContent = `${message}${attachmentNote}`;
+  const currentTurn = {
+    role: "user" as const,
+    content: currentTurnContent.length > MAX_MESSAGE_CHARS ? `${currentTurnContent.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : currentTurnContent,
+    attachments: attachments.length ? attachments : undefined,
+  };
 
   try {
     answer = await askImole([{ role: "system", content: systemContent }, ...safeHistory, currentTurn]);
