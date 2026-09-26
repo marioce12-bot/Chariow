@@ -3,6 +3,7 @@
 import { Activity, ArrowRight, Brain, Clock3, Copy, Lightbulb, Megaphone, Package, ShieldAlert, Sparkles, Target, TrendingUp, Wand2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
+import { useI18n } from "@/lib/i18n/i18n";
 import "../app/vendeo-ai.css";
 
 // Assistant Vendeo AI : composant autonome (sorti de Dashboard.tsx).
@@ -22,26 +23,13 @@ type MetaPerformance = { currency: string; overview: { spend: number; realRoas: 
 type ChatMessageItem = { role: string; content: string; imageUrl?: string };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
 
-const POSTER_FORMATS: { id: "square" | "story" | "banner"; label: string; hint: string }[] = [
-  { id: "square", label: "Post carré", hint: "1080×1080 — Instagram/Facebook" },
-  { id: "story", label: "Story", hint: "1080×1920 — Story/Reels" },
-  { id: "banner", label: "Bannière", hint: "1200×628 — Publicité Facebook" },
-];
-
 // Suggestions de démarrage : chacune correspond à une capacité réellement disponible
 // dans Vendeo AI (verdicts pub, produits, résumé d'activité, génération d'affiche)
 // plutôt qu'à des questions génériques qui ne mèneraient nulle part.
 type QuickPrompt = { icon: React.ReactNode; label: string; prompt?: string; action?: "poster" };
-const AI_QUICK_PROMPTS: QuickPrompt[] = [
-  { icon: <Megaphone size={14} />, label: "Pubs à arrêter", prompt: "Quelles publicités dois-je arrêter cette semaine et pourquoi ?" },
-  { icon: <TrendingUp size={14} />, label: "Pubs à scaler", prompt: "Quelles campagnes performent le mieux et méritent plus de budget ?" },
-  { icon: <Package size={14} />, label: "Meilleur produit", prompt: "Quel est mon produit le plus vendu en ce moment et pourquoi ?" },
-  { icon: <Activity size={14} />, label: "Résumé de la semaine", prompt: "Fais-moi un résumé de mes ventes et de mes dépenses publicitaires des 7 derniers jours." },
-  { icon: <Target size={14} />, label: "Prochaine action", prompt: "Quelle est la seule action que je dois faire aujourd’hui pour améliorer mes résultats ?" },
-  { icon: <Wand2 size={14} />, label: "Générer une affiche", action: "poster" },
-];
 
 export function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [], analytics = null }: { onGoToSubscription: () => void; onUsageChange: (patch: UsagePatch) => void; onBack?: () => void; products?: ChatProduct[]; analytics?: ChatAnalytics }) {
+  const { t } = useI18n();
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -50,6 +38,21 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
   const [expandedMessages, setExpandedMessages] = useState<Record<number, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [quickPromptsOpen, setQuickPromptsOpen] = useState(true);
+
+  const AI_QUICK_PROMPTS: QuickPrompt[] = [
+    { icon: <Megaphone size={14} />, label: t("chat.qStop"), prompt: t("chat.qStopPrompt") },
+    { icon: <TrendingUp size={14} />, label: t("chat.qScale"), prompt: t("chat.qScalePrompt") },
+    { icon: <Package size={14} />, label: t("chat.qBest"), prompt: t("chat.qBestPrompt") },
+    { icon: <Activity size={14} />, label: t("chat.qSummary"), prompt: t("chat.qSummaryPrompt") },
+    { icon: <Target size={14} />, label: t("chat.qNext"), prompt: t("chat.qNextPrompt") },
+    { icon: <Wand2 size={14} />, label: t("chat.qPoster"), action: "poster" },
+  ];
+
+  const POSTER_FORMATS = [
+    { id: "square" as const, label: t("chat.fmtPost"), hint: t("chat.fmtPostHint") },
+    { id: "story" as const, label: t("chat.fmtStory"), hint: t("chat.fmtStoryHint") },
+    { id: "banner" as const, label: t("chat.fmtBanner"), hint: t("chat.fmtBannerHint") },
+  ];
 
   // Générateur d'affiches (Imole) : choix du produit et du format, puis génération
   // d'un visuel publicitaire directement dans la conversation.
@@ -159,10 +162,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
         setPlansRequired(true);
         setMessages((current) => [
           ...current,
-          { role: "assistant", content: "Ton essai gratuit de 15 jours est terminé. Active ton abonnement pour continuer." },
+          { role: "assistant", content: t("chat.trialEndedMessage") },
         ]);
       } else {
-        setMessages((current) => [...current, { role: "assistant", content: data.error ?? "Une erreur est survenue." }]);
+        setMessages((current) => [...current, { role: "assistant", content: data.error ?? t("chat.error") }]);
       }
     }
     setSending(false);
@@ -171,7 +174,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
   async function generatePoster() {
     const product = products.find((item) => item.id === posterProductId);
     if (!product) {
-      setPosterError("Sélectionne un produit.");
+      setPosterError(t("chat.posterSelect"));
       return;
     }
     setPosterGenerating(true);
@@ -191,14 +194,14 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.imageUrl) {
-        setPosterError(data.error ?? "Impossible de générer l'affiche pour le moment.");
+        setPosterError(data.error ?? t("chat.posterError"));
         return;
       }
-      setMessages((current) => [...current, { role: "assistant", content: `Affiche générée pour « ${product.name} ».`, imageUrl: data.imageUrl }]);
+      setMessages((current) => [...current, { role: "assistant", content: t("chat.posterDone", { name: product.name }), imageUrl: data.imageUrl }]);
       setPosterOpen(false);
       setPosterExtra("");
     } catch {
-      setPosterError("Impossible de contacter le générateur d'affiches.");
+      setPosterError(t("chat.posterContact"));
     } finally {
       setPosterGenerating(false);
     }
@@ -228,10 +231,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
   const statusPillLabel = !usage
     ? null
     : plansRequired
-    ? "Essai terminé"
+    ? t("chat.statusEnded")
     : usage.trialActive && trialDaysLeft !== null
-    ? `Essai · ${trialDaysLeft} j`
-    : "Abonnement actif";
+    ? t("chat.statusTrial", { days: trialDaysLeft })
+    : t("chat.statusActive");
   const hasConversation = messages.length > 0;
   const dataLive = Boolean(analytics);
   const lastMessage = messages[messages.length - 1];
@@ -249,7 +252,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
           <span className="chat-header-avatar" aria-hidden="true"><Sparkles size={17} /></span>
           <div className="chat-header-title">
             <strong>Vendeo AI</strong>
-            <span className="chat-header-status"><i className={dataLive ? "is-live" : ""} />{dataLive ? "Données Chariow connectées" : "Chariow non synchronisé"}</span>
+            <span className="chat-header-status"><i className={dataLive ? "is-live" : ""} />{dataLive ? t("chat.connected") : t("chat.notSynced")}</span>
           </div>
           {statusPillLabel ? (
             <span className={`chat-status-pill ${plansRequired ? "warning" : "positive"}`}>
@@ -260,35 +263,35 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
 
         {plansRequired && (
           <div className="trial-banner">
-            <strong>Ton essai gratuit est terminé.</strong>{" "}
+            <strong>{t("chat.trialEnded")}</strong>{" "}
             <button
               className="btn btn-dark"
               onClick={onGoToSubscription}
               style={{ fontSize: 10, padding: "7px 10px", marginLeft: 8 }}
               type="button"
             >
-              Activer l’abonnement
+              {t("chat.activate")}
             </button>
           </div>
         )}
 
         <div className="chat-insights">
-          <div className="chat-insight"><small>Ventes</small><strong>{insightSales}</strong></div>
-          <div className="chat-insight"><small>Dépenses pub</small><strong>{insightSpend !== null ? insightFormat(insightSpend) : "—"}</strong></div>
-          <div className="chat-insight"><small>ROAS réel</small><strong>{insightRoas !== null ? `${insightRoas.toFixed(2)}x` : "—"}</strong></div>
+          <div className="chat-insight"><small>{t("chat.sales")}</small><strong>{insightSales}</strong></div>
+          <div className="chat-insight"><small>{t("chat.spend")}</small><strong>{insightSpend !== null ? insightFormat(insightSpend) : "—"}</strong></div>
+          <div className="chat-insight"><small>{t("chat.roas")}</small><strong>{insightRoas !== null ? `${insightRoas.toFixed(2)}x` : "—"}</strong></div>
         </div>
 
         <div className="chat-messages">
           {!hasConversation && (
             <div className="chat-empty-hero">
-              <span className="ai-eyebrow">Centre de décision</span>
-              <strong>Que veux-tu comprendre aujourd’hui ?</strong>
-              <p>Vendeo croise tes ventes, tes pubs et ta rentabilité pour te dire quoi faire ensuite.</p>
+              <span className="ai-eyebrow">{t("chat.eyebrow")}</span>
+              <strong>{t("chat.title")}</strong>
+              <p>{t("chat.desc")}</p>
               <div className="ai-action-grid">
                 {[
-                  { tone: "red", icon: <ShieldAlert size={18} />, title: "Protéger ma marge", text: "Repérer les pubs qui brûlent du budget", prompt: "Où est-ce que je perds de l'argent cette semaine ?" },
-                  { tone: "green", icon: <TrendingUp size={18} />, title: "Trouver une opportunité", text: "Voir ce qui mérite plus d’attention", prompt: "Quelle est ma meilleure opportunité cette semaine ?" },
-                  { tone: "blue", icon: <Package size={18} />, title: "Comprendre mes produits", text: "Voir ce qui se vend vraiment", prompt: "Quels produits se vendent le mieux et pourquoi ?" },
+                  { tone: "red", icon: <ShieldAlert size={18} />, title: t("chat.protectTitle"), text: t("chat.protectText"), prompt: t("chat.protectPrompt") },
+                  { tone: "green", icon: <TrendingUp size={18} />, title: t("chat.opportunityTitle"), text: t("chat.opportunityText"), prompt: t("chat.opportunityPrompt") },
+                  { tone: "blue", icon: <Package size={18} />, title: t("chat.productsTitle"), text: t("chat.productsText"), prompt: t("chat.productsPrompt") },
                 ].map((item) => (
                   <button type="button" className={`ai-action-card tone-${item.tone}`} key={item.title} onClick={() => void send(item.prompt)} disabled={sending || plansRequired}>
                     <span className="ai-action-icon">{item.icon}</span>
@@ -315,9 +318,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
                 {message.imageUrl ? (
                   <div className="chat-image-message">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={message.imageUrl} alt="Affiche générée" />
+                    <img src={message.imageUrl} alt={t("chat.posterTitle")} />
                     <a className="btn btn-ghost" href={message.imageUrl} target="_blank" rel="noreferrer" download>
-                      Télécharger
+                      {t("chat.download")}
                     </a>
                   </div>
                 ) : null}
@@ -334,12 +337,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
                         className="chat-see-more"
                         onClick={() => setExpandedMessages((current) => ({ ...current, [index]: !expanded }))}
                       >
-                        {expanded ? "Voir moins" : "Voir plus"}
+                        {expanded ? t("chat.seeLess") : t("chat.seeMore")}
                       </button>
                     )}
                     {isAssistant && content && (
                       <button type="button" className="chat-copy" onClick={() => copyMessage(index, content)}>
-                        <Copy size={11} /> {copiedIndex === index ? "Copié" : "Copier"}
+                        <Copy size={11} /> {copiedIndex === index ? t("chat.copied") : t("chat.copy")}
                       </button>
                     )}
                   </div>
@@ -361,8 +364,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
 
           {showFollowups && (
             <div className="chat-followups">
-              <button type="button" className="chat-chip" disabled={sending} onClick={() => void send("Que dois-je faire ensuite ?")}>Que faire ensuite ?</button>
-              <button type="button" className="chat-chip" disabled={sending} onClick={() => void send("Peux-tu détailler ta réponse précédente avec plus de contexte ?")}>Détailler</button>
+              <button type="button" className="chat-chip" disabled={sending} onClick={() => void send(t("chat.next"))}>{t("chat.next")}</button>
+              <button type="button" className="chat-chip" disabled={sending} onClick={() => void send(t("chat.detailPrompt"))}>{t("chat.detail")}</button>
             </div>
           )}
 
@@ -372,19 +375,19 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
         {posterOpen ? (
           <div className="poster-generator">
             <div className="poster-generator-head">
-              <strong><Wand2 size={15} /> Générer une affiche</strong>
+              <strong><Wand2 size={15} /> {t("chat.posterTitle")}</strong>
               <button type="button" className="poster-close" aria-label="Fermer" onClick={() => setPosterOpen(false)}>
                 <X size={16} />
               </button>
             </div>
             {!products.length ? (
-              <p className="hint-line">Connecte une boutique avec au moins un produit pour générer une affiche.</p>
+              <p className="hint-line">{t("chat.posterNoProduct")}</p>
             ) : (
               <>
                 <div className="poster-body">
                   <div className="poster-fields">
                     <label className="campaign-field">
-                      Produit
+                      {t("chat.posterProduct")}
                       <select value={posterProductId} onChange={(event) => setPosterProductId(event.target.value)}>
                         {products.map((product) => (
                           <option key={product.id} value={product.id}>
@@ -407,8 +410,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
                       ))}
                     </div>
                     <label className="campaign-field">
-                      Message ou hook (optionnel)
-                      <textarea rows={2} placeholder="Ex : Livraison offerte ce week-end" value={posterExtra} onChange={(event) => setPosterExtra(event.target.value)} />
+                      {t("chat.posterMessage")}
+                      <textarea rows={2} placeholder={t("chat.posterMessagePh")} value={posterExtra} onChange={(event) => setPosterExtra(event.target.value)} />
                     </label>
                   </div>
                   <div className="poster-preview">
@@ -416,13 +419,13 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={products.find((product) => product.id === posterProductId)?.image ?? undefined} alt="" />
                     ) : (
-                      <span>Aperçu de l’affiche généré ici</span>
+                      <span>{t("chat.posterPreview")}</span>
                     )}
                   </div>
                 </div>
                 {posterError ? <p className="store-error" role="alert">{posterError}</p> : null}
                 <button type="button" className="btn btn-dark" style={{ width: "100%" }} disabled={posterGenerating} onClick={() => void generatePoster()}>
-                  {posterGenerating ? "Génération en cours…" : "Générer l’affiche"}
+                  {posterGenerating ? t("chat.posterGenerating") : t("chat.posterGenerate")}
                 </button>
               </>
             )}
@@ -476,7 +479,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
               disabled={plansRequired}
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder={plansRequired ? "Active ton abonnement pour continuer" : "Pose ta question..."}
+              placeholder={plansRequired ? t("chat.placeholderBlocked") : t("chat.placeholder")}
               rows={1}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
@@ -489,7 +492,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
               type="submit"
               className="chat-send-button"
               disabled={sending || plansRequired || !input.trim()}
-              aria-label={sending ? "Envoi en cours" : "Envoyer"}
+              aria-label={sending ? t("chat.sending") : t("chat.send")}
             >
               {sending ? <span className="chat-send-dots" aria-hidden="true">…</span> : <ArrowRight size={18} style={{ transform: "rotate(-90deg)" }} />}
             </button>
@@ -500,22 +503,22 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
       <aside className="ai-side">
         <div className="app-card ai-side-card">
           <div className="card-head">
-            <h2>Ce que Vendeo AI sait faire</h2>
+            <h2>{t("chat.capTitle")}</h2>
             <Brain size={17} />
           </div>
           <ul className="ai-capability-list">
-            <li><Megaphone size={14} /> Dire explicitement quelle pub arrêter ou scaler, avec le montant à l’appui</li>
-            <li><Package size={14} /> Identifier ton produit le plus vendu à partir des ventes Chariow</li>
-            <li><Wand2 size={14} /> Générer une affiche produit prête à publier</li>
-            <li><Activity size={14} /> Résumer ton activité récente en langage simple</li>
+            <li><Megaphone size={14} /> {t("chat.cap1")}</li>
+            <li><Package size={14} /> {t("chat.cap2")}</li>
+            <li><Wand2 size={14} /> {t("chat.cap3")}</li>
+            <li><Activity size={14} /> {t("chat.cap4")}</li>
           </ul>
         </div>
         <div className="app-card ai-side-card">
           <div className="card-head">
-            <h2>Astuce</h2>
+            <h2>{t("chat.tipTitle")}</h2>
             <Lightbulb size={17} color="#d28b3d" />
           </div>
-          <p className="ai-tip">Sois précis dans tes questions. Plutôt que « comment ça va ? », essaie « quelle campagne perd de l’argent cette semaine ? ».</p>
+          <p className="ai-tip">{t("chat.tipText")}</p>
         </div>
       </aside>
     </div>
