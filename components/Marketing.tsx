@@ -105,6 +105,11 @@ function revealStyle(i: number) {
 }
 
 const heroImage = "/vendeo-hero-app.jpeg";
+// Vidéo de démo qui remplace la capture statique dans le bloc "hero-preview".
+// Le fichier binaire lui-même doit être ajouté séparément dans /public
+// (l'API texte utilisée pour ce commit ne peut pas transporter de binaire) ;
+// heroImage sert de poster pendant le chargement et si la vidéo échoue.
+const heroVideo = "/vendeo-hero-video.mp4";
 
 export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) {
   const { t } = useI18n();
@@ -153,7 +158,7 @@ export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) 
           </div>
 
           <div className="hero-preview reveal-item" style={revealStyle(3)}>
-            <div className="dashboard-preview"><Image className="platform-preview-image" src={heroImage} alt="Aperçu de l’espace Vendeo" width={900} height={620} priority/></div>
+            <div className="dashboard-preview"><video className="platform-preview-image" src={heroVideo} poster={heroImage} width={900} height={620} autoPlay muted loop playsInline preload="metadata" aria-label="Aperçu de l’espace Vendeo"/></div>
           </div>
           <div className="hero-logos reveal-item" style={revealStyle(4)}>
             <div className="logos hero-logos-inner">
