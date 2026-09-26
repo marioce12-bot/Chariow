@@ -77,6 +77,20 @@ export const translations: Record<Locale, Dict> = {
     nav: {
       overview: "Accueil", pubs: "Pub", studio: "Studio", assistant: "Assistant", radar: "Radar", reports: "Rapports", stores: "Mes boutiques", subscription: "Abonnement", settings: "Paramètres", adAccounts: "Comptes publicitaires",
     },
+    auth: {
+      resetTitle: "Réinitialise ton mot de passe.", resetDesc: "Reçois un lien sécurisé pour choisir un nouveau mot de passe.",
+      registerTitle: "Crée ton espace.", registerDesc: "Ton business mérite mieux que des suppositions.",
+      loginTitle: "Content de te revoir.", loginDesc: "Retrouve tes données et ton prochain bon move.",
+      resetSuccess: "Si un compte existe avec cette adresse, un lien de réinitialisation vient d'être envoyé.",
+      registerSuccess: "Un email de confirmation vient de t'être envoyé. Confirme ton adresse pour accéder à ton espace.",
+      configError: "La connexion Supabase n'est pas configurée sur Vercel. Ajoute les variables d'environnement puis redéploie.",
+      fullName: "Ton prénom", email: "Email professionnel", password: "Mot de passe", passwordPlaceholder: "8 caractères minimum",
+      consent: "J'accepte les", terms: "conditions d'utilisation", and: "et la", privacy: "politique de confidentialité",
+      sendLink: "Envoyer le lien", createSpace: "Créer mon espace", login: "Se connecter",
+      backToLogin: "Retour à la connexion", alreadyAccount: "Déjà un compte ?", forgotPassword: "Mot de passe oublié ?", noAccount: "Pas encore de compte ?",
+      tooManyRequests: "Trop de tentatives récentes. Attends un peu avant de renvoyer l'email.",
+      tooManyForEmail: "Trop de demandes pour cet email. Réessaie dans {seconds}s.",
+    },
   },
   en: {
     landing: {
@@ -147,6 +161,20 @@ export const translations: Record<Locale, Dict> = {
     },
     nav: {
       overview: "Home", pubs: "Ads", studio: "Studio", assistant: "Assistant", radar: "Radar", reports: "Reports", stores: "My stores", subscription: "Subscription", settings: "Settings", adAccounts: "Ad accounts",
+    },
+    auth: {
+      resetTitle: "Reset your password.", resetDesc: "Receive a secure link to choose a new password.",
+      registerTitle: "Create your space.", registerDesc: "Your business deserves better than guesswork.",
+      loginTitle: "Welcome back.", loginDesc: "Get back to your data and your next smart move.",
+      resetSuccess: "If an account exists with this address, a reset link has just been sent.",
+      registerSuccess: "A confirmation email has been sent. Confirm your address to access your space.",
+      configError: "The Supabase connection is not configured on Vercel. Add the environment variables and redeploy.",
+      fullName: "Your first name", email: "Work email", password: "Password", passwordPlaceholder: "8 characters minimum",
+      consent: "I accept the", terms: "terms of use", and: "and the", privacy: "privacy policy",
+      sendLink: "Send the link", createSpace: "Create my space", login: "Log in",
+      backToLogin: "Back to login", alreadyAccount: "Already have an account?", forgotPassword: "Forgot password?", noAccount: "No account yet?",
+      tooManyRequests: "Too many recent attempts. Wait a moment before resending the email.",
+      tooManyForEmail: "Too many requests for this email. Try again in {seconds}s.",
     },
   },
 };

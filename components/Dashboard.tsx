@@ -179,6 +179,7 @@ function TrialPaywallModal({ subscription }: { subscription: SubscriptionData | 
 }
 
 export function Dashboard() {
+  const { t } = useI18n();
   const [active, setActive] = useState("Vue d'ensemble");
   const [moreOpen, setMoreOpen] = useState(false);
   // Se souvient de la section affichée juste avant d'ouvrir "Vendeo AI", pour que
@@ -252,6 +253,21 @@ export function Dashboard() {
     ["Rapports", FileText],
     ["Abonnement", CreditCard],
   ] as const;
+
+  // Clé d'internationalisation par section : l'état interne reste en français,
+  // seul le libellé affiché change selon la langue.
+  const navKey: Record<string, string> = {
+    "Vue d'ensemble": "nav.overview",
+    "Vendeo AI": "nav.assistant",
+    "Studio": "nav.studio",
+    "Pub": "nav.pubs",
+    "Comptes publicitaires": "nav.adAccounts",
+    "Radar marché": "nav.radar",
+    "Mes boutiques": "nav.stores",
+    "Rapports": "nav.reports",
+    "Abonnement": "nav.subscription",
+    "Paramètres": "nav.settings",
+  };
 
   async function signOut() {
     await createClient().auth.signOut();
@@ -367,7 +383,7 @@ export function Dashboard() {
           {links.map(([name, Icon]) => (
             <button key={name} className={`side-link ${active === name ? "active" : ""}`} onClick={() => setActive(name)}>
               <Icon size={16} />
-              {name}
+              {t(navKey[name] ?? name)}
             </button>
           ))}
           <div className="side-label" style={{ marginTop: 28 }}>
@@ -454,23 +470,23 @@ export function Dashboard() {
          <nav className="mobile-nav" aria-label="Navigation mobile">
          <button type="button" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
            <LayoutDashboard size={18} />
-           <span>Accueil</span>
+            <span>{t("nav.overview")}</span>
          </button>
            <button type="button" className={`nav-btn ${active === "Pub" ? "active" : ""}`} onClick={() => setActive("Pub")}>
              <Megaphone size={18} />
-             <span>Pub</span>
+              <span>{t("nav.pubs")}</span>
           </button>
             <button type="button" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
               <Sparkles size={21} strokeWidth={2.5} />
-              <span>Studio</span>
+              <span>{t("nav.studio")}</span>
             </button>
              <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
                <MessageSquare size={18} />
-               <span>Assistant</span>
+               <span>{t("nav.assistant")}</span>
              </button>
              <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
                <Lightbulb size={18} />
-               <span>Radar</span>
+                <span>{t("nav.radar")}</span>
              </button>
         </nav>
         ) : null}

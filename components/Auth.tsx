@@ -5,8 +5,10 @@ import Image from "next/image";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
+import { useI18n } from "@/lib/i18n/i18n";
 
 export function Auth({ mode, configurationError = false }: { mode: "login" | "register" | "forgot"; configurationError?: boolean }) {
+  const { t } = useI18n();
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -39,7 +41,7 @@ export function Auth({ mode, configurationError = false }: { mode: "login" | "re
     if (register || forgot) {
       const until = getCooldownUntil(email);
       if (Date.now() < until) {
-        setError(`Trop de demandes pour cet email. Réessaie dans ${Math.ceil((until - Date.now()) / 1000)}s.`);
+        setError(t("auth.tooManyForEmail", { seconds: Math.ceil((until - Date.now()) / 1000) }));
         return;
       }
       setSendingEmail(true);
@@ -57,7 +59,7 @@ export function Auth({ mode, configurationError = false }: { mode: "login" | "re
       if (result.error) {
         if (/rate limit|exceed|too many|429/i.test(result.error.message ?? "")) {
           setCooldown(email, 120_000);
-          setError("Trop de tentatives récentes. Attends un peu avant de renvoyer l’email.");
+          setError(t("auth.tooManyRequests"));
           return;
         }
         setError(result.error.message);
@@ -81,9 +83,9 @@ export function Auth({ mode, configurationError = false }: { mode: "login" | "re
     }
   }
 
-  const title = forgot ? "Réinitialise ton mot de passe." : register ? "Crée ton espace." : "Content de te revoir.";
-  const description = forgot ? "Reçois un lien sécurisé pour choisir un nouveau mot de passe." : register ? "Ton business mérite mieux que des suppositions." : "Retrouve tes données et ton prochain bon move.";
-  const successMessage = forgot ? "Si un compte existe avec cette adresse, un lien de réinitialisation vient d’être envoyé." : "Un email de confirmation vient de t’être envoyé. Confirme ton adresse pour accéder à ton espace.";
+  const title = forgot ? t("auth.resetTitle") : register ? t("auth.registerTitle") : t("auth.loginTitle");
+  const description = forgot ? t("auth.resetDesc") : register ? t("auth.registerDesc") : t("auth.loginDesc");
+  const successMessage = forgot ? t("auth.resetSuccess") : t("auth.registerSuccess");
 
   return (
     <main className="auth-page">
@@ -91,18 +93,18 @@ export function Auth({ mode, configurationError = false }: { mode: "login" | "re
         <Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo-dark.svg" alt="Vendeo" width={150} height={40} /></Link>
         <h1>{title}</h1>
         <p>{description}</p>
-        {configurationError && <p className="form-error">La connexion Supabase n’est pas configurée sur Vercel. Ajoute les variables d’environnement puis redéploie.</p>}
+        {configurationError && <p className="form-error">{t("auth.configError")}</p>}
         {submitted ? <div className="auth-success">{successMessage}</div> : (
           <form onSubmit={submit}>
-            {register && <div className="form-group"><label htmlFor="fullName">Ton prénom</label><input id="fullName" name="fullName" required placeholder="Aïcha" /></div>}
-            <div className="form-group"><label htmlFor="email">Email professionnel</label><input id="email" name="email" required type="email" placeholder="toi@exemple.com" /></div>
-            {!forgot && <div className="form-group"><label htmlFor="password">Mot de passe</label><input id="password" name="password" required type="password" placeholder="8 caractères minimum" minLength={8} /></div>}
-            {register && <label className="legal-consent"><input type="checkbox" required /><span><ShieldCheck size={14} aria-hidden="true" /> J’accepte les <Link href="/terms" target="_blank">conditions d’utilisation</Link> et la <Link href="/privacy" target="_blank">politique de confidentialité</Link>.</span></label>}
+            {register && <div className="form-group"><label htmlFor="fullName">{t("auth.fullName")}</label><input id="fullName" name="fullName" required placeholder="Aïcha" /></div>}
+            <div className="form-group"><label htmlFor="email">{t("auth.email")}</label><input id="email" name="email" required type="email" placeholder="toi@exemple.com" /></div>
+            {!forgot && <div className="form-group"><label htmlFor="password">{t("auth.password")}</label><input id="password" name="password" required type="password" placeholder={t("auth.passwordPlaceholder")} minLength={8} /></div>}
+            {register && <label className="legal-consent"><input type="checkbox" required /><span><ShieldCheck size={14} aria-hidden="true" /> {t("auth.consent")} <Link href="/terms" target="_blank">{t("auth.terms")}</Link> {t("auth.and")} <Link href="/privacy" target="_blank">{t("auth.privacy")}</Link>.</span></label>}
             {error && <p className="form-error">{error}</p>}
-            <button className="btn btn-dark" type="submit" disabled={(register || forgot) ? sendingEmail : false}>{forgot ? "Envoyer le lien" : register ? "Créer mon espace" : "Se connecter"} <ArrowRight size={15} /></button>
+            <button className="btn btn-dark" type="submit" disabled={(register || forgot) ? sendingEmail : false}>{forgot ? t("auth.sendLink") : register ? t("auth.createSpace") : t("auth.login")} <ArrowRight size={15} /></button>
           </form>
         )}
-        {forgot ? <div className="auth-foot"><Link href="/login">Retour à la connexion</Link></div> : register ? <div className="auth-foot">Déjà un compte ? <Link href="/login">Se connecter</Link></div> : <div className="auth-foot"><Link href="/forgot-password">Mot de passe oublié ?</Link><span> · </span>Pas encore de compte ? <Link href="/register">Créer un espace</Link></div>}
+        {forgot ? <div className="auth-foot"><Link href="/login">{t("auth.backToLogin")}</Link></div> : register ? <div className="auth-foot">{t("auth.alreadyAccount")} <Link href="/login">{t("auth.login")}</Link></div> : <div className="auth-foot"><Link href="/forgot-password">{t("auth.forgotPassword")}</Link><span> · </span>{t("auth.noAccount")} <Link href="/register">{t("auth.createSpace")}</Link></div>}
       </div>
     </main>
   );
