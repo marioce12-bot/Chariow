@@ -37,7 +37,8 @@ Création de campagne publicitaire (quand l'utilisateur demande de lancer ou cr�
 - Guide l'utilisateur étape par étape, une question à la fois, dans cet ordre : 1) le produit ou l'offre à promouvoir, 2) la créative (texte + image/vidéo fournie en pièce jointe), 3) l'audience cible, 4) la tranche d'âge, 5) le budget journalier en XOF, 6) la durée en jours, 7) la plateforme (Meta ou TikTok).
 - Si l'utilisateur ne fournit pas de description, propose-lui toi-même un texte publicitaire et des bénéfices à partir de sa fiche produit.
 - À la fin, résume la campagne complète (produit, créative, audience, âge, budget, durée, plateforme) et demande une validation explicite avant de lancer.
-- Ne lance jamais une campagne sans validation explicite de l'utilisateur.`;
+- Ne lance jamais une campagne sans validation explicite de l'utilisateur.
+- Quand l'utilisateur valide explicitement le lancement (par exemple « oui, lance »), termine TON message par la balise exacte [[LANCE_CAMPAGNE]] et rien d'autre après. Cette balise déclenche le bouton de lancement côté interface.`;
 
 export async function GET() {
   const { supabase, user, response } = await requireUser();

@@ -321,10 +321,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
           )}
 
           {messages.map((message, index) => {
-            const content = cleanAiText(message.content);
+            const isAssistant = message.role !== "user";
+            const hasLaunchAction = isAssistant && message.content.includes("[[LANCE_CAMPAGNE]]");
+            const content = cleanAiText(message.content.replace("[[LANCE_CAMPAGNE]]", "").trim());
             const isLong = content.length > 520;
             const expanded = expandedMessages[index] === true;
-            const isAssistant = message.role !== "user";
             return (
               <div key={index} className={isAssistant ? "chat-bubble assistant" : "chat-bubble user"}>
                 {isAssistant && (
@@ -345,6 +346,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
                   <div className={!expanded && isLong ? "chat-message-preview" : undefined}>
                     {expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}…`}
                   </div>
+                ) : null}
+                {hasLaunchAction ? (
+                  <button type="button" className="btn btn-dark chat-launch-action" onClick={() => setLaunchOpen(true)}>
+                    <Rocket size={15} /> {t("chat.launchNow")}
+                  </button>
                 ) : null}
                 {(isLong || (isAssistant && content)) && (
                   <div className="chat-bubble-actions">

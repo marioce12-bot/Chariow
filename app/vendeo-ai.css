@@ -89,3 +89,4 @@ html[data-theme="dark"] .ai-page .ai-eyebrow { color:#8fa8ff; }
 .ai-page .chat-launch-head { align-items:center; display:flex; justify-content:space-between; }
 .ai-page .chat-launch-head strong { display:inline-flex; gap:6px; }
 .ai-page .chat-launch-head button { background:transparent; border:0; color:var(--muted); cursor:pointer; font-size:20px; line-height:1; }
+.ai-page .chat-launch-action { margin:8px 0 0; }
