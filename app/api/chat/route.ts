@@ -34,11 +34,13 @@ Diagnostic publicitaire (quand le contexte contient un "Rapport de diagnostic pu
 - Une campagne "ok" n'a pas de problème : dis-le simplement, n'invente pas d'anomalie.
 
 Création de campagne publicitaire (quand l'utilisateur demande de lancer ou créer une pub) :
-- Guide l'utilisateur étape par étape, une question à la fois, dans cet ordre : 1) le produit ou l'offre à promouvoir, 2) la créative (texte + image/vidéo fournie en pièce jointe), 3) l'audience cible, 4) la tranche d'âge, 5) le budget journalier en XOF, 6) la durée en jours, 7) la plateforme (Meta ou TikTok).
-- Si l'utilisateur ne fournit pas de description, propose-lui toi-même un texte publicitaire et des bénéfices à partir de sa fiche produit.
-- À la fin, résume la campagne complète (produit, créative, audience, âge, budget, durée, plateforme) et demande une validation explicite avant de lancer.
-- Ne lance jamais une campagne sans validation explicite de l'utilisateur.
-- Quand l'utilisateur valide explicitement le lancement (par exemple « oui, lance »), termine TON message par la balise exacte [[LANCE_CAMPAGNE]] et rien d'autre après. Cette balise déclenche le bouton de lancement côté interface.`;
+- Parle comme un humain qui aide, pas comme un formulaire : ne pose pas mécaniquement une question isolée par message. Regroupe naturellement les informations proches quand ça a du sens dans la conversation (par exemple audience + tranche d'âge dans la même relance, ou budget + durée ensemble).
+- Relis l'historique de la conversation avant de poser une question : si l'utilisateur a déjà donné une information (même formulée autrement, même dans un message précédent), ne la redemande jamais.
+- Informations à réunir avant de résumer : le produit/l'offre à promouvoir, la créative (texte + image/vidéo en pièce jointe), l'audience cible, la tranche d'âge, le budget journalier en XOF, la durée en jours, la plateforme (Meta ou TikTok).
+- Si l'utilisateur ne fournit pas de texte publicitaire, propose-lui toi-même un texte et des bénéfices à partir de sa fiche produit.
+- Une fois toutes les informations réunies, résume la campagne complète en un seul message (produit, créative, audience, âge, budget, durée, plateforme) et demande une validation explicite avant de lancer.
+- Ne lance jamais une campagne sans validation explicite de l'utilisateur (par exemple « oui, lance »).
+- Quand l'utilisateur valide explicitement le lancement, termine TON message par la balise exacte [[LANCE_CAMPAGNE]] suivie IMMÉDIATEMENT, sur la même ligne et sans aucun autre texte autour, d'un objet JSON compact et valide reprenant exactement les informations validées avec ces clés : {"name": string, "objective": "OUTCOME_SALES" | "OUTCOME_TRAFFIC" | "OUTCOME_ENGAGEMENT" | "OUTCOME_LEADS" | "OUTCOME_AWARENESS", "dailyBudget": number (en XOF, juste le nombre), "countries": string[] (codes pays ISO à 2 lettres), "ageMin": number, "ageMax": number, "message": string (texte final de la créative), "headline": string, "linkUrl": string}. Si une information n'a pas été donnée par l'utilisateur, mets sa valeur à null : n'invente jamais de chiffre ou de texte à sa place. N'écris rien après ce JSON.`;
 
 export async function GET() {
   const { supabase, user, response } = await requireUser();
@@ -182,11 +184,16 @@ export async function POST(request: Request) {
   }
 
   // Imole peut refuser les payloads trop volumineux (400).
-  // On tronque de façon plus agressive le contexte + l'historique.
-  const MAX_CONTEXT_CHARS = 6_000;
-  const MAX_MESSAGE_CHARS = 1_500;
-  const MAX_HISTORY_MESSAGES = 4;
-  const MAX_SYSTEM_CONTENT_CHARS = 9_000;
+  // On tronque le contexte analytique de façon plus agressive qu'avant, MAIS on ne
+  // sacrifie plus jamais l'historique de conversation pour gagner de la place : c'est
+  // cet historique qui permet à l'IA de se souvenir des réponses déjà données pendant
+  // un tunnel de création de campagne (produit, créative, audience...). Le supprimer
+  // entièrement (comme avant) faisait "oublier" les réponses et redemander les mêmes
+  // questions après quelques échanges.
+  const MAX_CONTEXT_CHARS = 4_000;
+  const MAX_MESSAGE_CHARS = 1_200;
+  const MAX_HISTORY_MESSAGES = 14; // couvre un tunnel complet de 7 questions/réponses.
+  const MAX_SYSTEM_CONTENT_CHARS = 7_000;
 
   const safeContext =
     context.length > MAX_CONTEXT_CHARS
@@ -199,16 +206,14 @@ export async function POST(request: Request) {
   const rawSystemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}`;
   const systemContent = rawSystemContent.length > MAX_SYSTEM_CONTENT_CHARS ? `${rawSystemContent.slice(0, MAX_SYSTEM_CONTENT_CHARS)}[...system tronqué...]` : rawSystemContent;
 
-  // Garde-fou : si le system est déjà gros, on enlève l'historique.
-  const shouldIncludeHistory = systemContent.length < 7_500;
-
-  const safeHistory = shouldIncludeHistory
-    ? recentPreviousHistory.map((item) => {
-        const raw = typeof item.content === "string" ? item.content : "";
-        const content = raw.length > MAX_MESSAGE_CHARS ? `${raw.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : raw;
-        return { role: item.role as "user" | "assistant", content };
-      })
-    : [];
+  // L'historique de la conversation en cours est toujours transmis : c'est la mémoire
+  // du tunnel de création de campagne. On ne le supprime plus jamais pour économiser
+  // de la place ; seul le contexte analytique (ci-dessus) est raccourci si besoin.
+  const safeHistory = recentPreviousHistory.map((item) => {
+    const raw = typeof item.content === "string" ? item.content : "";
+    const content = raw.length > MAX_MESSAGE_CHARS ? `${raw.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : raw;
+    return { role: item.role as "user" | "assistant", content };
+  });
 
   // Le tour courant est toujours ajouté explicitement en dernier, avec le rôle "user" —
   // ça garantit que la conversation envoyée aux modèles ne se termine jamais par un tour
