@@ -1,6 +1,9 @@
+type ChatAttachment = { url: string; type: "image" | "video" };
+
 type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
+  attachments?: ChatAttachment[];
 };
 
 type ImoleResponse = {
@@ -57,6 +60,24 @@ function getConfig() {
   };
 }
 
+// Imole expose une API compatible OpenAI : pour qu'un message avec pièce(s)
+// jointe(s) image soit réellement "vu" par le modèle (et pas juste son URL lue
+// comme du texte), le content doit devenir un tableau de parts { type, ... }
+// au lieu d'une simple chaîne, avec une part "image_url" par image.
+function toImolePayloadMessages(messages: ChatMessage[]) {
+  return messages.map((message) => {
+    const images = (message.attachments ?? []).filter((attachment) => attachment.type === "image");
+    if (!images.length) return { role: message.role, content: message.content };
+    return {
+      role: message.role,
+      content: [
+        { type: "text", text: message.content },
+        ...images.map((image) => ({ type: "image_url", image_url: { url: image.url } })),
+      ],
+    };
+  });
+}
+
 export async function askImole(messages: ChatMessage[]) {
   const { apiKey, baseUrl, model } = getConfig();
   const controller = new AbortController();
@@ -71,7 +92,7 @@ export async function askImole(messages: ChatMessage[]) {
       },
       // Pas de `temperature` : les modèles GPT-5.x d'Imole n'acceptent que la valeur par défaut
       // et répondent 400 (model_validation_failed) si on envoie autre chose, ex. 0.4.
-      body: JSON.stringify({ model, messages }),
+      body: JSON.stringify({ model, messages: toImolePayloadMessages(messages) }),
       signal: controller.signal,
       cache: "no-store",
     });
