@@ -11,6 +11,7 @@ import "../app/vendeo-ai.css";
 // Contrat de design : voir docs/VENDEO_AI_LAYOUT.md.
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
+const LAUNCH_TAG = "[[LANCE_CAMPAGNE]]";
 
 type UsagePlan = "starter";
 type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
@@ -23,6 +24,44 @@ type MetaPerformance = { currency: string; overview: { spend: number; realRoas: 
 type ChatAttachment = { url: string; type: "image" | "video" };
 type ChatMessageItem = { role: string; content: string; imageUrl?: string; attachments?: ChatAttachment[] };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
+
+// Payload structuré que l'IA renvoie juste après la balise [[LANCE_CAMPAGNE]], une fois
+// que l'utilisateur a validé le lancement dans le chat. Sert à pré-remplir le formulaire
+// de lancement au lieu de faire retaper les infos déjà données pendant la conversation.
+type LaunchPayload = {
+  name?: string | null;
+  objective?: string | null;
+  dailyBudget?: number | null;
+  countries?: string[] | null;
+  ageMin?: number | null;
+  ageMax?: number | null;
+  message?: string | null;
+  headline?: string | null;
+  linkUrl?: string | null;
+};
+
+// Extrait le texte affichable et, si présent, le JSON de lancement d'un message assistant.
+// La balise et son JSON ne doivent jamais apparaître dans la bulle de chat.
+function parseAssistantMessage(rawContent: string): { content: string; launchPayload: LaunchPayload | null } {
+  const tagIndex = rawContent.indexOf(LAUNCH_TAG);
+  if (tagIndex === -1) {
+    return { content: cleanAiText(rawContent), launchPayload: null };
+  }
+  const before = rawContent.slice(0, tagIndex);
+  const after = rawContent.slice(tagIndex + LAUNCH_TAG.length).trim();
+  let launchPayload: LaunchPayload | null = null;
+  if (after) {
+    try {
+      const parsed = JSON.parse(after);
+      if (parsed && typeof parsed === "object") launchPayload = parsed as LaunchPayload;
+    } catch {
+      // L'IA n'a parfois pas renvoyé un JSON valide (modèle de secours, troncature...) :
+      // on garde simplement le bouton de lancement, le formulaire restera vide dans ce cas.
+      launchPayload = null;
+    }
+  }
+  return { content: cleanAiText(before.trim()), launchPayload };
+}
 
 // Suggestions de démarrage : chacune correspond à une capacité réellement disponible
 // dans Vendeo AI (verdicts pub, produits, résumé d'activité, génération d'affiche)
@@ -193,6 +232,29 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     }
   }
 
+  // Pré-remplit le formulaire de lancement à partir de ce que l'IA a déjà collecté
+  // dans la conversation, puis ouvre la popup. Avant ce correctif, la popup s'ouvrait
+  // toujours vide : l'utilisateur devait retaper tout ce qu'il venait de valider dans
+  // le chat (nom, texte, audience, budget...), ce qui donnait l'impression que l'IA
+  // "redemandait les mêmes questions".
+  function openLaunchModal(payload: LaunchPayload | null, fallbackImageUrl?: string) {
+    if (payload) {
+      if (payload.name) setLaunchName(payload.name);
+      if (payload.objective) setLaunchObjective(payload.objective);
+      if (payload.dailyBudget != null) setLaunchBudget(String(payload.dailyBudget));
+      if (payload.countries && payload.countries.length) setLaunchCountries(payload.countries.join(", "));
+      if (payload.ageMin != null) setLaunchAgeMin(String(payload.ageMin));
+      if (payload.ageMax != null) setLaunchAgeMax(String(payload.ageMax));
+      if (payload.message) setLaunchMessage(payload.message);
+      if (payload.linkUrl) setLaunchLink(payload.linkUrl);
+    }
+    if (fallbackImageUrl && !attachments.some((a) => a.url === fallbackImageUrl)) {
+      setAttachments((current) => (current.some((a) => a.url === fallbackImageUrl) ? current : [...current, { url: fallbackImageUrl, type: "image" }]));
+    }
+    setLaunchError(null);
+    setLaunchOpen(true);
+  }
+
   async function launchCampaign(event: React.FormEvent) {
     event.preventDefault();
     if (!launchName.trim() || !launchMessage.trim()) {
@@ -326,10 +388,15 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
 
           {messages.map((message, index) => {
             const isAssistant = message.role !== "user";
-            const hasLaunchAction = isAssistant && message.content.includes("[[LANCE_CAMPAGNE]]");
-            const content = cleanAiText(message.content.replace("[[LANCE_CAMPAGNE]]", "").trim());
+            const { content, launchPayload } = isAssistant
+              ? parseAssistantMessage(message.content)
+              : { content: message.content, launchPayload: null as LaunchPayload | null };
+            const hasLaunchAction = isAssistant && message.content.includes(LAUNCH_TAG);
             const isLong = content.length > 520;
             const expanded = expandedMessages[index] === true;
+            // Dernière pièce jointe image envoyée par l'utilisateur avant ce message : servira
+            // de créative par défaut si l'IA n'a pas explicitement redonné une image dans le JSON.
+            const lastUserImage = [...messages.slice(0, index)].reverse().find((m) => m.attachments?.some((a) => a.type === "image"))?.attachments?.find((a) => a.type === "image")?.url;
             return (
               <div key={index} className={isAssistant ? "chat-bubble assistant" : "chat-bubble user"}>
                 {isAssistant && (
@@ -364,7 +431,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
                   </div>
                 ) : null}
                 {hasLaunchAction ? (
-                  <button type="button" className="btn btn-dark chat-launch-action" onClick={() => setLaunchOpen(true)}>
+                  <button type="button" className="btn btn-dark chat-launch-action" onClick={() => openLaunchModal(launchPayload, lastUserImage)}>
                     <Rocket size={15} /> {t("chat.launchNow")}
                   </button>
                 ) : null}
