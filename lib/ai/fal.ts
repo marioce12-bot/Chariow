@@ -147,7 +147,8 @@ export async function createFalVideo(prompt: string, options: StudioVideoGenerat
   // Seedance 2.5 (image-to-video) utilise l'image d'entrée comme PREMIER FRAME
   // (point de départ). Quand une image produit est fournie, elle est le premier
   // frame ; le modèle anime ensuite caméra, lumière et environnement.
-  const input: Record<string, unknown> = { prompt, duration: `${duration}s`, resolution, aspect_ratio: aspectRatio };
+  // Seedance 2.5 attend `duration` comme chaîne "4".."30" ou "auto" (sans suffixe "s").
+  const input: Record<string, unknown> = { prompt, duration: String(duration), resolution, aspect_ratio: aspectRatio };
   if (useImage) input.image_url = options.referenceUrl;
 
   try {
