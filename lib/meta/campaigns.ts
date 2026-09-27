@@ -110,7 +110,11 @@ export async function createMetaAdSet(input: { accountId: string; accessToken: s
 export async function createMetaCreative(input: { accountId: string; accessToken: string; name: string; pageId: string; link: string; message: string; headline: string; imageUrl: string }) {
   return graphPost(`${input.accountId}/adcreatives`, input.accessToken, {
     name: input.name.slice(0, 200),
-    object_story_spec: JSON.stringify({ page_id: input.pageId, link_data: { link: input.link, message: input.message, name: input.headline, image_url: input.imageUrl, call_to_action: { type: "LEARN_MORE", value: { link: input.link } } } }),
+    // Dans link_data, le champ pour une image par URL s'appelle "picture", pas
+    // "image_url" — "image_url" n'existe que dans video_data/photo_data et Meta
+    // le refuse ici (subcode 1443050 : "Utilisation d'un champ non pris en
+    // charge dans object_story_spec").
+    object_story_spec: JSON.stringify({ page_id: input.pageId, link_data: { link: input.link, message: input.message, name: input.headline, picture: input.imageUrl, call_to_action: { type: "LEARN_MORE", value: { link: input.link } } } }),
   });
 }
 
