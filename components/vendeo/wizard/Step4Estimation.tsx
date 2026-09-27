@@ -21,7 +21,10 @@ interface StepProps {
  * ne correspond plus aux champs — et surtout, le brouillon déjà créé en base
  * garde les anciennes valeurs, donc le lancement à l'étape 5 ne matcherait plus
  * ce qui est affiché ici. On invalide donc l'estimation ET le brouillon dès
- * qu'un des deux champs change, pour forcer une re-simulation propre.
+ * qu'un des deux champs change, pour forcer une re-simulation propre — et on
+ * supprime aussi le brouillon devenu obsolète côté base (sinon il reste
+ * orphelin en status "draft", visible dans "Mes campagnes", puisque rien ne
+ * réutilise ni ne nettoie jamais cet id une fois campaignId remis à null).
  */
 export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
   const [loading, setLoading] = useState(false);
@@ -30,7 +33,14 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
 
   const invalidateEstimate = () => {
     if (estimate) setEstimate(null);
-    if (state.campaignId) patch({ campaignId: null });
+    if (state.campaignId) {
+      const staleCampaignId = state.campaignId;
+      patch({ campaignId: null });
+      // Best-effort : le brouillon n'a de toute façon plus aucune valeur
+      // correcte à ce stade, donc un échec de suppression ici n'a pas besoin
+      // de bloquer l'utilisateur — il sera simplement nettoyé plus tard.
+      fetch(`/api/ad-campaigns?id=${staleCampaignId}`, { method: "DELETE" }).catch(() => {});
+    }
   };
 
   const updateDailyBudget = (value: number) => {
