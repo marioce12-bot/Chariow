@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowRight, Brain, Copy, FileText, Lightbulb, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
+import { Activity, ArrowRight, Brain, Camera, Copy, FileText, Lightbulb, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -116,6 +116,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchPayload, setLaunchPayload] = useState<LaunchPayload | null>(null);
   const [launchImageUrl, setLaunchImageUrl] = useState<string | null>(null);
@@ -290,6 +291,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
     }
   }
 
@@ -547,11 +549,29 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
               hidden
               onChange={(event) => void handleAttach(event.target.files)}
             />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*,video/*"
+              capture="environment"
+              hidden
+              onChange={(event) => void handleAttach(event.target.files)}
+            />
             <button
               type="button"
               className="chat-suggest-toggle"
-              aria-label="Joindre une image, une vidéo ou un document (PDF, Word)"
-              title="Joindre une image, une vidéo ou un document (PDF, Word)"
+              aria-label="Prendre une photo ou une vidéo avec l'appareil photo"
+              title="Prendre une photo ou une vidéo"
+              disabled={uploading || plansRequired}
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              <Camera size={16} />
+            </button>
+            <button
+              type="button"
+              className="chat-suggest-toggle"
+              aria-label="Joindre depuis la galerie ou un document (PDF, Word)"
+              title="Joindre depuis la galerie ou un document (PDF, Word)"
               disabled={uploading || plansRequired}
               onClick={() => fileInputRef.current?.click()}
             >
