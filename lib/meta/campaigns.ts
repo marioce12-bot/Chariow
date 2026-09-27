@@ -2,13 +2,35 @@ import { META_GRAPH_BASE_URL } from "./api";
 
 type GraphResponse = Record<string, unknown>;
 
+function describeGraphError(json: GraphResponse, status: number): string {
+  const error = (json.error as GraphResponse | undefined) ?? undefined;
+  if (!error) return `Meta request failed (${status})`;
+  const parts: string[] = [];
+  const title = typeof error.error_user_title === "string" ? error.error_user_title : null;
+  const userMsg = typeof error.error_user_msg === "string" ? error.error_user_msg : null;
+  const message = typeof error.message === "string" ? error.message : null;
+  // error_user_title/error_user_msg (quand Meta les fournit) expliquent concrètement
+  // quel champ pose problème et pourquoi — message seul (ex: "Invalid parameter")
+  // ne l'indique jamais. On les préfère donc, en gardant message en repli/complément.
+  if (title || userMsg) {
+    if (title) parts.push(title);
+    if (userMsg && userMsg !== title) parts.push(userMsg);
+  } else if (message) {
+    parts.push(message);
+  } else {
+    parts.push(`Meta request failed (${status})`);
+  }
+  if (typeof error.error_subcode === "number") parts.push(`(subcode ${error.error_subcode})`);
+  if (typeof error.fbtrace_id === "string") parts.push(`[fbtrace_id: ${error.fbtrace_id}]`);
+  return parts.join(" — ");
+}
+
 async function graphPost(path: string, accessToken: string, params: Record<string, string>) {
   const body = new URLSearchParams({ ...params, access_token: accessToken });
   const response = await fetch(`${META_GRAPH_BASE_URL}/${path}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body, cache: "no-store" });
   const json = await response.json().catch(() => ({})) as GraphResponse;
   if (!response.ok || (typeof json.id !== "string" && json.success !== true)) {
-    const message = typeof (json.error as GraphResponse | undefined)?.message === "string" ? String((json.error as GraphResponse).message) : `Meta request failed (${response.status})`;
-    throw new Error(message);
+    throw new Error(describeGraphError(json, response.status));
   }
   return json;
 }
@@ -20,8 +42,7 @@ async function graphGet(path: string, accessToken: string, fields: string) {
   const response = await fetch(url.toString(), { cache: "no-store" });
   const json = await response.json().catch(() => ({})) as GraphResponse;
   if (!response.ok) {
-    const message = typeof (json.error as GraphResponse | undefined)?.message === "string" ? String((json.error as GraphResponse).message) : `Meta request failed (${response.status})`;
-    throw new Error(message);
+    throw new Error(describeGraphError(json, response.status));
   }
   return json;
 }
