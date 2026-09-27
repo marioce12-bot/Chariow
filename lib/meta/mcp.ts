@@ -38,7 +38,7 @@ function extractErrorMessage(parsed: unknown): string | null {
   return null;
 }
 
-export type McpToolDescriptor = { name: string; description?: string; inputSchema?: unknown };
+export type McpToolDescriptor = { name: string; description?: string; inputSchema?: { properties?: Record<string, unknown> } };
 
 export class MetaAdsMcpClient {
   private nextId = 1;
@@ -62,12 +62,13 @@ export class MetaAdsMcpClient {
   }
 
   /**
-   * Demande au serveur MCP la liste réelle des outils qu'il expose, au lieu de
-   * deviner un nom d'outil. Cette liste évolue avec les versions du serveur
-   * Meta (rollout progressif du produit) : mieux vaut la découvrir à
-   * l'exécution que la coder en dur — ça a déjà cassé une fois, voir
-   * findCampaignStatusTool ci-dessous ("ads_update_campaign" n'existait pas
-   * sur ce serveur au moment du premier essai).
+   * Demande au serveur MCP la liste réelle des outils qu'il expose (nom +
+   * schéma des arguments), au lieu de deviner un nom d'outil. Cette liste
+   * évolue avec les versions du serveur Meta (rollout progressif du produit) :
+   * mieux vaut la découvrir à l'exécution que la coder en dur — ça a déjà
+   * cassé une fois, voir findCampaignRemovalTool ci-dessous
+   * ("ads_update_campaign" n'existait pas sur ce serveur au moment du premier
+   * essai ; le vrai outil générique s'appelle "ads_activate_entity").
    * Mise en cache par instance de client (une instance = une requête d'appel).
    */
   async listTools(): Promise<McpToolDescriptor[]> {
@@ -140,22 +141,44 @@ export async function createMetaCampaign(accessToken: string, input: CreateCampa
   });
 }
 
-// Ordre de préférence pour le nom du vrai outil de suppression/désactivation de
-// campagne exposé par ce serveur MCP : on cherche d'abord un verbe "delete",
-// puis "archive", puis un "update"/"status" générique qui accepterait un champ
-// status. On ne connaît pas la liste figée à l'avance (voir listTools ci-dessus).
+// Ordre de préférence pour le vrai outil de suppression/désactivation de
+// campagne exposé par ce serveur MCP. Découvert par introspection (tools/list)
+// le 27/09/2026 : il n'existe PAS de "ads_delete_campaign" ni de
+// "ads_update_campaign" sur mcp.facebook.com/ads — la bascule de statut
+// (activer/mettre en pause/supprimer une campagne, un ad set ou une ad) passe
+// par un seul outil générique "ads_activate_entity" qui s'applique à
+// n'importe quel type d'entité via son id.
 const CAMPAIGN_REMOVAL_TOOL_PATTERNS: Array<{ test: RegExp; status?: string }> = [
   { test: /campaign.*delete|delete.*campaign/i },
   { test: /campaign.*archive|archive.*campaign/i, status: "ARCHIVED" },
+  { test: /activate_entity|deactivate_entity|update_entity|entity.*status/i, status: "DELETED" },
   { test: /campaign.*(status|update)|(status|update).*campaign/i, status: "DELETED" },
 ];
 
-function findCampaignRemovalTool(tools: McpToolDescriptor[]): { name: string; status?: string } | null {
+function findCampaignRemovalTool(tools: McpToolDescriptor[]): { tool: McpToolDescriptor; status?: string } | null {
   for (const pattern of CAMPAIGN_REMOVAL_TOOL_PATTERNS) {
     const match = tools.find((tool) => pattern.test.test(tool.name));
-    if (match) return { name: match.name, status: pattern.status };
+    if (match) return { tool: match, status: pattern.status };
   }
   return null;
+}
+
+// Construit les arguments à partir du schéma réel de l'outil trouvé (inputSchema
+// renvoyé par tools/list), plutôt que de supposer des noms de champs fixes —
+// un outil générique comme "ads_activate_entity" peut attendre "entity_id" là
+// où un outil dédié attendrait "campaign_id".
+function buildRemovalArgs(tool: McpToolDescriptor, input: { adAccountId: string; campaignId: string }, status: string | undefined) {
+  const properties = tool.inputSchema?.properties ?? {};
+  const has = (key: string) => key in properties;
+  const args: Record<string, unknown> = { client_conversation_id: generateClientConversationId() };
+
+  const idField = ["campaign_id", "entity_id", "object_id", "ad_object_id", "id"].find(has) ?? "campaign_id";
+  args[idField] = input.campaignId;
+  if (has("ad_account_id")) args.ad_account_id = input.adAccountId;
+  if (has("entity_type")) args.entity_type = "CAMPAIGN";
+  if (status && has("status")) args.status = status;
+
+  return args;
 }
 
 /**
@@ -165,9 +188,10 @@ function findCampaignRemovalTool(tools: McpToolDescriptor[]): { name: string; st
  * veut pas laisser une campagne fantôme, vide, traîner sur le compte
  * publicitaire du client.
  *
- * Découvre le vrai nom de l'outil via tools/list plutôt que de le coder en dur
- * (voir findCampaignRemovalTool). Si aucun outil correspondant n'est trouvé,
- * lève une erreur explicite plutôt que d'échouer silencieusement.
+ * Découvre le vrai nom de l'outil et le nom de ses champs via tools/list
+ * plutôt que de les coder en dur (voir findCampaignRemovalTool /
+ * buildRemovalArgs). Si aucun outil correspondant n'est trouvé, lève une
+ * erreur explicite plutôt que d'échouer silencieusement.
  *
  * Best-effort : l'appelant doit catcher les erreurs de cette fonction plutôt
  * que de les laisser masquer l'erreur d'origine — voir launch-campaign/route.ts.
@@ -175,18 +199,14 @@ function findCampaignRemovalTool(tools: McpToolDescriptor[]): { name: string; st
 export async function deleteMetaCampaign(accessToken: string, input: { adAccountId: string; campaignId: string }) {
   const client = new MetaAdsMcpClient(accessToken);
   const tools = await client.listTools();
-  const removalTool = findCampaignRemovalTool(tools);
-  if (!removalTool) {
+  const found = findCampaignRemovalTool(tools);
+  if (!found) {
     throw new Error(
       `Aucun outil de suppression/archivage de campagne trouvé sur le serveur MCP Meta (outils disponibles : ${tools.map((t) => t.name).join(", ") || "aucun"}).`
     );
   }
-  return client.callTool(removalTool.name, {
-    ad_account_id: input.adAccountId,
-    campaign_id: input.campaignId,
-    ...(removalTool.status ? { status: removalTool.status } : {}),
-    client_conversation_id: generateClientConversationId(),
-  });
+  const args = buildRemovalArgs(found.tool, input, found.status);
+  return client.callTool(found.tool.name, args);
 }
 
 export type CreateCreativeInput = {
