@@ -112,9 +112,22 @@ export async function getMetaAccountFunding(accountId: string, accessToken: stri
  * que le compte est prépayé ou facturé après coup (postpay). On ne bloque donc que sur
  * les deux signaux fiables à 100% : compte non actif, et aucun moyen de paiement du tout.
  */
+// Raison lisible pour chaque état de compte publicitaire Meta (account_status).
+// 1 = actif ; les autres valeurs correspondent aux états documentés par Meta.
+const META_ACCOUNT_STATUS_REASON: Record<number, string> = {
+  2: "compte désactivé",
+  3: "solde impayé",
+  7: "en revue de risque",
+  8: "en attente de règlement",
+  9: "en période de grâce",
+  100: "en cours de fermeture",
+  101: "compte fermé",
+};
+
 export function describeMetaFundingIssue(funding: { accountStatus: number; hasFundingSource: boolean }): { code: string; message: string } | null {
   if (funding.accountStatus !== 1) {
-    return { code: "META_ACCOUNT_RESTRICTED", message: "Ce compte publicitaire Meta n'est pas actif (compte restreint, en revue ou désactivé). Vérifie son état dans Meta Account Quality avant de relancer." };
+    const reason = META_ACCOUNT_STATUS_REASON[funding.accountStatus] ?? "compte restreint, en revue ou désactivé";
+    return { code: "META_ACCOUNT_RESTRICTED", message: `Ce compte publicitaire Meta n'est pas actif (${reason}). Vérifie son état dans Meta Account Quality avant de relancer.` };
   }
   if (!funding.hasFundingSource) {
     return { code: "META_NO_PAYMENT_METHOD", message: "Aucun moyen de paiement n'est configuré sur ce compte Meta Ads. Ajoute une carte dans Meta Business Manager (Facturation) avant de lancer une campagne." };

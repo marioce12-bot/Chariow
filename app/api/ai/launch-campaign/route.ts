@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { MetaAdsMcpClient, createMetaCampaign, createMetaAdSet, createMetaCreative, createMetaAd } from "@/lib/meta/mcp";
+import { getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 
 // Lance une campagne Meta complète via le serveur MCP, à partir d'un brief validé
 // par l'utilisateur dans l'assistant. Flux : campagne → ad set → creative → ad.
@@ -55,6 +56,20 @@ export async function POST(request: Request) {
   }
   const accessToken = decryptSecret(account.access_token_encrypted);
   const adAccountId = body.adAccountId || account.meta_account_id.replace(/^act_/, "");
+
+  // Vérifie AVANT de créer quoi que ce soit que le compte peut réellement publier
+  // (compte actif + moyen de paiement). Renvoie la raison exacte à l'utilisateur
+  // au lieu de le laisser se heurter à une erreur Meta opaque après coup.
+  try {
+    const funding = await getMetaAccountFunding(`act_${account.meta_account_id}`, accessToken);
+    const issue = describeMetaFundingIssue(funding);
+    if (issue) {
+      return NextResponse.json({ error: issue.message, code: issue.code }, { status: 400 });
+    }
+  } catch {
+    // Si Meta est momentanément indisponible pour cette vérification, on ne bloque
+    // pas : Meta refusera de toute façon la création si le compte est inéligible.
+  }
 
   const client = new MetaAdsMcpClient(accessToken);
 

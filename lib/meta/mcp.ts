@@ -21,6 +21,23 @@ function parseToolResult(result: McpToolResult | undefined): unknown {
   }
 }
 
+// Extrait un message d'erreur lisible d'un résultat d'outil MCP en échec.
+// Meta renvoie parfois l'erreur sous forme de chaîne, parfois dans un objet
+// (message / error / detail), parfois uniquement dans le contenu texte.
+function extractErrorMessage(parsed: unknown): string | null {
+  if (typeof parsed === "string" && parsed.trim()) return parsed;
+  if (parsed && typeof parsed === "object") {
+    const obj = parsed as Record<string, unknown>;
+    const candidate = obj.message ?? obj.error ?? obj.detail ?? obj.error_message ?? obj.errorMessage;
+    if (typeof candidate === "string" && candidate.trim()) return candidate;
+    if (typeof obj.error === "object" && obj.error) {
+      const inner = (obj.error as Record<string, unknown>).message;
+      if (typeof inner === "string" && inner.trim()) return inner;
+    }
+  }
+  return null;
+}
+
 export class MetaAdsMcpClient {
   private nextId = 1;
 
@@ -37,7 +54,7 @@ export class MetaAdsMcpClient {
     const data = (await response.json().catch(() => ({}))) as { error?: { message?: string }; result?: McpToolResult };
     if (!response.ok || data.error) throw new Error(data.error?.message || `Meta MCP returned ${response.status}`);
     const parsed = parseToolResult(data.result);
-    if (data.result?.isError) throw new Error(typeof parsed === "string" ? parsed : "Meta MCP tool returned an error");
+    if (data.result?.isError) throw new Error(extractErrorMessage(parsed) ?? "Meta MCP tool returned an error");
     return parsed;
   }
 }
