@@ -116,7 +116,7 @@ export async function POST(request: Request) {
   // terminent par un tour "model" ("Requests ending with a model turn are not supported").
   const { data: previousHistory } = await supabase
     .from("messages")
-    .select("role, content")
+    .select("role, content, attachments")
     .eq("user_id", user.id)
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
@@ -244,10 +244,31 @@ export async function POST(request: Request) {
   // (voir app/api/chat/upload/route.ts) ; on l'ajoute au contexte système pour
   // que l'IA puisse répondre à partir de leur contenu réel, plutôt que d'un
   // simple nom de fichier.
-  const documentAttachments = attachments.filter((a) => a.type === "document" && a.text);
+  //
+  // Important : on inclut aussi les documents joints lors de tours précédents de
+  // la même conversation (via previousHistory), pas seulement ceux du tour
+  // courant. Sans ça, l'IA "perdait" le contenu d'un fichier dès le message
+  // suivant — l'historique ne conservait qu'une note ("contenu fourni dans le
+  // contexte ci-dessus") qui ne pointait plus vers rien une fois le tour passé,
+  // et l'IA répondait alors qu'elle n'avait pas accès aux fichiers, même si le
+  // fichier avait bien été lu au moment de l'upload.
+  type StoredChatAttachment = { url?: string; type?: string; name?: string; text?: string };
+  const historicalDocumentAttachments = (previousHistory ?? [])
+    .flatMap((item) => {
+      const raw = (item as { attachments?: StoredChatAttachment[] }).attachments;
+      return Array.isArray(raw) ? raw : [];
+    })
+    .filter(
+      (a): a is { url: string; type: "image" | "video" | "document"; name?: string; text?: string } =>
+        typeof a?.url === "string" && a.type === "document" && typeof a.text === "string" && a.text.length > 0
+    );
+  const currentDocumentAttachments = attachments.filter((a) => a.type === "document" && a.text);
+  const documentAttachments = [...historicalDocumentAttachments, ...currentDocumentAttachments].filter(
+    (doc, index, all) => all.findIndex((d) => d.url === doc.url) === index
+  );
   let documentsContext = "";
   if (documentAttachments.length) {
-    documentsContext = `\n\nDocument(s) joint(s) par l'utilisateur (texte extrait) :\n${documentAttachments
+    documentsContext = `\n\nDocument(s) joint(s) par l'utilisateur dans cette conversation (texte extrait) :\n${documentAttachments
       .map((doc, index) => `--- Document ${index + 1}${doc.name ? ` : ${doc.name}` : ""} ---\n${doc.text}`)
       .join("\n\n")}`;
     if (documentsContext.length > MAX_DOCUMENT_CONTEXT_CHARS) {
@@ -282,8 +303,8 @@ export async function POST(request: Request) {
   const attachmentNote = mediaAttachments.length
     ? `\n\n(Pièce(s) jointe(s) envoyée(s) par l'utilisateur : ${mediaAttachments.map((a) => (a.type === "video" ? "vidéo" : "image")).join(", ")})`
     : "";
-  const documentNote = documentAttachments.length
-    ? `\n\n(Document(s) joint(s) par l'utilisateur : ${documentAttachments.map((d) => d.name ?? "document").join(", ")} — contenu fourni dans le contexte ci-dessus)`
+  const documentNote = currentDocumentAttachments.length
+    ? `\n\n(Document(s) joint(s) par l'utilisateur : ${currentDocumentAttachments.map((d) => d.name ?? "document").join(", ")} — contenu fourni dans le contexte ci-dessus)`
     : "";
   const currentTurnContent = `${message}${attachmentNote}${documentNote}`;
   const currentTurn = {
