@@ -44,7 +44,7 @@ export interface CampaignRow {
   realSales: number; // nombre de ventes payées
   realRevenue: number; // chiffre d'affaires réel encaissé
   verdict: CampaignVerdictBadge;
-  recommendedAction: string; // ex: "Couper la pub", "Budget +5000 XOF"
+  recommendedAction: string; // ex: "Couper la pub", "Budget +5$"
 }
 
 export type DiagnosticType = "price_up" | "checkout_alert" | "audience" | "info";
@@ -58,7 +58,12 @@ export interface DiagnosticCard {
   onAction?: () => void;
 }
 
-// Formatte un montant en XOF (ex: 15 000 XOF)
+// Formatte un montant publicitaire (dépense, budget) en dollars US, la devise
+// du compte publicitaire Meta connecté — ex: 15 000 → "15 000,00 $". Le nom
+// de la fonction garde "XOF" pour ne pas casser tous les imports existants,
+// mais elle affiche désormais du $ (voir conversation du 27/09/2026 : Meta
+// facturait en $ alors que Vendeo affichait du XOF, un montant de campagne
+// XOF saisi par l'utilisateur était donc interprété comme des $ par Meta).
 export function formatXOF(value: number): string {
-  return `${Math.round(value).toLocaleString("fr-FR")} XOF`;
+  return `${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
 }
