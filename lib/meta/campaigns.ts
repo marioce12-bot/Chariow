@@ -25,6 +25,17 @@ function describeGraphError(json: GraphResponse, status: number): string {
   return parts.join(" — ");
 }
 
+/**
+ * Vrai si le message d'erreur Graph indique que l'objet (campagne, ad set ou
+ * annonce) n'existe plus côté Meta — supprimé directement depuis Meta Ads
+ * Manager, ou déjà supprimé par un appel précédent (delete idempotent). Utilisé
+ * pour garder Vendeo synchronisé dans les deux sens avec Meta : suppression
+ * côté Meta → suppression de la campagne côté Vendeo (cron + vérif de statut).
+ */
+export function isMetaObjectMissingError(message: string): boolean {
+  return /does not exist|has been deleted|cannot be loaded/i.test(message);
+}
+
 async function graphPost(path: string, accessToken: string, params: Record<string, string>) {
   const body = new URLSearchParams({ ...params, access_token: accessToken });
   const response = await fetch(`${META_GRAPH_BASE_URL}/${path}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body, cache: "no-store" });
@@ -42,6 +53,23 @@ async function graphGet(path: string, accessToken: string, fields: string) {
   const response = await fetch(url.toString(), { cache: "no-store" });
   const json = await response.json().catch(() => ({})) as GraphResponse;
   if (!response.ok) {
+    throw new Error(describeGraphError(json, response.status));
+  }
+  return json;
+}
+
+/**
+ * Supprime un objet Meta (campagne, ad set ou annonce — la suppression d'une
+ * campagne entraîne côté Meta celle de ses ad sets/annonces). Contrairement à
+ * un simple passage à PAUSED, c'est irréversible : utilisé uniquement quand
+ * l'utilisateur supprime explicitement la campagne depuis Vendeo.
+ */
+async function graphDelete(path: string, accessToken: string) {
+  const url = new URL(`${META_GRAPH_BASE_URL}/${path}`);
+  url.searchParams.set("access_token", accessToken);
+  const response = await fetch(url.toString(), { method: "DELETE", cache: "no-store" });
+  const json = await response.json().catch(() => ({})) as GraphResponse;
+  if (!response.ok || json.success === false) {
     throw new Error(describeGraphError(json, response.status));
   }
   return json;
@@ -173,6 +201,28 @@ export async function activateMetaCampaign(input: { campaignId: string; adSetId:
   await setMetaObjectStatus({ id: input.campaignId, accessToken: input.accessToken, status: "ACTIVE" });
   await setMetaObjectStatus({ id: input.adSetId, accessToken: input.accessToken, status: "ACTIVE" });
   await setMetaObjectStatus({ id: input.adId, accessToken: input.accessToken, status: "ACTIVE" });
+}
+
+/**
+ * Supprime une campagne Meta (et, par cascade côté Meta, ses ad sets et
+ * annonces) — utilisée quand l'utilisateur supprime la campagne depuis Vendeo,
+ * pour rester synchronisé dans les deux sens avec Meta Ads Manager. Idempotent
+ * en pratique : si la campagne a déjà été supprimée côté Meta (ex: par
+ * l'utilisateur directement dans Meta Ads Manager), l'appelant doit traiter
+ * une erreur "does not exist" (voir isMetaObjectMissingError) comme un succès.
+ */
+export async function deleteMetaCampaign(input: { campaignId: string; accessToken: string }) {
+  await graphDelete(input.campaignId, input.accessToken);
+}
+
+/**
+ * Rattache une nouvelle créative à une annonce déjà créée chez Meta, sans
+ * recréer l'annonce elle-même. Utilisé pour relancer une publicité rejetée :
+ * Meta ne redéclenche une revue que si le contenu (texte/visuel/lien) change —
+ * remettre seulement le statut à ACTIVE ne suffit pas sur une annonce DISAPPROVED.
+ */
+export async function updateMetaAdCreative(input: { adId: string; accessToken: string; creativeId: string }) {
+  return graphPost(input.adId, input.accessToken, { creative: JSON.stringify({ creative_id: input.creativeId }) });
 }
 
 /**
