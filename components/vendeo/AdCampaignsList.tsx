@@ -117,6 +117,15 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
             return (
               <div
                 key={c.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelected(c)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelected(c);
+                  }
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -126,10 +135,11 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                   padding: "12px 14px",
                   border: "1px solid var(--line)",
                   borderRadius: 10,
+                  cursor: "pointer",
                 }}
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                   <button type="button" onClick={() => setSelected(c)} style={{ fontSize: 13, textAlign: "left", fontWeight: 700 }}>{c.title || c.product_name || c.product_id}</button>
+                   <span style={{ fontSize: 13, textAlign: "left", fontWeight: 700 }}>{c.title || c.product_name || c.product_id}</span>
                   <span className="hint-line">
                     {c.platform === "meta" ? "Meta" : "TikTok"} · {Number(c.daily_budget).toLocaleString("fr-FR")} XOF/j · {c.duration_days} j
                   </span>
@@ -156,7 +166,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                     {meta.label}
                   </span>
                   {canResume ? (
-                    <button type="button" className="btn btn-dark" onClick={() => setResuming(c)}>
+                    <button type="button" className="btn btn-dark" onClick={(event) => { event.stopPropagation(); setResuming(c); }}>
                       <PlayCircle size={14} /> {c.status === "paid" ? "Activer" : "Lancer"}
                     </button>
                    ) : null}
