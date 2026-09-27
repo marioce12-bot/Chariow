@@ -19,7 +19,9 @@ type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
 // `text` (texte extrait à l'upload pour un document PDF/Word) n'est jamais affiché
 // dans une bulle : il sert uniquement à être renvoyé tel quel dans le corps de
 // /api/chat, qui l'injecte dans le contexte envoyé à l'IA.
-type ChatAttachment = { url: string; type: "image" | "video" | "document"; name?: string; text?: string };
+// `id` (client-only) et `uploading` servent à afficher un aperçu immédiat pendant
+// l'import du fichier vers Cloudinary, avant d'avoir l'URL distante définitive.
+type ChatAttachment = { url: string; type: "image" | "video" | "document"; name?: string; text?: string; id?: string; uploading?: boolean };
 type ChatMessageItem = { role: string; content: string; imageUrl?: string; attachments?: ChatAttachment[] };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
 type MetaAdAccount = { id: string; name: string | null; is_selected?: boolean; currency?: string | null };
@@ -85,19 +87,40 @@ function formatConversationDate(value: string) {
 }
 
 // Rendu d'une pièce jointe (image, vidéo ou document) : factorisé car utilisé à la
-// fois dans les bulles de la conversation et dans le composeur.
+// fois dans les bulles de la conversation et dans le composeur. Quand `uploading` est
+// vrai (import Cloudinary en cours), un spinner s'affiche par-dessus l'aperçu local.
 function AttachmentPreview({ attachment }: { attachment: ChatAttachment }) {
+  const spinner = attachment.uploading ? <span className="chat-attachment-spinner" aria-hidden="true" /> : null;
   if (attachment.type === "image") {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={attachment.url} alt="" className="chat-attachment-thumb" />;
+    return (
+      <span className="chat-attachment-media">
+        {attachment.url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={attachment.url} alt="" className="chat-attachment-thumb" />
+        ) : (
+          <span className="chat-attachment-thumb chat-attachment-thumb-placeholder" />
+        )}
+        {spinner}
+      </span>
+    );
   }
   if (attachment.type === "video") {
-    return <video src={attachment.url} className="chat-attachment-thumb" muted playsInline preload="metadata" controls />;
+    return (
+      <span className="chat-attachment-media">
+        {attachment.url ? (
+          <video src={attachment.url} className="chat-attachment-thumb" muted playsInline preload="metadata" controls={!attachment.uploading} />
+        ) : (
+          <span className="chat-attachment-thumb chat-attachment-thumb-placeholder" />
+        )}
+        {spinner}
+      </span>
+    );
   }
   return (
     <span className="chat-attachment-doc">
       <FileText size={14} />
       <span>{attachment.name ?? "Document"}</span>
+      {spinner}
     </span>
   );
 }
@@ -268,10 +291,23 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     if (!files || !files.length) return;
     setUploading(true);
     setUploadError(null);
-    try {
-      const next: ChatAttachment[] = [];
-      let firstError: string | null = null;
-      for (const file of Array.from(files)) {
+    const fileList = Array.from(files);
+    // Aperçu immédiat : dès que les fichiers sont choisis (galerie ou caméra), on les
+    // ajoute tout de suite au composeur avec un aperçu local (blob) et `uploading: true`,
+    // avant même que l'upload vers Cloudinary ne démarre. Sans ça, il y avait un blanc de
+    // quelques secondes où l'utilisateur ne savait pas si sa sélection avait été prise en
+    // compte. On remplace ensuite chaque entrée par l'URL distante une fois l'upload fini.
+    const pending = fileList.map((file) => {
+      const id = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const type: ChatAttachment["type"] = file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : "document";
+      const url = type === "document" ? "" : URL.createObjectURL(file);
+      return { file, placeholder: { id, url, type, name: file.name, uploading: true } as ChatAttachment };
+    });
+    setAttachments((current) => [...current, ...pending.map((p) => p.placeholder)]);
+
+    let firstError: string | null = null;
+    for (const { file, placeholder } of pending) {
+      try {
         const data = new FormData();
         data.append("file", file);
         const response = await fetch("/api/chat/upload", { method: "POST", body: data });
@@ -279,20 +315,22 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         if (response.ok && result.url) {
           // `text` (présent seulement pour un document) est conservé ici pour être
           // renvoyé à /api/chat au moment de l'envoi du message.
-          next.push({ url: result.url, type: result.type, name: result.name, text: result.text });
-        } else if (!firstError) {
-          firstError = result.error ?? "Impossible d'envoyer ce fichier.";
+          setAttachments((current) =>
+            current.map((a) => (a.id === placeholder.id ? { id: placeholder.id, url: result.url, type: result.type, name: result.name, text: result.text } : a)),
+          );
+        } else {
+          if (!firstError) firstError = result.error ?? "Impossible d'envoyer ce fichier.";
+          setAttachments((current) => current.filter((a) => a.id !== placeholder.id));
         }
+      } catch {
+        if (!firstError) firstError = "Impossible d'envoyer ce fichier.";
+        setAttachments((current) => current.filter((a) => a.id !== placeholder.id));
       }
-      if (next.length) setAttachments((current) => [...current, ...next]);
-      if (firstError) setUploadError(firstError);
-    } catch {
-      setUploadError("Impossible d'envoyer ce fichier.");
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      if (cameraInputRef.current) cameraInputRef.current.value = "";
     }
+    if (firstError) setUploadError(firstError);
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   }
 
   // Ouvre une popup de confirmation au lieu du formulaire complet : l'IA a déjà
@@ -511,10 +549,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           {uploadError ? <p className="chat-upload-error">{uploadError}</p> : null}
           {attachments.length ? (
             <div className="chat-attachments">
-              {attachments.map((attachment, index) => (
-                <span key={index} className="chat-attachment-chip">
+              {attachments.map((attachment) => (
+                <span key={attachment.id ?? attachment.url} className={attachment.uploading ? "chat-attachment-chip chat-attachment-chip-uploading" : "chat-attachment-chip"}>
                   <AttachmentPreview attachment={attachment} />
-                  <button type="button" onClick={() => setAttachments((current) => current.filter((_, i) => i !== index))} aria-label="Retirer">×</button>
+                  <button type="button" onClick={() => setAttachments((current) => current.filter((a) => a !== attachment))} aria-label="Retirer">×</button>
                 </span>
               ))}
             </div>
