@@ -23,6 +23,7 @@ type ChatAnalytics = { kpis: { sales: number } } | null;
 type ChatAttachment = { url: string; type: "image" | "video" };
 type ChatMessageItem = { role: string; content: string; imageUrl?: string; attachments?: ChatAttachment[] };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
+type MetaAdAccount = { id: string; name: string | null; is_selected?: boolean; currency?: string | null };
 
 const OBJECTIVE_LABELS: Record<string, string> = {
   OUTCOME_SALES: "Ventes / conversions",
@@ -93,6 +94,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
   const [launchImageUrl, setLaunchImageUrl] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
+  const [metaAccounts, setMetaAccounts] = useState<MetaAdAccount[]>([]);
+  const [launchAccountId, setLaunchAccountId] = useState<string | null>(null);
 
   const AI_QUICK_PROMPTS: QuickPrompt[] = [
     { icon: <Megaphone size={14} />, label: t("chat.qStop"), prompt: t("chat.qStopPrompt") },
@@ -135,6 +138,15 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
         // source de vérité. Côté client on se contente de refléter le statut renvoyé.
         if (nextUsage) setPlansRequired(nextUsage.status === "past_due");
       });
+  }, []);
+
+  useEffect(() => {
+    // Comptes Meta Ads disponibles, pour laisser choisir lequel financera la pub
+    // au moment du lancement (au lieu de toujours prendre le plus récent).
+    fetch("/api/integrations/meta/accounts")
+      .then((r) => (r.ok ? r.json() : { accounts: [] }))
+      .then((data) => setMetaAccounts(data.accounts ?? []))
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -218,6 +230,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     setLaunchPayload(payload);
     setLaunchImageUrl(fallbackImageUrl ?? null);
     setLaunchError(null);
+    // Compte par défaut : celui marqué is_selected, sinon l'unique compte actif.
+    setLaunchAccountId(metaAccounts.find((a) => a.is_selected)?.id ?? (metaAccounts.length === 1 ? metaAccounts[0].id : null));
     setLaunchOpen(true);
   }
 
@@ -244,6 +258,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
           headline: payload.headline,
           linkUrl: payload.linkUrl,
           imageUrl: launchImageUrl ?? undefined,
+          metaAdAccountId: launchAccountId ?? undefined,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -568,6 +583,21 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
               <div className="chat-launch-row"><span>{t("chat.launchAge")}</span><strong>{launchPayload?.ageMin != null || launchPayload?.ageMax != null ? `${launchPayload?.ageMin ?? 18}–${launchPayload?.ageMax ?? 65} ans` : "—"}</strong></div>
               <div className="chat-launch-row chat-launch-message"><span>{t("chat.launchMessage")}</span><strong>{launchPayload?.message ?? "—"}</strong></div>
             </div>
+            {metaAccounts.length > 0 ? (
+              <label className="chat-launch-account">
+                <span>{t("chat.launchAccount")}</span>
+                {metaAccounts.length > 1 ? (
+                  <select value={launchAccountId ?? ""} onChange={(event) => setLaunchAccountId(event.target.value || null)}>
+                    <option value="">{t("chat.launchAccountChoose")}</option>
+                    {metaAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>{account.name ?? account.id}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="chat-launch-account-name">{metaAccounts[0].name ?? metaAccounts[0].id}</span>
+                )}
+              </label>
+            ) : null}
             {launchError ? <p className="store-error" role="alert">{launchError}</p> : null}
             <div className="chat-launch-actions">
               <button type="button" className="btn btn-ghost" disabled={launching} onClick={() => setLaunchOpen(false)}>{t("chat.cancel")}</button>

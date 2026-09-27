@@ -18,6 +18,7 @@ type LaunchBody = {
   linkUrl?: string;
   imageUrl?: string;
   pageId?: string;
+  metaAdAccountId?: string; // id de la ligne meta_ad_accounts (compte choisi dans l'appli)
   adAccountId?: string;
 };
 
@@ -32,18 +33,26 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
-  // Récupère le compte Meta connecté et son token d'accès.
+  // Récupère les comptes Meta actifs, puis choisit celui à utiliser :
+  // 1. le compte explicitement demandé (metaAdAccountId = id de la ligne en base),
+  // 2. sinon le compte sélectionné dans l'appli (is_selected),
+  // 3. sinon le compte actif le plus récent.
   const { data: accounts, error: accountError } = await admin
     .from("meta_ad_accounts")
-    .select("id,meta_account_id,name,access_token_encrypted")
+    .select("id,meta_account_id,name,access_token_encrypted,is_selected")
     .eq("user_id", user.id)
     .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(1);
+    .order("created_at", { ascending: false });
   if (accountError || !accounts?.length) {
     return NextResponse.json({ error: "Connecte d'abord un compte Meta Ads." }, { status: 400 });
   }
-  const account = accounts[0];
+  const account =
+    (body.metaAdAccountId ? accounts.find((a) => a.id === body.metaAdAccountId) : undefined) ??
+    accounts.find((a) => a.is_selected) ??
+    accounts[0];
+  if (!account) {
+    return NextResponse.json({ error: "Le compte Meta Ads sélectionné est introuvable ou inactif." }, { status: 400 });
+  }
   const accessToken = decryptSecret(account.access_token_encrypted);
   const adAccountId = body.adAccountId || account.meta_account_id.replace(/^act_/, "");
 
@@ -115,7 +124,7 @@ export async function POST(request: Request) {
       max_age: body.ageMax ?? null,
       daily_budget: body.dailyBudget ?? null,
       duration_days: 1,
-      meta_ad_account_id: adAccountId,
+      meta_ad_account_id: account.id,
       external_campaign_id: campaignId,
     });
 

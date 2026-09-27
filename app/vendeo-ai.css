@@ -97,3 +97,7 @@ html[data-theme="dark"] .ai-page .ai-eyebrow { color:#8fa8ff; }
 .ai-page .chat-launch-row strong { color:var(--ink); font-size:13px; font-weight:600; }
 .ai-page .chat-launch-message strong { line-height:1.45; white-space:pre-wrap; }
 .ai-page .chat-launch-actions { display:flex; gap:8px; justify-content:flex-end; }
+.ai-page .chat-launch-account { display:grid; gap:4px; }
+.ai-page .chat-launch-account > span { color:var(--muted); font-size:11px; }
+.ai-page .chat-launch-account select { background:var(--surface); border:1px solid var(--line); border-radius:8px; color:var(--ink); font-size:13px; padding:8px 10px; width:100%; }
+.ai-page .chat-launch-account-name { color:var(--ink); font-size:13px; font-weight:600; }

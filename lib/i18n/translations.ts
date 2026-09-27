@@ -125,6 +125,7 @@ export const translations: Record<Locale, Dict> = {
       launchCampaign: "Lancer une campagne", launchNow: "Lancer",
       launchConfirmQuestion: "Ta campagne est prête. Confirmer la création et lancer directement sur Meta ?",
       launchName: "Nom", launchObjective: "Objectif", launchBudget: "Budget", launchCountries: "Pays", launchAge: "Âge", launchMessage: "Texte",
+      launchAccount: "Compte publicitaire", launchAccountChoose: "Choisir un compte…",
       confirmLaunch: "Confirmer et lancer", cancel: "Annuler",
     },
     overview: {
@@ -296,6 +297,7 @@ export const translations: Record<Locale, Dict> = {
       launchCampaign: "Launch a campaign", launchNow: "Launch",
       launchConfirmQuestion: "Your campaign is ready. Confirm creation and launch directly on Meta?",
       launchName: "Name", launchObjective: "Objective", launchBudget: "Budget", launchCountries: "Countries", launchAge: "Age", launchMessage: "Message",
+      launchAccount: "Ad account", launchAccountChoose: "Choose an account…",
       confirmLaunch: "Confirm and launch", cancel: "Cancel",
     },
     overview: {
