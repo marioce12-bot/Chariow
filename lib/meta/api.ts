@@ -134,3 +134,50 @@ export function describeMetaFundingIssue(funding: { accountStatus: number; hasFu
   }
   return null;
 }
+
+export interface MetaGeoSuggestion {
+  key: string;
+  name: string;
+  type: "country" | "region" | "city";
+  countryCode: string;
+}
+
+/**
+ * Widget de recherche d'audience (étape 3 du wizard "Lancer une pub") : renvoie
+ * les régions/villes correspondant à la recherche via l'endpoint de recherche
+ * de lieux de Meta (type=adgeolocation). Les pays sont gérés localement
+ * (lib/geo/countries.ts) — on ne demande donc à Meta que region/city ici, pour
+ * ne pas dupliquer les pays déjà couverts côté client.
+ */
+export async function searchMetaGeoLocations(query: string, accessToken: string): Promise<MetaGeoSuggestion[]> {
+  const url = graphUrl("search", {
+    type: "adgeolocation",
+    q: query,
+    location_types: JSON.stringify(["region", "city"]),
+    limit: "10",
+    access_token: accessToken,
+  });
+  const response = await fetch(url, { cache: "no-store" });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof json?.error?.message === "string" ? json.error.message : "Recherche de lieu Meta indisponible");
+  const rows = Array.isArray(json.data) ? json.data as Array<Record<string, unknown>> : [];
+  return rows
+    .map((row) => {
+      const type = row.type === "region" ? "region" as const : "city" as const;
+      const countryCode = typeof row.country_code === "string" ? row.country_code.toUpperCase() : "";
+      const region = typeof row.region === "string" ? row.region : null;
+      const countryName = typeof row.country_name === "string" ? row.country_name : null;
+      const name = typeof row.name === "string" ? row.name : "";
+      // Meta ne renvoie pas toujours le pays/la région dans le libellé lui-même
+      // (ex: "Paris" tout court) — on les ajoute pour lever toute ambiguïté
+      // dans la liste de suggestions (il existe plusieurs "Paris" dans le monde).
+      const suffix = [type === "city" ? region : null, countryName].filter(Boolean).join(", ");
+      return {
+        key: String(row.key ?? ""),
+        name: suffix ? `${name}, ${suffix}` : name,
+        type,
+        countryCode,
+      };
+    })
+    .filter((row) => row.key && row.name && row.countryCode);
+}

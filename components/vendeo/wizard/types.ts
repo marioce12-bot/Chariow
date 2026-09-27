@@ -1,5 +1,7 @@
 // components/vendeo/wizard/types.ts
 
+import { WORLD_COUNTRIES } from "@/lib/geo/countries";
+
 export type Platform = "meta" | "tiktok";
 export type Objective = "sales" | "traffic" | "engagement" | "leads";
 // "whatsapp_status" n'est valable que pour platform === "meta" : les pubs dans
@@ -15,6 +17,16 @@ export interface ChariowProductLite {
   currency: string | null;
   image: string | null;
   url?: string | null;
+}
+
+// Un lieu ciblé par le widget de recherche d'audience (étape 3). "key" est
+// soit un code pays ISO 3166-1 alpha-2 (type "country"), soit une clé de lieu
+// Meta (type "region"/"city", renvoyée par /api/integrations/meta/geo-search).
+export interface GeoLocation {
+  key: string;
+  name: string;
+  type: "country" | "region" | "city";
+  countryCode: string;
 }
 
 export interface WizardState {
@@ -42,18 +54,24 @@ export interface WizardState {
   tiktokIdentityId?: string;
   tiktokIdentityType?: string;
 
-  // Étape 3
+  // Étape 3 — Audience : "locations" porte le détail (pays/région/ville) choisi
+  // via le widget de recherche ; "countries" reste la liste dérivée des seuls
+  // codes pays (unique/dédupliquée), conservée pour compatibilité avec la
+  // colonne `countries text[]` existante et avec TikTok, qui ne cible que par pays.
+  locations: GeoLocation[];
   countries: string[];
   minAge: number;
   maxAge: number;
 
   // Étape 4
-  dailyBudget: number; // budget net qui alimente réellement la campagne (XOF/jour)
+  dailyBudget: number; // budget net qui alimente réellement la campagne (en $, converti au taux Meta/TikTok du compte)
   durationDays: number;
 
   // Rempli après création du brouillon (étape 4 → étape 5)
   campaignId: string | null;
 }
+
+const DEFAULT_LOCATION: GeoLocation = { key: "BJ", name: "Bénin", type: "country", countryCode: "BJ" };
 
 export const DEFAULT_WIZARD_STATE: WizardState = {
   storeId: null,
@@ -67,6 +85,7 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   adText: "",
   title: "",
   destinationUrl: "",
+  locations: [DEFAULT_LOCATION],
   countries: ["BJ"],
   minAge: 18,
   maxAge: 45,
@@ -83,14 +102,26 @@ export interface EstimateResult {
   totalBudget: number; // budget total de la campagne (daily_budget × durationDays) — aucune commission, tout finance la pub
 }
 
-export const COUNTRY_OPTIONS = [
-  { code: "BJ", label: "Bénin" },
-  { code: "TG", label: "Togo" },
-  { code: "CI", label: "Côte d'Ivoire" },
-  { code: "SN", label: "Sénégal" },
-  { code: "BF", label: "Burkina Faso" },
-  { code: "ML", label: "Mali" },
-  { code: "NE", label: "Niger" },
-  { code: "GH", label: "Ghana" },
-  { code: "NG", label: "Nigeria" },
-];
+/** Liste des pays proposés par le widget de recherche d'audience (voir lib/geo/countries.ts). */
+export const COUNTRY_OPTIONS = WORLD_COUNTRIES.map((c) => ({ code: c.code, label: c.label }));
+
+/** Dérive la liste dédupliquée des codes pays à partir des lieux sélectionnés
+ *  (une ville/région "appartient" toujours à un pays via countryCode). Ne
+ *  renvoie jamais un tableau vide : c'est ce qui alimente `countries`, requis
+ *  par Meta/TikTok et par la colonne `countries text[] not null`. */
+export function deriveCountries(locations: GeoLocation[]): string[] {
+  const codes = Array.from(new Set(locations.map((l) => l.countryCode).filter(Boolean)));
+  return codes.length ? codes : ["BJ"];
+}
+
+/** Construit le payload de ciblage géographique détaillé (pays/régions/villes)
+ *  envoyé à la création du brouillon, pour que Meta puisse cibler des
+ *  villes/régions précises au lancement (voir lib/meta/campaigns.ts). TikTok
+ *  ignore ce payload et continue de cibler uniquement par pays. */
+export function buildGeoTargeting(locations: GeoLocation[]) {
+  return {
+    countries: deriveCountries(locations),
+    regions: locations.filter((l) => l.type === "region").map((l) => ({ key: l.key, name: l.name })),
+    cities: locations.filter((l) => l.type === "city").map((l) => ({ key: l.key, name: l.name, radius: 25, distance_unit: "mile" as const })),
+  };
+}

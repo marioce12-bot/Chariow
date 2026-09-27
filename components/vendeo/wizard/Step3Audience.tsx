@@ -1,6 +1,7 @@
 "use client";
 
-import { COUNTRY_OPTIONS, type WizardState } from "./types";
+import { LocationSearchInput } from "./LocationSearchInput";
+import { deriveCountries, type WizardState } from "./types";
 
 interface StepProps {
   state: WizardState;
@@ -10,38 +11,33 @@ interface StepProps {
 }
 
 /**
- * Étape 3/5 — Ciblage & audience (pays, tranche d'âge).
+ * Étape 3/5 — Ciblage & audience (pays/villes, tranche d'âge).
+ * Le ciblage se fait via un widget de recherche façon Meta Ads Manager
+ * (LocationSearchInput) : on tape un pays ou une ville, on sélectionne dans
+ * les suggestions, le lieu devient une puce retirable. `countries` (liste de
+ * codes pays dédupliqués) est dérivé automatiquement de `locations` à chaque
+ * changement, pour rester compatible avec la colonne `countries text[]` et
+ * avec TikTok qui ne cible que par pays.
+ *
  * Le ciblage par centres d'intérêt IA n'est pas implémenté ici : Meta/TikTok
  * déterminent l'audience via l'objectif + le pixel/API de conversions déjà
  * en place plutôt qu'un champ "interests" manuel.
  */
 export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
-  const toggleCountry = (code: string) => {
-    const has = state.countries.includes(code);
-    const next = has ? state.countries.filter((c) => c !== code) : [...state.countries, code];
-    patch({ countries: next.length ? next : ["BJ"] });
+  const updateLocations = (locations: WizardState["locations"]) => {
+    patch({ locations, countries: deriveCountries(locations) });
   };
 
   return (
     <div className="space-y-5">
       <div>
         <p className="mb-1.5 text-sm font-semibold text-gray-700">Pays ciblés</p>
-        <div className="flex flex-wrap gap-2">
-          {COUNTRY_OPTIONS.map((c) => {
-            const active = state.countries.includes(c.code);
-            return (
-              <button
-                key={c.code}
-                onClick={() => toggleCountry(c.code)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
-                  active ? "border-[#6366F1] bg-[#EEF2FF] text-[#3730A3]" : "border-gray-200 text-gray-600"
-                }`}
-              >
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
+        <LocationSearchInput
+          value={state.locations}
+          onChange={updateLocations}
+          metaAccountId={state.metaAdAccountId}
+          platform={state.platform}
+        />
       </div>
 
       <div>

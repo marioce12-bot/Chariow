@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatXOF } from "../types";
+import { buildGeoTargeting } from "./types";
 import type { EstimateResult, WizardState } from "./types";
 
 interface StepProps {
@@ -69,6 +70,9 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
       //    reprise depuis "Mes campagnes" sans repasser par le wizard pour les
       //    resélectionner. Idem pour les noms d'ensemble/publicité (ad_set_name/
       //    ad_name), saisis à l'étape 2.
+      //    geo_targeting porte le détail région/ville choisi dans le widget de
+      //    recherche d'audience (étape 3) — countries reste envoyé en parallèle
+      //    pour compatibilité (TikTok, colonne `countries text[]`).
       if (!state.campaignId) {
         const draftRes = await fetch("/api/ad-campaigns", {
           method: "POST",
@@ -85,6 +89,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
             link: state.destinationUrl,
             media_url: state.mediaUrl,
             countries: state.countries.join(","),
+            geo_targeting: buildGeoTargeting(state.locations),
             minAge: state.minAge,
             maxAge: state.maxAge,
             daily_budget: state.dailyBudget,

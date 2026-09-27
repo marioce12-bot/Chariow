@@ -28,7 +28,7 @@ export async function POST(request: Request, context: Context) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const { data: campaign, error: campaignError } = await supabase
     .from("ad_campaigns")
-    .select("id,store_id,title,product_name,platform,objective,daily_budget,countries,min_age,max_age,destination_url,ad_text,media_url,status,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
+    .select("id,store_id,title,product_name,platform,objective,daily_budget,countries,geo_targeting,min_age,max_age,destination_url,ad_text,media_url,status,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -56,7 +56,7 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   const accountId = typeof body?.meta_ad_account_id === "string" ? body.meta_ad_account_id : campaign.meta_ad_account_id;
   // Repli sur la page enregistree a la creation du brouillon : necessaire pour
   // reprendre une campagne depuis "Mes campagnes" (onglet ferme avant la fin,
-  // cf. ResumeCampaignModal) sans repasser par l'etape 2 du wizard.
+  // cf. ResumeCampaignModal) sans repasser par le wizard pour la resélectionner.
   const pageId = typeof body?.page_id === "string" ? body.page_id : campaign.meta_page_id ?? null;
   if (!accountId) return NextResponse.json({ error: "Sélectionne un compte Meta Ads" }, { status: 400 });
   const { data: account, error: accountError } = await supabase.from("meta_ad_accounts").select("id,meta_account_id,access_token_encrypted,is_active,account_status").eq("id", accountId).eq("user_id", userId).maybeSingle();
@@ -101,7 +101,21 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     // On crée directement en ACTIVE : le clic sur "Lancer la campagne" soumet
     // immédiatement la campagne à la modération Meta.
     const external = await createMetaCampaign({ accountId: `act_${account.meta_account_id}`, accessToken, name: campaignName, objective: campaign.objective, dailyBudget: Number(campaign.daily_budget), status: "ACTIVE" });
-    const adSet = await createMetaAdSet({ accountId: `act_${account.meta_account_id}`, accessToken, campaignId: external.id, name: `${campaignName} - Audience`, dailyBudget: Number(campaign.daily_budget), countries: campaign.countries?.length ? campaign.countries : ["BJ"], minAge: Number(campaign.min_age), maxAge: Number(campaign.max_age), publisherPlatforms, status: "ACTIVE" });
+    const adSet = await createMetaAdSet({
+      accountId: `act_${account.meta_account_id}`,
+      accessToken,
+      campaignId: external.id,
+      name: `${campaignName} - Audience`,
+      dailyBudget: Number(campaign.daily_budget),
+      countries: campaign.countries?.length ? campaign.countries : ["BJ"],
+      // Ciblage précis (région/ville) choisi via le widget de recherche
+      // d'audience — retombe sur `countries` (pays entiers) si absent.
+      geoTargeting: campaign.geo_targeting ?? null,
+      minAge: Number(campaign.min_age),
+      maxAge: Number(campaign.max_age),
+      publisherPlatforms,
+      status: "ACTIVE",
+    });
     const creative = await createMetaCreative({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: campaign.destination_url, message: campaign.ad_text, headline: campaignName, imageUrl: campaign.media_url });
     const ad = await createMetaAd({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Ad`, adsetId: String(adSet.id), creativeId: String(creative.id), status: "ACTIVE" });
     const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, external_campaign_id: external.id, external_adset_id: String(adSet.id), external_creative_id: String(creative.id), external_ad_id: String(ad.id), external_error: null }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id").single();

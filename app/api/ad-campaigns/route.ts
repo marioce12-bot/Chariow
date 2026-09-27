@@ -3,6 +3,31 @@ import { requireUser } from "@/lib/auth";
 
 const objectives = new Set(["sales", "traffic", "engagement", "leads"]);
 
+interface GeoTargetingInput {
+  countries: string[];
+  regions: { key: string; name: string }[];
+  cities: { key: string; name: string; radius: number; distance_unit: string }[];
+}
+
+/** Ne garde que des champs bien formés — un payload malformé (ou absent) est
+ *  silencieusement ignoré plutôt que de faire échouer la création du brouillon :
+ *  `countries` (déjà validé séparément) reste dans tous les cas la donnée de
+ *  secours utilisée par TikTok et par le lancement Meta. */
+function sanitizeGeoTargeting(input: unknown): GeoTargetingInput | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Record<string, unknown>;
+  const regions = Array.isArray(raw.regions)
+    ? raw.regions.filter((r): r is { key: string; name: string } => !!r && typeof (r as any).key === "string" && typeof (r as any).name === "string")
+    : [];
+  const cities = Array.isArray(raw.cities)
+    ? raw.cities.filter((c): c is { key: string; name: string; radius: number; distance_unit: string } => !!c && typeof (c as any).key === "string" && typeof (c as any).name === "string")
+        .map((c) => ({ key: c.key, name: c.name, radius: Number((c as any).radius) > 0 ? Number((c as any).radius) : 25, distance_unit: typeof (c as any).distance_unit === "string" ? (c as any).distance_unit : "mile" }))
+    : [];
+  const countries = Array.isArray(raw.countries) ? raw.countries.filter((c): c is string => typeof c === "string") : [];
+  if (!regions.length && !cities.length && !countries.length) return null;
+  return { countries, regions, cities };
+}
+
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
@@ -15,7 +40,11 @@ export async function POST(request: Request) {
   }
   const dailyBudget = Number(body.daily_budget);
   const durationDays = Number(body.duration_days);
-  if (!Number.isFinite(dailyBudget) || dailyBudget < 100 || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 90) {
+  // Le budget quotidien est saisi en dollars ($, voir Step4Estimation) : le
+  // minimum précédent (100) datait d'une époque où ce champ était en XOF et
+  // rejetait donc à tort n'importe quel budget réaliste en dollars (ex: 2$,
+  // 5$). Aligné sur le minimum déjà utilisé par /api/ad-campaigns/estimate.
+  if (!Number.isFinite(dailyBudget) || dailyBudget < 1 || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 90) {
     return NextResponse.json({ error: "Budget ou durée invalide" }, { status: 400 });
   }
 
@@ -39,6 +68,12 @@ export async function POST(request: Request) {
     if (account) tiktokAdAccountId = account.id;
   }
 
+  // geo_targeting : détail région/ville du widget de recherche d'audience
+  // (étape 3). Uniquement exploité par Meta au lancement (voir lib/meta/campaigns.ts) ;
+  // `countries` reste dans tous les cas la donnée envoyée à TikTok et le repli
+  // de sécurité pour Meta si aucune région/ville précise n'a été choisie.
+  const geoTargeting = sanitizeGeoTargeting(body.geo_targeting);
+
   const { data, error } = await supabase.from("ad_campaigns").insert({
     user_id: user.id,
     store_id: store.id,
@@ -57,6 +92,7 @@ export async function POST(request: Request) {
     destination_url: body.link.trim(),
     media_url: typeof body.media_url === "string" ? body.media_url.trim() : null,
     countries: typeof body.countries === "string" ? body.countries.split(",").map((country: string) => country.trim()).filter(Boolean) : [],
+    geo_targeting: geoTargeting,
     min_age: Number(body.minAge) || 18,
     max_age: Number(body.maxAge) || 65,
     daily_budget: dailyBudget,

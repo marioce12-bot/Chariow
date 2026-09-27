@@ -80,9 +80,42 @@ export async function createMetaCampaign(input: {
   return { id: String(campaign.id), objective };
 }
 
-export async function createMetaAdSet(input: { accountId: string; accessToken: string; campaignId: string; name: string; dailyBudget: number; countries: string[]; minAge: number; maxAge: number; publisherPlatforms?: string[]; status?: "ACTIVE" | "PAUSED" }) {
+export interface MetaGeoTargeting {
+  countries: string[];
+  regions?: { key: string; name?: string }[];
+  cities?: { key: string; name?: string; radius?: number; distance_unit?: string }[];
+}
+
+export async function createMetaAdSet(input: {
+  accountId: string;
+  accessToken: string;
+  campaignId: string;
+  name: string;
+  dailyBudget: number;
+  countries: string[];
+  /** Ciblage précis (régions/villes) choisi via le widget de recherche d'audience.
+   *  Quand présent et non vide, prime sur `countries` pour geo_locations — sinon
+   *  Meta cible les pays entiers (comportement historique). */
+  geoTargeting?: MetaGeoTargeting | null;
+  minAge: number;
+  maxAge: number;
+  publisherPlatforms?: string[];
+  status?: "ACTIVE" | "PAUSED";
+}) {
+  const hasPreciseTargeting = !!(input.geoTargeting && ((input.geoTargeting.regions?.length ?? 0) > 0 || (input.geoTargeting.cities?.length ?? 0) > 0));
+  const geoLocations: Record<string, unknown> = hasPreciseTargeting
+    ? {
+        // Meta exige un objet par entrée ({key}), avec radius/distance_unit pour
+        // les villes (rayon indicatif de 25 miles autour du centre-ville, cohérent
+        // avec ce que propose Meta Ads Manager par défaut pour un ciblage ville).
+        ...(input.geoTargeting!.countries.length ? { countries: input.geoTargeting!.countries } : {}),
+        ...(input.geoTargeting!.regions?.length ? { regions: input.geoTargeting!.regions.map((r) => ({ key: r.key })) } : {}),
+        ...(input.geoTargeting!.cities?.length ? { cities: input.geoTargeting!.cities.map((c) => ({ key: c.key, radius: c.radius ?? 25, distance_unit: c.distance_unit ?? "mile" })) } : {}),
+      }
+    : { countries: input.countries };
+
   const targeting: Record<string, unknown> = {
-    geo_locations: { countries: input.countries },
+    geo_locations: geoLocations,
     age_min: input.minAge,
     age_max: input.maxAge,
     // Requis par Meta (Graph API v23.0+, subcode 1870227) dès que l'âge min/max
