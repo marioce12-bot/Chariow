@@ -80,9 +80,7 @@ export interface EstimateResult {
   reachMax: number;
   impressionsMin: number;
   impressionsMax: number;
-  grossBudget: number; // ce qui sera débité (net / 0.98)
-  netAdBudget: number; // ce qui alimente réellement la campagne pub
-  vendeoCommission: number; // 2% (approx, sur le montant brut)
+  totalBudget: number; // budget total de la campagne (daily_budget × durationDays) — aucune commission, tout finance la pub
 }
 
 export const COUNTRY_OPTIONS = [
