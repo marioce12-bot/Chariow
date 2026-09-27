@@ -2,15 +2,17 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
-import { MetaAdsMcpClient, createMetaCampaign, createMetaAdSet, createMetaCreative, createMetaAd, deleteMetaCampaign } from "@/lib/meta/mcp";
-import { getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
+import { createMetaCampaign, createMetaAdSet, createMetaCreative, createMetaAd, deleteMetaCampaign } from "@/lib/meta/campaigns";
+import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 
-// Lance une campagne Meta complète via le serveur MCP, à partir d'un brief validé
-// par l'utilisateur dans l'assistant. Flux : campagne → ad set → creative → ad.
+// Lance une campagne Meta complète via l'API Marketing directe (même chemin que
+// /api/ad-campaigns/[id]/launch), à partir d'un brief validé par l'utilisateur
+// dans l'assistant IA. Flux : campagne → ad set → creative → ad, toutes créées
+// directement en ACTIVE — pas de passage par le serveur MCP publicités de Meta.
 type LaunchBody = {
   name?: string;
-  objective?: string;
-  dailyBudget?: number; // en XOF (converti en centimes côté serveur)
+  objective?: string; // OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_ENGAGEMENT | OUTCOME_LEADS | OUTCOME_AWARENESS
+  dailyBudget?: number; // en XOF
   countries?: string[];
   ageMin?: number;
   ageMax?: number;
@@ -23,6 +25,24 @@ type LaunchBody = {
   adAccountId?: string;
 };
 
+// lib/meta/campaigns.ts (utilisé par la section Pub) attend un objectif simplifié
+// ("sales" | "traffic" | "engagement" | "leads"), pas les codes OUTCOME_* que
+// l'IA du chat renvoie dans son JSON de lancement. OUTCOME_AWARENESS n'a pas
+// d'équivalent dans ce flux (la section Pub ne le propose pas non plus, voir
+// /api/ad-campaigns/route.ts) : on retombe sur "engagement".
+function toSimpleObjective(objective: string | undefined): "sales" | "traffic" | "engagement" | "leads" {
+  switch (objective) {
+    case "OUTCOME_SALES":
+      return "sales";
+    case "OUTCOME_TRAFFIC":
+      return "traffic";
+    case "OUTCOME_LEADS":
+      return "leads";
+    default:
+      return "engagement";
+  }
+}
+
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
@@ -30,6 +50,9 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as LaunchBody | null;
   if (!body?.name || !body.message) {
     return NextResponse.json({ error: "Nom de campagne et texte de créative requis." }, { status: 400 });
+  }
+  if (!body.imageUrl) {
+    return NextResponse.json({ error: "Ajoute une image ou une vidéo avant de lancer la campagne." }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -55,13 +78,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Le compte Meta Ads sélectionné est introuvable ou inactif." }, { status: 400 });
   }
   const accessToken = decryptSecret(account.access_token_encrypted);
-  const adAccountId = body.adAccountId || account.meta_account_id.replace(/^act_/, "");
+  const accountId = `act_${(body.adAccountId || account.meta_account_id).replace(/^act_/, "")}`;
 
   // Vérifie AVANT de créer quoi que ce soit que le compte peut réellement publier
-  // (compte actif + moyen de paiement). Renvoie la raison exacte à l'utilisateur
+  // (compte actif + moyen de paiement). Même vérification, mêmes fonctions que
+  // /api/ad-campaigns/[id]/launch : on renvoie la raison exacte à l'utilisateur
   // au lieu de le laisser se heurter à une erreur Meta opaque après coup.
   try {
-    const funding = await getMetaAccountFunding(`act_${account.meta_account_id}`, accessToken);
+    const funding = await getMetaAccountFunding(accountId, accessToken);
     const issue = describeMetaFundingIssue(funding);
     if (issue) {
       return NextResponse.json({ error: issue.message, code: issue.code }, { status: 400 });
@@ -71,110 +95,110 @@ export async function POST(request: Request) {
     // pas : Meta refusera de toute façon la création si le compte est inéligible.
   }
 
-  const client = new MetaAdsMcpClient(accessToken);
+  // Page Facebook : celle transmise par le client si déjà connue, sinon la
+  // première page accessible sur ce compte (API Graph "me/accounts", même appel
+  // que le wizard "Lancer une pub" — voir lib/meta/api.ts:fetchMetaResources).
+  let pageId = body.pageId;
+  if (!pageId) {
+    const resources = await fetchMetaResources(accountId, accessToken);
+    const firstPage = resources.pages[0] as { id?: string } | undefined;
+    pageId = firstPage?.id;
+    if (!pageId) {
+      return NextResponse.json(
+        {
+          error:
+            resources.pagesError ??
+            "Aucune Page Facebook n'est rattachée à ce compte publicitaire dans Meta Business Manager. " +
+              "Dans Business Settings → Comptes → Pages de l'entreprise qui possède ce compte publicitaire, ajoute la Page à utiliser comme actif, puis réessaie.",
+        },
+        { status: 400 }
+      );
+    }
+  }
 
-  // 1. Campagne. Si CETTE étape échoue (ex. "This ad account is not enabled for
-  // the Ads MCP", rollout progressif côté Meta), rien n'a été créé : on peut
-  // laisser l'erreur MCP remonter telle quelle, elle est déjà claire.
+  const objective = toSimpleObjective(body.objective);
+  const dailyBudget = body.dailyBudget ?? 0;
+  const countries = body.countries?.length ? body.countries : ["BJ"];
+  const linkUrl = body.linkUrl ?? "https://vendeo-studio.site";
+
+  // 1. Campagne. Si CETTE étape échoue, rien n'a été créé côté Meta : l'erreur
+  // Graph est déjà claire, on peut la laisser remonter telle quelle.
   let campaignId: string | undefined;
   try {
-    const campaign = (await createMetaCampaign(accessToken, {
-      adAccountId,
-      name: body.name,
-      objective: body.objective ?? "OUTCOME_SALES",
-      ...(body.dailyBudget ? { dailyBudgetCents: Math.round(body.dailyBudget * 100) } : {}),
-    })) as { campaign_id?: string; id?: string };
-    campaignId = campaign.campaign_id ?? campaign.id;
-    if (!campaignId) throw new Error("Meta n'a pas renvoyé l'identifiant de campagne.");
+    const campaign = await createMetaCampaign({ accountId, accessToken, name: body.name, objective, dailyBudget, status: "ACTIVE" });
+    campaignId = campaign.id;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erreur de lancement via MCP.";
-    console.error("launch-campaign MCP error (étape campagne)", message);
+    const message = error instanceof Error ? error.message : "Erreur de lancement Meta.";
+    console.error("launch-campaign Meta error (étape campagne)", message);
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
-  // 2 à 5. Page → ad set → créative → ad. À partir d'ici une campagne existe
-  // réellement sur le compte Meta : si une de ces étapes échoue, on la supprime
-  // avant de renvoyer l'erreur, pour ne pas laisser de campagne fantôme vide.
+  // 2 à 4. Ad set → créative → ad. À partir d'ici une campagne existe réellement
+  // sur le compte Meta : si une de ces étapes échoue, on la supprime avant de
+  // renvoyer l'erreur, pour ne pas laisser de campagne fantôme vide.
   try {
-    // 2. Page Facebook (nécessaire pour la créative).
-    let pageId = body.pageId;
-    if (!pageId) {
-      const pages = (await client.callTool("ads_get_ad_account_pages", { ad_account_id: adAccountId })) as { pages?: Array<{ id?: string }> };
-      pageId = pages?.pages?.[0]?.id;
-    }
-    if (!pageId) {
-      // Le MCP a répondu sans erreur mais avec une liste de pages vide : ça ne veut
-      // PAS dire "aucune page Facebook" en général, mais qu'aucune Page n'est
-      // rattachée à CE compte publicitaire précis côté Meta Business Manager.
-      throw new Error(
-        "Aucune Page Facebook n'est rattachée à ce compte publicitaire dans Meta Business Manager. " +
-          "Dans Business Settings → Comptes → Pages de l'entreprise qui possède ce compte publicitaire, ajoute la Page à utiliser comme actif, puis réessaie."
-      );
-    }
-
-    // 3. Ensemble de publicités (audience + âge).
-    const adSet = (await createMetaAdSet(accessToken, {
-      adAccountId,
+    const adSet = await createMetaAdSet({
+      accountId,
+      accessToken,
       campaignId,
       name: `${body.name} — Ensemble`,
-      optimizationGoal: "OFFSITE_CONVERSIONS",
-      billingEvent: "IMPRESSIONS",
-      countries: body.countries?.length ? body.countries : undefined,
-      ageMin: body.ageMin,
-      ageMax: body.ageMax,
-      ...(body.dailyBudget ? { dailyBudgetCents: Math.round(body.dailyBudget * 100) } : {}),
-    })) as { ad_set_id?: string; id?: string };
-    const adSetId = adSet.ad_set_id ?? adSet.id;
-    if (!adSetId) throw new Error("Meta n'a pas renvoyé l'identifiant d'ensemble.");
+      dailyBudget,
+      countries,
+      minAge: body.ageMin ?? 18,
+      maxAge: body.ageMax ?? 65,
+      status: "ACTIVE",
+    });
+    const adSetId = String(adSet.id);
 
-    // 4. Créative.
-    const creative = (await createMetaCreative(accessToken, {
-      adAccountId,
-      pageId,
-      imageUrl: body.imageUrl,
-      message: body.message,
-      headline: body.headline,
-      linkUrl: body.linkUrl ?? "https://vendeo-studio.site",
-      callToActionType: "SHOP_NOW",
+    const creative = await createMetaCreative({
+      accountId,
+      accessToken,
       name: `${body.name} — Créative`,
-    })) as { creative_id?: string; id?: string };
-    const creativeId = creative.creative_id ?? creative.id;
-    if (!creativeId) throw new Error("Meta n'a pas renvoyé l'identifiant de créative.");
+      pageId,
+      link: linkUrl,
+      message: body.message,
+      headline: body.headline || body.name,
+      imageUrl: body.imageUrl,
+    });
+    const creativeId = String(creative.id);
 
-    // 5. Publicité.
-    const ad = (await createMetaAd(accessToken, { adAccountId, adSetId, name: `${body.name} — Pub`, creativeId })) as { ad_id?: string; id?: string };
+    const ad = await createMetaAd({ accountId, accessToken, name: `${body.name} — Pub`, adsetId: adSetId, creativeId, status: "ACTIVE" });
+    const adId = String(ad.id);
 
     // Enregistre la campagne pour qu'elle apparaisse dans la page Pub.
     await admin.from("ad_campaigns").insert({
       user_id: user.id,
       platform: "meta",
       status: "review",
-      objective: body.objective ?? "OUTCOME_SALES",
+      objective,
       title: body.name,
       ad_text: body.message,
-      media_url: body.imageUrl ?? null,
-      destination_url: body.linkUrl ?? "https://vendeo-studio.site",
-      countries: body.countries ?? null,
+      media_url: body.imageUrl,
+      destination_url: linkUrl,
+      countries,
       min_age: body.ageMin ?? null,
       max_age: body.ageMax ?? null,
-      daily_budget: body.dailyBudget ?? null,
+      daily_budget: dailyBudget || null,
       duration_days: 1,
       meta_ad_account_id: account.id,
+      meta_page_id: pageId,
       external_campaign_id: campaignId,
+      external_adset_id: adSetId,
+      external_creative_id: creativeId,
+      external_ad_id: adId,
     });
 
-    return NextResponse.json({ campaignId, adSetId, creativeId, adId: ad.ad_id ?? ad.id });
+    return NextResponse.json({ campaignId, adSetId, creativeId, adId });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erreur de lancement via MCP.";
-    console.error("launch-campaign MCP error (après création de la campagne)", message, { campaignId });
+    const message = error instanceof Error ? error.message : "Erreur de lancement Meta.";
+    console.error("launch-campaign Meta error (après création de la campagne)", message, { campaignId });
 
     // Filet de sécurité : la campagne créée à l'étape 1 est vide et inutile côté
     // Meta, on la supprime pour éviter d'accumuler des campagnes fantômes. Cette
-    // suppression est best-effort : si elle échoue à son tour (ex. compte non
-    // éligible au MCP entre-temps), on ne masque jamais l'erreur d'origine avec
-    // celle du rollback — on la log seulement.
+    // suppression est best-effort : si elle échoue à son tour, on ne masque
+    // jamais l'erreur d'origine avec celle du rollback — on la log seulement.
     try {
-      await deleteMetaCampaign(accessToken, { adAccountId, campaignId });
+      await deleteMetaCampaign({ campaignId, accessToken });
     } catch (cleanupError) {
       const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : "Erreur inconnue lors du nettoyage.";
       console.error("launch-campaign: échec du rollback de la campagne fantôme", { campaignId, cleanupMessage });
