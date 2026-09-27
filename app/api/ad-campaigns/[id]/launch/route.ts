@@ -8,21 +8,18 @@ import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
 
 type Context = { params: Promise<{ id: string }> };
 
-// Cette route envoie la campagne à Meta/TikTok — en ACTIVE directement, puisque
-// le paiement (cf. /checkout) est désormais confirmé avant qu'on l'appelle.
-// Elle n'est donc autorisée QUE sur une campagne "paid" : impossible d'appeler
-// /launch avant d'avoir payé, ce qui garantit que la capture d'écran pour la
-// vérification Meta Business montre bien "créer sur Vendeo → payer → envoyer à
-// Meta" dans cet ordre, jamais l'inverse.
+// Cette route envoie la campagne à Meta/TikTok — en ACTIVE directement, dès que
+// l'utilisateur clique sur "Lancer la campagne" à l'étape 5. Il n'y a plus aucun
+// paiement ni contrôle de solde avant l'envoi : le compte pub Meta/TikTok de
+// l'utilisateur est facturé directement par la plateforme, pas par Vendeo.
 //
-// Si Meta/TikTok refuse la création, on NE remet PAS le statut à "error" : on
-// garde "paid" (avec external_error renseigné) pour que l'utilisateur puisse
-// cliquer à nouveau sur "Réessayer" sans jamais repayer — le paiement n'est
-// jamais perdu.
+// Si Meta/TikTok refuse la création, on garde le statut "draft" (avec
+// external_error renseigné) pour que l'utilisateur puisse cliquer à nouveau sur
+// "Réessayer" sans recommencer le wizard.
 //
 // Cas particulier (compatibilité) : si la campagne a déjà des identifiants
-// externes (external_campaign_id/adset/ad) — c'est-à-dire qu'elle a été créée
-// chez Meta en PAUSED sous l'ancien flux avant d'être payée — on ne recrée rien
+// externes (external_campaign_id/adset/ad) — c'est-à-dire qu'elle a déjà été
+// créée chez Meta en PAUSED lors d'un essai précédent — on ne recrée rien
 // (ce qui dupliquerait la campagne côté Meta) : on se contente de l'activer.
 export async function POST(request: Request, context: Context) {
   const { supabase, user, response } = await requireUser();
@@ -58,8 +55,8 @@ export async function POST(request: Request, context: Context) {
 async function launchMeta(supabase: any, userId: string, campaign: any, body: any) {
   const accountId = typeof body?.meta_ad_account_id === "string" ? body.meta_ad_account_id : campaign.meta_ad_account_id;
   // Repli sur la page enregistree a la creation du brouillon : necessaire pour
-  // reprendre une campagne payee depuis "Mes campagnes" (onglet ferme avant la
-  // fin, cf. ResumeCampaignModal) sans repasser par l'etape 2 du wizard.
+  // reprendre une campagne depuis "Mes campagnes" (onglet ferme avant la fin,
+  // cf. ResumeCampaignModal) sans repasser par l'etape 2 du wizard.
   const pageId = typeof body?.page_id === "string" ? body.page_id : campaign.meta_page_id ?? null;
   if (!accountId) return NextResponse.json({ error: "Sélectionne un compte Meta Ads" }, { status: 400 });
   const { data: account, error: accountError } = await supabase.from("meta_ad_accounts").select("id,meta_account_id,access_token_encrypted,is_active,account_status").eq("id", accountId).eq("user_id", userId).maybeSingle();
@@ -67,8 +64,8 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   if (!account?.is_active) return NextResponse.json({ error: "Le compte Meta sélectionné n’est plus actif" }, { status: 400 });
   const accessToken = decryptSecret(account.access_token_encrypted);
 
-  // Cas de reprise (ancien flux) : la campagne existe déjà chez Meta en PAUSED —
-  // on l'active simplement au lieu d'en recréer une deuxième.
+  // Cas de reprise : la campagne existe déjà chez Meta en PAUSED (essai
+  // précédent) — on l'active simplement au lieu d'en recréer une deuxième.
   if (campaign.external_campaign_id && campaign.external_adset_id && campaign.external_ad_id) {
     try {
       await activateMetaCampaign({ campaignId: campaign.external_campaign_id, adSetId: campaign.external_adset_id, adId: campaign.external_ad_id, accessToken });
@@ -79,7 +76,7 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 500) : "Activation Meta échouée";
       await supabase.from("ad_campaigns").update({ external_error: message }).eq("id", campaign.id).eq("user_id", userId);
-      return NextResponse.json({ error: `Paiement confirmé, mais Meta n’a pas accepté l’activation : ${message}. Réessaie — le paiement n’est pas perdu.` }, { status: 502 });
+      return NextResponse.json({ error: `Meta n’a pas accepté l’activation : ${message}. Réessaie.` }, { status: 502 });
     }
   }
 
@@ -101,8 +98,8 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   try {
     const pageAccessToken = await fetchMetaPageAccessToken(pageId, accessToken);
     const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
-    // Le paiement est déjà confirmé (status "paid") : on crée directement en ACTIVE,
-    // ce qui soumet immédiatement la campagne à la modération Meta.
+    // On crée directement en ACTIVE : le clic sur "Lancer la campagne" soumet
+    // immédiatement la campagne à la modération Meta.
     const external = await createMetaCampaign({ accountId: `act_${account.meta_account_id}`, accessToken, name: campaignName, objective: campaign.objective, dailyBudget: Number(campaign.daily_budget), status: "ACTIVE" });
     const adSet = await createMetaAdSet({ accountId: `act_${account.meta_account_id}`, accessToken, campaignId: external.id, name: `${campaignName} - Audience`, dailyBudget: Number(campaign.daily_budget), countries: campaign.countries?.length ? campaign.countries : ["BJ"], minAge: Number(campaign.min_age), maxAge: Number(campaign.max_age), publisherPlatforms, status: "ACTIVE" });
     const creative = await createMetaCreative({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: campaign.destination_url, message: campaign.ad_text, headline: campaignName, imageUrl: campaign.media_url });
@@ -112,11 +109,9 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     await supabase.from("meta_campaigns").upsert({ ad_account_id: account.id, meta_campaign_id: external.id, name: campaign.title || "Campagne Vendeo", status: "ACTIVE", objective: external.objective }, { onConflict: "ad_account_id,meta_campaign_id" });
     return NextResponse.json({ campaign: updated });
   } catch (error) {
-    // Le paiement est déjà encaissé ici : on garde le statut "paid" (au lieu de
-    // "error") pour permettre un nouveau clic sur "Réessayer" sans repayer.
     const message = error instanceof Error ? error.message.slice(0, 500) : "Meta campaign creation failed";
     await supabase.from("ad_campaigns").update({ external_error: message }).eq("id", campaign.id).eq("user_id", userId);
-    return NextResponse.json({ error: `Paiement confirmé, mais Meta n’a pas accepté la campagne : ${message}. Réessaie — le paiement n’est pas perdu.` }, { status: 502 });
+    return NextResponse.json({ error: `Meta n’a pas accepté la campagne : ${message}. Réessaie.` }, { status: 502 });
   }
 }
 
@@ -143,10 +138,8 @@ async function launchTikTok(supabase: any, userId: string, campaign: any, body: 
     if (updateError) return NextResponse.json({ error: "Campagne TikTok créée mais statut Vendeo non enregistré" }, { status: 502 });
     return NextResponse.json({ campaign: updated });
   } catch (error) {
-    // Comme pour Meta : le paiement est déjà encaissé, on garde "paid" pour un
-    // nouvel essai sans repayer.
     const message = error instanceof Error ? error.message.slice(0, 500) : "TikTok campaign creation failed";
     await supabase.from("ad_campaigns").update({ external_error: message }).eq("id", campaign.id).eq("user_id", userId);
-    return NextResponse.json({ error: `Paiement confirmé, mais TikTok n’a pas accepté la campagne : ${message}. Réessaie — le paiement n’est pas perdu.` }, { status: 502 });
+    return NextResponse.json({ error: `TikTok n’a pas accepté la campagne : ${message}. Réessaie.` }, { status: 502 });
   }
 }
