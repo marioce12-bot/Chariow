@@ -17,14 +17,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Budget ou durée invalide" }, { status: 400 });
   }
 
-  const netAdBudget = dailyBudget * durationDays;
-  // 98% du montant brut = budget pub net → brut = net / 0.98
-  const grossBudget = Math.round(netAdBudget / 0.98);
-  const vendeoCommission = grossBudget - netAdBudget;
+  // Aucune commission Vendeo : tout le budget saisi finance directement la
+  // campagne chez Meta/TikTok (le compte pub de l'utilisateur est facturé
+  // directement par la plateforme).
+  const totalBudget = dailyBudget * durationDays;
 
   const [cpmLow, cpmHigh] = CPM_RANGE_XOF.default;
-  const impressionsMin = Math.round((netAdBudget / cpmHigh) * 1000);
-  const impressionsMax = Math.round((netAdBudget / cpmLow) * 1000);
+  const impressionsMin = Math.round((totalBudget / cpmHigh) * 1000);
+  const impressionsMax = Math.round((totalBudget / cpmLow) * 1000);
   // Fréquence moyenne indicative de 1.6 vue/personne sur une campagne courte.
   const reachMin = Math.round(impressionsMin / 1.6);
   const reachMax = Math.round(impressionsMax / 1.6);
@@ -35,9 +35,7 @@ export async function POST(request: Request) {
       reachMax,
       impressionsMin,
       impressionsMax,
-      grossBudget,
-      netAdBudget,
-      vendeoCommission,
+      totalBudget,
     },
   });
 }
