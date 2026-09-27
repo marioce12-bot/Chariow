@@ -32,7 +32,7 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
   submitting: { label: "Création en cours…", bg: "#DBEAFE", fg: "#1E40AF" },
   paused: { label: "Prête — en attente de paiement", bg: "#E0E7FF", fg: "#3730A3" },
   paid: { label: "Payée — en attente d’activation", bg: "#E0E7FF", fg: "#3730A3" },
-  review: { label: "En revue chez la plateforme", bg: "#FEF3C7", fg: "#92400E" },
+  review: { label: "En cours d'examen", bg: "#FEF3C7", fg: "#92400E" },
   active: { label: "Active", bg: "#D1FAE5", fg: "#065F46" },
   rejected: { label: "Rejetée", bg: "#FEE2E2", fg: "#991B1B" },
   error: { label: "Erreur", bg: "#FEE2E2", fg: "#991B1B" },
@@ -145,8 +145,10 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                   </span>
                   {/* /launch garde le statut "paid" (jamais "error") apres un refus Meta/TikTok
                       pour permettre un nouvel essai sans repayer : le motif doit donc s'afficher
-                      aussi sur "paid", sinon il reste invisible dans la liste. */}
-                  {(c.status === "error" || c.status === "paid") && c.external_error ? (
+                      aussi sur "paid". "rejected" est le refus survenu après diffusion (retour
+                      async de mapMetaEffectiveStatus) : même logique, le motif doit rester visible
+                      directement dans la liste, sans avoir à ouvrir le détail. */}
+                  {(c.status === "error" || c.status === "paid" || c.status === "rejected") && c.external_error ? (
                     <span className="hint-line" style={{ color: "#991B1B" }}>{c.external_error}</span>
                   ) : null}
                 </div>
@@ -197,7 +199,17 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
             <div className="card-head campaign-modal-head"><div><span className="eyebrow">Détail</span><h2>{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="compact-icon-button" onClick={() => setSelected(null)} aria-label="Fermer"><X size={16} /></button></div>
             {selected.media_url ? <img src={selected.media_url} alt="Aperçu de la publicité" style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} /> : null}
             {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>Texte :</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>Réseau :</strong> {selected.platform === "meta" ? "Facebook / Instagram" : "TikTok"}</div><div><strong>Objectif :</strong> {selected.objective}</div><div><strong>Audience :</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} ans</div><div><strong>Budget :</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} $/jour · {selected.duration_days} jours</div>{selected.destination_url ? <div><strong>Lien :</strong> {selected.destination_url}</div> : null}</div>}
-            {selected.external_error ? <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}><strong>Rejet / erreur :</strong> {selected.external_error}<br /><span>Modifie les paramètres puis relance. Aucun paiement supplémentaire ne sera demandé.</span></div> : null}
+            {selected.external_error ? (
+              <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}>
+                <strong>{selected.status === "rejected" ? "Motif du refus :" : "Rejet / erreur :"}</strong> {selected.external_error}
+                <br />
+                <span>
+                  {selected.status === "rejected"
+                    ? "Corrige le visuel, le texte ou le lien en fonction de ce motif, puis utilise \"Modifier\" ci-dessous avant de relancer la campagne."
+                    : "Modifie les paramètres puis relance. Aucun paiement supplémentaire ne sera demandé."}
+                </span>
+              </div>
+            ) : null}
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => setEditing(true)}>Modifier</button> : null}{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}<button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>Supprimer</button></div>
           </div>
         </div>
