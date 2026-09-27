@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 
-// Coût pour mille impressions (CPM) indicatif par marché — à ajuster avec des
-// données réelles une fois l'historique de campagnes disponible (table ad_metrics).
-const CPM_RANGE_XOF: Record<string, [number, number]> = {
-  default: [800, 2200],
+// Coût pour mille impressions (CPM) indicatif par marché, en dollars US (devise
+// du compte publicitaire Meta) — à ajuster avec des données réelles une fois
+// l'historique de campagnes disponible (table ad_metrics).
+const CPM_RANGE_USD: Record<string, [number, number]> = {
+  default: [1, 4],
 };
 
 export async function POST(request: Request) {
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const dailyBudget = Number(body?.daily_budget);
   const durationDays = Number(body?.duration_days);
-  if (!Number.isFinite(dailyBudget) || dailyBudget < 100 || !Number.isFinite(durationDays) || durationDays < 1) {
+  if (!Number.isFinite(dailyBudget) || dailyBudget < 1 || !Number.isFinite(durationDays) || durationDays < 1) {
     return NextResponse.json({ error: "Budget ou durée invalide" }, { status: 400 });
   }
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   // directement par la plateforme).
   const totalBudget = dailyBudget * durationDays;
 
-  const [cpmLow, cpmHigh] = CPM_RANGE_XOF.default;
+  const [cpmLow, cpmHigh] = CPM_RANGE_USD.default;
   const impressionsMin = Math.round((totalBudget / cpmHigh) * 1000);
   const impressionsMax = Math.round((totalBudget / cpmLow) * 1000);
   // Fréquence moyenne indicative de 1.6 vue/personne sur une campagne courte.
