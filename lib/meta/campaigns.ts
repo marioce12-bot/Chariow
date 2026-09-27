@@ -81,7 +81,17 @@ export async function createMetaCampaign(input: {
 }
 
 export async function createMetaAdSet(input: { accountId: string; accessToken: string; campaignId: string; name: string; dailyBudget: number; countries: string[]; minAge: number; maxAge: number; publisherPlatforms?: string[]; status?: "ACTIVE" | "PAUSED" }) {
-  const targeting: Record<string, unknown> = { geo_locations: { countries: input.countries }, age_min: input.minAge, age_max: input.maxAge };
+  const targeting: Record<string, unknown> = {
+    geo_locations: { countries: input.countries },
+    age_min: input.minAge,
+    age_max: input.maxAge,
+    // Requis par Meta (Graph API v23.0+, subcode 1870227) dès que l'âge min/max
+    // n'est pas la config par défaut : il faut dire explicitement si l'audience
+    // Advantage+ (élargissement automatique de l'audience par l'IA de Meta) est
+    // activée. 0 = désactivée, pour garder exactement l'âge/pays choisis par
+    // l'utilisateur plutôt que de laisser Meta les élargir automatiquement.
+    targeting_automation: { advantage_audience: 0 },
+  };
   // Plan Éco : diffusion restreinte à Facebook uniquement (pas Instagram).
   // Sans ce champ, Meta diffuse automatiquement sur tous les emplacements disponibles.
   if (input.publisherPlatforms?.length) targeting.publisher_platforms = input.publisherPlatforms;
