@@ -414,7 +414,7 @@ export function Dashboard() {
           ) : stores.length === 0 && !analytics && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
             <StoreOnboarding />
           ) : active === "Paramètres" ? (
-            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} />
+            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} onBack={() => setActive(previousSection)} />
           ) : active === "Vendeo AI" ? (
             <ChatView
               onGoToSubscription={() => setActive("Abonnement")}
@@ -430,7 +430,7 @@ export function Dashboard() {
           ) : active === "Pub" ? (
              <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={launchAd} storeId={stores[0]?.id ?? null} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
-             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" />
+            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" onBack={() => setActive(previousSection)} />
           ) : active === "Radar marché" ? (
              <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); setActive("Vendeo AI"); }} />
            ) : active === "Mes boutiques" ? (
@@ -466,7 +466,7 @@ export function Dashboard() {
 
       <TrialPaywallModal subscription={subscription} />
 
-        {active !== "Vendeo AI" ? (
+        {active !== "Vendeo AI" && active !== "Paramètres" ? (
          <nav className="mobile-nav" aria-label="Navigation mobile">
          <button type="button" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
            <LayoutDashboard size={18} />
@@ -1438,7 +1438,7 @@ const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; 
   { id: "pinterest", label: "Pinterest", description: "Bientôt disponible.", badge: "pinterest", live: false },
 ];
 
-function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: "channels" }) {
+function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: "channels"; onBack?: () => void }) {
   const { locale, setLocale, t } = useI18n();
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
@@ -1535,6 +1535,7 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate
           <h1>Paramètres</h1>
           <p>Gère tes boutiques et ton abonnement depuis cet espace.</p>
         </div>
+        {onBack && <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Retour</button>}
       </div>
       <section className="settings-section settings-section-account" aria-label="Boutiques et abonnement">
         <div className="mobile-settings-grid">

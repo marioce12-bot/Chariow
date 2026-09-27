@@ -912,6 +912,10 @@ html[data-theme="dark"] .sale-modal-close, html[data-theme="dark"] .account-dele
 html[data-theme="dark"] .sale-detail-grid div { background:#0e1c3f; border-color:var(--line); }
 html[data-theme="dark"] .btn-ghost { background:rgba(255,255,255,.05); }
 html[data-theme="dark"] .btn-danger-ghost { background:rgba(217,93,93,.12); border-color:rgba(217,93,93,.4); color:#f19999; }
+html[data-theme="dark"] .settings-connect { background:#7da2ff; border-color:#7da2ff; color:#040b1f; }
+html[data-theme="dark"] .settings-connect:disabled { background:#31427a; border-color:#31427a; color:#7c8db5; }
+html[data-theme="dark"] .settings-disconnect { border-color:rgba(217,93,93,.4); color:#f19999; }
+html[data-theme="dark"] .settings-disconnect:hover { background:rgba(217,93,93,.12); }
 html[data-theme="dark"] .store-error, html[data-theme="dark"] .settings-account-error, html[data-theme="dark"] .mobile-settings-danger { color:#f19999; }
 html[data-theme="dark"] .store-error { background:rgba(217,93,93,.12); border-color:rgba(217,93,93,.35); }
 html[data-theme="dark"] .settings-account-error { background:rgba(217,93,93,.12); }
