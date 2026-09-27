@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
-import { MetaAdsMcpClient, createMetaCampaign, createMetaAdSet, createMetaCreative, createMetaAd } from "@/lib/meta/mcp";
+import { MetaAdsMcpClient, createMetaCampaign, createMetaAdSet, createMetaCreative, createMetaAd, deleteMetaCampaign } from "@/lib/meta/mcp";
 import { getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 
 // Lance une campagne Meta complète via le serveur MCP, à partir d'un brief validé
@@ -73,24 +73,44 @@ export async function POST(request: Request) {
 
   const client = new MetaAdsMcpClient(accessToken);
 
+  // 1. Campagne. Si CETTE étape échoue (ex. "This ad account is not enabled for
+  // the Ads MCP", rollout progressif côté Meta), rien n'a été créé : on peut
+  // laisser l'erreur MCP remonter telle quelle, elle est déjà claire.
+  let campaignId: string | undefined;
   try {
-    // 1. Campagne.
     const campaign = (await createMetaCampaign(accessToken, {
       adAccountId,
       name: body.name,
       objective: body.objective ?? "OUTCOME_SALES",
       ...(body.dailyBudget ? { dailyBudgetCents: Math.round(body.dailyBudget * 100) } : {}),
     })) as { campaign_id?: string; id?: string };
-    const campaignId = campaign.campaign_id ?? campaign.id;
+    campaignId = campaign.campaign_id ?? campaign.id;
     if (!campaignId) throw new Error("Meta n'a pas renvoyé l'identifiant de campagne.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erreur de lancement via MCP.";
+    console.error("launch-campaign MCP error (étape campagne)", message);
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
 
+  // 2 à 5. Page → ad set → créative → ad. À partir d'ici une campagne existe
+  // réellement sur le compte Meta : si une de ces étapes échoue, on la supprime
+  // avant de renvoyer l'erreur, pour ne pas laisser de campagne fantôme vide.
+  try {
     // 2. Page Facebook (nécessaire pour la créative).
     let pageId = body.pageId;
     if (!pageId) {
       const pages = (await client.callTool("ads_get_ad_account_pages", { ad_account_id: adAccountId })) as { pages?: Array<{ id?: string }> };
       pageId = pages?.pages?.[0]?.id;
     }
-    if (!pageId) throw new Error("Aucune Page Facebook disponible pour ce compte publicitaire.");
+    if (!pageId) {
+      // Le MCP a répondu sans erreur mais avec une liste de pages vide : ça ne veut
+      // PAS dire "aucune page Facebook" en général, mais qu'aucune Page n'est
+      // rattachée à CE compte publicitaire précis côté Meta Business Manager.
+      throw new Error(
+        "Aucune Page Facebook n'est rattachée à ce compte publicitaire dans Meta Business Manager. " +
+          "Dans Business Settings → Comptes → Pages de l'entreprise qui possède ce compte publicitaire, ajoute la Page à utiliser comme actif, puis réessaie."
+      );
+    }
 
     // 3. Ensemble de publicités (audience + âge).
     const adSet = (await createMetaAdSet(accessToken, {
@@ -146,7 +166,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ campaignId, adSetId, creativeId, adId: ad.ad_id ?? ad.id });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur de lancement via MCP.";
-    console.error("launch-campaign MCP error", message);
+    console.error("launch-campaign MCP error (après création de la campagne)", message, { campaignId });
+
+    // Filet de sécurité : la campagne créée à l'étape 1 est vide et inutile côté
+    // Meta, on la supprime pour éviter d'accumuler des campagnes fantômes. Cette
+    // suppression est best-effort : si elle échoue à son tour (ex. compte non
+    // éligible au MCP entre-temps), on ne masque jamais l'erreur d'origine avec
+    // celle du rollback — on la log seulement.
+    try {
+      await deleteMetaCampaign(accessToken, { adAccountId, campaignId });
+    } catch (cleanupError) {
+      const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : "Erreur inconnue lors du nettoyage.";
+      console.error("launch-campaign: échec du rollback de la campagne fantôme", { campaignId, cleanupMessage });
+    }
+
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
