@@ -25,6 +25,12 @@ type LaunchBody = {
   adAccountId?: string;
 };
 
+// La table ad_campaigns exige daily_budget >= 100 (voir
+// 20260830180000_ad_campaign_drafts.sql) : on vérifie AVANT de créer quoi que
+// ce soit chez Meta, pour ne jamais te retrouver avec une campagne qui dépense
+// réellement mais qu'on ne peut pas enregistrer côté Vendeo.
+const MIN_DAILY_BUDGET = 100;
+
 // lib/meta/campaigns.ts (utilisé par la section Pub) attend un objectif simplifié
 // ("sales" | "traffic" | "engagement" | "leads"), pas les codes OUTCOME_* que
 // l'IA du chat renvoie dans son JSON de lancement. OUTCOME_AWARENESS n'a pas
@@ -54,8 +60,28 @@ export async function POST(request: Request) {
   if (!body.imageUrl) {
     return NextResponse.json({ error: "Ajoute une image ou une vidéo avant de lancer la campagne." }, { status: 400 });
   }
+  const dailyBudget = Number(body.dailyBudget ?? 0);
+  if (!Number.isFinite(dailyBudget) || dailyBudget < MIN_DAILY_BUDGET) {
+    return NextResponse.json({ error: `Le budget quotidien doit être d'au moins ${MIN_DAILY_BUDGET}.` }, { status: 400 });
+  }
 
   const admin = createAdminClient();
+
+  // La campagne doit être rattachée à une boutique Chariow connectée pour
+  // apparaître dans "Mes campagnes" (même exigence que /api/ad-campaigns,
+  // utilisée par le wizard "Lancer une pub") — sans ça, l'insertion plus bas
+  // échoue (store_id est "not null" en base) et la campagne, déjà créée et
+  // active chez Meta à ce moment-là, resterait invisible côté Vendeo.
+  const { data: store, error: storeError } = await supabase
+    .from("stores")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("connection_status", "connected")
+    .limit(1)
+    .maybeSingle();
+  if (storeError || !store) {
+    return NextResponse.json({ error: "Connecte d'abord une boutique Chariow." }, { status: 400 });
+  }
 
   // Récupère les comptes Meta actifs, puis choisit celui à utiliser :
   // 1. le compte explicitement demandé (metaAdAccountId = id de la ligne en base),
@@ -117,9 +143,11 @@ export async function POST(request: Request) {
   }
 
   const objective = toSimpleObjective(body.objective);
-  const dailyBudget = body.dailyBudget ?? 0;
   const countries = body.countries?.length ? body.countries : ["BJ"];
   const linkUrl = body.linkUrl ?? "https://vendeo-studio.site";
+  const minAge = body.ageMin ?? 18;
+  const maxAge = body.ageMax ?? 65;
+  const durationDays = 1;
 
   // 1. Campagne. Si CETTE étape échoue, rien n'a été créé côté Meta : l'erreur
   // Graph est déjà claire, on peut la laisser remonter telle quelle.
@@ -133,9 +161,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
-  // 2 à 4. Ad set → créative → ad. À partir d'ici une campagne existe réellement
-  // sur le compte Meta : si une de ces étapes échoue, on la supprime avant de
-  // renvoyer l'erreur, pour ne pas laisser de campagne fantôme vide.
+  // 2 à 4. Ad set → créative → ad, puis enregistrement en base. À partir d'ici
+  // une campagne existe réellement sur le compte Meta : si une de ces étapes
+  // échoue — création Meta OU enregistrement Vendeo — on supprime la campagne
+  // chez Meta avant de renvoyer l'erreur, pour ne jamais laisser une campagne
+  // qui dépense réellement sans trace côté Vendeo.
   try {
     const adSet = await createMetaAdSet({
       accountId,
@@ -144,8 +174,8 @@ export async function POST(request: Request) {
       name: `${body.name} — Ensemble`,
       dailyBudget,
       countries,
-      minAge: body.ageMin ?? 18,
-      maxAge: body.ageMax ?? 65,
+      minAge,
+      maxAge,
       status: "ACTIVE",
     });
     const adSetId = String(adSet.id);
@@ -166,8 +196,13 @@ export async function POST(request: Request) {
     const adId = String(ad.id);
 
     // Enregistre la campagne pour qu'elle apparaisse dans la page Pub.
-    await admin.from("ad_campaigns").insert({
+    // store_id/estimated_budget sont "not null" en base (voir
+    // 20260830180000_ad_campaign_drafts.sql) : on vérifie explicitement
+    // l'erreur — une campagne créée chez Meta mais jamais enregistrée ici est
+    // pire qu'une erreur affichée à l'utilisateur, elle est invisible.
+    const { error: insertError } = await admin.from("ad_campaigns").insert({
       user_id: user.id,
+      store_id: store.id,
       platform: "meta",
       status: "review",
       objective,
@@ -176,10 +211,11 @@ export async function POST(request: Request) {
       media_url: body.imageUrl,
       destination_url: linkUrl,
       countries,
-      min_age: body.ageMin ?? null,
-      max_age: body.ageMax ?? null,
-      daily_budget: dailyBudget || null,
-      duration_days: 1,
+      min_age: minAge,
+      max_age: maxAge,
+      daily_budget: dailyBudget,
+      duration_days: durationDays,
+      estimated_budget: dailyBudget * durationDays,
       meta_ad_account_id: account.id,
       meta_page_id: pageId,
       external_campaign_id: campaignId,
@@ -187,16 +223,18 @@ export async function POST(request: Request) {
       external_creative_id: creativeId,
       external_ad_id: adId,
     });
+    if (insertError) throw new Error(`Campagne créée chez Meta mais non enregistrée côté Vendeo (${insertError.message}).`);
 
     return NextResponse.json({ campaignId, adSetId, creativeId, adId });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur de lancement Meta.";
     console.error("launch-campaign Meta error (après création de la campagne)", message, { campaignId });
 
-    // Filet de sécurité : la campagne créée à l'étape 1 est vide et inutile côté
-    // Meta, on la supprime pour éviter d'accumuler des campagnes fantômes. Cette
-    // suppression est best-effort : si elle échoue à son tour, on ne masque
-    // jamais l'erreur d'origine avec celle du rollback — on la log seulement.
+    // Filet de sécurité : que l'échec vienne de Meta (ad set/créative/ad) ou de
+    // l'enregistrement Vendeo, on supprime la campagne créée à l'étape 1 pour
+    // éviter qu'elle continue à dépenser sans être suivie. Best-effort : si la
+    // suppression échoue à son tour, on ne masque jamais l'erreur d'origine
+    // avec celle du rollback — on la log seulement.
     try {
       await deleteMetaCampaign({ campaignId, accessToken });
     } catch (cleanupError) {
