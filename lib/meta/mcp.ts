@@ -112,6 +112,25 @@ export async function createMetaCampaign(accessToken: string, input: CreateCampa
   });
 }
 
+/**
+ * Supprime une campagne créée via le MCP. Utilisé comme filet de sécurité par
+ * launch-campaign : si une des étapes après la création de la campagne échoue
+ * (ex. aucune Page disponible), on ne veut pas laisser une campagne fantôme,
+ * vide, traîner sur le compte publicitaire du client.
+ *
+ * Best-effort : l'appelant doit catcher les erreurs de cette fonction plutôt
+ * que de les laisser masquer l'erreur d'origine — voir launch-campaign/route.ts.
+ */
+export async function deleteMetaCampaign(accessToken: string, input: { adAccountId: string; campaignId: string }) {
+  const client = new MetaAdsMcpClient(accessToken);
+  return client.callTool("ads_update_campaign", {
+    ad_account_id: input.adAccountId,
+    campaign_id: input.campaignId,
+    status: "DELETED",
+    client_conversation_id: generateClientConversationId(),
+  });
+}
+
 export type CreateCreativeInput = {
   adAccountId: string;
   pageId: string;
