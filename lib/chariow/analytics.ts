@@ -85,20 +85,37 @@ function firstText(...candidates: unknown[]): string | null {
   return null;
 }
 
-// Construit un lien produit à partir d'une boutique + d'un slug quand l'API ne
-// renvoie pas d'URL complète toute faite (seulement un identifiant/slug produit).
-// Chariow documente `url` sur la boutique (domaine personnalisé ou sous-domaine) :
-// on le lit en premier, avant les anciens noms de champ. `custom_slug` est le champ
-// qui porte le sous-domaine mychariow.com réel quand aucun domaine personnalisé
-// n'est configuré (auquel cas `url`/`domain` valent souvent null) — vu dans les
-// clés de get_store en prod sur une boutique où le lien restait non résolu.
-function buildProductUrl(store: Record<string, unknown>, product: Record<string, unknown>): string | null {
-  const slug = firstText(product.limace, product.slug, product.handle, product.reference);
-  if (!slug) return null;
+// Résout uniquement l'hôte de la boutique (sans chemin produit), à partir des
+// mêmes candidats que buildProductUrl. Réutilisé (1) pour construire un lien
+// produit avec le slug, et (2) comme secours quand aucun slug n'est
+// disponible : on préfère renvoyer l'accueil de la boutique plutôt que de
+// laisser le lien de destination vide (voir resolveStoreHomeUrl ci-dessous).
+function resolveStoreHost(store: Record<string, unknown>, product: Record<string, unknown>): string | null {
   const storeDomain = firstText(store.URL, store.domaine, store.url, asRecord(product.store).url, store.storefront_url, store.domain, store.custom_slug, store.subdomain, store.slug, store.store_slug);
   if (!storeDomain) return null;
-  const host = storeDomain.includes(".") ? storeDomain.replace(/^https?:\/\//, "") : `${storeDomain}.mychariow.com`;
+  return storeDomain.includes(".") ? storeDomain.replace(/^https?:\/\//, "") : `${storeDomain}.mychariow.com`;
+}
+
+// Construit un lien produit à partir d'une boutique + d'un slug quand l'API ne
+// renvoie pas d'URL complète toute faite (seulement un identifiant/slug produit).
+function buildProductUrl(store: Record<string, unknown>, product: Record<string, unknown>): string | null {
+  const slug = firstText(product.slug, product.handle, product.reference);
+  if (!slug) return null;
+  const host = resolveStoreHost(store, product);
+  if (!host) return null;
   return `https://${host.replace(/\/$/, "")}/${slug.replace(/^\//, "")}`;
+}
+
+// Accueil de la boutique, utilisé UNIQUEMENT comme dernier recours quand ni un
+// champ URL direct sur le produit, ni buildProductUrl (slug + domaine) n'ont
+// abouti — typiquement un produit dont `slug` est encore null côté Chariow
+// (souvent parce qu'il n'a pas encore été publié). Un lien vers l'accueil de
+// la boutique reste un lien VALIDE à soumettre à Meta (contrairement à un champ
+// vide), mais ce n'est pas la page du produit : on le signale via
+// `urlIsFallback` pour que l'utilisateur le remplace avant de lancer la pub.
+function resolveStoreHomeUrl(store: Record<string, unknown>, product: Record<string, unknown>): string | null {
+  const host = resolveStoreHost(store, product);
+  return host ? `https://${host.replace(/\/$/, "")}` : null;
 }
 
 // Une vente est considérée comme confirmée (encaissée) si Chariow lui donne un
@@ -201,6 +218,14 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       product.sales_url,
       product.link
     ) ?? buildProductUrl(store, product);
+    // Secours : quand ni un champ URL direct ni le slug ne sont disponibles
+    // (produit non publié côté Chariow, le plus souvent), on pointe vers
+    // l'accueil de la boutique plutôt que de laisser le lien de destination
+    // vide — un champ vide, lui, ne serait jamais rattrapé avant l'envoi à
+    // Meta. `urlIsFallback` permet à l'UI (Step2) d'avertir l'utilisateur que
+    // ce lien doit être vérifié/remplacé avant de lancer la pub.
+    const urlIsFallback = !resolvedUrl;
+    const finalUrl = resolvedUrl ?? resolveStoreHomeUrl(store, product);
 
     // Chariow renvoie les visuels dans `pictures` : { thumbnail, cover } (URL ou null).
     // thumbnail = image carrée de la liste produits ; cover = bannière. On préfère le thumbnail.
@@ -220,17 +245,21 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       console.warn("[chariow] image produit non résolue — clés produit:", Object.keys(product), "clés pictures:", Object.keys(pictures));
     }
 
-    // Diagnostic ponctuel : si on n'arrive toujours pas à lire le prix ou le lien
-    // sur les deux premiers produits, on log les clés brutes renvoyées par
-    // Chariow (jamais les valeurs, pour éviter de fuiter des données client) —
-    // ça permet de repérer le vrai nom de champ dans les logs serveur au
-    // prochain sync plutôt que de deviner à l'aveugle.
-    if (!loggedUnresolvedFields && index < 2 && (resolvedPrice === null || !resolvedUrl)) {
+    // Diagnostic ponctuel : si on n'arrive toujours pas à lire le prix, ou si le
+    // lien produit est un secours (accueil boutique plutôt que page produit),
+    // on log les clés/valeurs brutes renvoyées par Chariow (jamais les valeurs
+    // sensibles) pour comprendre pourquoi côté Chariow (produit non publié,
+    // nouveau nom de champ, etc.).
+    if (!loggedUnresolvedFields && index < 2 && (resolvedPrice === null || urlIsFallback)) {
       console.warn(
         "[chariow] champ prix/lien non résolu pour un produit — prix résolu:",
         resolvedPrice !== null,
-        "lien résolu:",
-        Boolean(resolvedUrl),
+        "lien produit résolu (hors secours accueil boutique):",
+        !urlIsFallback,
+        "statut produit:",
+        product.status,
+        "type produit:",
+        product.type,
         "clés boutique (get_store):",
         Object.keys(store),
         "clés produit:",
@@ -244,17 +273,13 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       );
       loggedUnresolvedFields = true;
 
-      // Diagnostic temporaire (valeurs, pas seulement les clés cette fois) pour
-      // identifier pourquoi ni un champ URL direct sur le produit, ni la
-      // reconstruction slug + domaine boutique n'aboutissent. Ce sont les
-      // propres données de la boutique connectée (pas de données tierces) — à
-      // retirer une fois le bon champ identifié.
-      if (!resolvedUrl) {
+      if (urlIsFallback) {
         console.warn("[chariow] diagnostic valeurs lien produit —", {
           product_id: product.id,
           product_slug: product.slug,
           product_handle: product.handle,
           product_reference: product.reference,
+          product_status: product.status,
           store_url: store.url,
           store_domain: store.domain,
           store_storefront_url: store.storefront_url,
@@ -285,7 +310,8 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       currency: firstText(product.monnaie, store.monnaie, product.currency, price.currency, price.currency_code, product.currency_code, currentPrice.currency, effectivePrice.currency, basePrice.currency, pricingEntry.currency, pricingEntry.currency_code, store.currency),
       status: text(product.statut ?? product.status ?? product.state),
       image: resolvedImage,
-      url: resolvedUrl,
+      url: finalUrl,
+      urlIsFallback,
       createdAt: text(product.created_at ?? product.createdAt),
       sales: computedSales ?? fallbackSales ?? 0,
     };
