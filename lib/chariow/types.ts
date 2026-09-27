@@ -29,6 +29,12 @@ export type ChariowProduct = {
   currency: string | null;
   status: string | null;
   image: string | null;
+  url: string | null;
+  // true quand `url` n'est pas le lien produit réel mais un repli vers l'accueil
+  // de la boutique (aucun champ URL direct ni slug résolu côté Chariow) — voir
+  // resolveStoreHomeUrl dans analytics.ts. Permet à l'UI (Step2) d'avertir
+  // l'utilisateur que ce lien doit être vérifié/remplacé avant de lancer la pub.
+  urlIsFallback: boolean;
   createdAt: string | null;
   sales: number | null;
 };
