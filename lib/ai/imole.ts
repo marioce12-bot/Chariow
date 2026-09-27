@@ -1,4 +1,4 @@
-type ChatAttachment = { url: string; type: "image" | "video" };
+type ChatAttachment = { url: string; type: "image" | "video" | "document"; name?: string; text?: string };
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -63,7 +63,9 @@ function getConfig() {
 // Imole expose une API compatible OpenAI : pour qu'un message avec pièce(s)
 // jointe(s) image soit réellement "vu" par le modèle (et pas juste son URL lue
 // comme du texte), le content doit devenir un tableau de parts { type, ... }
-// au lieu d'une simple chaîne, avec une part "image_url" par image.
+// au lieu d'une simple chaîne, avec une part "image_url" par image. Les
+// documents (pdf/docx) ne sont pas envoyés ici : leur texte est déjà intégré
+// au contexte système par app/api/chat/route.ts.
 function toImolePayloadMessages(messages: ChatMessage[]) {
   return messages.map((message) => {
     const images = (message.attachments ?? []).filter((attachment) => attachment.type === "image");

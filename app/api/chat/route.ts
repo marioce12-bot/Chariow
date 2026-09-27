@@ -57,14 +57,20 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!message || message.length > 20000) return NextResponse.json({ error: "Le message doit contenir entre 1 et 20 000 caractères" }, { status: 400 });
-  // Pièces jointes (image/vidéo) envoyées par l'utilisateur : on les transmet à l'IA
-  // comme parts structurées (pas juste une URL en texte) pour qu'elle puisse
-  // réellement "voir" l'image et s'en servir comme créative publicitaire.
+  // Pièces jointes envoyées par l'utilisateur : images/vidéos (transmises à l'IA
+  // comme parts structurées pour qu'elle puisse réellement "voir" le média), et
+  // documents PDF/Word dont le texte a déjà été extrait à l'upload (voir
+  // app/api/chat/upload/route.ts) et qu'on rattache ici au message.
   const attachments = Array.isArray(body?.attachments)
-    ? (body.attachments as Array<{ url?: string; type?: string }>)
-        .filter((a): a is { url: string; type?: string } => typeof a?.url === "string")
+    ? (body.attachments as Array<{ url?: string; type?: string; name?: string; text?: string }>)
+        .filter((a): a is { url: string; type?: string; name?: string; text?: string } => typeof a?.url === "string")
         .slice(0, 5)
-        .map((a) => ({ url: a.url, type: (a.type === "video" ? "video" : "image") as "image" | "video" }))
+        .map((a) => ({
+          url: a.url,
+          type: (a.type === "video" ? "video" : a.type === "document" ? "document" : "image") as "image" | "video" | "document",
+          name: typeof a.name === "string" ? a.name.slice(0, 200) : undefined,
+          text: typeof a.text === "string" ? a.text.slice(0, 6000) : undefined,
+        }))
     : [];
   // Conversation : si le client n'en fournit pas, on en crée une dont le titre est la
   // première question posée (tronquée). Sinon on vérifie qu'elle appartient à l'utilisateur.
@@ -225,17 +231,37 @@ export async function POST(request: Request) {
   const MAX_MESSAGE_CHARS = 1_200;
   const MAX_HISTORY_MESSAGES = 14; // couvre un tunnel complet de 7 questions/réponses.
   const MAX_SYSTEM_CONTENT_CHARS = 7_000;
+  // Budget dédié au texte des documents joints (pdf/docx) : distinct du contexte
+  // analytique ci-dessus pour ne jamais l'amputer quand un document est envoyé.
+  const MAX_DOCUMENT_CONTEXT_CHARS = 8_000;
 
   const safeContext =
     context.length > MAX_CONTEXT_CHARS
       ? `${context.slice(0, MAX_CONTEXT_CHARS)}\n[... contexte tronqué ...]`
       : context;
+
+  // Document(s) PDF/Word joint(s) : leur texte a déjà été extrait à l'upload
+  // (voir app/api/chat/upload/route.ts) ; on l'ajoute au contexte système pour
+  // que l'IA puisse répondre à partir de leur contenu réel, plutôt que d'un
+  // simple nom de fichier.
+  const documentAttachments = attachments.filter((a) => a.type === "document" && a.text);
+  let documentsContext = "";
+  if (documentAttachments.length) {
+    documentsContext = `\n\nDocument(s) joint(s) par l'utilisateur (texte extrait) :\n${documentAttachments
+      .map((doc, index) => `--- Document ${index + 1}${doc.name ? ` : ${doc.name}` : ""} ---\n${doc.text}`)
+      .join("\n\n")}`;
+    if (documentsContext.length > MAX_DOCUMENT_CONTEXT_CHARS) {
+      documentsContext = `${documentsContext.slice(0, MAX_DOCUMENT_CONTEXT_CHARS)}\n[...document tronqué...]`;
+    }
+  }
+
   let answer: string;
   // previousHistory est trié du plus récent au plus ancien : on prend les N derniers
   // messages AVANT le tour courant, puis on remet dans l'ordre chronologique.
   const recentPreviousHistory = (previousHistory ?? []).slice(0, MAX_HISTORY_MESSAGES).reverse();
-  const rawSystemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}`;
-  const systemContent = rawSystemContent.length > MAX_SYSTEM_CONTENT_CHARS ? `${rawSystemContent.slice(0, MAX_SYSTEM_CONTENT_CHARS)}[...system tronqué...]` : rawSystemContent;
+  const rawSystemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}${documentsContext}`;
+  const systemCap = documentAttachments.length ? MAX_SYSTEM_CONTENT_CHARS + MAX_DOCUMENT_CONTEXT_CHARS : MAX_SYSTEM_CONTENT_CHARS;
+  const systemContent = rawSystemContent.length > systemCap ? `${rawSystemContent.slice(0, systemCap)}[...system tronqué...]` : rawSystemContent;
 
   // L'historique de la conversation en cours est toujours transmis : c'est la mémoire
   // du tunnel de création de campagne. On ne le supprime plus jamais pour économiser
@@ -248,13 +274,18 @@ export async function POST(request: Request) {
 
   // Le tour courant est toujours ajouté explicitement en dernier, avec le rôle "user" —
   // ça garantit que la conversation envoyée aux modèles ne se termine jamais par un tour
-  // assistant, quel que soit le contenu de l'historique. Les pièces jointes sont
-  // rattachées ici (attachments), en plus d'une courte note textuelle de secours au cas
-  // où le modèle utilisé ne supporte pas la vision.
-  const attachmentNote = attachments.length
-    ? `\n\n(Pièce(s) jointe(s) envoyée(s) par l'utilisateur : ${attachments.map((a) => (a.type === "video" ? "vidéo" : "image")).join(", ")})`
+  // assistant, quel que soit le contenu de l'historique. Les pièces jointes image/vidéo
+  // sont rattachées ici (attachments), en plus d'une courte note textuelle de secours au
+  // cas où le modèle utilisé ne supporte pas la vision ; les documents sont signalés par
+  // leur nom, leur contenu étant déjà dans le contexte système ci-dessus.
+  const mediaAttachments = attachments.filter((a) => a.type === "image" || a.type === "video");
+  const attachmentNote = mediaAttachments.length
+    ? `\n\n(Pièce(s) jointe(s) envoyée(s) par l'utilisateur : ${mediaAttachments.map((a) => (a.type === "video" ? "vidéo" : "image")).join(", ")})`
     : "";
-  const currentTurnContent = `${message}${attachmentNote}`;
+  const documentNote = documentAttachments.length
+    ? `\n\n(Document(s) joint(s) par l'utilisateur : ${documentAttachments.map((d) => d.name ?? "document").join(", ")} — contenu fourni dans le contexte ci-dessus)`
+    : "";
+  const currentTurnContent = `${message}${attachmentNote}${documentNote}`;
   const currentTurn = {
     role: "user" as const,
     content: currentTurnContent.length > MAX_MESSAGE_CHARS ? `${currentTurnContent.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : currentTurnContent,

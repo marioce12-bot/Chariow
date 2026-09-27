@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowRight, Brain, Copy, Lightbulb, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
+import { Activity, ArrowRight, Brain, Copy, FileText, Lightbulb, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -16,7 +16,10 @@ const LAUNCH_TAG = "[[LANCE_CAMPAGNE]]";
 type UsagePlan = "starter";
 type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
 
-type ChatAttachment = { url: string; type: "image" | "video" };
+// `text` (texte extrait à l'upload pour un document PDF/Word) n'est jamais affiché
+// dans une bulle : il sert uniquement à être renvoyé tel quel dans le corps de
+// /api/chat, qui l'injecte dans le contexte envoyé à l'IA.
+type ChatAttachment = { url: string; type: "image" | "video" | "document"; name?: string; text?: string };
 type ChatMessageItem = { role: string; content: string; imageUrl?: string; attachments?: ChatAttachment[] };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
 type MetaAdAccount = { id: string; name: string | null; is_selected?: boolean; currency?: string | null };
@@ -81,6 +84,24 @@ function formatConversationDate(value: string) {
   return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
+// Rendu d'une pièce jointe (image, vidéo ou document) : factorisé car utilisé à la
+// fois dans les bulles de la conversation et dans le composeur.
+function AttachmentPreview({ attachment }: { attachment: ChatAttachment }) {
+  if (attachment.type === "image") {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={attachment.url} alt="" className="chat-attachment-thumb" />;
+  }
+  if (attachment.type === "video") {
+    return <video src={attachment.url} className="chat-attachment-thumb" muted playsInline preload="metadata" controls />;
+  }
+  return (
+    <span className="chat-attachment-doc">
+      <FileText size={14} />
+      <span>{attachment.name ?? "Document"}</span>
+    </span>
+  );
+}
+
 export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoToSubscription: () => void; onUsageChange: (patch: UsagePatch) => void; onBack?: () => void }) {
   const { t } = useI18n();
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
@@ -91,8 +112,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const [expandedMessages, setExpandedMessages] = useState<Record<number, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [quickPromptsOpen, setQuickPromptsOpen] = useState(true);
-  const [attachments, setAttachments] = useState<Array<{ url: string; type: "image" | "video" }>>([]);
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchPayload, setLaunchPayload] = useState<LaunchPayload | null>(null);
@@ -197,8 +219,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     const pendingAttachments = attachments;
     setAttachments([]);
     // Les pièces jointes sont intégrées au message affiché immédiatement : sans ça,
-    // l'image/vidéo tout juste envoyée disparaissait visuellement de la conversation
-    // dès l'envoi (elle n'était plus ni dans le composeur, ni dans la bulle du message).
+    // l'image/vidéo/document tout juste envoyé disparaissait visuellement de la
+    // conversation dès l'envoi (il n'était plus ni dans le composeur, ni dans la
+    // bulle du message).
     const userMessage: ChatMessageItem = { role: "user", content: message, attachments: pendingAttachments.length ? pendingAttachments : undefined };
     setMessages((current) => [...current, userMessage]);
     const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, attachments: pendingAttachments, conversationId }) });
@@ -243,18 +266,27 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   async function handleAttach(files: FileList | null) {
     if (!files || !files.length) return;
     setUploading(true);
+    setUploadError(null);
     try {
-      const next: Array<{ url: string; type: "image" | "video" }> = [];
+      const next: ChatAttachment[] = [];
+      let firstError: string | null = null;
       for (const file of Array.from(files)) {
         const data = new FormData();
         data.append("file", file);
         const response = await fetch("/api/chat/upload", { method: "POST", body: data });
         const result = await response.json().catch(() => ({}));
-        if (response.ok && result.url) next.push({ url: result.url, type: result.type });
+        if (response.ok && result.url) {
+          // `text` (présent seulement pour un document) est conservé ici pour être
+          // renvoyé à /api/chat au moment de l'envoi du message.
+          next.push({ url: result.url, type: result.type, name: result.name, text: result.text });
+        } else if (!firstError) {
+          firstError = result.error ?? "Impossible d'envoyer ce fichier.";
+        }
       }
       if (next.length) setAttachments((current) => [...current, ...next]);
+      if (firstError) setUploadError(firstError);
     } catch {
-      // Upload en arrière-plan : une erreur ne bloque pas la conversation.
+      setUploadError("Impossible d'envoyer ce fichier.");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -406,14 +438,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                 )}
                 {message.attachments && message.attachments.length ? (
                   <div className="chat-attachments">
-                    {message.attachments.map((attachment, attachmentIndex) =>
-                      attachment.type === "image" ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img key={attachmentIndex} src={attachment.url} alt="" className="chat-attachment-thumb" />
-                      ) : (
-                        <video key={attachmentIndex} src={attachment.url} className="chat-attachment-thumb" muted playsInline preload="metadata" controls />
-                      )
-                    )}
+                    {message.attachments.map((attachment, attachmentIndex) => (
+                      <AttachmentPreview key={attachmentIndex} attachment={attachment} />
+                    ))}
                   </div>
                 ) : null}
                 {message.imageUrl ? (
@@ -479,16 +506,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         </div>
 
         <div className="chat-composer">
+          {uploadError ? <p className="chat-upload-error">{uploadError}</p> : null}
           {attachments.length ? (
             <div className="chat-attachments">
               {attachments.map((attachment, index) => (
                 <span key={index} className="chat-attachment-chip">
-                  {attachment.type === "image" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={attachment.url} alt="" className="chat-attachment-thumb" />
-                  ) : (
-                    <video src={attachment.url} className="chat-attachment-thumb" muted playsInline preload="metadata" />
-                  )}
+                  <AttachmentPreview attachment={attachment} />
                   <button type="button" onClick={() => setAttachments((current) => current.filter((_, i) => i !== index))} aria-label="Retirer">×</button>
                 </span>
               ))}
@@ -519,7 +542,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,video/*"
+              accept="image/*,video/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               multiple
               hidden
               onChange={(event) => void handleAttach(event.target.files)}
@@ -527,8 +550,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             <button
               type="button"
               className="chat-suggest-toggle"
-              aria-label="Joindre une image ou vidéo"
-              title="Joindre une image ou vidéo"
+              aria-label="Joindre une image, une vidéo ou un document (PDF, Word)"
+              title="Joindre une image, une vidéo ou un document (PDF, Word)"
               disabled={uploading || plansRequired}
               onClick={() => fileInputRef.current?.click()}
             >

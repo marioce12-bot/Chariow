@@ -76,11 +76,14 @@ html[data-theme="dark"] .ai-page .ai-eyebrow { color:#8fa8ff; }
 
 .ai-page .chat-poster-toggle.active { background:rgba(76,33,246,.12); color:var(--blue); }
 
-/* Pièces jointes (image/vidéo) dans la conversation */
+/* Pièces jointes (image/vidéo/document) dans la conversation */
 .ai-page .chat-attachments { display:flex; flex-wrap:wrap; gap:8px; padding:4px 0; }
 .ai-page .chat-attachment-chip { align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:10px; display:inline-flex; gap:6px; padding:4px; position:relative; }
 .ai-page .chat-attachment-thumb { border-radius:7px; height:52px; object-fit:cover; width:52px; }
 .ai-page .chat-attachment-chip button { align-items:center; background:rgba(0,0,0,.55); border:0; border-radius:50%; color:#fff; cursor:pointer; display:inline-flex; font-size:13px; height:18px; justify-content:center; line-height:1; padding:0; width:18px; }
+.ai-page .chat-attachment-doc { align-items:center; background:var(--surface); border-radius:7px; color:var(--ink); display:inline-flex; font-size:11px; font-weight:500; gap:5px; max-width:150px; overflow:hidden; padding:8px; }
+.ai-page .chat-attachment-doc span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ai-page .chat-upload-error { color:#b4233c; font-size:11px; margin:0 0 6px; padding:0 4px; }
 
 /* Bouton + popup de lancement de campagne */
 .ai-page .chat-launch-campaign { align-items:center; background:var(--vendeo-gradient); border:0; border-radius:10px; color:#fff; cursor:pointer; display:inline-flex; font-size:13px; font-weight:600; gap:6px; margin:6px 0; padding:8px 14px; }
