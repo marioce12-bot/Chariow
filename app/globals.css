@@ -1289,3 +1289,29 @@ html[data-theme="dark"] .studio-loading { background:linear-gradient(110deg,#0d1
 .profitability-compare > span { color:var(--muted); font-size:11px; font-weight:800; }
 .profitability-explainer > p { color:var(--muted); font-size:11px; line-height:1.55; margin:0; }
 @media (max-width:760px) { .profitability-alert-hero { align-items:flex-start; flex-wrap:wrap; padding:15px; }.profitability-alert-copy { flex-basis:calc(100% - 58px); }.profitability-alert-action { margin-left:56px; width:calc(100% - 56px); }.profitability-signal-grid { grid-template-columns:1fr; }.profitability-compare { align-items:stretch; flex-direction:column; gap:8px; }.profitability-compare > span { text-align:center; } }
+
+/* Barre de navigation mobile — fond en verre dépoli (semi-transparent + flou),
+   icônes et libellés qui restent bien lisibles au-dessus, clair et sombre.
+   Vient après les règles .mobile-nav plus haut dans ce fichier : mêmes
+   sélecteurs, donc ces déclarations les remplacent sans y toucher. */
+.mobile-nav {
+  background: rgba(238,243,255,.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-top: 1px solid rgba(220,228,243,.65);
+}
+.mobile-nav .nav-btn { color:#3f4f6b; }
+.mobile-nav .nav-btn.active { color:var(--green); }
+html[data-theme="dark"] .mobile-nav {
+  background: rgba(7,17,41,.66);
+  border-top-color: rgba(30,44,82,.6);
+}
+html[data-theme="dark"] .mobile-nav .nav-btn { color:#b3c0de; }
+html[data-theme="dark"] .mobile-nav .nav-btn.active { color:#8fb0ff; }
+/* Navigateurs sans support de backdrop-filter (vieux WebView Android) :
+   repli sur un fond plus opaque plutôt que sur un fond translucide non flouté,
+   qui rendrait le texte illisible au-dessus d'un contenu chargé. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .mobile-nav { background: rgba(238,243,255,.94); }
+  html[data-theme="dark"] .mobile-nav { background: rgba(7,17,41,.94); }
+}
