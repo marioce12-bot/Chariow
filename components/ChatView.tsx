@@ -583,6 +583,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
               <div className="chat-launch-row"><span>{t("chat.launchAge")}</span><strong>{launchPayload?.ageMin != null || launchPayload?.ageMax != null ? `${launchPayload?.ageMin ?? 18}–${launchPayload?.ageMax ?? 65} ans` : "—"}</strong></div>
               <div className="chat-launch-row chat-launch-message"><span>{t("chat.launchMessage")}</span><strong>{launchPayload?.message ?? "—"}</strong></div>
             </div>
+            {launchImageUrl ? (
+              <div className="chat-launch-image">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={launchImageUrl} alt={t("chat.launchCreative")} />
+              </div>
+            ) : null}
             {metaAccounts.length > 0 ? (
               <label className="chat-launch-account">
                 <span>{t("chat.launchAccount")}</span>

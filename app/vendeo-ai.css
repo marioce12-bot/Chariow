@@ -101,3 +101,5 @@ html[data-theme="dark"] .ai-page .ai-eyebrow { color:#8fa8ff; }
 .ai-page .chat-launch-account > span { color:var(--muted); font-size:11px; }
 .ai-page .chat-launch-account select { background:var(--surface); border:1px solid var(--line); border-radius:8px; color:var(--ink); font-size:13px; padding:8px 10px; width:100%; }
 .ai-page .chat-launch-account-name { color:var(--ink); font-size:13px; font-weight:600; }
+.ai-page .chat-launch-image { border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+.ai-page .chat-launch-image img { display:block; height:auto; max-height:180px; object-fit:cover; width:100%; }
