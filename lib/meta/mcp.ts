@@ -38,8 +38,11 @@ function extractErrorMessage(parsed: unknown): string | null {
   return null;
 }
 
+export type McpToolDescriptor = { name: string; description?: string; inputSchema?: unknown };
+
 export class MetaAdsMcpClient {
   private nextId = 1;
+  private toolsCache: McpToolDescriptor[] | null = null;
 
   constructor(private readonly accessToken: string) {}
 
@@ -56,6 +59,31 @@ export class MetaAdsMcpClient {
     const parsed = parseToolResult(data.result);
     if (data.result?.isError) throw new Error(extractErrorMessage(parsed) ?? "Meta MCP tool returned an error");
     return parsed;
+  }
+
+  /**
+   * Demande au serveur MCP la liste réelle des outils qu'il expose, au lieu de
+   * deviner un nom d'outil. Cette liste évolue avec les versions du serveur
+   * Meta (rollout progressif du produit) : mieux vaut la découvrir à
+   * l'exécution que la coder en dur — ça a déjà cassé une fois, voir
+   * findCampaignStatusTool ci-dessous ("ads_update_campaign" n'existait pas
+   * sur ce serveur au moment du premier essai).
+   * Mise en cache par instance de client (une instance = une requête d'appel).
+   */
+  async listTools(): Promise<McpToolDescriptor[]> {
+    if (this.toolsCache) return this.toolsCache;
+    const response = await fetch(META_MCP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.accessToken}` },
+      body: JSON.stringify({ jsonrpc: "2.0", id: this.nextId++, method: "tools/list", params: {} }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
+    });
+    const data = (await response.json().catch(() => ({}))) as { error?: { message?: string }; result?: { tools?: McpToolDescriptor[] } };
+    if (!response.ok || data.error) throw new Error(data.error?.message || `Meta MCP tools/list returned ${response.status}`);
+    const tools = Array.isArray(data.result?.tools) ? data.result!.tools! : [];
+    this.toolsCache = tools;
+    return tools;
   }
 }
 
@@ -112,21 +140,51 @@ export async function createMetaCampaign(accessToken: string, input: CreateCampa
   });
 }
 
+// Ordre de préférence pour le nom du vrai outil de suppression/désactivation de
+// campagne exposé par ce serveur MCP : on cherche d'abord un verbe "delete",
+// puis "archive", puis un "update"/"status" générique qui accepterait un champ
+// status. On ne connaît pas la liste figée à l'avance (voir listTools ci-dessus).
+const CAMPAIGN_REMOVAL_TOOL_PATTERNS: Array<{ test: RegExp; status?: string }> = [
+  { test: /campaign.*delete|delete.*campaign/i },
+  { test: /campaign.*archive|archive.*campaign/i, status: "ARCHIVED" },
+  { test: /campaign.*(status|update)|(status|update).*campaign/i, status: "DELETED" },
+];
+
+function findCampaignRemovalTool(tools: McpToolDescriptor[]): { name: string; status?: string } | null {
+  for (const pattern of CAMPAIGN_REMOVAL_TOOL_PATTERNS) {
+    const match = tools.find((tool) => pattern.test.test(tool.name));
+    if (match) return { name: match.name, status: pattern.status };
+  }
+  return null;
+}
+
 /**
- * Supprime une campagne créée via le MCP. Utilisé comme filet de sécurité par
- * launch-campaign : si une des étapes après la création de la campagne échoue
- * (ex. aucune Page disponible), on ne veut pas laisser une campagne fantôme,
- * vide, traîner sur le compte publicitaire du client.
+ * Supprime (ou à défaut archive/désactive) une campagne créée via le MCP.
+ * Utilisé comme filet de sécurité par launch-campaign : si une des étapes
+ * après la création de la campagne échoue (ex. aucune Page disponible), on ne
+ * veut pas laisser une campagne fantôme, vide, traîner sur le compte
+ * publicitaire du client.
+ *
+ * Découvre le vrai nom de l'outil via tools/list plutôt que de le coder en dur
+ * (voir findCampaignRemovalTool). Si aucun outil correspondant n'est trouvé,
+ * lève une erreur explicite plutôt que d'échouer silencieusement.
  *
  * Best-effort : l'appelant doit catcher les erreurs de cette fonction plutôt
  * que de les laisser masquer l'erreur d'origine — voir launch-campaign/route.ts.
  */
 export async function deleteMetaCampaign(accessToken: string, input: { adAccountId: string; campaignId: string }) {
   const client = new MetaAdsMcpClient(accessToken);
-  return client.callTool("ads_update_campaign", {
+  const tools = await client.listTools();
+  const removalTool = findCampaignRemovalTool(tools);
+  if (!removalTool) {
+    throw new Error(
+      `Aucun outil de suppression/archivage de campagne trouvé sur le serveur MCP Meta (outils disponibles : ${tools.map((t) => t.name).join(", ") || "aucun"}).`
+    );
+  }
+  return client.callTool(removalTool.name, {
     ad_account_id: input.adAccountId,
     campaign_id: input.campaignId,
-    status: "DELETED",
+    ...(removalTool.status ? { status: removalTool.status } : {}),
     client_conversation_id: generateClientConversationId(),
   });
 }
