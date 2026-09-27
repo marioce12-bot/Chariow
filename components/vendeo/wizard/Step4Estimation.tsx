@@ -12,13 +12,13 @@ interface StepProps {
 }
 
 /**
- * Étape 4/5 — Simulation (portée/impressions estimées) + budget brut & commission Vendeo 2%.
+ * Étape 4/5 — Simulation (portée/impressions estimées) + budget total de la campagne.
  * Crée le brouillon de campagne (POST /api/ad-campaigns, route existante) puis
  * demande une estimation indicative (POST /api/ad-campaigns/estimate, nouvelle route).
  *
  * Si le budget ou la durée changent APRÈS une simulation, l'estimation affichée
  * ne correspond plus aux champs — et surtout, le brouillon déjà créé en base
- * garde les anciennes valeurs, donc le paiement à l'étape 5 ne matcherait plus
+ * garde les anciennes valeurs, donc le lancement à l'étape 5 ne matcherait plus
  * ce qui est affiché ici. On invalide donc l'estimation ET le brouillon dès
  * qu'un des deux champs change, pour forcer une re-simulation propre.
  */
@@ -66,9 +66,9 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
       //    on ne réutilise jamais un brouillon avec de vieux montants).
       //    Le compte pub (et la page Meta) choisis à l'étape 2 sont envoyés ici
       //    pour être enregistrés sur le brouillon : la campagne pourra ainsi être
-      //    reprise depuis "Mes campagnes" — après paiement — sans repasser par le
-      //    wizard pour les resélectionner. Idem pour les noms d'ensemble/publicité
-      //    (ad_set_name/ad_name), saisis à l'étape 2.
+      //    reprise depuis "Mes campagnes" sans repasser par le wizard pour les
+      //    resélectionner. Idem pour les noms d'ensemble/publicité (ad_set_name/
+      //    ad_name), saisis à l'étape 2.
       if (!state.campaignId) {
         const draftRes = await fetch("/api/ad-campaigns", {
           method: "POST",
@@ -169,16 +169,8 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
               les rendrait presque blanches sur ce fond clair, donc quasi invisibles. */}
           <div className="border-t border-[#C7D2FE] pt-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-[#4b5563]">Budget pub (98%)</span>
-              <span className="font-medium text-[#111827]">{formatXOF(estimate.netAdBudget)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[#4b5563]">Commission Vendeo (2%)</span>
-              <span className="font-medium text-[#111827]">{formatXOF(estimate.vendeoCommission)}</span>
-            </div>
-            <div className="mt-1 flex justify-between border-t border-[#C7D2FE] pt-1.5">
-              <span className="font-semibold text-[#111827]">Total à payer</span>
-              <span className="font-bold text-[#3730A3]">{formatXOF(estimate.grossBudget)}</span>
+              <span className="font-semibold text-[#111827]">Budget total de la campagne</span>
+              <span className="font-bold text-[#3730A3]">{formatXOF(estimate.totalBudget)}</span>
             </div>
           </div>
           <p className="text-[11px] text-[#4338CA]/70">
