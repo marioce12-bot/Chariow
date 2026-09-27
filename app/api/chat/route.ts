@@ -7,7 +7,7 @@ import { cleanAiText } from "@/lib/ai/format";
 import { calculateProfitabilityAggregate } from "@/lib/profitability-aggregates";
 import { buildDiagnosticReports } from "@/lib/meta/diagnostic-server";
 import { decryptSecret } from "@/lib/crypto";
-import { getMetaMcpAdAccounts } from "@/lib/meta/mcp";
+import { fetchMetaAccounts } from "@/lib/meta/api";
 
 const VENDEO_SYSTEM_PROMPT = `Tu es l'analyste business de Vendeo pour les créateurs de produits digitaux francophones et anglophones.
 
@@ -185,8 +185,10 @@ export async function POST(request: Request) {
     }
   }
 
-  // Contexte Meta Ads lu via le serveur MCP publicités (ads_mcp_management).
-  // Permet à l'assistant IA de voir les comptes publicitaires réels de l'utilisateur.
+  // Contexte Meta Ads lu via l'API Marketing directe (Graph API "me/adaccounts",
+  // lib/meta/api.ts:fetchMetaAccounts — la même fonction que le reste du produit,
+  // ex. /api/integrations/meta/resources). Permet à l'assistant IA de voir les
+  // comptes publicitaires réels de l'utilisateur, sans passer par le serveur MCP.
   try {
     const { data: metaAccounts } = await supabase
       .from("meta_ad_accounts")
@@ -198,18 +200,18 @@ export async function POST(request: Request) {
     const metaAccount = metaAccounts?.[0];
     if (metaAccount?.access_token_encrypted) {
       const accessToken = decryptSecret(metaAccount.access_token_encrypted);
-      const adAccounts = await getMetaMcpAdAccounts(accessToken);
+      const adAccounts = await fetchMetaAccounts(accessToken);
       if (adAccounts.length) {
         const summary = adAccounts.map((account) => ({
-          nom: account.ad_account_name,
-          statut: account.account_status,
-          devise: account.currency ?? "XOF",
+          nom: account.name,
+          statut: Number(account.account_status) === 1 ? "actif" : "à vérifier",
+          devise: (account.currency as string | undefined) ?? "XOF",
         }));
-        context += `\n\nComptes publicitaires Meta (lus via le serveur MCP) : ${JSON.stringify(summary)}`;
+        context += `\n\nComptes publicitaires Meta : ${JSON.stringify(summary)}`;
       }
     }
-  } catch (metaMcpError) {
-    console.error("Meta MCP context error", metaMcpError instanceof Error ? metaMcpError.message : metaMcpError);
+  } catch (metaContextError) {
+    console.error("Meta accounts context error", metaContextError instanceof Error ? metaContextError.message : metaContextError);
   }
 
   // Imole peut refuser les payloads trop volumineux (400).
