@@ -1,4 +1,4 @@
-type ChatAttachment = { url: string; type: "image" | "video" };
+type ChatAttachment = { url: string; type: "image" | "video" | "document"; name?: string; text?: string };
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -60,7 +60,9 @@ async function fetchImageAsInlinePart(url: string) {
 // Gemini n'a pas de rôle "system" dans le tableau de messages : les messages
 // system vont dans systemInstruction, et les rôles user/assistant deviennent
 // user/model dans "contents". Les pièces jointes image sont ajoutées comme
-// parts inline_data supplémentaires sur le tour concerné.
+// parts inline_data supplémentaires sur le tour concerné. Les documents
+// (pdf/docx) ne sont pas envoyés ici : leur texte est déjà intégré au contexte
+// système par app/api/chat/route.ts.
 async function toGeminiPayload(messages: ChatMessage[]) {
   const systemText = messages
     .filter((m) => m.role === "system")
