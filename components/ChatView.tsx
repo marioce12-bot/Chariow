@@ -16,7 +16,10 @@ const LAUNCH_TAG = "[[LANCE_CAMPAGNE]]";
 type UsagePlan = "starter";
 type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
 
-type ChatAttachment = { url: string; type: "image" | "video" | "document"; name?: string };
+// `text` (texte extrait à l'upload pour un document PDF/Word) n'est jamais affiché
+// dans une bulle : il sert uniquement à être renvoyé tel quel dans le corps de
+// /api/chat, qui l'injecte dans le contexte envoyé à l'IA.
+type ChatAttachment = { url: string; type: "image" | "video" | "document"; name?: string; text?: string };
 type ChatMessageItem = { role: string; content: string; imageUrl?: string; attachments?: ChatAttachment[] };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
 type MetaAdAccount = { id: string; name: string | null; is_selected?: boolean; currency?: string | null };
@@ -273,7 +276,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         const response = await fetch("/api/chat/upload", { method: "POST", body: data });
         const result = await response.json().catch(() => ({}));
         if (response.ok && result.url) {
-          next.push({ url: result.url, type: result.type, name: result.name });
+          // `text` (présent seulement pour un document) est conservé ici pour être
+          // renvoyé à /api/chat au moment de l'envoi du message.
+          next.push({ url: result.url, type: result.type, name: result.name, text: result.text });
         } else if (!firstError) {
           firstError = result.error ?? "Impossible d'envoyer ce fichier.";
         }
