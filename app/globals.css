@@ -3,7 +3,7 @@
 @tailwind utilities;
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
-:root { --ink:#13211d; --muted:#68756f; --cream:#f4f5ef; --paper:#fbfcf8; --line:#dfe5de; --green:#234d3d; --lime:#c9f36b; --orange:#ff805d; --shadow:0 16px 44px rgba(30,57,45,.10); }
+:root { --ink:#13211d; --muted:#68756f; --cream:#f4f5ef; --paper:#fbfcf8; --surface:#ffffff; --line:#dfe5de; --green:#234d3d; --lime:#c9f36b; --orange:#ff805d; --shadow:0 16px 44px rgba(30,57,45,.10); }
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
 body { margin:0; background:var(--paper); color:var(--ink); font-family:'DM Sans',sans-serif; }
@@ -882,6 +882,7 @@ html[data-theme="dark"] {
   --muted:#94a3c4;
   --paper:#050e24;
   --cream:#0a1734;
+  --surface:#0b1734;
   --line:#1e2c52;
   --shadow:0 18px 44px rgba(0,0,0,.55);
 }
