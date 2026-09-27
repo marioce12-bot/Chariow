@@ -109,11 +109,12 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
     <div className="space-y-4">
       <div>
         <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-          Budget quotidien (XOF)
+          Budget quotidien ($)
         </label>
         <input
           type="number"
-          min={100}
+          min={1}
+          step={0.5}
           value={state.dailyBudget}
           onChange={(e) => updateDailyBudget(Number(e.target.value))}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
