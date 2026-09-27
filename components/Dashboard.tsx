@@ -492,10 +492,6 @@ export function Dashboard() {
             <div className="mobile-more-menu" role="menu" aria-label="Plus d'options">
               <span className="mobile-more-label">Analyse</span>
               <button type="button" role="menuitem" className={active === "Rapports" ? "active" : ""} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
-              <span className="mobile-more-label">Mon compte</span>
-              <button type="button" role="menuitem" className={active === "Mes boutiques" ? "active" : ""} onClick={() => { setActive("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> Boutiques Chariow</button>
-              <button type="button" role="menuitem" className={active === "Abonnement" ? "active" : ""} onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
-              <button type="button" role="menuitem" className={active === "Comptes publicitaires" ? "active" : ""} onClick={() => { setActive("Comptes publicitaires"); setMoreOpen(false); }}><BarChart3 size={16} /> Comptes publicitaires</button>
               <span className="mobile-more-label">Application</span>
               <button type="button" role="menuitem" className={active === "Paramètres" ? "active" : ""} onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
               <button type="button" role="menuitem" className="danger" onClick={() => { setMoreOpen(false); signOut(); }}><LogOut size={16} /> Déconnexion</button>
