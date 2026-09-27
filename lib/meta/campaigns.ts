@@ -68,6 +68,14 @@ export async function createMetaCampaign(input: {
     // modération de Meta et démarre la diffusion.
     status: input.status ?? "PAUSED",
     special_ad_categories: "[]",
+    // Requis par Meta (Graph API v24.0+, voir changelog) dès qu'aucun budget n'est
+    // défini au niveau de la campagne (ici chaque ad set porte son propre
+    // daily_budget, pas de CBO) : sans ce champ, Meta refuse la création
+    // (subcode 4834011). Doit être envoyé ICI, sur POST .../campaigns — un premier
+    // correctif l'avait envoyé par erreur sur POST .../adsets, ce qui ne suffit pas.
+    // "false" car on ne veut pas que les ad sets d'une même campagne partagent 20%
+    // de leur budget entre eux.
+    is_adset_budget_sharing_enabled: "false",
   });
   return { id: String(campaign.id), objective };
 }
@@ -85,11 +93,6 @@ export async function createMetaAdSet(input: { accountId: string; accessToken: s
     optimization_goal: "LINK_CLICKS",
     bid_strategy: "LOWEST_COST_WITHOUT_CAP",
     targeting: JSON.stringify(targeting),
-    // Requis par Meta depuis peu dès qu'aucun budget n'est défini au niveau de la
-    // campagne (ici chaque ad set porte son propre daily_budget, pas de CBO) :
-    // sans ce champ, Meta refuse la création (subcode 4834011). "false" car on ne
-    // veut pas que les ad sets d'une même campagne partagent 20% de leur budget.
-    is_adset_budget_sharing_enabled: "false",
     status: input.status ?? "PAUSED",
   });
 }
