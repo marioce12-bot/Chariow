@@ -316,6 +316,17 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       sales: computedSales ?? fallbackSales ?? 0,
     };
   });
+
+  // Diagnostic ponctuel (temporaire) : un résumé compact slug/lien pour TOUT le
+  // catalogue en un seul log, plutôt que le diagnostic verbeux ci-dessus qui ne
+  // couvre que le premier produit en défaut de chaque appel — utile pour savoir
+  // si un slug manquant touche un seul produit ou l'ensemble du catalogue.
+  if (products.some((p) => p.urlIsFallback)) {
+    console.warn(
+      "[chariow] résumé lien produit par produit —",
+      products.map((p) => ({ id: p.id, name: p.name.slice(0, 30), status: p.status, urlIsFallback: p.urlIsFallback }))
+    );
+  }
   const revenue = asRecord(sales.value);
   const currency = revenue.currency ?? sales.currency ?? store.currency;
   const revenueValue = numberValue(revenue.value ?? sales.value);
