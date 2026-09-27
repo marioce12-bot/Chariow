@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
-import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCreative } from "@/lib/meta/campaigns";
+import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCreative, updateMetaAdCreative } from "@/lib/meta/campaigns";
 import { fetchMetaPageAccessToken, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { createTikTokAd, createTikTokAdGroup, createTikTokCampaign, uploadTikTokAdImage } from "@/lib/tiktok/campaigns";
 import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
@@ -21,6 +21,10 @@ type Context = { params: Promise<{ id: string }> };
 // externes (external_campaign_id/adset/ad) — c'est-à-dire qu'elle a déjà été
 // créée chez Meta en PAUSED lors d'un essai précédent — on ne recrée rien
 // (ce qui dupliquerait la campagne côté Meta) : on se contente de l'activer.
+//
+// Cas "rejected" (Meta a refusé la publicité après revue) : voir launchMeta,
+// branche dédiée — Meta ne redéclenche une revue que si le contenu change, donc
+// on ne peut pas se contenter de repasser le statut à ACTIVE comme pour "paid".
 export async function POST(request: Request, context: Context) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
@@ -37,7 +41,10 @@ export async function POST(request: Request, context: Context) {
 
   // Aucun paiement ni contrôle de solde : le lancement crée la campagne
   // directement chez Meta (le compte Meta de l'utilisateur est facturé par Meta).
-  if (campaign.status !== "draft" && campaign.status !== "paid") {
+  // "rejected" est autorisé ici pour permettre la relance après refus (voir plus
+  // bas, branche dédiée dans launchMeta) : contrairement à "draft"/"paid", la
+  // campagne existe déjà chez Meta mais a été désapprouvée après revue.
+  if (campaign.status !== "draft" && campaign.status !== "paid" && campaign.status !== "rejected") {
     if (["review", "active"].includes(campaign.status)) return NextResponse.json({ campaign });
     return NextResponse.json({ error: "Cette campagne ne peut pas être lancée dans son état actuel." }, { status: 409 });
   }
@@ -63,6 +70,33 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   if (accountError) return NextResponse.json({ error: "Impossible de vérifier le compte Meta" }, { status: 500 });
   if (!account?.is_active) return NextResponse.json({ error: "Le compte Meta sélectionné n’est plus actif" }, { status: 400 });
   const accessToken = decryptSecret(account.access_token_encrypted);
+
+  // Cas "rejected" : la publicité a été refusée par Meta après revue (voir
+  // mapMetaEffectiveStatus / DISAPPROVED-WITH_ISSUES). On ne peut pas repasser
+  // un objet désapprouvé en ACTIVE sans changer son contenu — Meta ne relance
+  // une revue que si la création (texte/visuel/lien) change. On crée donc une
+  // nouvelle créative avec les valeurs actuelles de la campagne (corrigées ou
+  // non via "Modifier" avant de cliquer sur "Relancer"), on la rattache à
+  // l'annonce existante (updateMetaAdCreative), puis on réactive
+  // campagne/ad set/annonce : c'est ce changement de créative qui soumet la
+  // publicité à une nouvelle revue Meta.
+  if (campaign.status === "rejected" && campaign.external_campaign_id && campaign.external_adset_id && campaign.external_ad_id) {
+    if (!pageId) return NextResponse.json({ error: "Sélectionne une page Facebook avant de relancer la campagne" }, { status: 400 });
+    try {
+      const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
+      const creative = await createMetaCreative({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative (relance)`, pageId, link: campaign.destination_url, message: campaign.ad_text, headline: campaignName, imageUrl: campaign.media_url });
+      await updateMetaAdCreative({ adId: campaign.external_ad_id, accessToken, creativeId: String(creative.id) });
+      await activateMetaCampaign({ campaignId: campaign.external_campaign_id, adSetId: campaign.external_adset_id, adId: campaign.external_ad_id, accessToken });
+      const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, external_creative_id: String(creative.id), external_error: null }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id").single();
+      if (updateError) return NextResponse.json({ error: "Campagne relancée chez Meta mais statut Vendeo non enregistré" }, { status: 502 });
+      await supabase.from("meta_campaigns").update({ status: "ACTIVE" }).eq("meta_campaign_id", campaign.external_campaign_id);
+      return NextResponse.json({ campaign: updated });
+    } catch (error) {
+      const message = error instanceof Error ? error.message.slice(0, 500) : "Relance Meta échouée";
+      await supabase.from("ad_campaigns").update({ external_error: message }).eq("id", campaign.id).eq("user_id", userId);
+      return NextResponse.json({ error: `Meta n’a pas accepté la relance : ${message}. Corrige le contenu puis réessaie.` }, { status: 502 });
+    }
+  }
 
   // Cas de reprise : la campagne existe déjà chez Meta en PAUSED (essai
   // précédent) — on l'active simplement au lieu d'en recréer une deuxième.
