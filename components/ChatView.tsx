@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowRight, Brain, Clock3, Copy, Lightbulb, Megaphone, Package, Paperclip, Rocket, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
+import { Activity, ArrowRight, Brain, Copy, Lightbulb, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -16,14 +16,11 @@ const LAUNCH_TAG = "[[LANCE_CAMPAGNE]]";
 type UsagePlan = "starter";
 type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
 
-// Sous-ensembles des types de Dashboard.tsx : uniquement les champs lus ici.
-type ChatProduct = { id: string; name: string; description: string | null; price: number | string | null; currency: string | null; image: string | null };
-type ChatAnalytics = { kpis: { sales: number } } | null;
-
 type ChatAttachment = { url: string; type: "image" | "video" };
 type ChatMessageItem = { role: string; content: string; imageUrl?: string; attachments?: ChatAttachment[] };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
 type MetaAdAccount = { id: string; name: string | null; is_selected?: boolean; currency?: string | null };
+type ChatConversation = { id: string; title: string; created_at: string; updated_at: string };
 
 const OBJECTIVE_LABELS: Record<string, string> = {
   OUTCOME_SALES: "Ventes / conversions",
@@ -76,7 +73,15 @@ function parseAssistantMessage(rawContent: string): { content: string; launchPay
 // plutôt qu'à des questions génériques qui ne mèneraient nulle part.
 type QuickPrompt = { icon: React.ReactNode; label: string; prompt?: string; action?: "poster" };
 
-export function ChatView({ onGoToSubscription, onUsageChange, onBack, products = [], analytics = null }: { onGoToSubscription: () => void; onUsageChange: (patch: UsagePatch) => void; onBack?: () => void; products?: ChatProduct[]; analytics?: ChatAnalytics }) {
+function formatConversationDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoToSubscription: () => void; onUsageChange: (patch: UsagePatch) => void; onBack?: () => void }) {
   const { t } = useI18n();
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [input, setInput] = useState("");
@@ -96,6 +101,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [metaAccounts, setMetaAccounts] = useState<MetaAdAccount[]>([]);
   const [launchAccountId, setLaunchAccountId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const AI_QUICK_PROMPTS: QuickPrompt[] = [
     { icon: <Megaphone size={14} />, label: t("chat.qStop"), prompt: t("chat.qStopPrompt") },
@@ -118,9 +126,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
   }, []);
 
   useEffect(() => {
-    fetch("/api/chat")
-      .then((r) => (r.ok ? r.json() : { messages: [] }))
-      .then((data) => setMessages(data.messages ?? []));
+    void loadConversations();
     fetch("/api/subscription")
       .then((r) => (r.ok ? r.json() : { subscription: null }))
       .then((data) => {
@@ -155,6 +161,34 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     bottomNode.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages.length, sending, bottomNode]);
 
+  async function loadConversations() {
+    try {
+      const response = await fetch("/api/conversations");
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.conversations)) setConversations(data.conversations);
+    } catch {
+      // L'historique est optionnel : une erreur ne bloque pas l'assistant.
+    }
+  }
+
+  function startNewConversation() {
+    setConversationId(null);
+    setMessages([]);
+    setExpandedMessages({});
+    setQuickPromptsOpen(true);
+    setHistoryOpen(false);
+  }
+
+  async function openConversation(id: string) {
+    const response = await fetch(`/api/conversations/${encodeURIComponent(id)}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !Array.isArray(data.messages)) return;
+    setConversationId(id);
+    setMessages(data.messages ?? []);
+    setExpandedMessages({});
+    setHistoryOpen(false);
+  }
+
   async function send(message = input) {
     if (!message.trim() || sending || plansRequired) return;
     setSending(true);
@@ -167,10 +201,14 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     // dès l'envoi (elle n'était plus ni dans le composeur, ni dans la bulle du message).
     const userMessage: ChatMessageItem = { role: "user", content: message, attachments: pendingAttachments.length ? pendingAttachments : undefined };
     setMessages((current) => [...current, userMessage]);
-    const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, attachments: pendingAttachments }) });
+    const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, attachments: pendingAttachments, conversationId }) });
     const data = await response.json();
     if (response.ok && data.message) {
       setMessages((current) => [...current, data.message]);
+      if (data.conversationId) {
+        setConversationId(data.conversationId);
+        void loadConversations();
+      }
       if (data.usage) {
         const nextUsage: ChatUsage = {
           trialActive: Boolean(data.usage.trial_active),
@@ -290,17 +328,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
     if (item.prompt) void send(item.prompt);
   }
 
-  const trialEnds = usage?.trialEndsAt ? new Date(usage.trialEndsAt) : null;
-  const trialDaysLeft = trialEnds ? Math.max(0, Math.ceil((trialEnds.getTime() - Date.now()) / 86400000)) : null;
-  const statusPillLabel = !usage
-    ? null
-    : plansRequired
-    ? t("chat.statusEnded")
-    : usage.trialActive && trialDaysLeft !== null
-    ? t("chat.statusTrial", { days: trialDaysLeft })
-    : t("chat.statusActive");
   const hasConversation = messages.length > 0;
-  const dataLive = Boolean(analytics);
   const lastMessage = messages[messages.length - 1];
   const showFollowups = hasConversation && !sending && !plansRequired && lastMessage?.role !== "user" && Boolean(lastMessage?.content);
 
@@ -316,13 +344,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
           <span className="chat-header-avatar" aria-hidden="true"><Sparkles size={17} /></span>
           <div className="chat-header-title">
             <strong>Vendeo AI</strong>
-            <span className="chat-header-status"><i className={dataLive ? "is-live" : ""} />{dataLive ? t("chat.connected") : t("chat.notSynced")}</span>
           </div>
-          {statusPillLabel ? (
-            <span className={`chat-status-pill ${plansRequired ? "warning" : "positive"}`}>
-              <Clock3 size={12} /> {statusPillLabel}
-            </span>
-          ) : null}
+          <button type="button" className="chat-history-toggle" onClick={() => setHistoryOpen(true)} aria-label={t("chat.history")} title={t("chat.history")}>
+            <Menu size={18} />
+          </button>
         </div>
 
         {plansRequired && (
@@ -610,6 +635,34 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, products =
               <button type="button" className="btn btn-dark" disabled={launching} onClick={() => void confirmLaunch()}>{launching ? t("chat.sending") : t("chat.confirmLaunch")}</button>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {historyOpen ? (
+        <div className="chat-history-backdrop" onClick={() => setHistoryOpen(false)}>
+          <aside className="chat-history-drawer" onClick={(event) => event.stopPropagation()} aria-label={t("chat.history")}>
+            <div className="chat-history-head">
+              <strong>{t("chat.history")}</strong>
+              <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Fermer">×</button>
+            </div>
+            <button type="button" className="chat-history-new" onClick={startNewConversation}>
+              <Plus size={15} /> {t("chat.newConversation")}
+            </button>
+            {conversations.length === 0 ? (
+              <p className="chat-history-empty">{t("chat.noConversations")}</p>
+            ) : (
+              <ul className="chat-history-list">
+                {conversations.map((conversation) => (
+                  <li key={conversation.id}>
+                    <button type="button" className={conversation.id === conversationId ? "active" : ""} onClick={() => void openConversation(conversation.id)}>
+                      <strong>{conversation.title || t("chat.untitled")}</strong>
+                      <small>{formatConversationDate(conversation.updated_at)}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </aside>
         </div>
       ) : null}
     </div>

@@ -92,8 +92,6 @@ export const translations: Record<Locale, Dict> = {
       tooManyForEmail: "Trop de demandes pour cet email. Réessaie dans {seconds}s.",
     },
     chat: {
-      statusEnded: "Essai terminé", statusTrial: "Essai · {days} j", statusActive: "Abonnement actif",
-      connected: "Données Chariow connectées", notSynced: "Chariow non synchronisé",
       trialEnded: "Ton essai gratuit est terminé.", activate: "Activer l'abonnement",
       sales: "Ventes", spend: "Dépenses pub", roas: "ROAS réel",
       eyebrow: "Centre de décision", title: "Que veux-tu comprendre aujourd'hui ?",
@@ -128,6 +126,7 @@ export const translations: Record<Locale, Dict> = {
       launchAccount: "Compte publicitaire", launchAccountChoose: "Choisir un compte…",
       launchCreative: "Créative de la campagne",
       confirmLaunch: "Confirmer et lancer", cancel: "Annuler",
+      history: "Historique", newConversation: "Nouvelle conversation", noConversations: "Aucune conversation", untitled: "Sans titre",
     },
     overview: {
       greeting: "Bonjour, {name}", subtitle: "Voici la performance de tes publicités et de ta boutique.",
@@ -265,8 +264,6 @@ export const translations: Record<Locale, Dict> = {
       tooManyForEmail: "Too many requests for this email. Try again in {seconds}s.",
     },
     chat: {
-      statusEnded: "Trial ended", statusTrial: "Trial · {days} d", statusActive: "Active subscription",
-      connected: "Chariow data connected", notSynced: "Chariow not synced",
       trialEnded: "Your free trial has ended.", activate: "Activate subscription",
       sales: "Sales", spend: "Ad spend", roas: "Real ROAS",
       eyebrow: "Decision center", title: "What do you want to understand today?",
@@ -301,6 +298,7 @@ export const translations: Record<Locale, Dict> = {
       launchAccount: "Ad account", launchAccountChoose: "Choose an account…",
       launchCreative: "Campaign creative",
       confirmLaunch: "Confirm and launch", cancel: "Cancel",
+      history: "History", newConversation: "New conversation", noConversations: "No conversations", untitled: "Untitled",
     },
     overview: {
       greeting: "Hello, {name}", subtitle: "Here's the performance of your ads and your store.",

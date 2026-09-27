@@ -422,8 +422,6 @@ export function Dashboard() {
                 setSubscription((prev) => (prev ? { ...prev, ...patch } : prev))
               }
               onBack={() => setActive(previousSection)}
-              products={analytics?.products ?? []}
-              analytics={analytics}
             />
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />

@@ -66,6 +66,33 @@ export async function POST(request: Request) {
         .slice(0, 5)
         .map((a) => ({ url: a.url, type: (a.type === "video" ? "video" : "image") as "image" | "video" }))
     : [];
+  // Conversation : si le client n'en fournit pas, on en crée une dont le titre est la
+  // première question posée (tronquée). Sinon on vérifie qu'elle appartient à l'utilisateur.
+  const requestedConversationId = typeof body?.conversationId === "string" && body.conversationId ? body.conversationId : null;
+  let conversationId: string;
+  let conversationTitle: string;
+  if (requestedConversationId) {
+    const { data: existing, error: conversationError } = await supabase
+      .from("conversations")
+      .select("id, title")
+      .eq("id", requestedConversationId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (conversationError) return NextResponse.json({ error: conversationError.message }, { status: 500 });
+    if (!existing) return NextResponse.json({ error: "Conversation introuvable" }, { status: 404 });
+    conversationId = existing.id;
+    conversationTitle = existing.title;
+  } else {
+    const title = message.length > 60 ? `${message.slice(0, 60)}…` : message;
+    const { data: created, error: createError } = await supabase
+      .from("conversations")
+      .insert({ user_id: user.id, title })
+      .select("id, title")
+      .single();
+    if (createError || !created) return NextResponse.json({ error: createError?.message ?? "Impossible de créer la conversation" }, { status: 500 });
+    conversationId = created.id;
+    conversationTitle = created.title;
+  }
   // Contexte IA : on agrège toutes les boutiques actives de l'utilisateur.
   // Le paramètre store_id (si envoyé) sera ignoré côté contexte pour garantir que l'IA a la vue complète.
   const storeId = body?.store_id || null;
@@ -85,13 +112,14 @@ export async function POST(request: Request) {
     .from("messages")
     .select("role, content")
     .eq("user_id", user.id)
+    .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
     .limit(20);
 
   const { data: quota, error: quotaError } = await supabase.rpc("consume_message_quota", { target_user_id: user.id });
   if (quotaError) return NextResponse.json({ error: quotaError.message }, { status: 500 });
   if (!quota) return NextResponse.json({ error: "Ton essai gratuit est terminé. Active ton abonnement pour continuer.", code: "PLANS_REQUIRED" }, { status: 429 });
-  const { error: insertError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "user", content: message, attachments });
+  const { error: insertError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "user", content: message, attachments, conversation_id: conversationId });
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
   // Rapport de diagnostic publicitaire : le moteur déterministe a déjà calculé les
   // anomalies (étages audience / créative / attribution). On injecte le JSON tel quel
@@ -245,7 +273,8 @@ export async function POST(request: Request) {
     }
   }
   answer = cleanAiText(answer);
-  const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer }).select("id, role, content, attachments, created_at").single();
+  const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer, conversation_id: conversationId }).select("id, role, content, attachments, created_at").single();
   if (assistantError) return NextResponse.json({ error: assistantError.message }, { status: 500 });
-  return NextResponse.json({ message: assistant, usage: { free_used: quota.free_messages_used, free_limit: quota.free_messages_limit, used: quota.messages_used_this_month, limit: quota.messages_limit, trial_active: quota.trial_active, trial_ends_at: quota.trial_ends_at, status: quota.status, plan: quota.plan } });
+  await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+  return NextResponse.json({ message: assistant, conversationId, conversationTitle, usage: { free_used: quota.free_messages_used, free_limit: quota.free_messages_limit, used: quota.messages_used_this_month, limit: quota.messages_limit, trial_active: quota.trial_active, trial_ends_at: quota.trial_ends_at, status: quota.status, plan: quota.plan } });
 }
