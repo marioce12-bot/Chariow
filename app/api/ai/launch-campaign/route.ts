@@ -104,17 +104,15 @@ export async function POST(request: Request) {
     const firstPage = resources.pages[0] as { id?: string } | undefined;
     pageId = firstPage?.id;
     if (!pageId) {
-      throw_no_page: {
-        return NextResponse.json(
-          {
-            error:
-              resources.pagesError ??
-              "Aucune Page Facebook n'est rattachée à ce compte publicitaire dans Meta Business Manager. " +
-                "Dans Business Settings → Comptes → Pages de l'entreprise qui possède ce compte publicitaire, ajoute la Page à utiliser comme actif, puis réessaie.",
-          },
-          { status: 400 }
-        );
-      }
+      return NextResponse.json(
+        {
+          error:
+            resources.pagesError ??
+            "Aucune Page Facebook n'est rattachée à ce compte publicitaire dans Meta Business Manager. " +
+              "Dans Business Settings → Comptes → Pages de l'entreprise qui possède ce compte publicitaire, ajoute la Page à utiliser comme actif, puis réessaie.",
+        },
+        { status: 400 }
+      );
     }
   }
 
