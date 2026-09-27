@@ -85,6 +85,11 @@ export async function createMetaAdSet(input: { accountId: string; accessToken: s
     optimization_goal: "LINK_CLICKS",
     bid_strategy: "LOWEST_COST_WITHOUT_CAP",
     targeting: JSON.stringify(targeting),
+    // Requis par Meta depuis peu dès qu'aucun budget n'est défini au niveau de la
+    // campagne (ici chaque ad set porte son propre daily_budget, pas de CBO) :
+    // sans ce champ, Meta refuse la création (subcode 4834011). "false" car on ne
+    // veut pas que les ad sets d'une même campagne partagent 20% de leur budget.
+    is_adset_budget_sharing_enabled: "false",
     status: input.status ?? "PAUSED",
   });
 }
