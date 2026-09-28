@@ -18,7 +18,7 @@ type LaunchBody = {
   ageMax?: number;
   message?: string; // texte de la créative
   headline?: string;
-  linkUrl?: string;
+  linkUrl?: string; // lien de la page de redirection (page de vente de l'utilisateur) — OBLIGATOIRE
   imageUrl?: string;
   pageId?: string;
   metaAdAccountId?: string; // id de la ligne meta_ad_accounts (compte choisi dans l'appli)
@@ -30,6 +30,20 @@ type LaunchBody = {
 // ce soit chez Meta, pour ne jamais te retrouver avec une campagne qui dépense
 // réellement mais qu'on ne peut pas enregistrer côté Vendeo.
 const MIN_DAILY_BUDGET = 100;
+
+// Chaque utilisateur a sa propre page de vente : il n'existe AUCUN lien par défaut.
+// On n'accepte qu'une URL http(s) valide, fournie par l'utilisateur.
+function normalizeLinkUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 // lib/meta/campaigns.ts (utilisé par la section Pub) attend un objectif simplifié
 // ("sales" | "traffic" | "engagement" | "leads"), pas les codes OUTCOME_* que
@@ -59,6 +73,14 @@ export async function POST(request: Request) {
   }
   if (!body.imageUrl) {
     return NextResponse.json({ error: "Ajoute une image ou une vidéo avant de lancer la campagne." }, { status: 400 });
+  }
+  // Lien de redirection obligatoire : vérifié AVANT tout appel Meta.
+  const linkUrl = normalizeLinkUrl(body.linkUrl);
+  if (!linkUrl) {
+    return NextResponse.json(
+      { error: "Indique le lien de ta page de redirection (ex. https://ta-page-de-vente.com) avant de lancer la campagne.", code: "LINK_URL_REQUIRED" },
+      { status: 400 }
+    );
   }
   const dailyBudget = Number(body.dailyBudget ?? 0);
   if (!Number.isFinite(dailyBudget) || dailyBudget < MIN_DAILY_BUDGET) {
@@ -144,7 +166,6 @@ export async function POST(request: Request) {
 
   const objective = toSimpleObjective(body.objective);
   const countries = body.countries?.length ? body.countries : ["BJ"];
-  const linkUrl = body.linkUrl ?? "https://vendeo-studio.site";
   const minAge = body.ageMin ?? 18;
   const maxAge = body.ageMax ?? 65;
   const durationDays = 1;
