@@ -3,6 +3,7 @@
 import { Activity, ArrowRight, Brain, Camera, Copy, FileText, Lightbulb, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
+import { normalizeCurrency, type SupportedCurrency } from "@/lib/currency";
 import { useI18n } from "@/lib/i18n/i18n";
 import "../app/vendeo-ai.css";
 
@@ -12,6 +13,9 @@ import "../app/vendeo-ai.css";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 const LAUNCH_TAG = "[[LANCE_CAMPAGNE]]";
+// Au-delà, on arrête d'attendre l'IA : le message d'erreur s'affiche et le bouton d'envoi
+// est débloqué (sinon une réponse jamais arrivée laissait le chat « en train d'écrire » à vie).
+const CHAT_REQUEST_TIMEOUT_MS = 70_000;
 
 type UsagePlan = "starter";
 type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
@@ -26,6 +30,13 @@ type ChatMessageItem = { role: string; content: string; imageUrl?: string; attac
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
 type MetaAdAccount = { id: string; name: string | null; is_selected?: boolean; currency?: string | null };
 type ChatConversation = { id: string; title: string; created_at: string; updated_at: string };
+type ChatApiResponse = {
+  message?: ChatMessageItem;
+  conversationId?: string;
+  error?: string;
+  code?: string;
+  usage?: { trial_active?: boolean; status: string; plan: string; trial_ends_at?: string | null };
+};
 
 const OBJECTIVE_LABELS: Record<string, string> = {
   OUTCOME_SALES: "Ventes / conversions",
@@ -35,6 +46,12 @@ const OBJECTIVE_LABELS: Record<string, string> = {
   OUTCOME_AWARENESS: "Notoriété",
 };
 
+const CURRENCY_OPTIONS: Array<{ code: SupportedCurrency; label: string }> = [
+  { code: "XOF", label: "F CFA (XOF)" },
+  { code: "USD", label: "Dollar ($)" },
+  { code: "EUR", label: "Euro (€)" },
+];
+
 // Payload structuré que l'IA renvoie juste après la balise [[LANCE_CAMPAGNE]], une fois
 // que l'utilisateur a validé le lancement dans le chat. Sert à pré-remplir le formulaire
 // de lancement au lieu de faire retaper les infos déjà données pendant la conversation.
@@ -42,6 +59,7 @@ type LaunchPayload = {
   name?: string | null;
   objective?: string | null;
   dailyBudget?: number | null;
+  currency?: string | null;
   countries?: string[] | null;
   ageMin?: number | null;
   ageMax?: number | null;
@@ -62,6 +80,20 @@ function normalizeLinkUrl(value: string | null | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+// Si l'IA a oublié la devise dans son JSON, on la retrouve dans les messages de
+// l'utilisateur (« 2 dollars », « 20 € », « 1000 FCFA »…) plutôt que de supposer XOF.
+function guessCurrencyFromMessages(list: ChatMessageItem[]): SupportedCurrency | null {
+  for (let index = list.length - 1; index >= 0; index -= 1) {
+    const item = list[index];
+    if (item.role !== "user" || typeof item.content !== "string") continue;
+    const text = item.content.toLowerCase();
+    if (/\$|\busd\b|dollars?/.test(text)) return "USD";
+    if (/€|\beur\b|euros?/.test(text)) return "EUR";
+    if (/f\s?\.?\s?cfa|\bxof\b|\bxaf\b|\bcfa\b|francs?/.test(text)) return "XOF";
+  }
+  return null;
 }
 
 // Extrait le texte affichable et, si présent, le JSON de lancement d'un message assistant.
@@ -158,6 +190,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const [launchPayload, setLaunchPayload] = useState<LaunchPayload | null>(null);
   const [launchImageUrl, setLaunchImageUrl] = useState<string | null>(null);
   const [launchLink, setLaunchLink] = useState("");
+  const [launchBudget, setLaunchBudget] = useState("");
+  const [launchCurrency, setLaunchCurrency] = useState<SupportedCurrency>("XOF");
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [metaAccounts, setMetaAccounts] = useState<MetaAdAccount[]>([]);
@@ -165,6 +199,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Numéro de « session » de conversation : incrémenté à chaque changement de conversation
+  // (nouvelle ou ouverte depuis l'historique). Une réponse de l'IA n'est affichée que si la
+  // session qui l'a demandée est toujours la session courante — sinon l'ancienne réponse
+  // atterrissait dans la nouvelle conversation et laissait le bouton d'envoi bloqué.
+  const sessionEpochRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const AI_QUICK_PROMPTS: QuickPrompt[] = [
     { icon: <Megaphone size={14} />, label: t("chat.qStop"), prompt: t("chat.qStopPrompt") },
@@ -184,6 +224,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
       setQuickPromptsOpen(false);
       sessionStorage.removeItem(SESSION_STORAGE_PROMPT_KEY);
     }
+  }, []);
+
+  useEffect(() => {
+    // Quitter la vue coupe l'attente d'une réponse en cours.
+    return () => abortRef.current?.abort();
   }, []);
 
   useEffect(() => {
@@ -232,7 +277,19 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     }
   }
 
+  // Change de session : la requête IA en cours (s'il y en a une) est abandonnée côté client
+  // — le serveur enregistre quand même la réponse, on la retrouvera en rouvrant la
+  // conversation — et le bouton d'envoi est immédiatement débloqué pour la nouvelle session.
+  function beginNewSession() {
+    sessionEpochRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setSending(false);
+    return sessionEpochRef.current;
+  }
+
   function startNewConversation() {
+    beginNewSession();
     setConversationId(null);
     setMessages([]);
     setExpandedMessages({});
@@ -241,17 +298,37 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   }
 
   async function openConversation(id: string) {
-    const response = await fetch(`/api/conversations/${encodeURIComponent(id)}`);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !Array.isArray(data.messages)) return;
+    const epoch = beginNewSession();
     setConversationId(id);
-    setMessages(data.messages ?? []);
+    setMessages([]);
     setExpandedMessages({});
     setHistoryOpen(false);
+    try {
+      const response = await fetch(`/api/conversations/${encodeURIComponent(id)}`);
+      const data = await response.json().catch(() => ({}));
+      if (sessionEpochRef.current !== epoch) return;
+      if (!response.ok || !Array.isArray(data.messages)) {
+        setMessages([{ role: "assistant", content: t("chat.error") }]);
+        return;
+      }
+      setMessages(data.messages ?? []);
+    } catch {
+      if (sessionEpochRef.current !== epoch) return;
+      setMessages([{ role: "assistant", content: t("chat.error") }]);
+    }
   }
 
   async function send(message = input) {
     if (!message.trim() || sending || plansRequired) return;
+    const epoch = sessionEpochRef.current;
+    const isCurrentSession = () => sessionEpochRef.current === epoch;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, CHAT_REQUEST_TIMEOUT_MS);
     setSending(true);
     setInput("");
     setQuickPromptsOpen(false);
@@ -263,43 +340,71 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     // bulle du message).
     const userMessage: ChatMessageItem = { role: "user", content: message, attachments: pendingAttachments.length ? pendingAttachments : undefined };
     setMessages((current) => [...current, userMessage]);
-    const response = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, attachments: pendingAttachments, conversationId }) });
-    const data = await response.json();
-    if (response.ok && data.message) {
-      setMessages((current) => [...current, data.message]);
-      if (data.conversationId) {
-        setConversationId(data.conversationId);
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, attachments: pendingAttachments, conversationId }),
+        signal: controller.signal,
+      });
+      // Corps lu en texte puis parsé à la main : si le serveur coupe la requête (timeout de la
+      // fonction), la réponse n'est pas du JSON et response.json() jetait une exception qui
+      // laissait `sending` à true pour toujours.
+      const raw = await response.text().catch(() => "");
+      let data: ChatApiResponse = {};
+      try {
+        data = raw ? (JSON.parse(raw) as ChatApiResponse) : {};
+      } catch {
+        data = {};
+      }
+      if (!isCurrentSession()) {
+        // L'utilisateur a changé de conversation entre-temps : on n'affiche rien ici,
+        // on rafraîchit juste l'historique (la réponse est déjà enregistrée côté serveur).
         void loadConversations();
+        return;
       }
-      if (data.usage) {
-        const nextUsage: ChatUsage = {
-          trialActive: Boolean(data.usage.trial_active),
-          status: data.usage.status,
-          plan: data.usage.plan,
-          trialEndsAt: data.usage.trial_ends_at ?? usage?.trialEndsAt ?? null,
-        };
-        setUsage(nextUsage);
-        setPlansRequired(nextUsage.status === "past_due");
+      if (response.ok && data.message) {
+        setMessages((current) => [...current, data.message as ChatMessageItem]);
+        if (data.conversationId) {
+          setConversationId(data.conversationId);
+          void loadConversations();
+        }
+        if (data.usage) {
+          const nextUsage: ChatUsage = {
+            trialActive: Boolean(data.usage.trial_active),
+            status: data.usage.status,
+            plan: data.usage.plan,
+            trialEndsAt: data.usage.trial_ends_at ?? usage?.trialEndsAt ?? null,
+          };
+          setUsage(nextUsage);
+          setPlansRequired(nextUsage.status === "past_due");
 
-        // Sync statut d'abonnement vers le parent (sidebar + page Abonnement)
-        onUsageChange({
-          plan: nextUsage.plan as UsagePlan,
-          status: nextUsage.status,
-          trial_active: nextUsage.trialActive,
-        });
-      }
-    } else {
-      if (data.code === "PLANS_REQUIRED") {
+          // Sync statut d'abonnement vers le parent (sidebar + page Abonnement)
+          onUsageChange({
+            plan: nextUsage.plan as UsagePlan,
+            status: nextUsage.status,
+            trial_active: nextUsage.trialActive,
+          });
+        }
+      } else if (data.code === "PLANS_REQUIRED") {
         setPlansRequired(true);
-        setMessages((current) => [
-          ...current,
-          { role: "assistant", content: t("chat.trialEndedMessage") },
-        ]);
+        setMessages((current) => [...current, { role: "assistant", content: t("chat.trialEndedMessage") }]);
       } else {
         setMessages((current) => [...current, { role: "assistant", content: data.error ?? t("chat.error") }]);
       }
+    } catch {
+      if (!isCurrentSession()) return;
+      setMessages((current) => [
+        ...current,
+        { role: "assistant", content: timedOut ? "L'IA met trop de temps à répondre. Réessaie dans un instant." : t("chat.error") },
+      ]);
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (abortRef.current === controller) abortRef.current = null;
+      // On ne débloque le bouton que pour la session qui l'avait bloqué : une ancienne
+      // requête qui se termine ne doit pas toucher à l'état de la nouvelle conversation.
+      if (isCurrentSession()) setSending(false);
     }
-    setSending(false);
   }
 
   async function handleAttach(files: FileList | null) {
@@ -357,6 +462,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     // Lien de redirection : celui donné par l'utilisateur dans la conversation, sinon
     // vide — il devra le saisir ici (aucun lien par défaut n'est jamais injecté).
     setLaunchLink(payload?.linkUrl ?? "");
+    // Budget + devise : montant tel que donné par l'utilisateur, devise reconnue depuis le
+    // JSON de l'IA, à défaut depuis les messages de l'utilisateur, à défaut XOF. Les deux
+    // restent modifiables dans la popup, et le serveur convertit en dollars.
+    setLaunchBudget(payload?.dailyBudget != null ? String(payload.dailyBudget) : "");
+    setLaunchCurrency(normalizeCurrency(payload?.currency) ?? guessCurrencyFromMessages(messages) ?? "XOF");
     setLaunchError(null);
     // Compte par défaut : celui marqué is_selected, sinon l'unique compte actif.
     setLaunchAccountId(metaAccounts.find((a) => a.is_selected)?.id ?? (metaAccounts.length === 1 ? metaAccounts[0].id : null));
@@ -373,6 +483,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
       setLaunchError("Indique le lien de ta page de redirection (ex. https://ta-page-de-vente.com) avant de lancer la campagne.");
       return;
     }
+    const dailyBudget = Number(launchBudget.replace(/\s/g, "").replace(",", "."));
+    if (!Number.isFinite(dailyBudget) || dailyBudget <= 0) {
+      setLaunchError("Indique un budget journalier valide (ex. 2 en dollars, ou 1000 en F CFA).");
+      return;
+    }
     const payload = launchPayload;
     setLaunching(true);
     setLaunchError(null);
@@ -383,7 +498,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         body: JSON.stringify({
           name: payload.name,
           objective: payload.objective,
-          dailyBudget: payload.dailyBudget,
+          // Montant + devise d'origine : le serveur convertit en dollars. Sans `currency`,
+          // « 2 $ » était lu comme 2 F CFA et refusé comme inférieur au minimum.
+          dailyBudget,
+          currency: launchCurrency,
           countries: payload.countries,
           ageMin: payload.ageMin,
           ageMax: payload.ageMax,
@@ -399,7 +517,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         setLaunchError(data.error ?? "Impossible de lancer la campagne.");
         return;
       }
-      setMessages((current) => [...current, { role: "assistant", content: `✅ Campagne « ${payload.name} » lancée sur Meta. Elle apparaît dans la page Pub.` }]);
+      const usdNote = typeof data.dailyBudgetUsd === "number" && launchCurrency !== "USD" ? ` (≈ ${data.dailyBudgetUsd} $)` : "";
+      setMessages((current) => [
+        ...current,
+        { role: "assistant", content: `✅ Campagne « ${payload.name} » lancée sur Meta avec ${dailyBudget} ${launchCurrency}/jour${usdNote}. Elle apparaît dans la page Pub.` },
+      ]);
       setLaunchOpen(false);
     } catch {
       setLaunchError("Erreur de connexion au lancement.");
@@ -696,7 +818,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             <div className="chat-launch-summary">
               <div className="chat-launch-row"><span>{t("chat.launchName")}</span><strong>{launchPayload?.name ?? "—"}</strong></div>
               <div className="chat-launch-row"><span>{t("chat.launchObjective")}</span><strong>{launchPayload?.objective ? OBJECTIVE_LABELS[launchPayload.objective] ?? launchPayload.objective : "—"}</strong></div>
-              <div className="chat-launch-row"><span>{t("chat.launchBudget")}</span><strong>{launchPayload?.dailyBudget != null ? `${launchPayload.dailyBudget} XOF/jour` : "—"}</strong></div>
               <div className="chat-launch-row"><span>{t("chat.launchCountries")}</span><strong>{launchPayload?.countries?.length ? launchPayload.countries.join(", ") : "—"}</strong></div>
               <div className="chat-launch-row"><span>{t("chat.launchAge")}</span><strong>{launchPayload?.ageMin != null || launchPayload?.ageMax != null ? `${launchPayload?.ageMin ?? 18}–${launchPayload?.ageMax ?? 65} ans` : "—"}</strong></div>
               <div className="chat-launch-row chat-launch-message"><span>{t("chat.launchMessage")}</span><strong>{launchPayload?.message ?? "—"}</strong></div>
@@ -707,6 +828,27 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                 <img src={launchImageUrl} alt={t("chat.launchCreative")} />
               </div>
             ) : null}
+            <label className="chat-launch-account">
+              <span>{t("chat.launchBudget")} (par jour) *</span>
+              <span style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="ex. 2"
+                  value={launchBudget}
+                  onChange={(event) => setLaunchBudget(event.target.value)}
+                  disabled={launching}
+                  required
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <select value={launchCurrency} onChange={(event) => setLaunchCurrency(event.target.value as SupportedCurrency)} disabled={launching}>
+                  {CURRENCY_OPTIONS.map((option) => (
+                    <option key={option.code} value={option.code}>{option.label}</option>
+                  ))}
+                </select>
+              </span>
+            </label>
             <label className="chat-launch-account">
               <span>Lien de la page de redirection *</span>
               <input
