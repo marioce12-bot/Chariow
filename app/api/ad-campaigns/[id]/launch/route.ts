@@ -3,8 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCreative, updateMetaAdCreative } from "@/lib/meta/campaigns";
 import { fetchMetaPageAccessToken, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
-import { createTikTokAd, createTikTokAdGroup, createTikTokCampaign, uploadTikTokAdImage } from "@/lib/tiktok/campaigns";
-import { fetchTikTokIdentities, fetchTikTokPixels, resolveTikTokLocationIds } from "@/lib/tiktok/api";
+import { launchTikTok } from "@/lib/tiktok/launch";
 import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
 
 type Context = { params: Promise<{ id: string }> };
@@ -26,6 +25,9 @@ type Context = { params: Promise<{ id: string }> };
 // Cas "rejected" (Meta a refusé la publicité après revue) : voir launchMeta,
 // branche dédiée — Meta ne redéclenche une revue que si le contenu change, donc
 // on ne peut pas se contenter de repasser le statut à ACTIVE comme pour "paid".
+//
+// Le lancement TikTok vit dans lib/tiktok/launch.ts (vérifications avant création,
+// nettoyage en cas d'échec, support image et vidéo).
 export async function POST(request: Request, context: Context) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
@@ -161,66 +163,5 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     const message = error instanceof Error ? error.message.slice(0, 500) : "Meta campaign creation failed";
     await supabase.from("ad_campaigns").update({ external_error: message }).eq("id", campaign.id).eq("user_id", userId);
     return NextResponse.json({ error: `Meta n’a pas accepté la campagne : ${message}. Réessaie.` }, { status: 502 });
-  }
-}
-
-async function launchTikTok(supabase: any, userId: string, campaign: any, body: any) {
-  const accountId = typeof body?.tiktok_ad_account_id === "string" ? body.tiktok_ad_account_id : campaign.tiktok_ad_account_id;
-  if (!accountId) return NextResponse.json({ error: "Sélectionne un compte TikTok Ads" }, { status: 400 });
-  const { data: account, error: accountError } = await supabase.from("tiktok_ad_accounts").select("id,tiktok_advertiser_id,tiktok_integration_id,is_active").eq("id", accountId).eq("user_id", userId).maybeSingle();
-  if (accountError) return NextResponse.json({ error: "Impossible de vérifier le compte TikTok" }, { status: 500 });
-  if (!account?.is_active) return NextResponse.json({ error: "Le compte TikTok sélectionné n’est plus actif" }, { status: 400 });
-  const { data: integration, error: integrationError } = await supabase.from("tiktok_integrations").select("access_token_encrypted").eq("id", account.tiktok_integration_id).eq("user_id", userId).maybeSingle();
-  if (integrationError || !integration) return NextResponse.json({ error: "Intégration TikTok introuvable" }, { status: 404 });
-  await supabase.from("ad_campaigns").update({ tiktok_ad_account_id: account.id, external_error: null }).eq("id", campaign.id).eq("user_id", userId);
-  try {
-    const accessToken = decryptSecret(integration.access_token_encrypted);
-    const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
-    const external = await createTikTokCampaign({ advertiserId: account.tiktok_advertiser_id, accessToken, name: campaignName, objective: campaign.objective });
-    // Identité : TikTok exige une identité (compte lié ou identité personnalisée)
-    // pour diffuser une pub. Le wizard ne la collecte pas (elle est "configurée
-    // automatiquement") : on la résout ici en prenant la première identité
-    // exploitable du compte, en évitant BC_AUTH_TT qui exige un Business Center id.
-    const identityId = typeof body?.identity_id === "string" && body.identity_id ? body.identity_id : null;
-    const identityType = typeof body?.identity_type === "string" && body.identity_type ? body.identity_type : null;
-    let resolvedIdentityId = identityId;
-    let resolvedIdentityType = identityType;
-    if (!resolvedIdentityId || !resolvedIdentityType) {
-      const identities = await fetchTikTokIdentities(account.tiktok_advertiser_id, accessToken);
-      const order = ["TT_USER", "AUTH_CODE", "CUSTOMIZED_USER"];
-      const rows = identities as Array<Record<string, unknown>>;
-      const chosen = order
-        .map((type) => rows.find((i) => String(i.identity_type).toUpperCase() === type))
-        .find((identity) => identity != null) ?? rows[0];
-      resolvedIdentityId = chosen ? String(chosen.identity_id ?? "") : null;
-      resolvedIdentityType = chosen ? String(chosen.identity_type ?? "") : null;
-    }
-    if (!resolvedIdentityId || !resolvedIdentityType) return NextResponse.json({ error: "Aucune identité TikTok disponible sur ce compte. Crée une identité dans TikTok Ads Manager puis réessaie." }, { status: 400 });
-
-    // Ciblage géographique : TikTok cible par location_id numérique, pas par code
-    // pays ISO — on convertit countries ("BJ", …) via /search/region/.
-    const locationIds = await resolveTikTokLocationIds(account.tiktok_advertiser_id, accessToken, campaign.countries?.length ? campaign.countries : ["BJ"]);
-    if (!locationIds.length) return NextResponse.json({ error: "TikTok n’autorise pas la diffusion dans les pays choisis." }, { status: 400 });
-
-    // Objectif "ventes"/"leads" : optimization_goal CONVERT exige un pixel TikTok.
-    const needsPixel = campaign.objective === "sales" || campaign.objective === "leads";
-    let pixelId: string | null = null;
-    if (needsPixel) {
-      const pixels = await fetchTikTokPixels(account.tiktok_advertiser_id, accessToken);
-      const pixel = pixels[0] as Record<string, unknown> | undefined;
-      pixelId = pixel ? String(pixel.pixel_id ?? "") || null : null;
-      if (!pixelId) return NextResponse.json({ error: "Cet objectif nécessite un Pixel TikTok (Events) configuré sur ta boutique. Ajoute-en un dans TikTok Ads Manager puis réessaie." }, { status: 400 });
-    }
-
-    const adGroup = await createTikTokAdGroup({ advertiserId: account.tiktok_advertiser_id, accessToken, campaignId: external.id, name: `${campaignName} - Audience`, dailyBudget: Number(campaign.daily_budget), locationIds, minAge: Number(campaign.min_age), maxAge: Number(campaign.max_age), identityId: resolvedIdentityId, identityType: resolvedIdentityType, pixelId: pixelId ?? undefined, objective: campaign.objective });
-    const image = await uploadTikTokAdImage({ advertiserId: account.tiktok_advertiser_id, accessToken, imageUrl: campaign.media_url });
-    const ad = await createTikTokAd({ advertiserId: account.tiktok_advertiser_id, accessToken, adgroupId: adGroup.id, name: `${campaignName} - Ad`, identityId: resolvedIdentityId, identityType: resolvedIdentityType, imageId: image.imageId, text: campaign.ad_text, link: campaign.destination_url });
-    const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", tiktok_ad_account_id: account.id, external_campaign_id: external.id, external_adset_id: adGroup.id, external_creative_id: image.imageId, external_ad_id: ad.id, external_error: null }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id").single();
-    if (updateError) return NextResponse.json({ error: "Campagne TikTok créée mais statut Vendeo non enregistré" }, { status: 502 });
-    return NextResponse.json({ campaign: updated });
-  } catch (error) {
-    const message = error instanceof Error ? error.message.slice(0, 500) : "TikTok campaign creation failed";
-    await supabase.from("ad_campaigns").update({ external_error: message }).eq("id", campaign.id).eq("user_id", userId);
-    return NextResponse.json({ error: `TikTok n’a pas accepté la campagne : ${message}. Réessaie.` }, { status: 502 });
   }
 }
