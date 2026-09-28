@@ -50,6 +50,20 @@ type LaunchPayload = {
   linkUrl?: string | null;
 };
 
+// Le lien de redirection est propre à chaque utilisateur (sa page de vente) : il n'y a
+// aucun lien par défaut. On n'accepte qu'une URL http(s) valide, renvoyée normalisée.
+function normalizeLinkUrl(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 // Extrait le texte affichable et, si présent, le JSON de lancement d'un message assistant.
 // La balise et son JSON ne doivent jamais apparaître dans la bulle de chat.
 function parseAssistantMessage(rawContent: string): { content: string; launchPayload: LaunchPayload | null } {
@@ -143,6 +157,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchPayload, setLaunchPayload] = useState<LaunchPayload | null>(null);
   const [launchImageUrl, setLaunchImageUrl] = useState<string | null>(null);
+  const [launchLink, setLaunchLink] = useState("");
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [metaAccounts, setMetaAccounts] = useState<MetaAdAccount[]>([]);
@@ -339,6 +354,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   function openLaunchConfirm(payload: LaunchPayload | null, fallbackImageUrl?: string) {
     setLaunchPayload(payload);
     setLaunchImageUrl(fallbackImageUrl ?? null);
+    // Lien de redirection : celui donné par l'utilisateur dans la conversation, sinon
+    // vide — il devra le saisir ici (aucun lien par défaut n'est jamais injecté).
+    setLaunchLink(payload?.linkUrl ?? "");
     setLaunchError(null);
     // Compte par défaut : celui marqué is_selected, sinon l'unique compte actif.
     setLaunchAccountId(metaAccounts.find((a) => a.is_selected)?.id ?? (metaAccounts.length === 1 ? metaAccounts[0].id : null));
@@ -348,6 +366,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   async function confirmLaunch() {
     if (!launchPayload?.name || !launchPayload.message) {
       setLaunchError("Il manque le nom ou le texte de la créative pour lancer la campagne.");
+      return;
+    }
+    const linkUrl = normalizeLinkUrl(launchLink);
+    if (!linkUrl) {
+      setLaunchError("Indique le lien de ta page de redirection (ex. https://ta-page-de-vente.com) avant de lancer la campagne.");
       return;
     }
     const payload = launchPayload;
@@ -366,7 +389,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           ageMax: payload.ageMax,
           message: payload.message,
           headline: payload.headline,
-          linkUrl: payload.linkUrl,
+          linkUrl,
           imageUrl: launchImageUrl ?? undefined,
           metaAdAccountId: launchAccountId ?? undefined,
         }),
@@ -684,6 +707,19 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                 <img src={launchImageUrl} alt={t("chat.launchCreative")} />
               </div>
             ) : null}
+            <label className="chat-launch-account">
+              <span>Lien de la page de redirection *</span>
+              <input
+                type="url"
+                inputMode="url"
+                autoComplete="off"
+                placeholder="https://ta-page-de-vente.com"
+                value={launchLink}
+                onChange={(event) => setLaunchLink(event.target.value)}
+                disabled={launching}
+                required
+              />
+            </label>
             {metaAccounts.length > 0 ? (
               <label className="chat-launch-account">
                 <span>{t("chat.launchAccount")}</span>
@@ -702,7 +738,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             {launchError ? <p className="store-error" role="alert">{launchError}</p> : null}
             <div className="chat-launch-actions">
               <button type="button" className="btn btn-ghost" disabled={launching} onClick={() => setLaunchOpen(false)}>{t("chat.cancel")}</button>
-              <button type="button" className="btn btn-dark" disabled={launching} onClick={() => void confirmLaunch()}>{launching ? t("chat.sending") : t("chat.confirmLaunch")}</button>
+              <button type="button" className="btn btn-dark" disabled={launching || !normalizeLinkUrl(launchLink)} onClick={() => void confirmLaunch()}>{launching ? t("chat.sending") : t("chat.confirmLaunch")}</button>
             </div>
           </div>
         </div>
