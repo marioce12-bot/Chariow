@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
 import { decryptSecret } from "@/lib/crypto";
 import { fetchMetaAccounts } from "@/lib/meta/api";
+import { syncMetaPixels } from "@/lib/meta/pixels";
 
 export async function GET(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -45,21 +46,33 @@ export async function GET(request: Request) {
       last_error: null,
     }, { onConflict: "user_id,meta_user_id" }).select("id").single();
     if (integration.error || !integration.data) return redirect("failed");
+    const savedAccounts: Array<{ id: string; meta_account_id: string }> = [];
     for (const account of accounts) {
       const metaAccountId = String(account.id ?? "");
       if (!metaAccountId) continue;
-      await supabase.from("meta_ad_accounts").upsert({
+      const cleanAccountId = metaAccountId.replace(/^act_/, "");
+      const saved = await supabase.from("meta_ad_accounts").upsert({
         user_id: user.id,
         meta_integration_id: integration.data.id,
-        meta_account_id: metaAccountId.replace(/^act_/, ""),
+        meta_account_id: cleanAccountId,
         name: typeof account.name === "string" ? account.name : `Compte ${metaAccountId}`,
         currency: typeof account.currency === "string" ? account.currency : "XOF",
         access_token_encrypted: encryptSecret(token.access_token),
         token_expires_at: typeof token.expires_in === "number" ? new Date(Date.now() + token.expires_in * 1000).toISOString() : null,
         is_active: true,
         is_selected: true,
-      }, { onConflict: "user_id,meta_account_id" });
+      }, { onConflict: "user_id,meta_account_id" }).select("id").single();
+      if (saved.data?.id) savedAccounts.push({ id: saved.data.id, meta_account_id: cleanAccountId });
     }
+    // Récupération des pixels Meta de chaque compte publicitaire dès la connexion,
+    // pour que le wizard "Lancer une pub" les ait déjà sous la main. On utilise
+    // allSettled : un échec sur les pixels (permission, compte restreint...) ne doit
+    // jamais transformer une connexion Meta réussie en échec.
+    const pixelResults = await Promise.allSettled(savedAccounts.map((account) => syncMetaPixels(supabase, user.id, account, token.access_token)));
+    pixelResults.forEach((result, index) => {
+      if (result.status === "rejected") console.warn("Meta OAuth: synchro des pixels échouée", { userId: user.id, account: savedAccounts[index].meta_account_id, reason: result.reason instanceof Error ? result.reason.message : result.reason });
+      else if (result.value.error) console.warn("Meta OAuth: pixels non récupérés", { userId: user.id, account: savedAccounts[index].meta_account_id, error: result.value.error });
+    });
     // Le jeton Meta a bien été obtenu, mais si Facebook ne renvoie aucun compte
     // publicitaire (permissions insuffisantes, aucun compte pub sur ce profil,
     // erreur transitoire de l'API Graph...), aucune ligne n'est créée dans
