@@ -6,6 +6,8 @@ const FCFA_PER_EUR = 655.957;
 // Taux EUR → USD de repli, ajustable sans redéploiement de code via FX_USD_PER_EUR.
 const DEFAULT_USD_PER_EUR = 1.17;
 
+export type SupportedCurrency = "XOF" | "EUR" | "USD";
+
 function usdPerEur(): number {
   const fromEnv = Number(process.env.FX_USD_PER_EUR);
   return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : DEFAULT_USD_PER_EUR;
@@ -25,6 +27,22 @@ function extraRates(): Record<string, number> {
   } catch {
     return {};
   }
+}
+
+/**
+ * Reconnaît une devise écrite « à la main » (par l'utilisateur ou par l'IA) et la
+ * ramène au code ISO pris en charge : « $ », « USD », « dollars », « US$ » → USD ;
+ * « € », « EUR », « euros » → EUR ; « FCFA », « F CFA », « CFA », « XOF », « XAF »,
+ * « francs CFA » → XOF. Renvoie null si rien n'est reconnu.
+ */
+export function normalizeCurrency(input: string | null | undefined): SupportedCurrency | null {
+  if (typeof input !== "string") return null;
+  const value = input.trim().toLowerCase().replace(/[.\s]+/g, "");
+  if (!value) return null;
+  if (/^(usd|us\$|\$|dollars?|dollars?us|dollars?am[eé]ricains?)$/.test(value)) return "USD";
+  if (/^(eur|€|euros?)$/.test(value)) return "EUR";
+  if (/^(xof|xaf|fcfa|cfa|francs?cfa|francs?)$/.test(value)) return "XOF";
+  return null;
 }
 
 /** Valeur d'une unité de `currency` en dollars US, ou null si la devise n'est pas prise en charge. */
