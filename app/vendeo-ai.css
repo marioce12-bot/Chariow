@@ -37,14 +37,16 @@
 .ai-page .ai-action-card.tone-green .ai-action-icon { background:#e7f5e9; color:#287443; }
 .ai-page .ai-action-card.tone-blue .ai-action-icon { background:#e7f0ff; color:#2857a5; }
 
-/* Conversation */
-.ai-page .chat-messages { gap:14px; padding:14px 12px 10px; }
+/* Conversation — style « ChatGPT » : tes messages restent dans une bulle,
+   les réponses de l'IA sont du texte libre sur le fond (ni cadre, ni fond,
+   pleine largeur, police plus grande et interligne aéré pour bien lire). */
+.ai-page .chat-messages { gap:18px; padding:14px 12px 10px; }
 .ai-page .chat-bubble { border-radius:16px; font-size:13px; line-height:1.55; max-width:88%; padding:10px 13px; white-space:pre-wrap; }
-.ai-page .chat-bubble.user { align-self:flex-end; background:var(--vendeo-gradient); border-radius:16px 16px 4px 16px; color:#fff; }
-.ai-page .chat-bubble.assistant { align-self:flex-start; background:#fff; border:1px solid var(--line); border-radius:4px 16px 16px 16px; color:var(--ink); max-width:92%; padding:12px 13px; }
-.ai-page .chat-bubble-label { align-items:center; color:var(--muted); display:flex; font-size:11px; font-weight:500; gap:6px; letter-spacing:0; margin:0 0 6px; text-transform:none; }
+.ai-page .chat-bubble.user { align-self:flex-end; background:var(--vendeo-gradient); border-radius:16px 16px 4px 16px; color:#fff; font-size:15px; line-height:1.5; }
+.ai-page .chat-bubble.assistant { align-self:stretch; background:transparent; border:0; border-radius:0; box-shadow:none; color:var(--ink); font-size:15.5px; line-height:1.7; max-width:100%; padding:0 2px; }
+.ai-page .chat-bubble.assistant .chat-bubble-label { display:none; }
 .ai-page .chat-mini-avatar { align-items:center; background:var(--blue); border-radius:6px; color:#fff; display:inline-flex; height:20px; justify-content:center; width:20px; }
-.ai-page .chat-bubble-actions { border-top:1px solid var(--line); display:flex; gap:8px; margin-top:10px; padding-top:9px; }
+.ai-page .chat-bubble-actions { align-items:center; border-top:0; display:flex; gap:8px; margin-top:10px; padding-top:0; }
 .ai-page .chat-followups { display:flex; flex-wrap:wrap; gap:7px; }
 
 /* Suggestions (chips) : bleu, défilement horizontal */
@@ -62,7 +64,7 @@
 @media (max-width:760px) { .ai-page .chat-input-form textarea { font-size:16px; } }
 
 /* Thème sombre : une seule teinte (#071129) pour toute la section IA — fond de la
-   page, conteneur, en-tête, bulles, cartes et zone de saisie. Les séparations
+   page, conteneur, en-tête, cartes et zone de saisie. Les séparations
    restent visibles grâce aux bordures, plus par des fonds de nuances différentes. */
 html[data-theme="dark"] .app-layout-flush,
 html[data-theme="dark"] .app-layout-flush .app-main.chat-page { background:#071129; }
@@ -70,7 +72,8 @@ html[data-theme="dark"] .ai-page { background:#071129; }
 html[data-theme="dark"] .ai-page .ai-main { background:#071129; }
 html[data-theme="dark"] .ai-page .chat-header { background:#071129; border-bottom-color:var(--line); }
 html[data-theme="dark"] .ai-page .chat-header-title strong { color:var(--ink); }
-html[data-theme="dark"] .ai-page .chat-insight,html[data-theme="dark"] .ai-page .ai-action-card,html[data-theme="dark"] .ai-page .chat-bubble.assistant,html[data-theme="dark"] .ai-page .chat-input-form { background:#071129; border-color:var(--line); }
+html[data-theme="dark"] .ai-page .chat-insight,html[data-theme="dark"] .ai-page .ai-action-card,html[data-theme="dark"] .ai-page .chat-input-form { background:#071129; border-color:var(--line); }
+html[data-theme="dark"] .ai-page .chat-bubble.assistant { background:transparent; border:0; color:#eef2ff; }
 html[data-theme="dark"] .ai-page .chat-chip { background:rgba(16,62,248,.18); color:#9db4ff; }
 html[data-theme="dark"] .ai-page .chat-chip:hover { background:rgba(16,62,248,.28); }
 html[data-theme="dark"] .ai-page .ai-action-card.tone-red .ai-action-icon { background:rgba(217,93,93,.14); color:#f19999; }
