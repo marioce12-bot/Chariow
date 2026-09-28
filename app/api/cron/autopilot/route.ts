@@ -5,6 +5,8 @@ import { computeAutopilotDecision } from "@/lib/autopilot";
 import { pauseMetaCampaign } from "@/lib/meta/campaigns";
 import { pauseTikTokCampaign } from "@/lib/tiktok/campaigns";
 import { fetchTikTokCampaignReport } from "@/lib/tiktok/report";
+import { computeCampaignDiagnostics, type Anomaly, type DiagnosticAttributedSale, type DiagnosticInsightRow } from "@/lib/meta/diagnostic";
+import { refineAutopilotVerdictWithAI } from "@/lib/ai/autopilot-verdict";
 
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -137,6 +139,48 @@ async function campaignSpend(supabase: any, campaign: any) {
   }
 }
 
+// Diagnostic déterministe (audience / créative / attribution) pour une campagne
+// Meta — cf. lib/meta/diagnostic.ts. Non disponible pour TikTok (pas de synchro
+// quotidienne persistée type meta_insights_daily à ce jour) : retourne [] dans
+// ce cas, ce qui désactive simplement le raffinement IA sans casser le cron.
+async function metaDiagnosticAnomalies(supabase: any, campaign: any): Promise<Anomaly[]> {
+  if (campaign.platform !== "meta" || !campaign.meta_ad_account_id || !campaign.external_campaign_id) return [];
+
+  const to = isoDay(new Date());
+  const from = isoDay(new Date(Date.now() - 14 * 86400000));
+
+  const { data: insightRows } = await supabase
+    .from("meta_insights_daily")
+    .select("level,entity_id,entity_name,date_start,impressions,reach,clicks,spend,conversion_value")
+    .eq("ad_account_id", campaign.meta_ad_account_id)
+    .eq("level", "campaign")
+    .eq("entity_id", campaign.external_campaign_id)
+    .gte("date_start", from)
+    .lte("date_start", to)
+    .order("date_start", { ascending: true });
+
+  // Ventes réelles rattachées à cette campagne via meta_attributions (attribution
+  // au niveau de la vente, plus fine que meta_campaign_mappings) — c'est la source
+  // que le moteur de diagnostic attend pour comparer ROAS Meta vs ROAS réel.
+  const { data: attributionRows } = await supabase
+    .from("meta_attributions")
+    .select("chariow_sale_id")
+    .eq("user_id", campaign.user_id)
+    .eq("meta_campaign_id", campaign.external_campaign_id)
+    .gte("attributed_at", `${from}T00:00:00Z`)
+    .lte("attributed_at", `${to}T23:59:59Z`);
+  const saleIds = [...new Set((attributionRows ?? []).map((r: { chariow_sale_id: string | null }) => r.chariow_sale_id).filter(Boolean))] as string[];
+
+  let attributedSalesForDiagnostic: DiagnosticAttributedSale[] = [];
+  if (saleIds.length) {
+    const { data: saleRows } = await supabase.from("chariow_sales").select("status,amount").in("chariow_sale_id", saleIds);
+    attributedSalesForDiagnostic = (saleRows ?? []).map((s: { status: string | null; amount: number | null }) => ({ meta_campaign_id: campaign.external_campaign_id as string, status: s.status, amount: s.amount }));
+  }
+
+  const reports = computeCampaignDiagnostics((insightRows ?? []) as DiagnosticInsightRow[], attributedSalesForDiagnostic, { from, to });
+  return reports.find((r) => r.campaignId === campaign.external_campaign_id)?.anomalies ?? [];
+}
+
 async function pauseCampaign(supabase: any, campaign: any) {
   if (campaign.platform === "meta") {
     const { data: account } = await supabase
@@ -181,13 +225,13 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const results = [];
-  for (const campaign of (campaigns ?? []) as Array<Record<string, unknown> & { id: string; user_id: string; platform: string; daily_budget: number; created_at: string }>) {
+  for (const campaign of (campaigns ?? []) as Array<Record<string, unknown> & { id: string; user_id: string; platform: "meta" | "tiktok"; daily_budget: number; created_at: string }>) {
     try {
       const spendData = await campaignSpend(supabase, campaign);
       const sales = await attributedSales(supabase, campaign);
       const currency = await campaignCurrency(supabase, campaign);
       const daysSinceLaunch = Math.max(0, (Date.now() - new Date(campaign.created_at).getTime()) / 86400000);
-      const decision = computeAutopilotDecision({
+      const baseDecision = computeAutopilotDecision({
         spend: spendData.spend,
         netRevenue: sales.net,
         grossRevenue: sales.gross,
@@ -195,6 +239,19 @@ export async function GET(request: Request) {
         daysSinceLaunch,
         dailyBudget: num(campaign.daily_budget),
       });
+
+      // Diagnostic déterministe (Meta uniquement) puis raffinement du motif par
+      // Imole — cf. lib/ai/autopilot-verdict.ts pour les garde-fous exacts.
+      const anomalies = await metaDiagnosticAnomalies(supabase, campaign).catch((diagError) => {
+        console.error("autopilot: diagnostic failed", campaign.id, diagError instanceof Error ? diagError.message : diagError);
+        return [] as Anomaly[];
+      });
+      const decision = await refineAutopilotVerdictWithAI(
+        { spend: spendData.spend, netRevenue: sales.net, grossRevenue: sales.gross, completedSales: sales.completed, daysSinceLaunch, dailyBudget: num(campaign.daily_budget) },
+        baseDecision,
+        anomalies,
+        { campaignTitle: String(campaign.title || campaign.product_name || "Campagne"), currency, platform: campaign.platform },
+      );
 
       const report = {
         campaign_id: campaign.id,
@@ -213,7 +270,7 @@ export async function GET(request: Request) {
         cac: sales.completed > 0 ? spendData.spend / sales.completed : null,
         decision: decision.decision,
         reasons: decision.reasons,
-        metrics: { daily_budget: num(campaign.daily_budget), days_since_launch: Math.round(daysSinceLaunch * 10) / 10 },
+        metrics: { daily_budget: num(campaign.daily_budget), days_since_launch: Math.round(daysSinceLaunch * 10) / 10, anomalies },
       };
       await supabase.from("ad_campaign_autopilot_reports").insert(report);
 
@@ -240,7 +297,7 @@ export async function GET(request: Request) {
         );
       }
 
-      results.push({ campaign_id: campaign.id, platform: campaign.platform, decision: decision.decision, spend: spendData.spend, sales: sales.completed, roas: decision.roas });
+      results.push({ campaign_id: campaign.id, platform: campaign.platform, decision: decision.decision, spend: spendData.spend, sales: sales.completed, roas: decision.roas, anomalies: anomalies.map((a) => a.stage) });
     } catch (campaignError) {
       console.error("autopilot: campaign evaluation failed", campaign.id, campaignError instanceof Error ? campaignError.message : campaignError);
       results.push({ campaign_id: campaign.id, error: campaignError instanceof Error ? campaignError.message : "unknown error" });
