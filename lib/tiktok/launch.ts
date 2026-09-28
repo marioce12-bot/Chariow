@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { decryptSecret } from "@/lib/crypto";
 import { createTikTokAd, createTikTokAdGroup, createTikTokCampaign, deleteTikTokCampaign, uploadTikTokAdImage } from "./campaigns";
 import { fetchTikTokIdentities, fetchTikTokPixels, resolveTikTokLocationIds } from "./api";
-import { createTikTokVideoAd, isVideoUrl, uploadTikTokAdImage as _unused, uploadTikTokAdVideo, videoCoverUrl } from "./video";
-
-void _unused;
+import { createTikTokVideoAd, isVideoUrl, uploadTikTokAdVideo, videoCoverUrl } from "./video";
 
 // Lancement d'une campagne TikTok. Ordre voulu :
 // 1. TOUTES les vérifications (compte, identité, pays, pixel) AVANT de créer quoi
