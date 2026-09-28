@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages } from "lucide-react";
-import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
+import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { ChatView } from "@/components/ChatView";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1926,9 +1926,9 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
 
   return (
     <>
-      <div className="page-top"><div><span className="eyebrow">{t("ads.eyebrow")}</span><h1>{t("ads.title")}</h1><p>{t("ads.subtitle")}</p></div></div>
+      <div className="page-top" style={{ gap: 12 }}><div><span className="eyebrow">{t("ads.eyebrow")}</span><h1>{t("ads.title")}</h1><p>{t("ads.subtitle")}</p></div><button type="button" className="btn btn-dark" style={{ flexShrink: 0 }} onClick={onLaunchAd}><Plus size={15} /> {t("ads.launch")}</button></div>
 
-      <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8, flexWrap: "wrap" }}><button type="button" className="btn btn-dark" onClick={onLaunchAd}><Plus size={15} /> {t("ads.launch")}</button><span style={{ flex: 1 }} />{channels.map((item) => <button key={item.id} type="button" className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.label}</button>)}</div>
+      <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8, flexWrap: "wrap" }}>{channels.map((item) => <button key={item.id} type="button" aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={20} /> : item.id === "tiktok" ? <FaTiktok size={18} /> : item.label}</button>)}</div>
 
       {message && <p className="store-error" role="status">{message}</p>}
 
