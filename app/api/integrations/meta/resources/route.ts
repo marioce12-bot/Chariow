@@ -27,15 +27,19 @@ export async function GET(request: Request) {
       const item = pixel as Record<string, unknown>;
       return { id: String(item.id ?? ""), name: typeof item.name === "string" ? item.name : `Pixel ${String(item.id ?? "")}` };
     }).filter((pixel) => pixel.id);
-    // Pixels : la liste live de Meta fait foi quand elle est non vide (et met à jour la
-    // base, y compris pour les comptes connectés avant l'enregistrement des pixels à la
-    // connexion). Sinon (appel en échec ou aucun résultat), on retombe sur ceux déjà
-    // enregistrés à la connexion, pour ne pas laisser le wizard sans pixel.
-    let pixels: Array<{ id: string; name: string }> = livePixels;
+    // Pixels : la liste live de Meta rafraîchit la base (y compris pour les comptes
+    // connectés avant l'enregistrement des pixels à la connexion), mais la source de
+    // vérité renvoyée au client est la base, car c'est elle qui porte l'état
+    // "configuré sur Chariow" saisi par l'utilisateur.
     if (livePixels.length) {
       try { await saveMetaPixels(supabase, user.id, account.id, livePixels); } catch (saveError) { console.warn("Meta resources: enregistrement des pixels échoué", saveError instanceof Error ? saveError.message : saveError); }
-    } else {
-      try { pixels = await loadStoredMetaPixels(supabase, account.id); } catch { pixels = []; }
+    }
+    let pixels: Array<{ id: string; name: string; configured_on_chariow: boolean }> = [];
+    try { pixels = await loadStoredMetaPixels(supabase, account.id); } catch { pixels = []; }
+    if (!pixels.length && livePixels.length) {
+      // Enregistrement en échec mais liste live disponible : on renvoie quand même
+      // la liste live (non marquée "configurée") pour ne pas laisser le wizard sans pixel.
+      pixels = livePixels.map((pixel) => ({ ...pixel, configured_on_chariow: false }));
     }
     return NextResponse.json({
       account: { id: account.id, status, restricted: resources.accountError ? null : status !== 1 },

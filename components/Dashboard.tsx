@@ -1668,11 +1668,13 @@ type MetaPerformance = {
   performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; status: string }>;
 };
 
+type MetaPixelOption = { id: string; name: string; configured_on_chariow?: boolean };
+
 type AdsCache = {
   metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null }>;
   selectedMetaAccount: string;
   metaPerformance: MetaPerformance | null;
-  metaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<{ id: string; name: string }> } | null;
+  metaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null;
   metaAccountRestricted: boolean;
   tiktokAccounts: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>;
 };
@@ -1824,9 +1826,11 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null }>>(cachedOnce?.metaAccounts ?? []);
   const [selectedMetaAccount, setSelectedMetaAccount] = useState(cachedOnce?.selectedMetaAccount ?? "");
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(cachedOnce?.metaPerformance ?? null);
-  const [metaResources, setMetaResources] = useState<{ pages: Array<{ id: string; name: string }>; pixels: Array<{ id: string; name: string }> } | null>(cachedOnce?.metaResources ?? null);
+  const [metaResources, setMetaResources] = useState<{ pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null>(cachedOnce?.metaResources ?? null);
   const [metaAccountRestricted, setMetaAccountRestricted] = useState(cachedOnce?.metaAccountRestricted ?? false);
   const [metaSyncing, setMetaSyncing] = useState(false);
+  const [copiedPixelId, setCopiedPixelId] = useState<string | null>(null);
+  const [configuringPixel, setConfiguringPixel] = useState<string | null>(null);
 
   const [tiktokAccounts, setTiktokAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>>(cachedOnce?.tiktokAccounts ?? []);
   // Tant que le statut TikTok n'est pas connu (pas de cache), on affiche des skeletons
@@ -1836,7 +1840,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   // Charge performances, pages/pixels et statut de restriction pour UN compte donné.
   async function loadMetaAccountData(accountId: string) {
     let perf: MetaPerformance | null = null;
-    let resources: { pages: Array<{ id: string; name: string }>; pixels: Array<{ id: string; name: string }> } | null = null;
+    let resources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null = null;
     let restricted = false;
     const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}`);
     if (metrics.ok) perf = await metrics.json();
@@ -1883,7 +1887,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
 
     let nextSelectedMetaAccount = "";
     let nextMetaPerformance: MetaPerformance | null = null;
-    let nextMetaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<{ id: string; name: string }> } | null = null;
+    let nextMetaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null = null;
     let nextMetaAccountRestricted = false;
     if (chosenAccount) {
       nextSelectedMetaAccount = chosenAccount.id;
@@ -1924,6 +1928,37 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
     } finally { setMetaSyncing(false); }
   }
 
+  async function copyPixelId(pixelId: string) {
+    try {
+      await navigator.clipboard.writeText(pixelId);
+      setCopiedPixelId(pixelId);
+      window.setTimeout(() => setCopiedPixelId((current) => (current === pixelId ? null : current)), 1500);
+    } catch {
+      // Le presse-papiers peut être indisponible (navigateur ancien) : on ignore.
+    }
+  }
+
+  async function markPixelConfigured(pixelId: string, configured: boolean) {
+    if (!selectedMetaAccount) return;
+    setConfiguringPixel(pixelId);
+    try {
+      const response = await fetch("/api/integrations/meta/pixels/configure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_id: selectedMetaAccount, pixel_id: pixelId, configured }),
+      });
+      if (response.ok) {
+        setMetaResources((current) =>
+          current
+            ? { ...current, pixels: current.pixels.map((pixel) => (pixel.id === pixelId ? { ...pixel, configured_on_chariow: configured } : pixel)) }
+            : current,
+        );
+      }
+    } finally {
+      setConfiguringPixel(null);
+    }
+  }
+
   const tiktokAllowed = isAdPlatformAllowed(plan, "tiktok");
   const metaConnected = metaAccounts.length > 0;
   const tiktokConnected = tiktokAccounts.length > 0;
@@ -1943,11 +1978,36 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, metaPerformance?.currency ?? "XOF")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div></section> : channel === "meta" ? (
         <>
           <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.connected")}</span> : <button className="btn btn-dark" onClick={connectMeta}><Plus size={15} /> {t("ads.connectMeta")}</button>}</div>
-          {metaPerformance && metaPerformance.overview.conversions === 0 && <div className="meta-conversion-info" role="status">Meta ne rapporte aucune conversion attribuée : aucun Pixel Meta ou aucune Conversions API n'est configuré sur le parcours de vente Chariow.</div>}
+          {metaPerformance && metaPerformance.overview.conversions === 0 && !metaResources?.pixels.some((pixel) => pixel.configured_on_chariow) && <div className="meta-conversion-info" role="status">Meta ne rapporte aucune conversion attribuée : aucun Pixel Meta ou aucune Conversions API n'est configuré sur le parcours de vente Chariow.</div>}
           {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n'est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
           {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noMeta")}</strong><span>{t("ads.noMetaText")}</span><button className="btn btn-dark" onClick={connectMeta}>{t("ads.connectMeta")}</button></div> : <>
             <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
+            {metaResources && metaResources.pixels.length > 0 ? (
+              <section className="app-card" style={{ marginBottom: 18 }}>
+                <div className="card-head"><div><span className="eyebrow">Suivi des conversions</span><h2>Pixel Meta</h2><p>Copie l'identifiant du pixel et configure-le dans ton parcours de vente Chariow (Pixel ou Conversions API). Une fois installé, marque-le « configuré ».</p></div></div>
+                <div style={{ display: "grid", gap: 10 }}>
+                  {metaResources.pixels.map((pixel) => (
+                    <div key={pixel.id} style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between", flexWrap: "wrap", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--line)" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <strong style={{ fontSize: 13 }}>{pixel.name}</strong>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                          <code style={{ fontSize: 12, background: "#F3F4F6", padding: "2px 6px", borderRadius: 6 }}>{pixel.id}</code>
+                          <button type="button" className="btn btn-ghost" onClick={() => void copyPixelId(pixel.id)} style={{ padding: "2px 8px", fontSize: 11 }}>{copiedPixelId === pixel.id ? "Copié !" : "Copier"}</button>
+                        </div>
+                      </div>
+                      {pixel.configured_on_chariow ? (
+                        <button type="button" className="btn btn-ghost" disabled={configuringPixel === pixel.id} onClick={() => void markPixelConfigured(pixel.id, false)} style={{ color: "#065F46" }}>✓ Configuré sur Chariow</button>
+                      ) : (
+                        <button type="button" className="btn btn-dark" disabled={configuringPixel === pixel.id} onClick={() => void markPixelConfigured(pixel.id, true)}>J'ai configuré ce pixel</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : metaConnected && metaResources && metaResources.pixels.length === 0 ? (
+              <div className="meta-conversion-info">Aucun pixel Meta trouvé sur ce compte. Crée un pixel dans Meta Ads Manager.</div>
+            ) : null}
             {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d'affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="hint-line">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
             {metaPerformance.performances.length ? <section className="app-card reco-card" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Pourquoi ce verdict</span><h2>Recommandation par campagne</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="reco-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`reco-item reco-item-${verdict.tone}`} key={campaign.id}><span className="reco-icon">{verdict.emoji}</span><div className="reco-body"><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.action}</p><small>{verdict.diagnosis}</small></div><button type="button" className={`reco-action reco-action-${verdict.tone}`} onClick={() => openAI(`Analyse la campagne "${campaign.name}" et détaille les prochaines actions.`)}>{verdict.actionLabel}</button></div>; })}</div></section> : null}
             </> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}

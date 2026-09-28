@@ -78,8 +78,8 @@ export async function syncMetaPixels(supabase: any, userId: string, account: { i
   return { count: pixels.length, error: null };
 }
 
-/** Pixels déjà enregistrés pour un compte pub (repli si l'appel live ne renvoie rien). */
-export async function loadStoredMetaPixels(supabase: any, adAccountId: string): Promise<Array<{ id: string; name: string }>> {
-  const { data } = await supabase.from("meta_pixels").select("pixel_id,name").eq("ad_account_id", adAccountId).order("name", { ascending: true });
-  return (data ?? []).map((row: { pixel_id: string; name: string | null }) => ({ id: row.pixel_id, name: row.name ?? `Pixel ${row.pixel_id}` }));
+/** Pixels déjà enregistrés pour un compte pub, avec leur état de configuration Chariow. */
+export async function loadStoredMetaPixels(supabase: any, adAccountId: string): Promise<Array<{ id: string; name: string; configured_on_chariow: boolean }>> {
+  const { data } = await supabase.from("meta_pixels").select("pixel_id,name,configured_on_chariow").eq("ad_account_id", adAccountId).order("name", { ascending: true });
+  return (data ?? []).map((row: { pixel_id: string; name: string | null; configured_on_chariow: boolean | null }) => ({ id: row.pixel_id, name: row.name ?? `Pixel ${row.pixel_id}`, configured_on_chariow: Boolean(row.configured_on_chariow) }));
 }
