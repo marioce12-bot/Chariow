@@ -113,3 +113,17 @@ html[data-theme="dark"] .mobile-more-menu[role="menu"] > button.active {
   color: #7da2ff;
 }
 html[data-theme="dark"] .mobile-more-menu[role="menu"] > button.danger { color: #f19999; }
+
+/* ---------- Onglets de la page Pub : logos Meta et TikTok en couleur ----------
+   Les boutons portent aria-label="Meta" / "TikTok" (Dashboard.tsx, AdsView) et
+   dessinent l'icône avec currentColor, donc elle prenait la couleur du texte.
+   - Meta : bleu officiel (#0866FF) ; blanc quand l'onglet est actif, car son
+     fond est un dégradé bleu-violet où le bleu ne se verrait pas.
+   - TikTok : note dans la couleur du texte, avec le décalage cyan (#25F4EE) et
+     rouge (#FE2C55) caractéristique du logo. */
+.app-card button.btn[aria-label="Meta"] svg { color: #0866ff; }
+.app-card button.btn.btn-dark[aria-label="Meta"] svg { color: #fff; }
+.app-card button.btn[aria-label="TikTok"] svg {
+  filter: drop-shadow(-1.3px -1px 0 #25f4ee) drop-shadow(1.3px 1px 0 #fe2c55);
+  overflow: visible;
+}
