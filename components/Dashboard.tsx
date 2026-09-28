@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages } from "lucide-react";
+import { ArrowRight, BarChart3, Bot, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { ChatView } from "@/components/ChatView";
@@ -23,6 +23,7 @@ import {
 } from "@/components/vendeo";
 import { DiagnosticFunnel } from "@/components/vendeo/DiagnosticFunnel";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
+import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
 import { CREDIT_PRICE_XOF } from "@/lib/studio/credits";
 import { VIDEO_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/studio/creative-workflows";
@@ -250,6 +251,7 @@ export function Dashboard() {
     ["Radar marché", Lightbulb],
     ["Mes boutiques", Store],
     ["Rapports", FileText],
+    ["Pilotage auto", Bot],
     ["Abonnement", CreditCard],
   ] as const;
 
@@ -264,6 +266,7 @@ export function Dashboard() {
     "Radar marché": "nav.radar",
     "Mes boutiques": "nav.stores",
     "Rapports": "nav.reports",
+    "Pilotage auto": "nav.autopilot",
     "Abonnement": "nav.subscription",
     "Paramètres": "nav.settings",
   };
@@ -436,6 +439,8 @@ export function Dashboard() {
             <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Rapports" ? (
             <Reports stores={stores} analytics={analytics} selectedStoreId={selectedStoreId} />
+          ) : active === "Pilotage auto" ? (
+            <AutopilotView />
           ) : (
             <Overview
               stores={stores}
@@ -493,6 +498,7 @@ export function Dashboard() {
             <div className="mobile-more-menu" role="menu" aria-label="Plus d'options">
               <span className="mobile-more-label">Analyse</span>
               <button type="button" role="menuitem" className={active === "Rapports" ? "active" : ""} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
+              <button type="button" role="menuitem" className={active === "Pilotage auto" ? "active" : ""} onClick={() => { setActive("Pilotage auto"); setMoreOpen(false); }}><Bot size={16} /> Pilotage auto</button>
               <span className="mobile-more-label">Mon compte</span>
               <button type="button" role="menuitem" className={active === "Abonnement" ? "active" : ""} onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
               <span className="mobile-more-label">Application</span>

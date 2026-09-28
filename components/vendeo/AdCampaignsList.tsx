@@ -20,10 +20,14 @@ type AdCampaign = {
   product_name?: string | null;
   ad_text?: string | null;
   destination_url?: string | null;
+  external_campaign_id?: string | null;
   countries?: string[] | null;
   min_age?: number | null;
   max_age?: number | null;
   media_url?: string | null;
+  autopilot_enabled?: boolean | null;
+  autopilot_paused_at?: string | null;
+  autopilot_pause_reason?: string | null;
 };
 
 const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
@@ -58,6 +62,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [togglingAutopilot, setTogglingAutopilot] = useState(false);
   // Incrémenté après chaque chargement des campagnes : le solde (paiement, lancement, rejet…)
   // est ainsi rafraîchi en même temps que les statuts.
 
@@ -75,6 +80,23 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function toggleAutopilot(campaign: AdCampaign) {
+    setTogglingAutopilot(true);
+    try {
+      const next = !campaign.autopilot_enabled;
+      const res = await fetch(`/api/ad-campaigns/${campaign.id}/autopilot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      if (!res.ok) return;
+      setSelected((current) => (current && current.id === campaign.id ? { ...current, autopilot_enabled: next } : current));
+      void load();
+    } finally {
+      setTogglingAutopilot(false);
+    }
+  }
 
   // Auto-sync : tant qu'une campagne Meta est "en revue", on revérifie son
   // statut aupres de Meta toutes les 15s (au lieu d'attendre le cron
@@ -208,6 +230,20 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                     ? "Corrige le visuel, le texte ou le lien en fonction de ce motif, puis utilise \"Modifier\" ci-dessous avant de relancer la campagne."
                     : "Modifie les paramètres puis relance. Aucun paiement supplémentaire ne sera demandé."}
                 </span>
+              </div>
+            ) : null}
+            {selected.external_campaign_id ? (
+              <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, border: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <strong style={{ fontSize: 13 }}>Pilotage automatique</strong>
+                  <p className="hint-line" style={{ margin: 0 }}>Vendeo surveille la rentabilité (dépense pub vs ventes) et met la campagne en pause automatiquement si elle brûle le budget.</p>
+                  {selected.autopilot_pause_reason ? (
+                    <p className="hint-line" style={{ margin: "4px 0 0", color: "#B45309" }}>Dernier arrêt : {selected.autopilot_pause_reason}</p>
+                  ) : null}
+                </div>
+                <button type="button" className={selected.autopilot_enabled ? "btn btn-dark" : "btn btn-ghost"} disabled={togglingAutopilot} onClick={() => void toggleAutopilot(selected)}>
+                  {selected.autopilot_enabled ? "Activé" : "Activer"}
+                </button>
               </div>
             ) : null}
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => setEditing(true)}>Modifier</button> : null}{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}<button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>Supprimer</button></div>

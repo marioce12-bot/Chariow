@@ -75,7 +75,7 @@ export const translations: Record<Locale, Dict> = {
       language: { title: "Langue", subtitle: "Choisis la langue de ton espace Vendeo.", french: "Français", english: "Anglais" },
     },
     nav: {
-      overview: "Accueil", pubs: "Pub", studio: "Studio", assistant: "Assistant", radar: "Radar", reports: "Rapports", stores: "Mes boutiques", subscription: "Abonnement", settings: "Paramètres", adAccounts: "Comptes publicitaires",
+      overview: "Accueil", pubs: "Pub", studio: "Studio", assistant: "Assistant", radar: "Radar", reports: "Rapports", autopilot: "Pilotage auto", stores: "Mes boutiques", subscription: "Abonnement", settings: "Paramètres", adAccounts: "Comptes publicitaires",
     },
     auth: {
       resetTitle: "Réinitialise ton mot de passe.", resetDesc: "Reçois un lien sécurisé pour choisir un nouveau mot de passe.",
@@ -247,7 +247,7 @@ export const translations: Record<Locale, Dict> = {
       language: { title: "Language", subtitle: "Choose the language of your Vendeo space.", french: "French", english: "English" },
     },
     nav: {
-      overview: "Home", pubs: "Ads", studio: "Studio", assistant: "Assistant", radar: "Radar", reports: "Reports", stores: "My stores", subscription: "Subscription", settings: "Settings", adAccounts: "Ad accounts",
+      overview: "Home", pubs: "Ads", studio: "Studio", assistant: "Assistant", radar: "Radar", reports: "Reports", autopilot: "Autopilot", stores: "My stores", subscription: "Subscription", settings: "Settings", adAccounts: "Ad accounts",
     },
     auth: {
       resetTitle: "Reset your password.", resetDesc: "Receive a secure link to choose a new password.",

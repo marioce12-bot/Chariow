@@ -204,6 +204,16 @@ export async function activateMetaCampaign(input: { campaignId: string; adSetId:
 }
 
 /**
+ * Met en pause une campagne Meta (campagne, ad set et ad). Utilisé par le
+ * pilotage automatique quand la campagne n'est pas rentable.
+ */
+export async function pauseMetaCampaign(input: { campaignId: string; adSetId: string; adId: string; accessToken: string }) {
+  await setMetaObjectStatus({ id: input.campaignId, accessToken: input.accessToken, status: "PAUSED" });
+  await setMetaObjectStatus({ id: input.adSetId, accessToken: input.accessToken, status: "PAUSED" });
+  await setMetaObjectStatus({ id: input.adId, accessToken: input.accessToken, status: "PAUSED" });
+}
+
+/**
  * Supprime une campagne Meta (et, par cascade côté Meta, ses ad sets et
  * annonces) — utilisée quand l'utilisateur supprime la campagne depuis Vendeo,
  * pour rester synchronisé dans les deux sens avec Meta Ads Manager. Idempotent

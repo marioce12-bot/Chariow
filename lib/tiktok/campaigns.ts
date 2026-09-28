@@ -119,12 +119,12 @@ export async function deleteTikTokCampaign(input: { advertiserId: string; access
 // objet chez Meta : on passe par les endpoints dédiés de mise à jour de statut
 // (campaign/adgroup/ad "status/update"), qui prennent les listes d'ids en masse.
 // operation_status accepté : "ENABLE" / "DISABLE" (défaut ENABLE côté TikTok).
-async function setTikTokStatus(advertiserId: string, accessToken: string, endpoint: string, ids: string[]) {
+async function setTikTokStatus(advertiserId: string, accessToken: string, endpoint: string, ids: string[], status: "ENABLE" | "DISABLE") {
   const idsField = endpoint === "campaign" ? "campaign_ids" : endpoint === "adgroup" ? "adgroup_ids" : "ad_ids";
   await tiktokPost(`${endpoint}/status/update/`, accessToken, {
     advertiser_id: advertiserId,
     [idsField]: ids,
-    operation_status: "ENABLE",
+    operation_status: status,
   });
 }
 
@@ -134,7 +134,17 @@ async function setTikTokStatus(advertiserId: string, accessToken: string, endpoi
  * Gardée pour un éventuel flux "créer en pause puis activer".
  */
 export async function activateTikTokCampaign(input: { advertiserId: string; accessToken: string; campaignId: string; adGroupId: string; adId: string }) {
-  await setTikTokStatus(input.advertiserId, input.accessToken, "campaign", [input.campaignId]);
-  await setTikTokStatus(input.advertiserId, input.accessToken, "adgroup", [input.adGroupId]);
-  await setTikTokStatus(input.advertiserId, input.accessToken, "ad", [input.adId]);
+  await setTikTokStatus(input.advertiserId, input.accessToken, "campaign", [input.campaignId], "ENABLE");
+  await setTikTokStatus(input.advertiserId, input.accessToken, "adgroup", [input.adGroupId], "ENABLE");
+  await setTikTokStatus(input.advertiserId, input.accessToken, "ad", [input.adId], "ENABLE");
+}
+
+/**
+ * Met en pause une campagne TikTok (campagne, ad group et ad). Utilisé par le
+ * pilotage automatique quand la campagne n'est pas rentable.
+ */
+export async function pauseTikTokCampaign(input: { advertiserId: string; accessToken: string; campaignId: string; adGroupId: string; adId: string }) {
+  await setTikTokStatus(input.advertiserId, input.accessToken, "campaign", [input.campaignId], "DISABLE");
+  await setTikTokStatus(input.advertiserId, input.accessToken, "adgroup", [input.adGroupId], "DISABLE");
+  await setTikTokStatus(input.advertiserId, input.accessToken, "ad", [input.adId], "DISABLE");
 }

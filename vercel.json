@@ -15,6 +15,10 @@
     {
       "path": "/api/market/warm",
       "schedule": "0 4 * * 1"
+    },
+    {
+      "path": "/api/cron/autopilot",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
