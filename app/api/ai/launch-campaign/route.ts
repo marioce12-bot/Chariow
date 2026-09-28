@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
+import { toUsd } from "@/lib/currency";
 import { createMetaCampaign, createMetaAdSet, createMetaCreative, createMetaAd, deleteMetaCampaign } from "@/lib/meta/campaigns";
 import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 
@@ -12,7 +13,8 @@ import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } f
 type LaunchBody = {
   name?: string;
   objective?: string; // OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_ENGAGEMENT | OUTCOME_LEADS | OUTCOME_AWARENESS
-  dailyBudget?: number; // en XOF
+  dailyBudget?: number; // dans la devise `currency` (XOF par défaut) — converti en dollars ci-dessous
+  currency?: string; // code ISO de la devise du budget saisi (XOF, EUR, USD…)
   countries?: string[];
   ageMin?: number;
   ageMax?: number;
@@ -25,11 +27,11 @@ type LaunchBody = {
   adAccountId?: string;
 };
 
-// La table ad_campaigns exige daily_budget >= 100 (voir
-// 20260830180000_ad_campaign_drafts.sql) : on vérifie AVANT de créer quoi que
-// ce soit chez Meta, pour ne jamais te retrouver avec une campagne qui dépense
-// réellement mais qu'on ne peut pas enregistrer côté Vendeo.
-const MIN_DAILY_BUDGET = 100;
+// Le budget est toujours traité en dollars US (devise des comptes pub) : quel que
+// soit la devise donnée par l'utilisateur, on le convertit AVANT de vérifier ce
+// minimum et AVANT de créer quoi que ce soit chez Meta, pour ne jamais te retrouver
+// avec une campagne qui dépense réellement mais qu'on ne peut pas enregistrer.
+const MIN_DAILY_BUDGET_USD = 1;
 
 // Chaque utilisateur a sa propre page de vente : il n'existe AUCUN lien par défaut.
 // On n'accepte qu'une URL http(s) valide, fournie par l'utilisateur.
@@ -82,9 +84,23 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  const dailyBudget = Number(body.dailyBudget ?? 0);
-  if (!Number.isFinite(dailyBudget) || dailyBudget < MIN_DAILY_BUDGET) {
-    return NextResponse.json({ error: `Le budget quotidien doit être d'au moins ${MIN_DAILY_BUDGET}.` }, { status: 400 });
+  // Budget : saisi par l'utilisateur dans SA devise (XOF si l'IA n'a rien précisé,
+  // comme avant), converti en dollars US — c'est le montant réellement envoyé à
+  // Meta/TikTok et enregistré en base (daily_budget est en dollars, comme le wizard).
+  const enteredBudget = Number(body.dailyBudget ?? 0);
+  const enteredCurrency = typeof body.currency === "string" && body.currency.trim() ? body.currency.trim().toUpperCase() : "XOF";
+  const dailyBudget = toUsd(enteredBudget, enteredCurrency);
+  if (dailyBudget === null) {
+    return NextResponse.json(
+      { error: `La devise « ${enteredCurrency} » n'est pas prise en charge. Indique ton budget en dollars ($), en euros ou en F CFA (XOF).`, code: "CURRENCY_UNSUPPORTED" },
+      { status: 400 }
+    );
+  }
+  if (!Number.isFinite(dailyBudget) || dailyBudget < MIN_DAILY_BUDGET_USD) {
+    return NextResponse.json(
+      { error: `Le budget quotidien doit être d'au moins ${MIN_DAILY_BUDGET_USD} $ (soit environ ${Math.ceil(MIN_DAILY_BUDGET_USD / (toUsd(1, enteredCurrency) || 1))} ${enteredCurrency}).` },
+      { status: 400 }
+    );
   }
 
   const admin = createAdminClient();
@@ -246,7 +262,7 @@ export async function POST(request: Request) {
     });
     if (insertError) throw new Error(`Campagne créée chez Meta mais non enregistrée côté Vendeo (${insertError.message}).`);
 
-    return NextResponse.json({ campaignId, adSetId, creativeId, adId });
+    return NextResponse.json({ campaignId, adSetId, creativeId, adId, dailyBudgetUsd: dailyBudget });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur de lancement Meta.";
     console.error("launch-campaign Meta error (après création de la campagne)", message, { campaignId });
