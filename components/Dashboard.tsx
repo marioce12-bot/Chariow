@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, BarChart3, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
+import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { ChatView } from "@/components/ChatView";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
@@ -1913,7 +1914,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
       ) : (
         <>
           <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.tiktokConnected")}</span> : <button className="btn btn-dark" onClick={connectTiktok}><Plus size={15} /> {t("ads.connectTiktok")}</button>}</div>
-          {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noTiktok")}</strong><span>{t("ads.noTiktokText")}</span><button className="btn btn-dark" onClick={connectTiktok}>{t("ads.connectTiktok")}</button></div> : <div className="meta-conversion-info" role="status">{t("ads.tiktokSoon")}</div>}
+          {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noTiktok")}</strong><span>{t("ads.noTiktokText")}</span><button className="btn btn-dark" onClick={connectTiktok}>{t("ads.connectTiktok")}</button></div> : }
         </>
       )}
     </>
