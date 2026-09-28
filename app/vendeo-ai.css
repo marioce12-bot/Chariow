@@ -61,12 +61,16 @@
 .ai-page .chat-send-button:disabled { cursor:default; opacity:.45; }
 @media (max-width:760px) { .ai-page .chat-input-form textarea { font-size:16px; } }
 
-/* Thème sombre */
+/* Thème sombre : une seule teinte (#071129) pour toute la section IA — fond de la
+   page, conteneur, en-tête, bulles, cartes et zone de saisie. Les séparations
+   restent visibles grâce aux bordures, plus par des fonds de nuances différentes. */
+html[data-theme="dark"] .app-layout-flush,
+html[data-theme="dark"] .app-layout-flush .app-main.chat-page { background:#071129; }
 html[data-theme="dark"] .ai-page { background:#071129; }
 html[data-theme="dark"] .ai-page .ai-main { background:#071129; }
-html[data-theme="dark"] .ai-page .chat-header { background:#0b1734; border-bottom-color:var(--line); }
+html[data-theme="dark"] .ai-page .chat-header { background:#071129; border-bottom-color:var(--line); }
 html[data-theme="dark"] .ai-page .chat-header-title strong { color:var(--ink); }
-html[data-theme="dark"] .ai-page .chat-insight,html[data-theme="dark"] .ai-page .ai-action-card,html[data-theme="dark"] .ai-page .chat-bubble.assistant,html[data-theme="dark"] .ai-page .chat-input-form { background:#0b1734; border-color:var(--line); }
+html[data-theme="dark"] .ai-page .chat-insight,html[data-theme="dark"] .ai-page .ai-action-card,html[data-theme="dark"] .ai-page .chat-bubble.assistant,html[data-theme="dark"] .ai-page .chat-input-form { background:#071129; border-color:var(--line); }
 html[data-theme="dark"] .ai-page .chat-chip { background:rgba(16,62,248,.18); color:#9db4ff; }
 html[data-theme="dark"] .ai-page .chat-chip:hover { background:rgba(16,62,248,.28); }
 html[data-theme="dark"] .ai-page .ai-action-card.tone-red .ai-action-icon { background:rgba(217,93,93,.14); color:#f19999; }
@@ -94,7 +98,7 @@ html[data-theme="dark"] .ai-page .ai-eyebrow { color:#8fa8ff; }
 .ai-page .chat-attachment-spinner::after { animation:chat-attachment-spin .7s linear infinite; border:2px solid rgba(76,33,246,.22); border-radius:50%; border-top-color:var(--blue); content:""; height:18px; width:18px; }
 @keyframes chat-attachment-spin { to { transform:rotate(360deg); } }
 .ai-page .chat-attachment-chip-uploading { opacity:.9; }
-html[data-theme="dark"] .ai-page .chat-attachment-spinner { background:rgba(11,23,52,.68); }
+html[data-theme="dark"] .ai-page .chat-attachment-spinner { background:rgba(7,17,41,.68); }
 
 /* Bouton + popup de lancement de campagne */
 .ai-page .chat-launch-campaign { align-items:center; background:var(--vendeo-gradient); border:0; border-radius:10px; color:#fff; cursor:pointer; display:inline-flex; font-size:13px; font-weight:600; gap:6px; margin:6px 0; padding:8px 14px; }
@@ -135,6 +139,6 @@ html[data-theme="dark"] .ai-page .chat-attachment-spinner { background:rgba(11,2
 .ai-page .chat-history-list strong { font-size:12px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ai-page .chat-history-list small { color:var(--muted); font-size:10px; }
 
-html[data-theme="dark"] .ai-page .chat-history-toggle:hover { background:#0b1734; color:var(--ink); }
-html[data-theme="dark"] .ai-page .chat-history-drawer { background:#0b1734; }
+html[data-theme="dark"] .ai-page .chat-history-toggle:hover { background:rgba(255,255,255,.06); color:var(--ink); }
+html[data-theme="dark"] .ai-page .chat-history-drawer { background:#071129; }
 html[data-theme="dark"] .ai-page .chat-history-list button.active { background:rgba(16,62,248,.22); }
