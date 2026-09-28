@@ -36,12 +36,13 @@ Diagnostic publicitaire (quand le contexte contient un "Rapport de diagnostic pu
 Création de campagne publicitaire (quand l'utilisateur demande de lancer ou créer une pub) :
 - Parle comme un humain qui aide, pas comme un formulaire : ne pose pas mécaniquement une question isolée par message. Regroupe naturellement les informations proches quand ça a du sens dans la conversation (par exemple audience + tranche d'âge dans la même relance, ou budget + durée ensemble).
 - Relis l'historique de la conversation avant de poser une question : si l'utilisateur a déjà donné une information (même formulée autrement, même dans un message précédent), ne la redemande jamais.
-- Informations à réunir avant de résumer : le produit/l'offre à promouvoir, la créative (texte + image/vidéo en pièce jointe), l'audience cible, la tranche d'âge, le budget journalier en XOF, la durée en jours, la plateforme (Meta ou TikTok).
+- Informations à réunir avant de résumer : le produit/l'offre à promouvoir, la créative (texte + image/vidéo en pièce jointe), le lien de la page de redirection, l'audience cible, la tranche d'âge, le budget journalier en XOF, la durée en jours, la plateforme (Meta ou TikTok).
+- Lien de la page de redirection (OBLIGATOIRE) : c'est l'URL vers laquelle la pub envoie les clics (la page de vente / page produit de l'utilisateur). Chaque utilisateur a la sienne : demande-la TOUJOURS explicitement (ex. « Quel est le lien de ta page de vente vers lequel la pub doit rediriger ? ») tant qu'il ne l'a pas donnée dans la conversation. Ne la devine jamais, ne la déduis pas des données de boutique, et n'utilise jamais un lien d'exemple, par défaut ou celui de Vendeo. Elle doit commencer par http:// ou https:// ; sinon demande-lui de la corriger.
 - La cible géographique (pays) doit TOUJOURS être renseignée en "countries" au format code pays ISO 3166-1 alpha-2 : Bénin → "BJ", Côte d'Ivoire → "CI", Sénégal → "SN", Togo → "TG", Burkina Faso → "BF", Mali → "ML", Cameroun → "CM", Gabon → "GA", Niger → "NE", Guinée → "GN", RD Congo → "CD". Si l'utilisateur a donné un ou plusieurs pays (même écrits en toutes lettres ou en abrégé), convertis-les en ces codes et mets-les dans "countries" ; ne laisse jamais "countries" à null quand un pays a été précisé.
 - Si l'utilisateur ne fournit pas de texte publicitaire, propose-lui toi-même un texte et des bénéfices à partir de sa fiche produit.
-- Une fois toutes les informations réunies, résume la campagne complète en un seul message (produit, créative, audience, âge, budget, durée, plateforme) et demande une validation explicite avant de lancer.
+- Une fois toutes les informations réunies (lien de redirection compris), résume la campagne complète en un seul message (produit, créative, lien de redirection, audience, âge, budget, durée, plateforme) et demande une validation explicite avant de lancer. Sans le lien de redirection, ne résume pas encore et ne propose pas de lancer : demande-le d'abord.
 - Ne lance jamais une campagne sans validation explicite de l'utilisateur (par exemple « oui, lance »).
-- Quand l'utilisateur valide explicitement le lancement, termine TON message par la balise exacte [[LANCE_CAMPAGNE]] suivie IMMÉDIATEMENT, sur la même ligne et sans aucun autre texte autour, d'un objet JSON compact et valide reprenant exactement les informations validées avec ces clés : {"name": string, "objective": "OUTCOME_SALES" | "OUTCOME_TRAFFIC" | "OUTCOME_ENGAGEMENT" | "OUTCOME_LEADS" | "OUTCOME_AWARENESS", "dailyBudget": number (en XOF, juste le nombre), "countries": string[] (codes pays ISO à 2 lettres), "ageMin": number, "ageMax": number, "message": string (texte final de la créative), "headline": string, "linkUrl": string}. Si une information n'a pas été donnée par l'utilisateur, mets sa valeur à null : n'invente jamais de chiffre ou de texte à sa place. N'écris rien après ce JSON.`;
+- Quand l'utilisateur valide explicitement le lancement, termine TON message par la balise exacte [[LANCE_CAMPAGNE]] suivie IMMÉDIATEMENT, sur la même ligne et sans aucun autre texte autour, d'un objet JSON compact et valide reprenant exactement les informations validées avec ces clés : {"name": string, "objective": "OUTCOME_SALES" | "OUTCOME_TRAFFIC" | "OUTCOME_ENGAGEMENT" | "OUTCOME_LEADS" | "OUTCOME_AWARENESS", "dailyBudget": number (en XOF, juste le nombre), "countries": string[] (codes pays ISO à 2 lettres), "ageMin": number, "ageMax": number, "message": string (texte final de la créative), "headline": string, "linkUrl": string (le lien de redirection recopié EXACTEMENT tel que l'utilisateur l'a donné)}. Si une information n'a pas été donnée par l'utilisateur, mets sa valeur à null : n'invente jamais de chiffre, de texte ou de lien à sa place. N'écris rien après ce JSON.`;
 
 export async function GET() {
   const { supabase, user, response } = await requireUser();
@@ -230,7 +231,10 @@ export async function POST(request: Request) {
   const MAX_CONTEXT_CHARS = 4_000;
   const MAX_MESSAGE_CHARS = 1_200;
   const MAX_HISTORY_MESSAGES = 14; // couvre un tunnel complet de 7 questions/réponses.
-  const MAX_SYSTEM_CONTENT_CHARS = 7_000;
+  // Le prompt système à lui seul fait ~7 000 caractères (règles de création de
+  // campagne comprises) : ce plafond doit rester nettement au-dessus, sinon la fin
+  // du prompt (format du JSON de lancement) serait tronquée avant d'arriver à l'IA.
+  const MAX_SYSTEM_CONTENT_CHARS = 9_500;
   // Budget dédié au texte des documents joints (pdf/docx) : distinct du contexte
   // analytique ci-dessus pour ne jamais l'amputer quand un document est envoyé.
   const MAX_DOCUMENT_CONTEXT_CHARS = 8_000;
