@@ -18,59 +18,77 @@ const num = (value: unknown) => {
 
 const isoDay = (date: Date) => date.toISOString().slice(0, 10);
 
+function sumSales(sales: Array<Record<string, unknown>> | null | undefined) {
+  let gross = 0;
+  let net = 0;
+  for (const sale of sales ?? []) {
+    gross += num(sale.amount);
+    net += num(sale.net_amount);
+  }
+  return { gross, net, completed: (sales ?? []).length };
+}
+
 // Attribution des ventes réelles Chariow à une campagne.
 // - Meta : via meta_campaign_mappings (meta_campaign_id -> chariow_campaign_id).
-// - TikTok : par produit (product_id), à défaut de mapping natif côté TikTok.
+// - TikTok : via tiktok_campaign_mappings (tiktok_campaign_id -> chariow_campaign_id)
+//   quand il existe, sinon repli sur le produit (product_id).
 async function attributedSales(supabase: any, campaign: any) {
   const from = new Date(campaign.created_at).toISOString();
   const to = new Date().toISOString();
-  let gross = 0;
-  let net = 0;
-  let completed = 0;
 
-  if (campaign.platform === "meta") {
-    const { data: mappings } = await supabase
-      .from("meta_campaign_mappings")
-      .select("chariow_campaign_id")
-      .eq("user_id", campaign.user_id)
-      .eq("store_id", campaign.store_id)
-      .eq("meta_campaign_id", campaign.external_campaign_id)
-      .eq("status", "active");
-    const campaignIds = (mappings ?? []).map((m: { chariow_campaign_id: string }) => m.chariow_campaign_id);
-    if (campaignIds.length) {
-      const { data: sales } = await supabase
-        .from("chariow_sales")
-        .select("amount,net_amount,status")
-        .eq("store_id", campaign.store_id)
-        .in("chariow_campaign_id", campaignIds)
-        .eq("status", "completed")
-        .gte("occurred_at", from)
-        .lte("occurred_at", to);
-      for (const sale of (sales ?? []) as Array<{ amount: number | string | null; net_amount: number | string | null }>) {
-        gross += num(sale.amount);
-        net += num(sale.net_amount);
-      }
-      completed = (sales ?? []).length;
-    }
-  } else {
-    // TikTok : la campagne promeut un seul produit — on attribue les ventes de ce
-    // produit sur la fenêtre active de la campagne.
+  const mappingTable = campaign.platform === "meta" ? "meta_campaign_mappings" : "tiktok_campaign_mappings";
+  const externalIdField = campaign.platform === "meta" ? "meta_campaign_id" : "tiktok_campaign_id";
+
+  const { data: mappings } = await supabase
+    .from(mappingTable)
+    .select("chariow_campaign_id")
+    .eq("user_id", campaign.user_id)
+    .eq("store_id", campaign.store_id)
+    .eq(externalIdField, campaign.external_campaign_id)
+    .eq("status", "active");
+  const campaignIds = (mappings ?? []).map((m: { chariow_campaign_id: string }) => m.chariow_campaign_id);
+
+  if (campaignIds.length) {
     const { data: sales } = await supabase
       .from("chariow_sales")
       .select("amount,net_amount,status")
       .eq("store_id", campaign.store_id)
-      .eq("product_id", campaign.product_id)
+      .in("chariow_campaign_id", campaignIds)
       .eq("status", "completed")
       .gte("occurred_at", from)
       .lte("occurred_at", to);
-    for (const sale of (sales ?? []) as Array<{ amount: number | string | null; net_amount: number | string | null }>) {
-      gross += num(sale.amount);
-      net += num(sale.net_amount);
-    }
-    completed = (sales ?? []).length;
+    return sumSales(sales as Array<Record<string, unknown>> | null);
   }
 
-  return { gross, net, completed };
+  // Repli : la campagne promeut un seul produit — on attribue les ventes de ce
+  // produit sur la fenêtre active de la campagne (utilisé en l'absence de mapping).
+  const { data: sales } = await supabase
+    .from("chariow_sales")
+    .select("amount,net_amount,status")
+    .eq("store_id", campaign.store_id)
+    .eq("product_id", campaign.product_id)
+    .eq("status", "completed")
+    .gte("occurred_at", from)
+    .lte("occurred_at", to);
+  return sumSales(sales as Array<Record<string, unknown>> | null);
+}
+
+// Devise du compte publicitaire de la campagne (pour un rapport lisible).
+async function campaignCurrency(supabase: any, campaign: any) {
+  if (campaign.platform === "meta") {
+    const { data } = await supabase
+      .from("meta_ad_accounts")
+      .select("currency")
+      .eq("id", campaign.meta_ad_account_id)
+      .maybeSingle();
+    return data?.currency || "XOF";
+  }
+  const { data } = await supabase
+    .from("tiktok_ad_accounts")
+    .select("currency")
+    .eq("id", campaign.tiktok_ad_account_id)
+    .maybeSingle();
+  return data?.currency || "XOF";
 }
 
 // Dépense + volumes pour une campagne, depuis son lancement.
@@ -167,6 +185,7 @@ export async function GET(request: Request) {
     try {
       const spendData = await campaignSpend(supabase, campaign);
       const sales = await attributedSales(supabase, campaign);
+      const currency = await campaignCurrency(supabase, campaign);
       const daysSinceLaunch = Math.max(0, (Date.now() - new Date(campaign.created_at).getTime()) / 86400000);
       const decision = computeAutopilotDecision({
         spend: spendData.spend,
@@ -189,6 +208,7 @@ export async function GET(request: Request) {
         completed_sales: sales.completed,
         impressions: spendData.impressions,
         clicks: spendData.clicks,
+        currency,
         roas: decision.roas,
         cac: sales.completed > 0 ? spendData.spend / sales.completed : null,
         decision: decision.decision,

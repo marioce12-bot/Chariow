@@ -21,6 +21,7 @@ type AutopilotReport = {
   decision: "keep_running" | "pause" | "learning" | "insufficient_data";
   reasons: string[];
   metrics: { daily_budget?: number; days_since_launch?: number };
+  currency?: string | null;
   created_at: string;
 };
 
@@ -33,8 +34,8 @@ type Alert = {
   created_at: string;
 };
 
-function formatMoney(value: number): string {
-  return `${Math.round(value).toLocaleString("fr-FR")} XOF`;
+function formatMoney(value: number, currency: string): string {
+  return `${Math.round(value).toLocaleString("fr-FR")} ${currency}`;
 }
 
 const DECISION_META: Record<AutopilotReport["decision"], { label: string; icon: React.ReactNode; tone: string }> = {
@@ -141,8 +142,8 @@ export function AutopilotView() {
                 <div key={report.id} style={{ display: "grid", gap: 10 }}>
                   <div className="report-table-row">
                     <strong>{report.campaign_title} <span style={{ fontWeight: 400, color: "#6B7280" }}>· {report.platform === "meta" ? "Meta" : "TikTok"}</span></strong>
-                    <span>{formatMoney(report.spend)}</span>
-                    <span>{report.completed_sales} vente{report.completed_sales > 1 ? "s" : ""} ({formatMoney(report.net_revenue)})</span>
+                    <span>{formatMoney(report.spend, report.currency ?? "XOF")}</span>
+                    <span>{report.completed_sales} vente{report.completed_sales > 1 ? "s" : ""} ({formatMoney(report.net_revenue, report.currency ?? "XOF")})</span>
                     <span>{report.roas === null ? "—" : `${report.roas.toFixed(2)}x`}</span>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: decision.tone, fontWeight: 700 }}>{decision.icon}{decision.label}</span>
                   </div>

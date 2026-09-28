@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data: reports, error } = await supabase
     .from("ad_campaign_autopilot_reports")
-    .select("id,campaign_id,platform,period_from,period_to,spend,gross_revenue,net_revenue,completed_sales,impressions,clicks,roas,cac,decision,reasons,metrics,created_at")
+    .select("id,campaign_id,platform,period_from,period_to,spend,gross_revenue,net_revenue,completed_sales,impressions,clicks,roas,cac,decision,reasons,metrics,currency,created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(100);
