@@ -8,27 +8,28 @@ async function tiktokPost(path: string, accessToken: string, body: Record<string
 }
 
 export async function createTikTokCampaign(input: { advertiserId: string; accessToken: string; name: string; objective: "sales" | "traffic" | "engagement" | "leads" }) {
-  // ⚠️ Vérifie les valeurs exactes de objective_type dans la doc au moment de l'intégration
-  // (business-api.tiktok.com/portal/docs → Campaign → Create) : TikTok les renomme parfois.
-  const objectiveType = input.objective === "sales" ? "CONVERSIONS" : input.objective === "traffic" ? "TRAFFIC" : input.objective === "leads" ? "LEAD_GENERATION" : "ENGAGEMENT";
+  // objective_type (valeur vérifiée via le SDK officiel tiktok-business-api-sdk /
+  // doc "Create Campaign" v1.3) : la conversion site web s'appelle
+  // WEBSITE_CONVERSIONS, pas "CONVERSIONS" (valeur qui n'existe pas chez TikTok).
+  const objectiveType = input.objective === "sales" ? "WEBSITE_CONVERSIONS" : input.objective === "traffic" ? "TRAFFIC" : input.objective === "leads" ? "LEAD_GENERATION" : "ENGAGEMENT";
   const data = await tiktokPost("campaign/create/", input.accessToken, {
     advertiser_id: input.advertiserId,
     campaign_name: input.name.slice(0, 512),
     objective_type: objectiveType,
     budget_mode: "BUDGET_MODE_INFINITE", // le budget réel est porté par l'ad group, comme chez Meta
-    operation_status: "DISABLE", // équivalent du status "PAUSED" de Meta
+    operation_status: "ENABLE", // comme Meta (création directement ACTIVE au lancement)
   });
   return { id: String(data.campaign_id), objective: objectiveType };
 }
 
-export async function createTikTokAdGroup(input: { advertiserId: string; accessToken: string; campaignId: string; name: string; dailyBudget: number; countries: string[]; minAge: number; maxAge: number; identityId: string; identityType: string; pixelId?: string; objective: "sales" | "traffic" | "engagement" | "leads" }) {
+export async function createTikTokAdGroup(input: { advertiserId: string; accessToken: string; campaignId: string; name: string; dailyBudget: number; locationIds: string[]; minAge: number; maxAge: number; identityId: string; identityType: string; pixelId?: string; objective: "sales" | "traffic" | "engagement" | "leads" }) {
   const optimizationGoal = input.objective === "sales" || input.objective === "leads" ? "CONVERT" : "CLICK";
   const body: Record<string, unknown> = {
     advertiser_id: input.advertiserId,
     campaign_id: input.campaignId,
     adgroup_name: input.name.slice(0, 512),
     placement_type: "PLACEMENT_TYPE_AUTOMATIC",
-    location_ids: input.countries, // ⚠️ doit contenir des location_id TikTok (numériques), pas "BJ" — voir fetchTikTokRegions
+    location_ids: input.locationIds, // location_id numériques (résolus depuis les codes pays via /search/region/)
     age_groups: tiktokAgeGroups(input.minAge, input.maxAge),
     budget_mode: "BUDGET_MODE_DAY",
     budget: input.dailyBudget,
@@ -36,11 +37,13 @@ export async function createTikTokAdGroup(input: { advertiserId: string; accessT
     optimization_goal: optimizationGoal,
     pacing: "PACING_MODE_SMOOTH",
     schedule_type: "SCHEDULE_FROM_NOW",
-    operation_status: "DISABLE",
+    operation_status: "ENABLE",
     identity_id: input.identityId,
     identity_type: input.identityType,
   };
-  // CONVERT exige un pixel TikTok configuré sur ton tunnel de vente — sans ça, reste sur "traffic"/"engagement" en sandbox.
+  // CONVERT exige un pixel TikTok configuré sur le tunnel de vente : pixel_id est
+  // requis par TikTok quand optimization_goal vaut CONVERT, sinon la création est
+  // rejetée. L'appelant (launchTikTok) le récupère via /pixel/list/.
   if (optimizationGoal === "CONVERT" && input.pixelId) body.pixel_id = input.pixelId;
   const data = await tiktokPost("adgroup/create/", input.accessToken, body);
   return { id: String(data.adgroup_id) };
@@ -70,9 +73,33 @@ export async function createTikTokAd(input: { advertiserId: string; accessToken:
       ad_text: input.text.slice(0, 100),
       landing_page_url: input.link,
       call_to_action: "LEARN_MORE",
-      operation_status: "DISABLE",
+      operation_status: "ENABLE",
     }],
   });
   const adIds = (data as { ad_ids?: string[] }).ad_ids ?? [];
   return { id: String(adIds[0] ?? "") };
+}
+
+// TikTok n'a pas d'équivalent au basculement "PAUSED -> ACTIVE" fait objet par
+// objet chez Meta : on passe par les endpoints dédiés de mise à jour de statut
+// (campaign/adgroup/ad "status/update"), qui prennent les listes d'ids en masse.
+// operation_status accepté : "ENABLE" / "DISABLE" (défaut ENABLE côté TikTok).
+async function setTikTokStatus(advertiserId: string, accessToken: string, endpoint: string, ids: string[]) {
+  const idsField = endpoint === "campaign" ? "campaign_ids" : endpoint === "adgroup" ? "adgroup_ids" : "ad_ids";
+  await tiktokPost(`${endpoint}/status/update/`, accessToken, {
+    advertiser_id: advertiserId,
+    [idsField]: ids,
+    operation_status: "ENABLE",
+  });
+}
+
+/**
+ * Active une campagne TikTok déjà créée en DISABLE (campagne, ad group et ad).
+ * C'est ce basculement qui soumet la publicité à la modération TikTok et démarre
+ * la diffusion — appelé au moment de l'activation (post-paiement), comme chez Meta.
+ */
+export async function activateTikTokCampaign(input: { advertiserId: string; accessToken: string; campaignId: string; adGroupId: string; adId: string }) {
+  await setTikTokStatus(input.advertiserId, input.accessToken, "campaign", [input.campaignId]);
+  await setTikTokStatus(input.advertiserId, input.accessToken, "adgroup", [input.adGroupId]);
+  await setTikTokStatus(input.advertiserId, input.accessToken, "ad", [input.adId]);
 }

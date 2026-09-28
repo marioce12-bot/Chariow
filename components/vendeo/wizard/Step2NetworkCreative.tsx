@@ -39,6 +39,7 @@ function stripHtml(html: string): string {
 
 type MetaAccountOption = { id: string; name: string | null; currency: string };
 type MetaPageOption = { id: string; name: string };
+type TikTokAccountOption = { id: string; name: string | null };
 
 /**
  * Étape 2/5 — "Ensemble de publicités" + "Publicité", façon Meta Ads Manager :
@@ -75,6 +76,9 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   const [metaPages, setMetaPages] = useState<MetaPageOption[]>([]);
   const [loadingMetaPages, setLoadingMetaPages] = useState(false);
   const [metaPagesError, setMetaPagesError] = useState<string | null>(null);
+  const [tiktokAccounts, setTikTokAccounts] = useState<TikTokAccountOption[]>([]);
+  const [loadingTikTokAccounts, setLoadingTikTokAccounts] = useState(false);
+  const [tiktokAccountsError, setTikTokAccountsError] = useState<string | null>(null);
 
   // Pré-remplissage depuis le produit choisi à l'Étape 1 (nom d'ensemble,
   // nom de pub, texte d'annonce, titre, lien de destination).
@@ -133,7 +137,24 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.platform, state.metaAdAccountId]);
 
-  const adSetValid = state.platform !== "meta" || Boolean(state.metaAdAccountId);
+  useEffect(() => {
+    if (state.platform !== "tiktok" || tiktokAccounts.length > 0 || loadingTikTokAccounts) return;
+    setLoadingTikTokAccounts(true);
+    setTikTokAccountsError(null);
+    fetch("/api/integrations/tiktok/accounts")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Impossible de charger tes comptes TikTok Ads"))))
+      .then((data) => {
+        const accounts: TikTokAccountOption[] = data.accounts ?? [];
+        setTikTokAccounts(accounts);
+        if (accounts.length === 1 && !state.tiktokAdAccountId) patch({ tiktokAdAccountId: accounts[0].id });
+        if (accounts.length === 0) setTikTokAccountsError("Aucun compte TikTok Ads connecté. Connecte-en un depuis Paramètres avant de lancer une pub.");
+      })
+      .catch((err) => setTikTokAccountsError(err instanceof Error ? err.message : "Impossible de charger tes comptes TikTok Ads"))
+      .finally(() => setLoadingTikTokAccounts(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.platform]);
+
+  const adSetValid = state.platform === "meta" ? Boolean(state.metaAdAccountId) : Boolean(state.tiktokAdAccountId);
   const adValid =
     state.adName.trim().length > 0 &&
     state.mediaUrl.trim().length > 0 &&
@@ -300,20 +321,37 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             )}
           </WarningBanner>
         )}
+        {state.platform === "tiktok" && !state.tiktokAdAccountId && (
+          <WarningBanner>
+            {tiktokAccounts.length === 0 && !loadingTikTokAccounts
+              ? tiktokAccountsError ?? "Aucun compte TikTok Ads connecté. Connecte-en un pour financer cette publicité."
+              : "Aucun compte publicitaire indiqué : sélectionne le compte TikTok Ads qui financera cette publicité."}
+            {tiktokAccounts.length === 0 && !loadingTikTokAccounts && (
+              <a
+                href="/api/integrations/tiktok/connect"
+                className="mt-2 block font-semibold text-[#3730A3] underline underline-offset-2"
+              >
+                Connecter un compte TikTok Ads
+              </a>
+            )}
+          </WarningBanner>
+        )}
         <div>
           <Row label="Nom de l'ensemble de publicités" value={state.adSetName || "Nouvel ensemble de publicités"} onEdit={() => setEditingField("adSetName")} />
           <Row label="Réseau" value={state.platform === "meta" ? "Meta Ads" : "TikTok Ads"} onEdit={() => setEditingField("network")} />
-          {state.platform === "meta" && (
-            <Row
-              label="Compte publicitaire"
-              value={
-                loadingMetaAccounts
+          <Row
+            label="Compte publicitaire"
+            value={
+              state.platform === "meta"
+                ? loadingMetaAccounts
                   ? "Chargement…"
                   : metaAccounts.find((a) => a.id === state.metaAdAccountId)?.name ?? state.metaAdAccountId ?? "Non sélectionné"
-              }
-              onEdit={() => setEditingField("account")}
-            />
-          )}
+                : loadingTikTokAccounts
+                  ? "Chargement…"
+                  : tiktokAccounts.find((a) => a.id === state.tiktokAdAccountId)?.name ?? state.tiktokAdAccountId ?? "Non sélectionné"
+            }
+            onEdit={() => setEditingField("account")}
+          />
           <Row label="Conversion" value="Ventes sur ta boutique (fixé)" />
           {state.platform === "meta" && (
             <Row
@@ -402,34 +440,44 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   }
 
   if (editingField === "account") {
+    const isMeta = state.platform === "meta";
+    const accounts = isMeta ? metaAccounts : tiktokAccounts;
+    const loading = isMeta ? loadingMetaAccounts : loadingTikTokAccounts;
+    const accountsError = isMeta ? metaAccountsError : tiktokAccountsError;
+    const selectedId = isMeta ? state.metaAdAccountId : state.tiktokAdAccountId;
+    const connectUrl = isMeta ? "/api/integrations/meta/connect" : "/api/integrations/tiktok/connect";
     return (
       <div>
-        <EditorHeader label="Compte publicitaire Meta" />
-        {loadingMetaAccounts ? (
+        <EditorHeader label={isMeta ? "Compte publicitaire Meta" : "Compte publicitaire TikTok"} />
+        {loading ? (
           <p className="flex items-center gap-2 text-xs text-gray-500">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement de tes comptes Meta Ads…
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement de tes comptes {isMeta ? "Meta Ads" : "TikTok Ads"}…
           </p>
-        ) : metaAccounts.length > 1 ? (
+        ) : accounts.length > 1 ? (
           <select
-            value={state.metaAdAccountId ?? ""}
-            onChange={(e) => patch({ metaAdAccountId: e.target.value || undefined, metaPageId: undefined })}
+            value={selectedId ?? ""}
+            onChange={(e) =>
+              isMeta
+                ? patch({ metaAdAccountId: e.target.value || undefined, metaPageId: undefined })
+                : patch({ tiktokAdAccountId: e.target.value || undefined })
+            }
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
           >
             <option value="">Choisir un compte…</option>
-            {metaAccounts.map((account) => (
+            {accounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name ?? account.id}
               </option>
             ))}
           </select>
-        ) : metaAccounts.length === 1 ? (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">{metaAccounts[0].name ?? metaAccounts[0].id}</p>
+        ) : accounts.length === 1 ? (
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">{accounts[0].name ?? accounts[0].id}</p>
         ) : null}
-        {metaAccountsError && (
+        {accountsError && (
           <div className="mt-2 rounded-lg bg-[#FEF2F2] p-3 text-xs text-[#991B1B]">
-            <p>{metaAccountsError}</p>
-            <a href="/api/integrations/meta/connect" className="mt-1 block font-semibold underline underline-offset-2">
-              Connecter un compte Meta Ads
+            <p>{accountsError}</p>
+            <a href={connectUrl} className="mt-1 block font-semibold underline underline-offset-2">
+              {isMeta ? "Connecter un compte Meta Ads" : "Connecter un compte TikTok Ads"}
             </a>
           </div>
         )}

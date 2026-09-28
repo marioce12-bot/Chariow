@@ -36,8 +36,38 @@ export async function fetchTikTokIdentities(advertiserId: string, accessToken: s
 }
 
 // TikTok cible par location_id numérique (pas par code ISO comme Meta "BJ").
-// À appeler une fois pour récupérer et mettre en cache les IDs des pays qui t'intéressent.
+// On utilise /search/region/ (source confirmée dans le SDK officiel
+// tiktok-business-api-sdk, yml_files/search_region.yml) qui renvoie, pour
+// l'advertiser, la liste des zones disponibles avec `region_id` (le location_id
+// numérique) et `country_code` (code ISO). C'est ce qui permet de convertir les
+// codes pays choisis dans le wizard ("BJ", …) en location_ids TikTok.
 export async function fetchTikTokRegions(advertiserId: string, accessToken: string) {
-  const data = await tiktokRequest<{ region_list: Array<Record<string, unknown>> }>("tool/region/", { accessToken, query: { advertiser_id: advertiserId, placements: JSON.stringify(["PLACEMENT_TIKTOK"]) } });
+  const data = await tiktokRequest<{ region_list?: Array<Record<string, unknown>> }>("search/region/", { accessToken, query: { advertiser_id: advertiserId } });
   return data.region_list ?? [];
+}
+
+// Convertit des codes pays ISO (ex: "BJ") en location_ids TikTok (numériques),
+// en privilégiant l'entrée "pays" (parent_id absent ou "0") quand plusieurs
+// niveaux existent pour un même pays. Renvoie uniquement les ids trouvés.
+export async function resolveTikTokLocationIds(advertiserId: string, accessToken: string, countryCodes: string[]): Promise<string[]> {
+  const regions = await fetchTikTokRegions(advertiserId, accessToken);
+  const targets = new Set(countryCodes.map((code) => code.toUpperCase()));
+  const byCountry = new Map<string, string>();
+  for (const region of regions) {
+    const row = region as Record<string, unknown>;
+    const code = String(row.country_code ?? "").toUpperCase();
+    const id = String(row.region_id ?? "");
+    if (!code || !id || !targets.has(code)) continue;
+    const isCountryLevel = row.parent_id == null || String(row.parent_id) === "0" || String(row.parent_id) === "";
+    if (!byCountry.has(code) || isCountryLevel) byCountry.set(code, id);
+  }
+  return countryCodes.map((code) => byCountry.get(code.toUpperCase())).filter((id): id is string => Boolean(id));
+}
+
+// Liste les pixels TikTok (Events) de l'advertiser — requis pour l'objectif
+// "ventes"/"leads" (optimization_goal CONVERT), qui ne peut pas être lancé sans
+// un pixel configuré sur le tunnel de vente. Réponse: { pixels: [{ pixel_id, ... }] }.
+export async function fetchTikTokPixels(advertiserId: string, accessToken: string) {
+  const data = await tiktokRequest<{ pixels?: Array<Record<string, unknown>> }>("pixel/list/", { accessToken, query: { advertiser_id: advertiserId } });
+  return data.pixels ?? [];
 }
