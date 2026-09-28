@@ -1984,7 +1984,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
             <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
             {metaConnected && metaResources ? (
               <section className="app-card" style={{ marginBottom: 18 }}>
-                <div className="card-head"><div><span className="eyebrow">Suivi des conversions</span><h2>Pixel Meta</h2><p>Copie l'identifiant du pixel et configure-le dans ton parcours de vente Chariow (Pixel ou Conversions API). Une fois installé, marque-le « configuré ».</p></div><a href="https://business.facebook.com/events_manager2/list" target="_blank" rel="noreferrer" className="btn btn-ghost">Créer un pixel</a></div>
+                <div className="card-head"><div><span className="eyebrow">Suivi des conversions</span><h2>Pixel Meta</h2><p>Copie l'identifiant du pixel et configure-le dans ton parcours de vente Chariow (Pixel ou Conversions API). Une fois installé, marque-le « configuré ».</p></div>{!metaResources.pixels.some((pixel) => pixel.configured_on_chariow) ? <a href="https://business.facebook.com/events_manager2/list" target="_blank" rel="noreferrer" className="btn btn-ghost">Créer un pixel</a> : null}</div>
                 {metaResources.pixels.length > 0 ? (
                   <div style={{ display: "grid", gap: 10 }}>
                     {metaResources.pixels.map((pixel) => (
