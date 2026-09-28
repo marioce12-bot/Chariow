@@ -4,6 +4,27 @@
    devenait presque illisible une fois le thème sombre activé. */
 html[data-theme="dark"] .problem-item { background: rgba(255, 255, 255, 0.04); border-color: var(--line); }
 
+/* Vidéo du hero — supprime le cadre blanc translucide (bordure de 8px + liseré
+   intérieur) hérité de l'ancien bloc "capture d'écran", et remplace le fond
+   clair par un fond sombre identique au hero pour qu'aucune bande claire ne
+   puisse apparaître autour de la vidéo. La vidéo remplit tout le conteneur. */
+.hero-preview .dashboard-preview {
+  background: #000c2e;
+  border: 0;
+  box-shadow: 0 28px 60px rgba(0, 12, 46, 0.34);
+  line-height: 0;
+}
+.hero-preview .dashboard-preview .platform-preview-image {
+  background: #000c2e;
+  border: 0;
+  display: block;
+  height: auto;
+  margin: 0;
+  object-fit: cover;
+  padding: 0;
+  width: 100%;
+}
+
 /* Bandeau "profils qui utilisent Vendeo" sous le compteur "150+ créateurs
    actifs" du hero — bande d'avatars qui défile horizontalement en boucle,
    même technique que .proof-carousel/.proof-track (liste dupliquée x2 puis

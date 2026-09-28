@@ -104,16 +104,15 @@ function revealStyle(i: number) {
   return { "--i": i } as React.CSSProperties;
 }
 
-const heroImage = "/vendeo-hero-app.jpeg";
-// Vidéo de démo qui remplace la capture statique dans le bloc "hero-preview".
-// Le fichier binaire lui-même doit être ajouté séparément dans /public
-// (l'API texte utilisée pour ce commit ne peut pas transporter de binaire) ;
-// heroImage sert de poster pendant le chargement et si la vidéo échoue.
+// Vidéo de démo du bloc "hero-preview". Pas d'attribut poster : l'ancienne
+// capture statique ne doit plus apparaître avant la vidéo, qui démarre seule
+// (autoPlay + muted + playsInline, avec un play() de secours au montage).
 const heroVideo = "/vendeo-hero-video.mp4";
 
 export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) {
   const { t } = useI18n();
   const [open, setOpen] = useState<number | null>(null);
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
   const heroReveal = useInView<HTMLDivElement>();
   const problemReveal = useInView<HTMLDivElement>();
   const howReveal = useInView<HTMLDivElement>();
@@ -123,6 +122,16 @@ export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) 
   const pricingReveal = useInView<HTMLDivElement>();
   const faqReveal = useInView<HTMLDivElement>();
   const ctaReveal = useInView<HTMLDivElement>();
+
+  // Certains navigateurs (iOS Safari, économiseur de données) ignorent
+  // autoPlay : on relance la lecture explicitement une fois monté.
+  useEffect(() => {
+    const video = heroVideoRef.current;
+    if (!video) return;
+    video.muted = true;
+    const playing = video.play();
+    if (playing) playing.catch(() => {});
+  }, []);
 
   const faqs: Array<[string, string]> = [
     [t("landing.faq.q1"), t("landing.faq.a1")],
@@ -158,7 +167,7 @@ export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) 
           </div>
 
           <div className="hero-preview reveal-item" style={revealStyle(3)}>
-            <div className="dashboard-preview"><video className="platform-preview-image" src={heroVideo} poster={heroImage} width={900} height={620} autoPlay muted loop playsInline preload="metadata" aria-label="Aperçu de l’espace Vendeo"/></div>
+            <div className="dashboard-preview"><video ref={heroVideoRef} className="platform-preview-image" src={heroVideo} width={900} height={620} autoPlay muted loop playsInline preload="auto" aria-label="Aperçu de l’espace Vendeo"/></div>
           </div>
           <div className="hero-logos reveal-item" style={revealStyle(4)}>
             <div className="logos hero-logos-inner">
