@@ -615,17 +615,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             >
               <Paperclip size={16} />
             </button>
-            {hasConversation && !plansRequired && (
-              <button
-                type="button"
-                className="chat-suggest-toggle"
-                aria-label="Suggestions de questions"
-                title="Suggestions de questions"
-                onClick={() => setQuickPromptsOpen((open) => !open)}
-              >
-                <Lightbulb size={16} />
-              </button>
-            )}
             <textarea
               disabled={plansRequired}
               value={input}
