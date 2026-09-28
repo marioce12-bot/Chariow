@@ -966,7 +966,6 @@ function Overview({
           </label>
           <div className="home-statuses">
             <span className={connected ? "status-positive" : "status-warning"}>{connected ? "Chariow connectée" : "Chariow non connectée"}</span>
-            <span className={metaConnected ? "status-positive" : "status-info"}>{metaConnected ? "Meta Ads connectée" : "Meta Ads non connectée"}</span>
           </div>
           <div className="home-period">
             <span>{t("overview.period")}</span>
@@ -1778,6 +1777,32 @@ function AdsSavingsSummary({ performances, currency }: { performances: MetaPerfo
   );
 }
 
+// Skeleton affiché pendant la vérification de la connexion TikTok.
+function TikTokSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Chargement de TikTok Ads">
+      <style>{`@keyframes vendeo-skeleton-pulse{0%,100%{opacity:.45}50%{opacity:.9}}.vendeo-skeleton{background:rgba(148,163,184,.16);border-radius:10px;animation:vendeo-skeleton-pulse 1.4s ease-in-out infinite}`}</style>
+      <div className="app-card" style={{ marginBottom: 18, display: "flex", alignItems: "center" }}>
+        <div className="vendeo-skeleton" style={{ height: 36, width: 190, borderRadius: 999 }} />
+      </div>
+      <div className="vendeo-kpi-grid" style={{ marginBottom: 18 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div className="vendeo-kpi" key={i}>
+            <div className="vendeo-skeleton" style={{ height: 12, width: "60%", marginBottom: 12 }} />
+            <div className="vendeo-skeleton" style={{ height: 26, width: "45%" }} />
+          </div>
+        ))}
+      </div>
+      <div className="app-card">
+        <div className="vendeo-skeleton" style={{ height: 14, width: "40%", marginBottom: 16 }} />
+        <div className="vendeo-skeleton" style={{ height: 12, width: "100%", marginBottom: 10 }} />
+        <div className="vendeo-skeleton" style={{ height: 12, width: "85%", marginBottom: 10 }} />
+        <div className="vendeo-skeleton" style={{ height: 12, width: "70%" }} />
+      </div>
+    </div>
+  );
+}
+
 // AdsView : uniquement de l'analyse en lecture seule des campagnes déjà diffusées sur Meta/TikTok.
 // Le lancement de pub depuis Vendeo (création de campagnes) a été retiré ; il reviendra une fois
 // toutes les permissions Meta obtenues. Ce que Vendeo affiche à la place, c'est un verdict explicite
@@ -1798,6 +1823,9 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   const [metaSyncing, setMetaSyncing] = useState(false);
 
   const [tiktokAccounts, setTiktokAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>>(cachedOnce?.tiktokAccounts ?? []);
+  // Tant que le statut TikTok n'est pas connu (pas de cache), on affiche des skeletons
+  // au lieu du bouton « Connecter TikTok » pour éviter le flash d'interface.
+  const [tiktokLoading, setTiktokLoading] = useState(!cachedOnce);
 
   // Charge performances, pages/pixels et statut de restriction pour UN compte donné.
   async function loadMetaAccountData(accountId: string) {
@@ -1819,6 +1847,20 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   }
 
   async function load() {
+    type TiktokAccount = { id: string; advertiser_id: string; name: string | null; currency: string; status: string | null };
+    // Requête TikTok lancée en parallèle de Meta (avant, elle attendait la fin des appels Meta).
+    const tiktokAllowedNow = isAdPlatformAllowed(plan, "tiktok");
+    const tiktokPromise: Promise<TiktokAccount[]> = tiktokAllowedNow
+      ? fetch("/api/integrations/tiktok/accounts")
+          .then((response) => (response.ok ? response.json() : { accounts: [] }))
+          .then((data) => (data.accounts ?? []) as TiktokAccount[])
+          .catch(() => [] as TiktokAccount[])
+      : Promise.resolve([] as TiktokAccount[]);
+    void tiktokPromise.then((accounts) => {
+      if (tiktokAllowedNow) setTiktokAccounts(accounts);
+      setTiktokLoading(false);
+    });
+
     const metaResponse = await fetch("/api/integrations/meta/accounts");
     const metaData = metaResponse.ok ? await metaResponse.json() : { accounts: [] };
     const nextMetaAccounts = (metaData.accounts ?? []) as Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null }>;
@@ -1846,13 +1888,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
       nextMetaAccountRestricted = loaded.restricted;
     }
 
-    let nextTiktokAccounts: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }> = [];
-    if (isAdPlatformAllowed(plan, "tiktok")) {
-      const tiktokResponse = await fetch("/api/integrations/tiktok/accounts");
-      const tiktokData = tiktokResponse.ok ? await tiktokResponse.json() : { accounts: [] };
-      nextTiktokAccounts = tiktokData.accounts ?? [];
-      setTiktokAccounts(nextTiktokAccounts);
-    }
+    const nextTiktokAccounts = await tiktokPromise;
     writeCache(ADS_CACHE_KEY, { metaAccounts: nextMetaAccounts, selectedMetaAccount: nextSelectedMetaAccount, metaPerformance: nextMetaPerformance, metaResources: nextMetaResources, metaAccountRestricted: nextMetaAccountRestricted, tiktokAccounts: nextTiktokAccounts });
   }
 
@@ -1912,7 +1948,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
           </>}
         </>
       ) : (
-        <>
+        tiktokLoading ? <TikTokSkeleton /> : <>
           <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.tiktokConnected")}</span> : <button className="btn btn-dark" onClick={connectTiktok}><Plus size={15} /> {t("ads.connectTiktok")}</button>}</div>
           {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noTiktok")}</strong><span>{t("ads.noTiktokText")}</span><button className="btn btn-dark" 
 onClick={connectTiktok}>{t("ads.connectTiktok")}</button></div> : <TikTokAdsPanel accounts={tiktokAccounts} />}        </>
