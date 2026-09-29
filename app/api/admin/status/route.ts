@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 
 export async function GET() {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { data, error } = await supabase.rpc("get_current_admin", { target_user_id: user.id });
   if (error) return NextResponse.json({ authenticated: true, admin: false, reason: "admin_schema_missing_or_unavailable" }, { status: 200 });
