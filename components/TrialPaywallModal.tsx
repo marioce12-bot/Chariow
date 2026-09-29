@@ -62,7 +62,8 @@ export function TrialPaywallModal({ subscription }: { subscription: PaywallSubsc
   }
 
   return (
-    <div className="account-delete-backdrop" role="presentation" style={{ zIndex: 2000 }}>
+    // z-index 4001 : le fond .account-delete-backdrop est à 4000 dans globals.css.
+    <div className="account-delete-backdrop" role="presentation" style={{ zIndex: 4001 }}>
       <section
         className="account-delete-modal"
         role="alertdialog"
