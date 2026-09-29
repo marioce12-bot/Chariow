@@ -126,7 +126,7 @@ export async function POST(request: Request) {
 
   const { data: quota, error: quotaError } = await supabase.rpc("consume_message_quota", { target_user_id: user.id });
   if (quotaError) return NextResponse.json({ error: quotaError.message }, { status: 500 });
-  if (!quota) return NextResponse.json({ error: "Ton essai gratuit est terminé. Active ton abonnement pour continuer.", code: "PLANS_REQUIRED" }, { status: 429 });
+  if (!quota) return NextResponse.json({ error: "Ton essai gratuit est terminé. Active ton abonnement pour continuer.", code: "PLANS_REQUIRED" }, { status: 402 });
   const { error: insertError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "user", content: message, attachments, conversation_id: conversationId });
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
   // Rapport de diagnostic publicitaire : le moteur déterministe a déjà calculé les
