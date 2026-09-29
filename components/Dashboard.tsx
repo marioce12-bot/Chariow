@@ -131,53 +131,6 @@ function subscriptionLimitFromStores(stores: StoreData[]) {
   return 3;
 }
 
-  // Pop-up bloquante affichée dès que l'essai gratuit de 15 jours (ou l'abonnement payant)
-// est expiré côté base (subscriptions.status = 'past_due'). "Plus tard" masque la pop-up
-// pour la session en cours seulement — elle réapparaîtra à la prochaine connexion tant
-// que l'abonnement n'est pas activé.
-function TrialPaywallModal({ subscription }: { subscription: SubscriptionData | null }) {
-  const [dismissed, setDismissed] = useState(false);
-  const [subscribing, setSubscribing] = useState(false);
-  const shouldShow = subscription?.status === "past_due" && !dismissed;
-  if (!shouldShow) return null;
-
-  async function subscribe() {
-    setSubscribing(true);
-    try {
-      const response = await fetch("/api/subscription/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "starter" }),
-      });
-      const data = await response.json();
-      if (response.ok && data.payment?.url) {
-        window.location.href = data.payment.url;
-      } else {
-        window.alert(data.error ?? "Impossible de lancer le paiement.");
-        setSubscribing(false);
-      }
-    } catch {
-      window.alert("Impossible de lancer le paiement.");
-      setSubscribing(false);
-    }
-  }
-
-  return (
-    <div className="account-delete-backdrop" role="presentation">
-      <section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="trial-paywall-title" onClick={(event) => event.stopPropagation()}>
-        <button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setDismissed(true)}>×</button>
-        <span className="eyebrow">Essai terminé</span>
-        <h2 id="trial-paywall-title">Ton essai gratuit de 15 jours est terminé</h2>
-        <p>Active l'abonnement Vendeo — 2 000 XOF/mois — pour continuer à utiliser l'analyse IA, les rapports et le suivi de tes pubs.</p>
-        <div className="account-delete-actions">
-          <button type="button" className="btn btn-ghost" onClick={() => setDismissed(true)}>Plus tard</button>
-          <button type="button" className="btn btn-dark" onClick={() => void subscribe()} disabled={subscribing}>{subscribing ? "Redirection…" : "Activer mon abonnement"}</button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 export function Dashboard() {
   const { t } = useI18n();
   const [active, setActive] = useState("Vue d'ensemble");
@@ -466,7 +419,6 @@ export function Dashboard() {
          ) : null}
       </div>
 
-      <TrialPaywallModal subscription={subscription} />
 
         {active !== "Vendeo AI" && active !== "Paramètres" ? (
          <nav className="mobile-nav" aria-label="Navigation mobile">
