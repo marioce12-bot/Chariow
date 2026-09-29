@@ -4,7 +4,7 @@ import { createPayment, type PaidPlan } from "@/lib/payments/saspay";
 import { isPlanId } from "@/lib/plans";
 
 export async function POST(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const body = await request.json().catch(() => ({}));
   // Forfait unique Vendeo : 2 000 XOF/mois et jusqu'à 3 boutiques.

@@ -4,12 +4,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const PLANS_REQUIRED_MESSAGE = "Ton essai gratuit est terminé. Active ton abonnement pour continuer.";
 
 /**
- * Même règle d'accès que la fonction Postgres consume_message_quota() :
- * essai actif et non expiré, OU abonnement payant actif (trial_active=false,
- * status="active"). Utilisé pour bloquer les actions payantes qui ne passent
- * pas par /api/chat (donc pas par consume_message_quota) — typiquement le
- * Studio (génération/édition d'image, vidéo) — une fois l'essai gratuit
- * terminé, sans consommer de quota de messages au passage.
+ * Règle d'accès unique, vérifiée en temps réel (sans dépendre du cron) :
+ *  - essai : trial_active=true ET trial_ends_at dans le futur ;
+ *  - abonné payant : status="active", trial_active=false ET current_period_end
+ *    non dépassé. current_period_end est une date (YYYY-MM-DD) : l'accès court
+ *    jusqu'à la fin du jour d'échéance, comme reset_subscription_period_if_needed()
+ *    (qui expire quand current_period_end < current_date).
+ *
+ * Appelé automatiquement par requireUser() (lib/auth.ts) pour toutes les routes
+ * /api protégées. Échec fermé : sans ligne d'abonnement, ou en cas d'erreur de
+ * lecture, l'accès est refusé.
  *
  * Retourne une NextResponse 402 (code "PLANS_REQUIRED") à renvoyer tel quel
  * si l'accès doit être bloqué, ou null si la route peut continuer.
@@ -18,7 +22,7 @@ export async function requireActiveSubscription(userId: string): Promise<NextRes
   const admin = createAdminClient();
   const { data: subscription } = await admin
     .from("subscriptions")
-    .select("status, trial_active, trial_ends_at")
+    .select("status, trial_active, trial_ends_at, current_period_end")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -26,7 +30,14 @@ export async function requireActiveSubscription(userId: string): Promise<NextRes
     Boolean(subscription?.trial_active) &&
     Boolean(subscription?.trial_ends_at) &&
     new Date(subscription!.trial_ends_at as string).getTime() > Date.now();
-  const subscriptionOk = subscription?.status === "active" && subscription?.trial_active === false;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const periodEnd = subscription?.current_period_end ? String(subscription.current_period_end).slice(0, 10) : null;
+  const subscriptionOk =
+    subscription?.status === "active" &&
+    subscription?.trial_active === false &&
+    periodEnd !== null &&
+    periodEnd >= today;
 
   if (trialOk || subscriptionOk) return null;
   return NextResponse.json({ error: PLANS_REQUIRED_MESSAGE, code: "PLANS_REQUIRED" }, { status: 402 });
