@@ -60,10 +60,12 @@ export function isAdPlatformAllowed(plan: PlanId, platform: AdPlatform) {
   return (PLAN_CONFIG[plan].adPlatforms as readonly string[]).includes(platform);
 }
 
-// Calcule la date de fin de période d'un abonnement à partir d'aujourd'hui
-// (fin du mois calendaire en cours).
-export function computePeriodEnd(_plan: PlanId, now: Date): string {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+// Calcule la date de fin de période d'un abonnement à partir d'aujourd'hui :
+// exactement `periodDays` jours (30) après la date de paiement, quel que soit
+// le jour du mois. La période ne doit jamais être alignée sur le mois calendaire.
+export function computePeriodEnd(plan: PlanId, now: Date): string {
+  const end = new Date(now.getTime() + PLAN_CONFIG[plan].periodDays * 24 * 60 * 60 * 1000);
+  return end.toISOString().slice(0, 10);
 }
 
 // Pour le lancement d'une campagne Meta : quelles plateformes Meta
