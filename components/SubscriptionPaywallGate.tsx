@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { TrialPaywallModal } from "@/components/TrialPaywallModal";
 
-// Garde monté sur /dashboard : lit l'état réel de l'abonnement côté serveur
+// Garde monté dans app/dashboard/layout.tsx : lit l'état réel de l'abonnement côté serveur
 // (GET /api/subscription) et affiche la pop-up NON fermable dès que le compte
 // est 'past_due' (essai de 15 jours ou abonnement de 30 jours expiré).
-// Il revérifie au retour sur l'onglet pour éviter un accès prolongé.
+// Il revérifie à chaque changement de page et au retour sur l'onglet
+// pour éviter un accès prolongé.
 export function SubscriptionPaywallGate() {
+  const pathname = usePathname();
   const [subscription, setSubscription] = useState<{ status: string } | null>(null);
 
   useEffect(() => {
@@ -33,7 +36,7 @@ export function SubscriptionPaywallGate() {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [pathname]);
 
   return <TrialPaywallModal subscription={subscription} />;
 }
