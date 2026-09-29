@@ -15,6 +15,7 @@ type GeminiResponse = {
 // https://aistudio.google.com/apikey, à mettre dans GEMINI_API_KEY.
 const DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_MODEL = "gemini-2.0-flash";
+const DEFAULT_TIMEOUT_MS = 25_000;
 
 // Gemini ne peut pas aller lire une URL externe lui-même : contrairement à Imole
 // (compatible OpenAI, qui accepte une part "image_url" pointant vers l'URL), il
@@ -93,10 +94,12 @@ async function toGeminiPayload(messages: ChatMessage[]) {
   };
 }
 
-export async function askGemini(messages: ChatMessage[]) {
+// `timeoutMs` permet à l'appelant d'ajuster l'attente au temps qu'il lui reste avant la
+// limite de sa propre fonction (voir maxDuration dans app/api/chat/route.ts).
+export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: number } = {}) {
   const { apiKey, baseUrl, model } = getConfig();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25_000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
   try {
     const payload = await toGeminiPayload(messages);
