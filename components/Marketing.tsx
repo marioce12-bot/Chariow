@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Check, Layers, Rocket, Wand2 } from "lucide-react";
+import { ArrowRight, Check, Layers, MessageSquare, Rocket, ShieldCheck, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
 import "@/app/proof-images.css";
@@ -138,6 +138,8 @@ export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) 
     [t("landing.faq.q2"), t("landing.faq.a2")],
     [t("landing.faq.q3"), t("landing.faq.a3")],
     [t("landing.faq.q4"), t("landing.faq.a4")],
+    [t("landing.faq.q7"), t("landing.faq.a7")],
+    [t("landing.faq.q8"), t("landing.faq.a8")],
     [t("landing.faq.q5"), t("landing.faq.a5")],
     [t("landing.faq.q6"), t("landing.faq.a6")],
   ];
@@ -222,11 +224,21 @@ export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) 
               <p>{t("landing.features.f1")}</p>
             </article>
             <article className="feature-card accent reveal-item" style={revealStyle(2)}>
+              <ShieldCheck size={22}/>
+              <h3>{t("landing.features.f4title")}</h3>
+              <p>{t("landing.features.f4")}</p>
+            </article>
+            <article className="feature-card light reveal-item" style={revealStyle(3)}>
+              <MessageSquare size={22}/>
+              <h3>{t("landing.features.f5title")}</h3>
+              <p>{t("landing.features.f5")}</p>
+            </article>
+            <article className="feature-card dark reveal-item" style={revealStyle(4)}>
               <Wand2 size={22}/>
               <h3>{t("landing.features.f2title")}</h3>
               <p>{t("landing.features.f2")}</p>
             </article>
-            <article className="feature-card light reveal-item" style={revealStyle(3)}>
+            <article className="feature-card accent reveal-item" style={revealStyle(5)}>
               <Rocket size={22}/>
               <h3>{t("landing.features.f3title")}</h3>
               <p>{t("landing.features.f3")}</p>
