@@ -8,6 +8,7 @@ import { calculateProfitabilityAggregate } from "@/lib/profitability-aggregates"
 import { buildDiagnosticReports } from "@/lib/meta/diagnostic-server";
 import { decryptSecret } from "@/lib/crypto";
 import { fetchMetaAccounts } from "@/lib/meta/api";
+import { VITRINE_PROMPT, processVitrineAnswer, wantsVitrine } from "@/lib/shop/chat";
 
 const VENDEO_SYSTEM_PROMPT = `Tu es l'analyste business de Vendeo pour les créateurs de produits digitaux francophones et anglophones.
 
@@ -285,8 +286,13 @@ export async function POST(request: Request) {
   // previousHistory est trié du plus récent au plus ancien : on prend les N derniers
   // messages AVANT le tour courant, puis on remet dans l'ordre chronologique.
   const recentPreviousHistory = (previousHistory ?? []).slice(0, MAX_HISTORY_MESSAGES).reverse();
-  const rawSystemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}${documentsContext}`;
-  const systemCap = documentAttachments.length ? MAX_SYSTEM_CONTENT_CHARS + MAX_DOCUMENT_CONTEXT_CHARS : MAX_SYSTEM_CONTENT_CHARS;
+  // Consignes « vitrine » : ajoutées seulement quand la conversation en parle, et le plafond est relevé d'autant
+  // pour qu'elles ne fassent pas tronquer le contexte boutique (qui vient après le prompt).
+  const includeVitrine = wantsVitrine([message, ...(previousHistory ?? []).filter((item) => item.role === "user").slice(0, 6).map((item) => String(item.content ?? ""))]);
+  const systemPrompt = includeVitrine ? `${VENDEO_SYSTEM_PROMPT}\n\n${VITRINE_PROMPT}` : VENDEO_SYSTEM_PROMPT;
+  const rawSystemContent = `${systemPrompt}\n\nContexte actuel :\n${safeContext}${documentsContext}`;
+  const baseSystemCap = includeVitrine ? MAX_SYSTEM_CONTENT_CHARS + VITRINE_PROMPT.length + 2 : MAX_SYSTEM_CONTENT_CHARS;
+  const systemCap = documentAttachments.length ? baseSystemCap + MAX_DOCUMENT_CONTEXT_CHARS : baseSystemCap;
   const systemContent = rawSystemContent.length > systemCap ? `${rawSystemContent.slice(0, systemCap)}[...system tronqué...]` : rawSystemContent;
 
   // L'historique de la conversation en cours est toujours transmis : c'est la mémoire
@@ -332,6 +338,22 @@ export async function POST(request: Request) {
     }
   }
   answer = cleanAiText(answer);
+  // [[CREE_VITRINE]] : le serveur valide le JSON, crée la vitrine et remplace la balise par le lien.
+  // Images jointes (la plus récente d'abord) : le logo est repris depuis là, jamais depuis une URL donnée par l'IA.
+  const vitrineImageUrls = [
+    ...attachments.filter((a) => a.type === "image").map((a) => a.url),
+    ...(previousHistory ?? []).flatMap((item) => {
+      const raw = (item as { attachments?: Array<{ url?: string; type?: string }> }).attachments;
+      return Array.isArray(raw) ? raw.filter((a) => a?.type === "image" && typeof a.url === "string").map((a) => a.url as string) : [];
+    }),
+  ];
+  answer = await processVitrineAnswer({
+    answer,
+    supabase,
+    userId: user.id,
+    imageUrls: vitrineImageUrls,
+    hasPriorAssistantTurn: (previousHistory ?? []).some((item) => item.role === "assistant"),
+  });
   const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer, conversation_id: conversationId }).select("id, role, content, attachments, created_at").single();
   if (assistantError) return NextResponse.json({ error: assistantError.message }, { status: 500 });
   await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
