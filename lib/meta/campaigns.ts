@@ -176,6 +176,8 @@ export async function createMetaAdSet(input: {
     // Advantage+ (élargissement automatique de l'audience par l'IA de Meta) est
     // activée. 0 = désactivée, pour garder exactement l'âge/pays choisis par
     // l'utilisateur plutôt que de laisser Meta les élargir automatiquement.
+    // (Ne concerne QUE l'audience : l'Advantage+ créative, lui, se règle sur la
+    // créative — voir ADVANTAGE_CREATIVE_FEATURES plus bas.)
     targeting_automation: { advantage_audience: 0 },
   };
   // Plan Éco : diffusion restreinte à Facebook uniquement (pas Instagram).
@@ -203,19 +205,102 @@ export async function createMetaAdSet(input: {
   return graphPost(`${input.accountId}/adsets`, input.accessToken, params);
 }
 
-export async function createMetaCreative(input: { accountId: string; accessToken: string; name: string; pageId: string; link: string; message: string; headline: string; imageUrl: string }) {
-  return graphPost(`${input.accountId}/adcreatives`, input.accessToken, {
+/**
+ * Advantage+ créative : améliorations automatiques du contenu publicitaire
+ * (recommandation « Améliorations du contenu publicitaire Advantage+ » du Score
+ * d'opportunité de Meta). Depuis l'API Marketing v22.0, l'ancien bundle
+ * standard_enhancements n'existe plus : chaque fonction s'active séparément via
+ * degrees_of_freedom_spec.creative_features_spec (enroll_status OPT_IN).
+ *
+ * Correspondance avec les libellés d'Ads Manager :
+ * - image_touchups      → « Retouches visuelles » (recadrage/expansion, sans IA générative)
+ * - text_optimizations  → « Améliorations du texte » (sans IA générative)
+ * - image_templates     → « Ajouter des superpositions » (générée par IA)
+ * Source : developers.facebook.com → Get Started with Advantage+ Creative.
+ */
+const ADVANTAGE_CREATIVE_FEATURES = ["image_touchups", "text_optimizations", "image_templates"] as const;
+
+function advantageCreativeSpec(): string {
+  const creativeFeaturesSpec: Record<string, { enroll_status: "OPT_IN" }> = {};
+  for (const feature of ADVANTAGE_CREATIVE_FEATURES) creativeFeaturesSpec[feature] = { enroll_status: "OPT_IN" };
+  return JSON.stringify({ creative_features_spec: creativeFeaturesSpec });
+}
+
+export async function createMetaCreative(input: {
+  accountId: string;
+  accessToken: string;
+  name: string;
+  pageId: string;
+  link: string;
+  message: string;
+  headline: string;
+  imageUrl: string;
+  /** Active les améliorations Advantage+ créative (voir ADVANTAGE_CREATIVE_FEATURES).
+   *  Désactivé par défaut : seuls les appelants qui le demandent explicitement en profitent. */
+  advantageCreative?: boolean;
+}) {
+  const params: Record<string, string> = {
     name: input.name.slice(0, 200),
     // Dans link_data, le champ pour une image par URL s'appelle "picture", pas
     // "image_url" — "image_url" n'existe que dans video_data/photo_data et Meta
     // le refuse ici (subcode 1443050 : "Utilisation d'un champ non pris en
     // charge dans object_story_spec").
     object_story_spec: JSON.stringify({ page_id: input.pageId, link_data: { link: input.link, message: input.message, name: input.headline, picture: input.imageUrl, call_to_action: { type: "LEARN_MORE", value: { link: input.link } } } }),
-  });
+  };
+  if (input.advantageCreative) {
+    try {
+      return await graphPost(`${input.accountId}/adcreatives`, input.accessToken, { ...params, degrees_of_freedom_spec: advantageCreativeSpec() });
+    } catch (error) {
+      // Filet de sécurité : si Meta refuse ce réglage (nom de champ, éligibilité…),
+      // on ne bloque pas le lancement — on recrée la créative sans Advantage+.
+      // Si le problème venait d'autre chose (image, page…), le second appel
+      // renverra la même erreur, qui remontera normalement à l'utilisateur.
+      const message = error instanceof Error ? error.message : "Erreur inconnue.";
+      console.error("createMetaCreative: Advantage+ créative refusé par Meta, nouvel essai sans", message);
+    }
+  }
+  return graphPost(`${input.accountId}/adcreatives`, input.accessToken, params);
 }
 
 export async function createMetaAd(input: { accountId: string; accessToken: string; name: string; adsetId: string; creativeId: string; status?: "ACTIVE" | "PAUSED" }) {
   return graphPost(`${input.accountId}/ads`, input.accessToken, { name: input.name.slice(0, 200), adset_id: input.adsetId, creative: JSON.stringify({ creative_id: input.creativeId }), status: input.status ?? "PAUSED" });
+}
+
+/**
+ * Demande à Meta l'aperçu de chaque fonction Advantage+ créative sur une annonce
+ * existante. La doc Meta demande de créer l'annonce en PAUSED, de passer par
+ * l'aperçu, puis de l'activer quand la créative utilise une fonction générée par
+ * IA (ici image_templates). Best-effort : une erreur d'aperçu ne bloque jamais.
+ */
+async function previewMetaAdFeatures(input: { adId: string; accessToken: string }) {
+  await Promise.all(
+    ADVANTAGE_CREATIVE_FEATURES.map(async (feature) => {
+      try {
+        const url = new URL(`${META_GRAPH_BASE_URL}/${input.adId}/previews`);
+        url.searchParams.set("ad_format", "MOBILE_FEED_STANDARD");
+        url.searchParams.set("creative_feature", feature);
+        url.searchParams.set("access_token", input.accessToken);
+        await fetch(url.toString(), { cache: "no-store" });
+      } catch {
+        // l'aperçu est indicatif : on ignore
+      }
+    })
+  );
+}
+
+/**
+ * Crée l'annonce en PAUSED, demande l'aperçu des fonctions Advantage+ créative,
+ * puis l'active — le parcours que la doc Meta impose quand des fonctions IA sont
+ * activées sur la créative. À utiliser avec une créative créée via
+ * createMetaCreative({ advantageCreative: true }). Même résultat final que
+ * createMetaAd({ status: "ACTIVE" }) : une annonce ACTIVE.
+ */
+export async function publishMetaAdWithAdvantage(input: { accountId: string; accessToken: string; name: string; adsetId: string; creativeId: string }) {
+  const ad = await createMetaAd({ ...input, status: "PAUSED" });
+  const adId = String(ad.id);
+  await previewMetaAdFeatures({ adId, accessToken: input.accessToken });
+  await setMetaObjectStatus({ id: adId, accessToken: input.accessToken, status: "ACTIVE" });
+  return ad;
 }
 
 /**

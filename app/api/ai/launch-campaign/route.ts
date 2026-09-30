@@ -3,13 +3,14 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { toUsd } from "@/lib/currency";
-import { createMetaCampaign, createMetaAdSet, createMetaCreative, createMetaAd, deleteMetaCampaign } from "@/lib/meta/campaigns";
+import { createMetaCampaign, createMetaAdSet, createMetaCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
 import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 
 // Lance une campagne Meta complète via l'API Marketing directe (même chemin que
 // /api/ad-campaigns/[id]/launch), à partir d'un brief validé par l'utilisateur
-// dans l'assistant IA. Flux : campagne → ad set → creative → ad, toutes créées
-// directement en ACTIVE — pas de passage par le serveur MCP publicités de Meta.
+// dans l'assistant IA. Flux : campagne → ad set → creative (avec Advantage+
+// créative) → ad (créée en PAUSED, aperçu, puis activée) — pas de passage par le
+// serveur MCP publicités de Meta.
 type LaunchBody = {
   name?: string;
   objective?: string; // OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_ENGAGEMENT | OUTCOME_LEADS | OUTCOME_AWARENESS
@@ -217,6 +218,8 @@ export async function POST(request: Request) {
     });
     const adSetId = String(adSet.id);
 
+    // Advantage+ créative activé : retouches visuelles, améliorations du texte et
+    // superpositions (recommandation du Score d'opportunité de Meta).
     const creative = await createMetaCreative({
       accountId,
       accessToken,
@@ -226,10 +229,13 @@ export async function POST(request: Request) {
       message: body.message,
       headline: body.headline || body.name,
       imageUrl: body.imageUrl,
+      advantageCreative: true,
     });
     const creativeId = String(creative.id);
 
-    const ad = await createMetaAd({ accountId, accessToken, name: `${body.name} — Pub`, adsetId: adSetId, creativeId, status: "ACTIVE" });
+    // Annonce créée en PAUSED, aperçu des fonctions Advantage+, puis activée
+    // (parcours exigé par Meta quand une fonction générée par IA est activée).
+    const ad = await publishMetaAdWithAdvantage({ accountId, accessToken, name: `${body.name} — Pub`, adsetId: adSetId, creativeId });
     const adId = String(ad.id);
 
     // Enregistre la campagne pour qu'elle apparaisse dans la page Pub.
