@@ -8,6 +8,7 @@ import { calculateProfitabilityAggregate } from "@/lib/profitability-aggregates"
 import { buildDiagnosticReports } from "@/lib/meta/diagnostic-server";
 import { decryptSecret } from "@/lib/crypto";
 import { fetchMetaAccounts } from "@/lib/meta/api";
+import { VITRINE_PROMPT, processVitrineAnswer, wantsVitrine } from "@/lib/shop/chat";
 
 const VENDEO_SYSTEM_PROMPT = `Tu es l'analyste business de Vendeo pour les créateurs de produits digitaux francophones et anglophones.
 
@@ -40,7 +41,6 @@ Création de campagne publicitaire (quand l'utilisateur demande de lancer ou cr�
 - Lien de la page de redirection (OBLIGATOIRE) : c'est l'URL vers laquelle la pub envoie les clics (la page de vente / page produit de l'utilisateur). Chaque utilisateur a la sienne : demande-la TOUJOURS explicitement (ex. « Quel est le lien de ta page de vente vers lequel la pub doit rediriger ? ») tant qu'il ne l'a pas donnée dans la conversation. Ne la devine jamais, ne la déduis pas des données de boutique, et n'utilise jamais un lien d'exemple, par défaut ou celui de Vendeo. Elle doit commencer par http:// ou https:// ; sinon demande-lui de la corriger.
 - La cible géographique (pays) doit TOUJOURS être renseignée en "countries" au format code pays ISO 3166-1 alpha-2 : Bénin → "BJ", Côte d'Ivoire → "CI", Sénégal → "SN", Togo → "TG", Burkina Faso → "BF", Mali → "ML", Cameroun → "CM", Gabon → "GA", Niger → "NE", Guinée → "GN", RD Congo → "CD". Si l'utilisateur a donné un ou plusieurs pays (même écrits en toutes lettres ou en abrégé), convertis-les en ces codes et mets-les dans "countries" ; ne laisse jamais "countries" à null quand un pays a été précisé.
 - Budget journalier : l'utilisateur peut l'annoncer dans sa propre devise (« 1000 XOF », « 15 000 FCFA », « 20 € », « 10 dollars »). Recopie le montant EXACTEMENT tel qu'il l'a donné, sans jamais le convertir toi-même, et renseigne sa devise en code ISO dans "currency" : FCFA ou CFA → "XOF", euro → "EUR", dollar → "USD". Vendeo convertit lui-même le budget en dollars US au taux du jour au moment du lancement, car les campagnes sont facturées en dollars. Les devises prises en charge sont XOF, EUR et USD : si l'utilisateur en utilise une autre, demande-lui de donner son budget dans l'une d'elles. S'il donne un montant sans préciser la devise, demande-lui laquelle avant de résumer. Dans le résumé, écris le budget avec sa devise d'origine et précise qu'il sera converti en dollars au taux du jour ; n'invente aucun montant converti.
-- Si l'utilisateur ne fournit pas de texte publicitaire, propose-lui toi-même un texte et des bénéfices à partir de sa fiche produit.
 - Une fois toutes les informations réunies (lien de redirection compris), résume la campagne complète en un seul message (produit, créative, lien de redirection, audience, âge, budget, durée, plateforme) et demande une validation explicite avant de lancer. Sans le lien de redirection, ne résume pas encore et ne propose pas de lancer : demande-le d'abord.
 - Ne lance jamais une campagne sans validation explicite de l'utilisateur (par exemple « oui, lance »).
 - Quand l'utilisateur valide explicitement le lancement, termine TON message par la balise exacte [[LANCE_CAMPAGNE]] suivie IMMÉDIATEMENT, sur la même ligne et sans aucun autre texte autour, d'un objet JSON compact et valide reprenant exactement les informations validées avec ces clés : {"name": string, "objective": "OUTCOME_SALES" | "OUTCOME_TRAFFIC" | "OUTCOME_ENGAGEMENT" | "OUTCOME_LEADS" | "OUTCOME_AWARENESS", "dailyBudget": number (le montant tel que l'utilisateur l'a donné, juste le nombre, sans conversion), "currency": string (code ISO de la devise du budget : "XOF", "EUR" ou "USD"), "countries": string[] (codes pays ISO à 2 lettres), "ageMin": number, "ageMax": number, "message": string (texte final de la créative), "headline": string, "linkUrl": string (le lien de redirection recopié EXACTEMENT tel que l'utilisateur l'a donné)}. Si une information n'a pas été donnée par l'utilisateur, mets sa valeur à null : n'invente jamais de chiffre, de texte ou de lien à sa place. N'écris rien après ce JSON.`;
@@ -285,8 +285,13 @@ export async function POST(request: Request) {
   // previousHistory est trié du plus récent au plus ancien : on prend les N derniers
   // messages AVANT le tour courant, puis on remet dans l'ordre chronologique.
   const recentPreviousHistory = (previousHistory ?? []).slice(0, MAX_HISTORY_MESSAGES).reverse();
-  const rawSystemContent = `${VENDEO_SYSTEM_PROMPT}\n\nContexte actuel :\n${safeContext}${documentsContext}`;
-  const systemCap = documentAttachments.length ? MAX_SYSTEM_CONTENT_CHARS + MAX_DOCUMENT_CONTEXT_CHARS : MAX_SYSTEM_CONTENT_CHARS;
+  // Consignes « vitrine » : ajoutées seulement quand la conversation en parle, et le plafond est relevé d'autant
+  // pour qu'elles ne fassent pas tronquer le contexte boutique (qui vient après le prompt).
+  const includeVitrine = wantsVitrine([message, ...(previousHistory ?? []).filter((item) => item.role === "user").slice(0, 6).map((item) => String(item.content ?? ""))]);
+  const systemPrompt = includeVitrine ? `${VENDEO_SYSTEM_PROMPT}\n\n${VITRINE_PROMPT}` : VENDEO_SYSTEM_PROMPT;
+  const rawSystemContent = `${systemPrompt}\n\nContexte actuel :\n${safeContext}${documentsContext}`;
+  const baseSystemCap = includeVitrine ? MAX_SYSTEM_CONTENT_CHARS + VITRINE_PROMPT.length + 2 : MAX_SYSTEM_CONTENT_CHARS;
+  const systemCap = documentAttachments.length ? baseSystemCap + MAX_DOCUMENT_CONTEXT_CHARS : baseSystemCap;
   const systemContent = rawSystemContent.length > systemCap ? `${rawSystemContent.slice(0, systemCap)}[...system tronqué...]` : rawSystemContent;
 
   // L'historique de la conversation en cours est toujours transmis : c'est la mémoire
@@ -332,6 +337,22 @@ export async function POST(request: Request) {
     }
   }
   answer = cleanAiText(answer);
+  // [[CREE_VITRINE]] : le serveur valide le JSON, crée la vitrine et remplace la balise par le lien.
+  // Images jointes (la plus récente d'abord) : le logo est repris depuis là, jamais depuis une URL donnée par l'IA.
+  const vitrineImageUrls = [
+    ...attachments.filter((a) => a.type === "image").map((a) => a.url),
+    ...(previousHistory ?? []).flatMap((item) => {
+      const raw = (item as { attachments?: Array<{ url?: string; type?: string }> }).attachments;
+      return Array.isArray(raw) ? raw.filter((a) => a?.type === "image" && typeof a.url === "string").map((a) => a.url as string) : [];
+    }),
+  ];
+  answer = await processVitrineAnswer({
+    answer,
+    supabase,
+    userId: user.id,
+    imageUrls: vitrineImageUrls,
+    hasPriorAssistantTurn: (previousHistory ?? []).some((item) => item.role === "assistant"),
+  });
   const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer, conversation_id: conversationId }).select("id, role, content, attachments, created_at").single();
   if (assistantError) return NextResponse.json({ error: assistantError.message }, { status: 500 });
   await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
