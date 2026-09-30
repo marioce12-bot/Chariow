@@ -21,7 +21,8 @@ export const SHOP_LIMITS = {
 } as const;
 
 export const DEFAULT_PRIMARY_COLOR = "#2563eb";
-export const DEFAULT_ALLOWED_BUY_HOSTS = ["mychariow.com"];
+// Les liens produits Chariow actuels finissent par .shop (ex. https://abc.mychariow.shop/prd_xxx) ; .com reste accepté pour les anciens liens.
+export const DEFAULT_ALLOWED_BUY_HOSTS = ["mychariow.shop", "mychariow.com"];
 
 export type ShopProductEntry = {
   productId: string;
@@ -53,7 +54,7 @@ export type ValidateOptions = {
 
 export type ValidateResult = { ok: true; config: ShopConfig } | { ok: false; errors: string[] };
 
-// Domaines de paiement autorisés : mychariow.com (+ sous-domaines) et, en option, CHARIOW_ALLOWED_HOSTS.
+// Domaines de paiement autorisés : mychariow.shop et mychariow.com (+ sous-domaines) et, en option, CHARIOW_ALLOWED_HOSTS.
 export function getAllowedBuyHosts(env: string | undefined = process.env.CHARIOW_ALLOWED_HOSTS): string[] {
   const extra = (env ?? "")
     .split(",")
