@@ -1,0 +1,12 @@
+/* Titres des pages de l'app (ex. page Abonnement).
+   Tailwind (preflight) remet h1/h2 à font-weight:inherit : sans ces règles, les
+   titres « Abonnement Vendeo actif » et « Vendeo — 2 000 XOF / mois » s'affichaient
+   en fin et sans hiérarchie. La grille d'infos (.sale-detail-grid) est stylisée
+   dans sale-modal.css et sert aussi à cette page. */
+.page-top h1 { font-weight:800; }
+.page-top .eyebrow, .app-card > .eyebrow { color:#4c21f6; font-weight:700; }
+html[data-theme="dark"] .page-top .eyebrow, html[data-theme="dark"] .app-card > .eyebrow { color:#8fa8ff; }
+.app-card > .eyebrow { display:block; }
+.app-card > .eyebrow + h2 { color:var(--ink); font-size:20px; font-weight:800; letter-spacing:-.03em; line-height:1.25; margin:6px 0 0; }
+.page-top .mobile-back-button { align-self:flex-start; order:-1; }
+@media (min-width:761px) { .page-top .mobile-back-button { display:none; } }
