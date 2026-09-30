@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/shop/rate-limit";
+import { presentStorefront } from "@/lib/shop/present";
 import { STOREFRONT_COLUMNS, saveStorefront, setStorefrontPublished, type StorefrontRow } from "@/lib/shop/service";
-import { presentStorefront } from "../route";
 
 type Context = { params: Promise<{ id: string }> };
 const UUID = /^[0-9a-f-]{36}$/i;
