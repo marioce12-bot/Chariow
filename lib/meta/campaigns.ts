@@ -114,6 +114,28 @@ export interface MetaGeoTargeting {
   cities?: { key: string; name?: string; radius?: number; distance_unit?: string }[];
 }
 
+/**
+ * Nom de l'annonceur exigé par Meta (Digital Services Act, subcode 3858081 :
+ * « Aucun annonceur indiqué »). Meta demande dsa_beneficiary (qui bénéficie de
+ * la pub) et dsa_payor (qui la paie) sur chaque ad set. On utilise le nom
+ * fourni par l'appelant, sinon le nom du compte publicitaire lu via l'API Graph
+ * (business_name en priorité, puis name). Retourne null si rien n'est trouvé :
+ * on n'envoie alors pas les champs, comme avant.
+ */
+async function resolveAdvertiserName(accountId: string, accessToken: string, explicit?: string): Promise<string | null> {
+  const given = explicit?.trim();
+  if (given) return given.slice(0, 200);
+  try {
+    const json = await graphGet(accountId, accessToken, "business_name,name");
+    const businessName = typeof json.business_name === "string" ? json.business_name.trim() : "";
+    const accountName = typeof json.name === "string" ? json.name.trim() : "";
+    const found = businessName || accountName;
+    return found ? found.slice(0, 200) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function createMetaAdSet(input: {
   accountId: string;
   accessToken: string;
@@ -129,6 +151,9 @@ export async function createMetaAdSet(input: {
   maxAge: number;
   publisherPlatforms?: string[];
   status?: "ACTIVE" | "PAUSED";
+  /** Nom de la personne ou de l'organisation promue (annonceur / payeur, exigé
+   *  par Meta au titre du DSA). Si absent, on lit le nom du compte publicitaire. */
+  advertiserName?: string;
 }) {
   const hasPreciseTargeting = !!(input.geoTargeting && ((input.geoTargeting.regions?.length ?? 0) > 0 || (input.geoTargeting.cities?.length ?? 0) > 0));
   const geoLocations: Record<string, unknown> = hasPreciseTargeting
@@ -156,7 +181,8 @@ export async function createMetaAdSet(input: {
   // Plan Éco : diffusion restreinte à Facebook uniquement (pas Instagram).
   // Sans ce champ, Meta diffuse automatiquement sur tous les emplacements disponibles.
   if (input.publisherPlatforms?.length) targeting.publisher_platforms = input.publisherPlatforms;
-  return graphPost(`${input.accountId}/adsets`, input.accessToken, {
+
+  const params: Record<string, string> = {
     name: input.name.slice(0, 200),
     campaign_id: input.campaignId,
     daily_budget: String(Math.round(input.dailyBudget * 100)),
@@ -165,7 +191,16 @@ export async function createMetaAdSet(input: {
     bid_strategy: "LOWEST_COST_WITHOUT_CAP",
     targeting: JSON.stringify(targeting),
     status: input.status ?? "PAUSED",
-  });
+  };
+  // Annonceur / payeur (DSA) : sans ces deux champs Meta refuse l'ad set avec
+  // « Aucun annonceur indiqué » (subcode 3858081), même si un compte publicitaire
+  // est bien sélectionné dans Vendeo — ce champ est distinct du compte pub.
+  const advertiserName = await resolveAdvertiserName(input.accountId, input.accessToken, input.advertiserName);
+  if (advertiserName) {
+    params.dsa_beneficiary = advertiserName;
+    params.dsa_payor = advertiserName;
+  }
+  return graphPost(`${input.accountId}/adsets`, input.accessToken, params);
 }
 
 export async function createMetaCreative(input: { accountId: string; accessToken: string; name: string; pageId: string; link: string; message: string; headline: string; imageUrl: string }) {
