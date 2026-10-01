@@ -1,0 +1,6 @@
+/* Les longs liens ne doivent jamais dépasser de la bulle ni élargir la page. */
+.chat-messages { min-width: 0; overflow-x: hidden; }
+.chat-bubble { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.chat-bubble .chat-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; word-break: break-all; }
+.chat-bubble.assistant .chat-link { color: #2563eb; }
+html[data-theme="dark"] .chat-bubble.assistant .chat-link { color: #8ab4ff; }
