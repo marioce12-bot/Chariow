@@ -66,6 +66,13 @@ describe("parseBuyUrl / isAllowedBuyUrl", () => {
     expect(isAllowedBuyUrl("https://AWA.MyChariow.com/produit")).toBe(true);
   });
 
+  it("accepte aussi mychariow.shop (liens de boutiques actuels) mais pas ses faux domaines", () => {
+    expect(isAllowedBuyUrl("https://mfhvijef.mychariow.shop/prd_se4zdyja")).toBe(true);
+    expect(isAllowedBuyUrl("https://mychariow.shop.evil.com/prd_x")).toBe(false);
+    expect(isAllowedBuyUrl("https://evilmychariow.shop/prd_x")).toBe(false);
+    expect(isAllowedBuyUrl("http://abc.mychariow.shop/prd_x")).toBe(false);
+  });
+
   it("refuse http, les faux domaines, les identifiants, les ports et les schémas dangereux", () => {
     for (const url of [
       "http://awa.mychariow.com/x",
@@ -88,10 +95,10 @@ describe("parseBuyUrl / isAllowedBuyUrl", () => {
     expect(isAllowedBuyUrl(123)).toBe(false);
   });
 
-  it("CHARIOW_ALLOWED_HOSTS ajoute des domaines sans retirer mychariow.com", () => {
-    expect(getAllowedBuyHosts(undefined)).toEqual(["mychariow.com"]);
+  it("CHARIOW_ALLOWED_HOSTS ajoute des domaines sans retirer mychariow.shop / mychariow.com", () => {
+    expect(getAllowedBuyHosts(undefined)).toEqual(["mychariow.shop", "mychariow.com"]);
     const hosts = getAllowedBuyHosts("boutique.example.org, ,com,BAD HOST");
-    expect(hosts).toEqual(["mychariow.com", "boutique.example.org"]);
+    expect(hosts).toEqual(["mychariow.shop", "mychariow.com", "boutique.example.org"]);
     expect(parseBuyUrl("https://pay.boutique.example.org/x", hosts)).not.toBeNull();
   });
 });
