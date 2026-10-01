@@ -3,6 +3,7 @@
 import { Activity, ArrowRight, Brain, Camera, Copy, FileText, Lightbulb, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
+import { LinkifiedText } from "@/components/LinkifiedText";
 import { normalizeCurrency, type SupportedCurrency } from "@/lib/currency";
 import { useI18n } from "@/lib/i18n/i18n";
 import "../app/vendeo-ai.css";
@@ -639,7 +640,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                 ) : null}
                 {content ? (
                   <div className={!expanded && isLong ? "chat-message-preview" : undefined}>
-                    {expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}…`}
+                    <LinkifiedText text={expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}…`} />
                   </div>
                 ) : null}
                 {hasLaunchAction ? (
