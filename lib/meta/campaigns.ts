@@ -235,6 +235,8 @@ export async function createMetaCreative(input: {
   message: string;
   headline: string;
   imageUrl: string;
+  /** Hash d'une image déjà envoyée à Meta (POST /adimages) : utilisé à la place de l'URL, que Meta n'arrive pas toujours à télécharger. */
+  imageHash?: string;
   /** Active les améliorations Advantage+ créative (voir ADVANTAGE_CREATIVE_FEATURES).
    *  Désactivé par défaut : seuls les appelants qui le demandent explicitement en profitent. */
   advantageCreative?: boolean;
@@ -245,7 +247,7 @@ export async function createMetaCreative(input: {
     // "image_url" — "image_url" n'existe que dans video_data/photo_data et Meta
     // le refuse ici (subcode 1443050 : "Utilisation d'un champ non pris en
     // charge dans object_story_spec").
-    object_story_spec: JSON.stringify({ page_id: input.pageId, link_data: { link: input.link, message: input.message, name: input.headline, picture: input.imageUrl, call_to_action: { type: "LEARN_MORE", value: { link: input.link } } } }),
+    object_story_spec: JSON.stringify({ page_id: input.pageId, link_data: { link: input.link, message: input.message, name: input.headline, ...(input.imageHash ? { image_hash: input.imageHash } : { picture: input.imageUrl }), call_to_action: { type: "LEARN_MORE", value: { link: input.link } } } }),
   };
   if (input.advantageCreative) {
     try {
