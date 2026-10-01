@@ -5,6 +5,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { toUsd } from "@/lib/currency";
 import { createMetaCampaign, createMetaAdSet, createMetaCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
 import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
+import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 
 // Lance une campagne Meta complète via l'API Marketing directe (même chemin que
 // /api/ad-campaigns/[id]/launch), à partir d'un brief validé par l'utilisateur
@@ -220,6 +221,9 @@ export async function POST(request: Request) {
 
     // Advantage+ créative activé : retouches visuelles, améliorations du texte et
     // superpositions (recommandation du Score d'opportunité de Meta).
+    // L'image est envoyée à Meta par Vendeo (image_hash) : une URL signée de notre stockage privé
+    // n'est pas toujours téléchargeable par Meta (« Image non téléchargée »). Repli sur l'URL si l'envoi échoue.
+    const { imageHash } = await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl: body.imageUrl });
     const creative = await createMetaCreative({
       accountId,
       accessToken,
@@ -229,6 +233,7 @@ export async function POST(request: Request) {
       message: body.message,
       headline: body.headline || body.name,
       imageUrl: body.imageUrl,
+      imageHash,
       advantageCreative: true,
     });
     const creativeId = String(creative.id);
