@@ -1353,3 +1353,24 @@ html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { color:#ddd6fe; b
 .admin-notification-history-item p { color:#687793; font-size:11px; margin:4px 0; white-space:pre-wrap; }
 .admin-notification-history-item small { color:#94a3b8; font-size:9px; }
 @media (max-width:600px) { .notification-panel { position:fixed; right:10px; top:68px; width:calc(100vw - 20px); } .admin-notification-form { grid-template-columns:1fr; } }
+
+/* Page complète Notifications */
+.notifications-page { max-width:980px; margin:0 auto; }
+.notifications-page-head { align-items:flex-start; display:flex; justify-content:space-between; gap:20px; }
+.notifications-page-head h1 { margin-bottom:8px; }
+.notifications-page-head p { color:var(--muted); margin:0; max-width:620px; }
+.notifications-card { margin-top:24px; }
+.notifications-card .card-head { align-items:center; }
+.notifications-card .card-head h2 { font-size:16px; margin:0; }
+.notifications-mark-all { align-items:center; background:transparent; border:0; color:#4c21f6; display:inline-flex; font-size:11px; font-weight:700; gap:6px; }
+.notifications-page-list { display:flex; flex-direction:column; }
+.notifications-page-item { background:transparent; border:0; border-bottom:1px solid var(--line); color:inherit; display:block; padding:18px 4px; text-align:left; text-decoration:none; width:100%; }
+.notifications-page-item:hover { background:rgba(76,33,246,.04); }
+.notifications-page-item.unread { background:rgba(76,33,246,.055); border-left:3px solid #4c21f6; padding-left:15px; }
+.notifications-page-item-head { align-items:flex-start; display:flex; gap:16px; justify-content:space-between; }
+.notifications-page-item-head strong { font-size:14px; }
+.notifications-page-item-head time { color:var(--muted); flex:none; font-size:10px; }
+.notifications-page-item p { color:var(--muted); font-size:13px; line-height:1.6; margin:7px 0 0; white-space:pre-wrap; }
+.notifications-empty { align-items:center; color:var(--muted); display:flex; flex-direction:column; gap:12px; padding:65px 20px; text-align:center; }
+.notifications-empty svg { color:#4c21f6; }
+@media (max-width:600px) { .notifications-page-head { display:block; } .notifications-page-head .mobile-back-button { margin-top:16px; } .notifications-page-item-head { display:block; } .notifications-page-item-head time { display:block; margin-top:6px; } }

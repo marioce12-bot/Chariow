@@ -14,6 +14,9 @@ type I18nContextValue = {
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 function getPath(dict: Record<string, unknown>, key: string): unknown {
+  // Certains dictionnaires historiques utilisent directement des clés comme
+  // "dashboard.overview" au lieu d'une structure imbriquée.
+  if (key in dict) return dict[key];
   return key.split(".").reduce<unknown>((acc, part) => {
     if (acc && typeof acc === "object" && part in (acc as Record<string, unknown>)) {
       return (acc as Record<string, unknown>)[part];

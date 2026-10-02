@@ -29,6 +29,7 @@ import { CREDIT_PRICE_XOF } from "@/lib/studio/credits";
 import { VIDEO_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/studio/creative-workflows";
 import { useI18n } from "@/lib/i18n/i18n";
 import { NotificationCenter } from "@/components/NotificationCenter";
+import { NotificationsView } from "@/components/NotificationsView";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 const DASHBOARD_CACHE_KEY = "vendeo_dashboard_cache_v1";
@@ -313,7 +314,7 @@ export function Dashboard() {
             <Image className="brand-logo" src="/vendeo-logo-light.svg" alt="Vendeo" width={150} height={40} />
           </Link>
           <div className="app-user">
-            <NotificationCenter />
+            <NotificationCenter onOpen={() => setActive("Notifications")} />
              <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Mes boutiques", "Abonnement", "Paramètres", "Comptes publicitaires"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
@@ -394,6 +395,8 @@ export function Dashboard() {
             <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Rapports" ? (
             <Reports stores={stores} analytics={analytics} selectedStoreId={selectedStoreId} />
+          ) : active === "Notifications" ? (
+            <NotificationsView onBack={() => setActive(previousSection)} />
           ) : active === "Pilotage auto" ? (
             <AutopilotView />
           ) : (
