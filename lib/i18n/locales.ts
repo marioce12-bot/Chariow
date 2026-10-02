@@ -19,6 +19,8 @@ export function detectLocale(): Locale {
   } catch {
     // Stockage indisponible : on s'appuie uniquement sur le navigateur.
   }
+  const cookie = document.cookie.split("; ").find((part) => part.startsWith(`${STORAGE_KEY}=`))?.split("=")[1];
+  if (isLocale(cookie)) return cookie;
   const nav = (navigator.language || "").toLowerCase();
   if (nav.startsWith("fr")) return "fr";
   if (nav.startsWith("en")) return "en";
@@ -31,5 +33,6 @@ export function persistLocale(locale: Locale) {
   } catch {
     // Stockage indisponible : le choix s'applique seulement à la session.
   }
+  if (typeof document !== "undefined") document.cookie = `${STORAGE_KEY}=${locale}; path=/; max-age=31536000; samesite=lax`;
   if (typeof document !== "undefined") document.documentElement.lang = locale;
 }
