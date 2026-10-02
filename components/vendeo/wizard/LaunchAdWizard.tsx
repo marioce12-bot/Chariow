@@ -9,8 +9,7 @@ import { Step1Product } from "./Step1Product";
 import { Step2NetworkCreative, type Step2FooterState } from "./Step2NetworkCreative";
 import { Step3Audience } from "./Step3Audience";
 import { Step4Estimation } from "./Step4Estimation";
-
-const STEP_LABELS = ["Produit", "Ensemble & publicité", "Audience", "Estimation", "Création"];
+import { useI18n } from "@/lib/i18n/i18n";
 
 interface LaunchAdWizardProps {
   storeId: string;
@@ -40,6 +39,9 @@ interface LaunchAdWizardProps {
  * propre pied de page interne (sticky bottom-0 dans leur zone de scroll).
  */
 export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdWizardProps) {
+  const { locale } = useI18n();
+  const en = locale === "en";
+  const stepLabels = en ? ["Product", "Ad set & creative", "Audience", "Estimate", "Creation"] : ["Produit", "Ensemble & publicité", "Audience", "Estimation", "Création"];
   const [step, setStep] = useState(1);
   const [state, setState] = useState<WizardState>({ ...DEFAULT_WIZARD_STATE, storeId });
   const [step2Footer, setStep2Footer] = useState<Step2FooterState | null>(null);
@@ -60,15 +62,15 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
       <div className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[85vh] sm:max-w-2xl sm:rounded-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-base font-bold text-gray-900">Lancer une pub</h2>
+          <h2 className="text-base font-bold text-gray-900">{en ? "Launch an ad" : "Lancer une pub"}</h2>
           <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">
-            Fermer
+            {en ? "Close" : "Fermer"}
           </button>
         </div>
 
         {/* Progress */}
         <div className="flex shrink-0 items-center gap-1 px-5 py-3">
-          {STEP_LABELS.map((label, i) => {
+          {stepLabels.map((label, i) => {
             const idx = i + 1;
             const done = idx < step;
             const active = idx === step;
@@ -93,7 +95,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
           })}
         </div>
         <p className="shrink-0 px-5 pb-2 text-xs font-medium text-gray-400">
-          Étape {step}/5 — {STEP_LABELS[step - 1]}
+          {en ? "Step" : "Étape"} {step}/5 — {stepLabels[step - 1]}
         </p>
 
         {/* Body */}
@@ -113,9 +115,9 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
           {step === 4 && <Step4Estimation state={state} patch={patch} onNext={next} onBack={back} />}
           {step === 5 && state.campaignId && (
             <div className="space-y-4">
-              <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm text-[#065F46]"><strong className="block">Campagne créée</strong><span>Ta campagne est enregistrée dans la page Pub. Tu peux vérifier ou modifier ses paramètres avant de la lancer.</span></div>
-              <p className="text-sm text-gray-500">Le paiement sera demandé uniquement lorsque tu cliqueras sur « Lancer la campagne » depuis la page Pub.</p>
-              <button type="button" onClick={() => { onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">Voir ma campagne dans Pub</button>
+              <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm text-[#065F46]"><strong className="block">{en ? "Campaign created" : "Campagne créée"}</strong><span>{en ? "Your campaign is saved in the Ads page. You can review or edit its settings before launching it." : "Ta campagne est enregistrée dans la page Pub. Tu peux vérifier ou modifier ses paramètres avant de la lancer."}</span></div>
+              <p className="text-sm text-gray-500">{en ? "Payment will only be requested when you click “Launch campaign” from the Ads page." : "Le paiement sera demandé uniquement lorsque tu cliqueras sur « Lancer la campagne » depuis la page Pub."}</p>
+              <button type="button" onClick={() => { onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">{en ? "View my campaign in Ads" : "Voir ma campagne dans Pub"}</button>
             </div>
           )}
         </div>

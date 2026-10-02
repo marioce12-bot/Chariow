@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
+import { useI18n } from "@/lib/i18n/i18n";
 
 type PaywallSubscription = { status: string } | null;
 
@@ -10,6 +11,8 @@ type PaywallSubscription = { status: string } | null;
 // Elle n'est PAS fermable : ni croix, ni "Plus tard", ni clic sur le fond, ni Échap.
 // Seules issues : s'abonner (paiement) ou se déconnecter.
 export function TrialPaywallModal({ subscription }: { subscription: PaywallSubscription }) {
+  const { locale } = useI18n();
+  const en = locale === "en";
   const [subscribing, setSubscribing] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const shouldShow = subscription?.status === "past_due";
@@ -71,18 +74,17 @@ export function TrialPaywallModal({ subscription }: { subscription: PaywallSubsc
         aria-labelledby="trial-paywall-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <span className="eyebrow">Abonnement requis</span>
-        <h2 id="trial-paywall-title">Ton accès est terminé</h2>
+        <span className="eyebrow">{en ? "Subscription required" : "Abonnement requis"}</span>
+        <h2 id="trial-paywall-title">{en ? "Your access has ended" : "Ton accès est terminé"}</h2>
         <p>
-          Ton essai gratuit de 15 jours ou ton abonnement de 30 jours est arrivé à son terme.
-          Abonne-toi (2 000 XOF/mois) pour continuer à utiliser Vendeo.
+          {en ? "Your 15-day free trial or 30-day subscription has ended. Subscribe (2,000 XOF/month) to continue using Vendeo." : "Ton essai gratuit de 15 jours ou ton abonnement de 30 jours est arrivé à son terme. Abonne-toi (2 000 XOF/mois) pour continuer à utiliser Vendeo."}
         </p>
         <div className="account-delete-actions">
           <button type="button" className="btn btn-ghost" onClick={() => void signOut()} disabled={subscribing || signingOut}>
-            {signingOut ? "Déconnexion…" : "Se déconnecter"}
+            {signingOut ? (en ? "Signing out…" : "Déconnexion…") : (en ? "Sign out" : "Se déconnecter")}
           </button>
           <button type="button" className="btn btn-dark" onClick={() => void subscribe()} disabled={subscribing || signingOut}>
-            {subscribing ? "Redirection…" : "S'abonner"}
+            {subscribing ? (en ? "Redirecting…" : "Redirection…") : (en ? "Subscribe" : "S'abonner")}
           </button>
         </div>
       </section>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useI18n } from "@/lib/i18n/i18n";
 
 const STATUS_COOKIE = "vendeo_chariow_status";
 
@@ -30,6 +31,8 @@ function readStatus(): Status | null {
 // Bandeau affiché quand /api/analytics ou /connect signale (via cookie) que Chariow est en
 // panne ou que la connexion a expiré. Avant, l'accueil restait simplement vide.
 export default function ChariowStatusNotice() {
+  const { locale } = useI18n();
+  const en = locale === "en";
   const [status, setStatus] = useState<Status | null>(null);
   const [dismissed, setDismissed] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,7 +71,7 @@ export default function ChariowStatusNotice() {
         return;
       }
       if (ping.status === 502 || ping.status === 503) {
-        setInfo("Chariow ne répond toujours pas. Réessaie dans quelques minutes.");
+        setInfo(en ? "Chariow is still unavailable. Try again in a few minutes." : "Chariow ne répond toujours pas. Réessaie dans quelques minutes.");
         return;
       }
       const storesResponse = await fetch("/api/stores", { cache: "no-store" });
@@ -80,14 +83,17 @@ export default function ChariowStatusNotice() {
         ? `/api/integrations/chariow/connect?store_id=${encodeURIComponent(target.id)}`
         : "/api/integrations/chariow/connect";
     } catch {
-      setInfo("Impossible de joindre le serveur. Vérifie ta connexion internet.");
+      setInfo(en ? "Unable to reach the server. Check your internet connection." : "Impossible de joindre le serveur. Vérifie ta connexion internet.");
     } finally {
       setBusy(false);
     }
   }
 
   if (!status || dismissed === status) return null;
-  const message = MESSAGES[status];
+  const message = en ? {
+    unavailable: { title: "Chariow is temporarily unavailable", text: "Your products and figures cannot be displayed while Chariow is unavailable. This is not a problem with your account.", action: "Try again" },
+    expired: { title: "Your Chariow connection has expired", text: "Reconnect your store to restore your products and figures.", action: "Reconnect" },
+  }[status] : MESSAGES[status];
 
   return (
     <div
@@ -119,14 +125,14 @@ export default function ChariowStatusNotice() {
           disabled={busy}
           style={{ background: "#7c2d12", color: "#fff", border: 0, borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1 }}
         >
-          {busy ? "Vérification…" : message.action}
+          {busy ? (en ? "Checking…" : "Vérification…") : message.action}
         </button>
         <button
           type="button"
           onClick={() => setDismissed(status)}
           style={{ background: "transparent", color: "#7c2d12", border: "1px solid #fdba74", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}
         >
-          Fermer
+          {en ? "Close" : "Fermer"}
         </button>
       </div>
     </div>
