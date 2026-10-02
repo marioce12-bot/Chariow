@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, BarChart3, Bot, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages } from "lucide-react";
-import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
+import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP, FaXTwitter } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { ChatView } from "@/components/ChatView";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -83,6 +83,7 @@ function ChannelBadge({ id }: { id: AdPlatform }) {
     );
   }
   if (id === "tiktok") return <span className="channel-badge tiktok" aria-label="TikTok"><FaTiktok size={16} /></span>;
+  if (id === "x") return <span className="channel-badge linkedin" aria-label="X"><FaXTwitter size={16} /></span>;
   if (id === "whatsapp") return <span className="channel-badge whatsapp" aria-label="WhatsApp"><FaWhatsapp size={17} /></span>;
   if (id === "pinterest") return <span className="channel-badge pinterest" aria-label="Pinterest"><FaPinterestP size={16} /></span>;
   if (id === "linkedin") return <span className="channel-badge linkedin" aria-label="LinkedIn"><FaLinkedinIn size={16} /></span>;
@@ -1350,9 +1351,10 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
   </>;
 }
 
-const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; label: string; description: string; badge: AdPlatform; live: boolean }> = [
+const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "x" | "pinterest"; label: string; description: string; badge: AdPlatform; live: boolean }> = [
   { id: "meta", label: "Meta (Facebook & Instagram)", description: "Diffuse tes campagnes sur Facebook et Instagram.", badge: "facebook", live: true },
   { id: "tiktok", label: "TikTok", description: "Diffuse tes campagnes sur TikTok Ads.", badge: "tiktok", live: true },
+  { id: "x", label: "X Ads", description: "Diffuse tes campagnes sur X Ads.", badge: "x", live: false },
   { id: "pinterest", label: "Pinterest", description: "Bientôt disponible.", badge: "pinterest", live: false },
 ];
 
@@ -1772,7 +1774,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   const { t } = useI18n();
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
-  const [channel, setChannel] = useState<"overview" | "meta" | "tiktok">("overview");
+  const [channel, setChannel] = useState<"overview" | "meta" | "tiktok" | "x">("overview");
   const [message, setMessage] = useState<string | null>(null);
 
   const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null }>>(cachedOnce?.metaAccounts ?? []);
@@ -1915,17 +1917,19 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   const metaConnected = metaAccounts.length > 0;
   const tiktokConnected = tiktokAccounts.length > 0;
 
-  const channels: Array<{ id: "overview" | "meta" | "tiktok"; label: string }> = [{ id: "overview", label: t("ads.overview") }, { id: "meta", label: t("ads.meta") }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: t("ads.tiktok") }] : [])];
+  const channels: Array<{ id: "overview" | "meta" | "tiktok" | "x"; label: string }> = [{ id: "overview", label: t("ads.overview") }, { id: "meta", label: t("ads.meta") }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: t("ads.tiktok") }] : []), { id: "x", label: "X Ads" }];
 
   return (
     <>
       <div className="page-top" style={{ gap: 12 }}><div><span className="eyebrow">{t("ads.eyebrow")}</span><h1>{t("ads.title")}</h1><p>{t("ads.subtitle")}</p></div><button type="button" className="btn btn-dark" style={{ flexShrink: 0 }} onClick={onLaunchAd}><Plus size={15} /> {t("ads.launch")}</button></div>
 
-      <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8, flexWrap: "wrap" }}>{channels.map((item) => <button key={item.id} type="button" aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={20} /> : item.id === "tiktok" ? <FaTiktok size={18} /> : item.label}</button>)}</div>
+      <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8, flexWrap: "wrap" }}>{channels.map((item) => <button key={item.id} type="button" aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={20} /> : item.id === "tiktok" ? <FaTiktok size={18} /> : item.id === "x" ? <FaXTwitter size={18} /> : item.label}</button>)}</div>
 
       {message && <p className="store-error" role="status">{message}</p>}
 
       {channel === "overview" ? <AdCampaignsList storeId={storeId} onNewCampaign={onLaunchAd} key={campaignsVersion} /> : null}
+
+      {channel === "x" ? <div className="empty-state"><FaXTwitter size={28} /><strong>X Ads bientôt disponible</strong><span>L’intégration X Ads est en préparation. Tu pourras bientôt connecter ton compte et gérer tes campagnes depuis Vendeo.</span><button type="button" className="btn btn-ghost" disabled>Bientôt disponible</button></div> : null}
 
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, metaPerformance?.currency ?? "XOF")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div></section> : channel === "meta" ? (
         <>
