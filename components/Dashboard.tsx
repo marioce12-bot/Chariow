@@ -1358,7 +1358,7 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
 const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "x" | "pinterest"; label: string; description: string; badge: AdPlatform; live: boolean }> = [
   { id: "meta", label: "Meta (Facebook & Instagram)", description: "Diffuse tes campagnes sur Facebook et Instagram.", badge: "facebook", live: true },
   { id: "tiktok", label: "TikTok", description: "Diffuse tes campagnes sur TikTok Ads.", badge: "tiktok", live: true },
-  { id: "x", label: "X Ads", description: "Diffuse tes campagnes sur X Ads.", badge: "x", live: false },
+  { id: "x", label: "X Ads", description: "Diffuse tes campagnes sur X Ads.", badge: "x", live: true },
   { id: "pinterest", label: "Pinterest", description: "Bientôt disponible.", badge: "pinterest", live: false },
 ];
 
@@ -1371,6 +1371,7 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [metaConnected, setMetaConnected] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
+  const [xConnected, setXConnected] = useState(false);
   const [connectionBusy, setConnectionBusy] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const channelsRef = useRef<HTMLElement>(null);
@@ -1383,15 +1384,18 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
     let active = true;
     async function loadConnections() {
       try {
-        const [metaResponse, tiktokResponse] = await Promise.all([
+        const [metaResponse, tiktokResponse, xResponse] = await Promise.all([
           fetch("/api/integrations/meta/accounts"),
           fetch("/api/integrations/tiktok/accounts"),
+          fetch("/api/integrations/x/accounts"),
         ]);
         const metaData = metaResponse.ok ? await metaResponse.json().catch(() => ({})) : {};
         const tiktokData = tiktokResponse.ok ? await tiktokResponse.json().catch(() => ({})) : {};
+        const xData = xResponse.ok ? await xResponse.json().catch(() => ({})) : {};
         if (!active) return;
         setMetaConnected((metaData.accounts ?? []).length > 0);
         setTiktokConnected((tiktokData.accounts ?? []).length > 0);
+        setXConnected((xData.accounts ?? []).length > 0);
       } finally {
         if (active) setLoadingAccounts(false);
       }
@@ -1402,11 +1406,11 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
     };
   }, []);
 
-  function connectAccount(platform: "meta" | "tiktok") {
+  function connectAccount(platform: "meta" | "tiktok" | "x") {
     window.location.href = `/api/integrations/${platform}/connect`;
   }
 
-  async function disconnectAccount(platform: "meta" | "tiktok") {
+  async function disconnectAccount(platform: "meta" | "tiktok" | "x") {
     setConnectionBusy(platform);
     setConnectionError(null);
     try {
@@ -1416,7 +1420,8 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
         return;
       }
       if (platform === "meta") setMetaConnected(false);
-      else setTiktokConnected(false);
+      else if (platform === "tiktok") setTiktokConnected(false);
+      else setXConnected(false);
     } catch {
       setConnectionError("Impossible de déconnecter ce compte pour le moment.");
     } finally {
@@ -1576,7 +1581,7 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
       {connectionError ? <p className="settings-inline-message settings-account-error" role="alert">{connectionError}</p> : null}
       {CONNECTED_ACCOUNT_PLATFORMS.map((platform) => {
         const allowed = isAdPlatformAllowed(plan, platform.badge);
-        const isConnected = platform.id === "meta" ? metaConnected : platform.id === "tiktok" ? tiktokConnected : false;
+        const isConnected = platform.id === "meta" ? metaConnected : platform.id === "tiktok" ? tiktokConnected : platform.id === "x" ? xConnected : false;
         const busy = connectionBusy === platform.id;
         return (
           <div className="settings-integration-card" key={platform.id}>
@@ -1602,11 +1607,11 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
                 {!platform.live ? t("settings.comingSoon") : t("settings.unavailable")}
               </button>
             ) : isConnected ? (
-              <button type="button" className="settings-disconnect" onClick={() => void disconnectAccount(platform.id as "meta" | "tiktok")} disabled={busy}>
+              <button type="button" className="settings-disconnect" onClick={() => void disconnectAccount(platform.id as "meta" | "tiktok" | "x")} disabled={busy}>
                 {busy ? t("settings.disconnecting") : t("settings.disconnect")}
               </button>
             ) : (
-              <button type="button" className="settings-connect" onClick={() => connectAccount(platform.id as "meta" | "tiktok")} disabled={busy}>
+              <button type="button" className="settings-connect" onClick={() => connectAccount(platform.id as "meta" | "tiktok" | "x")} disabled={busy}>
                 {t("settings.connect")}
               </button>
             )}
@@ -1791,6 +1796,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   const [configuringPixel, setConfiguringPixel] = useState<string | null>(null);
 
   const [tiktokAccounts, setTiktokAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>>(cachedOnce?.tiktokAccounts ?? []);
+  const [xAccounts, setXAccounts] = useState<Array<{ id: string; x_account_id: string; name: string | null; currency: string | null; timezone: string | null; approval_status: string | null }>>([]);
   // Tant que le statut TikTok n'est pas connu (pas de cache), on affiche des skeletons
   // au lieu du bouton « Connecter TikTok » pour éviter le flash d'interface.
   const [tiktokLoading, setTiktokLoading] = useState(!cachedOnce);
@@ -1869,10 +1875,19 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
     writeCache(ADS_CACHE_KEY, { metaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts });
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); void loadXAccounts(); }, []);
 
   const connectMeta = () => { window.location.href = "/api/integrations/meta/connect"; };
   const connectTiktok = () => { window.location.href = "/api/integrations/tiktok/connect"; };
+  const connectX = () => { window.location.href = "/api/integrations/x/connect"; };
+
+  async function loadXAccounts() {
+    const response = await fetch("/api/integrations/x/accounts", { cache: "no-store" });
+    if (response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setXAccounts(data.accounts ?? []);
+    }
+  }
 
   async function syncMeta() {
     if (!selectedMetaAccount) return;
@@ -1933,7 +1948,13 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
 
       {channel === "overview" ? <AdCampaignsList storeId={storeId} onNewCampaign={onLaunchAd} key={campaignsVersion} /> : null}
 
-      {channel === "x" ? <div className="empty-state"><FaXTwitter size={28} /><strong>X Ads bientôt disponible</strong><span>L’intégration X Ads est en préparation. Tu pourras bientôt connecter ton compte et gérer tes campagnes depuis Vendeo.</span><button type="button" className="btn btn-ghost" disabled>Bientôt disponible</button></div> : null}
+      {channel === "x" ? <section className="x-ads-panel">
+        <div className="app-card x-ads-status-card">
+          <div className="x-ads-brand"><FaXTwitter size={24} /><div><span className="eyebrow">X Ads</span><h2>Compte publicitaire X</h2><p>Connecte ton compte X Ads pour accéder à tes comptes publicitaires depuis Vendeo.</p></div></div>
+          {xAccounts.length ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Compte X Ads connecté</span> : <button type="button" className="btn btn-dark" onClick={connectX}><Plus size={15} /> Connecter X Ads</button>}
+        </div>
+        {xAccounts.length ? <div className="app-card x-ads-accounts"><div className="card-head"><div><span className="eyebrow">Comptes accessibles</span><h2>Comptes publicitaires X</h2></div></div>{xAccounts.map((account) => <div className="x-ads-account-row" key={account.id}><div><strong>{account.name || account.x_account_id}</strong><small>{account.x_account_id}{account.currency ? ` · ${account.currency}` : ""}{account.approval_status ? ` · ${account.approval_status}` : ""}</small></div><span className="status-positive">Connecté</span></div>)}</div> : <div className="empty-state"><FaXTwitter size={28} /><strong>Aucun compte X Ads connecté</strong><span>Autorise Vendeo dans X pour importer les comptes publicitaires auxquels tu as accès.</span><button type="button" className="btn btn-dark" onClick={connectX}>Connecter X Ads</button></div>}
+      </section> : null}
 
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, metaPerformance?.currency ?? "XOF")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div></section> : channel === "meta" ? (
         <>

@@ -1378,3 +1378,15 @@ html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { color:#ddd6fe; b
 .ads-channel-switcher { display:flex; flex-wrap:nowrap; gap:8px; margin-bottom:18px; overflow-x:auto; padding:8px; scrollbar-width:none; }
 .ads-channel-switcher::-webkit-scrollbar { display:none; }
 .ads-channel-switcher .btn { flex:0 0 auto; white-space:nowrap; }
+
+.x-ads-panel { display:grid; gap:18px; }
+.x-ads-status-card { align-items:center; display:flex; gap:18px; justify-content:space-between; }
+.x-ads-brand { align-items:flex-start; display:flex; gap:14px; }
+.x-ads-brand > svg { flex:none; margin-top:4px; }
+.x-ads-brand h2 { margin:4px 0 6px; }
+.x-ads-brand p { color:var(--muted); margin:0; }
+.x-ads-accounts { padding-bottom:8px; }
+.x-ads-account-row { align-items:center; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:16px; padding:14px 0; }
+.x-ads-account-row strong, .x-ads-account-row small { display:block; }
+.x-ads-account-row small { color:var(--muted); margin-top:4px; }
+@media (max-width:600px) { .x-ads-status-card { align-items:stretch; flex-direction:column; } .x-ads-status-card .btn { width:100%; } .x-ads-account-row { align-items:flex-start; flex-direction:column; } }
