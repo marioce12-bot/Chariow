@@ -145,3 +145,9 @@ html[data-theme="dark"] .ai-page .chat-attachment-spinner { background:rgba(7,17
 html[data-theme="dark"] .ai-page .chat-history-toggle:hover { background:rgba(255,255,255,.06); color:var(--ink); }
 html[data-theme="dark"] .ai-page .chat-history-drawer { background:#071129; }
 html[data-theme="dark"] .ai-page .chat-history-list button.active { background:rgba(16,62,248,.22); }
+
+/* Section Assistant : pas de barre de navigation du bas.
+   La barre (.mobile-nav, position:fixed) recouvrait la zone de saisie et empêchait
+   de rédiger. Elle est le frère suivant du conteneur .app-layout ; quand l'Assistant
+   est actif, ce conteneur porte .app-layout-flush, on masque donc la barre. */
+.app-layout-flush ~ .mobile-nav { display:none !important; }
