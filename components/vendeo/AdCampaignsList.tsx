@@ -59,6 +59,10 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
  */
 export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | null; onNewCampaign: () => void }) {
   const { locale, t } = useI18n();
+  const statusLabels: Record<string, string> = locale === "en" ? {
+    draft: "Draft", account_required: "Account required", submitting: "Creating…", paused: "Ready — awaiting payment",
+    paid: "Paid — awaiting activation", review: "Under review", active: "Active", rejected: "Rejected", error: "Error", completed: "Completed",
+  } : Object.fromEntries(Object.entries(STATUS_META).map(([key, value]) => [key, value.label]));
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
@@ -123,9 +127,9 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
     <>
     <section className="app-card ad-campaigns-list">
       <div className="card-head">
-        <div><h2>Campagnes</h2></div>
+        <div><h2>{t("campaigns.title")}</h2></div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" className="btn btn-ghost compact-action" onClick={() => void load()} aria-label="Rafraîchir">
+          <button type="button" className="btn btn-ghost compact-action" onClick={() => void load()} aria-label={t("campaigns.refresh")}>
             <RefreshCw size={16} />
           </button>
         </div>
@@ -133,10 +137,10 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
 
       {loading ? (
         <p className="hint-line" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Loader2 size={14} className="animate-spin" /> Chargement…
+          <Loader2 size={14} className="animate-spin" /> {t("campaigns.loading")}
         </p>
       ) : campaigns.length === 0 ? (
-        <p className="hint-line">Aucune campagne créée.</p>
+        <p className="hint-line">{t("campaigns.empty")}</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
           {campaigns.slice(0, showAll ? campaigns.length : 3).map((c) => {
@@ -193,18 +197,18 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {meta.label}
+                    {statusLabels[c.status] ?? meta.label}
                   </span>
                   {canResume ? (
                     <button type="button" className="btn btn-dark" onClick={(event) => { event.stopPropagation(); setResuming(c); }}>
-                      <PlayCircle size={14} /> {c.status === "paid" ? "Activer" : "Lancer"}
+                      <PlayCircle size={14} /> {c.status === "paid" ? t("campaigns.activate") : t("campaigns.launch")}
                     </button>
                    ) : null}
                 </div>
               </div>
             );
           })}
-          {campaigns.length > 3 ? <button type="button" className="btn btn-ghost" onClick={() => setShowAll((value) => !value)}>{showAll ? "Réduire" : `Voir plus (${campaigns.length - 3})`}</button> : null}
+          {campaigns.length > 3 ? <button type="button" className="btn btn-ghost" onClick={() => setShowAll((value) => !value)}>{showAll ? t("campaigns.reduce") : t("campaigns.more", { count: campaigns.length - 3 })}</button> : null}
         </div>
       )}
 
@@ -249,8 +253,8 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
       {selected ? (
         <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4" onClick={() => setSelected(null)}>
           <div className="app-card" style={{ maxWidth: 620, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onClick={(event) => event.stopPropagation()}>
-            <div className="card-head campaign-modal-head"><div><span className="eyebrow">Détail</span><h2>{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="compact-icon-button" onClick={() => setSelected(null)} aria-label="Fermer"><X size={16} /></button></div>
-            {selected.media_url ? <img src={selected.media_url} alt="Aperçu de la publicité" style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} /> : null}
+            <div className="card-head campaign-modal-head"><div><span className="eyebrow">{t("campaigns.detail")}</span><h2>{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="compact-icon-button" onClick={() => setSelected(null)} aria-label={t("campaigns.close")}><X size={16} /></button></div>
+            {selected.media_url ? <img src={selected.media_url} alt={t("campaigns.preview")} style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} /> : null}
             {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>Texte :</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>Réseau :</strong> {selected.platform === "meta" ? "Facebook / Instagram" : "TikTok"}</div><div><strong>Objectif :</strong> {selected.objective}</div><div><strong>Audience :</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} ans</div><div><strong>Budget :</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} $/jour · {selected.duration_days} jours</div>{selected.destination_url ? <div><strong>Lien :</strong> {selected.destination_url}</div> : null}</div>}
             {selected.external_error ? (
               <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}>

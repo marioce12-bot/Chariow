@@ -4,6 +4,7 @@ import { useState } from "react";
 import { formatXOF } from "../types";
 import { buildGeoTargeting } from "./types";
 import type { EstimateResult, WizardState } from "./types";
+import { useI18n } from "@/lib/i18n/i18n";
 
 interface StepProps {
   state: WizardState;
@@ -27,6 +28,8 @@ interface StepProps {
  * réutilise ni ne nettoie jamais cet id une fois campaignId remis à null).
  */
 export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
+  const { locale } = useI18n();
+  const en = locale === "en";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<EstimateResult | null>(null);
@@ -124,7 +127,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
     <div className="space-y-4">
       <div>
         <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-          Budget quotidien ($)
+          {en ? "Daily budget ($)" : "Budget quotidien ($)"}
         </label>
         <input
           type="number"
@@ -138,7 +141,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
 
       <div>
         <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-          Durée (jours)
+          {en ? "Duration (days)" : "Durée (jours)"}
         </label>
         <input
           type="number"
@@ -156,7 +159,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
           disabled={loading}
           className="w-full rounded-lg bg-[#EEF2FF] px-4 py-2.5 text-sm font-semibold text-[#3730A3] disabled:opacity-50"
         >
-          {loading ? "Calcul en cours…" : "Simuler la campagne"}
+          {loading ? (en ? "Calculating…" : "Calcul en cours…") : (en ? "Simulate campaign" : "Simuler la campagne")}
         </button>
       )}
 
@@ -166,13 +169,13 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
         <div className="space-y-3 rounded-2xl bg-[#EEF2FF] p-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-xs text-[#4338CA]">Portée estimée</p>
+              <p className="text-xs text-[#4338CA]">{en ? "Estimated reach" : "Portée estimée"}</p>
               <p className="text-lg font-bold text-[#3730A3]">
                 {estimate.reachMin.toLocaleString("fr-FR")}–{estimate.reachMax.toLocaleString("fr-FR")}
               </p>
             </div>
             <div>
-              <p className="text-xs text-[#4338CA]">Impressions estimées</p>
+              <p className="text-xs text-[#4338CA]">{en ? "Estimated impressions" : "Impressions estimées"}</p>
               <p className="text-lg font-bold text-[#3730A3]">
                 {estimate.impressionsMin.toLocaleString("fr-FR")}–
                 {estimate.impressionsMax.toLocaleString("fr-FR")}
@@ -185,27 +188,26 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
               les rendrait presque blanches sur ce fond clair, donc quasi invisibles. */}
           <div className="border-t border-[#C7D2FE] pt-3 text-sm">
             <div className="flex justify-between">
-              <span className="font-semibold text-[#111827]">Budget total de la campagne</span>
+              <span className="font-semibold text-[#111827]">{en ? "Total campaign budget" : "Budget total de la campagne"}</span>
               <span className="font-bold text-[#3730A3]">{formatXOF(estimate.totalBudget)}</span>
             </div>
           </div>
           <p className="text-[11px] text-[#4338CA]/70">
-            Estimation indicative — la portée réelle dépend de l'enchère Meta/TikTok au moment
-            de la diffusion.
+            {en ? "Indicative estimate — actual reach depends on the Meta/TikTok auction at delivery time." : "Estimation indicative — la portée réelle dépend de l'enchère Meta/TikTok au moment de la diffusion."}
           </p>
         </div>
       )}
 
       <div className="sticky bottom-0 -mx-5 mt-4 flex justify-between border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button onClick={onBack} className="text-sm font-medium text-gray-500">
-          Retour
+          {en ? "Back" : "Retour"}
         </button>
         <button
           disabled={!estimate || !state.campaignId}
           onClick={onNext}
           className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
-            Créer la campagne
+            {en ? "Create campaign" : "Créer la campagne"}
         </button>
       </div>
     </div>

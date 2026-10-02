@@ -2,6 +2,7 @@
 
 import { LocationSearchInput } from "./LocationSearchInput";
 import { deriveCountries, type WizardState } from "./types";
+import { useI18n } from "@/lib/i18n/i18n";
 
 interface StepProps {
   state: WizardState;
@@ -24,6 +25,8 @@ interface StepProps {
  * en place plutôt qu'un champ "interests" manuel.
  */
 export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
+  const { locale } = useI18n();
+  const en = locale === "en";
   const updateLocations = (locations: WizardState["locations"]) => {
     patch({ locations, countries: deriveCountries(locations) });
   };
@@ -31,7 +34,7 @@ export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
   return (
     <div className="space-y-5">
       <div>
-        <p className="mb-1.5 text-sm font-semibold text-gray-700">Pays ciblés</p>
+        <p className="mb-1.5 text-sm font-semibold text-gray-700">{en ? "Target countries" : "Pays ciblés"}</p>
         <LocationSearchInput
           value={state.locations}
           onChange={updateLocations}
@@ -42,7 +45,7 @@ export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
 
       <div>
         <p className="mb-1.5 text-sm font-semibold text-gray-700">
-          Tranche d'âge : {state.minAge} – {state.maxAge} ans
+          {en ? "Age range" : "Tranche d'âge"} : {state.minAge} – {state.maxAge} {en ? "years" : "ans"}
         </p>
         <div className="flex items-center gap-3">
           <input
@@ -66,13 +69,13 @@ export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
 
       <div className="sticky bottom-0 -mx-5 mt-4 flex justify-between border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button onClick={onBack} className="text-sm font-medium text-gray-500">
-          Retour
+          {en ? "Back" : "Retour"}
         </button>
         <button
           onClick={onNext}
           className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white"
         >
-          Continuer
+          {en ? "Continue" : "Continuer"}
         </button>
       </div>
     </div>

@@ -24,6 +24,7 @@ export type AdPlatform =
   | "facebook"
   | "instagram"
   | "tiktok"
+  | "x"
   | "whatsapp"
   | "pinterest"
   | "linkedin"

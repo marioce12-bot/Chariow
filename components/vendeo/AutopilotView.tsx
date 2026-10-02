@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Activity, AlertTriangle, Bot, PauseCircle, ShieldCheck, TrendingUp } from "lucide-react";
+import { useI18n } from "@/lib/i18n/i18n";
 
 type AutopilotReport = {
   id: string;
@@ -38,13 +39,6 @@ function formatMoney(value: number, currency: string): string {
   return `${Math.round(value).toLocaleString("fr-FR")} ${currency}`;
 }
 
-const DECISION_META: Record<AutopilotReport["decision"], { label: string; icon: React.ReactNode; tone: string }> = {
-  keep_running: { label: "Laisser tourner", icon: <TrendingUp size={14} />, tone: "#065F46" },
-  pause: { label: "Mise en pause", icon: <PauseCircle size={14} />, tone: "#B45309" },
-  learning: { label: "Apprentissage", icon: <Activity size={14} />, tone: "#3730A3" },
-  insufficient_data: { label: "Pas assez de données", icon: <Activity size={14} />, tone: "#6B7280" },
-};
-
 // Regroupe les rapports par campagne en ne gardant que le plus récent par campagne,
 // pour afficher l'état actuel de chaque campagne suivie.
 function latestPerCampaign(reports: AutopilotReport[]): AutopilotReport[] {
@@ -58,6 +52,7 @@ function latestPerCampaign(reports: AutopilotReport[]): AutopilotReport[] {
 }
 
 export function AutopilotView() {
+  const { t } = useI18n();
   const [reports, setReports] = useState<AutopilotReport[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,21 +81,27 @@ export function AutopilotView() {
   }, []);
 
   const latest = latestPerCampaign(reports);
+  const decisionMeta = (decision: AutopilotReport["decision"]) => ({
+    keep_running: { label: t("autopilot.keepRunning"), icon: <TrendingUp size={14} />, tone: "#065F46" },
+    pause: { label: t("autopilot.pause"), icon: <PauseCircle size={14} />, tone: "#B45309" },
+    learning: { label: t("autopilot.learning"), icon: <Activity size={14} />, tone: "#3730A3" },
+    insufficient_data: { label: t("autopilot.insufficient"), icon: <Activity size={14} />, tone: "#6B7280" },
+  }[decision]);
 
   return (
     <>
       <div className="page-top">
         <div>
-          <span className="eyebrow">Pilotage automatique</span>
-          <h1>Autopilote des campagnes</h1>
-          <p>Lance tes pubs sans rester près du téléphone : Vendeo surveille la rentabilité (dépense vs ventes réelles) et agit à ta place.</p>
+          <span className="eyebrow">{t("autopilot.eyebrow")}</span>
+          <h1>{t("autopilot.title")}</h1>
+          <p>{t("autopilot.description")}</p>
         </div>
       </div>
 
       {alerts.length > 0 ? (
         <section className="app-card" style={{ marginBottom: 18 }}>
           <div className="card-head">
-            <div><span className="eyebrow">Notifications</span><h2>Dernières décisions</h2></div>
+            <div><span className="eyebrow">{t("autopilot.notifications")}</span><h2>{t("autopilot.latestDecisions")}</h2></div>
             <AlertTriangle size={18} color="#d28b3d" />
           </div>
           <div style={{ display: "grid", gap: 10 }}>
@@ -121,23 +122,23 @@ export function AutopilotView() {
 
       <section className="app-card" style={{ marginBottom: 18 }}>
         <div className="card-head">
-          <div><span className="eyebrow">Rapports de rentabilité</span><h2>Dépense pub → ventes réelles → décision</h2><p>Le calcul central : ce que la campagne coûte, comparé à ce que la boutique encaisse réellement.</p></div>
+          <div><span className="eyebrow">{t("autopilot.reports")}</span><h2>{t("autopilot.tableTitle")}</h2><p>{t("autopilot.tableDescription")}</p></div>
           <Bot size={18} color="#103ef8" />
         </div>
         {loading ? (
-          <p className="hint-line">Analyse en cours…</p>
+          <p className="hint-line">{t("autopilot.loading")}</p>
         ) : latest.length === 0 ? (
           <div className="empty-state" style={{ textAlign: "left" }}>
-            <strong>Aucune campagne suivie</strong>
-            <span>Active le « Pilotage automatique » sur une campagne lancée (dans Mes campagnes) pour voir ses rapports ici.</span>
+            <strong>{t("autopilot.emptyTitle")}</strong>
+            <span>{t("autopilot.emptyDescription")}</span>
           </div>
         ) : (
           <div className="report-table">
             <div className="report-table-head">
-              <span>Campagne</span><span>Dépense</span><span>Ventes réelles</span><span>ROAS</span><span>Décision</span>
+              <span>{t("autopilot.campaign")}</span><span>{t("autopilot.spend")}</span><span>{t("autopilot.sales")}</span><span>ROAS</span><span>{t("autopilot.decision")}</span>
             </div>
             {latest.map((report) => {
-              const decision = DECISION_META[report.decision];
+              const decision = decisionMeta(report.decision);
               return (
                 <div key={report.id} style={{ display: "grid", gap: 10 }}>
                   <div className="report-table-row">
@@ -160,7 +161,7 @@ export function AutopilotView() {
       </section>
 
       <p className="hint-line">
-        Le pilotage s'exécute automatiquement plusieurs fois par jour sur les campagnes dont tu as activé l'option. La pause (avec motif) est réversible : tu peux relancer la campagne depuis « Mes campagnes » à tout moment.
+        {t("autopilot.footer")}
       </p>
     </>
   );

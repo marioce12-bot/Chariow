@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import type { ChariowProductLite, WizardState } from "./types";
+import { useI18n } from "@/lib/i18n/i18n";
 
 interface StepProps {
   state: WizardState;
@@ -15,6 +16,8 @@ interface StepProps {
  * via GET /api/analytics?store_id=... (route déjà existante).
  */
 export function Step1Product({ state, patch, onNext }: StepProps) {
+  const { locale } = useI18n();
+  const en = locale === "en";
   const [products, setProducts] = useState<ChariowProductLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,8 +53,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        Choisis le produit Chariow à promouvoir. Visuel, prix et descriptif sont récupérés
-        automatiquement.
+        {en ? "Choose the Chariow product to promote. Its image, price and description are retrieved automatically." : "Choisis le produit Chariow à promouvoir. Visuel, prix et descriptif sont récupérés automatiquement."}
       </p>
 
       <div className="relative">
@@ -59,12 +61,12 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Rechercher un produit…"
+          placeholder={en ? "Search for a product…" : "Rechercher un produit…"}
           className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm"
         />
       </div>
 
-      {loading && <p className="text-sm text-gray-400">Chargement des produits…</p>}
+      {loading && <p className="text-sm text-gray-400">{en ? "Loading products…" : "Chargement des produits…"}</p>}
       {error && <p className="text-sm text-[#991B1B]">{error}</p>}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -84,7 +86,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
                   <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs text-gray-300">
-                    Pas d'image
+                    {en ? "No image" : "Pas d'image"}
                   </div>
                 )}
               </div>
@@ -100,7 +102,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
       </div>
 
       {!loading && filtered.length === 0 && !error && (
-        <p className="text-sm text-gray-400">Aucun produit trouvé sur cette boutique.</p>
+        <p className="text-sm text-gray-400">{en ? "No products found in this store." : "Aucun produit trouvé sur cette boutique."}</p>
       )}
 
       <div className="sticky bottom-0 -mx-5 mt-4 flex justify-end border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -109,7 +111,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
           onClick={onNext}
           className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
-          Continuer
+          {en ? "Continue" : "Continuer"}
         </button>
       </div>
     </div>

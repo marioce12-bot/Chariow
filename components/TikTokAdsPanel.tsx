@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Activity, BarChart3 } from "lucide-react";
+import { useI18n } from "@/lib/i18n/i18n";
 
 type TikTokAccount = { id: string; advertiser_id: string; name: string | null; currency: string; status: string | null };
 
@@ -38,6 +39,8 @@ function verdict(campaign: TikTokPerformance["performances"][number]) {
 }
 
 export function TikTokAdsPanel({ accounts }: { accounts: TikTokAccount[] }) {
+  const { locale } = useI18n();
+  const en = locale === "en";
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [days, setDays] = useState<number>(30);
   const [data, setData] = useState<TikTokPerformance | null>(null);
@@ -78,39 +81,39 @@ export function TikTokAdsPanel({ accounts }: { accounts: TikTokAccount[] }) {
     <>
       <div className="app-card meta-toolbar">
         {accounts.length > 1 ? (
-          <label>Compte publicitaire<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.advertiser_id}</option>)}</select></label>
+          <label>{en ? "Ad account" : "Compte publicitaire"}<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.advertiser_id}</option>)}</select></label>
         ) : null}
-        <label>Période<select value={days} onChange={(event) => setDays(Number(event.target.value))}>{PERIODS.map((period) => <option key={period.days} value={period.days}>{period.label}</option>)}</select></label>
-        <button type="button" className="btn btn-ghost" onClick={() => void load()} disabled={loading}>{loading ? "Actualisation…" : "Actualiser"}</button>
+        <label>{en ? "Period" : "Période"}<select value={days} onChange={(event) => setDays(Number(event.target.value))}>{PERIODS.map((period) => <option key={period.days} value={period.days}>{en ? `${period.days} days` : period.label}</option>)}</select></label>
+        <button type="button" className="btn btn-ghost" onClick={() => void load()} disabled={loading}>{loading ? (en ? "Refreshing…" : "Actualisation…") : (en ? "Refresh" : "Actualiser")}</button>
       </div>
 
       {error ? <p className="store-error" role="alert">{error}</p> : null}
 
-      {loading && !data ? <div className="empty-state">Chargement des stats TikTok Ads…</div> : null}
+      {loading && !data ? <div className="empty-state">{en ? "Loading TikTok Ads stats…" : "Chargement des stats TikTok Ads…"}</div> : null}
 
       {data ? (
         <>
           <div className="vendeo-kpi-grid meta-kpis">
-            <div className="vendeo-kpi"><span className="metric-label">Dépenses</span><strong>{money(data.overview.spend, currency)}</strong></div>
-            <div className="vendeo-kpi"><span className="metric-label">Clics</span><strong>{data.overview.clicks.toLocaleString("fr-FR")}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">{en ? "Spend" : "Dépenses"}</span><strong>{money(data.overview.spend, currency)}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">{en ? "Clicks" : "Clics"}</span><strong>{data.overview.clicks.toLocaleString("fr-FR")}</strong></div>
             <div className="vendeo-kpi"><span className="metric-label">Conversions</span><strong>{data.overview.conversions.toLocaleString("fr-FR")}</strong></div>
-            <div className="vendeo-kpi"><span className="metric-label">Coût par conversion</span><strong>{data.overview.cpa === null ? "Non disponible" : money(data.overview.cpa, currency)}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">{en ? "Cost per conversion" : "Coût par conversion"}</span><strong>{data.overview.cpa === null ? (en ? "Unavailable" : "Non disponible") : money(data.overview.cpa, currency)}</strong></div>
             <div className="vendeo-kpi"><span className="metric-label">Impressions</span><strong>{data.overview.impressions.toLocaleString("fr-FR")}</strong></div>
-            <div className="vendeo-kpi"><span className="metric-label">Taux de clic</span><strong>{data.overview.ctr === null ? "Non disponible" : `${data.overview.ctr.toFixed(2)} %`}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">{en ? "Click-through rate" : "Taux de clic"}</span><strong>{data.overview.ctr === null ? (en ? "Unavailable" : "Non disponible") : `${data.overview.ctr.toFixed(2)} %`}</strong></div>
           </div>
 
           <section className="app-card meta-campaigns">
-            <div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes TikTok</h2></div><Activity size={18} color="#103ef8" /></div>
+            <div className="card-head"><div><span className="eyebrow">{en ? "Media analysis" : "Analyse média"}</span><h2>{en ? "TikTok campaigns" : "Campagnes TikTok"}</h2></div><Activity size={18} color="#103ef8" /></div>
             {data.performances.length ? (
               <div className="meta-table">
-                <div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Clics</span><span>Verdict Vendeo</span></div>
+                <div className="meta-table-head"><span>{en ? "Campaign" : "Campagne"}</span><span>{en ? "Spend" : "Dépenses"}</span><span>{en ? "Cost per conversion" : "Coût par conversion"}</span><span>{en ? "Clicks" : "Clics"}</span><span>{en ? "Vendeo verdict" : "Verdict Vendeo"}</span></div>
                 {data.performances.map((campaign) => {
                   const v = verdict(campaign);
                   return (
                     <div className="meta-table-row" key={campaign.id}>
                       <strong>{campaign.name}</strong>
                       <span>{money(campaign.spend, currency)}</span>
-                      <span>{campaign.cpa === null ? "Non disponible" : money(campaign.cpa, currency)}</span>
+                      <span>{campaign.cpa === null ? (en ? "Unavailable" : "Non disponible") : money(campaign.cpa, currency)}</span>
                       <span>{campaign.clicks.toLocaleString("fr-FR")}</span>
                       <span className={v.className}>{v.text}</span>
                     </div>
@@ -118,9 +121,9 @@ export function TikTokAdsPanel({ accounts }: { accounts: TikTokAccount[] }) {
                 })}
               </div>
             ) : (
-              <div className="empty-state"><BarChart3 size={24} /><strong>Aucune campagne sur la période</strong><span>Aucune dépense TikTok Ads enregistrée sur les {days} derniers jours.</span></div>
+              <div className="empty-state"><BarChart3 size={24} /><strong>{en ? "No campaigns for this period" : "Aucune campagne sur la période"}</strong><span>{en ? `No TikTok Ads spend recorded in the last ${days} days.` : `Aucune dépense TikTok Ads enregistrée sur les ${days} derniers jours.`}</span></div>
             )}
-            <p className="hint-line">Le retour publicitaire (ROAS) TikTok n'est pas encore calculé : les verdicts se basent sur les dépenses et les conversions.</p>
+            <p className="hint-line">{en ? "TikTok ROAS is not calculated yet: verdicts are based on spend and conversions." : "Le retour publicitaire (ROAS) TikTok n'est pas encore calculé : les verdicts se basent sur les dépenses et les conversions."}</p>
           </section>
         </>
       ) : null}
