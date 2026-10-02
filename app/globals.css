@@ -1390,3 +1390,8 @@ html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { color:#ddd6fe; b
 .x-ads-account-row strong, .x-ads-account-row small { display:block; }
 .x-ads-account-row small { color:var(--muted); margin-top:4px; }
 @media (max-width:600px) { .x-ads-status-card { align-items:stretch; flex-direction:column; } .x-ads-status-card .btn { width:100%; } .x-ads-account-row { align-items:flex-start; flex-direction:column; } }
+
+.x-ads-requirement { background:rgba(76,33,246,.08); border-left:3px solid #4c21f6; border-radius:6px; color:var(--text); font-size:12px; margin-top:12px !important; padding:10px 12px; }
+.x-ads-create-link { align-items:center; display:inline-flex; gap:7px; margin-top:10px; }
+.empty-state .btn + .btn { margin-left:8px; }
+@media (max-width:600px) { .empty-state .btn + .btn { margin-left:0; margin-top:8px; } }
