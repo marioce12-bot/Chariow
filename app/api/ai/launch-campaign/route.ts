@@ -6,6 +6,7 @@ import { toUsd } from "@/lib/currency";
 import { createMetaCampaign, createMetaAdSet, createMetaCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
 import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
+import { TIKTOK_FROM_CHAT_MESSAGE } from "@/lib/launch-platform";
 
 // Lance une campagne Meta complète via l'API Marketing directe (même chemin que
 // /api/ad-campaigns/[id]/launch), à partir d'un brief validé par l'utilisateur
@@ -27,6 +28,7 @@ type LaunchBody = {
   pageId?: string;
   metaAdAccountId?: string; // id de la ligne meta_ad_accounts (compte choisi dans l'appli)
   adAccountId?: string;
+  platform?: string; // "meta" | "tiktok" — ce flux ne lance que sur Meta (voir garde plus bas)
 };
 
 // Le budget est toujours traité en dollars US (devise des comptes pub) : quel que
@@ -74,6 +76,11 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as LaunchBody | null;
   if (!body?.name || !body.message) {
     return NextResponse.json({ error: "Nom de campagne et texte de créative requis." }, { status: 400 });
+  }
+  // Ce flux crée UNIQUEMENT une campagne Meta. Si la demande vise TikTok, on refuse avant de créer quoi que ce
+  // soit : lancer sur Meta à la place, puis dire à l'utilisateur que c'est parti sur TikTok, est pire qu'une erreur.
+  if (typeof body.platform === "string" && /tik\s?-?tok/i.test(body.platform)) {
+    return NextResponse.json({ error: TIKTOK_FROM_CHAT_MESSAGE, code: "PLATFORM_NOT_SUPPORTED" }, { status: 400 });
   }
   if (!body.imageUrl) {
     return NextResponse.json({ error: "Ajoute une image ou une vidéo avant de lancer la campagne." }, { status: 400 });
