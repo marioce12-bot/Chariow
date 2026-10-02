@@ -70,3 +70,9 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ synced: results });
 }
+
+// Vercel Cron appelle les routes en GET (jamais en POST) : sans ce handler, la
+// route répondait 405 à chaque passage et chariow_sales restait vide.
+export async function GET(request: Request) {
+  return POST(request);
+}
