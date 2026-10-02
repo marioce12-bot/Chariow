@@ -173,7 +173,7 @@ export const translations: Record<Locale, Dict> = {
         reason: "Motif du refus :", rejectedHelp: "Vérifie le texte, le visuel et le lien en fonction de ce motif, puis modifie la campagne avant de la relancer.", otherHelp: "Modifie les paramètres puis relance la campagne. Aucun nouveau paiement ne sera demandé.",
       },
       correction: {
-        eyebrow: "Correction avant relance", title: "Modifier la campagne", close: "Fermer", reason: "À corriger",
+        eyebrow: "Correction avant relance", title: "Modifier la campagne", edit: "Modifier", deleteCampaign: "Supprimer", close: "Fermer", reason: "À corriger",
         name: "Nom de la campagne", adText: "Texte de la publicité", destination: "Lien de destination", countries: "Pays ciblés",
         countriesHint: "Retire les pays refusés et conserve les destinations disponibles dans ton compte TikTok Ads.", cancel: "Annuler",
         save: "Enregistrer et revenir au lancement", saving: "Enregistrement…", saveError: "Nous n’avons pas pu enregistrer tes modifications. Vérifie ta connexion puis réessaie.",
@@ -372,7 +372,7 @@ export const translations: Record<Locale, Dict> = {
         reason: "Rejection reason:", rejectedHelp: "Use this reason to review the text, visual and link, edit the campaign, then relaunch it.", otherHelp: "Update the campaign settings and try again. You will not be charged again.",
       },
       correction: {
-        eyebrow: "Fix before relaunch", title: "Edit campaign", close: "Close", reason: "What needs fixing",
+        eyebrow: "Fix before relaunch", title: "Edit campaign", edit: "Edit", deleteCampaign: "Delete", close: "Close", reason: "What needs fixing",
         name: "Campaign name", adText: "Ad text", destination: "Destination link", countries: "Target countries",
         countriesHint: "Remove rejected countries and keep only destinations available to your TikTok Ads account.", cancel: "Cancel",
         save: "Save and return to launch", saving: "Saving…", saveError: "We couldn’t save your changes. Check your connection and try again.",

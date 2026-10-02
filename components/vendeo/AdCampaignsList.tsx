@@ -63,6 +63,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   const [loading, setLoading] = useState(true);
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
   const [correcting, setCorrecting] = useState<AdCampaign | null>(null);
+  const [correctionFromDetail, setCorrectionFromDetail] = useState(false);
   const [selected, setSelected] = useState<AdCampaign | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -217,6 +218,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
           onCorrection={(message) => {
             const campaign = resuming;
             setResuming(null);
+            setCorrectionFromDetail(false);
             if (campaign) setCorrecting({ ...campaign, external_error: message ?? campaign.external_error });
           }}
           onLaunched={() => {
@@ -228,11 +230,18 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
       {correcting ? (
         <CampaignCorrectionModal
           campaign={correcting}
-          onClose={() => setCorrecting(null)}
+          onClose={() => {
+            const campaign = correcting;
+            setCorrecting(null);
+            if (correctionFromDetail && campaign) setSelected(campaign);
+            setCorrectionFromDetail(false);
+          }}
           onSaved={(updates) => {
             const updatedCampaign: AdCampaign = { ...correcting, ...updates, external_error: null };
             setCorrecting(null);
-            setResuming(updatedCampaign);
+            setCorrectionFromDetail(false);
+            if (["draft", "paid", "paused", "rejected"].includes(updatedCampaign.status)) setResuming(updatedCampaign);
+            else setSelected(updatedCampaign);
             void load();
           }}
         />
@@ -266,7 +275,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                 </button>
               </div>
             ) : null}
-            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => setEditing(true)}>Modifier</button> : null}{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}<button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>Supprimer</button></div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}<button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button></div>
           </div>
         </div>
       ) : null}
