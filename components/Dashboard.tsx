@@ -1927,7 +1927,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
     <>
       <div className="page-top" style={{ gap: 12 }}><div><span className="eyebrow">{t("ads.eyebrow")}</span><h1>{t("ads.title")}</h1><p>{t("ads.subtitle")}</p></div><button type="button" className="btn btn-dark" style={{ flexShrink: 0 }} onClick={onLaunchAd}><Plus size={15} /> {t("ads.launch")}</button></div>
 
-      <div className="app-card" style={{ marginBottom: 18, display: "flex", gap: 8, padding: 8, flexWrap: "wrap" }}>{channels.map((item) => <button key={item.id} type="button" aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={20} /> : item.id === "tiktok" ? <FaTiktok size={18} /> : item.id === "x" ? <FaXTwitter size={18} /> : item.label}</button>)}</div>
+      <div className="app-card ads-channel-switcher">{channels.map((item) => <button key={item.id} type="button" aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={20} /> : item.id === "tiktok" ? <FaTiktok size={18} /> : item.id === "x" ? <FaXTwitter size={18} /> : item.label}</button>)}</div>
 
       {message && <p className="store-error" role="status">{message}</p>}
 
@@ -1978,12 +1978,12 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
             </> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
           </>}
         </>
-      ) : (
+      ) : channel === "tiktok" ? (
         tiktokLoading ? <TikTokSkeleton /> : <>
           <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.tiktokConnected")}</span> : <button className="btn btn-dark" onClick={connectTiktok}><Plus size={15} /> {t("ads.connectTiktok")}</button>}</div>
           {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noTiktok")}</strong><span>{t("ads.noTiktokText")}</span><button className="btn btn-dark" 
 onClick={connectTiktok}>{t("ads.connectTiktok")}</button></div> : <TikTokAdsPanel accounts={tiktokAccounts} />}        </>
-      )}
+      ) : null}
     </>
   );
 }

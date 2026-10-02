@@ -1374,3 +1374,7 @@ html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { color:#ddd6fe; b
 .notifications-empty { align-items:center; color:var(--muted); display:flex; flex-direction:column; gap:12px; padding:65px 20px; text-align:center; }
 .notifications-empty svg { color:#4c21f6; }
 @media (max-width:600px) { .notifications-page-head { display:block; } .notifications-page-head .mobile-back-button { margin-top:16px; } .notifications-page-item-head { display:block; } .notifications-page-item-head time { display:block; margin-top:6px; } }
+
+.ads-channel-switcher { display:flex; flex-wrap:nowrap; gap:8px; margin-bottom:18px; overflow-x:auto; padding:8px; scrollbar-width:none; }
+.ads-channel-switcher::-webkit-scrollbar { display:none; }
+.ads-channel-switcher .btn { flex:0 0 auto; white-space:nowrap; }
