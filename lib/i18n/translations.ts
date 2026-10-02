@@ -17,7 +17,7 @@ export const translations: Record<Locale, Dict> = {
         tagline: "Ta boutique, tes campagnes, ton studio créatif.",
         paragraph: "Vendeo réunit ta boutique, tes comptes publicitaires et un studio de création IA au même endroit — pour comprendre ce qui marche, créer tes visuels et lancer tes campagnes sans jongler entre cinq outils.",
         cta: "Commencer gratuitement",
-        stat: "créateurs actifs",
+        stat: "espace centralisé pour ton marketing",
         soon: "bientôt",
       },
       problem: {
@@ -36,7 +36,7 @@ export const translations: Record<Locale, Dict> = {
         title1: "De la boutique à la",
         title2: "campagne publiée.",
         paragraph: "Quatre étapes, dans Vendeo, sans repasser par cinq outils différents.",
-        s1num: "01 / CONNECTER", s1title: "Ta boutique et tes pubs", s1: "Relie ta boutique Chariow et ton compte Meta Ads. Tes ventes et tes dépenses arrivent automatiquement.",
+        s1num: "01 / CONNECTER", s1title: "Ta boutique et tes pubs", s1: "Relie ta boutique Chariow et tes comptes Meta Ads ou TikTok Ads. Tes ventes et tes dépenses arrivent automatiquement.",
         s2num: "02 / COMPRENDRE", s2title: "Ton ROAS réel", s2: "Vendeo calcule ta rentabilité réelle et repère les campagnes qui perdent de l'argent avant qu'elles ne coûtent plus cher.",
         s3num: "03 / CRÉER", s3title: "Ton visuel ou ta vidéo", s3: "Décris ce que tu veux : le Studio IA génère l'affiche ou la vidéo publicitaire à partir de ta fiche produit.",
         s4num: "04 / LANCER", s4title: "Ta campagne", s4: "Tu payes, la campagne part directement chez Meta ou TikTok. Refusée ? Tu la relances sans repayer.",
@@ -54,7 +54,7 @@ export const translations: Record<Locale, Dict> = {
       pricing: {
         eyebrow: "Un prix simple", title1: "Un seul plan.", title2: "Tout inclus.", paragraph: "15 jours d'essai gratuit, puis un abonnement unique pour continuer à utiliser Vendeo.",
         pill: "Essai gratuit — 15 jours", price: "2 000 XOF", perMonth: "/ mois",
-        b1: "Analyse IA illimitée de tes ventes et de tes pubs", b2: "Jusqu'à 3 boutiques Chariow connectées", b3: "Facebook, Instagram, TikTok, WhatsApp et plus", b4: "Studio IA (visuels et vidéos publicitaires)", b5: "75 crédits Studio offerts à l'inscription",
+        b1: "Analyse IA illimitée de tes ventes et de tes pubs", b2: "Jusqu'à 3 boutiques Chariow connectées", b3: "Meta (Facebook et Instagram) et TikTok Ads", b4: "Studio IA (visuels et vidéos publicitaires)", b5: "75 crédits Studio offerts à l'inscription",
         cta: "Démarrer mon essai gratuit",
       },
       faq: {
@@ -216,7 +216,7 @@ export const translations: Record<Locale, Dict> = {
         tagline: "Your store, your campaigns, your creative studio.",
         paragraph: "Vendeo brings your store, your ad accounts and an AI creative studio together in one place — so you can understand what works, create your visuals and launch campaigns without juggling five tools.",
         cta: "Start for free",
-        stat: "active creators",
+        stat: "centralized marketing workspace",
         soon: "soon",
       },
       problem: {
@@ -235,7 +235,7 @@ export const translations: Record<Locale, Dict> = {
         title1: "From your store to",
         title2: "a published campaign.",
         paragraph: "Four steps, inside Vendeo, without bouncing between five different tools.",
-        s1num: "01 / CONNECT", s1title: "Your store and ads", s1: "Link your Chariow store and your Meta Ads account. Your sales and spend arrive automatically.",
+        s1num: "01 / CONNECT", s1title: "Your store and ads", s1: "Link your Chariow store and your Meta Ads or TikTok Ads accounts. Your sales and spend arrive automatically.",
         s2num: "02 / UNDERSTAND", s2title: "Your real ROAS", s2: "Vendeo computes your real profitability and spots campaigns losing money before they cost you more.",
         s3num: "03 / CREATE", s3title: "Your visual or video", s3: "Describe what you want: the AI Studio generates the ad poster or video from your product page.",
         s4num: "04 / LAUNCH", s4title: "Your campaign", s4: "You pay, the campaign goes straight to Meta or TikTok. Rejected? Relaunch it without paying again.",
@@ -253,7 +253,7 @@ export const translations: Record<Locale, Dict> = {
       pricing: {
         eyebrow: "Simple pricing", title1: "One plan.", title2: "Everything included.", paragraph: "15-day free trial, then a single subscription to keep using Vendeo.",
         pill: "Free trial — 15 days", price: "2 000 XOF", perMonth: "/ month",
-        b1: "Unlimited AI analysis of your sales and ads", b2: "Up to 3 connected Chariow stores", b3: "Facebook, Instagram, TikTok, WhatsApp and more", b4: "AI Studio (ad visuals and videos)", b5: "75 Studio credits offered at signup",
+        b1: "Unlimited AI analysis of your sales and ads", b2: "Up to 3 connected Chariow stores", b3: "Meta (Facebook and Instagram) and TikTok Ads", b4: "AI Studio (ad visuals and videos)", b5: "75 Studio credits offered at signup",
         cta: "Start my free trial",
       },
       faq: {

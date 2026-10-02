@@ -295,6 +295,18 @@ export async function GET(request: Request) {
           },
           { onConflict: "user_id,dedupe_key" },
         );
+        await supabase.from("user_notifications").upsert(
+          {
+            user_id: campaign.user_id,
+            type: "autopilot",
+            title: `Le pilote IA a mis en pause ta campagne ${campaign.platform === "meta" ? "Meta" : "TikTok"}`,
+            body: `« ${title} » a été mise en pause automatiquement. ${decision.reasons.join(" ")}`,
+            action_url: "/dashboard",
+            dedupe_key: `autopilot_pause_${campaign.id}_${isoDay(new Date())}`,
+            metadata: { campaign_id: campaign.id, platform: campaign.platform, roas: decision.roas, reason: decision.reasons },
+          },
+          { onConflict: "user_id,dedupe_key" },
+        );
       }
 
       results.push({ campaign_id: campaign.id, platform: campaign.platform, decision: decision.decision, spend: spendData.spend, sales: sales.completed, roas: decision.roas, anomalies: anomalies.map((a) => a.stage) });

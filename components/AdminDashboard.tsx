@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Building2, CreditCard, FileText, LogOut, RefreshCw, ShieldCheck, Users, Wallet, Receipt, Sparkles, Send } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Bell, Building2, CreditCard, FileText, LogOut, RefreshCw, ShieldCheck, Users, Wallet, Receipt, Sparkles, Send } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
 
 type AdminData = {
@@ -19,7 +19,7 @@ type AdminData = {
   payouts?: Array<{ id: string; amount_xof: number; recipient_name: string; recipient_phone: string; recipient_method: string; status: string; created_at: string }>;
 };
 
-const sections = [["overview", "Vue générale", Activity], ["users", "Utilisateurs", Users], ["subscriptions", "Abonnements", CreditCard], ["purchases", "Achats & recharges", Receipt], ["payouts", "Décaissement", Send], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText]] as const;
+const sections = [["overview", "Vue générale", Activity], ["users", "Utilisateurs", Users], ["notifications", "Notifications", Bell], ["subscriptions", "Abonnements", CreditCard], ["purchases", "Achats & recharges", Receipt], ["payouts", "Décaissement", Send], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText]] as const;
 
 export function AdminDashboard() {
   const [active, setActive] = useState("overview");
@@ -56,6 +56,7 @@ export function AdminDashboard() {
         <div className="admin-toolbar"><div><span className="admin-kicker">Pilotage plateforme</span><h2>{sections.find(([key]) => key === active)?.[1]}</h2></div><button type="button" className="admin-refresh" onClick={() => void load()}><RefreshCw size={15} /> Actualiser</button></div>
         {active === "overview" && <Overview data={data} />}
         {active === "users" && <UsersSection data={data} />}
+        {active === "notifications" && <NotificationsSection users={data.users} />}
         {active === "subscriptions" && <SubscriptionsSection data={data} />}
         {active === "purchases" && <PurchasesSection data={data} />}
         {active === "payouts" && <PayoutsSection data={data} onRefresh={() => void load()} />}
@@ -105,3 +106,55 @@ function IntegrationsSection({ data }: { data: AdminData }) { return <><div clas
 function AuditSection({ data }: { data: AdminData }) { return <section className="admin-card"><div className="admin-card-head"><h3>Journal des actions sensibles</h3><FileText size={17} /></div><AdminTable headers={["Action", "Ressource", "Date"]}>{data.audit.map((item) => <div className="admin-row" key={item.id}><strong>{item.action}</strong><span>{item.resource_type} {item.resource_id ? `· ${item.resource_id.slice(0, 8)}…` : ""}</span><span>{new Date(item.created_at).toLocaleString("fr-FR")}</span></div>)}</AdminTable></section>; }
 function AdminTable({ headers, children }: { headers: string[]; children: React.ReactNode }) { return <div className="admin-table"><div className="admin-row admin-row-head">{headers.map((header) => <span key={header}>{header}</span>)}</div>{children}</div>; }
 function Empty({ text }: { text: string }) { return <div className="admin-empty">{text}</div>; }
+
+type NotificationHistoryItem = { id: string; title: string; body: string; created_at: string; profiles?: { email?: string | null; full_name?: string | null } | null };
+
+function NotificationsSection({ users }: { users: AdminData["users"] }) {
+  const [audience, setAudience] = useState<"all" | "selected">("all");
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [actionUrl, setActionUrl] = useState("");
+  const [history, setHistory] = useState<NotificationHistoryItem[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function loadHistory() {
+    const response = await fetch("/api/admin/notifications", { cache: "no-store" });
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok) setHistory(payload.notifications ?? []);
+  }
+  useEffect(() => { void loadHistory(); }, []);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true); setMessage("");
+    const response = await fetch("/api/admin/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, message: body, action_url: actionUrl, audience, user_ids: selectedUsers }) });
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok) { setMessage(`${payload.sent ?? 0} notification(s) envoyée(s).`); setTitle(""); setBody(""); setActionUrl(""); setSelectedUsers([]); await loadHistory(); }
+    else setMessage(payload.error ?? "Envoi impossible.");
+    setBusy(false);
+  }
+
+  return <div className="admin-columns">
+    <section className="admin-card">
+      <div className="admin-card-head"><div><h3>Envoyer une notification</h3><p className="admin-help">Un message in-app visible dans la cloche du header. Aucun email n’est envoyé.</p></div><Bell size={17} /></div>
+      <form className="admin-notification-form" onSubmit={submit}>
+        <input maxLength={160} placeholder="Titre de la notification" value={title} onChange={(event) => setTitle(event.target.value)} required />
+        <input maxLength={300} placeholder="Lien interne optionnel (ex. /dashboard)" value={actionUrl} onChange={(event) => setActionUrl(event.target.value)} pattern="^(/.*)?$" />
+        <textarea maxLength={4000} placeholder="Message à afficher aux utilisateurs…" value={body} onChange={(event) => setBody(event.target.value)} required />
+        <select value={audience} onChange={(event) => setAudience(event.target.value as "all" | "selected")} aria-label="Destinataires">
+          <option value="all">Tous les utilisateurs ({users.length})</option>
+          <option value="selected">Utilisateurs sélectionnés</option>
+        </select>
+        {audience === "selected" ? <select multiple value={selectedUsers} onChange={(event) => setSelectedUsers(Array.from(event.target.selectedOptions, (option) => option.value))} aria-label="Sélectionner les utilisateurs" required>{users.map((user) => <option key={user.id} value={user.id}>{user.full_name || "Sans nom"} · {user.email || user.id}</option>)}</select> : null}
+        <button className="btn btn-dark" disabled={busy}>{busy ? "Envoi…" : "Envoyer la notification"}</button>
+      </form>
+      {message ? <p className="admin-action-message">{message}</p> : null}
+    </section>
+    <section className="admin-card">
+      <div className="admin-card-head"><h3>Messages administrateur récents</h3><FileText size={17} /></div>
+      <div className="admin-notification-history">{history.length ? history.map((item) => <article className="admin-notification-history-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p><small>{item.profiles?.full_name || item.profiles?.email || "Utilisateur"} · {new Date(item.created_at).toLocaleString("fr-FR")}</small></article>) : <Empty text="Aucun message envoyé." />}</div>
+    </section>
+  </div>;
+}

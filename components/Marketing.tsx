@@ -161,7 +161,7 @@ export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) 
               <Link href="/register" className="btn btn-lime">{t("landing.hero.cta")} <ArrowRight size={16}/></Link>
             </div>
             <div className="hero-stat-row">
-              <div className="hero-stat"><strong><AnimatedCounter end={150} suffix="+"/></strong><span>{t("landing.hero.stat")}</span></div>
+              <div className="hero-stat"><strong>1</strong><span>{t("landing.hero.stat")}</span></div>
             </div>
             <CreatorsMarquee />
           </div>
