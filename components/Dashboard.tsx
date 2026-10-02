@@ -914,17 +914,17 @@ function Overview({
       <div className="home-greeting"><h1>{t("overview.greeting", { name: greeting })}</h1><p>{t("overview.subtitle")}</p></div>
 
       <div className="home-header">
-        <div className="home-context"><span className="eyebrow">Vue d'ensemble</span></div>
+        <div className="home-context"><span className="eyebrow">{t("dashboard.overview")}</span></div>
         <div className="home-controls">
           <label className="home-store-selector">
-            <span>Boutique analysée</span>
-            <select aria-label="Boutique analysée" value={selectedStoreId ?? ""} disabled={!stores.length} onChange={(event) => onStoreChange(event.target.value)}>
-              {!stores.length && <option value="">Aucune boutique</option>}
+            <span>{t("dashboard.analyzedStore")}</span>
+            <select aria-label={t("dashboard.analyzedStore")} value={selectedStoreId ?? ""} disabled={!stores.length} onChange={(event) => onStoreChange(event.target.value)}>
+              {!stores.length && <option value="">{t("dashboard.noStore")}</option>}
               {stores.map((item) => <option key={item.id} value={item.id}>{item.store_name}</option>)}
             </select>
           </label>
           <div className="home-statuses">
-            <span className={connected ? "status-positive" : "status-warning"}>{connected ? "Chariow connectée" : "Chariow non connectée"}</span>
+            <span className={connected ? "status-positive" : "status-warning"}>{connected ? t("dashboard.connected") : t("dashboard.notConnected")}</span>
           </div>
           <div className="home-period">
             <span>{t("overview.period")}</span>
@@ -936,7 +936,7 @@ function Overview({
             <input aria-label="Date de début" type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} />
             <input aria-label="Date de fin" type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} />
           </> : null}
-          <button className="btn btn-ghost" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "Actualisation…" : "Actualiser"}</button>
+          <button className="btn btn-ghost" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? t("dashboard.refreshing") : t("dashboard.refresh")}</button>
         </div>
       </div>
 
@@ -944,7 +944,7 @@ function Overview({
 
       <ImpactFinancierCard data={{ budgetEconomise, revenuAdditionnelEstime }} />
 
-      <section className="home-ai-state app-card"><div><span className="eyebrow">Analyse IA</span><h2>État de votre activité</h2><p>{statusText}</p></div><Brain size={24} /></section>
+      <section className="home-ai-state app-card"><div><span className="eyebrow">{t("dashboard.aiAnalysis")}</span><h2>{t("dashboard.activityState")}</h2><p>{statusText}</p></div><Brain size={24} /></section>
 
       <section className="home-kpis">
         <HomeKpi label={t("overview.revenue")} value={connected ? format(revenue) : t("overview.unavailable")} tone={revenue > 0 ? "positive" : "neutral"} help={t("overview.revenueHelp")} />
@@ -964,7 +964,7 @@ function Overview({
       {diagnosticCards.length > 0 ? <DiagnosticBoutique cards={diagnosticCards} /> : null}
 
       <section className="app-card product-perf-section">
-        <div className="card-head"><h2>Produits les plus performants</h2></div>
+        <div className="card-head"><h2>{t("dashboard.bestProducts")}</h2></div>
         {productsSummary.length ? (
           <div className="product-perf-list">
             {productsSummary.map((product) => (
@@ -975,13 +975,13 @@ function Overview({
                   <span className={`product-perf-badge product-perf-badge-${product.state.tone}`}>{product.state.label}</span>
                 </div>
                 <div className="product-perf-stats">
-                  <div><small>Ventes</small><strong>{product.sales}</strong></div>
-                  <div><small>CA</small><strong>{format(product.revenue)}</strong></div>
+                  <div><small>{t("dashboard.sales")}</small><strong>{product.sales}</strong></div>
+                  <div><small>{t("dashboard.revenue")}</small><strong>{format(product.revenue)}</strong></div>
                 </div>
               </div>
             ))}
           </div>
-        ) : <EmptyState title="Aucun produit avec des ventes" text="Les produits apparaîtront ici une fois des ventes confirmées." />}
+        ) : <EmptyState title={t("dashboard.noSales")} text={t("dashboard.noSalesText")} />}
       </section>
 
       <section className="home-chart app-card">
@@ -990,8 +990,8 @@ function Overview({
       </section>
 
       <section className="home-activity app-card">
-        <div className="card-head"><div><span className="eyebrow">Chariow</span><h2>Activité récente</h2><p>Les derniers événements remontés par ta boutique.</p></div><Activity size={19} /></div>
-        {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title="Aucune vente récente" text="Les ventes et statuts Chariow apparaîtront ici lorsqu'ils seront synchronisés." />}
+        <div className="card-head"><div><span className="eyebrow">Chariow</span><h2>{t("dashboard.recentActivity")}</h2><p>{t("dashboard.recentEvents")}</p></div><Activity size={19} /></div>
+        {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title={t("dashboard.noSales")} text={t("dashboard.noSalesText")} />}
       </section>
 
     </div>
@@ -1451,22 +1451,22 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
     <div className="settings-page">
       <div className="page-top settings-head">
         <div>
-          <span className="eyebrow">Compte</span>
-          <h1>Paramètres</h1>
-          <p>Gère tes boutiques et ton abonnement depuis cet espace.</p>
+          <span className="eyebrow">{t("settings.account")}</span>
+          <h1>{t("settings.title")}</h1>
+          <p>{t("settings.subtitle")}</p>
         </div>
-        {onBack && <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Retour</button>}
+        {onBack && <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {t("settings.back")}</button>}
       </div>
       <section className="settings-section settings-section-account" aria-label="Boutiques et abonnement">
         <div className="mobile-settings-grid">
           <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
             <span className="mobile-settings-icon"><Store size={20} /></span>
-            <span><strong>Mes boutiques</strong><small>Connecter et gérer tes boutiques Chariow.</small></span>
+            <span><strong>{t("settings.myStores")}</strong><small>{t("settings.manageStores")}</small></span>
             <ArrowRight size={16} />
           </button>
           <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Abonnement")}>
             <span className="mobile-settings-icon"><CreditCard size={20} /></span>
-            <span><strong>Abonnement</strong><small>Voir ton plan et gérer ton accès Vendeo.</small></span>
+            <span><strong>{t("settings.subscription")}</strong><small>{t("settings.manageSubscription")}</small></span>
             <ArrowRight size={16} />
           </button>
         </div>
@@ -1474,21 +1474,21 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
       <section className="settings-section settings-section-session" aria-label="Session et compte">
         <div className="page-top settings-mobile-only">
           <div>
-            <span className="eyebrow">Session</span>
-            <h2>Déconnexion et suppression</h2>
-            <p>Quitter ton espace ou supprimer définitivement ton compte.</p>
+            <span className="eyebrow">{t("settings.session")}</span>
+            <h2>{t("settings.signoutDelete")}</h2>
+            <p>{t("settings.leaveOrDelete")}</p>
           </div>
         </div>
         <div className="mobile-settings-grid settings-session-grid">
           <button type="button" className="mobile-settings-card mobile-settings-danger" onClick={onSignOut}>
             <span className="mobile-settings-icon"><LogOut size={20} /></span>
-            <span><strong>Déconnexion</strong><small>Quitter ton espace Vendeo en toute sécurité.</small></span>
+            <span><strong>{t("settings.signout")}</strong><small>{t("settings.signoutDescription")}</small></span>
             <ArrowRight size={16} />
           </button>
           {accountMessage ? <p className="settings-inline-message settings-account-error" role="alert">{accountMessage}</p> : null}
           <button type="button" className="mobile-settings-card mobile-settings-danger settings-delete-account" onClick={() => setShowDeleteAccountModal(true)} disabled={deletingAccount}>
             <span className="mobile-settings-icon"><Trash2 size={20} /></span>
-            <span><strong>{deletingAccount ? "Suppression du compte…" : "Supprimer mon compte"}</strong><small>Supprimer définitivement ton compte et toutes tes données.</small></span>
+            <span><strong>{deletingAccount ? t("settings.deleteAccount") + "…" : t("settings.deleteAccount")}</strong><small>{t("settings.deleteDescription")}</small></span>
             <ArrowRight size={16} />
           </button>
         </div>
@@ -1496,20 +1496,20 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
       <section className="settings-section settings-section-theme" aria-label="Apparence">
         <div className="page-top settings-section-head">
           <div>
-            <span className="eyebrow">Apparence</span>
-            <h2>Thème</h2>
-            <p>Choisis l'apparence de ton espace Vendeo.</p>
+            <span className="eyebrow">{t("settings.appearance")}</span>
+            <h2>{t("settings.theme")}</h2>
+            <p>{t("settings.themeDescription")}</p>
           </div>
         </div>
         <div className="theme-choice-grid">
           <button type="button" className={`theme-choice ${theme === "light" ? "selected" : ""}`} onClick={() => applyTheme("light")} aria-pressed={theme === "light"}>
             <span className="mobile-settings-icon"><Sun size={20} /></span>
-            <span><strong>Clair</strong><small>L'apparence par défaut de Vendeo.</small></span>
+            <span><strong>{t("settings.light")}</strong><small>{t("settings.lightDescription")}</small></span>
             {theme === "light" ? <CheckCircle2 size={16} /> : null}
           </button>
           <button type="button" className={`theme-choice ${theme === "dark" ? "selected" : ""}`} onClick={() => applyTheme("dark")} aria-pressed={theme === "dark"}>
             <span className="mobile-settings-icon"><Moon size={20} /></span>
-            <span><strong>Sombre</strong><small>Plus de confort le soir.</small></span>
+            <span><strong>{t("settings.dark")}</strong><small>{t("settings.darkDescription")}</small></span>
             {theme === "dark" ? <CheckCircle2 size={16} /> : null}
           </button>
         </div>
@@ -1538,25 +1538,25 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
       <section className="settings-section settings-section-legal" aria-label="À propos et légal">
         <div className="page-top settings-section-head">
           <div>
-            <span className="eyebrow">À propos & légal</span>
+            <span className="eyebrow">{t("settings.aboutLegal")}</span>
             <h2>Vendeo</h2>
-            <p>En savoir plus sur la plateforme et tes droits.</p>
+            <p>{t("settings.aboutDescription")}</p>
           </div>
         </div>
         <div className="mobile-settings-grid">
           <a className="mobile-settings-card" href="/about" target="_blank" rel="noopener noreferrer">
             <span className="mobile-settings-icon"><Lightbulb size={20} /></span>
-            <span><strong>À propos</strong><small>Découvrir Vendeo et Digital store global.</small></span>
+            <span><strong>{t("settings.about")}</strong><small>{t("settings.aboutLinkDescription")}</small></span>
             <ArrowRight size={16} />
           </a>
           <a className="mobile-settings-card" href="/terms" target="_blank" rel="noopener noreferrer">
             <span className="mobile-settings-icon"><FileText size={20} /></span>
-            <span><strong>Conditions d'utilisation</strong><small>Les règles d'utilisation de la plateforme.</small></span>
+            <span><strong>{t("settings.terms")}</strong><small>{t("settings.termsDescription")}</small></span>
             <ArrowRight size={16} />
           </a>
           <a className="mobile-settings-card" href="/privacy" target="_blank" rel="noopener noreferrer">
             <span className="mobile-settings-icon"><Eye size={20} /></span>
-            <span><strong>Politique de confidentialité</strong><small>Comment tes données sont traitées.</small></span>
+            <span><strong>{t("settings.privacy")}</strong><small>{t("settings.privacyDescription")}</small></span>
             <ArrowRight size={16} />
           </a>
         </div>
@@ -1564,9 +1564,9 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
       <section className="settings-section settings-section-channels" ref={channelsRef} aria-label="Canaux publicitaires">
         <div className="page-top settings-section-head">
           <div>
-            <span className="eyebrow">Canaux publicitaires</span>
-            <h2>Comptes connectés</h2>
-            <p>Connecte ou déconnecte les comptes publicitaires que Vendeo utilise pour analyser tes performances.</p>
+            <span className="eyebrow">{t("settings.adChannels")}</span>
+            <h2>{t("settings.connectedAccounts")}</h2>
+            <p>{t("settings.connectedAccountsDescription")}</p>
           </div>
         </div>
       {connectionError ? <p className="settings-inline-message settings-account-error" role="alert">{connectionError}</p> : null}
@@ -1582,28 +1582,28 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
                 <strong>{platform.label}</strong>
                 <small>
                   {!platform.live
-                    ? "Bientôt disponible"
+                    ? t("settings.comingSoon")
                     : !allowed
-                    ? "Non inclus dans ton plan"
+                    ? t("settings.notIncluded")
                     : loadingAccounts
-                    ? "Vérification…"
+                    ? t("settings.checking")
                     : isConnected
-                    ? "Connecté"
+                    ? t("settings.connected")
                     : platform.description}
                 </small>
               </div>
             </div>
             {!platform.live || !allowed ? (
               <button type="button" className="settings-connect" disabled>
-                {!platform.live ? "Bientôt" : "Indisponible"}
+                {!platform.live ? t("settings.comingSoon") : t("settings.unavailable")}
               </button>
             ) : isConnected ? (
               <button type="button" className="settings-disconnect" onClick={() => void disconnectAccount(platform.id as "meta" | "tiktok")} disabled={busy}>
-                {busy ? "Déconnexion…" : "Déconnecter"}
+                {busy ? t("settings.disconnecting") : t("settings.disconnect")}
               </button>
             ) : (
               <button type="button" className="settings-connect" onClick={() => connectAccount(platform.id as "meta" | "tiktok")} disabled={busy}>
-                Connecter
+                {t("settings.connect")}
               </button>
             )}
           </div>

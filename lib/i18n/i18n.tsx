@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { detectLocale, persistLocale, type Locale } from "./locales";
 import { translations } from "./translations";
+import { uiTranslations } from "./ui";
 
 type I18nContextValue = {
   locale: Locale;
@@ -37,7 +38,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => {
-      const raw = (getPath(translations[locale] as Record<string, unknown>, key) ?? getPath(translations.fr as Record<string, unknown>, key) ?? key) as string;
+      const raw = (getPath(translations[locale] as Record<string, unknown>, key) ?? getPath(uiTranslations[locale] as Record<string, unknown>, key) ?? getPath(translations.fr as Record<string, unknown>, key) ?? getPath(uiTranslations.fr as Record<string, unknown>, key) ?? key) as string;
       if (!vars) return raw;
       return Object.entries(vars).reduce((acc, [name, value]) => acc.replaceAll(`{${name}}`, String(value)), raw);
     },
