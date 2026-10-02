@@ -19,6 +19,7 @@ export async function PATCH(request: Request, context: Context) {
   if (Number.isInteger(body.min_age) && Number(body.min_age) >= 13) updates.min_age = Number(body.min_age);
   if (Number.isInteger(body.max_age) && Number(body.max_age) >= 13) updates.max_age = Number(body.max_age);
   if (!Object.keys(updates).length) return NextResponse.json({ error: "Aucune modification" }, { status: 400 });
+  updates.external_error = null;
 
   const { data, error } = await supabase.from("ad_campaigns").update(updates).eq("id", id).eq("user_id", user.id).select("id,status,external_error").maybeSingle();
   if (error) return NextResponse.json({ error: "Impossible de modifier la campagne" }, { status: 500 });

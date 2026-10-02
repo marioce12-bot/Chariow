@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
+import { CampaignCorrectionModal } from "./wizard/CampaignCorrectionModal";
 import type { Platform } from "./wizard/types";
 
 type AdCampaign = {
@@ -58,6 +59,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
+  const [correcting, setCorrecting] = useState<AdCampaign | null>(null);
   const [selected, setSelected] = useState<AdCampaign | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -209,8 +211,25 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
           initialStatus={resuming.status as "draft" | "paused" | "paid"}
           initialError={resuming.external_error}
           onClose={() => setResuming(null)}
+          onCorrection={(message) => {
+            const campaign = resuming;
+            setResuming(null);
+            if (campaign) setCorrecting({ ...campaign, external_error: message ?? campaign.external_error });
+          }}
           onLaunched={() => {
             setResuming(null);
+            void load();
+          }}
+        />
+      ) : null}
+      {correcting ? (
+        <CampaignCorrectionModal
+          campaign={correcting}
+          onClose={() => setCorrecting(null)}
+          onSaved={(updates) => {
+            const updatedCampaign: AdCampaign = { ...correcting, ...updates, external_error: null };
+            setCorrecting(null);
+            setResuming(updatedCampaign);
             void load();
           }}
         />

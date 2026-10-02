@@ -15,6 +15,7 @@ interface ResumeCampaignModalProps {
    *  Affiché dès l'ouverture pour ne pas faire retenter l'utilisateur à l'aveugle. */
   initialError?: string | null;
   onClose: () => void;
+  onCorrection: (message: string | null) => void;
   onLaunched: () => void;
 }
 
@@ -25,7 +26,7 @@ interface ResumeCampaignModalProps {
  * d'autre. Rendu via portail comme LaunchAdWizard pour éviter les soucis de
  * positionnement `fixed` dans un conteneur avec overflow.
  */
-export function ResumeCampaignModal({ campaignId, platform, initialStatus, initialError, onClose, onLaunched }: ResumeCampaignModalProps) {
+export function ResumeCampaignModal({ campaignId, platform, initialStatus, initialError, onClose, onCorrection, onLaunched }: ResumeCampaignModalProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export function ResumeCampaignModal({ campaignId, platform, initialStatus, initi
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-          <Step5Payment state={state} initialStatus={initialStatus} initialError={initialError} onLaunched={onLaunched} />
+          <Step5Payment state={state} initialStatus={initialStatus} initialError={initialError} onCorrection={onCorrection} onLaunched={onLaunched} />
         </div>
       </div>
     </div>,

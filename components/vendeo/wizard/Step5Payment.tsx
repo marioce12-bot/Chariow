@@ -8,6 +8,7 @@ interface StepProps {
   state: WizardState;
   onBack?: () => void;
   onLaunched: (campaignId: string) => void;
+  onCorrection?: (message: string | null) => void;
   initialStatus?: "draft" | "paused" | "paid";
   initialError?: string | null;
 }
@@ -19,7 +20,7 @@ type Phase = "ready" | "launching" | "done" | "error" | "insufficient";
  * lancement : le budget est prélevé sur le portefeuille Vendeo. Si le solde est
  * insuffisant, on affiche "Solde insuffisant" et on invite à recharger.
  */
-export function Step5Payment({ state, onBack, onLaunched, initialStatus, initialError }: StepProps) {
+export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialStatus, initialError }: StepProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [error, setError] = useState<string | null>(null);
   const [insufficient, setInsufficient] = useState<{ balance: number; required: number } | null>(null);
@@ -107,9 +108,16 @@ export function Step5Payment({ state, onBack, onLaunched, initialStatus, initial
         <div className="space-y-3 rounded-xl bg-[#FFFBEB] p-4 text-sm text-[#92400E]">
           <p className="font-semibold">{platformLabel} n'a pas accepté la campagne.</p>
           <p>{error}</p>
-          <button onClick={() => void launchCampaign()} className="rounded-lg bg-[#6366F1] px-4 py-2 text-xs font-semibold text-white">
-            Réessayer
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button type="button" onClick={() => void launchCampaign()} className="rounded-lg bg-[#6366F1] px-4 py-2 text-xs font-semibold text-white">
+              Réessayer
+            </button>
+            {onCorrection ? (
+              <button type="button" onClick={() => onCorrection(error)} className="rounded-lg border border-[#6366F1] bg-white px-4 py-2 text-xs font-semibold text-[#4338CA]">
+                Modifier ou corriger
+              </button>
+            ) : null}
+          </div>
         </div>
       )}
 
