@@ -48,8 +48,9 @@ export async function fetchTikTokRegions(advertiserId: string, accessToken: stri
 
 // Convertit des codes pays ISO (ex: "BJ") en location_ids TikTok (numériques),
 // en privilégiant l'entrée "pays" (parent_id absent ou "0") quand plusieurs
-// niveaux existent pour un même pays. Renvoie uniquement les ids trouvés.
-export async function resolveTikTokLocationIds(advertiserId: string, accessToken: string, countryCodes: string[]): Promise<string[]> {
+// niveaux existent pour un même pays. Les pays sans entrée au niveau pays sont
+// signalés comme non pris en charge.
+export async function resolveTikTokLocationIds(advertiserId: string, accessToken: string, countryCodes: string[]): Promise<{ locationIds: string[]; unsupportedCountryCodes: string[] }> {
   const regions = await fetchTikTokRegions(advertiserId, accessToken);
   const targets = new Set(countryCodes.map((code) => code.toUpperCase()));
   const byCountry = new Map<string, string>();
@@ -59,25 +60,12 @@ export async function resolveTikTokLocationIds(advertiserId: string, accessToken
     const id = String(row.region_id ?? "");
     if (!code || !id || !targets.has(code)) continue;
     const isCountryLevel = row.parent_id == null || String(row.parent_id) === "0" || String(row.parent_id) === "";
-    if (!byCountry.has(code) || isCountryLevel) byCountry.set(code, id);
+    if (isCountryLevel) byCountry.set(code, id);
   }
-  const returnedCountryCodes = Array.from(new Set(regions
-    .map((region) => String((region as Record<string, unknown>).country_code ?? "").toUpperCase())
-    .filter(Boolean))).sort();
-  const resolvedCountries = countryCodes.map((code) => ({
-    countryCode: code.toUpperCase(),
-    locationId: byCountry.get(code.toUpperCase()) ?? null,
-  }));
-  // TEMP DIAGNOSTIC: remove after verifying the advertiser's TikTok geo list.
-  // Deliberately exclude access tokens and advertiser IDs from production logs.
-  console.info("[tiktok-region-diagnostic] country lookup", {
-    requestedCountryCodes: Array.from(targets).sort(),
-    regionEntryCount: regions.length,
-    returnedCountryCodes,
-    countryLevelLocationIds: Object.fromEntries(Array.from(byCountry.entries()).sort(([a], [b]) => a.localeCompare(b))),
-    resolvedCountries,
-  });
-  return resolvedCountries.map(({ locationId }) => locationId).filter((id): id is string => Boolean(id));
+  const requestedCountryCodes = Array.from(targets);
+  const unsupportedCountryCodes = requestedCountryCodes.filter((code) => !byCountry.has(code)).sort();
+  const locationIds = requestedCountryCodes.map((code) => byCountry.get(code)).filter((id): id is string => Boolean(id));
+  return { locationIds, unsupportedCountryCodes };
 }
 
 // Liste les pixels TikTok (Events) de l'advertiser — requis pour l'objectif

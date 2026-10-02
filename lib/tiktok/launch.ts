@@ -48,7 +48,14 @@ export async function launchTikTok(supabase: any, userId: string, campaign: any,
     if (!identityId || !identityType) return NextResponse.json({ error: "Aucune identité TikTok disponible sur ce compte. Crée une identité (profil) dans TikTok Ads Manager > Actifs > Identités, puis réessaie." }, { status: 400 });
 
     // Ciblage géographique : TikTok cible par location_id numérique, pas par code pays ISO.
-    const locationIds = await resolveTikTokLocationIds(advertiserId, accessToken, campaign.countries?.length ? campaign.countries : ["BJ"]);
+    const targetCountries = campaign.countries?.length ? campaign.countries : ["BJ"];
+    const { locationIds, unsupportedCountryCodes } = await resolveTikTokLocationIds(advertiserId, accessToken, targetCountries);
+    if (unsupportedCountryCodes.length) {
+      return NextResponse.json({
+        error: `Ce compte TikTok ne permet pas de cibler : ${unsupportedCountryCodes.join(", ")}. Retire ces pays ou sélectionne un compte publicitaire qui les prend en charge.`,
+        unsupported_countries: unsupportedCountryCodes,
+      }, { status: 400 });
+    }
     if (!locationIds.length) return NextResponse.json({ error: "TikTok n’autorise pas la diffusion dans les pays choisis." }, { status: 400 });
 
     // Objectif "ventes"/"leads" : optimization_goal CONVERT exige un pixel TikTok.
