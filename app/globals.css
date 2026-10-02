@@ -1302,12 +1302,18 @@ html[data-theme="dark"] .studio-loading { background:linear-gradient(110deg,#0d1
 }
 .mobile-nav .nav-btn { color:#3f4f6b; }
 .mobile-nav .nav-btn.active { color:var(--green); }
+.mobile-nav .nav-btn-assistant { flex:1.14 1 0; min-height:50px; gap:3px; padding:5px 3px; transform:translateY(-3px); border-radius:13px; background:rgba(99,102,241,.1); color:#4338ca; font-weight:700; }
+.mobile-nav .nav-btn-assistant svg { width:23px; height:23px; }
+.mobile-nav .nav-btn-assistant span { font-size:10px; }
+.mobile-nav .nav-btn-assistant.active { color:#3730a3; background:rgba(99,102,241,.18); }
 html[data-theme="dark"] .mobile-nav {
   background: rgba(7,17,41,.66);
   border-top-color: rgba(30,44,82,.6);
 }
 html[data-theme="dark"] .mobile-nav .nav-btn { color:#b3c0de; }
 html[data-theme="dark"] .mobile-nav .nav-btn.active { color:#8fb0ff; }
+html[data-theme="dark"] .mobile-nav .nav-btn-assistant { color:#c4b5fd; background:rgba(129,140,248,.16); }
+html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { color:#ddd6fe; background:rgba(129,140,248,.25); }
 /* Navigateurs sans support de backdrop-filter (vieux WebView Android) :
    repli sur un fond plus opaque plutôt que sur un fond translucide non flouté,
    qui rendrait le texte illisible au-dessus d'un contenu chargé. */

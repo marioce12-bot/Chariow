@@ -420,7 +420,7 @@ export function Dashboard() {
       </div>
 
 
-        {active !== "Vendeo AI" && active !== "Paramètres" ? (
+        {active !== "Paramètres" ? (
          <nav className="mobile-nav" aria-label="Navigation mobile">
          <button type="button" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
            <LayoutDashboard size={18} />
@@ -430,14 +430,14 @@ export function Dashboard() {
              <Megaphone size={18} />
               <span>{t("nav.pubs")}</span>
           </button>
+             <button type="button" className={`nav-btn nav-btn-assistant ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
+               <Brain size={23} strokeWidth={2.2} />
+               <span>{t("nav.assistant")}</span>
+             </button>
             <button type="button" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
               <Sparkles size={21} strokeWidth={2.5} />
               <span>{t("nav.studio")}</span>
             </button>
-             <button type="button" className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
-               <MessageSquare size={18} />
-               <span>{t("nav.assistant")}</span>
-             </button>
              <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
                <Lightbulb size={18} />
                 <span>{t("nav.radar")}</span>
