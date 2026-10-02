@@ -61,7 +61,23 @@ export async function resolveTikTokLocationIds(advertiserId: string, accessToken
     const isCountryLevel = row.parent_id == null || String(row.parent_id) === "0" || String(row.parent_id) === "";
     if (!byCountry.has(code) || isCountryLevel) byCountry.set(code, id);
   }
-  return countryCodes.map((code) => byCountry.get(code.toUpperCase())).filter((id): id is string => Boolean(id));
+  const returnedCountryCodes = Array.from(new Set(regions
+    .map((region) => String((region as Record<string, unknown>).country_code ?? "").toUpperCase())
+    .filter(Boolean))).sort();
+  const resolvedCountries = countryCodes.map((code) => ({
+    countryCode: code.toUpperCase(),
+    locationId: byCountry.get(code.toUpperCase()) ?? null,
+  }));
+  // TEMP DIAGNOSTIC: remove after verifying the advertiser's TikTok geo list.
+  // Deliberately exclude access tokens and advertiser IDs from production logs.
+  console.info("[tiktok-region-diagnostic] country lookup", {
+    requestedCountryCodes: Array.from(targets).sort(),
+    regionEntryCount: regions.length,
+    returnedCountryCodes,
+    countryLevelLocationIds: Object.fromEntries(Array.from(byCountry.entries()).sort(([a], [b]) => a.localeCompare(b))),
+    resolvedCountries,
+  });
+  return resolvedCountries.map(({ locationId }) => locationId).filter((id): id is string => Boolean(id));
 }
 
 // Liste les pixels TikTok (Events) de l'advertiser — requis pour l'objectif
