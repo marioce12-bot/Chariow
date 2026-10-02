@@ -1,0 +1,10 @@
+/* Barre de navigation mobile — ajustements des icônes.
+   - Studio : même taille et même épaisseur de trait que Accueil / Pub / Radar
+     (le JSX le rendait en 21px avec un trait de 2.5, d'où l'aspect plus gras).
+   - Assistant : on garde l'icône plus grande, mais on retire le fond
+     (pastille) qui donnait l'impression que le bouton était déjà appuyé. */
+.mobile-nav .nav-btn:nth-child(4) svg { height:18px; stroke-width:2; width:18px; }
+.mobile-nav .nav-btn-assistant,
+.mobile-nav .nav-btn-assistant.active,
+html[data-theme="dark"] .mobile-nav .nav-btn-assistant,
+html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { background:transparent; }

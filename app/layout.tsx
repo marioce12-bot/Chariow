@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./sale-modal.css";
 import "./page-headings.css";
+import "./mobile-nav.css";
 import { PwaRegister } from "./PwaRegister";
 import { I18nProvider } from "@/lib/i18n/i18n";
 
