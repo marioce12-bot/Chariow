@@ -5,6 +5,8 @@ import { Loader2, PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
 import { CampaignCorrectionModal } from "./wizard/CampaignCorrectionModal";
 import type { Platform } from "./wizard/types";
+import { useI18n } from "@/lib/i18n/i18n";
+import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
 
 type AdCampaign = {
   id: string;
@@ -56,6 +58,7 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
  * La carte "Solde publicitaire" (AdBalanceCard) est rendue tout en haut de ce bloc.
  */
 export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | null; onNewCampaign: () => void }) {
+  const { locale, t } = useI18n();
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
@@ -173,7 +176,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                       async de mapMetaEffectiveStatus) : même logique, le motif doit rester visible
                       directement dans la liste, sans avoir à ouvrir le détail. */}
                   {(c.status === "error" || c.status === "paid" || c.status === "rejected") && c.external_error ? (
-                    <span className="hint-line" style={{ color: "#991B1B" }}>{c.external_error}</span>
+                    <span className="hint-line" style={{ color: "#991B1B" }}>{campaignErrorMessage(c.external_error, locale, t, c.platform)}</span>
                   ) : null}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -242,12 +245,10 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
             {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>Texte :</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>Réseau :</strong> {selected.platform === "meta" ? "Facebook / Instagram" : "TikTok"}</div><div><strong>Objectif :</strong> {selected.objective}</div><div><strong>Audience :</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} ans</div><div><strong>Budget :</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} $/jour · {selected.duration_days} jours</div>{selected.destination_url ? <div><strong>Lien :</strong> {selected.destination_url}</div> : null}</div>}
             {selected.external_error ? (
               <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}>
-                <strong>{selected.status === "rejected" ? "Motif du refus :" : "Rejet / erreur :"}</strong> {selected.external_error}
+                <strong>{t("ads.errors.reason")}</strong> {campaignErrorMessage(selected.external_error, locale, t, selected.platform)}
                 <br />
                 <span>
-                  {selected.status === "rejected"
-                    ? "Corrige le visuel, le texte ou le lien en fonction de ce motif, puis utilise \"Modifier\" ci-dessous avant de relancer la campagne."
-                    : "Modifie les paramètres puis relance. Aucun paiement supplémentaire ne sera demandé."}
+                  {selected.status === "rejected" ? t("ads.errors.rejectedHelp") : t("ads.errors.otherHelp")}
                 </span>
               </div>
             ) : null}

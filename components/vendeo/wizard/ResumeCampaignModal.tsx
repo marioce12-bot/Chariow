@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { Step5Payment } from "./Step5Payment";
 import { DEFAULT_WIZARD_STATE, type Platform, type WizardState } from "./types";
+import { useI18n } from "@/lib/i18n/i18n";
 
 interface ResumeCampaignModalProps {
   campaignId: string;
@@ -28,6 +29,7 @@ interface ResumeCampaignModalProps {
  */
 export function ResumeCampaignModal({ campaignId, platform, initialStatus, initialError, onClose, onCorrection, onLaunched }: ResumeCampaignModalProps) {
   const [mounted, setMounted] = useState(false);
+  const { t } = useI18n();
 
   useEffect(() => {
     setMounted(true);
@@ -42,10 +44,10 @@ export function ResumeCampaignModal({ campaignId, platform, initialStatus, initi
       <div className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[85vh] sm:max-w-md sm:rounded-2xl">
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
           <h2 className="text-base font-bold text-gray-900">
-            {initialStatus === "paid" ? "Activer la campagne" : "Lancer la campagne"}
+            {initialStatus === "paid" ? t("ads.activateCampaign") : t("ads.launchButton")}
           </h2>
           <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">
-            Fermer
+            {t("ads.correction.close")}
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">

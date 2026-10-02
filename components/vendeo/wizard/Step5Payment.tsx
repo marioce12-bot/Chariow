@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Loader2, Wallet } from "lucide-react";
 import type { WizardState } from "./types";
+import { useI18n } from "@/lib/i18n/i18n";
+import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
 
 interface StepProps {
   state: WizardState;
@@ -24,7 +26,9 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
   const [phase, setPhase] = useState<Phase>("ready");
   const [error, setError] = useState<string | null>(null);
   const [insufficient, setInsufficient] = useState<{ balance: number; required: number } | null>(null);
+  const { locale, t } = useI18n();
   const platformLabel = state.platform === "meta" ? "Meta" : "TikTok";
+  const numberLocale = locale === "fr" ? "fr-FR" : "en-US";
 
   useEffect(() => {
     if (initialError) {
@@ -70,51 +74,50 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
         <div className="space-y-3">
           <div className="flex items-center gap-2 rounded-xl bg-[#EEF2FF] p-4 text-sm text-[#3730A3]">
             <CheckCircle2 className="h-4 w-4 flex-none" />
-            <span>Le budget de cette campagne sera prélevé sur ton solde publicitaire.</span>
+            <span>{t("ads.budgetNotice")}</span>
           </div>
-          {error && <p className="text-sm text-[#991B1B]">{error}</p>}
+          {error && <p className="text-sm text-[#991B1B]">{campaignErrorMessage(error, locale, t, state.platform)}</p>}
           <button onClick={() => void launchCampaign()} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">
-            Lancer la campagne
+            {t("ads.launchButton")}
           </button>
         </div>
       )}
 
       {phase === "launching" && (
         <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Loader2 className="h-4 w-4 animate-spin" /> Envoi à {platformLabel}…
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("ads.launching", { platform: platformLabel })}
         </div>
       )}
 
       {phase === "done" && (
         <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm font-semibold text-[#065F46]">
-          ✅ Campagne envoyée à {platformLabel} ! Elle passe en revue avant diffusion.
+          {t("ads.launchSuccess", { platform: platformLabel })}
         </div>
       )}
 
       {phase === "insufficient" && (
         <div className="space-y-3 rounded-xl bg-[#FFFBEB] p-4 text-sm text-[#92400E]">
           <div className="flex items-center gap-2 font-semibold">
-            <Wallet className="h-4 w-4" /> Solde insuffisant
+            <Wallet className="h-4 w-4" /> {t("ads.balanceInsufficient")}
           </div>
           <p>
-            Cette campagne nécessite <strong>{insufficient?.required.toLocaleString("fr-FR")} XOF</strong>, mais ton solde est de{" "}
-            <strong>{insufficient?.balance.toLocaleString("fr-FR")} XOF</strong>.
+            {t("ads.balanceDetails", { required: insufficient?.required.toLocaleString(numberLocale) ?? "0", balance: insufficient?.balance.toLocaleString(numberLocale) ?? "0" })}
           </p>
-          <p className="text-xs">Recharge ton solde publicitaire depuis la carte « Solde publicitaire » de la page Pub, puis relance.</p>
+          <p className="text-xs">{t("ads.balanceHelp")}</p>
         </div>
       )}
 
       {phase === "error" && (
         <div className="space-y-3 rounded-xl bg-[#FFFBEB] p-4 text-sm text-[#92400E]">
-          <p className="font-semibold">{platformLabel} n'a pas accepté la campagne.</p>
-          <p>{error}</p>
+          <p className="font-semibold">{t("ads.launchError", { platform: platformLabel })}</p>
+          <p>{campaignErrorMessage(error, locale, t, state.platform)}</p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <button type="button" onClick={() => void launchCampaign()} className="rounded-lg bg-[#6366F1] px-4 py-2 text-xs font-semibold text-white">
-              Réessayer
+              {t("ads.retryLaunch")}
             </button>
             {onCorrection ? (
-              <button type="button" onClick={() => onCorrection(error)} className="rounded-lg border border-[#6366F1] bg-white px-4 py-2 text-xs font-semibold text-[#4338CA]">
-                Modifier ou corriger
+              <button type="button" onClick={() => onCorrection(error)} className="rounded-lg border border-[#6366F1] bg-white px-4 py-2 text-xs font-semibold text-[#4338CA]" style={{ backgroundColor: "#FFFFFF", color: "#3730A3", borderColor: "#6366F1" }}>
+                {t("ads.correctCampaign")}
               </button>
             ) : null}
           </div>
@@ -124,7 +127,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
       {onBack && !["done", "insufficient"].includes(phase) && (
         <div className="sticky bottom-0 -mx-5 mt-4 flex justify-between border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button onClick={onBack} className="text-sm font-medium text-gray-500">
-            Retour
+            {t("ads.back")}
           </button>
         </div>
       )}

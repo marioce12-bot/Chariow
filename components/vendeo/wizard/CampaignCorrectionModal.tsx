@@ -4,6 +4,8 @@ import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { LocationSearchInput } from "./LocationSearchInput";
 import { COUNTRY_OPTIONS, deriveCountries, type GeoLocation } from "./types";
+import { useI18n } from "@/lib/i18n/i18n";
+import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
 
 type CampaignForCorrection = {
   id: string;
@@ -37,6 +39,7 @@ function toCountryLocations(countries?: string[] | null): GeoLocation[] {
 }
 
 export function CampaignCorrectionModal({ campaign, onClose, onSaved }: CampaignCorrectionModalProps) {
+  const { locale, t } = useI18n();
   const [mounted, setMounted] = useState(false);
   const [title, setTitle] = useState(campaign.title ?? "");
   const [text, setText] = useState(campaign.ad_text ?? "");
@@ -63,11 +66,10 @@ export function CampaignCorrectionModal({ campaign, onClose, onSaved }: Campaign
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || "Impossible d’enregistrer les corrections.");
+      if (!response.ok) throw new Error();
       onSaved(updates);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Erreur inconnue");
+    } catch {
+      setError(t("ads.correction.saveError"));
     } finally {
       setSaving(false);
     }
@@ -78,43 +80,43 @@ export function CampaignCorrectionModal({ campaign, onClose, onSaved }: Campaign
       <div className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-2xl">
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
           <div>
-            <p className="text-xs font-medium text-gray-400">Correction avant relance</p>
-            <h2 className="text-base font-bold text-gray-900">Modifier la campagne</h2>
+            <p className="text-xs font-medium text-gray-400">{t("ads.correction.eyebrow")}</p>
+            <h2 className="text-base font-bold text-gray-900">{t("ads.correction.title")}</h2>
           </div>
-          <button type="button" onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">Fermer</button>
+          <button type="button" onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">{t("ads.correction.close")}</button>
         </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-5">
           {campaign.external_error ? (
             <div className="rounded-xl bg-[#FFFBEB] p-3 text-sm text-[#92400E]">
-              <strong className="block">Motif à corriger</strong>
-              <span>{campaign.external_error}</span>
+              <strong className="block">{t("ads.correction.reason")}</strong>
+              <span>{campaignErrorMessage(campaign.external_error, locale, t, campaign.platform)}</span>
             </div>
           ) : null}
           <label className="block text-sm font-semibold text-gray-700">
-            Titre
+            {t("ads.correction.name")}
             <input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-normal" />
           </label>
           <label className="block text-sm font-semibold text-gray-700">
-            Texte de la publicité
+            {t("ads.correction.adText")}
             <textarea value={text} onChange={(event) => setText(event.target.value)} rows={4} required className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-normal" />
           </label>
           <label className="block text-sm font-semibold text-gray-700">
-            Lien de destination
+            {t("ads.correction.destination")}
             <input type="url" value={destinationUrl} onChange={(event) => setDestinationUrl(event.target.value)} required className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-normal" />
           </label>
           {campaign.platform === "tiktok" ? (
             <div>
-              <p className="mb-1.5 text-sm font-semibold text-gray-700">Pays ciblés</p>
+              <p className="mb-1.5 text-sm font-semibold text-gray-700">{t("ads.correction.countries")}</p>
               <LocationSearchInput value={locations} onChange={setLocations} platform="tiktok" />
-              <p className="mt-1.5 text-xs text-gray-500">Retire un pays refusé et choisis uniquement une destination proposée par ton compte TikTok Ads.</p>
+              <p className="mt-1.5 text-xs text-gray-500">{t("ads.correction.countriesHint")}</p>
             </div>
           ) : null}
           {error ? <p role="alert" className="text-sm text-[#991B1B]">{error}</p> : null}
         </div>
         <div className="flex shrink-0 justify-between gap-3 border-t border-gray-100 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <button type="button" onClick={onClose} disabled={saving} className="text-sm font-medium text-gray-500 disabled:opacity-50">Annuler</button>
+          <button type="button" onClick={onClose} disabled={saving} className="text-sm font-medium text-gray-500 disabled:opacity-50">{t("ads.correction.cancel")}</button>
           <button type="button" onClick={() => void saveCorrections()} disabled={saving || !text.trim() || !destinationUrl.trim()} className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40">
-            {saving ? "Enregistrement…" : "Enregistrer et revenir au lancement"}
+            {saving ? t("ads.correction.saving") : t("ads.correction.save")}
           </button>
         </div>
       </div>
