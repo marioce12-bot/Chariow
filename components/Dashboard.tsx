@@ -234,8 +234,12 @@ export function Dashboard() {
 
   useEffect(() => {
     const s = searchParams.get("chariow");
+    const x = searchParams.get("x");
     if (s && ["connected", "failed", "expired", "revoked", "pending"].includes(s)) {
       setActive("Mes boutiques");
+    }
+    if (x && ["connected", "no_ad_account", "account_access_denied", "failed"].includes(x)) {
+      setActive("Paramètres");
     }
   }, [searchParams]);
 
@@ -1395,7 +1399,16 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
         if (!active) return;
         setMetaConnected((metaData.accounts ?? []).length > 0);
         setTiktokConnected((tiktokData.accounts ?? []).length > 0);
-        setXConnected((xData.accounts ?? []).length > 0);
+        setXConnected(Boolean(xData.connected));
+        setConnectionError(
+          typeof xData.connectionError === "string"
+            ? xData.connectionError.includes("(403)")
+              ? "Connexion X autorisée, mais l’API X Ads refuse l’accès aux comptes publicitaires (403). Vérifie que ton compte X a accès à X Ads et que l’application est autorisée à utiliser l’API Ads."
+              : "Connexion X autorisée, mais la récupération des comptes X Ads a échoué. Vérifie les accès X Ads, puis réessaie."
+            : xData.connected && (xData.accounts ?? []).length === 0
+              ? "Connexion X autorisée, mais aucun compte publicitaire X Ads n’est rattaché à ce profil."
+              : null,
+        );
       } finally {
         if (active) setLoadingAccounts(false);
       }

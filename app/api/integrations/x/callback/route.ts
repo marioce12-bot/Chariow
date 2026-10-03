@@ -26,7 +26,6 @@ export async function GET(request: Request) {
 
   try {
     const token = await exchangeXAdsToken(oauthToken, decryptSecret(stateRow.request_token_secret_encrypted), verifier);
-    const accounts = await fetchXAdsAccounts(token.token, token.secret);
     if (!token.userId) return redirect("failed");
     const integration = await supabase.from("x_ads_integrations").upsert({
       user_id: user.id,
@@ -39,6 +38,16 @@ export async function GET(request: Request) {
       last_error: null,
     }, { onConflict: "user_id,x_user_id" }).select("id").single();
     if (integration.error || !integration.data) return redirect("failed");
+
+    let accounts: Awaited<ReturnType<typeof fetchXAdsAccounts>>;
+    try {
+      accounts = await fetchXAdsAccounts(token.token, token.secret);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "X Ads accounts request failed";
+      await supabase.from("x_ads_integrations").update({ last_error: message }).eq("id", integration.data.id);
+      console.warn("X Ads OAuth: authorized token saved, but ad accounts could not be loaded", message);
+      return redirect("account_access_denied");
+    }
 
     for (const account of accounts) {
       if (!account.id) continue;
