@@ -50,6 +50,9 @@ export function Auth({ mode, configurationError = false }: { mode: "login" | "re
 
     try {
       const supabase = createClient();
+      // Marqueur lu par le middleware : si Supabase renvoie le lien sur la landing,
+      // on sait qu'il s'agit d'un reset de mot de passe et on redirige vers /reset-password.
+      if (forgot) document.cookie = "vendeo_pw_reset=1; path=/; max-age=3600; samesite=lax";
       const result = forgot
         ? await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password` })
         : register
