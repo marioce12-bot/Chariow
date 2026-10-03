@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bell, CheckCheck, ExternalLink } from "lucide-react";
+import { Bell, CheckCheck, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
 
@@ -11,7 +11,7 @@ function formatDate(value: string, locale: "fr" | "en") {
   return new Date(value).toLocaleString(locale === "fr" ? "fr-FR" : "en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function NotificationsView({ onBack }: { onBack: () => void }) {
+export function NotificationsView(_props: { onBack: () => void }) {
   const { locale, t } = useI18n();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,12 +39,8 @@ export function NotificationsView({ onBack }: { onBack: () => void }) {
   }
 
   return <div className="notifications-page">
-    <div className="page-top notifications-page-head">
-      <div><span className="eyebrow">{t("notifications.eyebrow")}</span><h1>{t("notifications.title")}</h1><p>{t("notifications.description")}</p></div>
-      <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {t("notifications.back")}</button>
-    </div>
     <section className="app-card notifications-card">
-      <div className="card-head"><div><h2>{unread ? `${unread} ${locale === "fr" ? "non lue(s)" : "unread"}` : t("notifications.title")}</h2></div>{unread ? <button type="button" className="notifications-mark-all" onClick={() => void markAllRead()}><CheckCheck size={15} /> {t("notifications.markAll")}</button> : null}</div>
+      {unread ? <div className="card-head"><div><h2>{`${unread} ${locale === "fr" ? "non lue(s)" : "unread"}`}</h2></div><button type="button" className="notifications-mark-all" onClick={() => void markAllRead()}><CheckCheck size={15} /> {t("notifications.markAll")}</button></div> : null}
       {loading ? <p className="hint-line">{t("notifications.loading")}</p> : error ? <p className="settings-inline-message settings-account-error">{error}</p> : !items.length ? <div className="notifications-empty"><Bell size={28} /><strong>{t("notifications.empty")}</strong></div> : <div className="notifications-page-list">{items.map((item) => {
         const content = <><div className="notifications-page-item-head"><strong>{item.title}</strong><time>{formatDate(item.created_at, locale)}</time></div><p>{item.body}</p>{item.action_url ? <span className="notification-action"><ExternalLink size={13} /> {t("notifications.open")}</span> : null}</>;
         return item.action_url ? <Link href={item.action_url} key={item.id} className={`notifications-page-item ${item.read_at ? "read" : "unread"}`} onClick={() => void markRead(item.id)}>{content}</Link> : <button type="button" key={item.id} className={`notifications-page-item ${item.read_at ? "read" : "unread"}`} onClick={() => void markRead(item.id)}>{content}</button>;
