@@ -15,18 +15,6 @@ type XAccount = {
   deleted?: boolean;
 };
 
-// Erreur renvoyée par l'API X Ads (ex. 401/403) avec le corps de réponse de X pour diagnostiquer.
-export class XAdsApiError extends Error {
-  status: number;
-  detail: string;
-  constructor(status: number, detail: string) {
-    super(`X Ads accounts request failed (${status})`);
-    this.name = "XAdsApiError";
-    this.status = status;
-    this.detail = detail;
-  }
-}
-
 function percentEncode(value: string) {
   return encodeURIComponent(value).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
 }
@@ -111,9 +99,7 @@ export async function fetchXAdsAccounts(accessToken: string, accessTokenSecret: 
   const { consumerKey, consumerSecret } = credentials();
   const url = `${X_ADS_API_BASE_URL}/accounts`;
   const response = await fetch(url, { headers: { Authorization: oauthHeader("GET", url, consumerKey, consumerSecret, accessToken, accessTokenSecret) }, cache: "no-store" });
-  const text = await response.text();
-  if (!response.ok) throw new XAdsApiError(response.status, text.slice(0, 400));
-  let json: { data?: XAccount[] } = {};
-  try { json = JSON.parse(text) as { data?: XAccount[] }; } catch { /* corps non JSON */ }
+  const json = await response.json().catch(() => ({})) as { data?: XAccount[]; errors?: unknown[] };
+  if (!response.ok) throw new Error(`X Ads accounts request failed (${response.status})`);
   return (json.data ?? []).filter((account) => account.id && !account.deleted);
 }
