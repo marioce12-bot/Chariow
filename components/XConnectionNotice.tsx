@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type Diagnosis = {
@@ -10,6 +11,11 @@ type Diagnosis = {
   retest: { ok: boolean; status?: number; accounts?: number; detail?: string } | null;
   verdict: string[];
 };
+
+type Pending = { status: string; reason: string };
+
+const STORAGE_KEY = "vendeo_x_notice_v1";
+const SLOT_ATTR = "data-x-notice-slot";
 
 function describe(status: string, reason: string) {
   if (status === "connected") return { tone: "ok", text: "Compte X Ads connecté." };
@@ -31,19 +37,61 @@ const TONES = {
 
 const smallButton = { background: "transparent", border: "1px solid currentColor", borderRadius: 999, color: "inherit", cursor: "pointer", fontSize: 12, padding: "5px 12px" } as const;
 
-// Bandeau compact affiché après un retour OAuth X (?x=...). Couleurs translucides pour rester lisible en thème sombre.
+// Retour OAuth X (?x=...) : on mémorise le résultat, on nettoie l'URL (l'accueil reste propre),
+// puis le bandeau s'affiche uniquement dans la section Pub > X Ads (panneau .x-ads-panel).
 export function XConnectionNotice() {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
-  const status = params.get("x");
-  if (!status) return null;
-  const reason = params.get("reason") ?? "";
-  const info = describe(status, reason);
-  const tone = TONES[info.tone as keyof typeof TONES];
+
+  // Résultat mémorisé pendant la session (survit à un rechargement).
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(STORAGE_KEY);
+      if (raw) setPending(JSON.parse(raw) as Pending);
+    } catch { /* stockage indisponible */ }
+  }, []);
+
+  // Capture les paramètres du callback puis retire ?x=... de l'URL.
+  useEffect(() => {
+    const status = params.get("x");
+    if (!status) return;
+    const next = { status, reason: params.get("reason") ?? "" };
+    try { window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    setPending(next);
+    router.replace(pathname);
+  }, [params, pathname, router]);
+
+  // Repère le panneau X Ads quand il est affiché et y insère un emplacement en tête.
+  useEffect(() => {
+    if (!pending) return;
+    const find = () => {
+      const panel = document.querySelector<HTMLElement>(".x-ads-panel");
+      if (!panel) { setSlot(null); return; }
+      let el = panel.querySelector<HTMLElement>(`[${SLOT_ATTR}]`);
+      if (!el) {
+        el = document.createElement("div");
+        el.setAttribute(SLOT_ATTR, "");
+        panel.prepend(el);
+      }
+      setSlot(el);
+    };
+    find();
+    const observer = new MutationObserver(find);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [pending]);
+
+  function dismiss() {
+    try { window.sessionStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    setPending(null);
+    setDiagnosis(null);
+  }
 
   async function runDiagnosis() {
     setLoading(true);
@@ -59,11 +107,15 @@ export function XConnectionNotice() {
     }
   }
 
-  return (
+  if (!pending || !slot) return null;
+  const info = describe(pending.status, pending.reason);
+  const tone = TONES[info.tone as keyof typeof TONES];
+
+  return createPortal(
     <div role="status" style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, fontSize: 13, lineHeight: 1.45, margin: "0 0 12px", padding: "10px 12px" }}>
       <div style={{ alignItems: "flex-start", display: "flex", gap: 8, justifyContent: "space-between" }}>
-        <span><strong>X Ads · </strong>{info.text}</span>
-        <button type="button" aria-label="Fermer" onClick={() => router.replace(pathname)} style={{ background: "transparent", border: 0, color: "inherit", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
+        <span><strong>Dernière tentative · </strong>{info.text}</span>
+        <button type="button" aria-label="Fermer" onClick={dismiss} style={{ background: "transparent", border: 0, color: "inherit", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
       </div>
       {info.tone !== "ok" && !diagnosis ? (
         <div style={{ marginTop: 8 }}>
@@ -80,6 +132,7 @@ export function XConnectionNotice() {
           </details>
         </div>
       ) : null}
-    </div>
+    </div>,
+    slot,
   );
 }
