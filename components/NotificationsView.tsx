@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CheckCheck, ExternalLink } from "lucide-react";
+import { ArrowRight, Bell, CheckCheck, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
 
@@ -11,7 +11,7 @@ function formatDate(value: string, locale: "fr" | "en") {
   return new Date(value).toLocaleString(locale === "fr" ? "fr-FR" : "en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function NotificationsView(_props: { onBack: () => void }) {
+export function NotificationsView({ onBack }: { onBack: () => void }) {
   const { locale, t } = useI18n();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +39,10 @@ export function NotificationsView(_props: { onBack: () => void }) {
   }
 
   return <div className="notifications-page">
+    <style>{`.mobile-nav{display:none !important}`}</style>
+    <div className="page-top notifications-page-head">
+      <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {t("notifications.back")}</button>
+    </div>
     <section className="app-card notifications-card">
       {unread ? <div className="card-head"><div><h2>{`${unread} ${locale === "fr" ? "non lue(s)" : "unread"}`}</h2></div><button type="button" className="notifications-mark-all" onClick={() => void markAllRead()}><CheckCheck size={15} /> {t("notifications.markAll")}</button></div> : null}
       {loading ? <p className="hint-line">{t("notifications.loading")}</p> : error ? <p className="settings-inline-message settings-account-error">{error}</p> : !items.length ? <div className="notifications-empty"><Bell size={28} /><strong>{t("notifications.empty")}</strong></div> : <div className="notifications-page-list">{items.map((item) => {
