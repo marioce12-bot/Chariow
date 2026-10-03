@@ -13,16 +13,25 @@ type Diagnosis = {
 
 function describe(status: string, reason: string) {
   if (status === "connected") return { tone: "ok", text: "Compte X Ads connecté." };
-  if (status === "no_ad_account") return { tone: "warn", text: "Autorisation X réussie, mais aucun compte publicitaire n'est accessible. Crée un compte sur ads.x.com avec un rôle Ad manager ou Account administrator." };
-  if (reason === "ads_403") return { tone: "error", text: "X refuse l'accès aux comptes publicitaires (403). L'app X n'a probablement pas l'accès X Ads API (Standard Access), ou ton compte X n'a aucun rôle sur un compte pub." };
-  if (reason === "ads_401") return { tone: "error", text: "X rejette les identifiants (401). Vérifie que X_API_KEY et X_API_SECRET correspondent bien à l'app X utilisée." };
+  if (status === "no_ad_account") return { tone: "warn", text: "Autorisation X réussie, mais aucun compte publicitaire accessible. Crée-en un sur ads.x.com (rôle Ad manager ou Account administrator)." };
+  if (reason === "ads_403") return { tone: "error", text: "X refuse l'accès aux comptes pub (403) : accès X Ads API non approuvé, ou aucun rôle sur un compte pub." };
+  if (reason === "ads_401") return { tone: "error", text: "X rejette les identifiants (401) : vérifie X_API_KEY et X_API_SECRET." };
   if (reason.startsWith("ads_")) return { tone: "error", text: `L'API X Ads a répondu avec une erreur (${reason.slice(4)}).` };
-  if (reason === "missing_params") return { tone: "error", text: "L'autorisation a été annulée ou X n'a pas renvoyé de jeton." };
-  if (reason === "state_expired") return { tone: "error", text: "La demande de connexion a expiré (10 min). Relance la connexion." };
-  if (reason === "db_error") return { tone: "error", text: "Impossible d'enregistrer l'intégration : la migration Supabase X Ads est-elle appliquée ?" };
+  if (reason === "missing_params") return { tone: "error", text: "Autorisation annulée ou jeton non renvoyé par X." };
+  if (reason === "state_expired") return { tone: "error", text: "Demande de connexion expirée (10 min). Relance la connexion." };
+  if (reason === "db_error") return { tone: "error", text: "Enregistrement impossible : migration Supabase X Ads appliquée ?" };
   return { tone: "error", text: "La connexion X Ads a échoué." };
 }
 
+const TONES = {
+  ok: { bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.45)" },
+  warn: { bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.45)" },
+  error: { bg: "rgba(244,63,94,0.12)", border: "rgba(244,63,94,0.45)" },
+} as const;
+
+const smallButton = { background: "transparent", border: "1px solid currentColor", borderRadius: 999, color: "inherit", cursor: "pointer", fontSize: 12, padding: "5px 12px" } as const;
+
+// Bandeau compact affiché après un retour OAuth X (?x=...). Couleurs translucides pour rester lisible en thème sombre.
 export function XConnectionNotice() {
   const params = useSearchParams();
   const router = useRouter();
@@ -34,7 +43,7 @@ export function XConnectionNotice() {
   if (!status) return null;
   const reason = params.get("reason") ?? "";
   const info = describe(status, reason);
-  const colors = info.tone === "ok" ? { bg: "#ecfdf3", fg: "#067647" } : info.tone === "warn" ? { bg: "#fff5e8", fg: "#805c20" } : { bg: "#fff1f2", fg: "#be123c" };
+  const tone = TONES[info.tone as keyof typeof TONES];
 
   async function runDiagnosis() {
     setLoading(true);
@@ -51,18 +60,24 @@ export function XConnectionNotice() {
   }
 
   return (
-    <div className="app-card" role="status" style={{ background: colors.bg, color: colors.fg, marginBottom: 16, lineHeight: 1.5 }}>
-      <strong>X Ads</strong>
-      <p style={{ margin: "6px 0 10px" }}>{info.text}</p>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {info.tone !== "ok" ? <button type="button" className="btn btn-dark" onClick={() => void runDiagnosis()} disabled={loading}>{loading ? "Diagnostic…" : "Lancer le diagnostic"}</button> : null}
-        <button type="button" className="btn btn-ghost" onClick={() => router.replace(pathname)}>Fermer</button>
+    <div role="status" style={{ background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, fontSize: 13, lineHeight: 1.45, margin: "0 0 12px", padding: "10px 12px" }}>
+      <div style={{ alignItems: "flex-start", display: "flex", gap: 8, justifyContent: "space-between" }}>
+        <span><strong>X Ads · </strong>{info.text}</span>
+        <button type="button" aria-label="Fermer" onClick={() => router.replace(pathname)} style={{ background: "transparent", border: 0, color: "inherit", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
       </div>
-      {failed ? <p style={{ marginTop: 10 }}>Le diagnostic n'a pas pu s'exécuter.</p> : null}
+      {info.tone !== "ok" && !diagnosis ? (
+        <div style={{ marginTop: 8 }}>
+          <button type="button" onClick={() => void runDiagnosis()} disabled={loading} style={smallButton}>{loading ? "Diagnostic…" : "Lancer le diagnostic"}</button>
+        </div>
+      ) : null}
+      {failed ? <p style={{ margin: "8px 0 0" }}>Le diagnostic n'a pas pu s'exécuter.</p> : null}
       {diagnosis ? (
-        <div style={{ marginTop: 12, fontSize: 13 }}>
-          {diagnosis.verdict.length ? <ul style={{ paddingLeft: 18, margin: "0 0 8px" }}>{diagnosis.verdict.map((line) => <li key={line}>{line}</li>)}</ul> : <p>Aucun problème détecté.</p>}
-          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0, fontSize: 12 }}>{JSON.stringify({ env: diagnosis.env, integrations: diagnosis.integrations, activeAccounts: diagnosis.activeAccounts, retest: diagnosis.retest }, null, 2)}</pre>
+        <div style={{ marginTop: 8 }}>
+          {diagnosis.verdict.length ? <ul style={{ margin: "0 0 6px", paddingLeft: 18 }}>{diagnosis.verdict.map((line) => <li key={line}>{line}</li>)}</ul> : <p style={{ margin: "0 0 6px" }}>Aucun problème détecté.</p>}
+          <details>
+            <summary style={{ cursor: "pointer" }}>Détails techniques</summary>
+            <pre style={{ fontSize: 11, margin: "6px 0 0", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{JSON.stringify({ env: diagnosis.env, integrations: diagnosis.integrations, activeAccounts: diagnosis.activeAccounts, retest: diagnosis.retest }, null, 2)}</pre>
+          </details>
         </div>
       ) : null}
     </div>
