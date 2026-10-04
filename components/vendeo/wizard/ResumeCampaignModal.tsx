@@ -9,7 +9,7 @@ import { useI18n } from "@/lib/i18n/i18n";
 interface ResumeCampaignModalProps {
   campaignId: string;
   platform: Platform;
-  /** "draft"/"paused"/"autopilot_paused" = prêt à lancer/réactiver ; "paid" = déjà payé, prêt à activer. */
+  /** Tous les états acceptés ici reprennent le lancement direct; `paid` est conservé pour compatibilité historique. */
   initialStatus: "draft" | "paused" | "autopilot_paused" | "paid";
   /** Motif du dernier refus Meta/TikTok, déjà enregistré côté serveur (le
    *  paiement reste "paid" après un refus — voir /api/ad-campaigns/[id]/launch).
@@ -23,8 +23,8 @@ interface ResumeCampaignModalProps {
 /**
  * Reprend une campagne déjà créée (visible dans "Mes campagnes") sans repasser
  * par les étapes 1 à 4 du wizard : on a déjà tout ce qu'il faut en base
- * (campaignId, platform), et /checkout + /activate n'ont besoin de rien
- * d'autre. Rendu via portail comme LaunchAdWizard pour éviter les soucis de
+ * (campaignId, platform), et /launch effectue la reprise côté plateforme.
+ * Rendu via portail comme LaunchAdWizard pour éviter les soucis de
  * positionnement `fixed` dans un conteneur avec overflow.
  */
 export function ResumeCampaignModal({ campaignId, platform, initialStatus, initialError, onClose, onCorrection, onLaunched }: ResumeCampaignModalProps) {
@@ -44,7 +44,7 @@ export function ResumeCampaignModal({ campaignId, platform, initialStatus, initi
       <div className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[85vh] sm:max-w-md sm:rounded-2xl">
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
           <h2 className="text-base font-bold text-gray-900">
-            {initialStatus === "paid" ? t("ads.activateCampaign") : t("ads.launchButton")}
+            {t("ads.launchButton")}
           </h2>
           <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">
             {t("ads.correction.close")}
