@@ -14,6 +14,7 @@ type AdCampaign = {
   platform: Platform;
   status: string;
   objective: string;
+  effective_objective?: string | null;
   title: string | null;
   daily_budget: number;
   duration_days: number;
@@ -37,7 +38,8 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
   draft: { label: "Brouillon", bg: "#F3F4F6", fg: "#374151" },
   account_required: { label: "Compte requis", bg: "#FEF3C7", fg: "#92400E" },
   submitting: { label: "Création en cours…", bg: "#DBEAFE", fg: "#1E40AF" },
-  paused: { label: "Prête — en attente de paiement", bg: "#E0E7FF", fg: "#3730A3" },
+  paused: { label: "Suspendue", bg: "#E0E7FF", fg: "#3730A3" },
+  autopilot_paused: { label: "Mise en pause par le pilote", bg: "#FEF3C7", fg: "#92400E" },
   paid: { label: "Payée — en attente d’activation", bg: "#E0E7FF", fg: "#3730A3" },
   review: { label: "En cours d'examen", bg: "#FEF3C7", fg: "#92400E" },
   active: { label: "Active", bg: "#D1FAE5", fg: "#065F46" },
@@ -60,7 +62,7 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
 export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | null; onNewCampaign: () => void }) {
   const { locale, t } = useI18n();
   const statusLabels: Record<string, string> = locale === "en" ? {
-    draft: "Draft", account_required: "Account required", submitting: "Creating…", paused: "Ready — awaiting payment",
+    draft: "Draft", account_required: "Account required", submitting: "Creating…", paused: "Paused", autopilot_paused: "Paused by autopilot",
     paid: "Paid — awaiting activation", review: "Under review", active: "Active", rejected: "Rejected", error: "Error", completed: "Completed",
   } : Object.fromEntries(Object.entries(STATUS_META).map(([key, value]) => [key, value.label]));
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
@@ -145,7 +147,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
           {campaigns.slice(0, showAll ? campaigns.length : 3).map((c) => {
             const meta = STATUS_META[c.status] ?? { label: c.status, bg: "#F3F4F6", fg: "#374151" };
-            const canResume = c.status === "draft" || c.status === "paused" || c.status === "paid";
+            const canResume = c.status === "draft" || c.status === "paused" || c.status === "autopilot_paused" || c.status === "paid";
             return (
               <div
                 key={c.id}
@@ -173,7 +175,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
                    <span style={{ fontSize: 13, textAlign: "left", fontWeight: 700 }}>{c.title || c.product_name || c.product_id}</span>
                   <span className="hint-line">
-                    {c.platform === "meta" ? "Meta" : "TikTok"} · {Number(c.daily_budget).toLocaleString("fr-FR")} $/j · {c.duration_days} j
+                    {c.platform === "meta" ? "Meta" : "TikTok"}{c.objective === "sales" && c.effective_objective === "traffic" ? " · Trafic (sans pixel)" : ""} · {Number(c.daily_budget).toLocaleString("fr-FR")} $/j · {c.duration_days} j
                   </span>
                   {/* /launch garde le statut "paid" (jamais "error") apres un refus Meta/TikTok
                       pour permettre un nouvel essai sans repayer : le motif doit donc s'afficher
@@ -216,7 +218,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
         <ResumeCampaignModal
           campaignId={resuming.id}
           platform={resuming.platform}
-          initialStatus={resuming.status as "draft" | "paused" | "paid"}
+          initialStatus={resuming.status as "draft" | "paused" | "autopilot_paused" | "paid"}
           initialError={resuming.external_error}
           onClose={() => setResuming(null)}
           onCorrection={(message) => {
@@ -244,7 +246,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
             const updatedCampaign: AdCampaign = { ...correcting, ...updates, external_error: null };
             setCorrecting(null);
             setCorrectionFromDetail(false);
-            if (["draft", "paid", "paused", "rejected"].includes(updatedCampaign.status)) setResuming(updatedCampaign);
+            if (["draft", "paid", "paused", "autopilot_paused", "rejected"].includes(updatedCampaign.status)) setResuming(updatedCampaign);
             else setSelected(updatedCampaign);
             void load();
           }}
@@ -279,7 +281,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                 </button>
               </div>
             ) : null}
-            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}<button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button></div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}<button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button></div>
           </div>
         </div>
       ) : null}

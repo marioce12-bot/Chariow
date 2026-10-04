@@ -2,6 +2,7 @@
 // Elle calcule des métriques, les compare à une baseline propre à chaque campagne
 // (jamais de seuil absolu générique) et produit des anomalies structurées avec preuves chiffrées.
 // La couche IA (route /api/meta/diagnostic/analyze) reçoit uniquement ce JSON, ne recalcule rien.
+import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
 
 export type DiagnosticStage = "audience" | "creative" | "attribution" | "offer" | "checkout" | "technical";
 
@@ -148,7 +149,7 @@ function detectAttributionAnomaly(series: CampaignSeries, sales: DiagnosticAttri
 
   const roasMeta = metaReportedValue / spend;
   const realRevenue = sales
-    .filter((sale) => sale.status === "completed")
+    .filter((sale) => isConfirmedChariowSaleStatus(sale.status))
     .reduce((total, sale) => total + num(sale.amount), 0);
   const roasReel = realRevenue / spend;
   const ratio = roasReel / Math.max(roasMeta, 0.01);

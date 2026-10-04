@@ -9,8 +9,8 @@ import { useI18n } from "@/lib/i18n/i18n";
 interface ResumeCampaignModalProps {
   campaignId: string;
   platform: Platform;
-  /** "draft"/"paused" = prête à lancer ; "paid" = déjà payée, prête à activer. */
-  initialStatus: "draft" | "paused" | "paid";
+  /** "draft"/"paused"/"autopilot_paused" = prêt à lancer/réactiver ; "paid" = déjà payé, prêt à activer. */
+  initialStatus: "draft" | "paused" | "autopilot_paused" | "paid";
   /** Motif du dernier refus Meta/TikTok, déjà enregistré côté serveur (le
    *  paiement reste "paid" après un refus — voir /api/ad-campaigns/[id]/launch).
    *  Affiché dès l'ouverture pour ne pas faire retenter l'utilisateur à l'aveugle. */

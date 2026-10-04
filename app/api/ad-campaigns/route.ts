@@ -112,7 +112,7 @@ export async function POST(request: Request) {
 export async function GET() {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
-  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,ad_set_name,ad_name,title,ad_text,media_url,destination_url,countries,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,destination_url,countries,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "Impossible de charger les campagnes" }, { status: 500 });
   return NextResponse.json({ campaigns: data ?? [] });
 }
