@@ -58,7 +58,6 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
  * du lendemain). Chaque campagne créée apparaît ici immédiatement avec son
  * statut, et un bouton permet de relancer une campagne sans repasser par le wizard.
  *
- * La carte "Solde publicitaire" (AdBalanceCard) est rendue tout en haut de ce bloc.
  */
 export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | null; onNewCampaign: () => void }) {
   const { locale, t } = useI18n();
@@ -76,9 +75,6 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [togglingAutopilot, setTogglingAutopilot] = useState(false);
-  // Incrémenté après chaque chargement des campagnes : le solde (paiement, lancement, rejet…)
-  // est ainsi rafraîchi en même temps que les statuts.
-
   const load = useCallback(async () => {
     setLoading(true);
     try {

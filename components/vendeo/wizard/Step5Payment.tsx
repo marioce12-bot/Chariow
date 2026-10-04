@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2, Wallet } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import type { WizardState } from "./types";
 import { useI18n } from "@/lib/i18n/i18n";
 import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
@@ -15,21 +15,18 @@ interface StepProps {
   initialError?: string | null;
 }
 
-type Phase = "ready" | "launching" | "done" | "error" | "insufficient";
+type Phase = "ready" | "launching" | "done" | "error";
 
 /**
- * Lancement de la campagne depuis le solde publicitaire. Plus aucun paiement au
- * lancement : le budget est prélevé sur le portefeuille Vendeo. Si le solde est
- * insuffisant, on affiche "Solde insuffisant" et on invite à recharger.
+ * Envoi de la campagne à Meta/TikTok : la plateforme facture directement le
+ * compte publicitaire sélectionné. Vendeo ne collecte pas le budget de campagne.
  */
 export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialStatus, initialError }: StepProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [error, setError] = useState<string | null>(null);
-  const [insufficient, setInsufficient] = useState<{ balance: number; required: number } | null>(null);
   const [objectiveFallback, setObjectiveFallback] = useState(false);
   const { locale, t } = useI18n();
   const platformLabel = state.platform === "meta" ? "Meta" : "TikTok";
-  const numberLocale = locale === "fr" ? "fr-FR" : "en-US";
 
   useEffect(() => {
     if (initialError) {
@@ -43,7 +40,6 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
     if (!state.campaignId) return;
     setPhase("launching");
     setError(null);
-    setInsufficient(null);
     try {
       const body =
         state.platform === "meta"
@@ -55,11 +51,6 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 402 && data.code === "insufficient_balance") {
-        setInsufficient({ balance: Number(data.balance ?? 0), required: Number(data.required ?? 0) });
-        setPhase("insufficient");
-        return;
-      }
       if (!res.ok) throw new Error(data?.error || `${platformLabel} n'a pas accepté la campagne`);
       setObjectiveFallback(Boolean(data.objective_fallback));
       setPhase("done");
@@ -99,18 +90,6 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
         </div>
       )}
 
-      {phase === "insufficient" && (
-        <div className="space-y-3 rounded-xl bg-[#FFFBEB] p-4 text-sm text-[#92400E]">
-          <div className="flex items-center gap-2 font-semibold">
-            <Wallet className="h-4 w-4" /> {t("ads.balanceInsufficient")}
-          </div>
-          <p>
-            {t("ads.balanceDetails", { required: insufficient?.required.toLocaleString(numberLocale) ?? "0", balance: insufficient?.balance.toLocaleString(numberLocale) ?? "0" })}
-          </p>
-          <p className="text-xs">{t("ads.balanceHelp")}</p>
-        </div>
-      )}
-
       {phase === "error" && (
         <div className="space-y-3 rounded-xl bg-[#FFFBEB] p-4 text-sm text-[#92400E]">
           <p className="font-semibold">{t("ads.launchError", { platform: platformLabel })}</p>
@@ -128,7 +107,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
         </div>
       )}
 
-      {onBack && !["done", "insufficient"].includes(phase) && (
+      {onBack && phase !== "done" && (
         <div className="sticky bottom-0 -mx-5 mt-4 flex justify-between border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button onClick={onBack} className="text-sm font-medium text-gray-500">
             {t("ads.back")}
