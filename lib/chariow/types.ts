@@ -42,6 +42,7 @@ export type ChariowProduct = {
 export type ChariowKpis = {
   period: { from: string | null; to: string | null };
   revenue: { value: number | string | null; formatted: string | null };
+  revenueByCurrency: Array<{ currency: string; value: number }>;
   sales: number;
   visits: number;
   conversionRate: string;

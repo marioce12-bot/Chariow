@@ -28,8 +28,9 @@ export interface VerdictBannerData {
 }
 
 export interface ImpactFinancierData {
-  budgetEconomise: number; // gaspillage évité
-  revenuAdditionnelEstime: number; // gains potentiels
+  budgetEconomise: number; // dépense observée sur les campagnes à risque, pas une économie réalisée
+  revenuAdditionnelEstime: number; // estimation indicative basée sur les ventes Chariow attribuées
+  currency: string;
 }
 
 export type CampaignVerdictBadge = "stop" | "scale" | "test";
@@ -40,9 +41,10 @@ export interface CampaignRow {
   productName: string;
   audienceTags: string[]; // ex: ["18-35 ans", "Cotonou", "Mode"]
   network: "meta" | "tiktok";
+  currency: string;
   spend: number;
-  realSales: number; // nombre de ventes payées
-  realRevenue: number; // chiffre d'affaires réel encaissé
+  realSales: number | null; // null si aucune attribution fiable n'est disponible
+  realRevenue: number | null; // net Chariow converti dans la devise publicitaire
   verdict: CampaignVerdictBadge;
   recommendedAction: string; // ex: "Couper la pub", "Budget +5$"
 }
@@ -66,4 +68,12 @@ export interface DiagnosticCard {
 // XOF saisi par l'utilisateur était donc interprété comme des $ par Meta).
 export function formatXOF(value: number): string {
   return `${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+}
+
+export function formatAdMoney(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: currency || "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+  } catch {
+    return `${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+  }
 }

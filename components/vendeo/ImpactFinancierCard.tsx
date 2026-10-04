@@ -1,6 +1,6 @@
 "use client";
 
-import { formatXOF, type ImpactFinancierData } from "./types";
+import { formatAdMoney, type ImpactFinancierData } from "./types";
 
 interface ImpactFinancierCardProps {
   data: ImpactFinancierData;
@@ -14,22 +14,22 @@ export function ImpactFinancierCard({ data }: ImpactFinancierCardProps) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="rounded-2xl border border-[#D1FAE5] bg-white p-5 shadow-sm">
-        <p className="text-sm font-medium text-gray-500">Gaspillage évité</p>
+        <p className="text-sm font-medium text-gray-500">Dépense observée sur campagnes à risque</p>
         <p className="mt-1 text-3xl font-extrabold text-[#10B981]">
-          +{formatXOF(data.budgetEconomise)}
+          {formatAdMoney(data.budgetEconomise, data.currency)}
         </p>
         <p className="mt-1 text-xs text-gray-500">
-          Montant actuellement exposé sur les campagnes signalées.
+          Dépense déjà observée sur la période; ce montant n'est pas une économie réalisée.
         </p>
       </div>
 
       <div className="rounded-2xl border border-[#E0E7FF] bg-white p-5 shadow-sm">
-        <p className="text-sm font-medium text-gray-500">Revenu additionnel estimé</p>
+        <p className="text-sm font-medium text-gray-500">Potentiel estimé selon le ROAS attribué</p>
         <p className="mt-1 text-3xl font-extrabold text-[#6366F1]">
-          +{formatXOF(data.revenuAdditionnelEstime)}
+          {formatAdMoney(data.revenuAdditionnelEstime, data.currency)}
         </p>
         <p className="mt-1 text-xs text-gray-500">
-          Si tu appliques les recommandations d'analyse et de prix.
+          Estimation indicative à partir des ventes Chariow attribuées; ce n'est pas un revenu garanti.
         </p>
       </div>
     </div>

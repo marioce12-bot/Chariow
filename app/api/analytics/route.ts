@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getChariowSnapshot, normalizeChariowSnapshot } from "@/lib/chariow/analytics";
+import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
 
 // Cookie lisible cote navigateur (non httpOnly, sans donnee sensible) : il permet
 // d'afficher un message clair quand Chariow est en panne (voir ChariowStatusNotice).
@@ -30,6 +31,40 @@ export async function GET(request: Request) {
   try {
     const snapshot = await getChariowSnapshot(store, { from, to });
     const normalized = normalizeChariowSnapshot(snapshot, { from: from ?? "", to: to ?? "" });
+    const now = new Date();
+    const periodFrom = from ?? normalized.kpis.period.from ?? new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const periodTo = to ?? normalized.kpis.period.to ?? now.toISOString().slice(0, 10);
+    const byCurrency = new Map<string, number>();
+    let confirmedSales = 0;
+    for (let offset = 0; offset < 20_000; offset += 1000) {
+      const { data: rows, error: salesError } = await supabase
+        .from("chariow_sales")
+        .select("status,amount,currency,occurred_at")
+        .eq("store_id", store.id)
+        .gte("occurred_at", `${periodFrom}T00:00:00.000Z`)
+        .lte("occurred_at", `${periodTo}T23:59:59.999Z`)
+        .order("occurred_at", { ascending: true })
+        .range(offset, offset + 999);
+      if (salesError) break;
+      const batch = rows ?? [];
+      for (const sale of batch) {
+        if (!isConfirmedChariowSaleStatus(sale.status)) continue;
+        confirmedSales += 1;
+        const currency = typeof sale.currency === "string" && sale.currency.trim() ? sale.currency.trim().toUpperCase() : "INCONNUE";
+        byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + (Number(sale.amount) || 0));
+      }
+      if (batch.length < 1000) break;
+    }
+    if (confirmedSales > 0) {
+      const revenueByCurrency = [...byCurrency.entries()].map(([currency, value]) => ({ currency, value: Math.round(value * 100) / 100 }));
+      normalized.kpis.revenueByCurrency = revenueByCurrency;
+      normalized.kpis.sales = confirmedSales;
+      if (revenueByCurrency.length === 1 && revenueByCurrency[0].currency !== "INCONNUE") {
+        normalized.kpis.revenue = { value: revenueByCurrency[0].value, formatted: `${revenueByCurrency[0].value.toLocaleString("fr-FR")} ${revenueByCurrency[0].currency}` };
+      } else {
+        normalized.kpis.revenue = { value: null, formatted: "Ventilé par devise" };
+      }
+    }
     return withStatus(NextResponse.json({ store: { name: normalized.storeName, status: store.connection_status }, snapshot: normalized }), null);
   } catch (analyticsError) {
     const message = analyticsError instanceof Error ? analyticsError.message : String(analyticsError);

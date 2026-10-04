@@ -85,11 +85,13 @@ export async function fetchMetaInsights(accountId: string, accessToken: string, 
 
 export function actionValue(actions: unknown, types: string[]) {
   if (!Array.isArray(actions)) return 0;
-  return actions.reduce((total, action) => {
-    if (!action || typeof action !== "object") return total;
-    const row = action as { action_type?: unknown; value?: unknown };
-    return types.includes(String(row.action_type)) ? total + Number(row.value ?? 0) : total;
-  }, 0);
+  for (const type of types) {
+    const action = actions.find((item) => item && typeof item === "object" && String((item as { action_type?: unknown }).action_type) === type) as { value?: unknown } | undefined;
+    if (!action) continue;
+    const value = Number(action.value ?? 0);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return 0;
 }
 
 export async function getMetaAccountFunding(accountId: string, accessToken: string) {

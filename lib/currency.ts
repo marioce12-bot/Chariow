@@ -60,3 +60,11 @@ export function toUsd(amount: number, currency: string): number | null {
   if (rate === null || !Number.isFinite(amount)) return null;
   return Math.round(amount * rate * 100) / 100;
 }
+
+/** Convertit un montant entre deux devises prises en charge; null signifie qu'aucun ROAS fiable ne peut être calculé. */
+export function convertCurrency(amount: number, fromCurrency: string, toCurrency: string): number | null {
+  const from = usdPerUnit(fromCurrency);
+  const to = usdPerUnit(toCurrency);
+  if (from === null || to === null || !Number.isFinite(amount) || to <= 0) return null;
+  return Math.round((amount * from / to) * 100) / 100;
+}

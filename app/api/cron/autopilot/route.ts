@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
+import { convertCurrency } from "@/lib/currency";
+import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
 import { computeAutopilotDecision } from "@/lib/autopilot";
 import { pauseMetaCampaign } from "@/lib/meta/campaigns";
 import { pauseTikTokCampaign } from "@/lib/tiktok/campaigns";
@@ -20,23 +22,49 @@ const num = (value: unknown) => {
 
 const isoDay = (date: Date) => date.toISOString().slice(0, 10);
 
-function sumSales(sales: Array<Record<string, unknown>> | null | undefined) {
+function sumSales(sales: Array<Record<string, unknown>> | null | undefined, currency: string) {
   let gross = 0;
   let net = 0;
+  let completed = 0;
+  let currencyReliable = true;
   for (const sale of sales ?? []) {
-    gross += num(sale.amount);
-    net += num(sale.net_amount);
+    if (!isConfirmedChariowSaleStatus(sale.status)) continue;
+    const saleCurrency = typeof sale.currency === "string" ? sale.currency : "";
+    const convertedGross = saleCurrency ? convertCurrency(num(sale.amount), saleCurrency, currency) : null;
+    const convertedNet = saleCurrency ? convertCurrency(num(sale.net_amount), saleCurrency, currency) : null;
+    if (convertedGross === null || convertedNet === null) {
+      currencyReliable = false;
+      continue;
+    }
+    gross += convertedGross;
+    net += convertedNet;
+    completed += 1;
   }
-  return { gross, net, completed: (sales ?? []).length };
+  return { gross, net, completed, currencyReliable };
 }
 
-// Attribution des ventes réelles Chariow à une campagne.
-// - Meta : via meta_campaign_mappings (meta_campaign_id -> chariow_campaign_id).
-// - TikTok : via tiktok_campaign_mappings (tiktok_campaign_id -> chariow_campaign_id)
-//   quand il existe, sinon repli sur le produit (product_id).
-async function attributedSales(supabase: any, campaign: any) {
+// Attribution des ventes réelles Chariow à une campagne. Pas de repli par produit :
+// sans lien explicite, une vente ne permet pas de conclure qu'une campagne est perdante.
+async function attributedSales(supabase: any, campaign: any, currency: string) {
   const from = new Date(campaign.created_at).toISOString();
   const to = new Date().toISOString();
+
+  if (campaign.platform === "meta") {
+    const { data: attributionRows } = await supabase
+      .from("meta_attributions")
+      .select("chariow_sale_id")
+      .eq("user_id", campaign.user_id)
+      .eq("store_id", campaign.store_id)
+      .eq("meta_campaign_id", campaign.external_campaign_id)
+      .gte("attributed_at", from)
+      .lte("attributed_at", to)
+      .not("chariow_sale_id", "is", null);
+    const saleIds = [...new Set((attributionRows ?? []).map((row: { chariow_sale_id: string | null }) => row.chariow_sale_id).filter(Boolean))] as string[];
+    if (saleIds.length) {
+      const { data: sales } = await supabase.from("chariow_sales").select("amount,net_amount,currency,status").eq("store_id", campaign.store_id).in("chariow_sale_id", saleIds);
+      return { ...sumSales(sales as Array<Record<string, unknown>> | null, currency), reliable: true };
+    }
+  }
 
   const mappingTable = campaign.platform === "meta" ? "meta_campaign_mappings" : "tiktok_campaign_mappings";
   const externalIdField = campaign.platform === "meta" ? "meta_campaign_id" : "tiktok_campaign_id";
@@ -53,26 +81,21 @@ async function attributedSales(supabase: any, campaign: any) {
   if (campaignIds.length) {
     const { data: sales } = await supabase
       .from("chariow_sales")
-      .select("amount,net_amount,status")
+      .select("amount,net_amount,currency,status")
       .eq("store_id", campaign.store_id)
       .in("chariow_campaign_id", campaignIds)
-      .eq("status", "completed")
       .gte("occurred_at", from)
       .lte("occurred_at", to);
-    return sumSales(sales as Array<Record<string, unknown>> | null);
+    return { ...sumSales(sales as Array<Record<string, unknown>> | null, currency), reliable: true };
   }
 
-  // Repli : la campagne promeut un seul produit — on attribue les ventes de ce
-  // produit sur la fenêtre active de la campagne (utilisé en l'absence de mapping).
-  const { data: sales } = await supabase
-    .from("chariow_sales")
-    .select("amount,net_amount,status")
-    .eq("store_id", campaign.store_id)
-    .eq("product_id", campaign.product_id)
-    .eq("status", "completed")
-    .gte("occurred_at", from)
-    .lte("occurred_at", to);
-  return sumSales(sales as Array<Record<string, unknown>> | null);
+  return { gross: 0, net: 0, completed: 0, currencyReliable: true, reliable: false };
+}
+
+async function metaPurchaseTrackingReady(supabase: any, campaign: any): Promise<boolean> {
+  if (campaign.platform !== "meta" || campaign.objective !== "sales" || campaign.effective_objective !== "sales") return false;
+  const { data } = await supabase.from("meta_pixels").select("pixel_id").eq("user_id", campaign.user_id).eq("ad_account_id", campaign.meta_ad_account_id).eq("configured_on_chariow", true).limit(1);
+  return Boolean(data?.length);
 }
 
 // Devise du compte publicitaire de la campagne (pour un rapport lisible).
@@ -218,7 +241,7 @@ export async function GET(request: Request) {
 
   const { data: campaigns, error } = await supabase
     .from("ad_campaigns")
-    .select("id,user_id,store_id,product_id,platform,status,objective,daily_budget,created_at,external_campaign_id,external_adset_id,external_ad_id,meta_ad_account_id,tiktok_ad_account_id,title,product_name")
+    .select("id,user_id,store_id,product_id,platform,status,objective,effective_objective,daily_budget,created_at,external_campaign_id,external_adset_id,external_ad_id,meta_ad_account_id,tiktok_ad_account_id,title,product_name")
     .eq("autopilot_enabled", true)
     .in("status", ["active", "review"])
     .not("external_campaign_id", "is", null);
@@ -227,9 +250,11 @@ export async function GET(request: Request) {
   const results = [];
   for (const campaign of (campaigns ?? []) as Array<Record<string, unknown> & { id: string; user_id: string; platform: "meta" | "tiktok"; daily_budget: number; created_at: string }>) {
     try {
-      const spendData = await campaignSpend(supabase, campaign);
-      const sales = await attributedSales(supabase, campaign);
       const currency = await campaignCurrency(supabase, campaign);
+      const spendData = await campaignSpend(supabase, campaign);
+      const sales = await attributedSales(supabase, campaign, currency);
+      const trackingReady = campaign.platform === "meta" ? await metaPurchaseTrackingReady(supabase, campaign) : true;
+      const attributionReliable = sales.reliable && sales.currencyReliable && trackingReady;
       const daysSinceLaunch = Math.max(0, (Date.now() - new Date(campaign.created_at).getTime()) / 86400000);
       const baseDecision = computeAutopilotDecision({
         spend: spendData.spend,
@@ -238,6 +263,7 @@ export async function GET(request: Request) {
         completedSales: sales.completed,
         daysSinceLaunch,
         dailyBudget: num(campaign.daily_budget),
+        attributionReliable,
       });
 
       // Diagnostic déterministe (Meta uniquement) puis raffinement du motif par
@@ -247,7 +273,7 @@ export async function GET(request: Request) {
         return [] as Anomaly[];
       });
       const decision = await refineAutopilotVerdictWithAI(
-        { spend: spendData.spend, netRevenue: sales.net, grossRevenue: sales.gross, completedSales: sales.completed, daysSinceLaunch, dailyBudget: num(campaign.daily_budget) },
+        { spend: spendData.spend, netRevenue: sales.net, grossRevenue: sales.gross, completedSales: sales.completed, daysSinceLaunch, dailyBudget: num(campaign.daily_budget), attributionReliable },
         baseDecision,
         anomalies,
         { campaignTitle: String(campaign.title || campaign.product_name || "Campagne"), currency, platform: campaign.platform },
@@ -278,7 +304,7 @@ export async function GET(request: Request) {
         await pauseCampaign(supabase, campaign);
         await supabase
           .from("ad_campaigns")
-          .update({ status: "paused", autopilot_paused_at: new Date().toISOString(), autopilot_pause_reason: decision.reasons.join(" ") })
+          .update({ status: "autopilot_paused", autopilot_paused_at: new Date().toISOString(), autopilot_pause_reason: decision.reasons.join(" ") })
           .eq("id", campaign.id);
         const title = String(campaign.title || campaign.product_name || "Campagne");
         await supabase.from("vendeo_alerts").upsert(

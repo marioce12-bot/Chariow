@@ -11,7 +11,7 @@ interface StepProps {
   onBack?: () => void;
   onLaunched: (campaignId: string) => void;
   onCorrection?: (message: string | null) => void;
-  initialStatus?: "draft" | "paused" | "paid";
+  initialStatus?: "draft" | "paused" | "autopilot_paused" | "paid";
   initialError?: string | null;
 }
 
@@ -26,6 +26,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
   const [phase, setPhase] = useState<Phase>("ready");
   const [error, setError] = useState<string | null>(null);
   const [insufficient, setInsufficient] = useState<{ balance: number; required: number } | null>(null);
+  const [objectiveFallback, setObjectiveFallback] = useState(false);
   const { locale, t } = useI18n();
   const platformLabel = state.platform === "meta" ? "Meta" : "TikTok";
   const numberLocale = locale === "fr" ? "fr-FR" : "en-US";
@@ -60,6 +61,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
         return;
       }
       if (!res.ok) throw new Error(data?.error || `${platformLabel} n'a pas accepté la campagne`);
+      setObjectiveFallback(Boolean(data.objective_fallback));
       setPhase("done");
       onLaunched(state.campaignId);
     } catch (e) {
@@ -76,6 +78,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
             <CheckCircle2 className="h-4 w-4 flex-none" />
             <span>{t("ads.budgetNotice")}</span>
           </div>
+          {state.platform === "meta" && state.objective === "sales" ? <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Si aucun pixel Meta n’est marqué comme configuré sur Chariow, Vendeo lancera cette campagne avec l’objectif Trafic (vues de page) plutôt qu’avec l’optimisation Achats.</p> : null}
           {error && <p className="text-sm text-[#991B1B]">{campaignErrorMessage(error, locale, t, state.platform)}</p>}
           <button onClick={() => void launchCampaign()} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">
             {t("ads.launchButton")}
@@ -92,6 +95,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
       {phase === "done" && (
         <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm font-semibold text-[#065F46]">
           {t("ads.launchSuccess", { platform: platformLabel })}
+          {objectiveFallback ? <p className="mt-2 font-normal">Aucun pixel d’achat configuré : la campagne utilise l’objectif Trafic (vues de page).</p> : null}
         </div>
       )}
 

@@ -71,6 +71,13 @@ describe("Diagnostic entonnoir publicitaire", () => {
     expect(report.status).toBe("ok");
   });
 
+  it("inclut les ventes settled dans le revenu Chariow attribué", () => {
+    const rows = insights(0.02, { historyCtr: 0.02 });
+    const sales = [{ meta_campaign_id: "cmp_1", amount: 150000, status: "settled" }];
+    const [report] = computeCampaignDiagnostics(rows, sales, PERIOD);
+    expect(report.status).toBe("ok");
+  });
+
   it("les ventes remboursées/échouées ne comptent pas dans le revenu réel", () => {
     const rows = insights(0.02, { historyCtr: 0.02 });
     const sales = [
