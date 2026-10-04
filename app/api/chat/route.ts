@@ -183,7 +183,7 @@ export async function POST(request: Request) {
     const storeIds = stores.map((s) => s.id);
     const { data: profitabilitySales } = await supabase
       .from("chariow_sales")
-      .select("status,amount,net_amount")
+      .select("status,amount,net_amount,currency")
       .in("store_id", storeIds)
       .gte("occurred_at", new Date(Date.now() - 30 * 86400000).toISOString())
       .lte("occurred_at", new Date().toISOString());

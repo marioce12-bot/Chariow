@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { computeAutopilotDecision } from "./autopilot";
 
-const base = { grossRevenue: 0, daysSinceLaunch: 5, dailyBudget: 100 };
+const base = { grossRevenue: 0, daysSinceLaunch: 5, dailyBudget: 100, attributionReliable: true };
 
 describe("computeAutopilotDecision", () => {
   it("ne conclut rien sans dépense", () => {
     const result = computeAutopilotDecision({ ...base, spend: 0, netRevenue: 0, completedSales: 0 });
     expect(result.decision).toBe("insufficient_data");
+  });
+
+  it("ne met jamais en pause si le suivi des achats ou l'attribution ne sont pas fiables", () => {
+    const result = computeAutopilotDecision({ ...base, attributionReliable: false, spend: 300, netRevenue: 0, completedSales: 0 });
+    expect(result.decision).toBe("insufficient_data");
+    expect(result.roas).toBeNull();
   });
 
   it("reste en apprentissage au tout début", () => {
@@ -32,8 +38,8 @@ describe("computeAutopilotDecision", () => {
     expect(result.roas).toBeCloseTo(0.2, 5);
   });
 
-  it("ne met pas en pause trop tôt malgré un ROAS faible (dépense insuffisante)", () => {
+  it("reste en apprentissage avant 1,5 budget quotidien même après 24h", () => {
     const result = computeAutopilotDecision({ ...base, spend: 120, netRevenue: 30, grossRevenue: 30, completedSales: 1 });
-    expect(result.decision).toBe("keep_running");
+    expect(result.decision).toBe("learning");
   });
 });

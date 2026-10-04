@@ -1,5 +1,6 @@
 import { decryptSecret } from "@/lib/crypto";
 import { ChariowMcpClient } from "./mcp-client";
+import { isConfirmedChariowSaleStatus } from "./sales";
 import type { ChariowNormalizedSnapshot, ChariowProduct, ChariowStoreSnapshot } from "./types";
 
 export async function getChariowSnapshot(
@@ -118,15 +119,6 @@ function resolveStoreHomeUrl(store: Record<string, unknown>, product: Record<str
   return host ? `https://${host.replace(/\/$/, "")}` : null;
 }
 
-// Une vente est considérée comme confirmée (encaissée) si Chariow lui donne un
-// statut "completed" ou "settled" — mêmes statuts que ceux déjà utilisés pour
-// les KPIs de la page "Ventes" (Dashboard.tsx). Les paiements en attente,
-// échoués, abandonnés ou remboursés ne comptent pas.
-function isConfirmedSale(sale: Record<string, unknown>): boolean {
-  const status = text(sale.status ?? sale.state);
-  return status === "completed" || status === "settled";
-}
-
 // Chariow ne renvoie pas de compteur de ventes fiable directement sur chaque
 // produit via list_products (le champ `sales` y est presque toujours absent ou
 // null) : c'est ce qui affichait "0 vente" devant chaque produit alors que les
@@ -139,7 +131,7 @@ function buildProductSalesIndex(rawSales: Record<string, unknown>[]): { byId: Ma
   const byId = new Map<string, number>();
   const byName = new Map<string, number>();
   for (const sale of rawSales) {
-    if (!isConfirmedSale(sale)) continue;
+    if (!isConfirmedChariowSaleStatus(sale.status ?? sale.state)) continue;
     const saleProduct = asRecord(sale.product);
     const productId = firstText(sale.product_id, saleProduct.id, saleProduct.uuid);
     if (productId) {
@@ -339,6 +331,7 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
     kpis: {
       period,
       revenue: { value: revenueValue, formatted: text(revenue.formatted) ?? (numericValue(revenueValue) === 0 ? formattedZero(currency) : (revenueValue?.toString() ?? formattedZero(currency))) },
+      revenueByCurrency: [],
       sales: numericValue(sales.count) ?? 0,
       visits: numericValue(visits.total) ?? 0,
       conversionRate: text(conversion.formatted) ?? "0 %",
@@ -371,12 +364,12 @@ function formatMoney(value: number, currency: string): string {
   return `${Math.round(value).toLocaleString("fr-FR")} ${currency}`;
 }
 
-type ProductStat = { count: number; revenue: number };
+type ProductStat = { count: number; revenueByCurrency: Map<string, number> };
 
-function bumpStat(map: Map<string, ProductStat>, key: string, amount: number) {
-  const current = map.get(key) ?? { count: 0, revenue: 0 };
+function bumpStat(map: Map<string, ProductStat>, key: string, amount: number, currency: string) {
+  const current = map.get(key) ?? { count: 0, revenueByCurrency: new Map<string, number>() };
   current.count += 1;
-  current.revenue += amount;
+  current.revenueByCurrency.set(currency, (current.revenueByCurrency.get(currency) ?? 0) + amount);
   map.set(key, current);
 }
 
@@ -402,17 +395,18 @@ export function serializeChariowContext(snapshot: ChariowStoreSnapshot) {
   const byName = new Map<string, ProductStat>();
   let confirmedCount = 0;
   for (const sale of rawSales) {
-    if (!isConfirmedSale(sale)) continue;
+    if (!isConfirmedChariowSaleStatus(sale.status ?? sale.state)) continue;
     confirmedCount += 1;
     const saleProduct = asRecord(sale.product);
     const amount = saleAmountValue(sale.amount);
+    const currency = firstText(sale.currency, sale.currency_code, asRecord(sale.amount).currency) ?? "INCONNUE";
     const productId = idText(sale.product_id, saleProduct.id, saleProduct.uuid);
     if (productId) {
-      bumpStat(byId, productId, amount);
+      bumpStat(byId, productId, amount, currency);
       continue;
     }
     const productName = firstText(sale.product_name, saleProduct.name, saleProduct.title);
-    if (productName) bumpStat(byName, productName, amount);
+    if (productName) bumpStat(byName, productName, amount, currency);
   }
 
   const nameById = new Map(normalized.products.map((product) => [product.id, product.name] as const));
@@ -420,15 +414,16 @@ export function serializeChariowContext(snapshot: ChariowStoreSnapshot) {
   const ranked = normalized.products
     .map((product) => {
       const stat = byId.get(product.id) ?? byName.get(product.name);
-      return { product, count: stat?.count ?? 0, revenue: stat?.revenue ?? 0 };
+      return { product, count: stat?.count ?? 0, revenueByCurrency: stat?.revenueByCurrency ?? new Map<string, number>() };
     })
-    .sort((a, b) => b.count - a.count || b.revenue - a.revenue);
+    .sort((a, b) => b.count - a.count);
 
   const kpis = normalized.kpis;
   const lines: string[] = [];
   lines.push(`Boutique : ${normalized.storeName} (statut : ${normalized.storeStatus})`);
   lines.push(`Période des indicateurs : ${period.from} → ${period.to}`);
-  lines.push(`Chiffre d'affaires : ${kpis.revenue.formatted ?? "n/d"}`);
+  const revenueByCurrency = kpis.revenueByCurrency.map((item) => formatMoney(item.value, item.currency)).join(" · ");
+  lines.push(`Chiffre d'affaires par devise : ${revenueByCurrency || "indisponible dans ce résumé; utiliser l'agrégat persistant ci-dessous"}`);
   lines.push(`Ventes : ${kpis.sales} | Visites : ${kpis.visits} | Taux de conversion : ${kpis.conversionRate} | Clients : ${kpis.customers} | Produits vendus : ${kpis.productsSold}`);
   lines.push(`Catalogue : ${normalized.products.length} produit(s)`);
 
@@ -437,10 +432,11 @@ export function serializeChariowContext(snapshot: ChariowStoreSnapshot) {
   } else {
     lines.push(`Classement des produits par ventes confirmées (calculé sur les ${rawSales.length} dernières ventes récupérées, dont ${confirmedCount} confirmées ; le chiffre d'affaires par produit correspond à ces mêmes ventes) :`);
     const TOP_PRODUCTS = 12;
-    ranked.slice(0, TOP_PRODUCTS).forEach(({ product, count, revenue }, index) => {
+    ranked.slice(0, TOP_PRODUCTS).forEach(({ product, count, revenueByCurrency }, index) => {
       const currency = product.currency ?? defaultCurrency;
       const price = product.price !== null && product.price !== "" ? `${product.price} ${currency}` : "prix n/d";
-      lines.push(`${index + 1}. ${clip(product.name, 60)} — ${count} vente(s) — CA ${formatMoney(revenue, currency)} — prix ${price} — statut ${product.status ?? "n/d"}`);
+      const revenue = [...revenueByCurrency.entries()].map(([saleCurrency, amount]) => formatMoney(amount, saleCurrency)).join(" · ") || "n/d";
+      lines.push(`${index + 1}. ${clip(product.name, 60)} — ${count} vente(s) — CA par devise ${revenue} — prix ${price} — statut ${product.status ?? "n/d"}`);
     });
     if (ranked.length > TOP_PRODUCTS) {
       lines.push(`(+ ${ranked.length - TOP_PRODUCTS} autre(s) produit(s) moins vendus, non détaillés)`);

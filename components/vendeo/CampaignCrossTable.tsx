@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { formatXOF, type CampaignRow, type CampaignVerdictBadge } from "./types";
+import { formatAdMoney, type CampaignRow, type CampaignVerdictBadge } from "./types";
 
 interface CampaignCrossTableProps {
   rows: CampaignRow[];
@@ -44,7 +44,7 @@ export function CampaignCrossTable({ rows }: CampaignCrossTableProps) {
               <th className="py-2 pr-4 font-medium">Campagne & produit</th>
               <th className="py-2 pr-4 font-medium">Audience ciblée</th>
               <th className="py-2 pr-4 font-medium">Dépense pub</th>
-              <th className="py-2 pr-4 font-medium">Ventes réelles</th>
+              <th className="py-2 pr-4 font-medium">Ventes Chariow attribuées</th>
               <th className="py-2 pr-4 font-medium">Verdict</th>
               <th className="py-2 pr-4 font-medium">Action recommandée</th>
             </tr>
@@ -68,10 +68,10 @@ export function CampaignCrossTable({ rows }: CampaignCrossTableProps) {
                     ))}
                   </div>
                 </td>
-                <td className="py-3 pr-4 font-medium text-gray-900">{formatXOF(row.spend)}</td>
+                <td className="py-3 pr-4 font-medium text-gray-900">{formatAdMoney(row.spend, row.currency)}</td>
                 <td className="py-3 pr-4">
-                  <p className="font-medium text-gray-900">{row.realSales} ventes</p>
-                  <p className="text-xs text-gray-400">{formatXOF(row.realRevenue)}</p>
+                  <p className="font-medium text-gray-900">{row.realSales === null ? "Attribution indisponible" : `${row.realSales} vente${row.realSales > 1 ? "s" : ""}`}</p>
+                  <p className="text-xs text-gray-400">{row.realRevenue === null ? "Revenu non calculable" : formatAdMoney(row.realRevenue, row.currency)}</p>
                 </td>
                 <td className="py-3 pr-4">
                   <VerdictBadge verdict={row.verdict} />
@@ -125,12 +125,12 @@ function CampaignAccordionCard({ row }: { row: CampaignRow }) {
           </div>
           <div className="flex justify-between">
             <span className="text-gray-400">Dépense pub</span>
-            <span className="font-medium text-gray-900">{formatXOF(row.spend)}</span>
+            <span className="font-medium text-gray-900">{formatAdMoney(row.spend, row.currency)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-400">Ventes réelles</span>
+            <span className="text-gray-400">Ventes Chariow attribuées</span>
             <span className="font-medium text-gray-900">
-              {row.realSales} ({formatXOF(row.realRevenue)})
+              {row.realSales === null ? "Attribution indisponible" : `${row.realSales} (${row.realRevenue === null ? "revenu inconnu" : formatAdMoney(row.realRevenue, row.currency)})`}
             </span>
           </div>
           <div className="rounded-lg bg-gray-50 p-2 text-gray-700">{row.recommendedAction}</div>

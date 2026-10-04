@@ -82,16 +82,28 @@ describe("Attribution réelle V1", () => {
   });
 
   it("calcule les agrégats ventes, abandon, CAC et ROAS net", () => {
-    const aggregate = calculateProfitabilityAggregate({ spend: 100, attributedNetRevenue: 150, sales: [
-      { status: "completed", amount: 120, net_amount: 100 },
-      { status: "abandoned", amount: 120, net_amount: 0 },
-      { status: "failed", amount: 120, net_amount: 0 },
+    const aggregate = calculateProfitabilityAggregate({ spend: 100, spendCurrency: "USD", attributedNetRevenue: 150, attributedCurrency: "USD", sales: [
+      { status: "completed", amount: 120, net_amount: 100, currency: "USD" },
+      { status: "settled", amount: 60, net_amount: 50, currency: "USD" },
+      { status: "abandoned", amount: 120, net_amount: 0, currency: "USD" },
+      { status: "failed", amount: 120, net_amount: 0, currency: "USD" },
     ] });
-    expect(aggregate.completedSales).toBe(1);
+    expect(aggregate.completedSales).toBe(2);
     expect(aggregate.abandonedSales).toBe(1);
     expect(aggregate.failedSales).toBe(1);
-    expect(aggregate.abandonmentRate).toBeCloseTo(1 / 3);
-    expect(aggregate.cac).toBe(100);
+    expect(aggregate.abandonmentRate).toBeCloseTo(1 / 4);
+    expect(aggregate.cac).toBe(50);
+    expect(aggregate.netRevenue).toBe(150);
     expect(aggregate.vendeoAttributedRoas).toBe(1.5);
+  });
+
+  it("n’additionne pas des devises différentes et masque le ROAS si la devise est inconnue", () => {
+    const aggregate = calculateProfitabilityAggregate({ spend: 100, spendCurrency: "USD", sales: [
+      { status: "settled", amount: 1000, net_amount: 900, currency: "XOF" },
+      { status: "completed", amount: 20, net_amount: 18, currency: "USD" },
+    ] });
+    expect(aggregate.netRevenue).toBeNull();
+    expect(aggregate.revenueByCurrency).toHaveLength(2);
+    expect(aggregate.vendeoAttributedRoas).toBeNull();
   });
 });

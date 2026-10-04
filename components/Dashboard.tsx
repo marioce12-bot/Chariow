@@ -125,7 +125,7 @@ type AnalyticsData = {
   storeStatus: string;
   products: ProductData[];
   sales: unknown[];
-  kpis: { period: { from: string | null; to: string | null }; revenue: { value: number | string | null; formatted: string | null }; sales: number; visits: number; conversionRate: string; customers: number; productsSold: number };
+  kpis: { period: { from: string | null; to: string | null }; revenue: { value: number | string | null; formatted: string | null }; revenueByCurrency?: Array<{ currency: string; value: number }>; sales: number; visits: number; conversionRate: string; customers: number; productsSold: number };
 } | null;
 
 function subscriptionLimitFromStores(stores: StoreData[]) {
@@ -804,7 +804,10 @@ function Overview({
   const sales = analytics?.kpis.sales ?? 0;
   const revenue = Number(analytics?.kpis.revenue.value ?? 0) || 0;
   const currency = products[0]?.currency ?? "XOF";
-  const format = (value: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value) + ` ${currency}`;
+  const revenueByCurrency = analytics?.kpis.revenueByCurrency ?? [];
+  const revenueDisplay = revenueByCurrency.length
+    ? revenueByCurrency.map((item) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(item.value)} ${item.currency}`).join(" · ")
+    : sales === 0 ? "Aucune vente encaissée" : "Devise de vente indisponible";
   const [period, setPeriod] = useState("30 derniers jours");
   const [refreshing, setRefreshing] = useState(false);
   const [metaConnected, setMetaConnected] = useState(false);
@@ -835,7 +838,7 @@ function Overview({
   useEffect(() => { void refresh(); }, [campaignsVersion]);
 
   const spend = metaPerformance?.overview.spend ?? 0;
-  const roas = metaPerformance?.overview.realRoas ?? metaPerformance?.overview.metaRoas ?? null;
+  const roas = metaPerformance?.overview.realRoas ?? null;
   const performances = metaPerformance?.performances ?? [];
   const adsCurrency = metaPerformance?.currency ?? currency;
 
@@ -861,7 +864,7 @@ function Overview({
       : index === 0
       ? { label: "Meilleure vente", tone: "optimize" as const }
       : { label: "En progression", tone: "watch" as const };
-    return { name: product.name, sales: productSales, revenue: productSales ? Number(product.price ?? 0) * productSales : 0, image: product.image, state };
+    return { name: product.name, sales: productSales, image: product.image, state };
   });
 
 
@@ -875,7 +878,7 @@ function Overview({
   const revenuAdditionnelEstime = Math.round(
     withVerdict
       .filter((item) => item.verdict.tone === "optimize")
-      .reduce((sum, item) => sum + item.campaign.spend * 0.2 * (item.campaign.roas ?? 1), 0)
+      .reduce((sum, item) => sum + (item.campaign.suggestedIncrease ?? 0) * (item.campaign.realRoas ?? 0), 0)
   );
 
   // Pas encore d'attribution campagne → produit branchée ici (cf. lib/attribution) :
@@ -890,9 +893,10 @@ function Overview({
       productName: "",
       audienceTags: [],
       network: "meta",
+      currency: adsCurrency,
       spend: campaign.spend,
-      realSales: campaign.conversions,
-      realRevenue: campaign.roas !== null ? Math.round(campaign.spend * campaign.roas) : 0,
+      realSales: campaign.realSales,
+      realRevenue: campaign.realRevenue,
       verdict: badge,
       recommendedAction: verdict.action,
     };
@@ -950,13 +954,13 @@ function Overview({
 
       <LaunchAdBar onLaunch={onLaunchAd} />
 
-      <ImpactFinancierCard data={{ budgetEconomise, revenuAdditionnelEstime }} />
+      <ImpactFinancierCard data={{ budgetEconomise, revenuAdditionnelEstime, currency: adsCurrency }} />
 
       <section className="home-ai-state app-card"><div><span className="eyebrow">{t("dashboard.aiAnalysis")}</span><h2>{t("dashboard.activityState")}</h2><p>{statusText}</p></div><Brain size={24} /></section>
 
       <section className="home-kpis">
-        <HomeKpi label={t("overview.revenue")} value={connected ? format(revenue) : t("overview.unavailable")} tone={revenue > 0 ? "positive" : "neutral"} help={t("overview.revenueHelp")} />
-        <HomeKpi label={t("overview.spend")} value={metaConnected ? format(spend) : t("overview.unavailable")} tone="info" help={t("overview.spendHelp")} />
+        <HomeKpi label={t("overview.revenue")} value={connected ? revenueDisplay : t("overview.unavailable")} tone={revenue > 0 || revenueByCurrency.some((item) => item.value > 0) ? "positive" : "neutral"} help={t("overview.revenueHelp")} />
+        <HomeKpi label={t("overview.spend")} value={metaPerformance ? formatMoney(spend, adsCurrency) : t("overview.unavailable")} tone="info" help={t("overview.spendHelp")} />
         <HomeKpi label={t("overview.sales")} value={connected ? String(sales) : t("overview.unavailable")} tone={sales > 0 ? "positive" : "neutral"} help={t("overview.salesHelp")} />
         <HomeKpi label={t("overview.roas")} value={roas === null ? t("overview.unavailable") : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help={t("overview.roasHelp")} />
       </section>
@@ -984,7 +988,7 @@ function Overview({
                 </div>
                 <div className="product-perf-stats">
                   <div><small>{t("dashboard.sales")}</small><strong>{product.sales}</strong></div>
-                  <div><small>{t("dashboard.revenue")}</small><strong>{format(product.revenue)}</strong></div>
+                  <div><small>CA par devise</small><strong>—</strong></div>
                 </div>
               </div>
             ))}
@@ -994,12 +998,12 @@ function Overview({
 
       <section className="home-chart app-card">
         <div className="card-head"><div><span className="eyebrow">{t("overview.trend")}</span><h2>{t("overview.trendTitle")}</h2><p>{t("overview.trendSubtitle")}</p></div><LineChart size={19} /></div>
-        {!connected ? <EmptyState title={t("overview.noData")} text={t("overview.noDataText")} /> : <RealTrendChart sales={analytics?.sales ?? []} products={products} currency={currency} />}
+        {!connected ? <EmptyState title={t("overview.noData")} text={t("overview.noDataText")} /> : <RealTrendChart sales={analytics?.sales ?? []} products={products} currency={currency} revenueCurrencies={analytics?.kpis.revenueByCurrency?.map((item) => item.currency)} />}
       </section>
 
       <section className="home-activity app-card">
         <div className="card-head"><div><span className="eyebrow">Chariow</span><h2>{t("dashboard.recentActivity")}</h2><p>{t("dashboard.recentEvents")}</p></div><Activity size={19} /></div>
-        {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} currency={currency} />)}</ul> : <EmptyState title={t("dashboard.noSales")} text={t("dashboard.noSalesText")} />}
+        {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} />)}</ul> : <EmptyState title={t("dashboard.noSales")} text={t("dashboard.noSalesText")} />}
       </section>
 
     </div>
@@ -1055,10 +1059,22 @@ function SummaryTable({ title, columns, rows, empty }: { title: string; columns:
 
 function SalesView({ stores, analytics }: { stores: StoreData[]; analytics: AnalyticsData }) {
   const [filter, setFilter] = useState("all");
-  const sales = (analytics?.sales ?? []).filter((sale) => filter === "all" || String((sale as Record<string, unknown>)?.status ?? "") === filter);
-  const completed = sales.filter((sale) => String((sale as Record<string, unknown>)?.status) === "completed");
-  const revenue = completed.reduce<number>((sum, sale) => sum + Number(((sale as Record<string, unknown>)?.amount as Record<string, unknown>)?.value ?? (sale as Record<string, unknown>)?.amount ?? 0), 0);
-  return <div className="sales-page"><div className="page-top"><div><span className="eyebrow">Chariow</span><h1>Ventes</h1><p>Suivi des événements et revenus remontés par ta boutique.</p></div></div><div className="sales-kpis"><HomeKpi label="Ventes confirmées" value={String(completed.length)} tone="positive" help="Paiements validés par Chariow." /><HomeKpi label="Revenu brut" value={revenue ? `${revenue.toLocaleString("fr-FR")} ${analytics?.products?.[0]?.currency ?? "XOF"}` : "0"} tone="info" help="Montant des ventes confirmées." /><HomeKpi label="Événements suivis" value={String(sales.length)} tone="neutral" help="Ventes et statuts remontés." /></div><div className="sales-toolbar"><label>Statut<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Tous</option><option value="completed">Réussies</option><option value="awaiting_payment">En attente</option><option value="failed">Échouées</option><option value="abandoned">Abandonnées</option><option value="refunded">Remboursées</option></select></label></div><section className="app-card sales-list"><div className="card-head"><h2>Activité Chariow</h2><Activity size={18} /></div>{sales.length ? <ul className="activity">{sales.map((sale, index) => <RecentSale key={index} sale={sale} currency={analytics?.products?.[0]?.currency ?? "XOF"} />)}</ul> : <EmptyState title="Aucun événement" text="Les événements Chariow apparaîtront après synchronisation." />}</section></div>;
+  const allSales = analytics?.sales ?? [];
+  const sales = allSales.filter((sale) => {
+    const status = String((sale as Record<string, unknown>)?.status ?? (sale as Record<string, unknown>)?.state ?? "");
+    if (filter === "all") return true;
+    if (filter === "completed") return status === "completed" || status === "settled";
+    return status === filter;
+  });
+  const revenueByCurrency = analytics?.kpis.revenueByCurrency ?? [];
+  const revenueLabel = revenueByCurrency.length
+    ? revenueByCurrency.map((item) => `${item.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ${item.currency}`).join(" · ")
+    : "Indisponible par devise";
+  const confirmedCount = analytics?.kpis.sales ?? allSales.filter((sale) => {
+    const status = String((sale as Record<string, unknown>)?.status ?? (sale as Record<string, unknown>)?.state ?? "");
+    return status === "completed" || status === "settled";
+  }).length;
+  return <div className="sales-page"><div className="page-top"><div><span className="eyebrow">Chariow</span><h1>Ventes</h1><p>Suivi des événements et revenus remontés par ta boutique.</p></div></div><div className="sales-kpis"><HomeKpi label="Ventes confirmées (encaissées)" value={String(confirmedCount)} tone="positive" help="Paiements validés par Chariow, statuts completed et settled." /><HomeKpi label="Revenu brut par devise" value={revenueLabel} tone="info" help="Montant des ventes confirmées, sans mélange entre monnaies." /><HomeKpi label="Événements listés" value={String(sales.length)} tone="neutral" help="Événements Chariow récupérés pour cette boutique." /></div><div className="sales-toolbar"><label>Statut<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Tous</option><option value="completed">Réussies et réglées</option><option value="awaiting_payment">En attente</option><option value="failed">Échouées</option><option value="abandoned">Abandonnées</option><option value="refunded">Remboursées</option></select></label></div><section className="app-card sales-list"><div className="card-head"><h2>Activité Chariow</h2><Activity size={18} /></div>{sales.length ? <ul className="activity">{sales.map((sale, index) => <RecentSale key={index} sale={sale} />)}</ul> : <EmptyState title="Aucun événement" text="Les événements Chariow apparaîtront après synchronisation." />}</section></div>;
 }
 
 const STACK_DAYS = 7;
@@ -1071,8 +1087,12 @@ function stackDayKey(date: Date) { return `${date.getFullYear()}-${String(date.g
 function stackSaleDay(raw: unknown): string | null { if (typeof raw !== "string" || !raw) return null; if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw; const date = new Date(raw); return Number.isNaN(date.getTime()) ? null : stackDayKey(date); }
 function stackAmount(raw: unknown): number { const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>).value : raw; const parsed = typeof source === "number" ? source : typeof source === "string" ? Number(source.replace(/[^\d.,-]/g, "").replace(",", ".")) : 0; return Number.isFinite(parsed) ? parsed : 0; }
 function stackScale(maxValue: number) { const rough = Math.max(maxValue, 1) / 4; const magnitude = 10 ** Math.floor(Math.log10(rough)); const residual = rough / magnitude; const factor = residual <= 1 ? 1 : residual <= 2 ? 2 : residual <= 5 ? 5 : 10; const step = factor * magnitude; return { step, max: Math.ceil(Math.max(maxValue, 1) / step) * step }; }
-function RealTrendChart({ sales, products, currency }: { sales: unknown[]; products: Array<{ id: string; name: string }>; currency: string }) {
+function RealTrendChart({ sales, products, currency, revenueCurrencies = [] }: { sales: unknown[]; products: Array<{ id: string; name: string }>; currency: string; revenueCurrencies?: string[] }) {
   const [active, setActive] = useState<number | null>(null); const rootRef = useRef<HTMLDivElement>(null);
+  const observedCurrencies = new Set(sales.filter((item) => { const row = stackRecord(item); const status = row.status ?? row.state; return status === "completed" || status === "settled"; }).map((item) => { const row = stackRecord(item); const amount = stackRecord(row.amount); return String(row.currency ?? amount.currency ?? "").trim().toUpperCase(); }).filter(Boolean));
+  const allCurrencySignals = revenueCurrencies.length ? new Set(revenueCurrencies.map((value) => value.toUpperCase())) : observedCurrencies;
+  const hasUnknownCurrency = allCurrencySignals.has("UNKNOWN") || sales.some((item) => { const row = stackRecord(item); const status = row.status ?? row.state; if (status !== "completed" && status !== "settled") return false; const amount = stackRecord(row.amount); return !String(row.currency ?? amount.currency ?? "").trim(); });
+  const chartCurrency = allCurrencySignals.size === 1 ? [...allCurrencySignals][0] : currency;
   useEffect(() => { const close = (event: PointerEvent) => { if (rootRef.current && !rootRef.current.contains(event.target as Node)) setActive(null); }; document.addEventListener("pointerdown", close); return () => document.removeEventListener("pointerdown", close); }, []);
   const chart = useMemo(() => {
     const days = Array.from({ length: STACK_DAYS }, (_, index) => { const date = new Date(); date.setHours(12, 0, 0, 0); date.setDate(date.getDate() - (STACK_DAYS - 1 - index)); return { key: stackDayKey(date), weekday: date.toLocaleDateString("fr-FR", { weekday: "short" }), num: String(date.getDate()), long: date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) }; });
@@ -1080,9 +1100,10 @@ function RealTrendChart({ sales, products, currency }: { sales: unknown[]; produ
     for (const item of sales) { const row = stackRecord(item); const status = row.status ?? row.state; if (status !== "completed" && status !== "settled") continue; const index = stackSaleDay(row.created_at ?? row.createdAt ?? row.occurred_at); const dayPos = index ? dayIndex.get(index) : undefined; if (dayPos === undefined) continue; const product = stackRecord(row.product); const rawId = row.product_id ?? product.id ?? product.uuid; const id = rawId === undefined || rawId === null ? "" : String(rawId); const label = (id && names.get(id)) || String(row.product_name ?? product.name ?? product.title ?? "") || "Produit"; const key = id || label; const amount = stackAmount(row.amount); const entry = perProduct.get(key) ?? { label, total: 0, days: new Array<number>(STACK_DAYS).fill(0) }; entry.days[dayPos] += amount; entry.total += amount; perProduct.set(key, entry); }
     const ranked = Array.from(perProduct.entries()).sort((a, b) => b[1].total - a[1].total); const top = ranked.slice(0, STACK_COLORS.length); const rest = ranked.slice(STACK_COLORS.length); const series: StackSeries[] = top.map(([key, entry], index) => ({ key, label: entry.label, color: STACK_COLORS[index] })); const matrix: number[][] = days.map((_, dayPos) => top.map(([, entry]) => entry.days[dayPos])); if (rest.length) { series.push({ key: "__others", label: "Autres", color: STACK_OTHERS_COLOR }); matrix.forEach((row, dayPos) => row.push(rest.reduce((sum, [, entry]) => sum + entry.days[dayPos], 0))); } const dayTotals = matrix.map((row) => row.reduce((sum, value) => sum + value, 0)); const grand = dayTotals.reduce((sum, value) => sum + value, 0); const scale = stackScale(Math.max(...dayTotals)); const ticks = Array.from({ length: Math.round(scale.max / scale.step) + 1 }, (_, index) => index * scale.step); return { days, series, matrix, dayTotals, grand, scale, ticks };
   }, [sales, products]);
-  const money = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} ${currency}`;
+  const money = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} ${chartCurrency}`;
+  if (allCurrencySignals.size > 1 || hasUnknownCurrency) return <EmptyState title="Graphique non comparable" text="Les ventes utilisent plusieurs devises ou n’indiquent pas leur monnaie. Les montants restent séparés dans les indicateurs." />;
   if (!chart.grand) return <EmptyState title="Aucune vente sur 7 jours" text="Les ventes confirmées des 7 derniers jours apparaîtront ici, empilées par produit." />;
-  return <div className="stack-chart" ref={rootRef} role="group" aria-label={`Chiffre d'affaires des 7 derniers jours par produit, total ${money(chart.grand)}`}><ul className="stack-legend">{chart.series.map((item) => <li key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span></li>)}</ul><div className="stack-body"><div className="stack-y" aria-hidden="true">{chart.ticks.map((tick) => <span key={tick} style={{ bottom: `${(tick / chart.scale.max) * 100}%` }}>{stackCompact.format(tick)}</span>)}</div><div className="stack-plot">{chart.ticks.map((tick) => <i key={tick} className="stack-grid" aria-hidden="true" style={{ bottom: `${(tick / chart.scale.max) * 100}%` }} />)}<div className="stack-cols">{chart.days.map((day, index) => { const total = chart.dayTotals[index]; return <button type="button" key={day.key} className={`stack-col${active === index ? " active" : ""}`} aria-label={`${day.long} : ${money(total)}`} onPointerEnter={(event) => { if (event.pointerType === "mouse") setActive(index); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") setActive(null); }} onClick={(event) => { if ((event.nativeEvent as PointerEvent).pointerType === "mouse") return; setActive((current) => current === index ? null : index); }}><span className="stack-bar" style={{ height: `${(total / chart.scale.max) * 100}%` }}>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[index][seriesIndex]; return value > 0 ? <span key={item.key} className="stack-seg" style={{ height: `${(value / total) * 100}%`, background: item.color }} /> : null; })}</span></button>; })}</div>{active !== null ? <div className="stack-tip" style={{ left: `${((active + 0.5) / STACK_DAYS) * 100}%`, transform: `translateX(${active <= 1 ? "-20%" : active >= STACK_DAYS - 2 ? "-80%" : "-50%"})` }}><strong>{chart.days[active].long}</strong>{chart.dayTotals[active] > 0 ? <>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[active][seriesIndex]; return value > 0 ? <span key={item.key}><i style={{ background: item.color }} />{item.label}<b>{money(value)}</b></span> : null; })}<em>Total {money(chart.dayTotals[active])}</em></> : <span>Aucune vente</span>}</div> : null}</div></div><div className="stack-x" aria-hidden="true">{chart.days.map((day) => <span key={day.key}><b>{day.weekday}</b><small>{day.num}</small></span>)}</div><div className="stack-foot"><span className="stack-unit">Montants en {currency}</span><span className="chart-total">Total : {money(chart.grand)}</span></div></div>;
+  return <div className="stack-chart" ref={rootRef} role="group" aria-label={`Chiffre d'affaires des 7 derniers jours par produit, total ${money(chart.grand)}`}><ul className="stack-legend">{chart.series.map((item) => <li key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span></li>)}</ul><div className="stack-body"><div className="stack-y" aria-hidden="true">{chart.ticks.map((tick) => <span key={tick} style={{ bottom: `${(tick / chart.scale.max) * 100}%` }}>{stackCompact.format(tick)}</span>)}</div><div className="stack-plot">{chart.ticks.map((tick) => <i key={tick} className="stack-grid" aria-hidden="true" style={{ bottom: `${(tick / chart.scale.max) * 100}%` }} />)}<div className="stack-cols">{chart.days.map((day, index) => { const total = chart.dayTotals[index]; return <button type="button" key={day.key} className={`stack-col${active === index ? " active" : ""}`} aria-label={`${day.long} : ${money(total)}`} onPointerEnter={(event) => { if (event.pointerType === "mouse") setActive(index); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") setActive(null); }} onClick={(event) => { if ((event.nativeEvent as PointerEvent).pointerType === "mouse") return; setActive((current) => current === index ? null : index); }}><span className="stack-bar" style={{ height: `${(total / chart.scale.max) * 100}%` }}>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[index][seriesIndex]; return value > 0 ? <span key={item.key} className="stack-seg" style={{ height: `${(value / total) * 100}%`, background: item.color }} /> : null; })}</span></button>; })}</div>{active !== null ? <div className="stack-tip" style={{ left: `${((active + 0.5) / STACK_DAYS) * 100}%`, transform: `translateX(${active <= 1 ? "-20%" : active >= STACK_DAYS - 2 ? "-80%" : "-50%"})` }}><strong>{chart.days[active].long}</strong>{chart.dayTotals[active] > 0 ? <>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[active][seriesIndex]; return value > 0 ? <span key={item.key}><i style={{ background: item.color }} />{item.label}<b>{money(value)}</b></span> : null; })}<em>Total {money(chart.dayTotals[active])}</em></> : <span>Aucune vente</span>}</div> : null}</div></div><div className="stack-x" aria-hidden="true">{chart.days.map((day) => <span key={day.key}><b>{day.weekday}</b><small>{day.num}</small></span>)}</div><div className="stack-foot"><span className="stack-unit">Montants en {chartCurrency}</span><span className="chart-total">Total : {money(chart.grand)}</span></div></div>;
 }
 
 function displayValue(value: unknown, keys: string[] = ["name", "label", "title", "value", "text", "code"]): string | undefined {
@@ -1109,13 +1130,13 @@ function displayPhone(value: unknown) {
   return [code, number].filter(Boolean).join(" ") || displayValue(value);
 }
 
-function RecentSale({ sale, currency }: { sale: unknown; currency: string }) {
+function RecentSale({ sale }: { sale: unknown }) {
   const [open, setOpen] = useState(false);
   const rec = (value: unknown): Record<string, unknown> => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
   const row = rec(sale);
   const status = String(row.status ?? row.state ?? "unknown");
   const label = status === "completed" ? "Vente réussie" : status === "awaiting_payment" ? "Paiement en attente" : status === "failed" ? "Paiement échoué" : status === "abandoned" ? "Vente abandonnée" : status === "refunded" ? "Remboursement" : status === "settled" ? "Vente réglée" : status;
-  const saleCurrency = String(rec(row.amount).currency ?? currency);
+  const saleCurrency = String(row.currency ?? rec(row.amount).currency ?? "Devise inconnue");
   const amount = Number(rec(row.amount).value ?? row.amount ?? 0) || 0;
   const date = row.created_at ?? row.createdAt ?? row.occurred_at;
   const customer = rec(row.customer);
@@ -1293,14 +1314,14 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
         const accountsData = accountsResponse.ok ? await accountsResponse.json() : { accounts: [] };
         const accounts = accountsData.accounts ?? [];
         if (!accounts[0]) { if (!cancelled) setMetaPerformance(null); return; }
-        const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accounts[0].id)}`);
+        const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accounts[0].id)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
         if (metrics.ok && !cancelled) setMetaPerformance(await metrics.json());
       } finally {
         if (!cancelled) setLoadingAds(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [from, to]);
 
   const performances = metaPerformance?.performances ?? [];
   const adsCurrency = metaPerformance?.currency ?? currency;
@@ -1322,7 +1343,7 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
     {!reportAnalytics || !kpis ? <div className="empty-state">{loadingReport ? "Chargement du rapport…" : "Aucune donnée pour cette période."}</div> : <>
       <div className="report-period"><span>Rapport analysé</span><strong>{period}</strong></div>
       <div className="report-summary">
-        <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{kpis.revenue.formatted ?? "0"}</strong><p>{kpis.sales === 0 ? "Aucune vente enregistrée pour cette période." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} enregistrée${kpis.sales > 1 ? "s" : ""}.`}</p></div>
+        <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{kpis.revenueByCurrency?.length ? kpis.revenueByCurrency.map((item) => `${item.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ${item.currency}`).join(" · ") : kpis.revenue.formatted ?? "Devise indisponible"}</strong><p>{kpis.sales === 0 ? "Aucune vente enregistrée pour cette période." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} enregistrée${kpis.sales > 1 ? "s" : ""}.`}</p></div>
         <div className="report-summary-side"><ReportStat icon={<ShoppingBag size={16} />} label="Ventes" value={kpis.sales} /><ReportStat icon={<Eye size={16} />} label="Visites" value={kpis.visits} /><ReportStat icon={<Users size={16} />} label="Clients" value={kpis.customers} /><ReportStat icon={<BarChart3 size={16} />} label="Conversion" value={kpis.conversionRate} /></div>
       </div>
 
@@ -1331,17 +1352,17 @@ function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; 
         {loadingAds ? <p className="hint-line">Analyse des campagnes en cours…</p> : !performances.length ? <p className="hint-line">Connecte et synchronise Meta Ads pour voir le croisement avec tes ventes Chariow.</p> : <>
           <div className="vendeo-kpi-grid" style={{ marginBottom: 14 }}>
             <div className="vendeo-kpi"><MetricHelp label="Dépensé (Meta)" description="Somme des dépenses publicitaires synchronisées sur la période." /><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, adsCurrency)}</strong></div>
-            <div className="vendeo-kpi"><MetricHelp label="Revenu confirmé (Chariow)" description="Ventes réellement payées, remontées par Chariow — pas les conversions déclarées par Meta." /><strong>{formatMoney(metaPerformance?.overview.chariowRevenue ?? 0, adsCurrency)}</strong></div>
-            <div className="vendeo-kpi"><MetricHelp label="Écart Meta / Chariow" description="Revenu déclaré par Meta comparé au revenu réellement confirmé par Chariow. Un grand écart signale une sur-attribution côté Meta." /><strong>{formatMoney((metaPerformance?.overview.metaReportedRevenue ?? 0) - (metaPerformance?.overview.chariowRevenue ?? 0), adsCurrency)}</strong></div>
+            <div className="vendeo-kpi"><MetricHelp label="Revenu net Chariow par devise" description="Ventes encaissées (completed et settled), ventilées par devise pour éviter tout mélange de montants." /><strong>{metaPerformance?.chariowRevenueByCurrency.length ? metaPerformance.chariowRevenueByCurrency.map((item) => `${formatMoney(item.amount, item.currency)} ${item.currency}`).join(" · ") : "Aucune vente encaissée"}</strong></div>
+            <div className="vendeo-kpi"><MetricHelp label="Ventes Chariow encaissées" description="Nombre de ventes completed et settled remontées par Chariow." /><strong>{metaPerformance?.overview.sales ?? 0}</strong></div>
           </div>
-          <p className="hint-line" style={{ marginBottom: 10 }}>Les dépenses ci-dessus viennent de la dernière synchronisation Meta Ads (page Pubs) et ne sont pas encore filtrées par la période du rapport ci-dessus — seules les données Chariow (ventes, visites, clients) le sont.</p>
+          <p className="hint-line" style={{ marginBottom: 10 }}>Les dépenses Meta et les ventes Chariow ci-dessus couvrent la période sélectionnée. Les revenus Chariow restent ventilés par devise.</p>
           <div className="report-table">
-            <div className="report-table-head"><span>Campagne</span><span>Dépense</span><span>Conversions liées</span><span>Verdict Vendeo</span></div>
+            <div className="report-table-head"><span>Campagne</span><span>Dépense</span><span>Ventes Chariow attribuées</span><span>Verdict Vendeo</span></div>
             {withVerdict.map(({ campaign, verdict }) => (
               <div className="report-table-row" key={campaign.id}>
                 <strong>{campaign.name}</strong>
                 <span>{formatMoney(campaign.spend, adsCurrency)}</span>
-                <span>{campaign.conversions}</span>
+                <span>{campaign.realSales === null ? "Attribution indisponible" : campaign.realSales}</span>
                 <AdVerdictBadge verdict={verdict} />
               </div>
             ))}
@@ -1640,14 +1661,17 @@ function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { on
 type MetaPerformance = {
   currency: string;
   period: { from: string; to: string };
-  overview: { spend: number; chariowRevenue: number; metaReportedRevenue: number; attributedRevenue: number; conversions: number; sales: number; cpa: number | null; cac: number | null; metaRoas: number | null; realRoas: number | null; attributionCoverage: number };
-  performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; status: string }>;
+  chariowRevenueByCurrency: Array<{ currency: string; amount: number }>;
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
+  overview: { spend: number; chariowRevenue: number | null; metaReportedRevenue: number; attributedGrossRevenue: number | null; attributedNetRevenue: number | null; attributedRevenue: number | null; conversions: number; sales: number; cpa: number | null; cac: number | null; metaRoas: number | null; realRoas: number | null; attributionCoverage: number };
+  performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; realSales: number | null; realGrossRevenue: number | null; realRevenue: number | null; realRoas: number | null; attributionReliable: boolean; trackingReady: boolean; dailyBudget: number | null; daysSinceLaunch: number | null; suggestedIncrease: number | null; decision: "keep_running" | "pause" | "learning" | "insufficient_data"; decisionReasons: string[]; status: string }>;
 };
 
 type MetaPixelOption = { id: string; name: string; configured_on_chariow?: boolean };
 
 type AdsCache = {
-  metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null }>;
+  metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>;
   selectedMetaAccount: string;
   metaPerformance: MetaPerformance | null;
   metaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null;
@@ -1674,60 +1698,19 @@ type AdVerdict = {
 };
 
 function getCampaignVerdict(campaign: MetaPerformance["performances"][number], currency: string): AdVerdict {
-  const { spend, conversions, cpa, roas, status } = campaign;
-
-  if (spend <= 0) {
-    return {
-      tone: "none",
-      emoji: "⚪",
-      label: "Pas assez de données",
-      diagnosis: "Aucune dépense enregistrée sur cette campagne pendant la période.",
-      action: "Attends que la campagne dépense avant de juger sa performance.",
-      actionLabel: "Suivre",
-    };
+  if (campaign.decision === "pause") {
+    return { tone: "stop", emoji: "🛑", label: "À mettre en pause", diagnosis: campaign.decisionReasons.join(" "), action: "Mets cette campagne en pause et vérifie son suivi avant de la relancer.", actionLabel: "Arrêter" };
   }
-
-  if (conversions === 0) {
-    return {
-      tone: "stop",
-      emoji: "🛑",
-      label: "Arrête cette pub",
-      diagnosis: `${formatMoney(spend, currency)} dépensés sans aucune vente confirmée sur la période. L'audience touchée ne convertit pas, ou le prix ne correspond pas à cette audience.`,
-      action: `Coupe cette campagne maintenant — ${formatMoney(spend, currency)} dépensés sans vente.`,
-      actionLabel: "Arrêter",
-    };
+  if (campaign.decision === "keep_running") {
+    const increase = campaign.suggestedIncrease ?? 0;
+    return { tone: "optimize", emoji: "✅", label: "Cette pub fonctionne", diagnosis: `ROAS net attribué à Chariow : ${campaign.realRoas?.toFixed(2) ?? "—"}x pour ${formatMoney(campaign.spend, currency)} dépensés.`, action: increase > 0 ? `Envisage un palier de +${formatMoney(increase, currency)}/jour (20 % du budget quotidien), puis surveille les résultats.` : "Maintiens le budget quotidien et continue de surveiller les ventes attribuées.", actionLabel: "Scaler" };
   }
-
-  if (status === "loss") {
-    return {
-      tone: "stop",
-      emoji: "🛑",
-      label: "Arrête cette pub",
-      diagnosis: cpa !== null ? `Coût par conversion de ${formatMoney(cpa, currency)} : trop élevé pour rester rentable au prix actuel du produit.` : "Le coût par conversion est trop élevé par rapport aux résultats obtenus.",
-      action: "Mets cette campagne en pause et vérifie ta marge avant de relancer un budget dessus.",
-      actionLabel: "Arrêter",
-    };
-  }
-
-  if (status === "profitable") {
-    // Palier d'augmentation suggéré : 20 % de la dépense actuelle, arrondi au millier, jamais < 2 000.
-    const suggestedIncrease = Math.max(2000, Math.round((spend * 0.2) / 1000) * 1000);
-    return {
-      tone: "optimize",
-      emoji: "✅",
-      label: "Cette pub fonctionne !",
-      diagnosis: roas !== null ? `Retour de ${roas.toFixed(2)}x rapporté par Meta pour ${formatMoney(spend, currency)} dépensés.` : `Cette campagne génère des ventes confirmées pour ${formatMoney(spend, currency)} dépensés.`,
-      action: `Augmente le budget de ${formatMoney(suggestedIncrease, currency)}/jour sur cette audience, par paliers, en surveillant le coût par conversion.`,
-      actionLabel: "Scaler",
-    };
-  }
-
   return {
-    tone: "watch",
-    emoji: "⚠️",
-    label: "Surveille cette pub",
-    diagnosis: "Pas encore assez de signal fiable pour recommander d'arrêter ou d'augmenter le budget.",
-    action: "Laisse tourner sans y toucher et réanalyse dans quelques jours.",
+    tone: campaign.spend > 0 ? "watch" : "none",
+    emoji: campaign.spend > 0 ? "⚠️" : "⚪",
+    label: campaign.decision === "learning" ? "Phase d’apprentissage" : "Données insuffisantes",
+    diagnosis: campaign.decisionReasons.join(" ") || "Pas encore assez de données fiables.",
+    action: "Ne coupe pas la campagne sur la base des conversions Meta seules; vérifie le suivi et réanalyse après assez de données.",
     actionLabel: "Surveiller",
   };
 }
@@ -1737,25 +1720,24 @@ function AdVerdictBadge({ verdict }: { verdict: AdVerdict }) {
   return <span className={className}>{verdict.emoji} {verdict.label}</span>;
 }
 
-// Carte "Économies & gains" — budget économisé en arrêtant les pubs qui brûlent
-// du cash, et revenu additionnel estimé si les recommandations de scale sont suivies.
+// Carte de dépenses observées et potentiel estimatif calculé depuis les ventes attribuées.
 function AdsSavingsSummary({ performances, currency }: { performances: MetaPerformance["performances"]; currency: string }) {
   const withVerdict = performances.map((campaign) => ({ campaign, verdict: getCampaignVerdict(campaign, currency) }));
   const stop = withVerdict.filter((item) => item.verdict.tone === "stop");
   const optimize = withVerdict.filter((item) => item.verdict.tone === "optimize");
   const budgetToStop = stop.reduce((sum, item) => sum + item.campaign.spend, 0);
-  const revenueFromScale = optimize.reduce((sum, item) => sum + item.campaign.spend * 0.2 * (item.campaign.roas ?? 1), 0);
+  const revenueFromScale = optimize.reduce((sum, item) => sum + (item.campaign.suggestedIncrease ?? 0) * (item.campaign.realRoas ?? 0), 0);
 
   return (
     <section className="app-card savings-card">
       <div className="card-head"><div><span className="eyebrow">Économies & gains</span><h2>Impact potentiel</h2></div></div>
       <div className="savings-block">
         <span className="savings-icon savings-icon-stop"><ShieldAlert size={16} /></span>
-        <div><small>Budget potentiel économisé</small><strong>{formatMoney(budgetToStop, currency)}</strong><p>sur les pubs sous-performantes</p></div>
+        <div><small>Dépense observée — campagnes à risque</small><strong>{formatMoney(budgetToStop, currency)}</strong><p>Dépense historique, pas une économie déjà réalisée.</p></div>
       </div>
       <div className="savings-block">
         <span className="savings-icon savings-icon-scale"><TrendingUp size={16} /></span>
-        <div><small>Revenu additionnel estimé</small><strong>+ {formatMoney(Math.round(revenueFromScale), currency)}</strong><p>si tu appliques les recommandations</p></div>
+        <div><small>Potentiel estimé selon les ventes attribuées</small><strong>{formatMoney(Math.round(revenueFromScale), currency)}</strong><p>Projection indicative, non garantie, fondée sur le ROAS Chariow.</p></div>
       </div>
     </section>
   );
@@ -1799,7 +1781,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok" | "x">("overview");
   const [message, setMessage] = useState<string | null>(null);
 
-  const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null }>>(cachedOnce?.metaAccounts ?? []);
+  const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>>(cachedOnce?.metaAccounts ?? []);
   const [selectedMetaAccount, setSelectedMetaAccount] = useState(cachedOnce?.selectedMetaAccount ?? "");
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(cachedOnce?.metaPerformance ?? null);
   const [metaResources, setMetaResources] = useState<{ pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null>(cachedOnce?.metaResources ?? null);
@@ -1815,10 +1797,22 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   const [tiktokLoading, setTiktokLoading] = useState(!cachedOnce);
 
   // Charge performances, pages/pixels et statut de restriction pour UN compte donné.
-  async function loadMetaAccountData(accountId: string) {
+  async function loadMetaAccountData(accountId: string, lastSyncedAt?: string | null) {
     let perf: MetaPerformance | null = null;
     let resources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null = null;
     let restricted = false;
+    const lastSyncTime = lastSyncedAt ? Date.parse(lastSyncedAt) : 0;
+    if (!lastSyncTime || Date.now() - lastSyncTime > 3 * 60 * 60 * 1000) {
+      setMetaSyncing(true);
+      try {
+        const syncResponse = await fetch("/api/meta/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: accountId }) });
+        if (!syncResponse.ok) setMessage(t("ads.syncError"));
+      } catch {
+        setMessage(t("ads.syncError"));
+      } finally {
+        setMetaSyncing(false);
+      }
+    }
     const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}`);
     if (metrics.ok) perf = await metrics.json();
     const resourceResponse = await fetch(`/api/integrations/meta/resources?account_id=${encodeURIComponent(accountId)}`);
@@ -1850,7 +1844,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
 
     const metaResponse = await fetch("/api/integrations/meta/accounts");
     const metaData = metaResponse.ok ? await metaResponse.json() : { accounts: [] };
-    const nextMetaAccounts = (metaData.accounts ?? []) as Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null }>;
+    const nextMetaAccounts = (metaData.accounts ?? []) as Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>;
     setMetaAccounts(nextMetaAccounts);
 
     // Conserve le compte déjà choisi (cache) s'il existe encore, sinon le compte
@@ -1869,7 +1863,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
     if (chosenAccount) {
       nextSelectedMetaAccount = chosenAccount.id;
       setSelectedMetaAccount(nextSelectedMetaAccount);
-      const loaded = await loadMetaAccountData(chosenAccount.id);
+      const loaded = await loadMetaAccountData(chosenAccount.id, chosenAccount.last_synced_at);
       nextMetaPerformance = loaded.perf;
       nextMetaResources = loaded.resources;
       nextMetaAccountRestricted = loaded.restricted;
@@ -1884,7 +1878,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
   // d'où le message de restriction du mauvais compte affiché sur le nouveau.
   async function selectMetaAccount(accountId: string) {
     setSelectedMetaAccount(accountId);
-    const loaded = await loadMetaAccountData(accountId);
+    const loaded = await loadMetaAccountData(accountId, metaAccounts.find((account) => account.id === accountId)?.last_synced_at);
     writeCache(ADS_CACHE_KEY, { metaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts });
   }
 
@@ -1975,7 +1969,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
           {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n'est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
           {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noMeta")}</strong><span>{t("ads.noMetaText")}</span><button className="btn btn-dark" onClick={connectMeta}>{t("ads.connectMeta")}</button></div> : <>
-            <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
+            <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><span className="hint-line">Dernière synchro : {metaPerformance?.lastSyncedAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(metaPerformance.lastSyncedAt)) : "Jamais"}{metaPerformance?.lastSyncError ? ` · Erreur : ${metaPerformance.lastSyncError}` : ""}</span><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
             {metaConnected && metaResources ? (
               <section className="app-card" style={{ marginBottom: 18 }}>
                 <div className="card-head"><div><span className="eyebrow">Suivi des conversions</span><h2>Pixel Meta</h2><p>Copie l'identifiant du pixel et configure-le dans ton parcours de vente Chariow (Pixel ou Conversions API). Une fois installé, marque-le « configuré ».</p></div>{!metaResources.pixels.some((pixel) => pixel.configured_on_chariow) ? <a href="https://business.facebook.com/events_manager2/list" target="_blank" rel="noreferrer" className="btn btn-ghost">Créer un pixel</a> : null}</div>
@@ -2007,7 +2001,7 @@ function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaign
                 )}
               </section>
             ) : null}
-            {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Chiffre d'affaires réel Chariow" description="Revenus réellement enregistrés par Chariow." /><strong>{formatMoney(metaPerformance.overview.chariowRevenue, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Coût par conversion</span><span>Retour publicitaire</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.cpa === null ? "Non disponible" : formatMoney(campaign.cpa, metaPerformance.currency)}</span><span>{campaign.roas === null ? "Non disponible" : `${campaign.roas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="hint-line">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
+            {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Revenu net Chariow par devise" description="Ventes encaissées, ventilées par devise afin de ne pas additionner des montants incompatibles." /><strong>{metaPerformance.chariowRevenueByCurrency.length ? metaPerformance.chariowRevenueByCurrency.map((item) => formatMoney(item.amount, item.currency)).join(" · ") : "Aucune vente encaissée"}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Ventes Chariow attribuées</span><span>ROAS Chariow attribué</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.realSales === null ? "Non attribuées" : campaign.realSales}</span><span>{campaign.realRoas === null ? "Non disponible" : `${campaign.realRoas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="hint-line">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
             {metaPerformance.performances.length ? <section className="app-card reco-card" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Pourquoi ce verdict</span><h2>Recommandation par campagne</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="reco-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`reco-item reco-item-${verdict.tone}`} key={campaign.id}><span className="reco-icon">{verdict.emoji}</span><div className="reco-body"><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.action}</p><small>{verdict.diagnosis}</small></div><button type="button" className={`reco-action reco-action-${verdict.tone}`} onClick={() => openAI(`Analyse la campagne "${campaign.name}" et détaille les prochaines actions.`)}>{verdict.actionLabel}</button></div>; })}</div></section> : null}
             </> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
           </>}

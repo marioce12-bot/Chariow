@@ -25,6 +25,8 @@ export type AutopilotInput = {
   daysSinceLaunch: number;
   /** Budget quotidien de la campagne (référence pour les seuils). */
   dailyBudget: number;
+  /** Vrai seulement si le suivi d'achat et l'attribution à cette campagne sont fiables. */
+  attributionReliable: boolean;
 };
 
 function fmt(value: number): string {
@@ -49,8 +51,16 @@ const BREAKEVEN_ROAS = 1;
 const STOP_ROAS = 0.5;
 
 export function computeAutopilotDecision(input: AutopilotInput): AutopilotDecision {
-  const { spend, netRevenue, grossRevenue, completedSales, daysSinceLaunch, dailyBudget } = input;
+  const { spend, netRevenue, grossRevenue, completedSales, daysSinceLaunch, dailyBudget, attributionReliable } = input;
   const roas = roasOf(netRevenue, spend);
+
+  if (!attributionReliable) {
+    return {
+      decision: "insufficient_data",
+      reasons: ["Suivi des achats ou attribution à cette campagne non confirmé : aucune pause automatique ne sera déclenchée."],
+      roas: null,
+    };
+  }
 
   if (spend <= 0) {
     return {
@@ -61,7 +71,7 @@ export function computeAutopilotDecision(input: AutopilotInput): AutopilotDecisi
   }
 
   // Phase d'apprentissage : trop tôt (ou trop peu dépensé) pour conclure.
-  if (daysSinceLaunch < 1 || (spend < dailyBudget && daysSinceLaunch < 2)) {
+  if (daysSinceLaunch < 1 || dailyBudget <= 0 || spend < dailyBudget * MIN_SPEND_TO_CONCLUDE_MULTIPLIER) {
     return {
       decision: "learning",
       reasons: ["Phase d'apprentissage : la campagne vient de démarrer, il n'y a pas encore assez de données pour juger sa rentabilité."],

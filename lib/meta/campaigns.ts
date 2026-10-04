@@ -154,6 +154,9 @@ export async function createMetaAdSet(input: {
   /** Nom de la personne ou de l'organisation promue (annonceur / payeur, exigé
    *  par Meta au titre du DSA). Si absent, on lit le nom du compte publicitaire. */
   advertiserName?: string;
+  objective?: "sales" | "traffic" | "engagement" | "leads";
+  pixelId?: string | null;
+  endTime?: string | null;
 }) {
   const hasPreciseTargeting = !!(input.geoTargeting && ((input.geoTargeting.regions?.length ?? 0) > 0 || (input.geoTargeting.cities?.length ?? 0) > 0));
   const geoLocations: Record<string, unknown> = hasPreciseTargeting
@@ -184,16 +187,20 @@ export async function createMetaAdSet(input: {
   // Sans ce champ, Meta diffuse automatiquement sur tous les emplacements disponibles.
   if (input.publisherPlatforms?.length) targeting.publisher_platforms = input.publisherPlatforms;
 
+  const objective = input.objective ?? "traffic";
+  if (objective === "sales" && !input.pixelId) throw new Error("Un pixel Meta configuré sur Chariow est requis pour optimiser une campagne de ventes.");
   const params: Record<string, string> = {
     name: input.name.slice(0, 200),
     campaign_id: input.campaignId,
     daily_budget: String(Math.round(input.dailyBudget * 100)),
     billing_event: "IMPRESSIONS",
-    optimization_goal: "LINK_CLICKS",
+    optimization_goal: objective === "sales" ? "OFFSITE_CONVERSIONS" : objective === "traffic" ? "LANDING_PAGE_VIEWS" : "LINK_CLICKS",
     bid_strategy: "LOWEST_COST_WITHOUT_CAP",
     targeting: JSON.stringify(targeting),
     status: input.status ?? "PAUSED",
   };
+  if (objective === "sales" && input.pixelId) params.promoted_object = JSON.stringify({ pixel_id: input.pixelId, custom_event_type: "PURCHASE" });
+  if (input.endTime) params.end_time = input.endTime;
   // Annonceur / payeur (DSA) : sans ces deux champs Meta refuse l'ad set avec
   // « Aucun annonceur indiqué » (subcode 3858081), même si un compte publicitaire
   // est bien sélectionné dans Vendeo — ce champ est distinct du compte pub.
