@@ -153,8 +153,7 @@ export const translations: Record<Locale, Dict> = {
       tiktokSoon: "Les statistiques détaillées TikTok Ads (dépenses, ROAS) arrivent bientôt.",
       launchError: "Nous n’avons pas pu lancer ta campagne sur {platform}.", retryLaunch: "Réessayer", correctCampaign: "Modifier ou corriger",
       launching: "Envoi à {platform}…", launchSuccess: "Campagne envoyée à {platform} ! Elle passe en revue avant diffusion.", launchButton: "Lancer la campagne", activateCampaign: "Activer la campagne", back: "Retour",
-      budgetNotice: "Le budget de cette campagne sera prélevé sur ton solde publicitaire.", balanceInsufficient: "Solde publicitaire insuffisant",
-      balanceDetails: "Cette campagne nécessite {required} XOF, mais ton solde est de {balance} XOF.", balanceHelp: "Recharge ton solde publicitaire depuis la carte « Solde publicitaire » de la page Pub, puis relance.",
+      budgetNotice: "Le budget de cette campagne sera facturé directement par Meta ou TikTok sur le compte publicitaire sélectionné.",
       errors: {
         billing: "{platform} indique que la facturation de ton compte publicitaire n’est pas terminée. Ouvre {platform} Ads Manager, règle le paiement demandé ou ajoute un moyen de paiement valide, puis réessaie.",
         objective: "TikTok a refusé un réglage de l’objectif de cette campagne. Nous avons corrigé ce réglage dans Vendeo : réessaie maintenant. Si le refus revient, contacte l’assistance TikTok Ads.",
@@ -352,8 +351,7 @@ export const translations: Record<Locale, Dict> = {
       tiktokSoon: "Detailed TikTok Ads stats (spend, ROAS) are coming soon.",
       launchError: "We couldn’t launch your campaign on {platform}.", retryLaunch: "Try again", correctCampaign: "Edit or fix",
       launching: "Sending to {platform}…", launchSuccess: "Campaign sent to {platform}! It is being reviewed before delivery.", launchButton: "Launch campaign", activateCampaign: "Activate campaign", back: "Back",
-      budgetNotice: "This campaign’s budget will be taken from your ad balance.", balanceInsufficient: "Insufficient ad balance",
-      balanceDetails: "This campaign needs {required} XOF, but your balance is {balance} XOF.", balanceHelp: "Top up your ad balance from the “Ad balance” card on the Ads page, then try again.",
+      budgetNotice: "Meta or TikTok will bill this campaign’s budget directly to the selected ad account.",
       errors: {
         billing: "{platform} says billing for your ad account is not complete. Open {platform} Ads Manager, complete the requested payment or add a valid payment method, then try again.",
         objective: "TikTok rejected a setting for this campaign’s objective. We’ve corrected that setting in Vendeo—try again now. If TikTok rejects it again, contact TikTok Ads support.",
