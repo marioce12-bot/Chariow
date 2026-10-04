@@ -16,6 +16,15 @@ export async function fetchMetaAccounts(accessToken: string) {
   return Array.isArray(json.data) ? json.data as Array<Record<string, unknown>> : [];
 }
 
+export async function fetchMetaAccountStatus(accountId: string, accessToken: string): Promise<number> {
+  const response = await fetch(graphUrl(accountId, { fields: "account_status", access_token: accessToken }), { cache: "no-store" });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof json?.error?.message === "string" ? json.error.message : `Meta account status request failed (${response.status})`);
+  const status = Number(json.account_status);
+  if (!Number.isInteger(status) || status <= 0) throw new Error("Meta n’a pas renvoyé un account_status valide");
+  return status;
+}
+
 /**
  * Récupère compte, pages et pixels en parallèle, mais SANS laisser l'échec
  * d'un seul de ces trois appels faire échouer les autres : on a vu en
@@ -114,9 +123,9 @@ export async function getMetaAccountFunding(accountId: string, accessToken: stri
  * que le compte est prépayé ou facturé après coup (postpay). On ne bloque donc que sur
  * les deux signaux fiables à 100% : compte non actif, et aucun moyen de paiement du tout.
  */
-// Raison lisible pour chaque état de compte publicitaire Meta (account_status).
-// 1 = actif ; les autres valeurs correspondent aux états documentés par Meta.
+// Raison lisible pour chaque état account_status documenté par Meta.
 const META_ACCOUNT_STATUS_REASON: Record<number, string> = {
+  1: "actif",
   2: "compte désactivé",
   3: "solde impayé",
   7: "en revue de risque",
@@ -124,11 +133,23 @@ const META_ACCOUNT_STATUS_REASON: Record<number, string> = {
   9: "en période de grâce",
   100: "en cours de fermeture",
   101: "compte fermé",
+  201: "au moins un compte actif",
+  202: "tous les comptes fermés",
 };
 
+export function describeMetaAccountStatus(status: number): string {
+  return META_ACCOUNT_STATUS_REASON[status] ?? `état inconnu (code ${status})`;
+}
+
+// Les statuts compte agrégés 201/202 sont également documentés par Meta.
+// 8/9 et 201 ne suffisent pas à conclure à une panne : on se fie au statut effectif.
+export function isMetaAccountStatusBlocking(status: number | null | undefined): boolean {
+  return typeof status === "number" && [2, 3, 7, 100, 101, 202].includes(status);
+}
+
 export function describeMetaFundingIssue(funding: { accountStatus: number; hasFundingSource: boolean }): { code: string; message: string } | null {
-  if (funding.accountStatus !== 1) {
-    const reason = META_ACCOUNT_STATUS_REASON[funding.accountStatus] ?? "compte restreint, en revue ou désactivé";
+  if (![1, 8, 9, 201].includes(funding.accountStatus)) {
+    const reason = describeMetaAccountStatus(funding.accountStatus);
     return { code: "META_ACCOUNT_RESTRICTED", message: `Ce compte publicitaire Meta n'est pas actif (${reason}). Vérifie son état dans Meta Account Quality avant de relancer.` };
   }
   if (!funding.hasFundingSource) {

@@ -7,6 +7,7 @@ import { CampaignCorrectionModal } from "./wizard/CampaignCorrectionModal";
 import type { Platform } from "./wizard/types";
 import { useI18n } from "@/lib/i18n/i18n";
 import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
+import { getMetaPausedReason, isMetaPausedReason } from "@/lib/meta/status";
 
 type AdCampaign = {
   id: string;
@@ -39,8 +40,9 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
   account_required: { label: "Compte requis", bg: "#FEF3C7", fg: "#92400E" },
   submitting: { label: "Création en cours…", bg: "#DBEAFE", fg: "#1E40AF" },
   paused: { label: "Suspendue", bg: "#E0E7FF", fg: "#3730A3" },
+  meta_paused: { label: "En pause chez Meta", bg: "#FEF3C7", fg: "#92400E" },
   autopilot_paused: { label: "Mise en pause par le pilote", bg: "#FEF3C7", fg: "#92400E" },
-  paid: { label: "Payée — en attente d’activation", bg: "#E0E7FF", fg: "#3730A3" },
+  paid: { label: "Prête à lancer", bg: "#E0E7FF", fg: "#3730A3" },
   review: { label: "En cours d'examen", bg: "#FEF3C7", fg: "#92400E" },
   active: { label: "Active", bg: "#D1FAE5", fg: "#065F46" },
   rejected: { label: "Rejetée", bg: "#FEE2E2", fg: "#991B1B" },
@@ -54,16 +56,15 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
  * disparaît de la vue (le wizard se ferme, la seule trace visible dans l'UI
  * était le tableau de performances, alimenté uniquement par la synchro Meta
  * du lendemain). Chaque campagne créée apparaît ici immédiatement avec son
- * statut, et un bouton permet de reprendre le paiement/l'activation sans
- * jamais payer deux fois pour la même campagne.
+ * statut, et un bouton permet de relancer une campagne sans repasser par le wizard.
  *
  * La carte "Solde publicitaire" (AdBalanceCard) est rendue tout en haut de ce bloc.
  */
 export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | null; onNewCampaign: () => void }) {
   const { locale, t } = useI18n();
   const statusLabels: Record<string, string> = locale === "en" ? {
-    draft: "Draft", account_required: "Account required", submitting: "Creating…", paused: "Paused", autopilot_paused: "Paused by autopilot",
-    paid: "Paid — awaiting activation", review: "Under review", active: "Active", rejected: "Rejected", error: "Error", completed: "Completed",
+    draft: "Draft", account_required: "Account required", submitting: "Creating…", paused: "Paused", meta_paused: "Paused by Meta", autopilot_paused: "Paused by autopilot",
+    paid: "Ready to launch", review: "Under review", active: "Active", rejected: "Rejected", error: "Error", completed: "Completed",
   } : Object.fromEntries(Object.entries(STATUS_META).map(([key, value]) => [key, value.label]));
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +147,9 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
           {campaigns.slice(0, showAll ? campaigns.length : 3).map((c) => {
-            const meta = STATUS_META[c.status] ?? { label: c.status, bg: "#F3F4F6", fg: "#374151" };
+            const metaPausedMessage = getMetaPausedReason(c.external_error);
+            const statusKey = metaPausedMessage ? "meta_paused" : c.status;
+            const meta = STATUS_META[statusKey] ?? { label: c.status, bg: "#F3F4F6", fg: "#374151" };
             const canResume = c.status === "draft" || c.status === "paused" || c.status === "autopilot_paused" || c.status === "paid";
             return (
               <div
@@ -182,8 +185,8 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                       aussi sur "paid". "rejected" est le refus survenu après diffusion (retour
                       async de mapMetaEffectiveStatus) : même logique, le motif doit rester visible
                       directement dans la liste, sans avoir à ouvrir le détail. */}
-                  {(c.status === "error" || c.status === "paid" || c.status === "rejected") && c.external_error ? (
-                    <span className="hint-line" style={{ color: "#991B1B" }}>{campaignErrorMessage(c.external_error, locale, t, c.platform)}</span>
+                  {(c.status === "error" || c.status === "paid" || c.status === "rejected" || metaPausedMessage) && c.external_error ? (
+                    <span className="hint-line" style={{ color: metaPausedMessage ? "#92400E" : "#991B1B" }}>{metaPausedMessage ?? campaignErrorMessage(c.external_error, locale, t, c.platform)}</span>
                   ) : null}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -199,11 +202,11 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {statusLabels[c.status] ?? meta.label}
+                    {statusLabels[statusKey] ?? meta.label}
                   </span>
                   {canResume ? (
                     <button type="button" className="btn btn-dark" onClick={(event) => { event.stopPropagation(); setResuming(c); }}>
-                      <PlayCircle size={14} /> {c.status === "paid" ? t("campaigns.activate") : t("campaigns.launch")}
+                      <PlayCircle size={14} /> {t("campaigns.launch")}
                     </button>
                    ) : null}
                 </div>
@@ -219,7 +222,7 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
           campaignId={resuming.id}
           platform={resuming.platform}
           initialStatus={resuming.status as "draft" | "paused" | "autopilot_paused" | "paid"}
-          initialError={resuming.external_error}
+          initialError={getMetaPausedReason(resuming.external_error) ?? resuming.external_error}
           onClose={() => setResuming(null)}
           onCorrection={(message) => {
             const campaign = resuming;
@@ -259,11 +262,11 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
             {selected.media_url ? <img src={selected.media_url} alt={t("campaigns.preview")} style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} /> : null}
             {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>Texte :</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>Réseau :</strong> {selected.platform === "meta" ? "Facebook / Instagram" : "TikTok"}</div><div><strong>Objectif :</strong> {selected.objective}</div><div><strong>Audience :</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} ans</div><div><strong>Budget :</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} $/jour · {selected.duration_days} jours</div>{selected.destination_url ? <div><strong>Lien :</strong> {selected.destination_url}</div> : null}</div>}
             {selected.external_error ? (
-              <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}>
-                <strong>{t("ads.errors.reason")}</strong> {campaignErrorMessage(selected.external_error, locale, t, selected.platform)}
+              <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: isMetaPausedReason(selected.external_error) ? "#FFFBEB" : "#FEE2E2", color: isMetaPausedReason(selected.external_error) ? "#92400E" : "#991B1B", fontSize: 13 }}>
+                <strong>{isMetaPausedReason(selected.external_error) ? (locale === "en" ? "Paused by Meta:" : "En pause chez Meta :") : t("ads.errors.reason")}</strong> {getMetaPausedReason(selected.external_error) ?? campaignErrorMessage(selected.external_error, locale, t, selected.platform)}
                 <br />
                 <span>
-                  {selected.status === "rejected" ? t("ads.errors.rejectedHelp") : t("ads.errors.otherHelp")}
+                  {isMetaPausedReason(selected.external_error) ? (locale === "en" ? "Check the account, campaign and billing in Meta Ads Manager, then relaunch from My campaigns." : "Vérifie le compte, la campagne et la facturation dans Meta Ads Manager, puis relance depuis Mes campagnes.") : selected.status === "rejected" ? t("ads.errors.rejectedHelp") : t("ads.errors.otherHelp")}
                 </span>
               </div>
             ) : null}

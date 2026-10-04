@@ -1,4 +1,4 @@
-import { META_GRAPH_BASE_URL } from "./api";
+import { describeMetaAccountStatus, isMetaAccountStatusBlocking, META_GRAPH_BASE_URL } from "./api";
 
 type GraphResponse = Record<string, unknown>;
 
@@ -364,13 +364,7 @@ export async function updateMetaAdCreative(input: { adId: string; accessToken: s
   return graphPost(input.adId, input.accessToken, { creative: JSON.stringify({ creative_id: input.creativeId }) });
 }
 
-/**
- * Interroge Meta pour savoir où en est la modération d'une publicité soumise.
- * effective_status possibles (doc Meta) : PENDING_REVIEW, IN_PROCESS, PREAPPROVED,
- * PENDING_BILLING_INFO (encore en cours) ; ACTIVE (approuvée, diffusion en cours) ;
- * DISAPPROVED, WITH_ISSUES (refusée) ; CAMPAIGN_PAUSED / ADSET_PAUSED (mis en pause
- * en amont — normal tant que activateMetaCampaign() n'a pas encore été appelé).
- */
+/** Interroge Meta pour l'état effectif d'une annonce, qu'elle soit en revue ou déjà active. */
 export async function getMetaAdReviewStatus(input: { adId: string; accessToken: string }) {
   const json = await graphGet(input.adId, input.accessToken, "effective_status,ad_review_feedback");
   return {
@@ -379,9 +373,12 @@ export async function getMetaAdReviewStatus(input: { adId: string; accessToken: 
   };
 }
 
-/** Traduit le statut Meta en statut Vendeo. Retourne null si rien ne doit changer (encore en cours). */
-export function mapMetaEffectiveStatus(effectiveStatus: string, feedback: Record<string, unknown> | null): { status: "active" | "rejected"; error: string | null } | null {
-  if (effectiveStatus === "ACTIVE") return { status: "active", error: null };
+/** Traduit l'état effectif Meta en état Vendeo, y compris les pauses après lancement. */
+export function mapMetaEffectiveStatus(
+  effectiveStatus: string,
+  feedback: Record<string, unknown> | null,
+  accountStatus?: number | null,
+): { status: "active" | "review" | "rejected" | "paused"; error: string | null } | null {
   if (effectiveStatus === "DISAPPROVED" || effectiveStatus === "WITH_ISSUES") {
     // La forme exacte de ad_review_feedback varie selon le type de refus (global vs par ligne).
     // On prend le texte tel quel pour l'afficher à l'utilisateur, tronqué par sécurité.
@@ -394,5 +391,23 @@ export function mapMetaEffectiveStatus(effectiveStatus: string, feedback: Record
     }
     return { status: "rejected", error: reason };
   }
-  return null; // PENDING_REVIEW, IN_PROCESS, PREAPPROVED, PENDING_BILLING_INFO...
+  const accountBlocked = isMetaAccountStatusBlocking(accountStatus);
+  const accountReason = accountBlocked && accountStatus != null
+    ? `Meta indique que le compte publicitaire est ${describeMetaAccountStatus(accountStatus)}. Vérifie sa facturation et son état dans Meta Ads Manager.`
+    : null;
+  if (effectiveStatus === "ACTIVE") {
+    return accountReason ? { status: "paused", error: accountReason } : { status: "active", error: null };
+  }
+  if (accountReason) return { status: "paused", error: accountReason };
+  if (["PAUSED", "CAMPAIGN_PAUSED", "ADSET_PAUSED", "AD_PAUSED", "DISABLED", "CREDIT_CARD_NEEDED", "PENDING_BILLING_INFO"].includes(effectiveStatus)) {
+    const accountDetail = accountStatus && accountStatus !== 1 ? ` (compte ${describeMetaAccountStatus(accountStatus)})` : "";
+    const reason = effectiveStatus === "CREDIT_CARD_NEEDED" || effectiveStatus === "PENDING_BILLING_INFO"
+      ? "Meta demande de vérifier les informations de facturation"
+      : `Meta signale la publicité en pause (état ${effectiveStatus})`;
+    return { status: "paused", error: `${reason}${accountDetail}. Vérifie le compte, la campagne, l’ensemble de publicités et la facturation dans Meta Ads Manager.` };
+  }
+  if (["PENDING_REVIEW", "IN_PROCESS", "PREAPPROVED", "PENDING_PROCESS"].includes(effectiveStatus)) {
+    return { status: "review", error: null };
+  }
+  return null;
 }
