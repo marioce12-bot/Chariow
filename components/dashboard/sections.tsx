@@ -74,7 +74,8 @@ function htmlDescriptionToText(description: string): string {
 }
 
 export function StudioView({ products }: { products: Array<{ id: string; name: string; description?: string | null; price?: number | string | null; currency?: string | null; image?: string | null }> }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const [promptGenerating, setPromptGenerating] = useState(false);
   const [kind, setKind] = useState<"image" | "video">("image");
   const [prompt, setPrompt] = useState("");
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
@@ -109,8 +110,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   // rapprochés peuvent tous les deux lire `loading === false` et déclencher
   // deux générations (et donc deux débits de crédits) pour un seul tap.
   const generatingRef = useRef(false);
-  // Dernier bloc d'infos produit inséré dans la description (pour le remplacer).
-  const lastInsertedInfoRef = useRef<string | null>(null);
+  // Dernier prompt produit généré par l'IA (pour distinguer les consignes de l'utilisateur).
+  const lastGeneratedPromptRef = useRef<string | null>(null);
   // Jobs vidéo déjà vérifiés une fois depuis l'historique au chargement de la
   // page, pour ne relancer la vérification serveur qu'une seule fois par job
   // (évite une boucle de re-render infinie sur l'effet ci-dessous).
@@ -198,22 +199,43 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     }
   }
 
-  function insertProductInfo() {
-    if (!selectedProduct) return;
-    const productInfo = [
-      `Nom du produit : ${selectedProduct.name}`,
-      selectedProduct.price ? `Prix : ${selectedProduct.price}${selectedProduct.currency ? ` ${selectedProduct.currency}` : ""}` : "",
-      selectedProduct.description ? `Description : ${htmlDescriptionToText(selectedProduct.description)}` : "",
-    ].filter(Boolean).join("\n");
-    // Si un bloc "infos produit" a déjà été inséré, on le remplace au lieu
-    // d'empiler un second produit à la suite (le texte écrit à la main autour
-    // est conservé). Sinon on ajoute à la suite du texte existant.
-    const previous = lastInsertedInfoRef.current;
-    lastInsertedInfoRef.current = productInfo;
-    setPrompt((current) => {
-      if (previous && current.includes(previous)) return current.replace(previous, () => productInfo);
-      return current.trim() ? `${current.trim()}\n\n${productInfo}` : productInfo;
-    });
+  // Génère, avec la même IA que l'assistant, un prompt structuré à partir des
+  // infos du produit choisi. Le prompt remplace la description : changer de
+  // produit puis re-cliquer régénère donc tout, sans rien effacer à la main.
+  // Si l'utilisateur a écrit ses propres consignes (texte différent du dernier
+  // prompt généré), elles sont transmises à l'IA pour être intégrées.
+  async function insertProductInfo() {
+    if (!selectedProduct || promptGenerating) return;
+    setPromptGenerating(true);
+    setError("");
+    try {
+      const current = prompt.trim();
+      const userBrief = current && current !== lastGeneratedPromptRef.current ? current : "";
+      const response = await fetch("/api/studio/prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product: {
+            name: selectedProduct.name,
+            price: selectedProduct.price ?? undefined,
+            currency: selectedProduct.currency ?? undefined,
+            description: selectedProduct.description ? htmlDescriptionToText(selectedProduct.description) : undefined,
+          },
+          orientation,
+          background,
+          locale,
+          userBrief,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || typeof result.prompt !== "string") throw new Error(result.error || "Impossible de générer le prompt.");
+      lastGeneratedPromptRef.current = result.prompt;
+      setPrompt(result.prompt);
+    } catch (promptError) {
+      setError(promptError instanceof Error ? promptError.message : "Impossible de générer le prompt.");
+    } finally {
+      setPromptGenerating(false);
+    }
   }
 
   async function generate() {
@@ -332,7 +354,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
           {kind === "image" ? (
             <div className="studio-options">
-              {selectedProduct ? <button type="button" className="studio-insert-btn" onClick={insertProductInfo}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{t("studio.insertProductInfo")}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : null}
+              {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? t("studio.insertProductInfoLoading") : t("studio.insertProductInfo")}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : null}
               <div className="studio-field studio-references"><span>{t("studio.references")}</span><label className={`studio-upload${referenceFiles.length ? " has-files" : ""}${referenceUploading || loading ? " is-disabled" : ""}`}><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => setReferenceFiles(Array.from(event.target.files ?? []).slice(0, 3))} disabled={referenceUploading || loading} /><span className="studio-upload-icon"><ImageIcon size={20} /></span><span className="studio-upload-text"><strong>{referenceFiles.length ? `${referenceFiles.length} image${referenceFiles.length > 1 ? "s" : ""} sélectionnée${referenceFiles.length > 1 ? "s" : ""}` : "Joindre une image de référence"}</strong><small>{referenceFiles.length ? referenceFiles.map((file) => file.name).join(", ") : t("studio.referenceHint")}</small></span></label>{referenceFiles.length ? <button type="button" className="studio-upload-clear" onClick={() => setReferenceFiles([])} disabled={referenceUploading || loading}>Retirer les images</button> : null}</div>
               <StudioSelect label={t("studio.quality")} value={quality} onChange={setQuality} options={[['medium', t("studio.medium")], ['high', t("studio.high")], ['xhigh', t("studio.xhigh")], ['max', t("studio.max")]]} />
               <StudioSelect label={t("studio.resolution")} value={imageResolution} onChange={setImageResolution} options={[['hd', 'HD'], ['full_hd', 'Full HD'], ['2k', '2K'], ['4k', '4K']]} />

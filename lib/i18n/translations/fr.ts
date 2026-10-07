@@ -182,7 +182,7 @@ export const fr: Dict = {
       image: "Image", video: "Vidéo",
       product: "Produit (optionnel)", search: "Rechercher un produit", noProduct: "Aucun produit",
       noProductText: "Connecte ta boutique Chariow pour choisir un de tes produits. La création libre reste possible.",
-      selected: "Produit choisi :", coverRef: "Couverture du produit utilisée comme référence", insertProductInfo: "Insérer les infos du produit", references: "Images de référence (optionnel)", referenceHint: "3 images maximum, PNG/JPEG/WebP.",
+      selected: "Produit choisi :", coverRef: "Couverture du produit utilisée comme référence", insertProductInfo: "Générer le prompt avec l'IA", insertProductInfoLoading: "Rédaction du prompt…", references: "Images de référence (optionnel)", referenceHint: "3 images maximum, PNG/JPEG/WebP.",
       describe: "Décris ta création", describeImage: "Ex. Une affiche publicitaire dynamique avec une personne souriante, un grand titre lisible, trois bénéfices, un prix, un bouton d'action et une ambiance moderne.",
       describeVideo: "Ex. Une mise en scène cinématique d'un produit sur une table, travelling lent, ambiance chaleureuse, sons légers.",
       quality: "Qualité", medium: "Moyenne", high: "Haute", xhigh: "Très haute", max: "Maximum",

@@ -239,3 +239,6 @@ html[data-theme="dark"] .studio-upload:hover,html[data-theme="dark"] .studio-upl
 html[data-theme="dark"] .studio-upload-text strong { color:#e7edfb; }
 html[data-theme="dark"] .studio-upload-text small { color:#94a3c4; }
 html[data-theme="dark"] .studio-upload-clear { color:#ff8f86; }
+.studio-insert-btn:disabled { cursor:progress; filter:saturate(.8); transform:none; }
+.studio-insert-btn.is-loading .studio-insert-spark { animation:studio-spark-pulse 1s ease-in-out infinite; }
+@keyframes studio-spark-pulse { 0%,100% { opacity:.4; transform:scale(.9) rotate(0); } 50% { opacity:1; transform:scale(1.2) rotate(20deg); } }
