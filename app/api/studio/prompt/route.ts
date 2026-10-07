@@ -17,17 +17,17 @@ const ORIENTATION_LABELS = {
 const CREATIVE_TERRITORIES = [
   "gros plan sur le produit en mockup 3D, fond clair uni et ombres douces",
   "scène de vie quotidienne africaine authentique (maison, café, marché, terrasse, transport…)",
-  "composition graphique très typographique, produit et accroche dominants, peu de photo",
-  "vue du dessus (flat lay) avec objets liés au thème autour du produit",
+  "composition graphique et typographique forte, produit et accroche dominants, avec une personne détourée à côté du produit",
+  "vue plongeante sur une table avec le produit et des objets liés au thème, une personne en partie visible qui interagit avec lui",
   "portrait serré et expressif d'une personne tenant ou montrant le produit",
   "plusieurs personnes ou un petit groupe en interaction autour du produit",
-  "mains seules manipulant le produit, cadrage serré, profondeur de champ marquée",
+  "personne tenant ou montrant le produit près de son visage, cadrage serré, profondeur de champ marquée",
   "ambiance studio épurée, éclairage doux et lumineux, ombres légères",
   "style éditorial de magazine, grands aplats de couleur claire et formes géométriques",
   "plan large dans un décor du thème (atelier, cuisine, salle de sport, chantier, bureau, nature…)",
-  "produit flottant en lévitation avec éléments symboliques du thème autour",
+  "produit en lévitation avec éléments symboliques du thème autour et une personne qui le présente",
   "avant / après ou contraste visuel qui illustre la transformation promise",
-  "illustration premium stylisée, texture et couleurs riches, sans effet générique",
+  "illustration premium stylisée avec un personnage, textures et couleurs riches, sans effet générique",
   "photo lifestyle lumineuse en extérieur, lumière naturelle douce, mouvement et spontanéité",
 ];
 
@@ -51,7 +51,8 @@ Format de ta réponse :
 
 Liberté créative :
 - Tu as carte blanche sur le style, le concept, la mise en scène, le cadrage, la lumière, la palette, le décor et le rendu (photo, illustration, 3D, graphique…). Choisis ce qui servira le mieux CE produit et SA cible.
-- Chaque prompt doit être singulier. Évite les automatismes : par exemple la même personne souriante assise à un bureau devant un ordinateur, la main sous le menton, la même pose ou le même décor d'un produit à l'autre. Une personne n'est jamais obligatoire : tu peux n'en mettre aucune, une seule, ou plusieurs, de n'importe quel genre et âge adulte, dans n'importe quelle pose ou action.
+- Chaque prompt doit être singulier. Évite les automatismes : par exemple la même personne souriante assise à un bureau devant un ordinateur, la main sous le menton, la même pose, le même genre ou le même décor d'un produit à l'autre.
+- PRÉSENCE HUMAINE : par défaut, l'image comporte une ou plusieurs personnes réelles, expressives et crédibles, qui donnent vie à l'affiche (elles utilisent le produit, le présentent, réagissent, ou vivent la situation que le produit améliore). Varie librement le genre (femme, homme, ou plusieurs), l'âge adulte, la pose, l'action, l'expression, le cadrage et le décor. Ne retire la personne que si le produit s'y prête vraiment mal. Le produit reste plus grand et plus imposant que la personne, et elle ne le masque jamais.
 - Des pistes d'inspiration facultatives te sont parfois proposées : prends-les, mélange-les ou ignore-les. Si un prompt précédent t'est fourni, propose un concept nettement différent (sujet, pose, cadrage, décor, palette) et ne le recopie pas.
 
 Quelques points à respecter toujours :
@@ -60,7 +61,7 @@ Quelques points à respecter toujours :
 - Les avantages et l'accroche viennent uniquement de la description et du nom du produit : reformule-les en bénéfices clients courts. N'invente jamais de chiffre, de statistique, de garantie, de témoignage, de logo ou de nom d'auteur. Si la description manque, limite-toi à 2 bénéfices évidents déduits du nom, sans promesse précise.
 - Écris dans le prompt, entre guillemets, le texte exact de l'accroche, de chaque avantage et du bouton d'action, correctement orthographiés. Le texte doit rester lisible et ne pas surcharger l'image : privilégie une composition aérée où le produit reste le point focal.
 - Toute personne représentée a par défaut la peau noire ou métisse (personnes africaines ou afro-descendantes, représentées de façon naturelle et valorisante). Précise-le dans le prompt. Ne change cela que si les consignes de l'utilisateur ou la description du produit le demandent clairement.
-- PALETTE : couleurs claires, lumineuses et professionnelles. Fonds clairs (blanc cassé, crème, gris très clair, pastels doux ou aplats clairs) avec un ou deux accents de couleur maîtrisés et harmonieux, choisis selon le thème du produit. Éclairage doux, propre et uniforme, rendu net, élégant et crédible. Évite les ambiances sombres, les fonds noirs ou très foncés, les néons, les dégradés violets agressifs, les orangés saturés, la lumière dorée de coucher de soleil et les couleurs criardes.
+- COULEURS : des couleurs vives, riches et nettes, élégantes et professionnelles, avec un bon contraste et une image lumineuse. Choisis une palette harmonieuse (un ou deux accents forts bien choisis selon le thème du produit, sur un fond propre et soigné). Les couleurs doivent rester naturelles et fidèles : aucun voile, filtre ou dominante de teinte (orangé, doré, violet, sépia, bleu froid…) qui recouvre toute l'image. Éclairage propre, naturel et net, peau et matières rendues avec des couleurs réalistes. Évite les ambiances sombres, les néons, les dégradés agressifs et les couleurs criardes ; évite aussi les rendus ternes, pâles ou délavés.
 - Respecte le format d'image demandé dans la composition.
 - Si un prix est fourni, tu peux l'intégrer discrètement s'il renforce l'impact ; n'en invente jamais.
 - Si l'utilisateur a écrit ses propres consignes, intègre-les fidèlement et donne-leur la priorité.
