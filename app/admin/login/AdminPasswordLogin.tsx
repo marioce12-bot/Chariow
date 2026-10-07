@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { Lock, ShieldCheck } from "lucide-react";
 
 export function AdminPasswordLogin() {
   const [password, setPassword] = useState("");
@@ -12,5 +13,5 @@ export function AdminPasswordLogin() {
     if (response.ok) window.location.assign("/admin");
     else { const data = await response.json().catch(() => ({})); setError(data.error ?? "Mot de passe administrateur invalide."); setLoading(false); }
   }
-  return <main className="admin-password-page"><form className="admin-password-card" onSubmit={submit}><span className="admin-kicker">Vendeo interne</span><h1>Accès administrateur</h1><p>Connecte-toi pour consulter la vue globale de la plateforme.</p><label>Mot de passe<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoFocus required /></label>{error ? <div className="admin-password-error">{error}</div> : null}<button className="btn btn-dark" disabled={loading}>{loading ? "Vérification…" : "Accéder à la console"}</button></form></main>;
+  return <main className="admin-password-page"><form className="admin-password-card" onSubmit={submit}><span className="admin-password-icon"><Lock size={24} /></span><span className="admin-kicker">Vendeo interne</span><h1>Accès administrateur</h1><p>Connecte-toi pour consulter la vue globale de la plateforme.</p><label>Mot de passe<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Entre le mot de passe" autoComplete="current-password" autoFocus required /></label>{error ? <div className="admin-password-error">{error}</div> : null}<button className="btn btn-dark" disabled={loading}>{loading ? "Vérification…" : "Accéder à la console"}</button><small className="admin-password-note"><ShieldCheck size={13} /> Espace réservé à l’équipe Vendeo</small></form></main>;
 }
