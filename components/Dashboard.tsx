@@ -329,11 +329,11 @@ export function Dashboard() {
 
   return (
     <main className="app-shell">
-      {isOffline ? <div role="status" aria-live="polite" className="offline-notice">Connexion internet perdue. Le tableau de bord reste accessible hors ligne ; certaines données peuvent ne pas être à jour.</div> : null}
+      {isOffline ? <div role="status" aria-live="polite" className="offline-notice">Connexion internet perdue. Certaines données peuvent être obsolètes.</div> : null}
       {active !== "Vendeo AI" ? (
         <header className="app-header">
           <Link href="/" className="brand">
-            <Image className="brand-logo" src="/vendeo-logo-light.webp" alt="Vendeo" width={150} height={40} />
+            <Image className="brand-logo" src="/vendeo-logo-light.webp" alt="Vendeo" width={150} height={40} unoptimized />
           </Link>
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
@@ -346,7 +346,7 @@ export function Dashboard() {
           </div>
         </header>
       ) : null}
-      <div className={active === "Vendeo AI" ? "app-layout app-layout-flush" : "app-layout"}>
+      <div className={`app-layout${active === "Vendeo AI" ? " app-layout-flush" : ""}${isOffline ? " app-layout-offline" : ""}`}>
         <aside className="sidebar">
           <div className="side-label">Workspace</div>
           <label className="store-selector">
