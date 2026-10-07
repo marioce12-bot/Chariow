@@ -239,6 +239,12 @@ export function Dashboard() {
   };
 
   async function signOut() {
+    try {
+      const cache = await caches.open("vendeo-shell-v3");
+      await cache.delete("/dashboard");
+    } catch {
+      // Le cache hors ligne peut être indisponible dans certains navigateurs.
+    }
     await createClient().auth.signOut();
     window.location.href = "/";
   }
