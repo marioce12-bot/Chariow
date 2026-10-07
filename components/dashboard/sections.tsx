@@ -346,9 +346,12 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => setSelectedProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => setSelectedProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => setSelectedProduct(null)} aria-label="Retirer le produit">×</button>{selectedProduct.image && kind === "video" ? <em>{t("studio.coverRef")}</em> : null}</div> : null}</section>
       <div className="studio-grid">
         <section className="app-card studio-form">
-          <label className="studio-field">
+          <label className={`studio-field${promptGenerating ? " is-generating" : ""}`}>
             <span>{t("studio.describe")}</span>
-            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={kind === "image" ? t("studio.describeImage") : t("studio.describeVideo")} maxLength={4000} rows={7} />
+            <div className="studio-prompt-box">
+              <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={kind === "image" ? t("studio.describeImage") : t("studio.describeVideo")} maxLength={4000} rows={7} readOnly={promptGenerating} aria-busy={promptGenerating} />
+              {promptGenerating ? <div className="studio-prompt-status" role="status" aria-live="polite"><Sparkles size={14} /><b>{t("studio.insertProductInfoLoading")}</b><i /><i /><i /></div> : null}
+            </div>
             <small>{prompt.length}/4 000</small>
           </label>
 
