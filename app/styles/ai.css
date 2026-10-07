@@ -212,3 +212,30 @@ html[data-theme="dark"] .studio-loading { background:linear-gradient(110deg,#0d1
 .profitability-explainer > p { color:var(--muted); font-size:11px; line-height:1.55; margin:0; }
 @media (max-width:760px) { .profitability-alert-hero { align-items:flex-start; flex-wrap:wrap; padding:15px; }.profitability-alert-copy { flex-basis:calc(100% - 58px); }.profitability-alert-action { margin-left:56px; width:calc(100% - 56px); }.profitability-signal-grid { grid-template-columns:1fr; }.profitability-compare { align-items:stretch; flex-direction:column; gap:8px; }.profitability-compare > span { text-align:center; } }
 
+
+/* ---- Studio : bouton « Insérer les infos du produit » et import de références ---- */
+.studio-insert-btn,.studio-references { grid-column:1/-1; }
+.studio-insert-btn { align-items:center; background:linear-gradient(135deg,#7c3aed 0%,#2563eb 60%,#0ea5e9 100%); border:0; border-radius:14px; box-shadow:0 8px 22px rgba(37,99,235,.28); color:#fff; cursor:pointer; display:flex; gap:12px; padding:12px 14px; text-align:left; transition:transform .15s ease,box-shadow .15s ease,filter .15s ease; width:100%; }
+.studio-insert-btn:hover { box-shadow:0 10px 26px rgba(37,99,235,.38); filter:brightness(1.06); transform:translateY(-1px); }
+.studio-insert-btn:active { transform:translateY(0) scale(.99); }
+.studio-insert-icon { align-items:center; background:rgba(255,255,255,.2); border-radius:11px; display:grid; flex:0 0 auto; height:38px; place-items:center; width:38px; }
+.studio-insert-text { display:flex; flex:1 1 auto; flex-direction:column; gap:2px; min-width:0; }
+.studio-insert-text strong { font-size:14px; font-weight:700; line-height:1.2; }
+.studio-insert-text small { color:rgba(255,255,255,.82); font-size:11px; overflow:hidden; text-align:left; text-overflow:ellipsis; white-space:nowrap; }
+.studio-insert-spark { flex:0 0 auto; opacity:.9; }
+.studio-references { gap:8px; }
+.studio-upload { align-items:center; background:#f6faf3; border:1.5px dashed #9bbba4; border-radius:14px; color:var(--ink); cursor:pointer; display:flex; gap:12px; padding:12px 14px; position:relative; transition:border-color .15s ease,background .15s ease,transform .15s ease; }
+.studio-upload:hover { background:#eef6e9; border-color:#5f9270; transform:translateY(-1px); }
+.studio-upload input[type="file"] { cursor:pointer; height:100%; inset:0; opacity:0; position:absolute; width:100%; }
+.studio-upload.is-disabled { cursor:not-allowed; opacity:.6; pointer-events:none; }
+.studio-upload.has-files { background:#eef6e9; border-style:solid; border-color:#5f9270; }
+.studio-upload-icon { align-items:center; background:linear-gradient(135deg,#7c3aed,#2563eb); border-radius:11px; color:#fff; display:grid; flex:0 0 auto; height:38px; place-items:center; width:38px; }
+.studio-upload-text { display:flex; flex:1 1 auto; flex-direction:column; gap:2px; min-width:0; }
+.studio-upload-text strong { color:var(--ink); font-size:13px; font-weight:700; }
+.studio-upload-text small { color:#829087; font-size:11px; overflow:hidden; text-align:left; text-overflow:ellipsis; white-space:nowrap; }
+.studio-upload-clear { align-self:flex-start; background:transparent; border:0; color:#b4443a; cursor:pointer; font-size:12px; font-weight:600; padding:2px 4px; }
+html[data-theme="dark"] .studio-upload { background:#0b1734; border-color:#3a4f93; color:#e7edfb; }
+html[data-theme="dark"] .studio-upload:hover,html[data-theme="dark"] .studio-upload.has-files { background:#101f45; border-color:#6d8cff; }
+html[data-theme="dark"] .studio-upload-text strong { color:#e7edfb; }
+html[data-theme="dark"] .studio-upload-text small { color:#94a3c4; }
+html[data-theme="dark"] .studio-upload-clear { color:#ff8f86; }

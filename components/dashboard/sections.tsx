@@ -109,6 +109,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   // rapprochés peuvent tous les deux lire `loading === false` et déclencher
   // deux générations (et donc deux débits de crédits) pour un seul tap.
   const generatingRef = useRef(false);
+  // Dernier bloc d'infos produit inséré dans la description (pour le remplacer).
+  const lastInsertedInfoRef = useRef<string | null>(null);
   // Jobs vidéo déjà vérifiés une fois depuis l'historique au chargement de la
   // page, pour ne relancer la vérification serveur qu'une seule fois par job
   // (évite une boucle de re-render infinie sur l'effet ci-dessous).
@@ -203,7 +205,15 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       selectedProduct.price ? `Prix : ${selectedProduct.price}${selectedProduct.currency ? ` ${selectedProduct.currency}` : ""}` : "",
       selectedProduct.description ? `Description : ${htmlDescriptionToText(selectedProduct.description)}` : "",
     ].filter(Boolean).join("\n");
-    setPrompt((current) => current.trim() ? `${current.trim()}\n\n${productInfo}` : productInfo);
+    // Si un bloc "infos produit" a déjà été inséré, on le remplace au lieu
+    // d'empiler un second produit à la suite (le texte écrit à la main autour
+    // est conservé). Sinon on ajoute à la suite du texte existant.
+    const previous = lastInsertedInfoRef.current;
+    lastInsertedInfoRef.current = productInfo;
+    setPrompt((current) => {
+      if (previous && current.includes(previous)) return current.replace(previous, () => productInfo);
+      return current.trim() ? `${current.trim()}\n\n${productInfo}` : productInfo;
+    });
   }
 
   async function generate() {
@@ -322,8 +332,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
           {kind === "image" ? (
             <div className="studio-options">
-              {selectedProduct ? <button type="button" className="btn btn-ghost" onClick={insertProductInfo}>{t("studio.insertProductInfo")}</button> : null}
-              <label className="studio-field"><span>{t("studio.references")}</span><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => setReferenceFiles(Array.from(event.target.files ?? []).slice(0, 3))} disabled={referenceUploading || loading} /><small>{t("studio.referenceHint")}</small></label>
+              {selectedProduct ? <button type="button" className="studio-insert-btn" onClick={insertProductInfo}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{t("studio.insertProductInfo")}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : null}
+              <div className="studio-field studio-references"><span>{t("studio.references")}</span><label className={`studio-upload${referenceFiles.length ? " has-files" : ""}${referenceUploading || loading ? " is-disabled" : ""}`}><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => setReferenceFiles(Array.from(event.target.files ?? []).slice(0, 3))} disabled={referenceUploading || loading} /><span className="studio-upload-icon"><ImageIcon size={20} /></span><span className="studio-upload-text"><strong>{referenceFiles.length ? `${referenceFiles.length} image${referenceFiles.length > 1 ? "s" : ""} sélectionnée${referenceFiles.length > 1 ? "s" : ""}` : "Joindre une image de référence"}</strong><small>{referenceFiles.length ? referenceFiles.map((file) => file.name).join(", ") : t("studio.referenceHint")}</small></span></label>{referenceFiles.length ? <button type="button" className="studio-upload-clear" onClick={() => setReferenceFiles([])} disabled={referenceUploading || loading}>Retirer les images</button> : null}</div>
               <StudioSelect label={t("studio.quality")} value={quality} onChange={setQuality} options={[['medium', t("studio.medium")], ['high', t("studio.high")], ['xhigh', t("studio.xhigh")], ['max', t("studio.max")]]} />
               <StudioSelect label={t("studio.resolution")} value={imageResolution} onChange={setImageResolution} options={[['hd', 'HD'], ['full_hd', 'Full HD'], ['2k', '2K'], ['4k', '4K']]} />
               <StudioSelect label={t("studio.format")} value={orientation} onChange={setOrientation} options={[['square', t("studio.square")], ['landscape', t("studio.landscape")], ['portrait', t("studio.portrait")]]} />
