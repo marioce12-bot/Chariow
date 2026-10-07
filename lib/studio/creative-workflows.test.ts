@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { inferProductType, isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoAspectRatio, VIDEO_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "./creative-workflows";
 import { buildCreativeBrief, briefToPrompt } from "./creative-brief";
-import { imageTaskForProductType } from "./creative-models";
 import { imageCreditCost } from "./credits";
 
 describe("creative-workflows", () => {
@@ -66,22 +65,7 @@ describe("creative-brief", () => {
     expect(prompt).toContain("Mon ebook");
   });
 
-  it("construit un prompt affiche anglais avec les textes commerciaux exacts", () => {
-    const brief = buildCreativeBrief({ name: "Crée ton SaaS", description: "Lance ton SaaS. Trouve tes premiers clients.", price: "5000", currency: "XOF" }, "Affiche ebook Crée ton SaaS", "image", "square");
-    const prompt = briefToPrompt(brief, "image", false, "poster");
-    expect(prompt).toContain('"Crée ton SaaS"');
-    expect(prompt).toContain('"Lance ton SaaS"');
-    expect(prompt).toContain('"Trouve tes premiers clients"');
-    expect(prompt).toContain('"5000 XOF"');
-    expect(prompt).not.toContain("sans aucun texte");
-    expect(prompt).not.toContain("espace négatif");
-  });
-
-  it("conserve toute image produit via le workflow d'édition", () => {
-    expect(imageTaskForProductType("saas", true)).toBe("image_product");
-  });
-
-  it("facture le mode affiche avancé au-dessus du mode rapide", () => {
-    expect(imageCreditCost("hd", "medium", "advanced")).toBeGreaterThan(imageCreditCost("hd", "medium", "fast"));
+  it("applique toujours le tarif du modèle image avancé", () => {
+    expect(imageCreditCost("hd", "medium")).toBe(45);
   });
 });

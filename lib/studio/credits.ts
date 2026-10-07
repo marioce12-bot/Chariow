@@ -8,9 +8,12 @@ export const IMAGE_COSTS = {
   "4k": { medium: 53, high: 128, xhigh: 375, max: 750 },
 } as const;
 
-export function imageCreditCost(resolution: keyof typeof IMAGE_COSTS, quality: keyof typeof IMAGE_COSTS.hd, mode: "fast" | "advanced" = "fast") {
+// La grille de base historique correspondait au mode rapide. Le Studio image
+// utilise désormais toujours le modèle avancé : le tarif public reste donc la
+// grille avancée (3x la grille de base), sans dépendre d'un mode client.
+export function imageCreditCost(resolution: keyof typeof IMAGE_COSTS, quality: keyof typeof IMAGE_COSTS.hd) {
   const baseCost = IMAGE_COSTS[resolution][quality];
-  return mode === "advanced" ? Math.ceil(baseCost * 3) : baseCost;
+  return Math.ceil(baseCost * 3);
 }
 
 // Coût vidéo par seconde selon la résolution réellement choisie.
