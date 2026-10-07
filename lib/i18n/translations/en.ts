@@ -190,7 +190,7 @@ export const en: Dict = {
       background: "Background", auto: "Auto", opaque: "Opaque", transparent: "Transparent PNG",
       duration: "Duration", seconds: "seconds", landscape16: "16:9 landscape", vertical9: "9:16 vertical",
       coverStart: "The product cover will be used as the starting point (first frame of the video).",
-      generating: "Creating…", createImage: "Create image", createVideo: "Create video",
+      generating: "Creating…", createImage: "Create image", createVideo: "Create video", videoComingSoonTitle: "Video creation will be available later", videoComingSoonText: "This feature is being prepared. You will soon be able to create videos from the Studio.",
       imageCost: "Image: cost depends on the chosen quality and resolution.", videoCost: "Video: {rate} credits per second ({res}).",
       balance: "Studio balance", credits: "credits", recharge: "Top up",
       balanceHint: "Credits are used to generate and edit your media.",
