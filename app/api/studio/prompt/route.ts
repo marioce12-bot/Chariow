@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   if (!name) return NextResponse.json({ error: "Choisis d'abord un produit." }, { status: 400 });
 
   const locale: "fr" | "en" = body?.locale === "en" ? "en" : "fr";
-  const orientationKey = body?.orientation === "landscape" || body?.orientation === "portrait" ? body.orientation : "square";
+  const orientationKey: "square" | "landscape" | "portrait" = body?.orientation === "landscape" ? "landscape" : body?.orientation === "portrait" ? "portrait" : "square";
   const background = typeof body?.background === "string" ? body.background : "auto";
   const price = typeof product?.price === "number" || typeof product?.price === "string" ? String(product.price).slice(0, 40) : "";
   const currency = typeof product?.currency === "string" ? product.currency.slice(0, 10) : "";
