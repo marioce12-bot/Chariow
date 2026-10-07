@@ -1,0 +1,63 @@
+/* Wizard "Lancer une pub" (composants Tailwind purs, hors ancien système .campaign-*) */
+html[data-theme="dark"] .bg-white { background-color:#0b1734 !important; }
+html[data-theme="dark"] .bg-gray-50 { background-color:#0a1733 !important; }
+html[data-theme="dark"] .bg-gray-100 { background-color:#12224a !important; }
+html[data-theme="dark"] .text-gray-900 { color:#e7edfb !important; }
+html[data-theme="dark"] .text-gray-700 { color:#c7d6ff !important; }
+html[data-theme="dark"] .text-gray-600 { color:#9aa8c9 !important; }
+html[data-theme="dark"] .text-gray-500 { color:#94a3c4 !important; }
+html[data-theme="dark"] .text-gray-400 { color:#7484a8 !important; }
+html[data-theme="dark"] .text-gray-300 { color:#5a6a94 !important; }
+html[data-theme="dark"] .border-gray-100 { border-color:#1e2c52 !important; }
+html[data-theme="dark"] .border-gray-200 { border-color:#1e2c52 !important; }
+html[data-theme="dark"] .border-gray-300 { border-color:#31427a !important; }
+html[data-theme="dark"] .border-t.border-gray-100 { background-color:#0b1734 !important; }
+
+/* Carrousel "Ils utilisent déjà Vendeo" — bande unique en défilement infini.
+   Le JSX (Marketing.tsx) duplique déjà .proof-group deux fois dans .proof-track
+   pour boucler sans coupure ; il manquait le CSS pour transformer ça en bande
+   horizontale qui défile au lieu d'un simple bloc qui wrap en grille. */
+.proof-carousel {
+  overflow: hidden;
+  position: relative;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.proof-track {
+  display: flex;
+  width: max-content;
+  animation: proofScroll 42s linear infinite;
+}
+.proof-carousel:hover .proof-track { animation-play-state: paused; }
+.proof-group {
+  display: flex;
+  flex-shrink: 0;
+  gap: 20px;
+  padding-right: 20px;
+}
+.proof-card {
+  flex-shrink: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0,12,46,.16);
+  border: 1px solid var(--line);
+}
+.proof-card img {
+  display: block;
+  height: auto;
+  width: 340px;
+  max-width: 62vw;
+}
+@keyframes proofScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (max-width: 800px) {
+  .proof-card img { width: 220px; max-width: 58vw; }
+  .proof-track { animation-duration: 28s; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .proof-track { animation: none; }
+}
+html[data-theme="dark"] .proof-card { border-color: var(--line); box-shadow: 0 20px 50px rgba(0,0,0,.4); }
+
