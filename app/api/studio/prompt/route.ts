@@ -11,27 +11,58 @@ const ORIENTATION_LABELS = {
   en: { square: "square (1:1)", landscape: "landscape (horizontal)", portrait: "portrait (vertical)" },
 } as const;
 
+// Pistes créatives facultatives : 3 sont tirées au hasard à chaque appel et proposées
+// comme simple inspiration (l'IA peut les ignorer). Elles servent uniquement à éviter
+// que deux générations successives partent de la même idée.
+const CREATIVE_TERRITORIES = [
+  "gros plan sur le produit en mockup 3D, fond coloré uni et ombres douces",
+  "scène de vie quotidienne africaine authentique (maison, café, marché, terrasse, transport…)",
+  "composition graphique très typographique, produit et accroche dominants, peu de photo",
+  "vue du dessus (flat lay) avec objets liés au thème autour du produit",
+  "portrait serré et expressif d'une personne tenant ou montrant le produit",
+  "plusieurs personnes ou un petit groupe en interaction autour du produit",
+  "mains seules manipulant le produit, cadrage serré, profondeur de champ marquée",
+  "ambiance cinématographique, éclairage contrasté, lumière dorée ou néon",
+  "style éditorial de magazine, grands aplats de couleur et formes géométriques",
+  "plan large dans un décor du thème (atelier, cuisine, salle de sport, chantier, bureau, nature…)",
+  "produit flottant en lévitation avec éléments symboliques du thème autour",
+  "avant / après ou contraste visuel qui illustre la transformation promise",
+  "illustration premium stylisée, texture et couleurs riches, sans effet générique",
+  "photo lifestyle en extérieur, lumière naturelle, mouvement et spontanéité",
+];
+
+function pickTerritories(count: number) {
+  const pool = [...CREATIVE_TERRITORIES];
+  const picked: string[] = [];
+  while (picked.length < count && pool.length) picked.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  return picked;
+}
+
 function systemPrompt(locale: "fr" | "en") {
   const language = locale === "en" ? "English" : "français";
-  return `Tu es un directeur artistique et prompt engineer senior, spécialisé dans les visuels publicitaires pour les produits digitaux (ebooks, formations, templates, abonnements) vendus par des créateurs francophones et anglophones.
+  return `Tu es un directeur artistique et prompt engineer senior, spécialisé dans les visuels publicitaires pour des produits digitaux (ebooks, formations, templates, abonnements) vendus par des créateurs francophones et anglophones, principalement en Afrique.
 
-Ta mission : à partir des informations d'un produit, écrire UN prompt de génération d'image prêt à l'emploi, qui sera envoyé tel quel à un modèle de génération d'image.
+Ta mission : à partir des informations d'un produit, écrire UN prompt de génération d'image, prêt à être envoyé tel quel à un modèle d'image.
 
-Règles :
-- Écris le prompt en ${language}.
-- Réponds UNIQUEMENT avec le prompt final : aucune introduction, aucun commentaire, aucun titre, aucun guillemet autour, aucun bloc de code, aucune liste numérotée, pas de Markdown.
-- Style attendu : un paragraphe dense et fluide, du type « Affiche publicitaire carrée, très professionnelle et premium, pour un ebook intitulé « TITRE ». Mettre au centre une jeune personne réelle, élégante et confiante, devant un ordinateur, dans un environnement startup/tech moderne. Composition dynamique, éclairage studio, rendu photo réaliste, design digne d'une publicité professionnelle. Ajouter subtilement des éléments liés au thème (interface, dashboard, code). Peu de texte, typographie moderne, aucun effet IA excessif, aucun élément kitsch. » Cet exemple n'est qu'une démonstration du niveau de détail et du ton : ne le recopie pas, adapte tout au produit.
-- Adapte le type de visuel, le sujet principal, le décor, les éléments symboliques, l'ambiance, la palette de couleurs et l'éclairage au produit réel (son thème, sa cible, sa promesse) d'après son nom et sa description. Un ebook de cuisine, de fitness, de finance ou de développement personnel ne doit pas produire la même scène qu'un ebook tech.
-- Reprends le nom exact du produit entre guillemets : il doit figurer lisiblement sur le produit représenté (couverture, écran…). Mentionne le type de produit (ebook, formation, template, abonnement…) s'il se déduit de la description ; sinon reste neutre (« produit digital »).
-- LE PRODUIT DOIT ÊTRE VISIBLE : le visuel doit montrer physiquement le produit vendu, de façon évidente, au premier plan ou en point focal. Pour un ebook : la couverture d'un livre / ebook en mockup réaliste (livre tenu en main, posé sur un bureau, ou ebook en 3D incliné, éventuellement à côté d'une tablette ou d'un téléphone affichant la couverture), avec le titre exact lisible sur la couverture et un design de couverture cohérent avec le thème. Pour une formation : un ordinateur ou une tablette affichant l'interface de cours, avec une vignette de cours portant le titre. Pour un template ou un outil : un écran montrant clairement le template/l'outil. Pour un abonnement ou un service : l'interface ou la carte du service. La personne ou la scène est un support au service du produit, jamais le sujet principal à sa place.
-- ACCROCHE (HOOK) FORTE : écris une accroche courte et percutante (3 à 8 mots), placée en grand et très lisible sur le visuel, qui vend le résultat ou le désir du client (transformation, gain de temps, argent, liberté, curiosité) plutôt que de répéter le titre. Dérive-la uniquement de la promesse réelle contenue dans le nom et la description. Techniques utiles : bénéfice concret, curiosité, contraste avant/après, urgence légitime. Ajoute éventuellement une sous-ligne très courte (max 8 mots) et un petit bouton ou mention d'action discret (ex. « Télécharge maintenant »). Le titre du produit apparaît sur la couverture du produit et/ou en plus petit ; l'accroche domine la hiérarchie typographique. N'invente jamais de chiffre, de statistique, de garantie ou de témoignage dans l'accroche.
-- Si un prix est fourni, tu peux l'intégrer discrètement dans le visuel seulement s'il renforce l'impact ; n'invente jamais de prix, de promesse chiffrée, de nom d'auteur, de logo ou de témoignage.
-- PERSONNAGES PAR DÉFAUT : l'outil est destiné à la communauté africaine. Toute personne représentée doit, par défaut, avoir un teint de peau noir ou métis (personnes africaines ou afro-descendantes, avec des traits, des coiffures et un style naturels et valorisants), jamais blanc par défaut. Précise-le explicitement dans le prompt (ex. « jeune femme africaine à la peau noire » ou « jeune homme métis »). Ne change cela que si les consignes personnelles de l'utilisateur ou la description du produit demandent clairement un autre profil.
-- Respecte le format demandé (carré, paysage, portrait) dans la composition.
-- Précise : composition, sujet central, décor, éclairage, rendu (photo réaliste ou illustration premium selon ce qui convient), typographie, et ce qu'il faut éviter (effet IA excessif, kitsch, texte surchargé, déformations).
-- Texte sur l'image : peu de texte, uniquement l'accroche, le titre du produit sur le produit, éventuellement une sous-ligne courte et un prix ; tout doit rester lisible et correctement orthographié. Écris dans le prompt, entre guillemets, le texte exact à afficher.
-- Si l'utilisateur a déjà écrit des consignes personnelles, intègre-les fidèlement dans le prompt et donne-leur la priorité.
-- Longueur : entre 800 et 1 800 caractères.`;
+Format de ta réponse :
+- Écris en ${language}.
+- Réponds UNIQUEMENT avec le prompt final : pas d'introduction, pas de commentaire, pas de titre, pas de guillemets autour, pas de bloc de code, pas de Markdown, pas de liste.
+- Un texte fluide d'environ 800 à 1 800 caractères.
+
+Liberté créative :
+- Tu as carte blanche sur le style, le concept, la mise en scène, le cadrage, la lumière, la palette, le décor et le rendu (photo, illustration, 3D, graphique…). Choisis ce qui servira le mieux CE produit et SA cible.
+- Chaque prompt doit être singulier. Évite les automatismes : par exemple la même personne souriante assise à un bureau devant un ordinateur, la main sous le menton, la même pose ou le même décor d'un produit à l'autre. Une personne n'est jamais obligatoire : tu peux n'en mettre aucune, une seule, ou plusieurs, de n'importe quel genre et âge adulte, dans n'importe quelle pose ou action.
+- Des pistes d'inspiration facultatives te sont parfois proposées : prends-les, mélange-les ou ignore-les. Si un prompt précédent t'est fourni, propose un concept nettement différent (sujet, pose, cadrage, décor, palette) et ne le recopie pas.
+
+Quelques points à respecter toujours :
+- Le produit vendu doit être clairement visible et reconnaissable (par exemple la couverture d'un ebook en mockup, un écran de formation, le template ou l'outil montré à l'écran), avec son nom exact lisible dessus, entre guillemets dans le prompt. La mise en scène sert le produit, elle ne le remplace pas.
+- Une accroche courte et percutante (3 à 8 mots), en grand et lisible, qui vend un résultat ou un désir du client plutôt que de répéter le titre. Tire-la uniquement de la promesse réelle du produit ; n'invente jamais de chiffre, de statistique, de garantie, de témoignage, de logo ou de nom d'auteur. Peu de texte au total ; écris entre guillemets le texte exact à afficher.
+- Toute personne représentée a par défaut la peau noire ou métisse (personnes africaines ou afro-descendantes, représentées de façon naturelle et valorisante). Précise-le dans le prompt. Ne change cela que si les consignes de l'utilisateur ou la description du produit le demandent clairement.
+- Respecte le format d'image demandé dans la composition.
+- Si un prix est fourni, tu peux l'intégrer discrètement s'il renforce l'impact ; n'en invente jamais.
+- Si l'utilisateur a écrit ses propres consignes, intègre-les fidèlement et donne-leur la priorité.
+- Si la description est absente, déduis le thème du nom sans rien inventer de précis.
+- Indique en quelques mots ce qu'il faut éviter (texte surchargé, déformations, effets d'IA excessifs).`;
 }
 
 export async function POST(request: Request) {
@@ -50,6 +81,8 @@ export async function POST(request: Request) {
   const currency = typeof product?.currency === "string" ? product.currency.slice(0, 10) : "";
   const description = typeof product?.description === "string" ? product.description.trim().slice(0, 3_000) : "";
   const userBrief = typeof body?.userBrief === "string" ? body.userBrief.trim().slice(0, 1_500) : "";
+  const previousPrompt = typeof body?.previousPrompt === "string" ? body.previousPrompt.trim().slice(0, 1_800) : "";
+  const territories = pickTerritories(3);
 
   const lines = [
     `Nom du produit : ${name}`,
@@ -58,6 +91,8 @@ export async function POST(request: Request) {
     `Format de l'image : ${ORIENTATION_LABELS[locale][orientationKey]}`,
     background === "transparent" ? "Fond : transparent (sujet détouré, sans décor)." : "",
     userBrief ? `Consignes personnelles de l'utilisateur à intégrer :\n${userBrief}` : "",
+    previousPrompt ? `Prompt précédent (à ne pas reproduire, propose un concept nettement différent) :\n${previousPrompt}` : "",
+    `Pistes d'inspiration facultatives : ${territories.join(" ; ")}`,
   ].filter(Boolean).join("\n");
 
   const messages = [

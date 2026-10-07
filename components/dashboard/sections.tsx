@@ -225,6 +225,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           background,
           locale,
           userBrief,
+          previousPrompt: lastGeneratedPromptRef.current ?? undefined,
         }),
       });
       const result = await response.json().catch(() => ({}));
