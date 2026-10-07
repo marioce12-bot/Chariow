@@ -142,6 +142,15 @@ function deriveTargetAudience(userPrompt: string): string {
   return "la clientèle cible du produit";
 }
 
+function deriveBenefits(productDescription: string | undefined, userPrompt: string): string[] {
+  const source = productDescription || userPrompt;
+  return source
+    .split(/[\n•●▪;.!?]+/)
+    .map((item) => clean(item, 140))
+    .filter((item) => item.length >= 8)
+    .slice(0, 3);
+}
+
 export function buildCreativeBrief(
   product: StudioCreativeInput,
   userPrompt: string,
@@ -164,8 +173,8 @@ export function buildCreativeBrief(
     tone: direction.tone,
     visualDirection: userPrompt || `visuel ${direction.style} pour un ${productType}`,
     hook: userPrompt.split(/[.!?]/)[0]?.trim().slice(0, 80) || `Découvre ${product.name}`,
-    headline: userPrompt || product.name,
-    benefits: [],
+    headline: product.name,
+    benefits: deriveBenefits(product.description, userPrompt),
     cta: "En savoir plus / Commander",
     scene: direction.scene,
     environment: direction.environment,
@@ -179,22 +188,33 @@ export function buildCreativeBrief(
   };
 }
 
-// Transforme le brief structuré en prompt final pour le modèle. Le modèle reçoit
-// la direction artistique et la consigne stricte de conservation du produit ;
-// le texte exact (prix, CTA, bénéfices) reste destiné à la couche de composition
-// Vendeo, pas à être recréé de façon approximative par le modèle.
-export function briefToPrompt(brief: CreativeBrief, mediaType: "image" | "video", hasReference: boolean): string {
+// Transforme le brief structuré en prompt final pour le modèle. Le mode affiche
+// demande explicitement au modèle de rendre les textes commerciaux exacts.
+export function briefToPrompt(brief: CreativeBrief, mediaType: "image" | "video", hasReference: boolean, mode: "standard" | "poster" = "standard"): string {
   const parts: string[] = [];
 
   if (mediaType === "image") {
-    parts.push(`Visuel publicitaire professionnel pour ${brief.productName}, sans aucun texte.`);
-    parts.push(`Objectif : ${brief.objective}.`);
-    parts.push(`Style : ${brief.style}, ton ${brief.tone}.`);
-    parts.push(`Scène : ${brief.scene}.`);
-    parts.push(`Environnement : ${brief.environment}. Éclairage : ${brief.lighting}.`);
-    parts.push(`Cadrage : ${brief.camera}.`);
-    parts.push(`Composition : produit bien mis en valeur, espace négatif réservé pour du texte ajouté ensuite.`);
-    parts.push("N'écris AUCUN texte, aucun mot, aucune lettre, aucun chiffre, aucun logo, aucun slogan dans l'image.");
+    if (mode === "poster") {
+      parts.push("Create a polished advertising poster. The user's creative direction below is the highest priority and must be followed first.");
+      parts.push(`User creative direction, verbatim: "${brief.objective}".`);
+      parts.push(`Render this exact French headline, legible and correctly spelled: "${brief.headline}".`);
+      if (brief.benefits.length) parts.push(`Render these exact French benefits, without changing their wording: ${brief.benefits.map((benefit) => `"${benefit}"`).join(", ")}.`);
+      if (brief.price) parts.push(`Render this exact price, without inventing or changing it: "${brief.price}".`);
+      parts.push(`Render this exact French call to action: "${brief.cta}".`);
+      parts.push(`Visual style: ${brief.style}, tone ${brief.tone}. Scene: ${brief.scene}.`);
+      parts.push(`Environment: ${brief.environment}. Lighting: ${brief.lighting}. Camera: ${brief.camera}.`);
+      parts.push("Layout: an appealing character or human presence when appropriate, the product as the visual hero, the headline prominent at the top, the listed benefits clearly arranged, a visible price banner when a price is provided, and the call to action in a strong footer area.");
+      parts.push("Do not invent any other words, claims, prices, logos, or slogans. All French text listed above must remain exactly as written and must be readable.");
+    } else {
+      parts.push(`Visuel publicitaire professionnel pour ${brief.productName}, sans aucun texte.`);
+      parts.push(`Objectif : ${brief.objective}.`);
+      parts.push(`Style : ${brief.style}, ton ${brief.tone}.`);
+      parts.push(`Scène : ${brief.scene}.`);
+      parts.push(`Environnement : ${brief.environment}. Éclairage : ${brief.lighting}.`);
+      parts.push(`Cadrage : ${brief.camera}.`);
+      parts.push(`Composition : produit bien mis en valeur, espace négatif réservé pour du texte ajouté ensuite.`);
+      parts.push("N'écris AUCUN texte, aucun mot, aucune lettre, aucun chiffre, aucun logo, aucun slogan dans l'image.");
+    }
   } else {
     parts.push(`Vidéo publicitaire pour ${brief.productName}.`);
     parts.push(`Objectif : ${brief.objective}.`);
