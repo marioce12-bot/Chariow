@@ -303,28 +303,44 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     } catch (editError) { setError(editError instanceof Error ? editError.message : "Modification impossible."); } finally { setEditSubmitting(false); }
   }
 
+  // Téléchargement direct : on récupère le fichier en blob puis on déclenche un
+  // vrai téléchargement local. Sur Android (Chrome / PWA), l'image est enregistrée
+  // sans menu intermédiaire et apparaît dans la galerie (album « Téléchargements »).
+  // Un navigateur ne peut pas écrire dans la galerie à la place de l'utilisateur ;
+  // sur iPhone/iPad, seul le menu de partage (« Enregistrer l'image ») permet
+  // d'atterrir dans Photos, donc on le garde uniquement là.
   async function downloadMedia(url: string, filename: string) {
+    const isIos = typeof navigator !== "undefined" && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+    const triggerLink = (href: string, name: string) => {
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = name;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    };
     try {
-      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const file = new File([blob], filename, { type: blob.type || (filename.endsWith(".mp4") ? "video/mp4" : "image/png") });
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("download failed");
+      const blob = await response.blob();
+      const type = blob.type || (filename.endsWith(".mp4") ? "video/mp4" : "image/png");
+      const extension = type.includes("jpeg") ? "jpg" : type.includes("webp") ? "webp" : type.includes("mp4") ? "mp4" : type.includes("png") ? "png" : (filename.split(".").pop() ?? "png");
+      const finalName = `${filename.replace(/\.[^.]+$/, "")}-${Date.now().toString(36)}.${extension}`;
+      if (isIos && navigator.share && navigator.canShare) {
+        const file = new File([blob], finalName, { type });
         if (navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], title: filename });
+          await navigator.share({ files: [file], title: finalName });
           return;
         }
       }
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      link.click();
+      const objectUrl = URL.createObjectURL(blob);
+      triggerLink(objectUrl, finalName);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
     } catch (downloadError) {
-      if ((downloadError as DOMException)?.name !== "AbortError") {
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        link.click();
-      }
+      if ((downloadError as DOMException)?.name === "AbortError") return;
+      // Dernier recours : lien direct (si le serveur interdit la lecture en blob).
+      triggerLink(url, filename);
     }
   }
 
