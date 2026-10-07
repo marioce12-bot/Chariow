@@ -56,6 +56,23 @@ export function StoreOnboarding() {
 type StudioVideoJob = { id: string; status: string; contentUrl?: string | null };
 type StudioHistoryItem = { id: string; kind: "image" | "video"; prompt: string; options: Record<string, string | number>; status: string; credits_cost: number; storage_path?: string | null; video_job_id?: string | null; mediaUrl?: string | null; created_at: string };
 
+function htmlDescriptionToText(description: string): string {
+  const document = new DOMParser().parseFromString(description, "text/html");
+  const blockTags = new Set(["ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "DIV", "DL", "DT", "DD", "FIELDSET", "FIGCAPTION", "FIGURE", "FOOTER", "FORM", "H1", "H2", "H3", "H4", "H5", "H6", "HEADER", "HR", "LI", "MAIN", "NAV", "OL", "P", "PRE", "SECTION", "TABLE", "TR", "UL"]);
+
+  function render(node: Node): string {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+    const element = node as HTMLElement;
+    if (element.tagName === "BR") return "\n";
+    const content = Array.from(element.childNodes).map(render).join("");
+    const withBullet = element.tagName === "LI" && content.trim() ? `• ${content.trim()}` : content;
+    return blockTags.has(element.tagName) ? `${withBullet.trimEnd()}\n` : withBullet;
+  }
+
+  return render(document.body).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function StudioView({ products }: { products: Array<{ id: string; name: string; description?: string | null; price?: number | string | null; currency?: string | null; image?: string | null }> }) {
   const { t } = useI18n();
   const [kind, setKind] = useState<"image" | "video">("image");
@@ -184,7 +201,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     const productInfo = [
       `Nom du produit : ${selectedProduct.name}`,
       selectedProduct.price ? `Prix : ${selectedProduct.price}${selectedProduct.currency ? ` ${selectedProduct.currency}` : ""}` : "",
-      selectedProduct.description ? `Description : ${selectedProduct.description}` : "",
+      selectedProduct.description ? `Description : ${htmlDescriptionToText(selectedProduct.description)}` : "",
     ].filter(Boolean).join("\n");
     setPrompt((current) => current.trim() ? `${current.trim()}\n\n${productInfo}` : productInfo);
   }
