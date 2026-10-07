@@ -34,9 +34,36 @@ import { NotificationsView } from "@/components/NotificationsView";
 import { readCache, writeCache, DASHBOARD_CACHE_KEY, SESSION_STORAGE_PROMPT_KEY, ADS_CACHE_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
 import { StoreOnboarding, StudioView, Overview, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
 
+const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
+const DEFAULT_DASHBOARD_SECTION = "Vue d'ensemble";
+const PERSISTED_DASHBOARD_SECTIONS = new Set([
+  DEFAULT_DASHBOARD_SECTION,
+  "Vendeo AI",
+  "Studio",
+  "Pub",
+  "Comptes publicitaires",
+  "Radar marché",
+  "Mes boutiques",
+  "Rapports",
+  "Pilotage auto",
+  "Abonnement",
+  "Paramètres",
+  "Notifications",
+]);
+
+function getInitialDashboardSection() {
+  if (typeof window === "undefined") return DEFAULT_DASHBOARD_SECTION;
+  try {
+    const savedSection = window.sessionStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
+    return savedSection && PERSISTED_DASHBOARD_SECTIONS.has(savedSection) ? savedSection : DEFAULT_DASHBOARD_SECTION;
+  } catch {
+    return DEFAULT_DASHBOARD_SECTION;
+  }
+}
+
 export function Dashboard() {
   const { t } = useI18n();
-  const [active, setActive] = useState("Vue d'ensemble");
+  const [active, setActive] = useState(getInitialDashboardSection);
   const [moreOpen, setMoreOpen] = useState(false);
   // Se souvient de la section affichée juste avant d'ouvrir "Vendeo AI", pour que
   // le bouton retour de la section IA ramène exactement là d'où l'utilisateur vient
@@ -70,6 +97,13 @@ export function Dashboard() {
       return;
     }
     window.history.pushState({ vendeoView: active }, "", window.location.href);
+  }, [active]);
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, active);
+    } catch {
+      // Le stockage peut être indisponible en navigation privée ou si le quota est plein.
+    }
   }, [active]);
 
   const searchParams = useSearchParams();
