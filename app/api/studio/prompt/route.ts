@@ -15,20 +15,20 @@ const ORIENTATION_LABELS = {
 // comme simple inspiration (l'IA peut les ignorer). Elles servent uniquement à éviter
 // que deux générations successives partent de la même idée.
 const CREATIVE_TERRITORIES = [
-  "gros plan sur le produit en mockup 3D, fond coloré uni et ombres douces",
+  "gros plan sur le produit en mockup 3D, fond clair uni et ombres douces",
   "scène de vie quotidienne africaine authentique (maison, café, marché, terrasse, transport…)",
   "composition graphique très typographique, produit et accroche dominants, peu de photo",
   "vue du dessus (flat lay) avec objets liés au thème autour du produit",
   "portrait serré et expressif d'une personne tenant ou montrant le produit",
   "plusieurs personnes ou un petit groupe en interaction autour du produit",
   "mains seules manipulant le produit, cadrage serré, profondeur de champ marquée",
-  "ambiance cinématographique, éclairage contrasté, lumière dorée ou néon",
-  "style éditorial de magazine, grands aplats de couleur et formes géométriques",
+  "ambiance studio épurée, éclairage doux et lumineux, ombres légères",
+  "style éditorial de magazine, grands aplats de couleur claire et formes géométriques",
   "plan large dans un décor du thème (atelier, cuisine, salle de sport, chantier, bureau, nature…)",
   "produit flottant en lévitation avec éléments symboliques du thème autour",
   "avant / après ou contraste visuel qui illustre la transformation promise",
   "illustration premium stylisée, texture et couleurs riches, sans effet générique",
-  "photo lifestyle en extérieur, lumière naturelle, mouvement et spontanéité",
+  "photo lifestyle lumineuse en extérieur, lumière naturelle douce, mouvement et spontanéité",
 ];
 
 function pickTerritories(count: number) {
@@ -55,11 +55,12 @@ Liberté créative :
 - Des pistes d'inspiration facultatives te sont parfois proposées : prends-les, mélange-les ou ignore-les. Si un prompt précédent t'est fourni, propose un concept nettement différent (sujet, pose, cadrage, décor, palette) et ne le recopie pas.
 
 Quelques points à respecter toujours :
-- Le produit vendu doit être clairement visible et reconnaissable (par exemple la couverture d'un ebook en mockup, un écran de formation, le template ou l'outil montré à l'écran), avec son nom exact lisible dessus, entre guillemets dans le prompt. La mise en scène sert le produit, elle ne le remplace pas.
+- Le produit vendu est le héros absolu de l'image : il doit être IMPOSANT, net et reconnaissable au premier coup d'œil. Il occupe environ 40 à 55 % de la surface de l'image, au premier plan, bien éclairé, en haute définition, sans être caché ni coupé par un personnage, une main, un téléphone ou un décor. Pour un ebook, montre un livre ou un ebook en grand mockup réaliste (couverture entièrement visible et lisible, épaisseur et ombres crédibles, éventuellement deux ou trois exemplaires, ou ebook sur tablette en grand), avec le nom exact du produit lisible sur la couverture, entre guillemets dans le prompt. Pour une formation : un grand écran ou une tablette affichant l'interface de cours, avec la vignette portant le titre. Pour un template ou un outil : l'écran qui le montre, en grand. Pour un abonnement ou un service : son interface ou sa carte, en grand. Les personnages, objets et éléments de décor restent secondaires, plus petits que le produit, et ne le masquent jamais.
 - Le message de vente doit être complet mais lisible, avec une hiérarchie claire : (1) une accroche courte et percutante (3 à 8 mots), en grand, qui vend un résultat ou un désir du client plutôt que de répéter le titre ; (2) un mini-brief des avantages du produit : 2 à 4 bénéfices très courts (2 à 5 mots chacun), présentés sous forme de pastilles, d'icônes ou de puces stylisées, qui disent concrètement ce que le client obtient ; (3) un appel à l'action visible, sous forme de bouton ou de bandeau net, avec un verbe d'action adapté au produit (ex. « Télécharge maintenant », « Commande aujourd'hui », « Rejoins la formation »), mis en valeur sans écraser le reste.
 - Les avantages et l'accroche viennent uniquement de la description et du nom du produit : reformule-les en bénéfices clients courts. N'invente jamais de chiffre, de statistique, de garantie, de témoignage, de logo ou de nom d'auteur. Si la description manque, limite-toi à 2 bénéfices évidents déduits du nom, sans promesse précise.
 - Écris dans le prompt, entre guillemets, le texte exact de l'accroche, de chaque avantage et du bouton d'action, correctement orthographiés. Le texte doit rester lisible et ne pas surcharger l'image : privilégie une composition aérée où le produit reste le point focal.
 - Toute personne représentée a par défaut la peau noire ou métisse (personnes africaines ou afro-descendantes, représentées de façon naturelle et valorisante). Précise-le dans le prompt. Ne change cela que si les consignes de l'utilisateur ou la description du produit le demandent clairement.
+- PALETTE : couleurs claires, lumineuses et professionnelles. Fonds clairs (blanc cassé, crème, gris très clair, pastels doux ou aplats clairs) avec un ou deux accents de couleur maîtrisés et harmonieux, choisis selon le thème du produit. Éclairage doux, propre et uniforme, rendu net, élégant et crédible. Évite les ambiances sombres, les fonds noirs ou très foncés, les néons, les dégradés violets agressifs, les orangés saturés, la lumière dorée de coucher de soleil et les couleurs criardes.
 - Respecte le format d'image demandé dans la composition.
 - Si un prix est fourni, tu peux l'intégrer discrètement s'il renforce l'impact ; n'en invente jamais.
 - Si l'utilisateur a écrit ses propres consignes, intègre-les fidèlement et donne-leur la priorité.
