@@ -1,0 +1,15 @@
+/* Navigation par période du graphique « Évolution du chiffre d'affaires » (accueil). */
+.stack-nav { align-items:center; display:flex; gap:10px; justify-content:space-between; margin:0 0 8px; }
+.stack-nav-btn { align-items:center; background:transparent; border:1px solid var(--line); border-radius:10px; color:var(--ink); display:inline-flex; flex:none; font-size:22px; height:36px; justify-content:center; line-height:1; padding:0 0 3px; width:40px; }
+.stack-nav-btn:disabled { cursor:not-allowed; opacity:.35; }
+.stack-nav-label { align-items:center; display:flex; flex-direction:column; gap:3px; min-width:0; text-align:center; }
+.stack-nav-label strong { color:var(--ink); font-size:13px; }
+.stack-nav-label small { color:var(--muted); font-size:10px; }
+.stack-nav-today { background:none; border:0; color:var(--blue); font-size:10px; font-weight:700; padding:0; text-decoration:underline; }
+.stack-nav-date { align-items:center; color:var(--muted); display:flex; font-size:10px; gap:8px; justify-content:center; margin:0 0 10px; }
+.stack-nav-date input { background:transparent; border:1px solid var(--line); border-radius:7px; color:var(--ink); font-size:11px; padding:5px 8px; }
+html[data-theme="dark"] .stack-nav-date input { color-scheme:dark; }
+.stack-swipe { -webkit-user-select:none; touch-action:pan-y; user-select:none; }
+.stack-loading .stack-plot { opacity:.55; transition:opacity .15s; }
+.stack-empty-note { align-items:center; color:var(--muted); display:flex; flex-direction:column; font-size:11px; gap:4px; inset:0; justify-content:center; padding:12px; pointer-events:none; position:absolute; text-align:center; }
+.stack-empty-note strong { color:var(--ink); font-size:12px; }
