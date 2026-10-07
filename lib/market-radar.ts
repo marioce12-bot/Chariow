@@ -3,6 +3,7 @@ export type MarketRadarInput = {
   country: string;
   countries?: string[];
   audience: string;
+  audiences?: string[];
   format: "ebook" | "formation" | "template" | "abonnement";
 };
 
@@ -98,7 +99,7 @@ function scoreTrend(data: Awaited<ReturnType<typeof fetchGoogleTrends>>) {
 export async function buildMarketRadar(input: MarketRadarInput, supabase?: MarketSignalClient): Promise<MarketRadarReport> {
   const fallback = fallbackReport(input);
   try {
-    const countries = (input.countries?.length ? input.countries : [input.country]).slice(0, 5);
+    const countries = input.countries?.length ? input.countries : [input.country];
     const analyses = await Promise.all(countries.map(async (country) => {
       const cached = supabase ? await fetchCachedTrends(supabase, input.idea, country) : null;
       const trends = cached?.payload as Awaited<ReturnType<typeof fetchGoogleTrends>> ?? await fetchGoogleTrends({ ...input, country });
