@@ -1395,3 +1395,14 @@ html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { color:#ddd6fe; b
 .x-ads-create-link { align-items:center; display:inline-flex; gap:7px; margin-top:10px; }
 .empty-state .btn + .btn { margin-left:8px; }
 @media (max-width:600px) { .empty-state .btn + .btn { margin-left:0; margin-top:8px; } }
+
+/* Indicateur réseau persistant, visible aussi sur le shell dashboard mis en cache. */
+.offline-notice {
+  background: #fff4d6;
+  border-bottom: 1px solid #f1d58b;
+  color: #714b00;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 10px 16px;
+  text-align: center;
+}

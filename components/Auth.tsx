@@ -93,7 +93,7 @@ export function Auth({ mode, configurationError = false }: { mode: "login" | "re
   return (
     <main className="auth-page">
       <div className="auth-card">
-        <Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo-dark.svg" alt="Vendeo" width={150} height={40} /></Link>
+        <Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40} /></Link>
         <h1>{title}</h1>
         <p>{description}</p>
         {configurationError && <p className="form-error">{t("auth.configError")}</p>}

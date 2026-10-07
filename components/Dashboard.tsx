@@ -173,10 +173,21 @@ export function Dashboard() {
   }, [active]);
 
   const searchParams = useSearchParams();
+  useEffect(() => {
+    const updateNetworkStatus = () => setIsOffline(!navigator.onLine);
+    updateNetworkStatus();
+    window.addEventListener("online", updateNetworkStatus);
+    window.addEventListener("offline", updateNetworkStatus);
+    return () => {
+      window.removeEventListener("online", updateNetworkStatus);
+      window.removeEventListener("offline", updateNetworkStatus);
+    };
+  }, []);
   const [stores, setStores] = useState<StoreData[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
   const [userName, setUserName] = useState("créateur");
 
@@ -312,10 +323,11 @@ export function Dashboard() {
 
   return (
     <main className="app-shell">
+      {isOffline ? <div role="status" aria-live="polite" className="offline-notice">Connexion internet perdue. Le tableau de bord reste accessible hors ligne ; certaines données peuvent ne pas être à jour.</div> : null}
       {active !== "Vendeo AI" ? (
         <header className="app-header">
           <Link href="/" className="brand">
-            <Image className="brand-logo" src="/vendeo-logo-light.svg" alt="Vendeo" width={150} height={40} />
+            <Image className="brand-logo" src="/vendeo-logo-light.webp" alt="Vendeo" width={150} height={40} />
           </Link>
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
