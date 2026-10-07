@@ -80,6 +80,10 @@ html[data-theme="dark"] .studio-product-picker { background:#0b1734; border-colo
 .studio-empty { align-items:center; background:linear-gradient(145deg,#f6f9f4,#edf3e9); border:1px dashed #cbd9cd; border-radius:10px; color:#62806d; display:flex; flex:1; flex-direction:column; justify-content:center; min-height:300px; padding:28px; text-align:center; }
 .studio-empty strong { color:var(--green); margin-top:13px; }
 .studio-empty p { color:#74847a; font-size:13px; line-height:1.5; margin:8px 0 0; max-width:280px; }
+.studio-coming-soon { align-items:center; display:flex; flex-direction:column; justify-content:center; min-height:300px; padding:34px; text-align:center; }
+.studio-coming-soon-icon { align-items:center; background:#e5f0df; border-radius:14px; color:var(--green); display:flex; height:62px; justify-content:center; margin-bottom:16px; width:62px; }
+.studio-coming-soon h2 { color:var(--ink); font-size:22px; margin:10px 0 0; }
+.studio-coming-soon p { color:var(--muted); font-size:13px; line-height:1.6; margin:10px 0 0; max-width:440px; }
 .studio-history-toolbar { align-items:center; display:flex; flex-wrap:wrap; gap:8px 14px; justify-content:space-between; margin:18px 0 10px; min-width:0; }
 .studio-history-toolbar > div { display:flex; flex-wrap:wrap; gap:2px; min-width:0; }
 .studio-history-toolbar button { background:transparent; border:0; border-radius:7px; color:var(--muted); font-size:11px; padding:7px 10px; }
@@ -233,4 +237,3 @@ html[data-theme="dark"] .studio-product-picker { background:#0b1734; border-colo
 .onboarding-lead { color:var(--muted); font-size:14px; line-height:1.7; margin:0 0 28px; max-width:520px; }
 .field-help { color:#809087; display:block; font-size:11px; line-height:1.5; margin-top:6px; }
 .form-error { background:#fbe8e3; border-radius:7px; color:#a64635; font-size:12px; line-height:1.5; padding:10px; }
-
