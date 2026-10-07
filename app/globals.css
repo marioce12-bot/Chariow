@@ -1400,9 +1400,28 @@ html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { color:#ddd6fe; b
 .offline-notice {
   background: #fff4d6;
   border-bottom: 1px solid #f1d58b;
+  box-sizing: border-box;
   color: #714b00;
   font-size: 13px;
   line-height: 1.45;
   padding: 10px 16px;
+  position: fixed;
+  top: 68px;
+  left: 0;
+  right: 0;
+  z-index: 999;
   text-align: center;
+}
+
+.app-layout.app-layout-offline:not(.app-layout-flush) { padding-top: 108px; }
+
+@media (max-width: 600px) {
+  .offline-notice {
+    font-size: 11px;
+    line-height: 1.3;
+    min-height: 42px;
+    padding: 6px 12px;
+    top: 60px;
+  }
+  .app-layout.app-layout-offline:not(.app-layout-flush) { padding-top: 104px; }
 }
