@@ -46,23 +46,25 @@ export async function POST(request: Request) {
   };
   const reference = product?.imageUrl ? await fetchReferenceImage(product.imageUrl) : null;
   const productType = product ? inferProductType(product.name, product.description) : "autre";
+  const format = options.orientation === "portrait" ? "story" : options.orientation === "landscape" ? "banner" : "square";
   const brief = buildCreativeBrief(
     { name: product?.name ?? "création", description: product?.description, price: product?.price, currency: product?.currency },
     userPrompt,
     "image",
-    options.orientation ?? "square",
+    format,
   );
-  const prompt = briefToPrompt(brief, "image", Boolean(reference));
-  const model = selectImageModel(imageTaskForProductType(productType, Boolean(reference)));
+  const task = imageTaskForProductType(productType, Boolean(reference));
+  const model = selectImageModel(task, options.imageMode);
+  const prompt = briefToPrompt(brief, "image", Boolean(reference), options.imageMode === "advanced" ? "poster" : "standard");
 
-  const cost = imageCreditCost(options.resolution ?? "hd", options.quality ?? "medium");
+  const cost = imageCreditCost(options.resolution ?? "hd", options.quality ?? "medium", options.imageMode);
   // Ecritures + RPC credits : client service-role. RLS n'expose que le SELECT
   // aux utilisateurs, et les fonctions de credits sont revoquees pour `authenticated`.
   const admin = createAdminClient();
-  const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options, metadata: { brief, workflow: imageTaskForProductType(productType, Boolean(reference)), model, productType }, status: "processing", credits_cost: cost }).select("id").single();
+  const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt, options, metadata: { brief, workflow: task, model, productType }, status: "processing", credits_cost: cost }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
   const requestId = crypto.randomUUID();
-  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image", model_name: "fal-image", provider_amount: Math.round(cost / 1.5), request_id: requestId });
+  const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image", model_name: model, provider_amount: Math.round(cost / 1.5), request_id: requestId });
   if (reservation.error) {
     console.error("Studio credit reservation error", reservation.error.message, reservation.error.code);
     return NextResponse.json({ error: "Le système de crédits n'est pas encore configuré.", details: process.env.NODE_ENV === "development" ? reservation.error.message : undefined }, { status: 503 });
@@ -71,7 +73,9 @@ export async function POST(request: Request) {
   if (!reserveResult?.ok) return NextResponse.json({ error: `Solde insuffisant. Cette image nécessite ${cost} crédits, ton solde est de ${reserveResult?.balance ?? 0}.`, required: cost, balance: reserveResult?.balance ?? 0 }, { status: 402 });
 
   try {
-    const imageUrl = reference ? await generateFalImageWithReferences(prompt, [reference], options) : await generateFalImage(prompt, "square", options);
+    const imageUrl = reference
+      ? await generateFalImageWithReferences(prompt, [reference], options, model)
+      : await generateFalImage(prompt, format, options, model);
     await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     let storagePath: string | null = null;
     try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat); } catch (storageError) { console.error("Studio image storage error", storageError); }

@@ -8,8 +8,9 @@ export const IMAGE_COSTS = {
   "4k": { medium: 53, high: 128, xhigh: 375, max: 750 },
 } as const;
 
-export function imageCreditCost(resolution: keyof typeof IMAGE_COSTS, quality: keyof typeof IMAGE_COSTS.hd) {
-  return IMAGE_COSTS[resolution][quality];
+export function imageCreditCost(resolution: keyof typeof IMAGE_COSTS, quality: keyof typeof IMAGE_COSTS.hd, mode: "fast" | "advanced" = "fast") {
+  const baseCost = IMAGE_COSTS[resolution][quality];
+  return mode === "advanced" ? Math.ceil(baseCost * 3) : baseCost;
 }
 
 // Coût vidéo par seconde selon la résolution réellement choisie.

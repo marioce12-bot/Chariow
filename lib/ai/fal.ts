@@ -2,11 +2,13 @@ import { fal } from "@fal-ai/client";
 import { isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoAspectRatio, type VideoDuration, type VideoResolution, type VideoAspectRatio } from "@/lib/studio/creative-workflows";
 
 // Modèles choisis :
-// - Texte→image : FLUX.1 [schnell] (génération rapide et de qualité).
-// - Édition image (conservation du produit) : GPT Image 2 (openai/gpt-image-2/edit).
+// - Mode rapide texte→image : FLUX.1 [schnell].
+// - Mode avancé affiche : GPT Image 2.5 Flare, conçu pour les compositions et le texte lisible.
+// - Édition image (conservation du produit) : GPT Image 2.5 Flare edit.
 // - Vidéo texte→vidéo et image→vidéo : Seedance 2.5 (jusqu'à 30 s, 480p/720p/1080p).
 const DEFAULT_IMAGE_MODEL = "fal-ai/flux/schnell";
-const DEFAULT_IMAGE_EDIT_MODEL = "openai/gpt-image-2/edit";
+const DEFAULT_ADVANCED_IMAGE_MODEL = "openai/gpt-image-2.5/flare/text-to-image";
+const DEFAULT_IMAGE_EDIT_MODEL = "openai/gpt-image-2.5/flare/edit";
 const DEFAULT_VIDEO_TEXT_MODEL = "xai/grok-imagine-video/v1.5/text-to-video";
 const DEFAULT_VIDEO_IMAGE_MODEL = "xai/grok-imagine-video/v1.5/image-to-video";
 
@@ -19,8 +21,8 @@ function ensureConfigured() {
   configured = true;
 }
 
-export function getAiImageModel() {
-  return process.env.FAL_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL;
+export function getAiImageModel(mode: "fast" | "advanced" = "fast") {
+  return process.env.FAL_IMAGE_MODEL?.trim() || (mode === "advanced" ? DEFAULT_ADVANCED_IMAGE_MODEL : DEFAULT_IMAGE_MODEL);
 }
 
 export function getAiImageEditModel() {
@@ -49,15 +51,33 @@ function referenceDataUrl(image: StudioReferenceImage) {
   return `data:${image.type};base64,${image.buffer.toString("base64")}`;
 }
 
-// fal ne propose pas de réglage "quality"/"resolution"/"background" identique à
-// Imole sur ses modèles d'image grand public : on ne mappe que ce qui a un
-// équivalent direct (l'orientation, via image_size) et on ignore le reste sans
-// faire échouer la génération.
+// Les modèles avancés acceptent la qualité, le fond, le format de sortie et des
+// dimensions personnalisées. Schnell conserve ses presets d'image compatibles.
 const ORIENTATION_TO_IMAGE_SIZE: Record<string, string> = {
   square: "square_hd",
   landscape: "landscape_16_9",
   portrait: "portrait_16_9",
 };
+const ADVANCED_IMAGE_SIZES: Record<string, Record<string, { width: number; height: number }>> = {
+  square: { hd: { width: 1024, height: 1024 }, full_hd: { width: 1536, height: 1536 }, "2k": { width: 2048, height: 2048 }, "4k": { width: 2880, height: 2880 } },
+  landscape: { hd: { width: 1024, height: 576 }, full_hd: { width: 1920, height: 1080 }, "2k": { width: 2560, height: 1440 }, "4k": { width: 3840, height: 2160 } },
+  portrait: { hd: { width: 576, height: 1024 }, full_hd: { width: 1080, height: 1920 }, "2k": { width: 1440, height: 2560 }, "4k": { width: 2160, height: 3840 } },
+};
+function isAdvancedImageModel(model: string) {
+  return /gpt-image|nano-banana/i.test(model);
+}
+function imageInput(model: string, options: StudioImageOptions, orientation: string) {
+  const input: Record<string, unknown> = {
+    image_size: isAdvancedImageModel(model) ? ADVANCED_IMAGE_SIZES[orientation]?.[options.resolution ?? "hd"] ?? ORIENTATION_TO_IMAGE_SIZE[orientation] : ORIENTATION_TO_IMAGE_SIZE[orientation],
+    num_images: 1,
+  };
+  if (isAdvancedImageModel(model)) {
+    input.quality = options.quality ?? "medium";
+    input.output_format = options.outputFormat === "jpeg" ? "jpeg" : "png";
+    if (options.background !== "auto") input.background = options.background;
+  }
+  return input;
+}
 
 type FalImageResult = { data?: { images?: Array<{ url?: string }> } };
 
@@ -78,12 +98,13 @@ export async function generateFalImage(
   prompt: string,
   format: "square" | "story" | "banner" = "square",
   options: StudioImageOptions = {},
+  selectedModel?: string,
 ) {
   const orientation = options.orientation ?? (format === "story" ? "portrait" : format === "banner" ? "landscape" : "square");
-  const model = getAiImageModel();
+  const model = selectedModel ?? getAiImageModel(options.imageMode);
   return runImageModel(
     model,
-    { prompt, image_size: ORIENTATION_TO_IMAGE_SIZE[orientation] ?? "square_hd", num_images: 1 },
+    { prompt, ...imageInput(model, options, orientation) },
     "fal.ai image API error",
   );
 }
@@ -91,12 +112,14 @@ export async function generateFalImage(
 export async function generateFalImageWithReferences(
   prompt: string,
   references: StudioReferenceImage[],
-  _options: StudioImageOptions = {},
+  options: StudioImageOptions = {},
+  selectedModel?: string,
 ) {
-  const model = getAiImageEditModel();
+  const model = selectedModel ?? getAiImageEditModel();
+  const orientation = options.orientation ?? "square";
   return runImageModel(
     model,
-    { prompt, image_urls: references.slice(0, 3).map(referenceDataUrl), num_images: 1 },
+    { prompt, image_urls: references.slice(0, 3).map(referenceDataUrl), ...imageInput(model, options, orientation) },
     "fal.ai image edit API error",
   );
 }
