@@ -2,12 +2,10 @@ import { fal } from "@fal-ai/client";
 import { isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoAspectRatio, type VideoDuration, type VideoResolution, type VideoAspectRatio } from "@/lib/studio/creative-workflows";
 
 // Modèles choisis :
-// - Mode rapide texte→image : FLUX.1 [schnell].
-// - Mode avancé affiche : GPT Image 2.5 Flare, conçu pour les compositions et le texte lisible.
-// - Édition image (conservation du produit) : GPT Image 2.5 Flare edit.
+// - Texte→image : GPT Image 2.5 Flare, conçu pour les compositions et le texte lisible.
+// - Édition image avec références : GPT Image 2.5 Flare edit.
 // - Vidéo texte→vidéo et image→vidéo : Seedance 2.5 (jusqu'à 30 s, 480p/720p/1080p).
-const DEFAULT_IMAGE_MODEL = "fal-ai/flux/schnell";
-const DEFAULT_ADVANCED_IMAGE_MODEL = "openai/gpt-image-2.5/flare/text-to-image";
+const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2.5/flare/text-to-image";
 const DEFAULT_IMAGE_EDIT_MODEL = "openai/gpt-image-2.5/flare/edit";
 const DEFAULT_VIDEO_TEXT_MODEL = "xai/grok-imagine-video/v1.5/text-to-video";
 const DEFAULT_VIDEO_IMAGE_MODEL = "xai/grok-imagine-video/v1.5/image-to-video";
@@ -21,12 +19,12 @@ function ensureConfigured() {
   configured = true;
 }
 
-export function getAiImageModel(mode: "fast" | "advanced" = "fast") {
-  return process.env.FAL_IMAGE_MODEL?.trim() || (mode === "advanced" ? DEFAULT_ADVANCED_IMAGE_MODEL : DEFAULT_IMAGE_MODEL);
+export function getAiImageModel() {
+  return process.env.FAL_IMAGE_MODEL?.trim() || DEFAULT_IMAGE_MODEL;
 }
 
 export function getAiImageEditModel() {
-  return process.env.FAL_IMAGE_EDIT_MODEL?.trim() || DEFAULT_IMAGE_EDIT_MODEL;
+  return DEFAULT_IMAGE_EDIT_MODEL;
 }
 
 export function getAiVideoTextModel() {
@@ -41,7 +39,6 @@ export type StudioImageOptions = {
   orientation?: "square" | "landscape" | "portrait";
   quality?: "medium" | "high" | "xhigh" | "max";
   resolution?: "hd" | "full_hd" | "2k" | "4k";
-  imageMode?: "fast" | "advanced";
   background?: "auto" | "opaque" | "transparent";
   outputFormat?: "png" | "jpeg";
 };
@@ -51,8 +48,9 @@ function referenceDataUrl(image: StudioReferenceImage) {
   return `data:${image.type};base64,${image.buffer.toString("base64")}`;
 }
 
-// Les modèles avancés acceptent la qualité, le fond, le format de sortie et des
-// dimensions personnalisées. Schnell conserve ses presets d'image compatibles.
+// GPT Image accepte la qualité, le fond, le format de sortie et des dimensions
+// personnalisées. L'override FAL_IMAGE_MODEL conserve un mode plus générique si
+// un environnement utilise un autre modèle Fal.
 const ORIENTATION_TO_IMAGE_SIZE: Record<string, string> = {
   square: "square_hd",
   landscape: "landscape_16_9",
@@ -98,10 +96,9 @@ export async function generateFalImage(
   prompt: string,
   format: "square" | "story" | "banner" = "square",
   options: StudioImageOptions = {},
-  selectedModel?: string,
 ) {
   const orientation = options.orientation ?? (format === "story" ? "portrait" : format === "banner" ? "landscape" : "square");
-  const model = selectedModel ?? getAiImageModel(options.imageMode);
+  const model = getAiImageModel();
   return runImageModel(
     model,
     { prompt, ...imageInput(model, options, orientation) },
@@ -113,9 +110,8 @@ export async function generateFalImageWithReferences(
   prompt: string,
   references: StudioReferenceImage[],
   options: StudioImageOptions = {},
-  selectedModel?: string,
 ) {
-  const model = selectedModel ?? getAiImageEditModel();
+  const model = getAiImageEditModel();
   const orientation = options.orientation ?? "square";
   return runImageModel(
     model,

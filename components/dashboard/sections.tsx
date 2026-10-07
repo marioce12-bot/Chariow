@@ -60,7 +60,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const { t } = useI18n();
   const [kind, setKind] = useState<"image" | "video">("image");
   const [prompt, setPrompt] = useState("");
-  const [imageMode, setImageMode] = useState<"fast" | "advanced">("fast");
+  const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
+  const [referenceUploading, setReferenceUploading] = useState(false);
   const [quality, setQuality] = useState("medium");
   const [imageResolution, setImageResolution] = useState("hd");
   const [orientation, setOrientation] = useState("square");
@@ -161,9 +162,36 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     return () => window.clearInterval(timer);
   }, [videoJob]);
 
+  async function uploadReferenceFiles() {
+    if (!referenceFiles.length) return [];
+    setReferenceUploading(true);
+    try {
+      return await Promise.all(referenceFiles.slice(0, 3).map(async (file) => {
+        const form = new FormData();
+        form.append("file", file);
+        const response = await fetch("/api/uploads/campaign-media", { method: "POST", body: form });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || typeof result.secure_url !== "string") throw new Error(result.error || "Le téléversement de la référence a échoué.");
+        return result.secure_url as string;
+      }));
+    } finally {
+      setReferenceUploading(false);
+    }
+  }
+
+  function insertProductInfo() {
+    if (!selectedProduct) return;
+    const productInfo = [
+      `Nom du produit : ${selectedProduct.name}`,
+      selectedProduct.price ? `Prix : ${selectedProduct.price}${selectedProduct.currency ? ` ${selectedProduct.currency}` : ""}` : "",
+      selectedProduct.description ? `Description : ${selectedProduct.description}` : "",
+    ].filter(Boolean).join("\n");
+    setPrompt((current) => current.trim() ? `${current.trim()}\n\n${productInfo}` : productInfo);
+  }
+
   async function generate() {
     if (generatingRef.current) return;
-    if (!prompt.trim() && !selectedProduct) {
+    if (!prompt.trim()) {
       setError(kind === "image" ? "Décris l'image que tu souhaites créer." : "Décris la vidéo que tu souhaites créer.");
       return;
     }
@@ -173,17 +201,19 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     setImageUrl(null);
     if (kind === "video") setVideoJob(null);
     try {
+      const referenceUrls = kind === "image" ? await uploadReferenceFiles() : [];
       const response = await fetch(kind === "image" ? "/api/studio/image" : "/api/studio/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(kind === "image"
-          ? { prompt, imageMode, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }
+          ? { prompt, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", referenceUrls }
           : { prompt, duration, resolution: videoResolution, aspectRatio, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "La génération a échoué.");
       if (kind === "image") setImageUrl(result.imageUrl);
       if (kind === "image") setSelectedGenerationId(result.generationId);
+      if (kind === "image") setReferenceFiles([]);
       else setVideoJob({ id: result.jobId, status: result.status || "queued" });
       if (result.generationId) await loadHistory(true);
       const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
@@ -264,7 +294,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         <button type="button" role="tab" aria-selected={kind === "image"} className={kind === "image" ? "active" : ""} onClick={() => setKind("image")}><ImageIcon size={17} /> {t("studio.image")}</button>
         <button type="button" role="tab" aria-selected={kind === "video"} className={kind === "video" ? "active" : ""} onClick={() => setKind("video")}><Video size={17} /> {t("studio.video")}</button>
       </div>
-      <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => setSelectedProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => setSelectedProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => setSelectedProduct(null)} aria-label="Retirer le produit">×</button>{selectedProduct.image && kind === "image" ? <em>{t("studio.coverRef")}</em> : null}</div> : null}</section>
+      <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => setSelectedProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => setSelectedProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => setSelectedProduct(null)} aria-label="Retirer le produit">×</button>{selectedProduct.image && kind === "video" ? <em>{t("studio.coverRef")}</em> : null}</div> : null}</section>
       <div className="studio-grid">
         <section className="app-card studio-form">
           <label className="studio-field">
@@ -275,12 +305,12 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
           {kind === "image" ? (
             <div className="studio-options">
-              <StudioSelect label={t("studio.mode")} value={imageMode} onChange={(value) => setImageMode(value as "fast" | "advanced")} options={[['fast', t("studio.fast")], ['advanced', t("studio.advanced")]]} />
+              {selectedProduct ? <button type="button" className="btn btn-ghost" onClick={insertProductInfo}>{t("studio.insertProductInfo")}</button> : null}
+              <label className="studio-field"><span>{t("studio.references")}</span><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => setReferenceFiles(Array.from(event.target.files ?? []).slice(0, 3))} disabled={referenceUploading || loading} /><small>{t("studio.referenceHint")}</small></label>
               <StudioSelect label={t("studio.quality")} value={quality} onChange={setQuality} options={[['medium', t("studio.medium")], ['high', t("studio.high")], ['xhigh', t("studio.xhigh")], ['max', t("studio.max")]]} />
               <StudioSelect label={t("studio.resolution")} value={imageResolution} onChange={setImageResolution} options={[['hd', 'HD'], ['full_hd', 'Full HD'], ['2k', '2K'], ['4k', '4K']]} />
               <StudioSelect label={t("studio.format")} value={orientation} onChange={setOrientation} options={[['square', t("studio.square")], ['landscape', t("studio.landscape")], ['portrait', t("studio.portrait")]]} />
               <StudioSelect label={t("studio.background")} value={background} onChange={setBackground} options={[['auto', t("studio.auto")], ['opaque', t("studio.opaque")], ['transparent', t("studio.transparent")]]} />
-              <div className="studio-suggestions">{["Affiche publicitaire", "Mockup 3D du livre", "Photo lifestyle", "Story verticale"].map((suggestion) => <button type="button" key={suggestion} onClick={() => { setPrompt(suggestion); if (suggestion === "Story verticale") setOrientation("portrait"); }}>{suggestion}</button>)}</div>
             </div>
           ) : (
             <div className="studio-options">
@@ -293,7 +323,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
           {error ? <p className="form-error">{error}</p> : null}
           <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading}>
-            <Sparkles size={17} /> {loading ? t("studio.generating") : kind === "image" ? t("studio.createImage") : t("studio.createVideo")}
+            <Sparkles size={17} /> {loading || referenceUploading ? t("studio.generating") : kind === "image" ? t("studio.createImage") : t("studio.createVideo")}
           </button>
           <p className="studio-cost">{kind === "image" ? t("studio.imageCost") : t("studio.videoCost", { rate: videoResolution === "1080p" ? "38" : videoResolution === "720p" ? "25" : "15", res: videoResolution })}</p>
           <div className="studio-balance"><div><span className="eyebrow">{t("studio.balance")}</span><strong>{balance} {t("studio.credits")}</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>{t("studio.recharge")}</button><small>{t("studio.balanceHint")}</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>{t("studio.recharge")}</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label="Fermer">×</button></div><label className="studio-field"><span>Quantité de crédits</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>Prix : <strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>Minimum 200 crédits · 1 crédit = 2,50 XOF</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? "Préparation du paiement…" : "Payer"}</button></div> : null}</div>
