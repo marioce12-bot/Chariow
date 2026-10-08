@@ -1456,7 +1456,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const { t } = useI18n();
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
-  const [channel, setChannel] = useState<"overview" | "meta" | "tiktok" | "x">("overview");
+  const [channel, setChannel] = useState<"overview" | "meta" | "tiktok" | "pinterest" | "x">("overview");
   const [message, setMessage] = useState<string | null>(null);
 
   const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>>(cachedOnce?.metaAccounts ?? []);
@@ -1469,6 +1469,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const [configuringPixel, setConfiguringPixel] = useState<string | null>(null);
 
   const [tiktokAccounts, setTiktokAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>>(cachedOnce?.tiktokAccounts ?? []);
+  const [pinterestAccounts, setPinterestAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; country: string | null }>>([]);
   const [xAccounts, setXAccounts] = useState<Array<{ id: string; x_account_id: string; name: string | null; currency: string | null; timezone: string | null; approval_status: string | null }>>([]);
   // Tant que le statut TikTok n'est pas connu (pas de cache), on affiche des skeletons
   // au lieu du bouton « Connecter TikTok » pour éviter le flash d'interface.
@@ -1519,6 +1520,10 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       if (tiktokAllowedNow) setTiktokAccounts(accounts);
       setTiktokLoading(false);
     });
+    void fetch("/api/integrations/pinterest/accounts")
+      .then((response) => (response.ok ? response.json() : { accounts: [] }))
+      .then((data) => setPinterestAccounts((data.accounts ?? []) as Array<{ id: string; advertiser_id: string; name: string | null; currency: string; country: string | null }>))
+      .catch(() => setPinterestAccounts([]));
 
     const metaResponse = await fetch("/api/integrations/meta/accounts");
     const metaData = metaResponse.ok ? await metaResponse.json() : { accounts: [] };
@@ -1564,6 +1569,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
   const connectMeta = () => { window.location.href = "/api/integrations/meta/connect"; };
   const connectTiktok = () => { window.location.href = "/api/integrations/tiktok/connect"; };
+  const connectPinterest = () => { window.location.href = "/api/integrations/pinterest/connect"; };
   const connectX = () => { window.location.href = "/api/integrations/x/connect"; };
 
   async function loadXAccounts() {
@@ -1621,13 +1627,13 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const metaConnected = metaAccounts.length > 0;
   const tiktokConnected = tiktokAccounts.length > 0;
 
-  const channels: Array<{ id: "overview" | "meta" | "tiktok" | "x"; label: string }> = [{ id: "overview", label: t("ads.overview") }, { id: "meta", label: t("ads.meta") }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: t("ads.tiktok") }] : []), { id: "x", label: "X Ads" }];
+  const channels: Array<{ id: "overview" | "meta" | "tiktok" | "pinterest" | "x"; label: string }> = [{ id: "overview", label: t("ads.overview") }, { id: "meta", label: t("ads.meta") }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: t("ads.tiktok") }] : []), { id: "pinterest", label: "Pinterest" }, { id: "x", label: "X Ads" }];
 
   return (
     <>
       <div className="page-top" style={{ gap: 12 }}><div><span className="eyebrow">{t("ads.eyebrow")}</span><h1>{t("ads.title")}</h1><p>{t("ads.subtitle")}</p></div><button type="button" className="btn btn-dark" style={{ flexShrink: 0 }} onClick={onLaunchAd}><Plus size={15} /> {t("ads.launch")}</button></div>
 
-      <div className="app-card ads-channel-switcher">{channels.map((item) => <button key={item.id} type="button" aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={20} /> : item.id === "tiktok" ? <FaTiktok size={18} /> : item.id === "x" ? <FaXTwitter size={18} /> : item.label}</button>)}</div>
+      <div className="app-card ads-channel-switcher">{channels.map((item) => <button key={item.id} type="button" aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={20} /> : item.id === "tiktok" ? <FaTiktok size={18} /> : item.id === "pinterest" ? <FaPinterestP size={18} /> : item.id === "x" ? <FaXTwitter size={18} /> : item.label}</button>)}</div>
 
       {message && <p className="store-error" role="status">{message}</p>}
 
@@ -1639,6 +1645,14 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
           {xAccounts.length ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.xAccountConnected")}</span> : <button type="button" className="btn btn-dark" onClick={connectX}><Plus size={15} /> {t("ads.connectX")}</button>}
         </div>
         {xAccounts.length ? <div className="app-card x-ads-accounts"><div className="card-head"><div><span className="eyebrow">Comptes accessibles</span><h2>Comptes publicitaires X</h2></div></div>{xAccounts.map((account) => <div className="x-ads-account-row" key={account.id}><div><strong>{account.name || account.x_account_id}</strong><small>{account.x_account_id}{account.currency ? ` · ${account.currency}` : ""}{account.approval_status ? ` · ${account.approval_status}` : ""}</small></div><span className="status-positive">Connecté</span></div>)}</div> : <div className="empty-state"><FaXTwitter size={28} /><strong>{t("ads.xNoAccount")}</strong><span>{t("ads.xAuthorize")}</span><button type="button" className="btn btn-dark" onClick={connectX}>{t("ads.connectX")}</button><a className="btn btn-ghost" href="https://ads.x.com/" target="_blank" rel="noreferrer">{t("ads.createXAccount")} <ExternalLink size={14} /></a></div>}
+      </section> : null}
+
+      {channel === "pinterest" ? <section className="x-ads-panel">
+        <div className="app-card x-ads-status-card">
+          <div className="x-ads-brand"><FaPinterestP size={24} /><div><span className="eyebrow">Pinterest Ads</span><h2>Compte publicitaire Pinterest</h2><p>Connecte ton compte Pinterest Ads pour lancer des campagnes depuis Vendeo.</p></div></div>
+          {pinterestAccounts.length ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <button type="button" className="btn btn-dark" onClick={connectPinterest}><Plus size={15} /> Connecter Pinterest Ads</button>}
+        </div>
+        {pinterestAccounts.length ? <div className="app-card x-ads-accounts"><div className="card-head"><div><span className="eyebrow">Comptes accessibles</span><h2>Comptes publicitaires Pinterest</h2></div></div>{pinterestAccounts.map((account) => <div className="x-ads-account-row" key={account.id}><div><strong>{account.name || account.advertiser_id}</strong><small>{account.advertiser_id}{account.currency ? ` · ${account.currency}` : ""}{account.country ? ` · ${account.country}` : ""}</small></div><span className="status-positive">Connecté</span></div>)}</div> : <div className="empty-state"><FaPinterestP size={28} /><strong>Aucun compte Pinterest Ads connecté</strong><span>Connecte un compte Pinterest Ads pour le sélectionner dans le flux de création de publicité.</span><button type="button" className="btn btn-dark" onClick={connectPinterest}>Connecter Pinterest Ads</button></div>}
       </section> : null}
 
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, metaPerformance?.currency ?? "XOF")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div></section> : channel === "meta" ? (
