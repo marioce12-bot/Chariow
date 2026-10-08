@@ -16,6 +16,6 @@ export async function GET(request: Request) {
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
-  url.searchParams.set("scope", "user_accounts:read,ads:read,ads:write,pins:read,pins:write");
+  url.searchParams.set("scope", "user_accounts:read,ads:read,ads:write,boards:read,boards:write,pins:read,pins:write");
   return NextResponse.redirect(url);
 }

@@ -18,7 +18,7 @@ interface StepProps {
 type Phase = "ready" | "launching" | "done" | "error";
 
 /**
- * Envoi de la campagne à Meta/TikTok : la plateforme facture directement le
+ * Envoi de la campagne à Meta, TikTok ou Pinterest : la plateforme facture directement le
  * compte publicitaire sélectionné. Vendeo ne collecte pas le budget de campagne.
  */
 export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialStatus, initialError }: StepProps) {
@@ -26,7 +26,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
   const [error, setError] = useState<string | null>(null);
   const [objectiveFallback, setObjectiveFallback] = useState(false);
   const { locale, t } = useI18n();
-  const platformLabel = state.platform === "meta" ? "Meta" : "TikTok";
+  const platformLabel = state.platform === "meta" ? "Meta" : state.platform === "pinterest" ? "Pinterest" : "TikTok";
 
   useEffect(() => {
     if (initialError) {
@@ -44,7 +44,9 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
       const body =
         state.platform === "meta"
           ? { meta_ad_account_id: state.metaAdAccountId, page_id: state.metaPageId }
-          : { tiktok_ad_account_id: state.tiktokAdAccountId, identity_id: state.tiktokIdentityId, identity_type: state.tiktokIdentityType };
+          : state.platform === "pinterest"
+            ? { pinterest_ad_account_id: state.pinterestAdAccountId }
+            : { tiktok_ad_account_id: state.tiktokAdAccountId, identity_id: state.tiktokIdentityId, identity_type: state.tiktokIdentityType };
       const res = await fetch(`/api/ad-campaigns/${state.campaignId}/launch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
