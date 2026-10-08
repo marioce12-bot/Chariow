@@ -1,5 +1,6 @@
 // URL publique du site (sans slash final). Surchargeable via NEXT_PUBLIC_SITE_URL.
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://vendeo-studio.site").replace(/\/$/, "");
+// Le domaine principal est en www : vendeo-studio.site redirige vers www.vendeo-studio.site.
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.vendeo-studio.site").replace(/\/$/, "");
 
 export const SITE_NAME = "Vendeo";
 export const SITE_TITLE = "Vendeo | Vends, analyse et lance tes pubs Meta & TikTok";
