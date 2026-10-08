@@ -146,7 +146,7 @@ export const en: Dict = {
       tiktokSoon: "Detailed TikTok Ads stats (spend, ROAS) are coming soon.",
       launchError: "We couldn’t launch your campaign on {platform}.", retryLaunch: "Try again", correctCampaign: "Edit or fix",
       launching: "Sending to {platform}…", launchSuccess: "Campaign sent to {platform}! It is being reviewed before delivery.", launchButton: "Launch campaign", activateCampaign: "Activate campaign", back: "Back",
-      budgetNotice: "Meta or TikTok will bill this campaign’s budget directly to the selected ad account.",
+      budgetNotice: "Meta, TikTok, or Pinterest will bill this campaign’s budget directly to the selected ad account.",
       errors: {
         billing: "{platform} says billing for your ad account is not complete. Open {platform} Ads Manager, complete the requested payment or add a valid payment method, then try again.",
         objective: "TikTok rejected a setting for this campaign’s objective. We’ve corrected that setting in Vendeo—try again now. If TikTok rejects it again, contact TikTok Ads support.",

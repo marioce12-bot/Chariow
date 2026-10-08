@@ -146,7 +146,7 @@ export const fr: Dict = {
       tiktokSoon: "Les statistiques détaillées TikTok Ads (dépenses, ROAS) arrivent bientôt.",
       launchError: "Nous n’avons pas pu lancer ta campagne sur {platform}.", retryLaunch: "Réessayer", correctCampaign: "Modifier ou corriger",
       launching: "Envoi à {platform}…", launchSuccess: "Campagne envoyée à {platform} ! Elle passe en revue avant diffusion.", launchButton: "Lancer la campagne", activateCampaign: "Activer la campagne", back: "Retour",
-      budgetNotice: "Le budget de cette campagne sera facturé directement par Meta ou TikTok sur le compte publicitaire sélectionné.",
+      budgetNotice: "Le budget de cette campagne sera facturé directement par Meta, TikTok ou Pinterest sur le compte publicitaire sélectionné.",
       errors: {
         billing: "{platform} indique que la facturation de ton compte publicitaire n’est pas terminée. Ouvre {platform} Ads Manager, règle le paiement demandé ou ajoute un moyen de paiement valide, puis réessaie.",
         objective: "TikTok a refusé un réglage de l’objectif de cette campagne. Nous avons corrigé ce réglage dans Vendeo : réessaie maintenant. Si le refus revient, contacte l’assistance TikTok Ads.",
