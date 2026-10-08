@@ -5,10 +5,27 @@ import "./page-headings.css";
 import "./mobile-nav.css";
 import { PwaRegister } from "./PwaRegister";
 import { I18nProvider } from "@/lib/i18n/i18n";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 
+// L'image de partage 1200×630 vient de app/opengraph-image.tsx (convention Next.js).
 export const metadata: Metadata = {
-  title: "Vendeo | Ton business, enfin lisible",
-  description: "Gère, analyse et optimise ton activité digitale depuis un seul espace.",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    locale: "fr_FR",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
   icons: {
     icon: [
       { url: "/icons/vendeo-icon-1024.png", type: "image/png", sizes: "1024x1024" },
