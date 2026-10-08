@@ -46,7 +46,12 @@ ${price ? `Prix : ${price}${currency ? ` ${currency}` : ""}.` : "Le prix n'est p
       answer = await askImole([{ role: "user", content: prompt }]);
     } catch (imoleError) {
       console.error("Imole ad copy error", imoleError instanceof Error ? imoleError.message : imoleError);
-      answer = await askGemini([{ role: "user", content: prompt }]);
+      try {
+        answer = await askGemini([{ role: "user", content: prompt }]);
+      } catch (geminiError) {
+        console.error("Gemini ad copy error", geminiError instanceof Error ? geminiError.message : geminiError);
+        throw new Error("Les fournisseurs IA Imole et Gemini sont indisponibles");
+      }
     }
     const text = cleanAnswer(answer);
     if (!text) throw new Error("Réponse IA vide");
