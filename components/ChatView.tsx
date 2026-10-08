@@ -30,6 +30,7 @@ type ChatAttachment = { url: string; type: "image" | "video" | "document"; name?
 type ChatMessageItem = { role: string; content: string; imageUrl?: string; attachments?: ChatAttachment[] };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
 type MetaAdAccount = { id: string; name: string | null; is_selected?: boolean; currency?: string | null };
+type PinterestAdAccount = { id: string; name: string | null; is_selected?: boolean };
 type ChatConversation = { id: string; title: string; created_at: string; updated_at: string };
 type ChatApiResponse = {
   message?: ChatMessageItem;
@@ -67,6 +68,8 @@ type LaunchPayload = {
   message?: string | null;
   headline?: string | null;
   linkUrl?: string | null;
+  durationDays?: number | null;
+  platform?: "meta" | "pinterest" | "tiktok" | null;
 };
 
 // Le lien de redirection est propre à chaque utilisateur (sa page de vente) : il n'y a
@@ -196,6 +199,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [metaAccounts, setMetaAccounts] = useState<MetaAdAccount[]>([]);
+  const [pinterestAccounts, setPinterestAccounts] = useState<PinterestAdAccount[]>([]);
   const [launchAccountId, setLaunchAccountId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
@@ -259,6 +263,13 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     fetch("/api/integrations/meta/accounts")
       .then((r) => (r.ok ? r.json() : { accounts: [] }))
       .then((data) => setMetaAccounts(data.accounts ?? []))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/integrations/pinterest/accounts")
+      .then((r) => (r.ok ? r.json() : { accounts: [] }))
+      .then((data) => setPinterestAccounts(data.accounts ?? []))
       .catch(() => undefined);
   }, []);
 
@@ -470,7 +481,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     setLaunchCurrency(normalizeCurrency(payload?.currency) ?? guessCurrencyFromMessages(messages) ?? "XOF");
     setLaunchError(null);
     // Compte par défaut : celui marqué is_selected, sinon l'unique compte actif.
-    setLaunchAccountId(metaAccounts.find((a) => a.is_selected)?.id ?? (metaAccounts.length === 1 ? metaAccounts[0].id : null));
+    const accounts = payload?.platform === "pinterest" ? pinterestAccounts : metaAccounts;
+    setLaunchAccountId(accounts.find((a) => a.is_selected)?.id ?? (accounts.length === 1 ? accounts[0].id : null));
     setLaunchOpen(true);
   }
 
@@ -510,7 +522,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           headline: payload.headline,
           linkUrl,
           imageUrl: launchImageUrl ?? undefined,
-          metaAdAccountId: launchAccountId ?? undefined,
+          platform: payload.platform ?? "meta",
+          durationDays: payload.durationDays ?? 1,
+          ...(payload.platform === "pinterest" ? { pinterestAdAccountId: launchAccountId ?? undefined } : { metaAdAccountId: launchAccountId ?? undefined }),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -521,7 +535,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
       const usdNote = typeof data.dailyBudgetUsd === "number" && launchCurrency !== "USD" ? ` (≈ ${data.dailyBudgetUsd} $)` : "";
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: `✅ Campagne « ${payload.name} » lancée sur Meta avec ${dailyBudget} ${launchCurrency}/jour${usdNote}. Elle apparaît dans la page Pub.` },
+        { role: "assistant", content: `✅ Campagne « ${payload.name} » lancée sur ${payload.platform === "pinterest" ? "Pinterest" : "Meta"} avec ${dailyBudget} ${launchCurrency}/jour${usdNote}. Elle apparaît dans la page Pub.` },
       ]);
       setLaunchOpen(false);
     } catch {
@@ -549,6 +563,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const hasConversation = messages.length > 0;
   const lastMessage = messages[messages.length - 1];
   const showFollowups = hasConversation && !sending && !plansRequired && lastMessage?.role !== "user" && Boolean(lastMessage?.content);
+  const launchIsPinterest = launchPayload?.platform === "pinterest";
+  const launchAccounts = launchIsPinterest ? pinterestAccounts : metaAccounts;
 
   return (
     <div className="ai-page">
@@ -863,18 +879,18 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                 required
               />
             </label>
-            {metaAccounts.length > 0 ? (
+            {launchAccounts.length > 0 ? (
               <label className="chat-launch-account">
                 <span>{t("chat.launchAccount")}</span>
-                {metaAccounts.length > 1 ? (
+                {launchAccounts.length > 1 ? (
                   <select value={launchAccountId ?? ""} onChange={(event) => setLaunchAccountId(event.target.value || null)}>
                     <option value="">{t("chat.launchAccountChoose")}</option>
-                    {metaAccounts.map((account) => (
+                    {launchAccounts.map((account) => (
                       <option key={account.id} value={account.id}>{account.name ?? account.id}</option>
                     ))}
                   </select>
                 ) : (
-                  <span className="chat-launch-account-name">{metaAccounts[0].name ?? metaAccounts[0].id}</span>
+                  <span className="chat-launch-account-name">{launchAccounts[0].name ?? launchAccounts[0].id}</span>
                 )}
               </label>
             ) : null}

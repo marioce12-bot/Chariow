@@ -114,7 +114,7 @@ export const fr: Dict = {
       trialEndedMessage: "Ton essai gratuit de 15 jours est terminé. Active ton abonnement pour continuer.",
       error: "Une erreur est survenue.", send: "Envoyer", sending: "Envoi en cours",
       launchCampaign: "Lancer une campagne", launchNow: "Lancer",
-      launchConfirmQuestion: "Ta campagne est prête. Confirmer la création et lancer directement sur Meta ?",
+      launchConfirmQuestion: "Ta campagne est prête. Confirme la plateforme et lance directement depuis Vendeo.",
       launchName: "Nom", launchObjective: "Objectif", launchBudget: "Budget", launchCountries: "Pays", launchAge: "Âge", launchMessage: "Texte",
       launchAccount: "Compte publicitaire", launchAccountChoose: "Choisir un compte…",
       launchCreative: "Créative de la campagne",
