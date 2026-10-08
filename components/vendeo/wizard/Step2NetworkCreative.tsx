@@ -167,7 +167,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
       .then((data) => {
         const accounts: PinterestAccountOption[] = data.accounts ?? [];
         setPinterestAccounts(accounts);
-        if (accounts.length === 1 && !state.pinterestAdAccountId) patch({ pinterestAdAccountId: accounts[0].id });
+        if (accounts.length === 1 && state.pinterestAdAccountId !== accounts[0].id) patch({ pinterestAdAccountId: accounts[0].id });
         if (accounts.length === 0) setPinterestAccountsError("Aucun compte Pinterest Ads connecté. Connecte-en un depuis Paramètres avant de lancer une pub.");
       })
       .catch((err) => setPinterestAccountsError(err instanceof Error ? err.message : "Impossible de charger tes comptes Pinterest Ads"))
@@ -364,14 +364,6 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             {pinterestAccounts.length === 0 && !loadingPinterestAccounts && <a href="/api/integrations/pinterest/connect" className="mt-2 block font-semibold text-[#3730A3] underline underline-offset-2">Connecter un compte Pinterest Ads</a>}
           </WarningBanner>
         )}
-        {state.platform === "pinterest" && !state.pinterestAdAccountId && (
-          <WarningBanner>
-            {pinterestAccounts.length === 0 && !loadingPinterestAccounts
-              ? pinterestAccountsError ?? "Aucun compte Pinterest Ads connecté. Connecte-en un pour financer cette publicité."
-              : "Aucun compte publicitaire indiqué : sélectionne le compte Pinterest Ads qui financera cette publicité."}
-            {pinterestAccounts.length === 0 && !loadingPinterestAccounts && <a href="/api/integrations/pinterest/connect" className="mt-2 block font-semibold text-[#3730A3] underline underline-offset-2">Connecter un compte Pinterest Ads</a>}
-          </WarningBanner>
-        )}
         <div>
           <Row label="Nom de l'ensemble de publicités" value={state.adSetName || "Nouvel ensemble de publicités"} onEdit={() => setEditingField("adSetName")} />
           <Row label="Réseau" value={state.platform === "meta" ? "Meta Ads" : state.platform === "tiktok" ? "TikTok Ads" : "Pinterest Ads"} onEdit={() => setEditingField("network")} />
@@ -382,9 +374,13 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
                 ? loadingMetaAccounts
                   ? "Chargement…"
                   : metaAccounts.find((a) => a.id === state.metaAdAccountId)?.name ?? state.metaAdAccountId ?? "Non sélectionné"
-                : loadingTikTokAccounts
-                  ? "Chargement…"
-                  : tiktokAccounts.find((a) => a.id === state.tiktokAdAccountId)?.name ?? state.tiktokAdAccountId ?? "Non sélectionné"
+                : state.platform === "tiktok"
+                  ? loadingTikTokAccounts
+                    ? "Chargement…"
+                    : tiktokAccounts.find((a) => a.id === state.tiktokAdAccountId)?.name ?? state.tiktokAdAccountId ?? "Non sélectionné"
+                  : loadingPinterestAccounts
+                    ? "Chargement…"
+                    : pinterestAccounts.find((a) => a.id === state.pinterestAdAccountId)?.name ?? state.pinterestAdAccountId ?? "Non sélectionné"
             }
             onEdit={() => setEditingField("account")}
           />
@@ -488,9 +484,9 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
         <EditorHeader label={isMeta ? "Compte publicitaire Meta" : isTikTok ? "Compte publicitaire TikTok" : "Compte publicitaire Pinterest"} />
         {loading ? (
           <p className="flex items-center gap-2 text-xs text-gray-500">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement de tes comptes {isMeta ? "Meta Ads" : "TikTok Ads"}…
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement de tes comptes {isMeta ? "Meta Ads" : isTikTok ? "TikTok Ads" : "Pinterest Ads"}…
           </p>
-        ) : accounts.length > 1 ? (
+        ) : accounts.length > 0 ? (
           <select
             value={selectedId ?? ""}
             onChange={(e) =>
@@ -509,8 +505,6 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
               </option>
             ))}
           </select>
-        ) : accounts.length === 1 ? (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">{accounts[0].name ?? accounts[0].id}</p>
         ) : null}
         {accountsError && (
           <div className="mt-2 rounded-lg bg-[#FEF2F2] p-3 text-xs text-[#991B1B]">

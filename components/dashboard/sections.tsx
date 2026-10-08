@@ -1649,10 +1649,6 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       </section> : null}
 
       {channel === "pinterest" ? <section className="x-ads-panel">
-        <div className="app-card x-ads-status-card">
-          <div className="x-ads-brand"><FaPinterestP size={24} style={{ color: "#E60023" }} /><div><span className="eyebrow">Pinterest Ads</span><h2>Compte publicitaire Pinterest</h2><p>Connecte ton compte Pinterest Ads pour lancer des campagnes depuis Vendeo.</p></div></div>
-          {pinterestAccounts.length ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> Connecté</span> : <button type="button" className="btn btn-dark" onClick={connectPinterest}><Plus size={15} /> Connecter Pinterest Ads</button>}
-        </div>
         {pinterestAccounts.length ? <div className="app-card x-ads-accounts"><div className="card-head"><div><span className="eyebrow">Comptes accessibles</span><h2>Comptes publicitaires Pinterest</h2></div></div>{pinterestAccounts.map((account) => <div className="x-ads-account-row" key={account.id}><div><strong>{account.name || account.advertiser_id}</strong><small>{account.advertiser_id}{account.currency ? ` · ${account.currency}` : ""}{account.country ? ` · ${account.country}` : ""}</small></div><span className="status-positive">Connecté</span></div>)}</div> : <div className="empty-state"><FaPinterestP size={28} style={{ color: "#E60023" }} /><strong>Aucun compte Pinterest Ads connecté</strong><span>Connecte un compte Pinterest Ads pour le sélectionner dans le flux de création de publicité.</span><button type="button" className="btn btn-dark" onClick={connectPinterest}>Connecter Pinterest Ads</button></div>}
         {pinterestAccounts.length ? <PinterestAdsPanel accounts={pinterestAccounts} /> : null}
       </section> : null}
