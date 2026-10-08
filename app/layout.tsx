@@ -7,8 +7,7 @@ import { PwaRegister } from "./PwaRegister";
 import { I18nProvider } from "@/lib/i18n/i18n";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 
-const shareImage = { url: "/icons/vendeo-icon-1024.png", width: 1024, height: 1024, alt: "Vendeo" };
-
+// L'image de partage 1200×630 vient de app/opengraph-image.tsx (convention Next.js).
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
@@ -21,13 +20,11 @@ export const metadata: Metadata = {
     locale: "fr_FR",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: [shareImage],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: [shareImage.url],
   },
   icons: {
     icon: [
