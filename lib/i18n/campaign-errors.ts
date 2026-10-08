@@ -23,8 +23,8 @@ function countryNames(codes: string[], locale: Locale): string {
  * The raw value stays available in server storage for diagnosis, but should not
  * be rendered directly in the product UI.
  */
-export function campaignErrorMessage(rawError: string | null | undefined, locale: Locale, t: Translate, platform: "meta" | "tiktok" = "tiktok"): string {
-  const platformLabel = platform === "meta" ? "Meta" : "TikTok";
+export function campaignErrorMessage(rawError: string | null | undefined, locale: Locale, t: Translate, platform: "meta" | "tiktok" | "pinterest" = "tiktok"): string {
+  const platformLabel = platform === "meta" ? "Meta" : platform === "pinterest" ? "Pinterest" : "TikTok";
   const raw = (rawError ?? "").trim();
   const lower = raw.toLowerCase();
   if (!raw) return t("ads.errors.generic");

@@ -110,6 +110,7 @@ export function Step4Estimation({ state, patch, onNext, onBack }: StepProps) {
             meta_ad_account_id: state.metaAdAccountId,
             meta_page_id: state.metaPageId,
             tiktok_ad_account_id: state.tiktokAdAccountId,
+            pinterest_ad_account_id: state.pinterestAdAccountId,
           }),
         });
         const draftData = await draftRes.json();

@@ -2,7 +2,7 @@
 
 import { WORLD_COUNTRIES } from "@/lib/geo/countries";
 
-export type Platform = "meta" | "tiktok";
+export type Platform = "meta" | "tiktok" | "pinterest";
 export type Objective = "sales" | "traffic" | "engagement" | "leads";
 // "whatsapp_status" n'est valable que pour platform === "meta" : les pubs dans
 // le Statut WhatsApp sont un placement de Meta Ads, pas un réseau à part (pas
@@ -42,6 +42,7 @@ export interface WizardState {
   // Comptes déjà connectés (à fournir par le parent, cf. INTEGRATION_WIZARD.md)
   metaAdAccountId?: string;
   tiktokAdAccountId?: string;
+  pinterestAdAccountId?: string;
 
   // Étape 2 — Publicité
   adName: string;

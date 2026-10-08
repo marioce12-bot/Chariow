@@ -6,6 +6,7 @@ import { fetchMetaPageAccessToken, getMetaAccountFunding, describeMetaFundingIss
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 import { launchTikTok } from "@/lib/tiktok/launch";
 import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
+import { launchPinterest } from "@/lib/pinterest/api";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -36,7 +37,7 @@ export async function POST(request: Request, context: Context) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const { data: campaign, error: campaignError } = await supabase
     .from("ad_campaigns")
-    .select("id,store_id,title,product_name,platform,objective,effective_objective,daily_budget,duration_days,countries,geo_targeting,min_age,max_age,destination_url,ad_text,media_url,status,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
+    .select("id,store_id,title,product_name,platform,objective,effective_objective,daily_budget,duration_days,countries,geo_targeting,min_age,max_age,destination_url,ad_text,media_url,status,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,pinterest_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -59,10 +60,31 @@ export async function POST(request: Request, context: Context) {
 
   const result = campaign.platform === "tiktok"
     ? await launchTikTok(supabase, user.id, campaign, body)
-    : await launchMeta(supabase, user.id, campaign, body);
+    : campaign.platform === "pinterest"
+      ? await launchPinterestCampaign(supabase, user.id, campaign, body)
+      : await launchMeta(supabase, user.id, campaign, body);
   return result;
 }
 
+async function launchPinterestCampaign(supabase: any, userId: string, campaign: any, body: any) {
+  const accountId = typeof body?.pinterest_ad_account_id === "string" ? body.pinterest_ad_account_id : campaign.pinterest_ad_account_id;
+  if (!accountId) return NextResponse.json({ error: "Sélectionne un compte Pinterest Ads" }, { status: 400 });
+  const { data: account, error: accountError } = await supabase.from("pinterest_ad_accounts").select("id,pinterest_ad_account_id,pinterest_integration_id,is_active").eq("id", accountId).eq("user_id", userId).maybeSingle();
+  if (accountError) return NextResponse.json({ error: "Impossible de vérifier le compte Pinterest" }, { status: 500 });
+  if (!account?.is_active) return NextResponse.json({ error: "Le compte Pinterest sélectionné n’est plus actif" }, { status: 400 });
+  const { data: integration } = await supabase.from("pinterest_integrations").select("access_token_encrypted").eq("id", account.pinterest_integration_id).eq("user_id", userId).maybeSingle();
+  if (!integration) return NextResponse.json({ error: "Intégration Pinterest introuvable" }, { status: 404 });
+  try {
+    const external = await launchPinterest({ adAccountId: account.pinterest_ad_account_id, accessToken: decryptSecret(integration.access_token_encrypted), name: campaign.title || campaign.product_name || "Campagne Vendeo", adText: campaign.ad_text, title: campaign.title || campaign.product_name || "Campagne Vendeo", link: campaign.destination_url, mediaUrl: campaign.media_url, dailyBudget: Number(campaign.daily_budget), durationDays: Number(campaign.duration_days), minAge: Number(campaign.min_age), maxAge: Number(campaign.max_age), countries: campaign.countries ?? [] });
+    const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", pinterest_ad_account_id: account.id, external_campaign_id: external.campaignId, external_adset_id: external.adGroupId, external_creative_id: external.pinId, external_ad_id: external.adId, external_error: null }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id").single();
+    if (updateError) return NextResponse.json({ error: "Campagne Pinterest créée mais statut Vendeo non enregistré" }, { status: 502 });
+    return NextResponse.json({ campaign: updated });
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 500) : "Pinterest campaign creation failed";
+    await supabase.from("ad_campaigns").update({ external_error: message }).eq("id", campaign.id).eq("user_id", userId);
+    return NextResponse.json({ error: `Pinterest n’a pas accepté la campagne : ${message}. Réessaie.` }, { status: 502 });
+  }
+}
 async function launchMeta(supabase: any, userId: string, campaign: any, body: any) {
   const accountId = typeof body?.meta_ad_account_id === "string" ? body.meta_ad_account_id : campaign.meta_ad_account_id;
   // Repli sur la page enregistree a la creation du brouillon : necessaire pour

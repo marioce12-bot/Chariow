@@ -1057,7 +1057,7 @@ const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "x" | "pinter
   { id: "meta", label: "Meta (Facebook & Instagram)", description: "Diffuse tes campagnes sur Facebook et Instagram.", badge: "facebook", live: true },
   { id: "tiktok", label: "TikTok", description: "Diffuse tes campagnes sur TikTok Ads.", badge: "tiktok", live: true },
   { id: "x", label: "X Ads", description: "Diffuse tes campagnes sur X Ads.", badge: "x", live: true },
-  { id: "pinterest", label: "Pinterest", description: "Bientôt disponible.", badge: "pinterest", live: false },
+  { id: "pinterest", label: "Pinterest", description: "Diffuse tes campagnes sur Pinterest Ads.", badge: "pinterest", live: true },
 ];
 
 export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: "channels"; onBack?: () => void }) {
@@ -1070,6 +1070,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
   const [metaConnected, setMetaConnected] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
   const [xConnected, setXConnected] = useState(false);
+  const [pinterestConnected, setPinterestConnected] = useState(false);
   const [connectionBusy, setConnectionBusy] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const channelsRef = useRef<HTMLElement>(null);
@@ -1082,18 +1083,21 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
     let active = true;
     async function loadConnections() {
       try {
-        const [metaResponse, tiktokResponse, xResponse] = await Promise.all([
+        const [metaResponse, tiktokResponse, xResponse, pinterestResponse] = await Promise.all([
           fetch("/api/integrations/meta/accounts"),
           fetch("/api/integrations/tiktok/accounts"),
           fetch("/api/integrations/x/accounts"),
+          fetch("/api/integrations/pinterest/accounts"),
         ]);
         const metaData = metaResponse.ok ? await metaResponse.json().catch(() => ({})) : {};
         const tiktokData = tiktokResponse.ok ? await tiktokResponse.json().catch(() => ({})) : {};
         const xData = xResponse.ok ? await xResponse.json().catch(() => ({})) : {};
+        const pinterestData = pinterestResponse.ok ? await pinterestResponse.json().catch(() => ({})) : {};
         if (!active) return;
         setMetaConnected((metaData.accounts ?? []).length > 0);
         setTiktokConnected((tiktokData.accounts ?? []).length > 0);
         setXConnected(Boolean(xData.connected));
+        setPinterestConnected((pinterestData.accounts ?? []).length > 0);
         setConnectionError(
           typeof xData.connectionError === "string"
             ? xData.connectionError.includes("(403)")
@@ -1113,11 +1117,11 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
     };
   }, []);
 
-  function connectAccount(platform: "meta" | "tiktok" | "x") {
+  function connectAccount(platform: "meta" | "tiktok" | "x" | "pinterest") {
     window.location.href = `/api/integrations/${platform}/connect`;
   }
 
-  async function disconnectAccount(platform: "meta" | "tiktok" | "x") {
+  async function disconnectAccount(platform: "meta" | "tiktok" | "x" | "pinterest") {
     setConnectionBusy(platform);
     setConnectionError(null);
     try {
@@ -1128,7 +1132,8 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
       }
       if (platform === "meta") setMetaConnected(false);
       else if (platform === "tiktok") setTiktokConnected(false);
-      else setXConnected(false);
+      else if (platform === "x") setXConnected(false);
+      else setPinterestConnected(false);
     } catch {
       setConnectionError("Impossible de déconnecter ce compte pour le moment.");
     } finally {
@@ -1288,7 +1293,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
       {connectionError ? <p className="settings-inline-message settings-account-error" role="alert">{connectionError}</p> : null}
       {CONNECTED_ACCOUNT_PLATFORMS.map((platform) => {
         const allowed = isAdPlatformAllowed(plan, platform.badge);
-        const isConnected = platform.id === "meta" ? metaConnected : platform.id === "tiktok" ? tiktokConnected : platform.id === "x" ? xConnected : false;
+        const isConnected = platform.id === "meta" ? metaConnected : platform.id === "tiktok" ? tiktokConnected : platform.id === "x" ? xConnected : pinterestConnected;
         const busy = connectionBusy === platform.id;
         return (
           <div className="settings-integration-card" key={platform.id}>
@@ -1314,11 +1319,11 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
                 {!platform.live ? t("settings.comingSoon") : t("settings.unavailable")}
               </button>
             ) : isConnected ? (
-              <button type="button" className="settings-disconnect" onClick={() => void disconnectAccount(platform.id as "meta" | "tiktok" | "x")} disabled={busy}>
+              <button type="button" className="settings-disconnect" onClick={() => void disconnectAccount(platform.id as "meta" | "tiktok" | "x" | "pinterest")} disabled={busy}>
                 {busy ? t("settings.disconnecting") : t("settings.disconnect")}
               </button>
             ) : (
-              <button type="button" className="settings-connect" onClick={() => connectAccount(platform.id as "meta" | "tiktok" | "x")} disabled={busy}>
+              <button type="button" className="settings-connect" onClick={() => connectAccount(platform.id as "meta" | "tiktok" | "x" | "pinterest")} disabled={busy}>
                 {t("settings.connect")}
               </button>
             )}
