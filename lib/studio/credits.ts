@@ -8,12 +8,14 @@ export const IMAGE_COSTS = {
   "4k": { medium: 53, high: 128, xhigh: 375, max: 750 },
 } as const;
 
-// La grille de base historique correspondait au mode rapide. Le Studio image
-// utilise désormais toujours le modèle avancé : le tarif public reste donc la
-// grille avancée (3x la grille de base), sans dépendre d'un mode client.
+// Le Studio image utilise toujours le modèle avancé. Le tarif public est la
+// grille de base multipliée par 4/3, ce qui donne 20 crédits pour une image
+// standard (hd, qualité medium). Les autres résolutions/qualités restent
+// proportionnelles. On multiplie avant de diviser pour éviter les erreurs
+// d'arrondi flottant.
 export function imageCreditCost(resolution: keyof typeof IMAGE_COSTS, quality: keyof typeof IMAGE_COSTS.hd) {
   const baseCost = IMAGE_COSTS[resolution][quality];
-  return Math.ceil(baseCost * 3);
+  return Math.ceil((baseCost * 4) / 3);
 }
 
 // Coût vidéo par seconde selon la résolution réellement choisie.
