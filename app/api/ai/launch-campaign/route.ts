@@ -6,6 +6,7 @@ import { toUsd } from "@/lib/currency";
 import { createMetaCampaign, createMetaAdSet, createMetaCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
 import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
+import { launchPinterest } from "@/lib/pinterest/api";
 import { TIKTOK_FROM_CHAT_MESSAGE } from "@/lib/launch-platform";
 
 // Lance une campagne Meta complète via l'API Marketing directe (même chemin que
@@ -27,8 +28,10 @@ type LaunchBody = {
   imageUrl?: string;
   pageId?: string;
   metaAdAccountId?: string; // id de la ligne meta_ad_accounts (compte choisi dans l'appli)
+  pinterestAdAccountId?: string;
   adAccountId?: string;
-  platform?: string; // "meta" | "tiktok" — ce flux ne lance que sur Meta (voir garde plus bas)
+  durationDays?: number;
+  platform?: string; // "meta" | "pinterest" | "tiktok"
 };
 
 // Le budget est toujours traité en dollars US (devise des comptes pub) : quel que
@@ -77,8 +80,8 @@ export async function POST(request: Request) {
   if (!body?.name || !body.message) {
     return NextResponse.json({ error: "Nom de campagne et texte de créative requis." }, { status: 400 });
   }
-  // Ce flux crée UNIQUEMENT une campagne Meta. Si la demande vise TikTok, on refuse avant de créer quoi que ce
-  // soit : lancer sur Meta à la place, puis dire à l'utilisateur que c'est parti sur TikTok, est pire qu'une erreur.
+  // TikTok reste disponible depuis le wizard Pub, mais l'assistant sait lancer
+  // Meta et Pinterest directement avec le compte choisi dans sa confirmation.
   if (typeof body.platform === "string" && /tik\s?-?tok/i.test(body.platform)) {
     return NextResponse.json({ error: TIKTOK_FROM_CHAT_MESSAGE, code: "PLATFORM_NOT_SUPPORTED" }, { status: 400 });
   }
@@ -110,6 +113,10 @@ export async function POST(request: Request) {
       { error: `Le budget quotidien doit être d'au moins ${MIN_DAILY_BUDGET_USD} $ (soit environ ${Math.ceil(MIN_DAILY_BUDGET_USD / (toUsd(1, enteredCurrency) || 1))} ${enteredCurrency}).` },
       { status: 400 }
     );
+  }
+
+  if (typeof body.platform === "string" && /pinterest/i.test(body.platform)) {
+    return launchPinterestFromChat({ supabase, userId: user.id, body, dailyBudget, linkUrl });
   }
 
   const admin = createAdminClient();
@@ -298,5 +305,30 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ error: message }, { status: 502 });
+  }
+}
+
+async function launchPinterestFromChat({ supabase, userId, body, dailyBudget, linkUrl }: { supabase: any; userId: string; body: LaunchBody; dailyBudget: number; linkUrl: string }) {
+  const { data: store, error: storeError } = await supabase.from("stores").select("id").eq("user_id", userId).eq("connection_status", "connected").limit(1).maybeSingle();
+  if (storeError || !store) return NextResponse.json({ error: "Connecte d'abord une boutique Chariow." }, { status: 400 });
+  const { data: accounts, error: accountError } = await supabase.from("pinterest_ad_accounts").select("id,pinterest_ad_account_id,pinterest_integration_id,is_active").eq("user_id", userId).eq("is_active", true);
+  if (accountError || !accounts?.length) return NextResponse.json({ error: "Connecte d'abord un compte Pinterest Ads." }, { status: 400 });
+  const account = (body.pinterestAdAccountId ? accounts.find((item: any) => item.id === body.pinterestAdAccountId) : undefined) ?? accounts[0];
+  if (!account) return NextResponse.json({ error: "Le compte Pinterest Ads sélectionné est introuvable ou inactif." }, { status: 400 });
+  const { data: integration } = await supabase.from("pinterest_integrations").select("access_token_encrypted").eq("id", account.pinterest_integration_id).eq("user_id", userId).maybeSingle();
+  if (!integration) return NextResponse.json({ error: "Intégration Pinterest introuvable. Reconnecte Pinterest puis réessaie." }, { status: 400 });
+
+  const durationDays = Number.isFinite(Number(body.durationDays)) && Number(body.durationDays) > 0 ? Math.min(365, Math.round(Number(body.durationDays))) : 1;
+  const objective = toSimpleObjective(body.objective);
+  const campaignName = body.name || "Campagne Pinterest";
+  try {
+    const external = await launchPinterest({ adAccountId: account.pinterest_ad_account_id, accessToken: decryptSecret(integration.access_token_encrypted), name: campaignName, adText: body.message || "", title: body.headline || campaignName, link: linkUrl, mediaUrl: body.imageUrl || "", dailyBudget, durationDays, minAge: body.ageMin ?? 18, maxAge: body.ageMax ?? 65, countries: body.countries?.length ? body.countries : ["BJ"] });
+    const admin = createAdminClient();
+    const { error: insertError } = await admin.from("ad_campaigns").insert({ user_id: userId, store_id: store.id, platform: "pinterest", status: "review", objective, title: campaignName, ad_text: body.message || "", media_url: body.imageUrl, destination_url: linkUrl, countries: body.countries?.length ? body.countries : ["BJ"], min_age: body.ageMin ?? 18, max_age: body.ageMax ?? 65, daily_budget: dailyBudget, duration_days: durationDays, estimated_budget: dailyBudget * durationDays, pinterest_ad_account_id: account.id, external_campaign_id: external.campaignId, external_adset_id: external.adGroupId, external_creative_id: external.pinId, external_ad_id: external.adId });
+    if (insertError) return NextResponse.json({ error: `Campagne Pinterest créée mais non enregistrée côté Vendeo (${insertError.message}).` }, { status: 502 });
+    return NextResponse.json({ campaignId: external.campaignId, dailyBudgetUsd: dailyBudget, platform: "pinterest" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erreur de lancement Pinterest.";
+    return NextResponse.json({ error: `Pinterest n’a pas accepté la campagne : ${message}` }, { status: 502 });
   }
 }

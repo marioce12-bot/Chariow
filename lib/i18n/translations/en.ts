@@ -114,7 +114,7 @@ export const en: Dict = {
       trialEndedMessage: "Your 15-day free trial has ended. Activate your subscription to continue.",
       error: "Something went wrong.", send: "Send", sending: "Sending",
       launchCampaign: "Launch a campaign", launchNow: "Launch",
-      launchConfirmQuestion: "Your campaign is ready. Confirm creation and launch directly on Meta?",
+      launchConfirmQuestion: "Your campaign is ready. Confirm the platform and launch directly from Vendeo.",
       launchName: "Name", launchObjective: "Objective", launchBudget: "Budget", launchCountries: "Countries", launchAge: "Age", launchMessage: "Message",
       launchAccount: "Ad account", launchAccountChoose: "Choose an account…",
       launchCreative: "Campaign creative",
