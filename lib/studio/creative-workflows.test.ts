@@ -65,7 +65,7 @@ describe("creative-brief", () => {
     expect(prompt).toContain("Mon ebook");
   });
 
-  it("applique toujours le tarif du modèle image avancé", () => {
-    expect(imageCreditCost("hd", "medium")).toBe(45);
+  it("applique toujours le tarif du modèle image avancé (20 crédits en hd/medium)", () => {
+    expect(imageCreditCost("hd", "medium")).toBe(20);
   });
 });
