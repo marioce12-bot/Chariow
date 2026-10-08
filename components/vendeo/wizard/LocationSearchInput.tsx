@@ -12,7 +12,7 @@ interface LocationSearchInputProps {
    *  (TikTok ne partage pas les mêmes identifiants de lieu) — sur TikTok, seule
    *  la recherche par pays reste proposée. */
   metaAccountId?: string | null;
-  platform: "meta" | "tiktok";
+  platform: "meta" | "tiktok" | "pinterest";
 }
 
 interface Suggestion {

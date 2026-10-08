@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   if (!body || typeof body.product_id !== "string" || typeof body.text !== "string" || typeof body.link !== "string") {
     return NextResponse.json({ error: "Informations de campagne incomplètes" }, { status: 400 });
   }
-  if (!objectives.has(body.objective) || !["meta", "tiktok"].includes(body.platform)) {
+  if (!objectives.has(body.objective) || !["meta", "tiktok", "pinterest"].includes(body.platform)) {
     return NextResponse.json({ error: "Configuration publicitaire non prise en charge" }, { status: 400 });
   }
   const dailyBudget = Number(body.daily_budget);
@@ -63,11 +63,16 @@ export async function POST(request: Request) {
     if (account) metaAdAccountId = account.id;
   }
   let tiktokAdAccountId: string | null = null;
+  let pinterestAdAccountId: string | null = null;
   if (body.platform === "tiktok" && typeof body.tiktok_ad_account_id === "string" && body.tiktok_ad_account_id) {
     const { data: account } = await supabase.from("tiktok_ad_accounts").select("id").eq("id", body.tiktok_ad_account_id).eq("user_id", user.id).maybeSingle();
     if (account) tiktokAdAccountId = account.id;
   }
 
+  if (body.platform === "pinterest" && typeof body.pinterest_ad_account_id === "string" && body.pinterest_ad_account_id) {
+    const { data: account } = await supabase.from("pinterest_ad_accounts").select("id").eq("id", body.pinterest_ad_account_id).eq("user_id", user.id).maybeSingle();
+    if (account) pinterestAdAccountId = account.id;
+  }
   // geo_targeting : détail région/ville du widget de recherche d'audience
   // (étape 3). Uniquement exploité par Meta au lancement (voir lib/meta/campaigns.ts) ;
   // `countries` reste dans tous les cas la donnée envoyée à TikTok et le repli
@@ -101,6 +106,7 @@ export async function POST(request: Request) {
     meta_ad_account_id: metaAdAccountId,
     meta_page_id: body.platform === "meta" && typeof body.meta_page_id === "string" ? body.meta_page_id.trim() || null : null,
     tiktok_ad_account_id: tiktokAdAccountId,
+    pinterest_ad_account_id: pinterestAdAccountId,
   }).select("id,status").single();
   if (error) {
     console.error("Ad campaign insert failed", { userId: user.id, storeId: store.id, productId: body.product_id, code: error.code, message: error.message, details: error.details, hint: error.hint });
@@ -112,7 +118,7 @@ export async function POST(request: Request) {
 export async function GET() {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
-  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,destination_url,countries,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,destination_url,countries,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "Impossible de charger les campagnes" }, { status: 500 });
   return NextResponse.json({ campaigns: data ?? [] });
 }

@@ -40,6 +40,7 @@ function stripHtml(html: string): string {
 type MetaAccountOption = { id: string; name: string | null; currency: string };
 type MetaPageOption = { id: string; name: string };
 type TikTokAccountOption = { id: string; name: string | null };
+type PinterestAccountOption = { id: string; name: string | null };
 
 /**
  * Étape 2/5 — "Ensemble de publicités" + "Publicité", façon Meta Ads Manager :
@@ -79,6 +80,9 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   const [tiktokAccounts, setTikTokAccounts] = useState<TikTokAccountOption[]>([]);
   const [loadingTikTokAccounts, setLoadingTikTokAccounts] = useState(false);
   const [tiktokAccountsError, setTikTokAccountsError] = useState<string | null>(null);
+  const [pinterestAccounts, setPinterestAccounts] = useState<PinterestAccountOption[]>([]);
+  const [loadingPinterestAccounts, setLoadingPinterestAccounts] = useState(false);
+  const [pinterestAccountsError, setPinterestAccountsError] = useState<string | null>(null);
 
   // Pré-remplissage depuis le produit choisi à l'Étape 1 (nom d'ensemble,
   // nom de pub, texte d'annonce, titre, lien de destination).
@@ -154,7 +158,23 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.platform]);
 
-  const adSetValid = state.platform === "meta" ? Boolean(state.metaAdAccountId) : Boolean(state.tiktokAdAccountId);
+  useEffect(() => {
+    if (state.platform !== "pinterest" || pinterestAccounts.length > 0 || loadingPinterestAccounts) return;
+    setLoadingPinterestAccounts(true);
+    setPinterestAccountsError(null);
+    fetch("/api/integrations/pinterest/accounts")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Impossible de charger tes comptes Pinterest Ads"))))
+      .then((data) => {
+        const accounts: PinterestAccountOption[] = data.accounts ?? [];
+        setPinterestAccounts(accounts);
+        if (accounts.length === 1 && !state.pinterestAdAccountId) patch({ pinterestAdAccountId: accounts[0].id });
+        if (accounts.length === 0) setPinterestAccountsError("Aucun compte Pinterest Ads connecté. Connecte-en un depuis Paramètres avant de lancer une pub.");
+      })
+      .catch((err) => setPinterestAccountsError(err instanceof Error ? err.message : "Impossible de charger tes comptes Pinterest Ads"))
+      .finally(() => setLoadingPinterestAccounts(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.platform]);
+  const adSetValid = state.platform === "meta" ? Boolean(state.metaAdAccountId) : state.platform === "tiktok" ? Boolean(state.tiktokAdAccountId) : Boolean(state.pinterestAdAccountId);
   const adValid =
     state.adName.trim().length > 0 &&
     state.mediaUrl.trim().length > 0 &&
@@ -336,9 +356,25 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             )}
           </WarningBanner>
         )}
+        {state.platform === "pinterest" && !state.pinterestAdAccountId && (
+          <WarningBanner>
+            {pinterestAccounts.length === 0 && !loadingPinterestAccounts
+              ? pinterestAccountsError ?? "Aucun compte Pinterest Ads connecté. Connecte-en un pour financer cette publicité."
+              : "Aucun compte publicitaire indiqué : sélectionne le compte Pinterest Ads qui financera cette publicité."}
+            {pinterestAccounts.length === 0 && !loadingPinterestAccounts && <a href="/api/integrations/pinterest/connect" className="mt-2 block font-semibold text-[#3730A3] underline underline-offset-2">Connecter un compte Pinterest Ads</a>}
+          </WarningBanner>
+        )}
+        {state.platform === "pinterest" && !state.pinterestAdAccountId && (
+          <WarningBanner>
+            {pinterestAccounts.length === 0 && !loadingPinterestAccounts
+              ? pinterestAccountsError ?? "Aucun compte Pinterest Ads connecté. Connecte-en un pour financer cette publicité."
+              : "Aucun compte publicitaire indiqué : sélectionne le compte Pinterest Ads qui financera cette publicité."}
+            {pinterestAccounts.length === 0 && !loadingPinterestAccounts && <a href="/api/integrations/pinterest/connect" className="mt-2 block font-semibold text-[#3730A3] underline underline-offset-2">Connecter un compte Pinterest Ads</a>}
+          </WarningBanner>
+        )}
         <div>
           <Row label="Nom de l'ensemble de publicités" value={state.adSetName || "Nouvel ensemble de publicités"} onEdit={() => setEditingField("adSetName")} />
-          <Row label="Réseau" value={state.platform === "meta" ? "Meta Ads" : "TikTok Ads"} onEdit={() => setEditingField("network")} />
+          <Row label="Réseau" value={state.platform === "meta" ? "Meta Ads" : state.platform === "tiktok" ? "TikTok Ads" : "Pinterest Ads"} onEdit={() => setEditingField("network")} />
           <Row
             label="Compte publicitaire"
             value={
@@ -395,7 +431,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
               onEdit={() => setEditingField("identity")}
             />
           ) : (
-            <Row label="Identité" value="Identité TikTok — configurée automatiquement" />
+            <Row label="Identité" value={state.platform === "tiktok" ? "Identité TikTok — configurée automatiquement" : "Pin Pinterest — créé au lancement"} />
           )}
         </div>
       </div>
@@ -423,7 +459,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
       <div>
         <EditorHeader label="Réseau" />
         <div className="flex gap-2">
-          {(["meta", "tiktok"] as Platform[]).map((p) => (
+          {(["meta", "tiktok", "pinterest"] as Platform[]).map((p) => (
             <button
               key={p}
               onClick={() => patch({ platform: p, placement: p === "meta" ? state.placement : "auto" })}
@@ -431,7 +467,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
                 state.platform === p ? "border-[#6366F1] bg-[#EEF2FF] text-[#3730A3]" : "border-gray-200 text-gray-600"
               }`}
             >
-              {p === "meta" ? "Meta Ads" : "TikTok Ads"}
+              {p === "meta" ? "Meta Ads" : p === "tiktok" ? "TikTok Ads" : "Pinterest Ads"}
             </button>
           ))}
         </div>
@@ -441,14 +477,15 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
 
   if (editingField === "account") {
     const isMeta = state.platform === "meta";
-    const accounts = isMeta ? metaAccounts : tiktokAccounts;
-    const loading = isMeta ? loadingMetaAccounts : loadingTikTokAccounts;
-    const accountsError = isMeta ? metaAccountsError : tiktokAccountsError;
-    const selectedId = isMeta ? state.metaAdAccountId : state.tiktokAdAccountId;
-    const connectUrl = isMeta ? "/api/integrations/meta/connect" : "/api/integrations/tiktok/connect";
+    const isTikTok = state.platform === "tiktok";
+    const accounts = isMeta ? metaAccounts : isTikTok ? tiktokAccounts : pinterestAccounts;
+    const loading = isMeta ? loadingMetaAccounts : isTikTok ? loadingTikTokAccounts : loadingPinterestAccounts;
+    const accountsError = isMeta ? metaAccountsError : isTikTok ? tiktokAccountsError : pinterestAccountsError;
+    const selectedId = isMeta ? state.metaAdAccountId : isTikTok ? state.tiktokAdAccountId : state.pinterestAdAccountId;
+    const connectUrl = isMeta ? "/api/integrations/meta/connect" : isTikTok ? "/api/integrations/tiktok/connect" : "/api/integrations/pinterest/connect";
     return (
       <div>
-        <EditorHeader label={isMeta ? "Compte publicitaire Meta" : "Compte publicitaire TikTok"} />
+        <EditorHeader label={isMeta ? "Compte publicitaire Meta" : isTikTok ? "Compte publicitaire TikTok" : "Compte publicitaire Pinterest"} />
         {loading ? (
           <p className="flex items-center gap-2 text-xs text-gray-500">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement de tes comptes {isMeta ? "Meta Ads" : "TikTok Ads"}…
@@ -459,7 +496,9 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             onChange={(e) =>
               isMeta
                 ? patch({ metaAdAccountId: e.target.value || undefined, metaPageId: undefined })
-                : patch({ tiktokAdAccountId: e.target.value || undefined })
+                : isTikTok
+                  ? patch({ tiktokAdAccountId: e.target.value || undefined })
+                  : patch({ pinterestAdAccountId: e.target.value || undefined })
             }
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
           >
@@ -477,7 +516,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           <div className="mt-2 rounded-lg bg-[#FEF2F2] p-3 text-xs text-[#991B1B]">
             <p>{accountsError}</p>
             <a href={connectUrl} className="mt-1 block font-semibold underline underline-offset-2">
-              {isMeta ? "Connecter un compte Meta Ads" : "Connecter un compte TikTok Ads"}
+              {isMeta ? "Connecter un compte Meta Ads" : isTikTok ? "Connecter un compte TikTok Ads" : "Connecter un compte Pinterest Ads"}
             </a>
           </div>
         )}

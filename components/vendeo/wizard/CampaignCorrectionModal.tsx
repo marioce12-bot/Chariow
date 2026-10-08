@@ -9,7 +9,7 @@ import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
 
 type CampaignForCorrection = {
   id: string;
-  platform: "meta" | "tiktok";
+  platform: "meta" | "tiktok" | "pinterest";
   title?: string | null;
   ad_text?: string | null;
   destination_url?: string | null;
