@@ -3,15 +3,21 @@ import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { META_GRAPH_BASE_URL } from "@/lib/meta/api";
 
+export const maxDuration = 30;
+
+// Les identifiants doivent figurer dans la liste ad_format acceptée par Meta
+// pour /generatepreviews (ex. FACEBOOK_STORY_MOBILE, pas FACEBOOK_STORY).
 const PREVIEW_FORMATS = [
   { id: "MOBILE_FEED_STANDARD", label: "Facebook Feed" },
   { id: "INSTAGRAM_STANDARD", label: "Instagram Feed" },
   { id: "INSTAGRAM_STORY", label: "Instagram Story" },
   { id: "INSTAGRAM_REELS", label: "Instagram Reel" },
-  { id: "FACEBOOK_STORY", label: "Facebook Story" },
-  { id: "FACEBOOK_REELS", label: "Facebook Reel" },
-  { id: "WHATSAPP_STATUS", label: "Statut WhatsApp" },
+  { id: "FACEBOOK_STORY_MOBILE", label: "Facebook Story" },
+  { id: "FACEBOOK_REELS_MOBILE", label: "Facebook Reel" },
+  { id: "WHATSAPP_STATUS_MEDIA", label: "Statut WhatsApp" },
 ] as const;
+
+const PREVIEW_TIMEOUT_MS = 20_000;
 
 function graphError(json: Record<string, unknown>, status: number) {
   const error = json.error as { message?: unknown } | undefined;
@@ -57,7 +63,7 @@ export async function POST(request: Request) {
   const requestedFormat = typeof body?.format === "string" ? body.format : "";
   const format = PREVIEW_FORMATS.find((item) => item.id === requestedFormat);
   const allowedForPlacement = requestedPlacement === "whatsapp_status"
-    ? format?.id === "INSTAGRAM_STORY" || format?.id === "WHATSAPP_STATUS"
+    ? format?.id === "INSTAGRAM_STORY" || format?.id === "WHATSAPP_STATUS_MEDIA"
     : Boolean(format);
   if (!format || !allowedForPlacement) return NextResponse.json({ error: "Placement Meta invalide." }, { status: 400 });
 
@@ -65,16 +71,25 @@ export async function POST(request: Request) {
   url.searchParams.set("creative", JSON.stringify(creative));
   url.searchParams.set("ad_format", format.id);
   url.searchParams.set("access_token", accessToken);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PREVIEW_TIMEOUT_MS);
   try {
-    const result = await fetch(url.toString(), { cache: "no-store" });
+    const result = await fetch(url.toString(), { cache: "no-store", signal: controller.signal });
     const json = await result.json().catch(() => ({})) as Record<string, unknown>;
     const row = Array.isArray(json.data) ? json.data[0] as { body?: unknown } | undefined : undefined;
     if (!result.ok || typeof row?.body !== "string" || !row.body.includes("iframe")) {
-      return NextResponse.json({ error: graphError(json, result.status) }, { status: 502 });
+      console.warn("Meta preview rejected", format.id, graphError(json, result.status));
+      return NextResponse.json({ error: "Meta n'a pas pu générer cet aperçu pour ce placement." }, { status: 502 });
     }
     return NextResponse.json({ preview: { id: format.id, label: format.label, html: row.body } });
   } catch (error) {
+    const timedOut = error instanceof Error && error.name === "AbortError";
     console.warn("Meta preview format unavailable", format.id, error instanceof Error ? error.message : error);
-    return NextResponse.json({ error: "Meta n'a pas pu générer cet aperçu." }, { status: 502 });
+    return NextResponse.json(
+      { error: timedOut ? "Meta met trop de temps à répondre. Réessaie dans un instant." : "Meta n'a pas pu générer cet aperçu." },
+      { status: timedOut ? 504 : 502 },
+    );
+  } finally {
+    clearTimeout(timer);
   }
 }
