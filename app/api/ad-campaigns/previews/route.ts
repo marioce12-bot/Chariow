@@ -33,6 +33,9 @@ export async function POST(request: Request) {
   const pageId = typeof body?.meta_page_id === "string" ? body.meta_page_id : "";
   const link = typeof body?.link === "string" ? body.link.trim() : "";
   const imageUrl = typeof body?.image_url === "string" ? body.image_url.trim() : "";
+  // Hash déjà obtenu par un aperçu précédent (même compte, même image) : évite de
+  // retélécharger puis renvoyer l'image à Meta pour chaque placement.
+  const providedHash = typeof body?.image_hash === "string" && /^[A-Za-z0-9]{8,64}$/.test(body.image_hash.trim()) ? body.image_hash.trim() : "";
   if (!accountRowId || !pageId || !link || !imageUrl) {
     return NextResponse.json({ error: "Compte Meta, page, lien et visuel requis pour générer les aperçus." }, { status: 400 });
   }
@@ -60,7 +63,7 @@ export async function POST(request: Request) {
   // Comme au vrai lancement : on envoie l'image à Meta (image_hash) au lieu de lui faire
   // télécharger une URL signée. Les placements Instagram n'arrivent pas à la charger par URL
   // (image vide ou cassée dans l'aperçu). Repli sur l'URL si l'envoi échoue.
-  const { imageHash } = await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl });
+  const imageHash = providedHash || (await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl })).imageHash;
   const creative = {
     object_story_spec: {
       page_id: pageId,
@@ -88,7 +91,7 @@ export async function POST(request: Request) {
       console.warn("Meta preview rejected", format.id, graphError(json, result.status));
       return NextResponse.json({ error: "Meta n'a pas pu générer cet aperçu pour ce placement." }, { status: 502 });
     }
-    return NextResponse.json({ preview: { id: format.id, label: format.label, html: row.body } });
+    return NextResponse.json({ preview: { id: format.id, label: format.label, html: row.body }, image_hash: imageHash ?? null });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "AbortError";
     console.warn("Meta preview format unavailable", format.id, error instanceof Error ? error.message : error);
