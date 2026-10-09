@@ -34,7 +34,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
       try {
         const response = await fetch("/api/stores", { cache: "no-store" });
         const data = await response.json();
-        if (!response.ok) throw new Error(data?.error || "Impossible de charger les boutiques");
+        if (!response.ok) throw new Error(data?.error || (en ? "Unable to load stores" : "Impossible de charger les boutiques"));
         const connected = (Array.isArray(data?.stores) ? data.stores : []).filter((store: ChariowStore) => store.platform === "chariow" && store.connection_status === "connected");
         if (!cancelled) {
           setStores(connected);
@@ -65,7 +65,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
           : "/api/analytics";
         const res = await fetch(url);
         const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || "Impossible de charger les produits");
+        if (!res.ok) throw new Error(data?.error || (en ? "Unable to load products" : "Impossible de charger les produits"));
         if (!cancelled) setProducts(data?.snapshot?.products ?? []);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Erreur inconnue");

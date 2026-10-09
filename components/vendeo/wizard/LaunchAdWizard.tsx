@@ -80,9 +80,12 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
     setMounted(true);
   }, []);
 
-  const metaFormats = state.placement === "whatsapp_status"
+  const metaFormats = (state.placement === "whatsapp_status"
     ? META_PREVIEW_FORMATS.filter((format) => format.id === "INSTAGRAM_STORY" || format.id === "WHATSAPP_STATUS_MEDIA")
-    : META_PREVIEW_FORMATS;
+    : META_PREVIEW_FORMATS).map((format) => ({
+      ...format,
+      label: format.id === "WHATSAPP_STATUS_MEDIA" ? (en ? "WhatsApp Status" : "Statut WhatsApp") : format.label,
+    }));
 
   const fetchMetaPreview = (formatId: string, isCancelled: () => boolean = () => false) => {
     const contentKey = JSON.stringify([state.metaAdAccountId, state.metaPageId, state.placement, state.destinationUrl, state.mediaUrl, state.adText, state.title, state.product?.name ?? ""]);

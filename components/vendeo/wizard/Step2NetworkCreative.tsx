@@ -62,6 +62,7 @@ type PinterestAccountOption = { id: string; name: string | null };
  */
 export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToStep1, onAdvanceToStep3, plan }: StepProps) {
   const { locale } = useI18n();
+  const en = locale === "en";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -111,14 +112,14 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     setLoadingMetaAccounts(true);
     setMetaAccountsError(null);
     fetch("/api/integrations/meta/accounts")
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Impossible de charger tes comptes Meta Ads"))))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(en ? "Unable to load your Meta Ads accounts" : "Impossible de charger tes comptes Meta Ads"))))
       .then((data) => {
         const accounts: MetaAccountOption[] = data.accounts ?? [];
         setMetaAccounts(accounts);
         if (accounts.length === 1 && !state.metaAdAccountId) patch({ metaAdAccountId: accounts[0].id });
-        if (accounts.length === 0) setMetaAccountsError("Aucun compte Meta Ads connecté. Connecte-en un depuis Paramètres avant de lancer une pub.");
+        if (accounts.length === 0) setMetaAccountsError(en ? "No Meta Ads account connected. Connect one from Settings before launching an ad." : "Aucun compte Meta Ads connecté. Connecte-en un depuis Paramètres avant de lancer une pub.");
       })
-      .catch((err) => setMetaAccountsError(err instanceof Error ? err.message : "Impossible de charger tes comptes Meta Ads"))
+      .catch((err) => setMetaAccountsError(err instanceof Error ? err.message : en ? "Unable to load your Meta Ads accounts" : "Impossible de charger tes comptes Meta Ads"))
       .finally(() => setLoadingMetaAccounts(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.platform]);
@@ -131,16 +132,16 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     fetch(`/api/integrations/meta/resources?account_id=${encodeURIComponent(state.metaAdAccountId)}`)
       .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
-        if (!ok) throw new Error(data?.error || "Impossible de charger les pages Facebook de ce compte");
+        if (!ok) throw new Error(data?.error || (en ? "Unable to load the Facebook pages for this account" : "Impossible de charger les pages Facebook de ce compte"));
         const pages: MetaPageOption[] = data.pages ?? [];
         setMetaPages(pages);
         if (pages.length === 1) patch({ metaPageId: pages[0].id });
         else if (state.metaPageId && !pages.some((page) => page.id === state.metaPageId)) patch({ metaPageId: undefined });
         if (pages.length === 0) {
-          setMetaPagesError(data.pages_error || "Aucune page Facebook trouvée sur ce compte publicitaire.");
+          setMetaPagesError(data.pages_error || (en ? "No Facebook page found for this ad account." : "Aucune page Facebook trouvée sur ce compte publicitaire."));
         }
       })
-      .catch((err) => setMetaPagesError(err instanceof Error ? err.message : "Impossible de charger les pages Facebook"))
+      .catch((err) => setMetaPagesError(err instanceof Error ? err.message : en ? "Unable to load Facebook pages" : "Impossible de charger les pages Facebook"))
       .finally(() => setLoadingMetaPages(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.platform, state.metaAdAccountId]);
@@ -150,14 +151,14 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     setLoadingTikTokAccounts(true);
     setTikTokAccountsError(null);
     fetch("/api/integrations/tiktok/accounts")
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Impossible de charger tes comptes TikTok Ads"))))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(en ? "Unable to load your TikTok Ads accounts" : "Impossible de charger tes comptes TikTok Ads"))))
       .then((data) => {
         const accounts: TikTokAccountOption[] = data.accounts ?? [];
         setTikTokAccounts(accounts);
         if (accounts.length === 1 && !state.tiktokAdAccountId) patch({ tiktokAdAccountId: accounts[0].id });
-        if (accounts.length === 0) setTikTokAccountsError("Aucun compte TikTok Ads connecté. Connecte-en un depuis Paramètres avant de lancer une pub.");
+        if (accounts.length === 0) setTikTokAccountsError(en ? "No TikTok Ads account connected. Connect one from Settings before launching an ad." : "Aucun compte TikTok Ads connecté. Connecte-en un depuis Paramètres avant de lancer une pub.");
       })
-      .catch((err) => setTikTokAccountsError(err instanceof Error ? err.message : "Impossible de charger tes comptes TikTok Ads"))
+      .catch((err) => setTikTokAccountsError(err instanceof Error ? err.message : en ? "Unable to load your TikTok Ads accounts" : "Impossible de charger tes comptes TikTok Ads"))
       .finally(() => setLoadingTikTokAccounts(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.platform]);
@@ -167,14 +168,14 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     setLoadingPinterestAccounts(true);
     setPinterestAccountsError(null);
     fetch("/api/integrations/pinterest/accounts")
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Impossible de charger tes comptes Pinterest Ads"))))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(en ? "Unable to load your Pinterest Ads accounts" : "Impossible de charger tes comptes Pinterest Ads"))))
       .then((data) => {
         const accounts: PinterestAccountOption[] = data.accounts ?? [];
         setPinterestAccounts(accounts);
         if (accounts.length === 1 && state.pinterestAdAccountId !== accounts[0].id) patch({ pinterestAdAccountId: accounts[0].id });
-        if (accounts.length === 0) setPinterestAccountsError("Aucun compte Pinterest Ads connecté. Connecte-en un depuis Paramètres avant de lancer une pub.");
+        if (accounts.length === 0) setPinterestAccountsError(en ? "No Pinterest Ads account connected. Connect one from Settings before launching an ad." : "Aucun compte Pinterest Ads connecté. Connecte-en un depuis Paramètres avant de lancer une pub.");
       })
-      .catch((err) => setPinterestAccountsError(err instanceof Error ? err.message : "Impossible de charger tes comptes Pinterest Ads"))
+      .catch((err) => setPinterestAccountsError(err instanceof Error ? err.message : en ? "Unable to load your Pinterest Ads accounts" : "Impossible de charger tes comptes Pinterest Ads"))
       .finally(() => setLoadingPinterestAccounts(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.platform]);
@@ -193,27 +194,27 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   useEffect(() => {
     if (editingField) {
       onFooterChange({
-        backLabel: "Annuler",
+        backLabel: en ? "Cancel" : "Annuler",
         onBack: () => setEditingField(null),
-        nextLabel: "Enregistrer",
+        nextLabel: en ? "Save" : "Enregistrer",
         onNext: () => setEditingField(null),
       });
       return;
     }
     if (subStep === "adset") {
       onFooterChange({
-        backLabel: "Retour",
+        backLabel: en ? "Back" : "Retour",
         onBack: onBackToStep1,
-        nextLabel: "Continuer",
+        nextLabel: en ? "Continue" : "Continuer",
         onNext: () => setSubStep("ad"),
         nextDisabled: !adSetValid,
       });
       return;
     }
     onFooterChange({
-      backLabel: "Précédent",
-      onBack: () => setSubStep("adset"),
-      nextLabel: "Suivant",
+      backLabel: en ? "Back" : "Précédent",
+        onBack: () => setSubStep("adset"),
+      nextLabel: en ? "Next" : "Suivant",
       onNext: onAdvanceToStep3,
       nextDisabled: !adValid,
     });
@@ -291,7 +292,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             subStep === "adset" ? "bg-white text-[#3730A3] shadow-sm" : "text-gray-500"
           }`}
         >
-          Ensemble de publicités
+          {en ? "Ad set" : "Ensemble de publicités"}
           {!adSetValid && <AlertTriangle className="h-3 w-3 text-[#DC2626]" />}
         </button>
         <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-300" />
@@ -303,7 +304,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             subStep === "ad" ? "bg-white text-[#3730A3] shadow-sm" : "text-gray-500"
           }`}
         >
-          Publicité
+          {en ? "Ad" : "Publicité"}
           {!adValid && <AlertTriangle className="h-3 w-3 text-[#DC2626]" />}
         </button>
       </div>
@@ -356,14 +357,14 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
         {state.platform === "meta" && !state.metaAdAccountId && (
           <WarningBanner>
             {metaAccounts.length === 0 && !loadingMetaAccounts
-              ? metaAccountsError ?? "Aucun compte Meta Ads connecté. Connecte-en un pour financer cette publicité."
-              : "Aucun compte publicitaire indiqué : sélectionne le compte Meta Ads qui financera cette publicité."}
+              ? metaAccountsError ?? (en ? "No Meta Ads account connected. Connect one to fund this ad." : "Aucun compte Meta Ads connecté. Connecte-en un pour financer cette publicité.")
+              : (en ? "No ad account selected: choose the Meta Ads account that will fund this ad." : "Aucun compte publicitaire indiqué : sélectionne le compte Meta Ads qui financera cette publicité.")}
             {metaAccounts.length === 0 && !loadingMetaAccounts && (
               <a
                 href="/api/integrations/meta/connect"
                 className="mt-2 block font-semibold text-[#3730A3] underline underline-offset-2"
               >
-                Connecter un compte Meta Ads
+                {en ? "Connect a Meta Ads account" : "Connecter un compte Meta Ads"}
               </a>
             )}
           </WarningBanner>
@@ -371,14 +372,14 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
         {state.platform === "tiktok" && !state.tiktokAdAccountId && (
           <WarningBanner>
             {tiktokAccounts.length === 0 && !loadingTikTokAccounts
-              ? tiktokAccountsError ?? "Aucun compte TikTok Ads connecté. Connecte-en un pour financer cette publicité."
-              : "Aucun compte publicitaire indiqué : sélectionne le compte TikTok Ads qui financera cette publicité."}
+              ? tiktokAccountsError ?? (en ? "No TikTok Ads account connected. Connect one to fund this ad." : "Aucun compte TikTok Ads connecté. Connecte-en un pour financer cette publicité.")
+              : (en ? "No ad account selected: choose the TikTok Ads account that will fund this ad." : "Aucun compte publicitaire indiqué : sélectionne le compte TikTok Ads qui financera cette publicité.")}
             {tiktokAccounts.length === 0 && !loadingTikTokAccounts && (
               <a
                 href="/api/integrations/tiktok/connect"
                 className="mt-2 block font-semibold text-[#3730A3] underline underline-offset-2"
               >
-                Connecter un compte TikTok Ads
+                {en ? "Connect a TikTok Ads account" : "Connecter un compte TikTok Ads"}
               </a>
             )}
           </WarningBanner>
@@ -386,36 +387,36 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
         {state.platform === "pinterest" && !state.pinterestAdAccountId && (
           <WarningBanner>
             {pinterestAccounts.length === 0 && !loadingPinterestAccounts
-              ? pinterestAccountsError ?? "Aucun compte Pinterest Ads connecté. Connecte-en un pour financer cette publicité."
-              : "Aucun compte publicitaire indiqué : sélectionne le compte Pinterest Ads qui financera cette publicité."}
-            {pinterestAccounts.length === 0 && !loadingPinterestAccounts && <a href="/api/integrations/pinterest/connect" className="mt-2 block font-semibold text-[#3730A3] underline underline-offset-2">Connecter un compte Pinterest Ads</a>}
+              ? pinterestAccountsError ?? (en ? "No Pinterest Ads account connected. Connect one to fund this ad." : "Aucun compte Pinterest Ads connecté. Connecte-en un pour financer cette publicité.")
+              : (en ? "No ad account selected: choose the Pinterest Ads account that will fund this ad." : "Aucun compte publicitaire indiqué : sélectionne le compte Pinterest Ads qui financera cette publicité.")}
+            {pinterestAccounts.length === 0 && !loadingPinterestAccounts && <a href="/api/integrations/pinterest/connect" className="mt-2 block font-semibold text-[#3730A3] underline underline-offset-2">{en ? "Connect a Pinterest Ads account" : "Connecter un compte Pinterest Ads"}</a>}
           </WarningBanner>
         )}
         <div>
-          <Row label="Nom de l'ensemble de publicités" value={state.adSetName || "Nouvel ensemble de publicités"} onEdit={() => setEditingField("adSetName")} />
-          <Row label="Réseau" value={state.platform === "meta" ? "Meta Ads" : state.platform === "tiktok" ? "TikTok Ads" : "Pinterest Ads"} onEdit={() => setEditingField("network")} />
+          <Row label={en ? "Ad set name" : "Nom de l'ensemble de publicités"} value={state.adSetName || (en ? "New ad set" : "Nouvel ensemble de publicités")} onEdit={() => setEditingField("adSetName")} />
+          <Row label={en ? "Network" : "Réseau"} value={state.platform === "meta" ? "Meta Ads" : state.platform === "tiktok" ? "TikTok Ads" : "Pinterest Ads"} onEdit={() => setEditingField("network")} />
           <Row
-            label="Compte publicitaire"
+            label={en ? "Ad account" : "Compte publicitaire"}
             value={
               state.platform === "meta"
                 ? loadingMetaAccounts
-                  ? "Chargement…"
-                  : metaAccounts.find((a) => a.id === state.metaAdAccountId)?.name ?? state.metaAdAccountId ?? "Non sélectionné"
+                  ? (en ? "Loading…" : "Chargement…")
+                  : metaAccounts.find((a) => a.id === state.metaAdAccountId)?.name ?? state.metaAdAccountId ?? (en ? "Not selected" : "Non sélectionné")
                 : state.platform === "tiktok"
                   ? loadingTikTokAccounts
-                    ? "Chargement…"
-                    : tiktokAccounts.find((a) => a.id === state.tiktokAdAccountId)?.name ?? state.tiktokAdAccountId ?? "Non sélectionné"
+                    ? (en ? "Loading…" : "Chargement…")
+                    : tiktokAccounts.find((a) => a.id === state.tiktokAdAccountId)?.name ?? state.tiktokAdAccountId ?? (en ? "Not selected" : "Non sélectionné")
                   : loadingPinterestAccounts
-                    ? "Chargement…"
-                    : pinterestAccounts.find((a) => a.id === state.pinterestAdAccountId)?.name ?? state.pinterestAdAccountId ?? "Non sélectionné"
+                    ? (en ? "Loading…" : "Chargement…")
+                    : pinterestAccounts.find((a) => a.id === state.pinterestAdAccountId)?.name ?? state.pinterestAdAccountId ?? (en ? "Not selected" : "Non sélectionné")
             }
             onEdit={() => setEditingField("account")}
           />
-          <Row label="Conversion" value="Ventes sur ta boutique (fixé)" />
+          <Row label={en ? "Conversion" : "Conversion"} value={en ? "Sales on your store (fixed)" : "Ventes sur ta boutique (fixé)"} />
           {state.platform === "meta" && (
             <Row
-              label="Placements"
-              value={state.placement === "auto" ? "Automatique" : "Statut WhatsApp"}
+              label={en ? "Placements" : "Placements"}
+              value={state.placement === "auto" ? (en ? "Automatic" : "Automatique") : (en ? "WhatsApp Status" : "Statut WhatsApp")}
               onEdit={() => setEditingField("placement")}
             />
           )}
@@ -432,29 +433,29 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
         <Breadcrumb />
         {state.platform === "meta" && !state.metaPageId && (
           <WarningBanner>
-            Aucune page indiquée : sélectionne la page Facebook qui représentera cette publicité.
+            {en ? "No page selected: choose the Facebook page that will represent this ad." : "Aucune page indiquée : sélectionne la page Facebook qui représentera cette publicité."}
           </WarningBanner>
         )}
         <div>
-          <Row label="Nom de la publicité" value={state.adName || "Nouvelle publicité"} onEdit={() => setEditingField("adName")} />
+          <Row label={en ? "Ad name" : "Nom de la publicité"} value={state.adName || (en ? "New ad" : "Nouvelle publicité")} onEdit={() => setEditingField("adName")} />
           <Row
-            label="Configuration de la publicité"
-            value={state.mediaUrl ? "Image/Vidéo unique — visuel ajouté" : "Image/Vidéo unique — aucun visuel"}
+            label={en ? "Ad setup" : "Configuration de la publicité"}
+            value={state.mediaUrl ? (en ? "Single image/video — creative added" : "Image/Vidéo unique — visuel ajouté") : (en ? "Single image/video — no creative" : "Image/Vidéo unique — aucun visuel")}
             onEdit={() => setEditingField("media")}
           />
           <Row
-            label="Contenu publicitaire"
-            value={state.adText ? state.adText.slice(0, 60) + (state.adText.length > 60 ? "…" : "") : "Non renseigné"}
+            label={en ? "Ad copy" : "Contenu publicitaire"}
+            value={state.adText ? state.adText.slice(0, 60) + (state.adText.length > 60 ? "…" : "") : (en ? "Not provided" : "Non renseigné")}
             onEdit={() => setEditingField("content")}
           />
           {state.platform === "meta" ? (
             <Row
-              label="Identité"
-              value={loadingMetaPages ? "Chargement…" : metaPages.find((p) => p.id === state.metaPageId)?.name ?? "Non sélectionnée"}
+              label={en ? "Identity" : "Identité"}
+              value={loadingMetaPages ? (en ? "Loading…" : "Chargement…") : metaPages.find((p) => p.id === state.metaPageId)?.name ?? (en ? "Not selected" : "Non sélectionnée")}
               onEdit={() => setEditingField("identity")}
             />
           ) : (
-            <Row label="Identité" value={state.platform === "tiktok" ? "Identité TikTok — configurée automatiquement" : "Pin Pinterest — créé au lancement"} />
+            <Row label={en ? "Identity" : "Identité"} value={state.platform === "tiktok" ? (en ? "TikTok identity — configured automatically" : "Identité TikTok — configurée automatiquement") : (en ? "Pinterest Pin — created at launch" : "Pin Pinterest — créé au lancement")} />
           )}
         </div>
       </div>
@@ -466,7 +467,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   if (editingField === "adSetName") {
     return (
       <div>
-        <EditorHeader label="Nom de l'ensemble de publicités" />
+        <EditorHeader label={en ? "Ad set name" : "Nom de l'ensemble de publicités"} />
         <input
           autoFocus
           value={state.adSetName}
@@ -480,7 +481,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   if (editingField === "network") {
     return (
       <div>
-        <EditorHeader label="Réseau" />
+        <EditorHeader label={en ? "Network" : "Réseau"} />
         <div className="flex gap-2">
           {(["meta", "tiktok", "pinterest"] as Platform[]).map((p) => (
             <button
@@ -508,10 +509,10 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     const connectUrl = isMeta ? "/api/integrations/meta/connect" : isTikTok ? "/api/integrations/tiktok/connect" : "/api/integrations/pinterest/connect";
     return (
       <div>
-        <EditorHeader label={isMeta ? "Compte publicitaire Meta" : isTikTok ? "Compte publicitaire TikTok" : "Compte publicitaire Pinterest"} />
+        <EditorHeader label={isMeta ? (en ? "Meta ad account" : "Compte publicitaire Meta") : isTikTok ? (en ? "TikTok ad account" : "Compte publicitaire TikTok") : (en ? "Pinterest ad account" : "Compte publicitaire Pinterest")} />
         {loading ? (
-          <p className="flex items-center gap-2 text-xs text-gray-500">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement de tes comptes {isMeta ? "Meta Ads" : isTikTok ? "TikTok Ads" : "Pinterest Ads"}…
+            <p className="flex items-center gap-2 text-xs text-gray-500">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {en ? `Loading your ${isMeta ? "Meta Ads" : isTikTok ? "TikTok Ads" : "Pinterest Ads"} accounts…` : `Chargement de tes comptes ${isMeta ? "Meta Ads" : isTikTok ? "TikTok Ads" : "Pinterest Ads"}…`}
           </p>
         ) : accounts.length > 0 ? (
           <select
@@ -525,7 +526,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             }
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
           >
-            <option value="">Choisir un compte…</option>
+            <option value="">{en ? "Choose an account…" : "Choisir un compte…"}</option>
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name ?? account.id}
@@ -537,7 +538,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           <div className="mt-2 rounded-lg bg-[#FEF2F2] p-3 text-xs text-[#991B1B]">
             <p>{accountsError}</p>
             <a href={connectUrl} className="mt-1 block font-semibold underline underline-offset-2">
-              {isMeta ? "Connecter un compte Meta Ads" : isTikTok ? "Connecter un compte TikTok Ads" : "Connecter un compte Pinterest Ads"}
+              {isMeta ? (en ? "Connect a Meta Ads account" : "Connecter un compte Meta Ads") : isTikTok ? (en ? "Connect a TikTok Ads account" : "Connecter un compte TikTok Ads") : (en ? "Connect a Pinterest Ads account" : "Connecter un compte Pinterest Ads")}
             </a>
           </div>
         )}
@@ -548,7 +549,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   if (editingField === "placement") {
     return (
       <div>
-        <EditorHeader label="Placements" />
+        <EditorHeader label={en ? "Placements" : "Placements"} />
         <div className="flex gap-2">
           {(["auto", "whatsapp_status"] as Placement[]).map((p) => {
             const allowed = p === "auto" || isAdPlatformAllowed(plan, "whatsapp");
@@ -563,16 +564,16 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
                   active ? "border-[#6366F1] bg-[#EEF2FF] text-[#3730A3]" : allowed ? "border-gray-200 text-gray-600" : "border-gray-100 text-gray-300"
                 }`}
               >
-                {p === "auto" ? "Automatique" : "Statut WhatsApp"}
-                {p === "whatsapp_status" && !allowed && <span className="ml-1 text-[10px] font-normal text-gray-400">(non inclus dans ton plan)</span>}
+                {p === "auto" ? (en ? "Automatic" : "Automatique") : (en ? "WhatsApp Status" : "Statut WhatsApp")}
+                {p === "whatsapp_status" && !allowed && <span className="ml-1 text-[10px] font-normal text-gray-400">{en ? "(not included in your plan)" : "(non inclus dans ton plan)"}</span>}
               </button>
             );
           })}
         </div>
         <p className="mt-1 text-xs text-gray-400">
           {state.placement === "whatsapp_status"
-            ? "Diffusée dans l'onglet Actualités de WhatsApp (Statuts), en plus des Stories Instagram — Meta impose ce duo. Le clic ouvre ton lien de destination, pas une conversation WhatsApp."
-            : "Meta choisit automatiquement les meilleurs emplacements (Facebook, Instagram)."}
+            ? (en ? "Delivered in WhatsApp Status, in addition to Instagram Stories — Meta requires this pair. Clicks open your destination link, not a WhatsApp conversation." : "Diffusée dans l'onglet Actualités de WhatsApp (Statuts), en plus des Stories Instagram — Meta impose ce duo. Le clic ouvre ton lien de destination, pas une conversation WhatsApp.")
+            : (en ? "Meta automatically chooses the best placements (Facebook, Instagram)." : "Meta choisit automatiquement les meilleurs emplacements (Facebook, Instagram).")}
         </p>
       </div>
     );
@@ -581,7 +582,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   if (editingField === "adName") {
     return (
       <div>
-        <EditorHeader label="Nom de la publicité" />
+        <EditorHeader label={en ? "Ad name" : "Nom de la publicité"} />
         <input
           autoFocus
           value={state.adName}
@@ -595,8 +596,8 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   if (editingField === "media") {
     return (
       <div>
-        <EditorHeader label="Configuration de la publicité" />
-        <label className="mb-1.5 block text-sm font-semibold text-gray-700">Visuel (image ou vidéo)</label>
+        <EditorHeader label={en ? "Ad setup" : "Configuration de la publicité"} />
+        <label className="mb-1.5 block text-sm font-semibold text-gray-700">{en ? "Creative (image or video)" : "Visuel (image ou vidéo)"}</label>
         <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelected} className="hidden" />
         {!previewUrl && !state.mediaUrl ? (
           <button
@@ -605,7 +606,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-8 text-sm text-gray-500 transition hover:border-[#6366F1] hover:text-[#6366F1]"
           >
             <ImagePlus className="h-6 w-6" />
-            Choisir une image ou vidéo depuis l'appareil
+            {en ? "Choose an image or video from your device" : "Choisir une image ou vidéo depuis l'appareil"}
           </button>
         ) : (
           <div className="relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
@@ -619,14 +620,14 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
               type="button"
               onClick={clearMedia}
               className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white transition hover:bg-black/80"
-              aria-label="Retirer le visuel"
+              aria-label={en ? "Remove creative" : "Retirer le visuel"}
             >
               <X className="h-4 w-4" />
             </button>
             {uploading && (
               <div className="absolute inset-0 flex items-center justify-center gap-2 bg-white/80 text-sm font-medium text-[#3730A3]">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Envoi en cours…
+                {en ? "Uploading…" : "Envoi en cours…"}
               </div>
             )}
           </div>
@@ -634,7 +635,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
         {uploadError ? (
           <p className="mt-1 text-xs text-[#991B1B]">{uploadError}</p>
         ) : (
-          <p className="mt-1 text-xs text-gray-400">JPG, PNG ou courte vidéo. L'envoi démarre automatiquement dès la sélection.</p>
+          <p className="mt-1 text-xs text-gray-400">{en ? "JPG, PNG or short video. Upload starts automatically after selection." : "JPG, PNG ou courte vidéo. L'envoi démarre automatiquement dès la sélection."}</p>
         )}
       </div>
     );
@@ -643,9 +644,9 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   if (editingField === "content") {
     return (
       <div className="space-y-4">
-        <EditorHeader label="Contenu publicitaire" />
+        <EditorHeader label={en ? "Ad copy" : "Contenu publicitaire"} />
         <div>
-          <label className="mb-1.5 block text-sm font-semibold text-gray-700">Titre</label>
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700">{en ? "Headline" : "Titre"}</label>
           <input
             value={state.title}
             onChange={(e) => patch({ title: e.target.value })}
@@ -675,14 +676,14 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           {copyError ? <p className="mt-1 text-xs text-[#991B1B]">{copyError}</p> : null}
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-semibold text-gray-700">Lien de destination</label>
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700">{en ? "Destination link" : "Lien de destination"}</label>
           <input
             value={state.destinationUrl}
             onChange={(e) => patch({ destinationUrl: e.target.value })}
-            placeholder="https://ta-boutique.chariow.com/produit/…"
+            placeholder={en ? "https://your-store.chariow.com/product/…" : "https://ta-boutique.chariow.com/produit/…"}
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
           />
-          {state.product?.url && <p className="mt-1 text-xs text-gray-400">Pré-rempli depuis la page du produit choisi.</p>}
+          {state.product?.url && <p className="mt-1 text-xs text-gray-400">{en ? "Pre-filled from the selected product page." : "Pré-rempli depuis la page du produit choisi."}</p>}
         </div>
       </div>
     );
@@ -691,7 +692,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   if (editingField === "identity") {
     return (
       <div>
-        <EditorHeader label="Identité" />
+        <EditorHeader label={en ? "Identity" : "Identité"} />
         {state.platform === "meta" ? (
           <>
             {loadingMetaPages ? (
@@ -704,7 +705,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
                 onChange={(e) => patch({ metaPageId: e.target.value || undefined })}
                 className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
               >
-                <option value="">Choisir une page…</option>
+                <option value="">{en ? "Choose a page…" : "Choisir une page…"}</option>
                 {metaPages.map((page) => (
                   <option key={page.id} value={page.id}>
                     {page.name}
@@ -717,7 +718,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             {metaPagesError && <p className="mt-1 text-xs text-[#991B1B]">{metaPagesError}</p>}
           </>
         ) : (
-          <p className="text-sm text-gray-500">L'identité TikTok (compte créateur/entreprise) est configurée automatiquement lors du lancement.</p>
+          <p className="text-sm text-gray-500">{en ? "TikTok identity (creator/business account) is configured automatically at launch." : "L'identité TikTok (compte créateur/entreprise) est configurée automatiquement lors du lancement."}</p>
         )}
       </div>
     );
