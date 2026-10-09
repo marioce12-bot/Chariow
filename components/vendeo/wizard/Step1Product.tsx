@@ -11,6 +11,8 @@ interface StepProps {
   onNext: () => void;
 }
 
+type ChariowStore = { id: string; store_name: string | null; platform: string; connection_status: string | null };
+
 /**
  * Étape 1/5 — Récupère les produits de la boutique Chariow connectée
  * via GET /api/analytics?store_id=... (route déjà existante).
@@ -19,9 +21,38 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
   const { locale } = useI18n();
   const en = locale === "en";
   const [products, setProducts] = useState<ChariowProductLite[]>([]);
+  const [stores, setStores] = useState<ChariowStore[]>([]);
+  const [storesLoading, setStoresLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadStores() {
+      setStoresLoading(true);
+      try {
+        const response = await fetch("/api/stores", { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || "Impossible de charger les boutiques");
+        const connected = (Array.isArray(data?.stores) ? data.stores : []).filter((store: ChariowStore) => store.platform === "chariow" && store.connection_status === "connected");
+        if (!cancelled) {
+          setStores(connected);
+          if (!connected.some((store: ChariowStore) => store.id === state.storeId)) {
+            patch({ storeId: connected[0]?.id ?? null, product: null });
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Erreur inconnue");
+      } finally {
+        if (!cancelled) setStoresLoading(false);
+      }
+    }
+    void loadStores();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +86,22 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
       <p className="text-sm text-gray-500">
         {en ? "Choose the Chariow product to promote. Its image, price and description are retrieved automatically." : "Choisis le produit Chariow à promouvoir. Visuel, prix et descriptif sont récupérés automatiquement."}
       </p>
+
+      <div>
+        <label htmlFor="campaign-store" className="mb-1.5 block text-sm font-semibold text-gray-700">
+          {en ? "Chariow store" : "Boutique Chariow"}
+        </label>
+        <select
+          id="campaign-store"
+          value={state.storeId ?? ""}
+          disabled={storesLoading || stores.length === 0}
+          onChange={(event) => patch({ storeId: event.target.value, product: null })}
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 disabled:opacity-60"
+        >
+          {stores.length === 0 && <option value="">{storesLoading ? (en ? "Loading stores…" : "Chargement des boutiques…") : (en ? "No connected store" : "Aucune boutique connectée")}</option>}
+          {stores.map((store) => <option key={store.id} value={store.id}>{store.store_name || (en ? "Chariow store" : "Boutique Chariow")}</option>)}
+        </select>
+      </div>
 
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-300" />
