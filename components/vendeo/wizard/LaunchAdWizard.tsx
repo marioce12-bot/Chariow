@@ -19,14 +19,16 @@ interface LaunchAdWizardProps {
 }
 
 type MetaPreview = { id: string; label: string; html: string };
+// Doit rester aligné sur PREVIEW_FORMATS de app/api/ad-campaigns/previews/route.ts
+// (valeurs ad_format acceptées par Meta pour /generatepreviews).
 const META_PREVIEW_FORMATS = [
   { id: "MOBILE_FEED_STANDARD", label: "Facebook Feed" },
   { id: "INSTAGRAM_STANDARD", label: "Instagram Feed" },
   { id: "INSTAGRAM_STORY", label: "Instagram Story" },
   { id: "INSTAGRAM_REELS", label: "Instagram Reel" },
-  { id: "FACEBOOK_STORY", label: "Facebook Story" },
-  { id: "FACEBOOK_REELS", label: "Facebook Reel" },
-  { id: "WHATSAPP_STATUS", label: "Statut WhatsApp" },
+  { id: "FACEBOOK_STORY_MOBILE", label: "Facebook Story" },
+  { id: "FACEBOOK_REELS_MOBILE", label: "Facebook Reel" },
+  { id: "WHATSAPP_STATUS_MEDIA", label: "Statut WhatsApp" },
 ] as const;
 
 /**
@@ -57,61 +59,29 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
   const [state, setState] = useState<WizardState>({ ...DEFAULT_WIZARD_STATE, storeId });
   const [step2Footer, setStep2Footer] = useState<Step2FooterState | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [metaPreviews, setMetaPreviews] = useState<MetaPreview[]>([]);
+  // Aperçus Meta : état indexé par format pour que chaque onglet ait son propre
+  // chargement / erreur, et que tous les formats puissent se charger en parallèle.
+  const [metaPreviews, setMetaPreviews] = useState<Record<string, MetaPreview>>({});
   const [activeMetaPreview, setActiveMetaPreview] = useState("MOBILE_FEED_STANDARD");
-  const [metaPreviewLoading, setMetaPreviewLoading] = useState<string | null>(null);
-  const [metaPreviewError, setMetaPreviewError] = useState<string | null>(null);
+  const [metaPreviewLoading, setMetaPreviewLoading] = useState<Record<string, boolean>>({});
+  const [metaPreviewErrors, setMetaPreviewErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (step !== 5 || state.platform !== "meta" || !state.metaAdAccountId || !state.metaPageId || !state.mediaUrl) return;
-    let cancelled = false;
-    const firstFormat = state.placement === "whatsapp_status" ? "INSTAGRAM_STORY" : "MOBILE_FEED_STANDARD";
-    setMetaPreviewLoading(firstFormat);
-    setMetaPreviewError(null);
-    setMetaPreviews([]);
-    fetch("/api/ad-campaigns/previews", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        meta_ad_account_id: state.metaAdAccountId,
-        meta_page_id: state.metaPageId,
-        placement: state.placement,
-        format: firstFormat,
-        link: state.destinationUrl,
-        image_url: state.mediaUrl,
-        message: state.adText,
-        headline: state.title || state.product?.name || "",
-      }),
-    })
-      .then(async (response) => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data?.error || "Aperçus Meta indisponibles");
-        if (!cancelled && data.preview) setMetaPreviews([data.preview]);
-      })
-      .catch((error) => {
-        if (!cancelled) setMetaPreviewError(error instanceof Error ? error.message : "Aperçus Meta indisponibles");
-      })
-      .finally(() => {
-        if (!cancelled) setMetaPreviewLoading(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [step, state.platform, state.metaAdAccountId, state.metaPageId, state.placement, state.destinationUrl, state.mediaUrl, state.adText, state.title, state.product?.name]);
+  const metaFormats = state.placement === "whatsapp_status"
+    ? META_PREVIEW_FORMATS.filter((format) => format.id === "INSTAGRAM_STORY" || format.id === "WHATSAPP_STATUS_MEDIA")
+    : META_PREVIEW_FORMATS;
 
-  const loadMetaPreview = (formatId: string) => {
-    if (metaPreviews.some((preview) => preview.id === formatId) || metaPreviewLoading) {
-      setActiveMetaPreview(formatId);
-      return;
-    }
-    setActiveMetaPreview(formatId);
-    setMetaPreviewLoading(formatId);
-    setMetaPreviewError(null);
-    fetch("/api/ad-campaigns/previews", {
+  const fetchMetaPreview = (formatId: string, isCancelled: () => boolean = () => false) => {
+    setMetaPreviewLoading((current) => ({ ...current, [formatId]: true }));
+    setMetaPreviewErrors((current) => {
+      const next = { ...current };
+      delete next[formatId];
+      return next;
+    });
+    return fetch("/api/ad-campaigns/previews", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -127,11 +97,45 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
     })
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data?.error || "Aperçu Meta indisponible");
-        if (data.preview) setMetaPreviews((current) => [...current.filter((preview) => preview.id !== formatId), data.preview]);
+        if (!response.ok || !data.preview) throw new Error(data?.error || "Aperçu Meta indisponible");
+        if (!isCancelled()) setMetaPreviews((current) => ({ ...current, [formatId]: data.preview as MetaPreview }));
       })
-      .catch((error) => setMetaPreviewError(error instanceof Error ? error.message : "Aperçu Meta indisponible"))
-      .finally(() => setMetaPreviewLoading(null));
+      .catch((error) => {
+        if (!isCancelled()) {
+          const message = error instanceof Error ? error.message : "Aperçu Meta indisponible";
+          setMetaPreviewErrors((current) => ({ ...current, [formatId]: message }));
+        }
+      })
+      .finally(() => {
+        if (!isCancelled()) setMetaPreviewLoading((current) => ({ ...current, [formatId]: false }));
+      });
+  };
+
+  useEffect(() => {
+    if (step !== 5 || state.platform !== "meta" || !state.metaAdAccountId || !state.metaPageId || !state.mediaUrl) return;
+    let cancelled = false;
+    const isCancelled = () => cancelled;
+    const firstFormat = state.placement === "whatsapp_status" ? "INSTAGRAM_STORY" : "MOBILE_FEED_STANDARD";
+    const ids = [firstFormat, ...metaFormats.map((format) => format.id).filter((id) => id !== firstFormat)];
+    setMetaPreviews({});
+    setMetaPreviewErrors({});
+    setActiveMetaPreview(firstFormat);
+    // Le premier format part en premier, les autres suivent immédiatement en
+    // parallèle : changer d'onglet ensuite n'attend plus Meta.
+    ids.forEach((id) => {
+      void fetchMetaPreview(id, isCancelled);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, state.platform, state.metaAdAccountId, state.metaPageId, state.placement, state.destinationUrl, state.mediaUrl, state.adText, state.title, state.product?.name]);
+
+  const selectMetaPreview = (formatId: string) => {
+    setActiveMetaPreview(formatId);
+    // Relance uniquement si rien n'est chargé ni en cours pour cet onglet
+    // (ex. après une erreur) ; sinon on affiche simplement l'onglet.
+    if (!metaPreviews[formatId] && !metaPreviewLoading[formatId]) void fetchMetaPreview(formatId);
   };
 
   const patch = (partial: Partial<WizardState>) => setState((s) => ({ ...s, ...partial }));
@@ -209,20 +213,32 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
               {state.platform === "meta" && state.metaPageId && (
                 <div className="rounded-2xl border border-gray-200 bg-white p-3">
                   <h3 className="mb-3 text-sm font-bold text-gray-900">{en ? "Meta placement previews" : "Aperçus selon le placement Meta"}</h3>
-                  {metaPreviewLoading && <p className="text-sm text-gray-500">{en ? "Loading the selected preview from Meta…" : "Chargement de l’aperçu sélectionné depuis Meta…"}</p>}
-                  {metaPreviewError && <p className="text-sm text-[#991B1B]">{metaPreviewError}</p>}
                   {(() => {
-                    const formats = state.placement === "whatsapp_status" ? META_PREVIEW_FORMATS.filter((format) => format.id === "INSTAGRAM_STORY" || format.id === "WHATSAPP_STATUS") : META_PREVIEW_FORMATS;
-                    const activePreview = metaPreviews.find((preview) => preview.id === activeMetaPreview);
+                    const activePreview = metaPreviews[activeMetaPreview];
+                    const activeLoading = Boolean(metaPreviewLoading[activeMetaPreview]);
+                    const activeError = metaPreviewErrors[activeMetaPreview];
                     return (
                     <>
                       <div className="flex gap-2 overflow-x-auto pb-2">
-                        {formats.map((format) => (
-                          <button key={format.id} type="button" onClick={() => loadMetaPreview(format.id)} className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${format.id === activeMetaPreview ? "border-[#6366F1] bg-[#EEF2FF] text-[#3730A3]" : "border-gray-200 text-gray-600"}`}>
+                        {metaFormats.map((format) => (
+                          <button key={format.id} type="button" onClick={() => selectMetaPreview(format.id)} className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium ${format.id === activeMetaPreview ? "border-[#6366F1] bg-[#EEF2FF] text-[#3730A3]" : "border-gray-200 text-gray-600"}`}>
                             {format.label}
                           </button>
                         ))}
                       </div>
+                      {activeLoading && !activePreview && (
+                        <div className="mt-2 flex min-h-[220px] items-center justify-center rounded-xl bg-gray-50 p-2">
+                          <p className="animate-pulse text-sm text-gray-500">{en ? "Loading the preview from Meta…" : "Chargement de l’aperçu depuis Meta…"}</p>
+                        </div>
+                      )}
+                      {activeError && !activePreview && !activeLoading && (
+                        <div className="mt-2 space-y-2 rounded-xl bg-[#FEF2F2] p-3">
+                          <p className="text-sm text-[#991B1B]">{activeError}</p>
+                          <button type="button" onClick={() => void fetchMetaPreview(activeMetaPreview)} className="rounded-lg border border-[#FCA5A5] px-3 py-1.5 text-xs font-semibold text-[#991B1B]">
+                            {en ? "Retry" : "Réessayer"}
+                          </button>
+                        </div>
+                      )}
                       {activePreview && <div className="mt-2 flex min-h-[220px] justify-center overflow-hidden rounded-xl bg-gray-50 p-2" dangerouslySetInnerHTML={{ __html: activePreview.html }} />}
                       <p className="mt-2 text-[11px] text-gray-400">{en ? "Preview generated by Meta for the selected placement." : "Aperçu généré par Meta pour le placement sélectionné."}</p>
                     </>
