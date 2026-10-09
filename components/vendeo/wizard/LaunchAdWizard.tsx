@@ -18,12 +18,6 @@ interface LaunchAdWizardProps {
   onLaunched?: (campaignId: string) => void;
 }
 
-type DeliveryEstimate = {
-  audienceMin: number | null;
-  audienceMax: number | null;
-  dailyReach: number | null;
-};
-
 /**
  * Wizard de lancement de pub en 5 étapes (Bloc 3 de la refonte dashboard).
  * Ouvre en modale plein écran sur mobile, panneau centré sur desktop.
@@ -52,45 +46,10 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
   const [state, setState] = useState<WizardState>({ ...DEFAULT_WIZARD_STATE, storeId });
   const [step2Footer, setStep2Footer] = useState<Step2FooterState | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [deliveryEstimate, setDeliveryEstimate] = useState<DeliveryEstimate | null>(null);
-  const [deliveryEstimateError, setDeliveryEstimateError] = useState<string | null>(null);
-  const [deliveryEstimateLoading, setDeliveryEstimateLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (step !== 5 || state.platform !== "meta" || !state.metaAdAccountId) return;
-    let cancelled = false;
-    setDeliveryEstimateLoading(true);
-    setDeliveryEstimateError(null);
-    fetch("/api/ad-campaigns/delivery-estimate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        platform: state.platform,
-        meta_ad_account_id: state.metaAdAccountId,
-        geo_targeting: { countries: state.countries, ...{ regions: state.locations.filter((location) => location.type === "region").map((location) => ({ key: location.key })), cities: state.locations.filter((location) => location.type === "city").map((location) => ({ key: location.key })) } },
-        min_age: state.minAge,
-        max_age: state.maxAge,
-      }),
-    })
-      .then(async (response) => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data?.error || "Estimation Meta indisponible");
-        if (!cancelled) setDeliveryEstimate(data.estimate as DeliveryEstimate);
-      })
-      .catch((error) => {
-        if (!cancelled) setDeliveryEstimateError(error instanceof Error ? error.message : "Estimation Meta indisponible");
-      })
-      .finally(() => {
-        if (!cancelled) setDeliveryEstimateLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [step, state.platform, state.metaAdAccountId, state.countries, state.locations, state.minAge, state.maxAge]);
 
   const patch = (partial: Partial<WizardState>) => setState((s) => ({ ...s, ...partial }));
   const next = () => setStep((s) => Math.min(5, s + 1));
@@ -163,13 +122,6 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
                   <h3 className="font-bold text-gray-900">{state.title || state.product?.name || (en ? "Untitled campaign" : "Campagne sans titre")}</h3>
                   <p className="whitespace-pre-wrap text-sm text-gray-700">{state.adText || (en ? "No ad description" : "Aucune description")}</p>
                 </div>
-              </div>
-              <div className="rounded-2xl bg-[#EEF2FF] p-4">
-                <h3 className="text-sm font-bold text-[#3730A3]">{en ? "Delivery estimate" : "Estimation de diffusion"}</h3>
-                {deliveryEstimateLoading && <p className="mt-2 text-sm text-[#4338CA]">{en ? "Fetching live data from Meta…" : "Récupération des données réelles de Meta…"}</p>}
-                {deliveryEstimate && <div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-xs text-[#4338CA]">{en ? "Potential audience" : "Audience potentielle"}</p><p className="text-lg font-bold text-[#3730A3]">{deliveryEstimate.audienceMin?.toLocaleString("fr-FR") ?? "—"}–{deliveryEstimate.audienceMax?.toLocaleString("fr-FR") ?? "—"}</p></div><div><p className="text-xs text-[#4338CA]">{en ? "Daily estimated reach" : "Portée quotidienne estimée"}</p><p className="text-lg font-bold text-[#3730A3]">{deliveryEstimate.dailyReach?.toLocaleString("fr-FR") ?? "—"}</p></div></div>}
-                {deliveryEstimateError && <p className="mt-2 text-xs text-[#991B1B]">{deliveryEstimateError}</p>}
-                {state.platform !== "meta" && <p className="mt-2 text-xs text-gray-500">{en ? "Live delivery data will appear after the campaign is launched on this platform." : "Les données réelles de diffusion apparaîtront après le lancement sur cette plateforme."}</p>}
               </div>
               <p className="text-sm text-gray-500">{en ? "Payment will only be requested when you click “Launch campaign” from the Ads page." : "Le paiement sera demandé uniquement lorsque tu cliqueras sur « Lancer la campagne » depuis la page Pub."}</p>
               <button type="button" onClick={() => { onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">{en ? "View my campaign in Ads" : "Voir ma campagne dans Pub"}</button>
