@@ -95,14 +95,6 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   campaignId: null,
 };
 
-export interface EstimateResult {
-  reachMin: number;
-  reachMax: number;
-  impressionsMin: number;
-  impressionsMax: number;
-  totalBudget: number; // budget total de la campagne (daily_budget × durationDays) — aucune commission, tout finance la pub
-}
-
 /** Liste des pays proposés par le widget de recherche d'audience (voir lib/geo/countries.ts). */
 export const COUNTRY_OPTIONS = WORLD_COUNTRIES.map((c) => ({ code: c.code, label: c.label }));
 

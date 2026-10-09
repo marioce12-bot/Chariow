@@ -8,7 +8,7 @@ import type { PlanId } from "@/lib/plans";
 import { Step1Product } from "./Step1Product";
 import { Step2NetworkCreative, type Step2FooterState } from "./Step2NetworkCreative";
 import { Step3Audience } from "./Step3Audience";
-import { Step4Estimation } from "./Step4Estimation";
+import { Step4Budget } from "./Step4Budget";
 import { useI18n } from "@/lib/i18n/i18n";
 
 interface LaunchAdWizardProps {
@@ -41,7 +41,7 @@ interface LaunchAdWizardProps {
 export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdWizardProps) {
   const { locale } = useI18n();
   const en = locale === "en";
-  const stepLabels = en ? ["Product", "Ad set & creative", "Audience", "Estimate", "Creation"] : ["Produit", "Ensemble & publicité", "Audience", "Estimation", "Création"];
+  const stepLabels = en ? ["Product", "Ad set & creative", "Audience", "Budget", "Creation"] : ["Produit", "Ensemble & publicité", "Audience", "Budget", "Création"];
   const [step, setStep] = useState(1);
   const [state, setState] = useState<WizardState>({ ...DEFAULT_WIZARD_STATE, storeId });
   const [step2Footer, setStep2Footer] = useState<Step2FooterState | null>(null);
@@ -112,7 +112,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
             />
           )}
           {step === 3 && <Step3Audience state={state} patch={patch} onNext={next} onBack={back} />}
-          {step === 4 && <Step4Estimation state={state} patch={patch} onNext={next} onBack={back} />}
+          {step === 4 && <Step4Budget state={state} patch={patch} onNext={next} onBack={back} />}
           {step === 5 && state.campaignId && (
             <div className="space-y-4">
               <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm text-[#065F46]"><strong className="block">{en ? "Campaign created" : "Campagne créée"}</strong><span>{en ? "Your campaign is saved in the Ads page. You can review or edit its settings before launching it." : "Ta campagne est enregistrée dans la page Pub. Tu peux vérifier ou modifier ses paramètres avant de la lancer."}</span></div>

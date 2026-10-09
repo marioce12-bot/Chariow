@@ -40,10 +40,10 @@ export async function POST(request: Request) {
   }
   const dailyBudget = Number(body.daily_budget);
   const durationDays = Number(body.duration_days);
-  // Le budget quotidien est saisi en dollars ($, voir Step4Estimation) : le
+  // Le budget quotidien est saisi en dollars ($, voir l'étape Budget) : le
   // minimum précédent (100) datait d'une époque où ce champ était en XOF et
   // rejetait donc à tort n'importe quel budget réaliste en dollars (ex: 2$,
-  // 5$). Aligné sur le minimum déjà utilisé par /api/ad-campaigns/estimate.
+  // 5$). Aligné sur le minimum utilisé par le parcours de budget.
   if (!Number.isFinite(dailyBudget) || dailyBudget < 1 || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 90) {
     return NextResponse.json({ error: "Budget ou durée invalide" }, { status: 400 });
   }
