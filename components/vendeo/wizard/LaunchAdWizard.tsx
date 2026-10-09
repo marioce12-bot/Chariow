@@ -162,7 +162,6 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
                 <div className="space-y-2 p-4">
                   <h3 className="font-bold text-gray-900">{state.title || state.product?.name || (en ? "Untitled campaign" : "Campagne sans titre")}</h3>
                   <p className="whitespace-pre-wrap text-sm text-gray-700">{state.adText || (en ? "No ad description" : "Aucune description")}</p>
-                  {(state.campaignPrice ?? state.product?.price) != null && <p className="text-sm font-semibold text-gray-900">{state.campaignPrice ?? state.product?.price} {state.campaignCurrency ?? state.product?.currency ?? "XOF"}</p>}
                 </div>
               </div>
               <div className="rounded-2xl bg-[#EEF2FF] p-4">
