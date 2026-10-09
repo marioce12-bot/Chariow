@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Search, Globe2, MapPin, Building2 } from "lucide-react";
 import { searchCountries } from "@/lib/geo/countries";
 import type { GeoLocation } from "./types";
+import { useI18n } from "@/lib/i18n/i18n";
 
 interface LocationSearchInputProps {
   value: GeoLocation[];
@@ -28,12 +29,6 @@ const TYPE_ICON: Record<Suggestion["type"], typeof Globe2> = {
   city: Building2,
 };
 
-const TYPE_LABEL: Record<Suggestion["type"], string> = {
-  country: "Pays",
-  region: "Région",
-  city: "Ville",
-};
-
 /**
  * Widget de recherche d'audience façon Meta Ads Manager : on tape un pays ou
  * une ville, une liste de suggestions apparaît, on clique pour l'ajouter ;
@@ -46,6 +41,13 @@ const TYPE_LABEL: Record<Suggestion["type"], string> = {
  * Meta Ads est connecté — sinon (ou sur TikTok) seuls les pays remontent.
  */
 export function LocationSearchInput({ value, onChange, metaAccountId, platform }: LocationSearchInputProps) {
+  const { locale } = useI18n();
+  const en = locale === "en";
+  const typeLabel: Record<Suggestion["type"], string> = {
+    country: en ? "Country" : "Pays",
+    region: en ? "Region" : "Région",
+    city: en ? "City" : "Ville",
+  };
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [remoteSuggestions, setRemoteSuggestions] = useState<Suggestion[]>([]);
@@ -127,7 +129,7 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform }
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Rechercher un pays ou une ville…"
+          placeholder={en ? "Search for a country or city…" : "Rechercher un pays ou une ville…"}
           className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400"
         />
       </div>
@@ -135,7 +137,7 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform }
       {open && query.trim().length > 0 && (
         <div className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-100 bg-white shadow-lg">
           {suggestions.length === 0 && !loading && (
-            <p className="px-3 py-2.5 text-sm text-gray-400">Aucun résultat pour « {query} »</p>
+            <p className="px-3 py-2.5 text-sm text-gray-400">{en ? `No results for “${query}”` : `Aucun résultat pour « ${query} »`}</p>
           )}
           {suggestions.map((s) => {
             const Icon = TYPE_ICON[s.type];
@@ -148,12 +150,12 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform }
               >
                 <Icon className="h-4 w-4 shrink-0 text-[#6366F1]" />
                 <span className="flex-1 truncate">{s.name}</span>
-                <span className="shrink-0 text-xs text-gray-400">{TYPE_LABEL[s.type]}</span>
+                <span className="shrink-0 text-xs text-gray-400">{typeLabel[s.type]}</span>
               </button>
             );
           })}
           {loading && (
-            <p className="border-t border-gray-50 px-3 py-2 text-xs text-gray-400">Recherche des villes…</p>
+            <p className="border-t border-gray-50 px-3 py-2 text-xs text-gray-400">{en ? "Searching for cities…" : "Recherche des villes…"}</p>
           )}
         </div>
       )}
@@ -182,7 +184,7 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform }
       </div>
       {platform === "tiktok" && (
         <p className="mt-1.5 text-[11px] text-gray-400">
-          Ciblage par pays uniquement sur TikTok — la recherche par ville est réservée à Meta.
+          {en ? "Country targeting only on TikTok — city search is available for Meta only." : "Ciblage par pays uniquement sur TikTok — la recherche par ville est réservée à Meta."}
         </p>
       )}
     </div>

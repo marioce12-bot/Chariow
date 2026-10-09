@@ -75,11 +75,9 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
           </div>
           {state.platform === "meta" && state.objective === "sales" ? (
             <div className="space-y-1 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-              <p className="font-semibold">Ta campagne sera optimisée pour les ventes.</p>
-              <p>
-                Pour cela, Meta a besoin du pixel de ton compte publicitaire. Si aucun pixel n’est configuré sur ce compte, la campagne sera quand même lancée, mais avec l’objectif Trafic (vues de page). Les résultats seront alors moins bons.
-              </p>
-              <p>Pour de meilleurs résultats : prends le pixel de ton compte publicitaire Meta et ajoute-le dans ta boutique Chariow.</p>
+              <p className="font-semibold">{locale === "en" ? "Your campaign will be optimized for sales." : "Ta campagne sera optimisée pour les ventes."}</p>
+              <p>{locale === "en" ? "Meta needs the pixel from your ad account for this. If no pixel is configured on this account, the campaign will still launch with the Traffic objective (page views), which may reduce results." : "Pour cela, Meta a besoin du pixel de ton compte publicitaire. Si aucun pixel n’est configuré sur ce compte, la campagne sera quand même lancée, mais avec l’objectif Trafic (vues de page). Les résultats seront alors moins bons."}</p>
+              <p>{locale === "en" ? "For better results: copy the pixel from your Meta ad account and add it to your Chariow store." : "Pour de meilleurs résultats : prends le pixel de ton compte publicitaire Meta et ajoute-le dans ta boutique Chariow."}</p>
             </div>
           ) : null}
           {error && <p className="text-sm text-[#991B1B]">{campaignErrorMessage(error, locale, t, state.platform)}</p>}
@@ -100,12 +98,12 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
           {t("ads.launchSuccess", { platform: platformLabel })}
           {objectiveFallback ? (
             <p className="mt-2 font-normal">
-              Aucun pixel n’est configuré sur ce compte publicitaire : ta campagne a été lancée avec l’objectif Trafic (vues de page) et ses résultats peuvent être moins bons. Pour optimiser sur les ventes la prochaine fois, prends le pixel de ton compte publicitaire et ajoute-le dans ta boutique Chariow.
+              {locale === "en" ? "No pixel is configured on this ad account: your campaign launched with the Traffic objective (page views), so results may be lower. To optimize for sales next time, copy the pixel from your ad account and add it to your Chariow store." : "Aucun pixel n’est configuré sur ce compte publicitaire : ta campagne a été lancée avec l’objectif Trafic (vues de page) et ses résultats peuvent être moins bons. Pour optimiser sur les ventes la prochaine fois, prends le pixel de ton compte publicitaire et ajoute-le dans ta boutique Chariow."}
             </p>
           ) : null}
           {pixelAutoSelected ? (
             <p className="mt-2 font-normal">
-              Nous avons utilisé le pixel de ton compte publicitaire pour optimiser les ventes. Vérifie qu’il est bien ajouté dans ta boutique Chariow, sinon Meta ne verra pas tes achats.
+              {locale === "en" ? "We used your ad account pixel to optimize for sales. Make sure it is added to your Chariow store, otherwise Meta will not see your purchases." : "Nous avons utilisé le pixel de ton compte publicitaire pour optimiser les ventes. Vérifie qu’il est bien ajouté dans ta boutique Chariow, sinon Meta ne verra pas tes achats."}
             </p>
           ) : null}
         </div>
