@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { META_GRAPH_BASE_URL } from "@/lib/meta/api";
+import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 
 export const maxDuration = 30;
 
@@ -45,20 +46,6 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (!account) return NextResponse.json({ error: "Compte publicitaire Meta introuvable." }, { status: 404 });
 
-  const accessToken = decryptSecret(account.access_token_encrypted);
-  const creative = {
-    object_story_spec: {
-      page_id: pageId,
-      link_data: {
-        link,
-        message: typeof body?.message === "string" ? body.message : "",
-        name: typeof body?.headline === "string" ? body.headline : "",
-        picture: imageUrl,
-        call_to_action: { type: "LEARN_MORE", value: { link } },
-      },
-    },
-  };
-
   const requestedPlacement = body?.placement === "whatsapp_status" ? "whatsapp_status" : "auto";
   const requestedFormat = typeof body?.format === "string" ? body.format : "";
   const format = PREVIEW_FORMATS.find((item) => item.id === requestedFormat);
@@ -67,7 +54,27 @@ export async function POST(request: Request) {
     : Boolean(format);
   if (!format || !allowedForPlacement) return NextResponse.json({ error: "Placement Meta invalide." }, { status: 400 });
 
-  const url = new URL(`${META_GRAPH_BASE_URL}/act_${String(account.meta_account_id).replace(/^act_/, "")}/generatepreviews`);
+  const accessToken = decryptSecret(account.access_token_encrypted);
+  const accountId = `act_${String(account.meta_account_id).replace(/^act_/, "")}`;
+
+  // Comme au vrai lancement : on envoie l'image à Meta (image_hash) au lieu de lui faire
+  // télécharger une URL signée. Les placements Instagram n'arrivent pas à la charger par URL
+  // (image vide ou cassée dans l'aperçu). Repli sur l'URL si l'envoi échoue.
+  const { imageHash } = await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl });
+  const creative = {
+    object_story_spec: {
+      page_id: pageId,
+      link_data: {
+        link,
+        message: typeof body?.message === "string" ? body.message : "",
+        name: typeof body?.headline === "string" ? body.headline : "",
+        ...(imageHash ? { image_hash: imageHash } : { picture: imageUrl }),
+        call_to_action: { type: "LEARN_MORE", value: { link } },
+      },
+    },
+  };
+
+  const url = new URL(`${META_GRAPH_BASE_URL}/${accountId}/generatepreviews`);
   url.searchParams.set("creative", JSON.stringify(creative));
   url.searchParams.set("ad_format", format.id);
   url.searchParams.set("access_token", accessToken);
