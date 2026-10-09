@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 import { DEFAULT_WIZARD_STATE, type WizardState } from "./types";
@@ -30,6 +30,9 @@ const META_PREVIEW_FORMATS = [
   { id: "FACEBOOK_REELS_MOBILE", label: "Facebook Reel" },
   { id: "WHATSAPP_STATUS_MEDIA", label: "Statut WhatsApp" },
 ] as const;
+
+// Les liens d'aperçu Meta expirent : on ne réutilise un aperçu que pendant ce délai.
+const META_PREVIEW_CACHE_MS = 10 * 60 * 1000;
 
 /**
  * Wizard de lancement de pub en 5 étapes (Bloc 3 de la refonte dashboard).
@@ -65,6 +68,11 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
   const [activeMetaPreview, setActiveMetaPreview] = useState("MOBILE_FEED_STANDARD");
   const [metaPreviewLoading, setMetaPreviewLoading] = useState<Record<string, boolean>>({});
   const [metaPreviewErrors, setMetaPreviewErrors] = useState<Record<string, string>>({});
+  // Hash de l'image côté Meta (même compte + même visuel) : obtenu au premier aperçu puis
+  // renvoyé aux suivants pour ne pas renvoyer l'image à Meta pour chaque placement.
+  const metaImageHashRef = useRef<{ key: string; hash: string } | null>(null);
+  // Aperçus déjà générés (même contenu + même placement) : revenir à l'étape 5 est instantané.
+  const metaPreviewCacheRef = useRef<Map<string, { preview: MetaPreview; at: number }>>(new Map());
 
   useEffect(() => {
     setMounted(true);
@@ -75,6 +83,15 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
     : META_PREVIEW_FORMATS;
 
   const fetchMetaPreview = (formatId: string, isCancelled: () => boolean = () => false) => {
+    const contentKey = JSON.stringify([state.metaAdAccountId, state.metaPageId, state.placement, state.destinationUrl, state.mediaUrl, state.adText, state.title, state.product?.name ?? ""]);
+    const cacheKey = `${contentKey}|${formatId}`;
+    const cached = metaPreviewCacheRef.current.get(cacheKey);
+    if (cached && Date.now() - cached.at < META_PREVIEW_CACHE_MS) {
+      if (!isCancelled()) setMetaPreviews((current) => ({ ...current, [formatId]: cached.preview }));
+      return Promise.resolve();
+    }
+    const hashKey = `${state.metaAdAccountId}|${state.mediaUrl}`;
+    const knownHash = metaImageHashRef.current?.key === hashKey ? metaImageHashRef.current.hash : undefined;
     setMetaPreviewLoading((current) => ({ ...current, [formatId]: true }));
     setMetaPreviewErrors((current) => {
       const next = { ...current };
@@ -91,6 +108,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
         format: formatId,
         link: state.destinationUrl,
         image_url: state.mediaUrl,
+        image_hash: knownHash,
         message: state.adText,
         headline: state.title || state.product?.name || "",
       }),
@@ -98,6 +116,8 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.preview) throw new Error(data?.error || "Aperçu Meta indisponible");
+        if (typeof data.image_hash === "string" && data.image_hash) metaImageHashRef.current = { key: hashKey, hash: data.image_hash };
+        metaPreviewCacheRef.current.set(cacheKey, { preview: data.preview as MetaPreview, at: Date.now() });
         if (!isCancelled()) setMetaPreviews((current) => ({ ...current, [formatId]: data.preview as MetaPreview }));
       })
       .catch((error) => {
@@ -120,11 +140,16 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
     setMetaPreviews({});
     setMetaPreviewErrors({});
     setActiveMetaPreview(firstFormat);
-    // Le premier format part en premier, les autres suivent immédiatement en
-    // parallèle : changer d'onglet ensuite n'attend plus Meta.
-    ids.forEach((id) => {
-      void fetchMetaPreview(id, isCancelled);
-    });
+    // Le premier format part seul : il envoie l'image à Meta et récupère son hash.
+    // Les autres partent ensuite en parallèle avec ce hash (plus de renvoi de l'image
+    // pour chaque placement), donc changer d'onglet ensuite n'attend plus Meta.
+    void (async () => {
+      await fetchMetaPreview(ids[0], isCancelled);
+      if (cancelled) return;
+      ids.slice(1).forEach((id) => {
+        void fetchMetaPreview(id, isCancelled);
+      });
+    })();
     return () => {
       cancelled = true;
     };
