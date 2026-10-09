@@ -36,7 +36,10 @@ export async function POST(request: Request) {
   // Hash déjà obtenu par un aperçu précédent (même compte, même image) : évite de
   // retélécharger puis renvoyer l'image à Meta pour chaque placement.
   const providedHash = typeof body?.image_hash === "string" && /^[A-Za-z0-9]{8,64}$/.test(body.image_hash.trim()) ? body.image_hash.trim() : "";
-  if (!accountRowId || !pageId || !link || !imageUrl) {
+  // Mode préparation : envoie seulement l'image à Meta et renvoie son hash (appelé dès l'étape 2,
+  // avant que la page, le lien ou le texte soient connus), pour que les aperçus de l'étape 5 partent vite.
+  const prepareOnly = body?.prepare_only === true;
+  if (prepareOnly ? !accountRowId || !imageUrl : !accountRowId || !pageId || !link || !imageUrl) {
     return NextResponse.json({ error: "Compte Meta, page, lien et visuel requis pour générer les aperçus." }, { status: 400 });
   }
 
@@ -49,6 +52,14 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (!account) return NextResponse.json({ error: "Compte publicitaire Meta introuvable." }, { status: 404 });
 
+  const accessToken = decryptSecret(account.access_token_encrypted);
+  const accountId = `act_${String(account.meta_account_id).replace(/^act_/, "")}`;
+
+  if (prepareOnly) {
+    const prepared = await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl });
+    return NextResponse.json({ image_hash: prepared.imageHash ?? null });
+  }
+
   const requestedPlacement = body?.placement === "whatsapp_status" ? "whatsapp_status" : "auto";
   const requestedFormat = typeof body?.format === "string" ? body.format : "";
   const format = PREVIEW_FORMATS.find((item) => item.id === requestedFormat);
@@ -56,9 +67,6 @@ export async function POST(request: Request) {
     ? format?.id === "INSTAGRAM_STORY" || format?.id === "WHATSAPP_STATUS_MEDIA"
     : Boolean(format);
   if (!format || !allowedForPlacement) return NextResponse.json({ error: "Placement Meta invalide." }, { status: 400 });
-
-  const accessToken = decryptSecret(account.access_token_encrypted);
-  const accountId = `act_${String(account.meta_account_id).replace(/^act_/, "")}`;
 
   // Comme au vrai lancement : on envoie l'image à Meta (image_hash) au lieu de lui faire
   // télécharger une URL signée. Les placements Instagram n'arrivent pas à la charger par URL
