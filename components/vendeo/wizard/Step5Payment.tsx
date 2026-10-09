@@ -25,6 +25,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
   const [phase, setPhase] = useState<Phase>("ready");
   const [error, setError] = useState<string | null>(null);
   const [objectiveFallback, setObjectiveFallback] = useState(false);
+  const [pixelAutoSelected, setPixelAutoSelected] = useState(false);
   const { locale, t } = useI18n();
   const platformLabel = state.platform === "meta" ? "Meta" : state.platform === "pinterest" ? "Pinterest" : "TikTok";
 
@@ -55,6 +56,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || `${platformLabel} n'a pas accepté la campagne`);
       setObjectiveFallback(Boolean(data.objective_fallback));
+      setPixelAutoSelected(Boolean(data.pixel_auto_selected));
       setPhase("done");
       onLaunched(state.campaignId);
     } catch (e) {
@@ -71,7 +73,15 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
             <CheckCircle2 className="h-4 w-4 flex-none" />
             <span>{t("ads.budgetNotice")}</span>
           </div>
-          {state.platform === "meta" && state.objective === "sales" ? <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Si aucun pixel Meta n’est marqué comme configuré sur Chariow, Vendeo lancera cette campagne avec l’objectif Trafic (vues de page) plutôt qu’avec l’optimisation Achats.</p> : null}
+          {state.platform === "meta" && state.objective === "sales" ? (
+            <div className="space-y-1 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-semibold">Ta campagne sera optimisée pour les ventes.</p>
+              <p>
+                Pour cela, Meta a besoin du pixel de ton compte publicitaire. Si aucun pixel n’est configuré sur ce compte, la campagne sera quand même lancée, mais avec l’objectif Trafic (vues de page). Les résultats seront alors moins bons.
+              </p>
+              <p>Pour de meilleurs résultats : prends le pixel de ton compte publicitaire Meta et ajoute-le dans ta boutique Chariow.</p>
+            </div>
+          ) : null}
           {error && <p className="text-sm text-[#991B1B]">{campaignErrorMessage(error, locale, t, state.platform)}</p>}
           <button onClick={() => void launchCampaign()} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">
             {t("ads.launchButton")}
@@ -88,7 +98,16 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
       {phase === "done" && (
         <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm font-semibold text-[#065F46]">
           {t("ads.launchSuccess", { platform: platformLabel })}
-          {objectiveFallback ? <p className="mt-2 font-normal">Aucun pixel d’achat configuré : la campagne utilise l’objectif Trafic (vues de page).</p> : null}
+          {objectiveFallback ? (
+            <p className="mt-2 font-normal">
+              Aucun pixel n’est configuré sur ce compte publicitaire : ta campagne a été lancée avec l’objectif Trafic (vues de page) et ses résultats peuvent être moins bons. Pour optimiser sur les ventes la prochaine fois, prends le pixel de ton compte publicitaire et ajoute-le dans ta boutique Chariow.
+            </p>
+          ) : null}
+          {pixelAutoSelected ? (
+            <p className="mt-2 font-normal">
+              Nous avons utilisé le pixel de ton compte publicitaire pour optimiser les ventes. Vérifie qu’il est bien ajouté dans ta boutique Chariow, sinon Meta ne verra pas tes achats.
+            </p>
+          ) : null}
         </div>
       )}
 
