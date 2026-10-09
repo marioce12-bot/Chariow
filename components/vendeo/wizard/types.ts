@@ -67,6 +67,8 @@ export interface WizardState {
   // Étape 4
   dailyBudget: number; // budget net qui alimente réellement la campagne (en $, converti au taux Meta/TikTok du compte)
   durationDays: number;
+  campaignPrice?: string;
+  campaignCurrency?: string;
 
   // Rempli après création du brouillon (étape 4 → étape 5)
   campaignId: string | null;

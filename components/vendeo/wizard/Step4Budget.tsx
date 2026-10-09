@@ -23,6 +23,8 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
   const en = locale === "en";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const priceValue = state.campaignPrice ?? (state.product?.price == null ? "" : String(state.product.price));
+  const currencyValue = state.campaignCurrency ?? state.product?.currency ?? "XOF";
 
   const discardDraft = () => {
     if (!state.campaignId) return;
@@ -115,6 +117,32 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
           onChange={(e) => updateDurationDays(Number(e.target.value))}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
         />
+      </div>
+
+      <div className="grid grid-cols-[1fr_110px] gap-3">
+        <div>
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700">
+            {en ? "Product price" : "Prix du produit"}
+          </label>
+          <input
+            type="number"
+            min={0}
+            step="any"
+            value={priceValue}
+            onChange={(e) => patch({ campaignPrice: e.target.value })}
+            placeholder={en ? "Price" : "Prix"}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700">{en ? "Currency" : "Devise"}</label>
+          <input
+            value={currencyValue}
+            onChange={(e) => patch({ campaignCurrency: e.target.value.toUpperCase() })}
+            maxLength={8}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm uppercase text-gray-900"
+          />
+        </div>
       </div>
 
       <p className="text-xs text-gray-500">
