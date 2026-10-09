@@ -46,7 +46,20 @@ export function campaignErrorMessage(rawError: string | null | undefined, locale
     return t("ads.errors.countriesUnavailable");
   }
 
-  if (/pixel/.test(lower)) return t("ads.errors.pixel", { platform: platformLabel });
+  if (/pixel/.test(lower)) {
+    // Meta : message simple et actionnable (aucun pixel sur le compte pub).
+    if (platform === "meta") {
+      return locale === "fr"
+        ? "Aucun pixel n’est configuré sur ce compte publicitaire. Ta campagne peut donner de moins bons résultats. Pour l’améliorer, prends le pixel de ton compte publicitaire Meta et ajoute-le dans ta boutique Chariow, puis réessaie."
+        : "No pixel is set up on this ad account. Your campaign may perform worse. To improve it, take the pixel from your Meta ad account and add it to your Chariow store, then try again.";
+    }
+    return t("ads.errors.pixel", { platform: platformLabel });
+  }
+  if (/page facebook|facebook page|page_id/.test(lower)) {
+    return locale === "fr"
+      ? "Choisis la page Facebook qui publiera ta pub, puis relance la campagne."
+      : "Choose the Facebook page that will publish your ad, then launch the campaign again.";
+  }
   if (/identity|identité|identity_id/.test(lower)) return t("ads.errors.identity", { platform: platformLabel });
   if (/daily budget|daily_budget|minimum budget|budget.{0,80}(minimum|too low|below)|budget quotidien/.test(lower)) {
     return t("ads.errors.budget", { platform: platformLabel });
