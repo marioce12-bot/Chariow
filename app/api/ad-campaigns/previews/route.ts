@@ -54,27 +54,27 @@ export async function POST(request: Request) {
   };
 
   const requestedPlacement = body?.placement === "whatsapp_status" ? "whatsapp_status" : "auto";
-  const formats = requestedPlacement === "whatsapp_status"
-    ? PREVIEW_FORMATS.filter((format) => format.id === "INSTAGRAM_STORY" || format.id === "WHATSAPP_STATUS")
-    : PREVIEW_FORMATS;
+  const requestedFormat = typeof body?.format === "string" ? body.format : "";
+  const format = PREVIEW_FORMATS.find((item) => item.id === requestedFormat);
+  const allowedForPlacement = requestedPlacement === "whatsapp_status"
+    ? format?.id === "INSTAGRAM_STORY" || format?.id === "WHATSAPP_STATUS"
+    : Boolean(format);
+  if (!format || !allowedForPlacement) return NextResponse.json({ error: "Placement Meta invalide." }, { status: 400 });
 
-  const previews = (await Promise.all(formats.map(async (format) => {
-    const url = new URL(`${META_GRAPH_BASE_URL}/act_${String(account.meta_account_id).replace(/^act_/, "")}/generatepreviews`);
-    url.searchParams.set("creative", JSON.stringify(creative));
-    url.searchParams.set("ad_format", format.id);
-    url.searchParams.set("access_token", accessToken);
-    try {
-      const result = await fetch(url.toString(), { cache: "no-store" });
-      const json = await result.json().catch(() => ({})) as Record<string, unknown>;
-      const row = Array.isArray(json.data) ? json.data[0] as { body?: unknown } | undefined : undefined;
-      if (!result.ok || typeof row?.body !== "string" || !row.body.includes("iframe")) return null;
-      return { id: format.id, label: format.label, html: row.body };
-    } catch (error) {
-      console.warn("Meta preview format unavailable", format.id, error instanceof Error ? error.message : error);
-      return null;
+  const url = new URL(`${META_GRAPH_BASE_URL}/act_${String(account.meta_account_id).replace(/^act_/, "")}/generatepreviews`);
+  url.searchParams.set("creative", JSON.stringify(creative));
+  url.searchParams.set("ad_format", format.id);
+  url.searchParams.set("access_token", accessToken);
+  try {
+    const result = await fetch(url.toString(), { cache: "no-store" });
+    const json = await result.json().catch(() => ({})) as Record<string, unknown>;
+    const row = Array.isArray(json.data) ? json.data[0] as { body?: unknown } | undefined : undefined;
+    if (!result.ok || typeof row?.body !== "string" || !row.body.includes("iframe")) {
+      return NextResponse.json({ error: graphError(json, result.status) }, { status: 502 });
     }
-  }))).filter((preview): preview is NonNullable<typeof preview> => Boolean(preview));
-
-  if (!previews.length) return NextResponse.json({ error: "Meta n'a renvoyé aucun aperçu pour cette création." }, { status: 502 });
-  return NextResponse.json({ previews });
+    return NextResponse.json({ preview: { id: format.id, label: format.label, html: row.body } });
+  } catch (error) {
+    console.warn("Meta preview format unavailable", format.id, error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: "Meta n'a pas pu générer cet aperçu." }, { status: 502 });
+  }
 }
