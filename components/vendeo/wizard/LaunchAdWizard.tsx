@@ -68,9 +68,11 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
   const [activeMetaPreview, setActiveMetaPreview] = useState("MOBILE_FEED_STANDARD");
   const [metaPreviewLoading, setMetaPreviewLoading] = useState<Record<string, boolean>>({});
   const [metaPreviewErrors, setMetaPreviewErrors] = useState<Record<string, string>>({});
-  // Hash de l'image côté Meta (même compte + même visuel) : obtenu au premier aperçu puis
-  // renvoyé aux suivants pour ne pas renvoyer l'image à Meta pour chaque placement.
+  // Hash de l'image côté Meta (même compte + même visuel) : obtenu dès l'étape 2 (ou au premier
+  // aperçu) puis renvoyé aux suivants pour ne pas renvoyer l'image à Meta pour chaque placement.
   const metaImageHashRef = useRef<{ key: string; hash: string } | null>(null);
+  // Envoi de l'image en cours (démarré à l'étape 2) : l'étape 5 l'attend au lieu de le refaire.
+  const metaImageHashPendingRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
   // Aperçus déjà générés (même contenu + même placement) : revenir à l'étape 5 est instantané.
   const metaPreviewCacheRef = useRef<Map<string, { preview: MetaPreview; at: number }>>(new Map());
 
@@ -131,6 +133,33 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
       });
   };
 
+  // Dès que le visuel et le compte Meta sont connus (étape 2), on envoie l'image à Meta en
+  // arrière-plan : à l'étape 5, le hash est déjà prêt et les aperçus partent sans attendre.
+  // Doit rester déclaré avant l'effet des aperçus ci-dessous (ordre d'exécution des effets).
+  useEffect(() => {
+    if (step < 2 || state.platform !== "meta" || !state.metaAdAccountId || !state.mediaUrl) return;
+    const hashKey = `${state.metaAdAccountId}|${state.mediaUrl}`;
+    if (metaImageHashRef.current?.key === hashKey || metaImageHashPendingRef.current?.key === hashKey) return;
+    const promise = fetch("/api/ad-campaigns/previews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meta_ad_account_id: state.metaAdAccountId, image_url: state.mediaUrl, prepare_only: true }),
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && typeof data.image_hash === "string" && data.image_hash) {
+          metaImageHashRef.current = { key: hashKey, hash: data.image_hash };
+        }
+      })
+      .catch(() => {
+        // best-effort : sans hash, le premier aperçu enverra l'image lui-même
+      })
+      .finally(() => {
+        if (metaImageHashPendingRef.current?.key === hashKey) metaImageHashPendingRef.current = null;
+      });
+    metaImageHashPendingRef.current = { key: hashKey, promise };
+  }, [step, state.platform, state.metaAdAccountId, state.mediaUrl]);
+
   useEffect(() => {
     if (step !== 5 || state.platform !== "meta" || !state.metaAdAccountId || !state.metaPageId || !state.mediaUrl) return;
     let cancelled = false;
@@ -140,10 +169,13 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
     setMetaPreviews({});
     setMetaPreviewErrors({});
     setActiveMetaPreview(firstFormat);
-    // Le premier format part seul : il envoie l'image à Meta et récupère son hash.
-    // Les autres partent ensuite en parallèle avec ce hash (plus de renvoi de l'image
-    // pour chaque placement), donc changer d'onglet ensuite n'attend plus Meta.
+    // Si l'image est encore en cours d'envoi (démarré à l'étape 2), on l'attend plutôt que de la renvoyer.
+    // Sinon le premier format part seul : il envoie l'image à Meta et récupère son hash. Les autres
+    // partent ensuite en parallèle avec ce hash, donc changer d'onglet ensuite n'attend plus Meta.
     void (async () => {
+      const pending = metaImageHashPendingRef.current;
+      if (pending && pending.key === `${state.metaAdAccountId}|${state.mediaUrl}`) await pending.promise;
+      if (cancelled) return;
       await fetchMetaPreview(ids[0], isCancelled);
       if (cancelled) return;
       ids.slice(1).forEach((id) => {
