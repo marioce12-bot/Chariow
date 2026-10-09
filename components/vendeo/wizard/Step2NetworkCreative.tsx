@@ -267,7 +267,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
       const response = await fetch("/api/ai/ad-copy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productName: state.product.name, productDescription: state.product.description, price: state.product.price, currency: state.product.currency, platform: state.platform, objective: state.objective, locale }),
+        body: JSON.stringify({ productName: state.product.name, productDescription: state.product.description, price: state.campaignPrice ?? state.product.price, currency: state.campaignCurrency ?? state.product.currency, platform: state.platform, objective: state.objective, locale }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || typeof data.text !== "string") throw new Error(data.error || "Generation failed");
