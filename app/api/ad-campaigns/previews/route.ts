@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { META_GRAPH_BASE_URL } from "@/lib/meta/api";
+import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 
 export const maxDuration = 30;
 
@@ -32,7 +33,13 @@ export async function POST(request: Request) {
   const pageId = typeof body?.meta_page_id === "string" ? body.meta_page_id : "";
   const link = typeof body?.link === "string" ? body.link.trim() : "";
   const imageUrl = typeof body?.image_url === "string" ? body.image_url.trim() : "";
-  if (!accountRowId || !pageId || !link || !imageUrl) {
+  // Hash déjà obtenu par un aperçu précédent (même compte, même image) : évite de
+  // retélécharger puis renvoyer l'image à Meta pour chaque placement.
+  const providedHash = typeof body?.image_hash === "string" && /^[A-Za-z0-9]{8,64}$/.test(body.image_hash.trim()) ? body.image_hash.trim() : "";
+  // Mode préparation : envoie seulement l'image à Meta et renvoie son hash (appelé dès l'étape 2,
+  // avant que la page, le lien ou le texte soient connus), pour que les aperçus de l'étape 5 partent vite.
+  const prepareOnly = body?.prepare_only === true;
+  if (prepareOnly ? !accountRowId || !imageUrl : !accountRowId || !pageId || !link || !imageUrl) {
     return NextResponse.json({ error: "Compte Meta, page, lien et visuel requis pour générer les aperçus." }, { status: 400 });
   }
 
@@ -46,18 +53,12 @@ export async function POST(request: Request) {
   if (!account) return NextResponse.json({ error: "Compte publicitaire Meta introuvable." }, { status: 404 });
 
   const accessToken = decryptSecret(account.access_token_encrypted);
-  const creative = {
-    object_story_spec: {
-      page_id: pageId,
-      link_data: {
-        link,
-        message: typeof body?.message === "string" ? body.message : "",
-        name: typeof body?.headline === "string" ? body.headline : "",
-        picture: imageUrl,
-        call_to_action: { type: "LEARN_MORE", value: { link } },
-      },
-    },
-  };
+  const accountId = `act_${String(account.meta_account_id).replace(/^act_/, "")}`;
+
+  if (prepareOnly) {
+    const prepared = await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl });
+    return NextResponse.json({ image_hash: prepared.imageHash ?? null });
+  }
 
   const requestedPlacement = body?.placement === "whatsapp_status" ? "whatsapp_status" : "auto";
   const requestedFormat = typeof body?.format === "string" ? body.format : "";
@@ -67,7 +68,24 @@ export async function POST(request: Request) {
     : Boolean(format);
   if (!format || !allowedForPlacement) return NextResponse.json({ error: "Placement Meta invalide." }, { status: 400 });
 
-  const url = new URL(`${META_GRAPH_BASE_URL}/act_${String(account.meta_account_id).replace(/^act_/, "")}/generatepreviews`);
+  // Comme au vrai lancement : on envoie l'image à Meta (image_hash) au lieu de lui faire
+  // télécharger une URL signée. Les placements Instagram n'arrivent pas à la charger par URL
+  // (image vide ou cassée dans l'aperçu). Repli sur l'URL si l'envoi échoue.
+  const imageHash = providedHash || (await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl })).imageHash;
+  const creative = {
+    object_story_spec: {
+      page_id: pageId,
+      link_data: {
+        link,
+        message: typeof body?.message === "string" ? body.message : "",
+        name: typeof body?.headline === "string" ? body.headline : "",
+        ...(imageHash ? { image_hash: imageHash } : { picture: imageUrl }),
+        call_to_action: { type: "LEARN_MORE", value: { link } },
+      },
+    },
+  };
+
+  const url = new URL(`${META_GRAPH_BASE_URL}/${accountId}/generatepreviews`);
   url.searchParams.set("creative", JSON.stringify(creative));
   url.searchParams.set("ad_format", format.id);
   url.searchParams.set("access_token", accessToken);
@@ -81,7 +99,7 @@ export async function POST(request: Request) {
       console.warn("Meta preview rejected", format.id, graphError(json, result.status));
       return NextResponse.json({ error: "Meta n'a pas pu générer cet aperçu pour ce placement." }, { status: 502 });
     }
-    return NextResponse.json({ preview: { id: format.id, label: format.label, html: row.body } });
+    return NextResponse.json({ preview: { id: format.id, label: format.label, html: row.body }, image_hash: imageHash ?? null });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "AbortError";
     console.warn("Meta preview format unavailable", format.id, error instanceof Error ? error.message : error);
