@@ -96,8 +96,21 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   if (accountError) return NextResponse.json({ error: "Impossible de vérifier le compte Meta" }, { status: 500 });
   if (!account?.is_active) return NextResponse.json({ error: "Le compte Meta sélectionné n’est plus actif" }, { status: 400 });
   const accessToken = decryptSecret(account.access_token_encrypted);
-  const { data: configuredPixels } = await supabase.from("meta_pixels").select("pixel_id").eq("user_id", userId).eq("ad_account_id", account.id).eq("configured_on_chariow", true).limit(1);
-  const pixelId = typeof configuredPixels?.[0]?.pixel_id === "string" ? configuredPixels[0].pixel_id : null;
+  // Choix du pixel pour l'objectif Ventes : on prend d'abord celui marqué
+  // "configuré sur Chariow", sinon le pixel le plus récemment actif du compte pub
+  // (même s'il n'a pas été coché à la main). Meta exige un pixel pour optimiser
+  // sur les achats : sans aucun pixel sur le compte, on lance quand même la
+  // campagne, mais en Trafic (vues de page), et on prévient l'utilisateur.
+  const { data: accountPixels } = await supabase
+    .from("meta_pixels")
+    .select("pixel_id,configured_on_chariow,last_fired_at")
+    .eq("user_id", userId)
+    .eq("ad_account_id", account.id)
+    .order("configured_on_chariow", { ascending: false })
+    .order("last_fired_at", { ascending: false, nullsFirst: false })
+    .limit(1);
+  const pixelId = typeof accountPixels?.[0]?.pixel_id === "string" ? accountPixels[0].pixel_id : null;
+  const pixelAutoSelected = Boolean(pixelId) && accountPixels?.[0]?.configured_on_chariow !== true;
   const effectiveObjective = campaign.objective === "sales" && !pixelId ? "traffic" : campaign.objective;
   const durationDays = Number(campaign.duration_days);
   const endTime = Number.isFinite(durationDays) && durationDays > 0 ? new Date(Date.now() + durationDays * 86400000).toISOString() : null;
@@ -191,7 +204,14 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, effective_objective: effectiveObjective, external_campaign_id: external.id, external_adset_id: String(adSet.id), external_creative_id: String(creative.id), external_ad_id: String(ad.id), external_error: null }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
     if (updateError) return NextResponse.json({ error: "Campagne Meta créée mais statut Vendeo non enregistré" }, { status: 502 });
     await supabase.from("meta_campaigns").upsert({ ad_account_id: account.id, meta_campaign_id: external.id, name: campaign.title || "Campagne Vendeo", status: "ACTIVE", objective: external.objective }, { onConflict: "ad_account_id,meta_campaign_id" });
-    return NextResponse.json({ campaign: updated, effective_objective: effectiveObjective, objective_fallback: campaign.objective === "sales" && effectiveObjective === "traffic" });
+    return NextResponse.json({
+      campaign: updated,
+      effective_objective: effectiveObjective,
+      objective_fallback: campaign.objective === "sales" && effectiveObjective === "traffic",
+      // Pixel du compte pub utilisé automatiquement (non marqué "configuré sur Chariow") :
+      // on prévient l'utilisateur de vérifier qu'il est bien installé dans sa boutique.
+      pixel_auto_selected: effectiveObjective === "sales" && pixelAutoSelected,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : "Meta campaign creation failed";
     await supabase.from("ad_campaigns").update({ external_error: message }).eq("id", campaign.id).eq("user_id", userId);
