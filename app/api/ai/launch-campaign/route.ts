@@ -7,6 +7,7 @@ import { createMetaCampaign, createMetaAdSet, createMetaCreative, publishMetaAdW
 import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 import { launchPinterest } from "@/lib/pinterest/api";
+import { PINTEREST_TAG_REQUIRED_CODE, isPinterestConversionTagError, pinterestTagChatMessage } from "@/lib/pinterest/tag-help";
 import { TIKTOK_FROM_CHAT_MESSAGE } from "@/lib/launch-platform";
 
 // Lance une campagne Meta complète via l'API Marketing directe (même chemin que
@@ -329,6 +330,10 @@ async function launchPinterestFromChat({ supabase, userId, body, dailyBudget, li
     return NextResponse.json({ campaignId: external.campaignId, dailyBudgetUsd: dailyBudget, platform: "pinterest" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur de lancement Pinterest.";
+    // Objectif Ventes refusé faute de balise Pinterest : jamais de repli Trafic automatique depuis le chat.
+    if (objective === "sales" && isPinterestConversionTagError(message)) {
+      return NextResponse.json({ error: pinterestTagChatMessage(), code: PINTEREST_TAG_REQUIRED_CODE }, { status: 409 });
+    }
     return NextResponse.json({ error: `Pinterest n’a pas accepté la campagne : ${message}` }, { status: 502 });
   }
 }
