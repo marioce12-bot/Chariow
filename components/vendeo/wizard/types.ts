@@ -90,7 +90,7 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   countries: ["BJ"],
   minAge: 18,
   maxAge: 45,
-  dailyBudget: 2000,
+  dailyBudget: 5, // en $ (minimum 1) : l'ancienne valeur 2000 datait du budget en F CFA
   durationDays: 5,
   campaignId: null,
 };
