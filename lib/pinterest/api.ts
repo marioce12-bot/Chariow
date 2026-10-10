@@ -1,4 +1,16 @@
+import { convertCurrency } from "@/lib/currency";
+
 const PINTEREST_API_BASE_URL = "https://api.pinterest.com/v5";
+
+export type PinterestObjectiveInput = "sales" | "traffic" | "engagement" | "leads" | string | null | undefined;
+
+/** Objectif Vendeo → `objective_type` Pinterest. Seul "sales" vise l'objectif SALES ;
+ *  le trafic, l'engagement et les leads passent par CONSIDERATION (clics vers le site).
+ *  Les objectifs AWARENESS / WEB_CONVERSION exigent des paramètres supplémentaires
+ *  (enchère, balise de conversion) que le flux Vendeo ne collecte pas. */
+export function toPinterestObjective(objective: PinterestObjectiveInput): "SALES" | "CONSIDERATION" {
+  return objective === "sales" ? "SALES" : "CONSIDERATION";
+}
 
 async function pinterestFetch(path: string, accessToken: string, init: RequestInit = {}) {
   const response = await fetch(`${PINTEREST_API_BASE_URL}${path}`, {
@@ -14,15 +26,28 @@ async function pinterestFetch(path: string, accessToken: string, init: RequestIn
   return json as Record<string, unknown>;
 }
 
+/** Pinterest renvoie les erreurs d'un appel batch dans `items[i].exceptions` (tableau
+ *  d'objets `{ code, message }`). On accepte aussi l'ancien champ `exception` (objet). */
+export function pinterestExceptionMessage(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  const list = Array.isArray(raw) ? raw : [raw];
+  const messages = list.flatMap((entry): string[] => {
+    if (typeof entry === "string") return [entry];
+    if (!entry || typeof entry !== "object") return [];
+    const details = entry as Record<string, unknown>;
+    const nested = Array.isArray(details.error_messages) ? details.error_messages.filter((value): value is string => typeof value === "string") : [];
+    if (nested.length) return nested;
+    return typeof details.message === "string" ? [details.message] : [];
+  });
+  if (messages.length) return messages.join(" ");
+  return list.length ? JSON.stringify(raw).slice(0, 300) : null;
+}
+
 function firstCreatedItem(json: Record<string, unknown>, label: string) {
   const items = Array.isArray(json.items) ? json.items as Array<Record<string, unknown>> : [];
   const raw = items[0];
-  const exception = raw?.exception;
-  if (exception && typeof exception === "object") {
-    const details = exception as Record<string, unknown>;
-    const messages = Array.isArray(details.error_messages) ? details.error_messages.filter((value): value is string => typeof value === "string") : [];
-    throw new Error(messages.join(" ") || (typeof details.message === "string" ? details.message : `Pinterest a refusé la création ${label}`));
-  }
+  const failure = pinterestExceptionMessage(raw?.exceptions ?? raw?.exception);
+  if (failure) throw new Error(failure);
   const item = raw?.data && typeof raw.data === "object" ? raw.data as Record<string, unknown> : raw;
   if (!item?.id) throw new Error(`Pinterest n'a pas renvoyé d'identifiant ${label}`);
   return String(item.id);
@@ -49,15 +74,15 @@ export async function fetchPinterestAdAccounts(accessToken: string) {
   return Array.isArray(json.items) ? json.items as Array<Record<string, unknown>> : [];
 }
 
-async function createPinterestCampaign(adAccountId: string, accessToken: string, input: { name: string; dailyBudget: number; endTime: number }) {
+async function createPinterestCampaign(adAccountId: string, accessToken: string, input: { name: string; dailySpendCapMicro: number; endTime: number; objective: PinterestObjectiveInput }) {
   const json = await pinterestFetch(`/ad_accounts/${encodeURIComponent(adAccountId)}/campaigns`, accessToken, {
     method: "POST",
     body: JSON.stringify([{
       name: input.name.slice(0, 255),
       status: "ACTIVE",
-      objective_type: "SALES",
+      objective_type: toPinterestObjective(input.objective),
       is_campaign_budget_optimization: true,
-      daily_spend_cap: Math.round(input.dailyBudget * 1_000_000),
+      daily_spend_cap: input.dailySpendCapMicro,
       end_time: input.endTime,
     }]),
   });
@@ -76,7 +101,7 @@ async function createPinterestAdGroup(adAccountId: string, accessToken: string, 
       placement_group: "ALL",
       auto_targeting_enabled: true,
       targeting_spec: {
-        GEO: input.countries,
+        LOCATION: input.countries,
         MINIMUM_AGE: String(input.minAge),
         MAXIMUM_AGE: String(input.maxAge),
         TARGETING_STRATEGY: ["CHOOSE_YOUR_OWN"],
@@ -94,7 +119,6 @@ async function createPinterestPin(accessToken: string, input: { title: string; d
       description: input.description.slice(0, 800),
       link: input.link.slice(0, 2048),
       media_source: { source_type: "image_url", url: input.imageUrl },
-      is_removable: true,
     }),
   });
   if (!json.id) throw new Error("Pinterest n'a pas pu créer le Pin publicitaire");
@@ -109,18 +133,51 @@ async function createPinterestAd(adAccountId: string, accessToken: string, input
   return firstCreatedItem(json, "de publicité");
 }
 
-export async function launchPinterest(input: { adAccountId: string; accessToken: string; name: string; adText: string; title: string; link: string; mediaUrl: string; dailyBudget: number; durationDays: number; minAge: number; maxAge: number; countries: string[] }) {
+/** Devise du compte publicitaire (les montants en micro-unités sont dans CETTE devise). */
+async function fetchPinterestAdAccountCurrency(adAccountId: string, accessToken: string) {
+  const json = await pinterestFetch(`/ad_accounts/${encodeURIComponent(adAccountId)}`, accessToken);
+  return typeof json.currency === "string" && json.currency ? json.currency.toUpperCase() : "USD";
+}
+
+/** Annule une campagne créée à moitié : on l'archive pour qu'un « Réessayer » ne laisse pas de doublon. */
+async function archivePinterestCampaign(adAccountId: string, accessToken: string, campaignId: string) {
+  const json = await pinterestFetch(`/ad_accounts/${encodeURIComponent(adAccountId)}/campaigns`, accessToken, {
+    method: "PATCH",
+    body: JSON.stringify([{ id: campaignId, status: "ARCHIVED" }]),
+  });
+  const items = Array.isArray(json.items) ? json.items as Array<Record<string, unknown>> : [];
+  const failure = pinterestExceptionMessage(items[0]?.exceptions ?? items[0]?.exception);
+  if (failure) throw new Error(failure);
+}
+
+/** `dailyBudget` est exprimé en dollars US (comme `ad_campaigns.daily_budget`) : il est converti
+ *  dans la devise du compte Pinterest avant d'être envoyé en micro-unités. */
+export async function launchPinterest(input: { adAccountId: string; accessToken: string; name: string; adText: string; title: string; link: string; mediaUrl: string; dailyBudget: number; durationDays: number; minAge: number; maxAge: number; countries: string[]; objective?: PinterestObjectiveInput }) {
   if (!/^https:\/\//i.test(input.mediaUrl)) throw new Error("Pinterest exige une URL HTTPS pour le visuel");
-  const campaignId = await createPinterestCampaign(input.adAccountId, input.accessToken, { name: input.name, dailyBudget: input.dailyBudget, endTime: Math.floor(Date.now() / 1000) + input.durationDays * 86400 });
+  const currency = await fetchPinterestAdAccountCurrency(input.adAccountId, input.accessToken);
+  const budgetInAccountCurrency = convertCurrency(input.dailyBudget, "USD", currency);
+  if (budgetInAccountCurrency === null || budgetInAccountCurrency <= 0) {
+    throw new Error(`La devise du compte Pinterest (${currency}) n'est pas prise en charge pour convertir le budget. Utilise un compte en USD, EUR ou XOF.`);
+  }
+  const campaignId = await createPinterestCampaign(input.adAccountId, input.accessToken, {
+    name: input.name,
+    dailySpendCapMicro: Math.round(budgetInAccountCurrency * 1_000_000),
+    endTime: Math.floor(Date.now() / 1000) + input.durationDays * 86400,
+    objective: input.objective,
+  });
   try {
     const adGroupId = await createPinterestAdGroup(input.adAccountId, input.accessToken, { campaignId, name: `${input.name} - Audience`, minAge: input.minAge, maxAge: input.maxAge, countries: input.countries.length ? input.countries : ["BJ"] });
     const pinId = await createPinterestPin(input.accessToken, { title: input.title || input.name, description: input.adText, link: input.link, imageUrl: input.mediaUrl, adAccountId: input.adAccountId });
     const adId = await createPinterestAd(input.adAccountId, input.accessToken, { adGroupId, pinId, name: `${input.name} - Ad` });
     return { campaignId, adGroupId, pinId, adId };
   } catch (error) {
-    // Pinterest campaigns created ACTIVE cannot be safely rolled back through a
-    // single generic endpoint here; surface the original error so the user can
-    // correct the draft instead of silently creating a duplicate.
+    // La campagne existe déjà chez Pinterest : on l'archive (best-effort) pour éviter un doublon
+    // à chaque nouvel essai, puis on remonte l'erreur d'origine, jamais celle du nettoyage.
+    try {
+      await archivePinterestCampaign(input.adAccountId, input.accessToken, campaignId);
+    } catch (cleanupError) {
+      console.error("Pinterest: échec de l'archivage de la campagne incomplète", { campaignId, message: cleanupError instanceof Error ? cleanupError.message : String(cleanupError) });
+    }
     throw error;
   }
 }
