@@ -7,6 +7,7 @@ import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 import { launchTikTok } from "@/lib/tiktok/launch";
 import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
 import { launchPinterest } from "@/lib/pinterest/api";
+import { PINTEREST_TAG_REQUIRED_CODE, isPinterestConversionTagError, pinterestTagShortMessage } from "@/lib/pinterest/tag-help";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -66,6 +67,12 @@ export async function POST(request: Request, context: Context) {
   return result;
 }
 
+// Pinterest + objectif Ventes : Pinterest refuse la campagne tant que le compte n'a pas de balise
+// (Pinterest Tag) qui remonte des conversions. On NE bascule JAMAIS en Trafic de notre propre
+// initiative : on renvoie un 409 (code PINTEREST_TAG_REQUIRED) que l'interface transforme en
+// explication + demande de confirmation. Le Trafic n'est lancé que si le client renvoie
+// `confirm_traffic_fallback: true`. `objective` (choix de l'utilisateur) reste inchangé en base ;
+// seul `effective_objective` reflète ce qui a réellement été envoyé à Pinterest.
 async function launchPinterestCampaign(supabase: any, userId: string, campaign: any, body: any) {
   const accountId = typeof body?.pinterest_ad_account_id === "string" ? body.pinterest_ad_account_id : campaign.pinterest_ad_account_id;
   if (!accountId) return NextResponse.json({ error: "Sélectionne un compte Pinterest Ads" }, { status: 400 });
@@ -74,14 +81,20 @@ async function launchPinterestCampaign(supabase: any, userId: string, campaign: 
   if (!account?.is_active) return NextResponse.json({ error: "Le compte Pinterest sélectionné n’est plus actif" }, { status: 400 });
   const { data: integration } = await supabase.from("pinterest_integrations").select("access_token_encrypted").eq("id", account.pinterest_integration_id).eq("user_id", userId).maybeSingle();
   if (!integration) return NextResponse.json({ error: "Intégration Pinterest introuvable" }, { status: 404 });
+  const askedSales = campaign.objective === "sales";
+  const trafficConfirmed = askedSales && body?.confirm_traffic_fallback === true;
+  const effectiveObjective = trafficConfirmed ? "traffic" : campaign.objective;
   try {
-    const external = await launchPinterest({ adAccountId: account.pinterest_ad_account_id, accessToken: decryptSecret(integration.access_token_encrypted), name: campaign.title || campaign.product_name || "Campagne Vendeo", adText: campaign.ad_text, title: campaign.title || campaign.product_name || "Campagne Vendeo", link: campaign.destination_url, mediaUrl: campaign.media_url, dailyBudget: Number(campaign.daily_budget), durationDays: Number(campaign.duration_days), minAge: Number(campaign.min_age), maxAge: Number(campaign.max_age), countries: campaign.countries ?? [], objective: campaign.objective });
-    const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", pinterest_ad_account_id: account.id, external_campaign_id: external.campaignId, external_adset_id: external.adGroupId, external_creative_id: external.pinId, external_ad_id: external.adId, external_error: null }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id").single();
+    const external = await launchPinterest({ adAccountId: account.pinterest_ad_account_id, accessToken: decryptSecret(integration.access_token_encrypted), name: campaign.title || campaign.product_name || "Campagne Vendeo", adText: campaign.ad_text, title: campaign.title || campaign.product_name || "Campagne Vendeo", link: campaign.destination_url, mediaUrl: campaign.media_url, dailyBudget: Number(campaign.daily_budget), durationDays: Number(campaign.duration_days), minAge: Number(campaign.min_age), maxAge: Number(campaign.max_age), countries: campaign.countries ?? [], objective: effectiveObjective });
+    const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", pinterest_ad_account_id: account.id, effective_objective: effectiveObjective, external_campaign_id: external.campaignId, external_adset_id: external.adGroupId, external_creative_id: external.pinId, external_ad_id: external.adId, external_error: null }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
     if (updateError) return NextResponse.json({ error: "Campagne Pinterest créée mais statut Vendeo non enregistré" }, { status: 502 });
-    return NextResponse.json({ campaign: updated });
+    return NextResponse.json({ campaign: updated, effective_objective: effectiveObjective, objective_fallback: trafficConfirmed });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : "Pinterest campaign creation failed";
     await supabase.from("ad_campaigns").update({ external_error: message }).eq("id", campaign.id).eq("user_id", userId);
+    if (askedSales && !trafficConfirmed && isPinterestConversionTagError(message)) {
+      return NextResponse.json({ error: pinterestTagShortMessage("fr"), code: PINTEREST_TAG_REQUIRED_CODE, fallback_available: true }, { status: 409 });
+    }
     return NextResponse.json({ error: `Pinterest n’a pas accepté la campagne : ${message}. Réessaie.` }, { status: 502 });
   }
 }
