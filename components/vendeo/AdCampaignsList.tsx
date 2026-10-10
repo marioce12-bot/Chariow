@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
-import { CampaignCorrectionModal } from "./wizard/CampaignCorrectionModal";
+import { LaunchAdWizard } from "./wizard/LaunchAdWizard";
 import type { Platform } from "./wizard/types";
 import { useI18n } from "@/lib/i18n/i18n";
 import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
+import type { PlanId } from "@/lib/plans";
 import { getMetaPausedReason, isMetaPausedReason } from "@/lib/meta/status";
 
 type AdCampaign = {
@@ -27,6 +28,13 @@ type AdCampaign = {
   destination_url?: string | null;
   external_campaign_id?: string | null;
   countries?: string[] | null;
+  geo_targeting?: { countries?: string[]; regions?: { key: string; name: string }[]; cities?: { key: string; name: string }[] } | null;
+  meta_page_id?: string | null;
+  meta_ad_account_id?: string | null;
+  tiktok_ad_account_id?: string | null;
+  pinterest_ad_account_id?: string | null;
+  ad_set_name?: string | null;
+  ad_name?: string | null;
   min_age?: number | null;
   max_age?: number | null;
   media_url?: string | null;
@@ -59,12 +67,24 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
  * statut, et un bouton permet de relancer une campagne sans repasser par le wizard.
  *
  */
-export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | null; onNewCampaign: () => void }) {
+export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { storeId: string | null; plan?: PlanId; onNewCampaign: () => void }) {
   const { locale, t } = useI18n();
   const statusLabels: Record<string, string> = locale === "en" ? {
     draft: "Draft", account_required: "Account required", submitting: "Creating…", paused: "Paused", meta_paused: "Paused by Meta", autopilot_paused: "Paused by autopilot",
     paid: "Ready to launch", review: "Under review", active: "Active", rejected: "Rejected", error: "Error", completed: "Completed",
   } : Object.fromEntries(Object.entries(STATUS_META).map(([key, value]) => [key, value.label]));
+  // Le plan sert au wizard de modification (ex. placement WhatsApp) : repris de la
+  // prop si le parent le fournit, sinon lu une fois depuis /api/subscription.
+  const [fetchedPlan, setFetchedPlan] = useState<PlanId>("starter");
+  const plan = planProp ?? fetchedPlan;
+  useEffect(() => {
+    if (planProp) return;
+    let cancelled = false;
+    fetch("/api/subscription").then((r) => (r.ok ? r.json() : null)).then((data) => {
+      if (!cancelled && data?.subscription?.plan) setFetchedPlan(data.subscription.plan as PlanId);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [planProp]);
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
@@ -232,22 +252,25 @@ export function AdCampaignsList({ storeId, onNewCampaign }: { storeId: string | 
           }}
         />
       ) : null}
-      {correcting ? (
-        <CampaignCorrectionModal
-          campaign={correcting}
+      {correcting && storeId ? (
+        <LaunchAdWizard
+          storeId={storeId}
+          plan={plan}
+          editCampaign={correcting}
+          editNotice={correcting.external_error ? (getMetaPausedReason(correcting.external_error) ?? campaignErrorMessage(correcting.external_error, locale, t, correcting.platform)) : null}
           onClose={() => {
             const campaign = correcting;
             setCorrecting(null);
             if (correctionFromDetail && campaign) setSelected(campaign);
             setCorrectionFromDetail(false);
           }}
-          onSaved={(updates) => {
-            const updatedCampaign: AdCampaign = { ...correcting, ...updates, external_error: null };
+          onEdited={() => {
+            const edited = correcting;
             setCorrecting(null);
             setCorrectionFromDetail(false);
-            if (["draft", "paid", "paused", "autopilot_paused", "rejected"].includes(updatedCampaign.status)) setResuming(updatedCampaign);
-            else setSelected(updatedCampaign);
             void load();
+            if (["draft", "paid", "paused", "autopilot_paused", "rejected"].includes(edited.status)) setResuming({ ...edited, external_error: null });
+            else setSelected({ ...edited, external_error: null });
           }}
         />
       ) : null}
