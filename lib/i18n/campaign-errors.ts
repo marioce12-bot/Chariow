@@ -1,4 +1,5 @@
 import type { Locale } from "./locales";
+import { isPinterestConversionTagError, pinterestTagShortMessage } from "@/lib/pinterest/tag-help";
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -28,6 +29,12 @@ export function campaignErrorMessage(rawError: string | null | undefined, locale
   const raw = (rawError ?? "").trim();
   const lower = raw.toLowerCase();
   if (!raw) return t("ads.errors.generic");
+
+  // Pinterest : objectif Ventes refusé faute de balise Pinterest avec conversions.
+  // Testé avant les autres règles (le message d'origine contient « conversion »).
+  if (platform === "pinterest" && isPinterestConversionTagError(raw)) {
+    return pinterestTagShortMessage(locale);
+  }
 
   // Older campaigns may still contain this provider response in external_error.
   if (/objective_type|website_conversions|web_conversions|invalid objective/.test(lower)) {
