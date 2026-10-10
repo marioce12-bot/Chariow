@@ -24,8 +24,12 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const editing = Boolean(state.editingCampaignId);
+
   const discardDraft = () => {
-    if (!state.campaignId) return;
+    // En mode modification, la campagne existante est mise à jour (PATCH) à la
+    // fin de l'étape : on ne la supprime jamais quand le budget change.
+    if (editing || !state.campaignId) return;
     const staleCampaignId = state.campaignId;
     patch({ campaignId: null });
     fetch(`/api/ad-campaigns?id=${staleCampaignId}`, { method: "DELETE" }).catch(() => {});
@@ -42,7 +46,7 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
   };
 
   const createDraft = async () => {
-    if (state.campaignId) {
+    if (state.campaignId && !editing) {
       onNext();
       return;
     }
@@ -50,6 +54,37 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
     setLoading(true);
     setError(null);
     try {
+      if (editing && state.editingCampaignId) {
+        const res = await fetch(`/api/ad-campaigns/${state.editingCampaignId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            product_id: state.product?.id,
+            product_name: state.product?.name,
+            ad_set_name: state.adSetName,
+            ad_name: state.adName,
+            title: state.title,
+            ad_text: state.adText,
+            destination_url: state.destinationUrl,
+            media_url: state.mediaUrl,
+            countries: state.countries,
+            geo_targeting: buildGeoTargeting(state.locations),
+            min_age: state.minAge,
+            max_age: state.maxAge,
+            daily_budget: state.dailyBudget,
+            duration_days: state.durationDays,
+            meta_ad_account_id: state.metaAdAccountId,
+            meta_page_id: state.metaPageId,
+            tiktok_ad_account_id: state.tiktokAdAccountId,
+            pinterest_ad_account_id: state.pinterestAdAccountId,
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error || (en ? "Unable to save your changes" : "Impossible d'enregistrer tes modifications"));
+        onNext();
+        return;
+      }
+
       const draftRes = await fetch("/api/ad-campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -119,8 +154,8 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
 
       <p className="text-xs text-gray-500">
         {en
-          ? "The campaign will be saved as a draft. No ad is launched and no performance is simulated at this stage."
-          : "La campagne sera enregistrée comme brouillon. Aucune publicité n'est lancée et aucune performance n'est simulée à cette étape."}
+          ? (editing ? "Your changes will be saved on this campaign. Nothing is launched at this stage." : "The campaign will be saved as a draft. No ad is launched and no performance is simulated at this stage.")
+          : (editing ? "Tes modifications seront enregistrées sur cette campagne. Rien n'est lancé à cette étape." : "La campagne sera enregistrée comme brouillon. Aucune publicité n'est lancée et aucune performance n'est simulée à cette étape.")}
       </p>
 
       {error && <p className="text-sm text-[#991B1B]">{error}</p>}
