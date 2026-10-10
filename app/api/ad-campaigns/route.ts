@@ -1,32 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
 
 const objectives = new Set(["sales", "traffic", "engagement", "leads"]);
-
-interface GeoTargetingInput {
-  countries: string[];
-  regions: { key: string; name: string }[];
-  cities: { key: string; name: string; radius: number; distance_unit: string }[];
-}
-
-/** Ne garde que des champs bien formés — un payload malformé (ou absent) est
- *  silencieusement ignoré plutôt que de faire échouer la création du brouillon :
- *  `countries` (déjà validé séparément) reste dans tous les cas la donnée de
- *  secours utilisée par TikTok et par le lancement Meta. */
-function sanitizeGeoTargeting(input: unknown): GeoTargetingInput | null {
-  if (!input || typeof input !== "object") return null;
-  const raw = input as Record<string, unknown>;
-  const regions = Array.isArray(raw.regions)
-    ? raw.regions.filter((r): r is { key: string; name: string } => !!r && typeof (r as any).key === "string" && typeof (r as any).name === "string")
-    : [];
-  const cities = Array.isArray(raw.cities)
-    ? raw.cities.filter((c): c is { key: string; name: string; radius: number; distance_unit: string } => !!c && typeof (c as any).key === "string" && typeof (c as any).name === "string")
-        .map((c) => ({ key: c.key, name: c.name, radius: Number((c as any).radius) > 0 ? Number((c as any).radius) : 25, distance_unit: typeof (c as any).distance_unit === "string" ? (c as any).distance_unit : "mile" }))
-    : [];
-  const countries = Array.isArray(raw.countries) ? raw.countries.filter((c): c is string => typeof c === "string") : [];
-  if (!regions.length && !cities.length && !countries.length) return null;
-  return { countries, regions, cities };
-}
 
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -118,17 +94,7 @@ export async function POST(request: Request) {
 export async function GET() {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
-  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,destination_url,countries,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,destination_url,countries,geo_targeting,meta_page_id,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "Impossible de charger les campagnes" }, { status: 500 });
   return NextResponse.json({ campaigns: data ?? [] });
-}
-
-export async function DELETE(request: Request) {
-  const { supabase, user, response } = await requireUser();
-  if (!user) return response;
-  const id = new URL(request.url).searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "Campagne requise" }, { status: 400 });
-  const { error } = await supabase.from("ad_campaigns").delete().eq("id", id).eq("user_id", user.id);
-  if (error) return NextResponse.json({ error: "Impossible de supprimer la campagne" }, { status: 500 });
-  return NextResponse.json({ ok: true });
 }
