@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
-import { DEFAULT_WIZARD_STATE, type WizardState } from "./types";
+import { DEFAULT_WIZARD_STATE, wizardStateFromCampaign, type EditableCampaign, type WizardState } from "./types";
 import type { PlanId } from "@/lib/plans";
 import { Step1Product } from "./Step1Product";
 import { Step2NetworkCreative, type Step2FooterState } from "./Step2NetworkCreative";
@@ -16,6 +16,12 @@ interface LaunchAdWizardProps {
   plan: PlanId;
   onClose: () => void;
   onLaunched?: (campaignId: string) => void;
+  /** Mode modification : campagne existante dont les valeurs pré-remplissent les 5 étapes. */
+  editCampaign?: EditableCampaign;
+  /** Message affiché en haut en mode modification (ex. motif du dernier refus). */
+  editNotice?: string | null;
+  /** Mode modification : appelé à la fin de l'étape 5 pour revenir au lancement. */
+  onEdited?: (campaignId: string) => void;
 }
 
 type MetaPreview = { id: string; label: string; html: string };
@@ -54,12 +60,12 @@ const META_PREVIEW_CACHE_MS = 10 * 60 * 1000;
  * Step2NetworkCreative.tsx pour le détail. Les autres étapes gardent leur
  * propre pied de page interne (sticky bottom-0 dans leur zone de scroll).
  */
-export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdWizardProps) {
+export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, editCampaign, editNotice, onEdited }: LaunchAdWizardProps) {
   const { locale } = useI18n();
   const en = locale === "en";
   const stepLabels = en ? ["Product", "Ad set & creative", "Audience", "Budget", "Creation"] : ["Produit", "Ensemble & publicité", "Audience", "Budget", "Création"];
   const [step, setStep] = useState(1);
-  const [state, setState] = useState<WizardState>({ ...DEFAULT_WIZARD_STATE, storeId });
+  const [state, setState] = useState<WizardState>(() => (editCampaign ? wizardStateFromCampaign(editCampaign, storeId) : { ...DEFAULT_WIZARD_STATE, storeId }));
   const [step2Footer, setStep2Footer] = useState<Step2FooterState | null>(null);
   const [mounted, setMounted] = useState(false);
   // Aperçus Meta : état indexé par format pour que chaque onglet ait son propre
@@ -209,7 +215,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
       <div className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[85vh] sm:max-w-2xl sm:rounded-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-base font-bold text-gray-900">{en ? "Launch an ad" : "Lancer une pub"}</h2>
+          <h2 className="text-base font-bold text-gray-900">{editCampaign ? (en ? "Edit the campaign" : "Modifier la campagne") : (en ? "Launch an ad" : "Lancer une pub")}</h2>
           <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">
             {en ? "Close" : "Fermer"}
           </button>
@@ -247,6 +253,12 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
 
         {/* Body */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
+          {editCampaign && editNotice ? (
+            <div className="mb-4 rounded-xl bg-[#FFFBEB] p-3 text-sm text-[#92400E]">
+              <strong className="block">{en ? "To fix" : "À corriger"}</strong>
+              <span>{editNotice}</span>
+            </div>
+          ) : null}
           {step === 1 && <Step1Product state={state} patch={patch} onNext={next} />}
           {step === 2 && (
             <Step2NetworkCreative
@@ -307,7 +319,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched }: LaunchAdW
                 </div>
               )}
               <p className="text-sm text-gray-500">{en ? "Payment will only be requested when you click “Launch campaign” from the Ads page." : "Le paiement sera demandé uniquement lorsque tu cliqueras sur « Lancer la campagne » depuis la page Pub."}</p>
-              <button type="button" onClick={() => { onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">{en ? "View my campaign in Ads" : "Voir ma campagne dans Pub"}</button>
+              <button type="button" onClick={() => { if (editCampaign && onEdited) { onEdited(state.campaignId!); return; } onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">{editCampaign ? (en ? "Save and go back to launch" : "Enregistrer et revenir au lancement") : (en ? "View my campaign in Ads" : "Voir ma campagne dans Pub")}</button>
             </div>
           )}
         </div>
