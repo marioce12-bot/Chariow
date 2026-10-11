@@ -7,6 +7,7 @@ import { toUsd } from "@/lib/currency";
 import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
 import { useI18n } from "@/lib/i18n/i18n";
 import { ChannelBadge } from "./shared";
+import { Skeleton } from "./Skeleton";
 
 /**
  * Dépenses publicitaires par canal (Meta, TikTok, Pinterest) sur la période choisie.
@@ -131,7 +132,21 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
       </div>
 
       {loading && !connected.length ? (
-        <p className="hint-line" style={{ marginTop: 12 }}>{tr("Chargement des dépenses…", "Loading spend…")}</p>
+        <div style={{ marginTop: 12, display: "grid", gap: 12 }} role="status" aria-busy="true" aria-label={tr("Chargement des dépenses", "Loading spend")}>
+          <div style={{ display: "grid", gap: 6 }}>
+            <Skeleton width={110} height={11} />
+            <Skeleton width={150} height={24} />
+          </div>
+          {[0, 1, 2].map((index) => (
+            <div key={index} style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <Skeleton width={110} height={16} />
+                <Skeleton width={60} height={16} />
+              </div>
+              <Skeleton height={8} radius={999} />
+            </div>
+          ))}
+        </div>
       ) : !connected.length ? (
         <p className="hint-line" style={{ marginTop: 12 }}>{tr("Aucun canal publicitaire connecté. Connecte Meta, TikTok ou Pinterest dans « Comptes publicitaires ».", "No ad channel connected. Connect Meta, TikTok or Pinterest in “Ad accounts”.")}</p>
       ) : (
