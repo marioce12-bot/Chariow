@@ -1,0 +1,41 @@
+/* Vue d'ensemble (OverviewHome) : grille KPI 2×2, listes déroulantes lisibles en thème sombre, catalogue compact. */
+
+.ov-controls { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; margin-top: 14px; width: 100%; }
+
+.ov-select {
+  appearance: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: #0f172a;
+  font-size: 13px;
+  min-width: 0;
+  padding: 10px 12px;
+  width: 100%;
+}
+.ov-select:disabled { cursor: not-allowed; opacity: .7; }
+html[data-theme="dark"] .ov-select { background: #101f45; border-color: #31427a; color: #e7edfb; color-scheme: dark; }
+html[data-theme="dark"] .ov-select option { background: #101f45; color: #e7edfb; }
+
+/* Quatre cadres rectangulaires, deux par ligne. */
+.ov-kpi-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
+.ov-kpi { border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: 6px; justify-content: space-between; min-height: 84px; min-width: 0; padding: 12px 14px; }
+.ov-kpi > span { font-size: 12px; line-height: 1.2; }
+.ov-kpi > strong { font-size: 20px; letter-spacing: -.02em; line-height: 1.15; overflow-wrap: anywhere; }
+.ov-kpi > small { font-size: 11px; }
+
+/* Derniers achats */
+.ov-sales { display: grid; gap: 6px; list-style: none; margin: 12px 0 0; padding: 0; }
+.ov-sale { align-items: center; border: 1px solid var(--line); border-radius: 10px; display: flex; gap: 10px; padding: 8px 12px; }
+
+/* Catalogue : lignes serrées */
+.ov-catalogue-head { margin-bottom: 6px; }
+.ov-catalogue { display: grid; margin-top: 4px; }
+.ov-product { align-items: center; border-top: 1px solid var(--line); display: flex; gap: 10px; padding: 8px 0; }
+.ov-product:first-child { border-top: 0; }
+.ov-product-thumb { align-items: center; background: rgba(128, 128, 128, .15); border-radius: 8px; display: flex; flex: none; height: 40px; justify-content: center; overflow: hidden; width: 40px; }
+.ov-product-thumb img { height: 100%; object-fit: cover; width: 100%; }
+.ov-product-info { display: flex; flex: 1; flex-direction: column; gap: 1px; min-width: 0; }
+.ov-product-info strong { display: -webkit-box; font-size: 13px; line-height: 1.25; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.ov-product-info span { color: var(--muted); font-size: 11px; }
+.ov-promote { align-items: center; display: inline-flex; flex: none; font-size: 12px; gap: 5px; padding: 7px 11px; white-space: nowrap; }
