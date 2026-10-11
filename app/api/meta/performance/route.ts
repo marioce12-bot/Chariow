@@ -3,10 +3,12 @@ import { requireUser } from "@/lib/auth";
 import { convertCurrency } from "@/lib/currency";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
 import { computeAutopilotDecision } from "@/lib/autopilot";
+import { overviewState, paybackDays } from "@/lib/unit-economics";
 import type { MetaEntityPerformance } from "@/lib/meta/types";
 
 type SaleRow = {
   chariow_sale_id: string;
+  customer_id?: string | null;
   chariow_campaign_id?: string | null;
   status: string;
   amount: number | string | null;
@@ -30,7 +32,7 @@ async function fetchStoreSales(supabase: any, storeId: string, from: string, to:
   for (let offset = 0; offset < 20_000; offset += pageSize) {
     const { data, error } = await supabase
       .from("chariow_sales")
-      .select("chariow_sale_id,chariow_campaign_id,status,amount,net_amount,currency,occurred_at")
+      .select("chariow_sale_id,customer_id,chariow_campaign_id,status,amount,net_amount,currency,occurred_at")
       .eq("store_id", storeId)
       .gte("occurred_at", `${from}T00:00:00.000Z`)
       .lte("occurred_at", `${to}T23:59:59.999Z`)
@@ -110,6 +112,13 @@ export async function GET(request: Request) {
     .eq("meta_ad_account_id", account.id)
     .eq("platform", "meta")
     .in("external_campaign_id", campaignIds.length ? campaignIds : ["__none__"]);
+  const { data: launchedVendeoCampaigns } = await supabase
+    .from("ad_campaigns")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("meta_ad_account_id", account.id)
+    .eq("platform", "meta")
+    .not("external_campaign_id", "is", null);
   const launchedById = new Map((launchedCampaigns ?? []).map((row: { external_campaign_id: string; daily_budget: number | null; created_at: string; objective: string | null; effective_objective: string | null }) => [row.external_campaign_id, row]));
 
   const { data: pixelRows } = await supabase
@@ -161,11 +170,13 @@ export async function GET(request: Request) {
     trackingReady: boolean;
     dailyBudget: number | null;
     daysSinceLaunch: number | null;
+    paybackDays: number | null;
     suggestedIncrease: number | null;
     decision: "keep_running" | "pause" | "learning" | "insufficient_data";
     decisionReasons: string[];
   }> = [];
   const assignedNativeSaleIds = new Set<string>();
+  const attributedCustomerIds = new Set<string>();
 
   for (const row of campaignSummaryRows) {
     const id = String(row.entity_id ?? "");
@@ -199,10 +210,24 @@ export async function GET(request: Request) {
       convertedGross += gross;
     }
     const attributionReliable = linked && currencyReliable;
+    if (attributionReliable) {
+      for (const sale of attributedRows) if (sale.customer_id) attributedCustomerIds.add(sale.customer_id);
+    }
     const realSales = attributionReliable ? attributedRows.length : null;
     const realRevenue = attributionReliable ? Math.round(convertedNet * 100) / 100 : null;
     const realRoas = attributionReliable && spend > 0 ? convertedNet / spend : null;
     const daysSinceLaunch = launched?.created_at ? Math.max(0, (Date.now() - new Date(launched.created_at).getTime()) / 86400000) : null;
+    const recoverableSales = launched?.created_at
+      ? attributedRows.flatMap((sale) => {
+          const occurredAt = sale.occurred_at ? new Date(sale.occurred_at).getTime() : Number.NaN;
+          const netRevenue = sale.currency ? convertCurrency(num(sale.net_amount), sale.currency, adCurrency) : null;
+          if (!Number.isFinite(occurredAt) || netRevenue === null || occurredAt < new Date(launched.created_at).getTime()) return [];
+          return [{ daysSinceLaunch: (occurredAt - new Date(launched.created_at).getTime()) / 86400000, netRevenue }];
+        })
+      : [];
+    const recoveryDays = attributionReliable && launched?.created_at
+      ? paybackDays({ spend, linkedSales: recoverableSales })
+      : null;
     const dailyBudget = launched?.daily_budget == null ? null : num(launched.daily_budget);
     const decisionInputReady = attributionReliable && trackingReady && dailyBudget !== null && daysSinceLaunch !== null;
     const decision = computeAutopilotDecision({
@@ -238,6 +263,7 @@ export async function GET(request: Request) {
       trackingReady,
       dailyBudget,
       daysSinceLaunch,
+      paybackDays: recoveryDays,
       suggestedIncrease,
       decision: decision.decision,
       decisionReasons: decision.reasons,
@@ -255,6 +281,16 @@ export async function GET(request: Request) {
   const attributedGrossRevenue = reliableCampaigns.reduce((total, campaign) => total + (campaign.realGrossRevenue ?? 0), 0);
   const attributedSalesCount = reliableCampaigns.reduce((total, campaign) => total + (campaign.realSales ?? 0), 0);
   const attributedSpend = reliableCampaigns.reduce((total, campaign) => total + campaign.spend, 0);
+  const attributedCostPerCustomer = chariowRevenueCurrency && attributedCustomerIds.size > 0
+    ? convertCurrency(attributedSpend, adCurrency, chariowRevenueCurrency) !== null
+      ? convertCurrency(attributedSpend, adCurrency, chariowRevenueCurrency)! / attributedCustomerIds.size
+      : null
+    : null;
+  const state = overviewState({
+    confirmedSales: confirmedSales.length,
+    vendeoCampaigns: (launchedVendeoCampaigns ?? []).length,
+    linkedSales: attributedSalesCount,
+  });
   const totalSpendUsd = convertCurrency(attributedSpend, adCurrency, "USD");
   const attributedRevenueUsd = convertCurrency(attributedNetRevenue, adCurrency, "USD");
   const realRoas = reliableCampaigns.length > 0 && totalSpendUsd !== null && attributedRevenueUsd !== null && totalSpendUsd > 0 ? attributedRevenueUsd / totalSpendUsd : null;
@@ -274,6 +310,9 @@ export async function GET(request: Request) {
       attributedGrossRevenue: reliableCampaigns.length ? attributedGrossRevenue : null,
       attributedNetRevenue: reliableCampaigns.length ? attributedNetRevenue : null,
       attributedRevenue: reliableCampaigns.length ? attributedNetRevenue : null,
+      attributedSpend: reliableCampaigns.length ? attributedSpend : null,
+      attributedCustomers: attributedCustomerIds.size,
+      attributedCostPerCustomer: attributedCostPerCustomer === null ? null : Math.round(attributedCostPerCustomer * 100) / 100,
       conversions: totalConversions,
       sales: confirmedSales.length,
       cpa: totalConversions > 0 ? totalSpend / totalConversions : null,
@@ -282,6 +321,9 @@ export async function GET(request: Request) {
       realRoas,
       attributionCoverage: attributedSalesCount,
       salesCurrencies: chariowRevenueByCurrency.map((item) => item.currency),
+      state,
+      vendeoCampaigns: (launchedVendeoCampaigns ?? []).length,
+      verifiedSales: attributedSalesCount,
     },
     performances,
   });
