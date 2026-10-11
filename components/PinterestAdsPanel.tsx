@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Activity, BarChart3 } from "lucide-react";
+import { Activity, BarChart3, Eye, Info, PauseCircle } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 
 type PinterestAccount = { id: string; advertiser_id: string; name: string | null; currency: string; country: string | null };
@@ -33,9 +33,9 @@ function isoDaysAgo(days: number) {
 // Verdict prudent : on ne déclare jamais une pub "rentable" sans revenu remonté,
 // on tranche seulement sur ce qui est certain (dépense sans conversion).
 function verdict(campaign: PinterestPerformance["performances"][number]) {
-  if (campaign.spend <= 0) return { className: "meta-status", text: "⚪ Pas de dépense" };
-  if (campaign.conversions === 0) return { className: "meta-status loss", text: "🛑 Arrête cette pub" };
-  return { className: "meta-status watch", text: "⚠️ Surveille cette pub" };
+  if (campaign.spend <= 0) return { className: "meta-status", kind: "none" as const };
+  if (campaign.conversions === 0) return { className: "meta-status loss", kind: "cut" as const };
+  return { className: "meta-status watch", kind: "watch" as const };
 }
 
 export function PinterestAdsPanel({ accounts }: { accounts: PinterestAccount[] }) {
@@ -97,25 +97,24 @@ export function PinterestAdsPanel({ accounts }: { accounts: PinterestAccount[] }
             <div className="vendeo-kpi"><span className="metric-label">{en ? "Spend" : "Dépenses"}</span><strong>{money(data.overview.spend, currency)}</strong></div>
             <div className="vendeo-kpi"><span className="metric-label">{en ? "Clicks" : "Clics"}</span><strong>{data.overview.clicks.toLocaleString("fr-FR")}</strong></div>
             <div className="vendeo-kpi"><span className="metric-label">Conversions</span><strong>{data.overview.conversions.toLocaleString("fr-FR")}</strong></div>
-            <div className="vendeo-kpi"><span className="metric-label">{en ? "Cost per conversion" : "Coût par conversion"}</span><strong>{data.overview.cpa === null ? (en ? "Unavailable" : "Non disponible") : money(data.overview.cpa, currency)}</strong></div>
             <div className="vendeo-kpi"><span className="metric-label">Impressions</span><strong>{data.overview.impressions.toLocaleString("fr-FR")}</strong></div>
-            <div className="vendeo-kpi"><span className="metric-label">{en ? "Click-through rate" : "Taux de clic"}</span><strong>{data.overview.ctr === null ? (en ? "Unavailable" : "Non disponible") : `${data.overview.ctr.toFixed(2)} %`}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">{en ? "Click-through rate" : "Taux de clic"}</span><strong>{data.overview.ctr === null ? "-" : `${data.overview.ctr.toFixed(2)} %`}</strong></div>
           </div>
 
           <section className="app-card meta-campaigns">
             <div className="card-head"><div><span className="eyebrow">{en ? "Media analysis" : "Analyse média"}</span><h2>{en ? "Pinterest campaigns" : "Campagnes Pinterest"}</h2></div><Activity size={18} color="#103ef8" /></div>
             {data.performances.length ? (
               <div className="meta-table">
-                <div className="meta-table-head"><span>{en ? "Campaign" : "Campagne"}</span><span>{en ? "Spend" : "Dépenses"}</span><span>{en ? "Cost per conversion" : "Coût par conversion"}</span><span>{en ? "Clicks" : "Clics"}</span><span>{en ? "Vendeo verdict" : "Verdict Vendeo"}</span></div>
+                <div className="meta-table-head"><span>{en ? "Campaign" : "Campagne"}</span><span>{en ? "Spend" : "Dépenses"}</span><span>{en ? "Conversions" : "Conversions"}</span><span>{en ? "Clicks" : "Clics"}</span><span>{en ? "Vendeo verdict" : "Verdict Vendeo"}</span></div>
                 {data.performances.map((campaign) => {
                   const v = verdict(campaign);
                   return (
                     <div className="meta-table-row" key={campaign.id}>
                       <strong>{campaign.name}</strong>
                       <span>{money(campaign.spend, currency)}</span>
-                      <span>{campaign.cpa === null ? (en ? "Unavailable" : "Non disponible") : money(campaign.cpa, currency)}</span>
+                      <span>{campaign.conversions.toLocaleString(en ? "en-US" : "fr-FR")}</span>
                       <span>{campaign.clicks.toLocaleString("fr-FR")}</span>
-                      <span className={v.className}>{v.text}</span>
+                      <span className={v.className}>{v.kind === "cut" ? <PauseCircle size={14} /> : v.kind === "watch" ? <Eye size={14} /> : <Activity size={14} />}{v.kind === "cut" ? (en ? "Cut" : "À couper") : v.kind === "watch" ? (en ? "Watch" : "À surveiller") : (en ? "No spend" : "Aucune dépense")}</span>
                     </div>
                   );
                 })}
@@ -123,7 +122,7 @@ export function PinterestAdsPanel({ accounts }: { accounts: PinterestAccount[] }
             ) : (
               <div className="empty-state"><BarChart3 size={24} /><strong>{en ? "No campaigns for this period" : "Aucune campagne sur la période"}</strong><span>{en ? `No Pinterest Ads spend recorded in the last ${days} days.` : `Aucune dépense Pinterest Ads enregistrée sur les ${days} derniers jours.`}</span></div>
             )}
-            <p className="hint-line">{en ? "Pinterest ROAS is not calculated yet: verdicts are based on spend and conversions." : "Le retour publicitaire (ROAS) Pinterest n'est pas encore calculé : les verdicts se basent sur les dépenses et les conversions."}</p>
+            <div className="hint-line"><span className="meta-status">{en ? "Coming soon" : "Bientôt"}</span> <span title={en ? "Profitability will be shown when linked sales are available." : "La rentabilité apparaîtra lorsque les ventes liées seront disponibles."} aria-label={en ? "Profitability will be shown when linked sales are available." : "La rentabilité apparaîtra lorsque les ventes liées seront disponibles."}><Info size={14} /></span></div>
           </section>
         </>
       ) : null}

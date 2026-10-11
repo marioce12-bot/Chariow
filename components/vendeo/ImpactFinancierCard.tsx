@@ -1,36 +1,25 @@
 "use client";
 
+import { Info } from "lucide-react";
 import { formatAdMoney, type ImpactFinancierData } from "./types";
+import { useI18n } from "@/lib/i18n/i18n";
 
 interface ImpactFinancierCardProps {
   data: ImpactFinancierData;
 }
 
-/**
- * Bloc 2 — "Impact Financier".
- * Remplace les blocs CA/Dépenses/ROAS traditionnels qui affichent souvent du vide.
- */
 export function ImpactFinancierCard({ data }: ImpactFinancierCardProps) {
+  const { locale } = useI18n();
+  const en = locale === "en";
+  const help = en
+    ? "Observed spend on at-risk campaigns. This amount is not savings already realized."
+    : "Dépense observée sur les campagnes à risque. Ce montant n’est pas une économie réalisée.";
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4">
       <div className="rounded-2xl border border-[#D1FAE5] bg-white p-5 shadow-sm">
-        <p className="text-sm font-medium text-gray-500">Dépense observée sur campagnes à risque</p>
-        <p className="mt-1 text-3xl font-extrabold text-[#10B981]">
-          {formatAdMoney(data.budgetEconomise, data.currency)}
-        </p>
-        <p className="mt-1 text-xs text-gray-500">
-          Dépense déjà observée sur la période; ce montant n'est pas une économie réalisée.
-        </p>
-      </div>
-
-      <div className="rounded-2xl border border-[#E0E7FF] bg-white p-5 shadow-sm">
-        <p className="text-sm font-medium text-gray-500">Potentiel estimé selon le ROAS attribué</p>
-        <p className="mt-1 text-3xl font-extrabold text-[#6366F1]">
-          {formatAdMoney(data.revenuAdditionnelEstime, data.currency)}
-        </p>
-        <p className="mt-1 text-xs text-gray-500">
-          Estimation indicative à partir des ventes Chariow attribuées; ce n'est pas un revenu garanti.
-        </p>
+        <div className="flex items-center gap-2"><p className="text-sm font-medium text-gray-500">{en ? "Observed spend" : "Dépense observée"}</p><span title={help} aria-label={help}><Info className="h-4 w-4 text-gray-500" /></span></div>
+        <p className="mt-1 text-3xl font-extrabold text-[#10B981]">{formatAdMoney(data.budgetEconomise, data.currency)}</p>
+        <span className="text-xs text-gray-500">{en ? "At-risk campaigns" : "Campagnes à risque"}</span>
       </div>
     </div>
   );

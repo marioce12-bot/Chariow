@@ -51,3 +51,21 @@ Périmètre : ce qui est visible par un vendeur dans le dashboard. Inventaire é
 - `app/api/chat/route.ts` (prompt IA), `lib/meta/diagnostic.ts`, `lib/ai/autopilot-verdict.ts` : usage interne.
 - Colonnes et champs d'API (`roas`, `cac`, `cpa`, `vendeoAttributedRoas`) : inchangés pour la compatibilité des consommateurs.
 - `ChatView` : props inchangées. La bande de 3 chiffres décrite dans `docs/VENDEO_AI_LAYOUT.md` (Ventes, Dépenses pub, ROAS réel) reste telle quelle.
+
+
+## Audit complémentaire — étape 7 (11/10/2026, avant correction)
+
+Recherche exécutée sur `components/` et `lib/i18n/` pour `ROAS|CAC|CPA|CTR|Payback|baseline|ratio|attribution|fréquence|frequency`, puis lecture ciblée des écrans concernés.
+
+| Fichier / écran | Texte ou élément relevé | Traitement prévu |
+| --- | --- | --- |
+| `components/dashboard/sections.tsx` — Ads Meta | KPI « Coût moyen par conversion » (CPA), « Coût moyen pour obtenir une vente », « Retour publicitaire … » avec multiplicateur `x`; tableau « Ventes Chariow attribuées », « ROAS Chariow attribué »; titre cash/brûlent; motif et diagnostic narratifs; emoji verdict | Retirer CPA; nommer « Coût par vente », « Rentabilité » en %; étiquettes « Déclaré Meta » / « Vérifié »; « Ventes liées »; pastilles courtes et icônes Lucide |
+| `components/vendeo/VerdictBanner.tsx` | ROAS en `x`, projection d’augmentation de budget et ventes supplémentaires; phrases longues; emojis | Afficher uniquement mesure observée en %, labels courts, explication en infobulle; retirer projections et emojis |
+| `components/vendeo/ImpactFinancierCard.tsx` | « Potentiel estimé selon le ROAS attribué » et revenu additionnel estimé | Supprimer entièrement la projection; garder uniquement la dépense observée, avec infobulle clarifiant qu’il ne s’agit pas d’une économie réalisée |
+| `components/vendeo/DiagnosticFunnel.tsx` | « CTR baseline (14 j) », « Ratio vs baseline », « Fréquence », ROAS Meta/Chariow; étape « Fiabilité de l’attribution » | Filtrer les preuves techniques; afficher taux de clic et rentabilités en % avec sources; remplacer l’étape par « Suivi des ventes » |
+| `components/vendeo/AutopilotView.tsx` | En-tête `ROAS`, valeur en `x`, descriptions longues en FR/EN | Remplacer par « Rentabilité » en %, raccourcir les titres/descriptions visibles; motifs reformulés à l’étape 8 |
+| `components/TikTokAdsPanel.tsx`, `components/PinterestAdsPanel.tsx` | Coût par conversion (CPA), `ROAS` dans une phrase d’aide, emojis dans les verdicts | Retirer la métrique CPA affichée; badges sans emoji; remplacer la phrase ROAS par « Bientôt » + infobulle |
+| `lib/i18n/ui.ts` | Descriptions, titres, tableau et pied de page autopilot en phrases | Remplacer par des libellés courts FR/EN; garder les aides explicatives en infobulle si nécessaire |
+| `lib/i18n/translations/{fr,en}.ts` — dashboard Ads | `realRoas` et `roas` avec le terme ROAS; « Non disponible » | Remplacer les textes d’interface ciblés par « Rentabilité »; afficher « - » pour l’absence de mesure |
+
+Hors périmètre de cette étape : les pages marketing, le prompt IA, les champs API/DB et les motifs du moteur autopilot (ces derniers sont traités dans l’étape 8).

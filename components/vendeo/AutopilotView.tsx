@@ -135,7 +135,7 @@ export function AutopilotView() {
         ) : (
           <div className="report-table">
             <div className="report-table-head">
-              <span>{t("autopilot.campaign")}</span><span>{t("autopilot.spend")}</span><span>{t("autopilot.sales")}</span><span>ROAS</span><span>{t("autopilot.decision")}</span>
+              <span>{t("autopilot.campaign")}</span><span>{t("autopilot.spend")}</span><span>{t("autopilot.sales")}</span><span>{t("autopilot.profitability")}</span><span>{t("autopilot.decision")}</span>
             </div>
             {latest.map((report) => {
               const decision = decisionMeta(report.decision);
@@ -145,7 +145,7 @@ export function AutopilotView() {
                     <strong>{report.campaign_title} <span style={{ fontWeight: 400, color: "#6B7280" }}>· {report.platform === "meta" ? "Meta" : "TikTok"}</span></strong>
                     <span>{formatMoney(report.spend, report.currency ?? "XOF")}</span>
                     <span>{report.completed_sales} vente{report.completed_sales > 1 ? "s" : ""} ({formatMoney(report.net_revenue, report.currency ?? "XOF")})</span>
-                    <span>{report.roas === null ? "—" : `${report.roas.toFixed(2)}x`}</span>
+                    <span>{report.roas === null ? "-" : `${(report.roas * 100).toFixed(1)} %`}</span>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: decision.tone, fontWeight: 700 }}>{decision.icon}{decision.label}</span>
                   </div>
                   {report.reasons.length > 0 ? (
