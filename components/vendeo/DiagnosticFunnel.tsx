@@ -20,12 +20,12 @@ const STAGE_LABELS: Record<Anomaly["stage"], string> = {
 const SEVERITY_LABELS: Record<Anomaly["severity"], string> = { critical: "Critique", high: "Élevée", medium: "Moyenne", low: "Faible" };
 
 const EVIDENCE_LABELS: Record<string, string> = {
-  ctr_today: "CTR du jour",
-  ctr_baseline: "CTR baseline (14 j)",
-  ratio: "Ratio vs baseline",
-  frequence: "Fréquence (impressions / personne)",
-  roas_meta: "ROAS rapporté Meta",
-  roas_reel: "ROAS réel Chariow",
+  ctr_today: "Taux de clic",
+  ctr_baseline: "Taux de clic (14 j)",
+  ratio: "Écart (14 j)",
+  frequence: "Vues par personne",
+  roas_meta: "Rentabilité Meta",
+  roas_reel: "Rentabilité Chariow",
 };
 
 function formatEvidence(key: string, value: number): string {

@@ -19,6 +19,7 @@ import { VIDEO_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/s
 import { useI18n } from "@/lib/i18n/i18n";
 import { readCache, writeCache, MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY, ADS_CACHE_KEY } from "./shared";
 import type { StoreData, SubscriptionData, ProductData, AnalyticsData } from "./shared";
+import { costPerSale, health, profit, profitabilityPct } from "@/lib/unit-economics";
 
 export function StoreOnboarding() {
   const [saving, setSaving] = useState(false);
@@ -495,6 +496,13 @@ export function Overview({
   const roas = metaPerformance?.overview.realRoas ?? null;
   const performances = metaPerformance?.performances ?? [];
   const adsCurrency = metaPerformance?.currency ?? currency;
+  const comparableRevenue = revenueByCurrency.length === 1 && revenueByCurrency[0].currency.toUpperCase() === adsCurrency.toUpperCase()
+    ? revenueByCurrency[0].value
+    : metaPerformance?.overview.chariowRevenue ?? null;
+  const adProfit = profit(comparableRevenue, metaPerformance ? spend : null);
+  const adProfitability = profitabilityPct(comparableRevenue, metaPerformance ? spend : null);
+  const saleCost = costPerSale(metaPerformance?.overview.spend ?? null, metaPerformance?.overview.sales ?? null);
+  const healthState = health(saleCost, null);
 
   const statusText = !connected
     ? "Connecte ta boutique Chariow pour commencer l'analyse."
@@ -607,17 +615,20 @@ export function Overview({
       </div>
 
       <LaunchAdBar onLaunch={onLaunchAd} />
+      <section className="overview-profit-hero app-card"><div><MetricHelp label={t("overview.adProfit")} description={t("overview.adProfitHelp")} /><strong>{adProfit === null ? "—" : formatMoney(adProfit, adsCurrency)}</strong></div><span className={`overview-pill ${adProfitability === null ? "neutral" : adProfitability >= 0 ? "gain" : "loss"}`}>{adProfitability === null ? "Bientôt" : `${adProfitability >= 0 ? "+" : ""}${adProfitability.toFixed(0)} %`}</span><svg className="overview-sparkline" viewBox="0 0 120 32" role="img" aria-label={t("overview.adProfit")}><polyline points="2,25 22,20 42,23 62,12 82,16 102,7 118,10" fill="none" stroke="currentColor" strokeWidth="2" /></svg></section>
 
       <ImpactFinancierCard data={{ budgetEconomise, revenuAdditionnelEstime, currency: adsCurrency }} />
 
       <section className="home-ai-state app-card"><div><span className="eyebrow">{t("dashboard.aiAnalysis")}</span><h2>{t("dashboard.activityState")}</h2><p>{statusText}</p></div><Brain size={24} /></section>
 
       <section className="home-kpis">
-        <HomeKpi label={t("overview.revenue")} value={connected ? revenueDisplay : t("overview.unavailable")} tone={revenue > 0 || revenueByCurrency.some((item) => item.value > 0) ? "positive" : "neutral"} help={t("overview.revenueHelp")} />
-        <HomeKpi label={t("overview.spend")} value={metaPerformance ? formatMoney(spend, adsCurrency) : t("overview.unavailable")} tone="info" help={t("overview.spendHelp")} />
-        <HomeKpi label={t("overview.sales")} value={connected ? String(sales) : t("overview.unavailable")} tone={sales > 0 ? "positive" : "neutral"} help={t("overview.salesHelp")} />
-        <HomeKpi label={t("overview.roas")} value={roas === null ? t("overview.unavailable") : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help={t("overview.roasHelp")} />
+        <HomeKpi label={t("overview.sales")} value={connected ? String(sales) : "—"} tone={sales > 0 ? "positive" : "neutral"} help={t("overview.salesHelp")} />
+        <HomeKpi label={t("overview.spend")} value={metaPerformance ? formatMoney(spend, adsCurrency) : "—"} tone="info" help={t("overview.spendHelp")} />
+        <HomeKpi label={t("overview.netRevenue")} value={comparableRevenue === null ? "—" : formatMoney(comparableRevenue, adsCurrency)} tone={comparableRevenue && comparableRevenue > 0 ? "positive" : "neutral"} help={t("overview.netRevenueHelp")} />
+        <HomeKpi label={t("overview.costPerSale")} value={saleCost === null ? "—" : formatMoney(saleCost, adsCurrency)} tone="info" help={t("overview.costPerSaleHelp")} />
+        <HomeKpi label={t("overview.customerValue")} value="Bientôt" tone="neutral" help={t("overview.customerValueHelp")} />
       </section>
+      <section className="overview-health app-card"><div><MetricHelp label={t("overview.adHealth")} description={t("overview.adHealthHelp")} /><strong>Bientôt</strong></div><div className="overview-gauge"><i style={{ width: healthState === null ? "0%" : "70%" }} /></div><span>{saleCost === null ? "—" : formatMoney(saleCost, adsCurrency)}</span></section>
 
       <div className="home-primary-grid">
         <div className="home-side-stack">
@@ -1369,7 +1380,6 @@ type AdsCache = {
 type AdVerdictTone = "stop" | "optimize" | "watch" | "none";
 type AdVerdict = {
   tone: AdVerdictTone;
-  emoji: string;
   label: string;       // titre affiché ("Arrête cette pub", "Cette pub fonctionne !")
   diagnosis: string;    // pourquoi ce verdict
   action: string;       // l'action chiffrée à faire
@@ -1378,25 +1388,25 @@ type AdVerdict = {
 
 function getCampaignVerdict(campaign: MetaPerformance["performances"][number], currency: string): AdVerdict {
   if (campaign.decision === "pause") {
-    return { tone: "stop", emoji: "🛑", label: "À mettre en pause", diagnosis: campaign.decisionReasons.join(" "), action: "Mets cette campagne en pause et vérifie son suivi avant de la relancer.", actionLabel: "Arrêter" };
+    return { tone: "stop", label: "À couper", diagnosis: campaign.decisionReasons.join(" "), action: "Vérifier", actionLabel: "Ouvrir" };
   }
   if (campaign.decision === "keep_running") {
     const increase = campaign.suggestedIncrease ?? 0;
-    return { tone: "optimize", emoji: "✅", label: "Cette pub fonctionne", diagnosis: `ROAS net attribué à Chariow : ${campaign.realRoas?.toFixed(2) ?? "—"}x pour ${formatMoney(campaign.spend, currency)} dépensés.`, action: increase > 0 ? `Envisage un palier de +${formatMoney(increase, currency)}/jour (20 % du budget quotidien), puis surveille les résultats.` : "Maintiens le budget quotidien et continue de surveiller les ventes attribuées.", actionLabel: "Scaler" };
+    const profitability = campaign.realRevenue !== null && campaign.spend > 0 ? `${(((campaign.realRevenue - campaign.spend) / campaign.spend) * 100).toFixed(0)} %` : "—";
+    return { tone: "optimize", label: "À augmenter", diagnosis: `Rentabilité ${profitability} · ${formatMoney(campaign.spend, currency)}`, action: increase > 0 ? `+${formatMoney(increase, currency)}/j` : "Maintenir", actionLabel: "Ouvrir" };
   }
   return {
     tone: campaign.spend > 0 ? "watch" : "none",
-    emoji: campaign.spend > 0 ? "⚠️" : "⚪",
-    label: campaign.decision === "learning" ? "Phase d’apprentissage" : "Données insuffisantes",
-    diagnosis: campaign.decisionReasons.join(" ") || "Pas encore assez de données fiables.",
-    action: "Ne coupe pas la campagne sur la base des conversions Meta seules; vérifie le suivi et réanalyse après assez de données.",
-    actionLabel: "Surveiller",
+    label: campaign.decision === "learning" ? "En test" : "Bientôt",
+    diagnosis: campaign.decisionReasons.join(" ") || "—",
+    action: "Surveiller",
+    actionLabel: "Ouvrir",
   };
 }
 
 function AdVerdictBadge({ verdict }: { verdict: AdVerdict }) {
   const className = verdict.tone === "stop" ? "meta-status loss" : verdict.tone === "optimize" ? "meta-status profitable" : verdict.tone === "watch" ? "meta-status watch" : "meta-status";
-  return <span className={className}>{verdict.emoji} {verdict.label}</span>;
+  return <span className={className}>{verdict.label}</span>;
 }
 
 // Carte de dépenses observées et potentiel estimatif calculé depuis les ventes attribuées.
@@ -1692,7 +1702,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
               </section>
             ) : null}
             {metaPerformance ? <><div className="vendeo-kpi-grid meta-kpis"><div className="vendeo-kpi"><MetricHelp label="Dépenses publicitaires" description="Montant dépensé sur Meta Ads pendant la période analysée." /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Revenu net Chariow par devise" description="Ventes encaissées, ventilées par devise afin de ne pas additionner des montants incompatibles." /><strong>{metaPerformance.chariowRevenueByCurrency.length ? metaPerformance.chariowRevenueByCurrency.map((item) => formatMoney(item.amount, item.currency)).join(" · ") : "Aucune vente encaissée"}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen par conversion" description="Dépenses divisées par le nombre de conversions déclarées par Meta." /><strong>{metaPerformance.overview.cpa === null ? "Non disponible" : formatMoney(metaPerformance.overview.cpa, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Coût moyen pour obtenir une vente" description="Dépenses divisées par les ventes réellement enregistrées dans Chariow." /><strong>{metaPerformance.overview.cac === null ? "Non disponible" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire déclaré par Meta" description="Valeur des achats estimée par Meta divisée par les dépenses." /><strong>{metaPerformance.overview.metaRoas === null ? "Non disponible" : `${metaPerformance.overview.metaRoas.toFixed(2)}x`}</strong></div><div className="vendeo-kpi"><MetricHelp label="Retour publicitaire réel attribué" description="Revenus Chariow reliés à une publicité par attribution, divisés par les dépenses." /><strong>{metaPerformance.overview.realRoas === null ? "Non disponible" : `${metaPerformance.overview.realRoas.toFixed(2)}x`}</strong></div></div><section className="app-card meta-campaigns"><div className="card-head"><div><span className="eyebrow">Analyse média</span><h2>Campagnes qui gagnent ou brûlent du cash</h2></div><Activity size={18} color="#103ef8" /></div><div className="meta-table"><div className="meta-table-head"><span>Campagne</span><span>Dépenses</span><span>Ventes Chariow attribuées</span><span>ROAS Chariow attribué</span><span>Verdict Vendeo</span></div>{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className="meta-table-row" key={campaign.id}><strong>{campaign.name}</strong><span>{formatMoney(campaign.spend, metaPerformance.currency)}</span><span>{campaign.realSales === null ? "Non attribuées" : campaign.realSales}</span><span>{campaign.realRoas === null ? "Non disponible" : `${campaign.realRoas.toFixed(2)}x`}</span><AdVerdictBadge verdict={verdict} /></div>; })}</div>{!metaPerformance.performances.length && <p className="hint-line">Aucune campagne synchronisée. Lance une synchronisation Meta Ads.</p>}</section>
-            {metaPerformance.performances.length ? <section className="app-card reco-card" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Pourquoi ce verdict</span><h2>Recommandation par campagne</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="reco-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`reco-item reco-item-${verdict.tone}`} key={campaign.id}><span className="reco-icon">{verdict.emoji}</span><div className="reco-body"><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.action}</p><small>{verdict.diagnosis}</small></div><button type="button" className={`reco-action reco-action-${verdict.tone}`} onClick={() => openAI(`Analyse la campagne "${campaign.name}" et détaille les prochaines actions.`)}>{verdict.actionLabel}</button></div>; })}</div></section> : null}
+            {metaPerformance.performances.length ? <section className="app-card reco-card" style={{ marginTop: 18 }}><div className="card-head"><div><span className="eyebrow">Décisions</span><h2>Campagnes</h2></div><Lightbulb size={18} color="#d28b3d" /></div><div className="reco-list">{metaPerformance.performances.map((campaign) => { const verdict = getCampaignVerdict(campaign, metaPerformance.currency); return <div className={`reco-item reco-item-${verdict.tone}`} key={campaign.id}><span className="reco-icon" aria-hidden="true"><Activity size={15} /></span><div className="reco-body"><strong>{campaign.name} — {verdict.label}</strong><p>{verdict.action}</p><small>{verdict.diagnosis}</small></div><button type="button" className={`reco-action reco-action-${verdict.tone}`} onClick={() => openAI(`Analyse la campagne "${campaign.name}" et détaille les prochaines actions.`)}>{verdict.actionLabel}</button></div>; })}</div></section> : null}
             </> : <div className="empty-state">Synchronise ton compte pour afficher les performances.</div>}
           </>}
         </>

@@ -135,7 +135,7 @@ export function AutopilotView() {
         ) : (
           <div className="report-table">
             <div className="report-table-head">
-              <span>{t("autopilot.campaign")}</span><span>{t("autopilot.spend")}</span><span>{t("autopilot.sales")}</span><span>ROAS</span><span>{t("autopilot.decision")}</span>
+              <span>{t("autopilot.campaign")}</span><span>{t("autopilot.spend")}</span><span>{t("autopilot.sales")}</span><span>Rentabilité</span><span>{t("autopilot.decision")}</span>
             </div>
             {latest.map((report) => {
               const decision = decisionMeta(report.decision);

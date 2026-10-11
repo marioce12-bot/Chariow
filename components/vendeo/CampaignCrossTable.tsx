@@ -9,9 +9,9 @@ interface CampaignCrossTableProps {
 }
 
 const VERDICT_STYLES: Record<CampaignVerdictBadge, { label: string; bg: string; text: string }> = {
-  stop: { label: "🛑 STOP", bg: "bg-[#FEF2F2]", text: "text-[#991B1B]" },
-  scale: { label: "✅ SCALE", bg: "bg-[#ECFDF5]", text: "text-[#065F46]" },
-  test: { label: "⏳ EN TEST", bg: "bg-[#FFFBEB]", text: "text-[#92400E]" },
+  stop: { label: "À couper", bg: "bg-[#FEF2F2]", text: "text-[#991B1B]" },
+  scale: { label: "À augmenter", bg: "bg-[#ECFDF5]", text: "text-[#065F46]" },
+  test: { label: "En test", bg: "bg-[#FFFBEB]", text: "text-[#92400E]" },
 };
 
 function VerdictBadge({ verdict }: { verdict: CampaignVerdictBadge }) {
@@ -33,7 +33,7 @@ export function CampaignCrossTable({ rows }: CampaignCrossTableProps) {
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <h3 className="text-base font-bold text-gray-900">
-        Performances croisées & verdicts par campagne
+        Campagnes
       </h3>
 
       {/* Desktop */}
@@ -70,8 +70,8 @@ export function CampaignCrossTable({ rows }: CampaignCrossTableProps) {
                 </td>
                 <td className="py-3 pr-4 font-medium text-gray-900">{formatAdMoney(row.spend, row.currency)}</td>
                 <td className="py-3 pr-4">
-                  <p className="font-medium text-gray-900">{row.realSales === null ? "Attribution indisponible" : `${row.realSales} vente${row.realSales > 1 ? "s" : ""}`}</p>
-                  <p className="text-xs text-gray-400">{row.realRevenue === null ? "Revenu non calculable" : formatAdMoney(row.realRevenue, row.currency)}</p>
+                  <p className="font-medium text-gray-900">{row.realSales === null ? "—" : `${row.realSales} vente${row.realSales > 1 ? "s" : ""}`}</p>
+                  <p className="text-xs text-gray-400">{row.realRevenue === null ? "—" : formatAdMoney(row.realRevenue, row.currency)}</p>
                 </td>
                 <td className="py-3 pr-4">
                   <VerdictBadge verdict={row.verdict} />
@@ -130,7 +130,7 @@ function CampaignAccordionCard({ row }: { row: CampaignRow }) {
           <div className="flex justify-between">
             <span className="text-gray-400">Ventes Chariow attribuées</span>
             <span className="font-medium text-gray-900">
-              {row.realSales === null ? "Attribution indisponible" : `${row.realSales} (${row.realRevenue === null ? "revenu inconnu" : formatAdMoney(row.realRevenue, row.currency)})`}
+              {row.realSales === null ? "—" : `${row.realSales} (${row.realRevenue === null ? "—" : formatAdMoney(row.realRevenue, row.currency)})`}
             </span>
           </div>
           <div className="rounded-lg bg-gray-50 p-2 text-gray-700">{row.recommendedAction}</div>

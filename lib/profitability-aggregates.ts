@@ -11,6 +11,8 @@ export type ProfitabilityAggregate = {
   currency: string | null;
   abandonmentRate: number | null;
   failureRate: number | null;
+  costPerSale: number | null;
+  /** @deprecated Utiliser costPerSale. Conservé pour les anciennes API. */
   cac: number | null;
   vendeoAttributedRoas: number | null;
 };
@@ -50,6 +52,7 @@ export function calculateProfitabilityAggregate(input: {
     ? input.attributedNetRevenue
     : input.attributedNetRevenue === undefined && spendCurrencyMatches ? netRevenue : null;
 
+  const costPerSale = confirmed.length > 0 && spendCurrencyMatches ? input.spend / confirmed.length : null;
   return {
     spend: input.spend,
     completedSales: confirmed.length,
@@ -61,7 +64,8 @@ export function calculateProfitabilityAggregate(input: {
     currency,
     abandonmentRate: attempts > 0 ? abandoned.length / attempts : null,
     failureRate: attempts > 0 ? failed.length / attempts : null,
-    cac: confirmed.length > 0 && spendCurrencyMatches ? input.spend / confirmed.length : null,
+    costPerSale,
+    cac: costPerSale,
     vendeoAttributedRoas: input.spend > 0 && comparableAttributedRevenue !== null ? comparableAttributedRevenue / input.spend : null,
   };
 }
