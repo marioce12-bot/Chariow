@@ -81,7 +81,11 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
       try {
         const { effectiveStatus, feedback } = await getMetaAdReviewStatus({ adId: campaign.external_ad_id, accessToken: input.accessToken });
         const mapped = mapMetaEffectiveStatus(effectiveStatus, feedback, result.accountStatus);
-        if (!mapped) continue;
+        if (!mapped) {
+          // État Meta non reconnu : on laisse le statut tel quel, mais on le trace pour pouvoir l'ajouter au mapping.
+          console.warn("Meta campaign status sync: effective_status non reconnu", campaign.id, effectiveStatus || "(vide)");
+          continue;
+        }
         const externalError = mapped.status === "paused"
           ? markMetaPausedReason(mapped.error ?? "Meta signale que la publicité est en pause.")
           : mapped.error;
