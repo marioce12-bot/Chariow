@@ -250,13 +250,16 @@ export function OverviewHome({
           <span className="eyebrow">{tr("Vue d'ensemble", "Overview")}</span>
           {greeting ? (
             <>
-              <h1 style={{ margin: "4px 0 6px", fontSize: 24 }}>{greeting}</h1>
-              <p className="hint-line" style={{ margin: "0 0 6px", fontStyle: "italic" }}>{dailyQuote}</p>
+              <h1 style={{ margin: "4px 0 8px", fontSize: 24 }}>{greeting}</h1>
+              {/* Guillemets français « » (espaces insécables), “ ” en anglais. */}
+              <p className="hint-line" style={{ margin: "0 0 10px", fontSize: 17, lineHeight: 1.45, fontStyle: "italic" }}>
+                {en ? <>“{dailyQuote}”</> : <>«&nbsp;{dailyQuote}&nbsp;»</>}
+              </p>
             </>
           ) : (
             <>
               <Skeleton width="55%" height={26} style={{ margin: "8px 0 10px" }} />
-              <Skeleton width="70%" height={12} style={{ marginBottom: 8 }} />
+              <Skeleton width="70%" height={16} style={{ marginBottom: 10 }} />
             </>
           )}
           {summaryLoading ? (
