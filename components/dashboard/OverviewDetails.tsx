@@ -14,6 +14,7 @@ type CampaignPoint = {
   spend: number;
   currency: string;
   realRoas: number | null;
+  realSales: number | null;
   attributionReliable: boolean;
   decision: "pause" | "keep_running" | "learning" | "insufficient_data";
   suggestedIncrease: number | null;
@@ -67,7 +68,11 @@ export function OverviewDetails({ currency, period, revenueSeries, metaDaily, ca
   const verdict = (campaign: CampaignPoint) => {
     if (campaign.decision === "pause") return { key: "loss", tone: "loss" };
     if (campaign.attributionReliable && campaign.realRoas !== null && campaign.realRoas >= 1) return { key: "gain", tone: "gain" };
-    if (!campaign.attributionReliable || campaign.decision === "learning" || campaign.decision === "insufficient_data") return { key: "testing", tone: "testing" };
+    if (campaign.spend <= 0) return { key: "noSpend", tone: "testing" };
+    if (campaign.decision === "learning") return { key: "campaignStarting", tone: "testing" };
+    if (campaign.realSales === 0) return { key: "noSalesDetected", tone: "testing" };
+    if (!campaign.attributionReliable) return { key: "salesNotVerified", tone: "testing" };
+    if (campaign.decision === "insufficient_data") return { key: "campaignDataInsufficient", tone: "testing" };
     return { key: "watch", tone: "watch" };
   };
 

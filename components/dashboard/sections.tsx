@@ -585,6 +585,7 @@ export function Overview({
           spend: campaign.spend,
           currency: adsCurrency,
           realRoas: campaign.realRoas,
+          realSales: campaign.realSales,
           attributionReliable: campaign.attributionReliable,
           decision: campaign.decision,
           suggestedIncrease: campaign.suggestedIncrease,
@@ -1276,8 +1277,12 @@ type AdVerdict = {
 function getCampaignVerdict(campaign: MetaPerformance["performances"][number]): AdVerdict {
   if (campaign.decision === "pause") return { tone: "stop", labelKey: "overview.loss" };
   if (campaign.decision === "keep_running" && campaign.attributionReliable && campaign.realRoas !== null) return { tone: "optimize", labelKey: "overview.gain" };
-  if (campaign.spend > 0) return { tone: "watch", labelKey: campaign.decision === "learning" ? "overview.testing" : "overview.watch" };
-  return { tone: "none", labelKey: "overview.testing" };
+  if (campaign.spend <= 0) return { tone: "none", labelKey: "overview.noSpend" };
+  if (campaign.decision === "learning") return { tone: "watch", labelKey: "overview.campaignStarting" };
+  if (campaign.realSales === 0) return { tone: "watch", labelKey: "overview.noSalesDetected" };
+  if (!campaign.attributionReliable) return { tone: "watch", labelKey: "overview.salesNotVerified" };
+  if (campaign.decision === "insufficient_data") return { tone: "watch", labelKey: "overview.campaignDataInsufficient" };
+  return { tone: "watch", labelKey: "overview.watch" };
 }
 
 function AdVerdictBadge({ verdict }: { verdict: AdVerdict }) {
