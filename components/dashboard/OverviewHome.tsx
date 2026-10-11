@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock, Megaphone, Package, Plus, XCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, Clock, Megaphone, Package, XCircle } from "lucide-react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
+import { getDailyQuote, getGreeting } from "@/lib/greetings";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { PlanId } from "@/lib/plans";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { AdSpendByChannel } from "./AdSpendByChannel";
-import { ChannelBadge } from "./shared";
+import { Skeleton, SkeletonRows } from "./Skeleton";
 import type { AnalyticsData, ProductData, StoreData, SubscriptionData } from "./shared";
 import "@/app/dashboard-overview.css";
 
@@ -20,29 +21,27 @@ import "@/app/dashboard-overview.css";
  *  2. Que font mes campagnes et combien coûtent-elles, tous canaux confondus ?
  *  3. Que vend ma boutique ? (catalogue)
  *  4. Que se passe-t-il côté achats ? (réussis / en attente / échoués)
+ *
+ * Tant qu'une donnée n'est pas arrivée, on affiche un skeleton à sa place (jamais de
+ * « 0 », de « Aucune … » ou de texte provisoire qui change une fraction de seconde après).
  */
 
 type CampaignSummary = { id: string; platform: string; status: string };
 type SaleGroup = "success" | "pending" | "failed";
-type SaleDetail = { label: string; value: string };
+type SaleContact = { name: string | null; email: string | null; phone: string | null; country: string | null; failureReason: string | null };
 type SaleRow = {
   key: string;
+  status: string;
   group: SaleGroup;
   label: string;
   product: string;
   image: string | null;
   amount: string;
   date: string;
-  dateTime: string;
-  details: SaleDetail[];
+  clock: string;
+  contact: SaleContact;
 };
 type PersistentAlert = { id: string; severity: string; title: string; description: string };
-
-const CHANNELS = [
-  { id: "meta", badge: "facebook", label: "Meta" },
-  { id: "tiktok", badge: "tiktok", label: "TikTok" },
-  { id: "pinterest", badge: "pinterest", label: "Pinterest" },
-] as const;
 
 const SUCCESS_STATUSES = ["completed", "settled", "paid", "succeeded", "success"];
 const PENDING_STATUSES = ["awaiting_payment", "pending", "processing"];
@@ -50,11 +49,12 @@ const PENDING_STATUSES = ["awaiting_payment", "pending", "processing"];
 // Nombre de transactions Chariow affichées dans « Derniers achats ».
 const LATEST_PURCHASES = 10;
 
-const tileStyle: React.CSSProperties = { border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 };
-const gridStyle = (min: number): React.CSSProperties => ({ display: "grid", gap: 12, gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))` });
-
 function rec(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function str(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 export function OverviewHome({
@@ -67,11 +67,12 @@ export function OverviewHome({
   onStoreChange,
   onLaunchAd,
   campaignsVersion,
+  loading = false,
 }: {
   stores: StoreData[];
   subscription: SubscriptionData | null;
   analytics: AnalyticsData;
-  userFirstName: string;
+  userFirstName: string | null;
   plan: PlanId;
   selectedStoreId: string | null;
   onStoreChange: (storeId: string) => void;
@@ -79,6 +80,8 @@ export function OverviewHome({
   onGoToAds?: () => void;
   onGoToAI?: () => void;
   campaignsVersion: number;
+  /** Vrai tant que les données de la boutique et l'abonnement ne sont pas arrivés. */
+  loading?: boolean;
 }) {
   const { locale } = useI18n();
   const en = locale === "en";
@@ -87,17 +90,33 @@ export function OverviewHome({
   const [periodDays, setPeriodDays] = useState(30);
   const [data, setData] = useState<AnalyticsData>(analytics);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
+  const [campaignsReady, setCampaignsReady] = useState(false);
+  const [periodLoading, setPeriodLoading] = useState(false);
+  const periodFirstRun = useRef(true);
   const [alerts, setAlerts] = useState<PersistentAlert[]>([]);
   const [selectedSale, setSelectedSale] = useState<SaleRow | null>(null);
+  // Ce composant n'est monté qu'après le premier chargement (côté navigateur) : on lit donc
+  // l'heure de l'appareil tout de suite, sans décalage serveur / navigateur ni salutation provisoire.
+  const [now, setNow] = useState<Date>(() => new Date());
 
   const store = stores.find((item) => item.id === selectedStoreId) ?? stores[0];
   const storeId = store?.id ?? selectedStoreId;
 
   useEffect(() => { setData(analytics); }, [analytics]);
 
+  // Salutation : on met l'heure à jour toutes les 10 minutes (matin → après-midi → soirée).
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 10 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Période : on recharge les chiffres de la boutique pour 7 / 30 / 90 jours.
   useEffect(() => {
     if (!selectedStoreId) return;
+    // Premier passage = même données que celles déjà affichées : pas de skeleton. Ensuite (changement
+    // de période ou de boutique), les chiffres affichés ne sont plus bons : skeleton jusqu'à la réponse.
+    if (periodFirstRun.current) periodFirstRun.current = false;
+    else setPeriodLoading(true);
     const to = new Date();
     const from = new Date(to);
     from.setDate(to.getDate() - periodDays + 1);
@@ -105,7 +124,8 @@ export function OverviewHome({
     void fetch(`/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}&from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((result) => { if (!cancelled && result?.snapshot) setData(result.snapshot as AnalyticsData); })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setPeriodLoading(false); });
     return () => { cancelled = true; };
   }, [periodDays, selectedStoreId]);
 
@@ -114,8 +134,8 @@ export function OverviewHome({
     let cancelled = false;
     void fetch("/api/ad-campaigns")
       .then((res) => (res.ok ? res.json() : null))
-      .then((result) => { if (!cancelled) setCampaigns(Array.isArray(result?.campaigns) ? result.campaigns : []); })
-      .catch(() => { if (!cancelled) setCampaigns([]); });
+      .then((result) => { if (!cancelled) { setCampaigns(Array.isArray(result?.campaigns) ? result.campaigns : []); setCampaignsReady(true); } })
+      .catch(() => { if (!cancelled) { setCampaigns([]); setCampaignsReady(true); } });
     return () => { cancelled = true; };
   }, [campaignsVersion]);
 
@@ -143,6 +163,13 @@ export function OverviewHome({
   const money = (value: number | null | undefined) => (value === null || value === undefined ? "—" : formatMoneyInUSD(value, currency) ?? "—");
 
   const activeCampaigns = campaigns.filter((c) => c.status === "active" || c.status === "review");
+
+  // Chiffres de la période : skeleton tant que les données ou les campagnes ne sont pas là.
+  const statsLoading = loading || periodLoading;
+  const summaryLoading = statsLoading || !campaignsReady;
+
+  const greeting = userFirstName ? getGreeting(userFirstName, en ? "en" : "fr", now) : null;
+  const dailyQuote = getDailyQuote(en ? "en" : "fr", now);
 
   // Dernières transactions Chariow : on part de la liste NON filtrée par période
   // (le snapshot initial, sans dates), sinon « Derniers achats » restait vide
@@ -176,19 +203,26 @@ export function OverviewHome({
       const label = labels[status] ?? [status, status];
       const productName = String(row.product_name ?? rec(row.product).name ?? "—");
       const productId = row.product_id !== undefined && row.product_id !== null ? String(row.product_id) : null;
-      const details = Array.isArray(row.details)
-        ? (row.details as unknown[]).map(rec).filter((item) => typeof item.label === "string" && typeof item.value === "string").map((item) => ({ label: String(item.label), value: String(item.value) }))
-        : [];
+      const contactRecord = rec(row.contact);
+      const failureReason = str(contactRecord.failureReason)
+        ?? (status === "abandoned" ? (en ? "Purchase abandoned before payment was completed" : "Achat abandonné avant la fin du paiement") : null);
       return {
         key: String(row.id ?? `${status}-${index}`),
+        status,
         group,
         label: en ? label[1] : label[0],
         product: productName,
         image: (productId ? imageById.get(productId) : null) ?? imageByName.get(productName) ?? null,
         amount: Number.isFinite(amount) ? formatMoneyInUSD(amount, saleCurrency) ?? "—" : "—",
         date: time ? new Date(time).toLocaleDateString(en ? "en-GB" : "fr-FR") : "—",
-        dateTime: time ? new Date(time).toLocaleString(en ? "en-GB" : "fr-FR") : "—",
-        details,
+        clock: time ? new Date(time).toLocaleTimeString(en ? "en-GB" : "fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—",
+        contact: {
+          name: str(contactRecord.name),
+          email: str(contactRecord.email),
+          phone: str(contactRecord.phone),
+          country: str(contactRecord.country),
+          failureReason,
+        },
         time,
       };
     });
@@ -197,7 +231,7 @@ export function OverviewHome({
 
   const countBy = (group: SaleGroup) => saleRows.filter((row) => row.group === group).length;
 
-  const trialLabel = subscription?.status === "active" && subscription?.trial_active === false ? null : subscription?.trial_active ? tr("Essai gratuit en cours", "Free trial in progress") : null;
+  const trialLabel = loading ? null : subscription?.status === "active" && subscription?.trial_active === false ? null : subscription?.trial_active ? tr("Essai gratuit en cours", "Free trial in progress") : null;
 
   function productPrice(product: ProductData) {
     const value = Number(product.price);
@@ -214,12 +248,26 @@ export function OverviewHome({
       <section className="app-card">
         <div style={{ minWidth: 0 }}>
           <span className="eyebrow">{tr("Vue d'ensemble", "Overview")}</span>
-          <h1 style={{ margin: "4px 0 6px", fontSize: 24 }}>{tr(`Bonjour ${userFirstName} 👋`, `Hello ${userFirstName} 👋`)}</h1>
-          <p className="hint-line" style={{ margin: 0 }}>
-            {salesCount > 0
-              ? tr(`Sur les ${periodDays} derniers jours : ${salesCount} vente${salesCount > 1 ? "s" : ""}, ${money(overview?.revenueNet)} de revenu net et ${activeCampaigns.length} campagne${activeCampaigns.length > 1 ? "s" : ""} en cours.`, `Over the last ${periodDays} days: ${salesCount} sale${salesCount > 1 ? "s" : ""}, ${money(overview?.revenueNet)} net revenue and ${activeCampaigns.length} running campaign${activeCampaigns.length > 1 ? "s" : ""}.`)
-              : tr(`Pas encore de vente sur les ${periodDays} derniers jours. ${activeCampaigns.length ? `${activeCampaigns.length} campagne(s) en cours.` : "Lance une pub pour démarrer."}`, `No sales yet over the last ${periodDays} days. ${activeCampaigns.length ? `${activeCampaigns.length} running campaign(s).` : "Launch an ad to get started."}`)}
-          </p>
+          {greeting ? (
+            <>
+              <h1 style={{ margin: "4px 0 6px", fontSize: 24 }}>{greeting}</h1>
+              <p className="hint-line" style={{ margin: "0 0 6px", fontStyle: "italic" }}>{dailyQuote}</p>
+            </>
+          ) : (
+            <>
+              <Skeleton width="55%" height={26} style={{ margin: "8px 0 10px" }} />
+              <Skeleton width="70%" height={12} style={{ marginBottom: 8 }} />
+            </>
+          )}
+          {summaryLoading ? (
+            <Skeleton width="80%" height={12} />
+          ) : (
+            <p className="hint-line" style={{ margin: 0 }}>
+              {salesCount > 0
+                ? tr(`Sur les ${periodDays} derniers jours : ${salesCount} vente${salesCount > 1 ? "s" : ""}, ${money(overview?.revenueNet)} de revenu net et ${activeCampaigns.length} campagne${activeCampaigns.length > 1 ? "s" : ""} en cours.`, `Over the last ${periodDays} days: ${salesCount} sale${salesCount > 1 ? "s" : ""}, ${money(overview?.revenueNet)} net revenue and ${activeCampaigns.length} running campaign${activeCampaigns.length > 1 ? "s" : ""}.`)
+                : tr(`Pas encore de vente sur les ${periodDays} derniers jours. ${activeCampaigns.length ? `${activeCampaigns.length} campagne(s) en cours.` : "Lance une pub pour démarrer."}`, `No sales yet over the last ${periodDays} days. ${activeCampaigns.length ? `${activeCampaigns.length} running campaign(s).` : "Launch an ad to get started."}`)}
+            </p>
+          )}
           {trialLabel ? <p className="hint-line" style={{ margin: "6px 0 0" }}>{trialLabel}</p> : null}
         </div>
 
@@ -236,50 +284,28 @@ export function OverviewHome({
         </div>
 
         {/* 4 cadres rectangulaires, 2 par ligne */}
-        <div className="ov-kpi-grid">
+        <div className="ov-kpi-grid" aria-busy={statsLoading || !campaignsReady}>
           <div className="ov-kpi">
             <span className="hint-line">{tr("Revenu net", "Net revenue")}</span>
-            <strong>{money(overview?.revenueNet)}</strong>
-            {overview?.revenueChangePct !== null && overview?.revenueChangePct !== undefined ? <small className="hint-line">{overview.revenueChangePct >= 0 ? "+" : ""}{overview.revenueChangePct.toFixed(1)} %</small> : null}
+            {statsLoading ? <Skeleton width="50%" height={24} style={{ marginTop: 6 }} /> : <strong>{money(overview?.revenueNet)}</strong>}
+            {!statsLoading && overview?.revenueChangePct !== null && overview?.revenueChangePct !== undefined ? <small className="hint-line">{overview.revenueChangePct >= 0 ? "+" : ""}{overview.revenueChangePct.toFixed(1)} %</small> : null}
           </div>
           <div className="ov-kpi">
             <span className="hint-line">{tr("Ventes", "Sales")}</span>
-            <strong>{salesCount}</strong>
+            {statsLoading ? <Skeleton width="30%" height={24} style={{ marginTop: 6 }} /> : <strong>{salesCount}</strong>}
           </div>
           <div className="ov-kpi">
             <span className="hint-line">{tr("Panier moyen", "Average basket")}</span>
-            <strong>{money(overview?.averageBasket)}</strong>
+            {statsLoading ? <Skeleton width="40%" height={24} style={{ marginTop: 6 }} /> : <strong>{money(overview?.averageBasket)}</strong>}
           </div>
           <div className="ov-kpi">
             <span className="hint-line">{tr("Campagnes en cours", "Running campaigns")}</span>
-            <strong>{activeCampaigns.length}</strong>
+            {!campaignsReady ? <Skeleton width="25%" height={24} style={{ marginTop: 6 }} /> : <strong>{activeCampaigns.length}</strong>}
           </div>
         </div>
       </section>
 
-      {/* 2. Campagnes, tous canaux */}
-      <section className="app-card">
-        <div className="card-head">
-          <div><h2>{tr("Mes campagnes", "My campaigns")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr("Meta, TikTok et Pinterest au même endroit.", "Meta, TikTok and Pinterest in one place.")}</p></div>
-          <button type="button" className="btn btn-dark" onClick={onLaunchAd}><Plus size={14} /> {tr("Lancer une pub", "Launch an ad")}</button>
-        </div>
-        <div style={{ ...gridStyle(170), marginTop: 14 }}>
-          {CHANNELS.map((channel) => {
-            const mine = campaigns.filter((c) => c.platform === channel.id);
-            const running = mine.filter((c) => c.status === "active" || c.status === "review").length;
-            return (
-              <div key={channel.id} style={{ ...tileStyle, flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <ChannelBadge id={channel.badge} />
-                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                  <strong style={{ fontSize: 14 }}>{channel.label}</strong>
-                  <span className="hint-line">{mine.length === 0 ? tr("Aucune campagne", "No campaign") : tr(`${running} en cours · ${mine.length} au total`, `${running} running · ${mine.length} total`)}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
+      {/* 2. Liste des campagnes publicitaires */}
       <AdCampaignsList key={campaignsVersion} storeId={storeId ?? null} plan={plan} onNewCampaign={onLaunchAd} />
 
       {/* 3. Dépenses pub par canal */}
@@ -288,36 +314,51 @@ export function OverviewHome({
       {/* 4. Dernières transactions Chariow (réussies / en attente / échouées) */}
       <section className="app-card">
         <div className="card-head"><div><h2>{tr("Derniers achats", "Latest purchases")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr("Les 10 dernières transactions de ta boutique Chariow. Touche une ligne pour voir le détail.", "The 10 latest transactions from your Chariow store. Tap a row for details.")}</p></div></div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#D1FAE5", color: "#065F46" }}>{tr("Réussis", "Successful")} · {countBy("success")}</span>
-          <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#FEF3C7", color: "#92400E" }}>{tr("En attente", "Pending")} · {countBy("pending")}</span>
-          <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#FEE2E2", color: "#991B1B" }}>{tr("Échoués / abandonnés", "Failed / abandoned")} · {countBy("failed")}</span>
-        </div>
-        {saleRows.length ? (
-          <ul className="ov-sales">
-            {saleRows.map((row) => (
-              <li key={row.key}>
-                <button type="button" className="ov-sale" onClick={() => setSelectedSale(row)} aria-haspopup="dialog">
-                  <span className="ov-sale-thumb">
-                    {row.image ? <img src={row.image} alt="" loading="lazy" /> : <Package size={18} />}
-                    <span className="ov-sale-dot">{statusIcon(row.group, 14)}</span>
-                  </span>
-                  <span className="ov-sale-text">
-                    <strong>{row.label}</strong>
-                    <span className="hint-line">{row.product} · {row.date}</span>
-                  </span>
-                  <strong className="ov-sale-amount">{row.amount}</strong>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="hint-line" style={{ marginTop: 12 }}>{tr("Aucune transaction récente trouvée sur ta boutique Chariow.", "No recent transaction found on your Chariow store.")}</p>}
+        {loading ? (
+          <>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+              <Skeleton width={90} height={24} radius={999} />
+              <Skeleton width={100} height={24} radius={999} />
+              <Skeleton width={150} height={24} radius={999} />
+            </div>
+            <SkeletonRows count={4} label={tr("Chargement des achats", "Loading purchases")} />
+          </>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#D1FAE5", color: "#065F46" }}>{tr("Réussis", "Successful")} · {countBy("success")}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#FEF3C7", color: "#92400E" }}>{tr("En attente", "Pending")} · {countBy("pending")}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#FEE2E2", color: "#991B1B" }}>{tr("Échoués / abandonnés", "Failed / abandoned")} · {countBy("failed")}</span>
+            </div>
+            {saleRows.length ? (
+              <ul className="ov-sales">
+                {saleRows.map((row) => (
+                  <li key={row.key}>
+                    <button type="button" className="ov-sale" onClick={() => setSelectedSale(row)} aria-haspopup="dialog">
+                      <span className="ov-sale-thumb">
+                        {row.image ? <img src={row.image} alt="" loading="lazy" /> : <Package size={18} />}
+                        <span className="ov-sale-dot">{statusIcon(row.group, 14)}</span>
+                      </span>
+                      <span className="ov-sale-text">
+                        <strong>{row.label}</strong>
+                        <span className="hint-line">{row.product} · {row.date}</span>
+                      </span>
+                      <strong className="ov-sale-amount">{row.amount}</strong>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="hint-line" style={{ marginTop: 12 }}>{tr("Aucune transaction récente trouvée sur ta boutique Chariow.", "No recent transaction found on your Chariow store.")}</p>}
+          </>
+        )}
       </section>
 
       {/* 5. Catalogue */}
       <section className="app-card">
-        <div className="card-head ov-catalogue-head"><div><h2>{tr("Mon catalogue", "My catalogue")}</h2><p className="hint-line" style={{ margin: 0 }}>{products.length ? tr(`${products.length} produit${products.length > 1 ? "s" : ""} dans ${store?.store_name ?? "ta boutique"}.`, `${products.length} product${products.length > 1 ? "s" : ""} in ${store?.store_name ?? "your store"}.`) : tr("Aucun produit trouvé dans ta boutique.", "No product found in your store.")}</p></div></div>
-        {products.length ? (
+        <div className="card-head ov-catalogue-head"><div><h2>{tr("Mon catalogue", "My catalogue")}</h2>{loading ? <Skeleton width={170} height={11} style={{ marginTop: 6 }} /> : <p className="hint-line" style={{ margin: 0 }}>{products.length ? tr(`${products.length} produit${products.length > 1 ? "s" : ""} dans ${store?.store_name ?? "ta boutique"}.`, `${products.length} product${products.length > 1 ? "s" : ""} in ${store?.store_name ?? "your store"}.`) : tr("Aucun produit trouvé dans ta boutique.", "No product found in your store.")}</p>}</div></div>
+        {loading ? (
+          <SkeletonRows count={3} thumb={44} label={tr("Chargement du catalogue", "Loading catalogue")} />
+        ) : products.length ? (
           <div className="ov-catalogue">
             {products.slice(0, 6).map((product) => (
               <div key={product.id} className="ov-product">
@@ -344,7 +385,7 @@ export function OverviewHome({
         </section>
       ) : null}
 
-      {/* Fenêtre de détail d'un événement Chariow */}
+      {/* Fenêtre de détail d'un événement Chariow : uniquement les infos utiles */}
       {selectedSale ? (
         <div className="sale-modal-backdrop" role="presentation" onClick={() => setSelectedSale(null)}>
           <section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-modal-title" onClick={(event) => event.stopPropagation()}>
@@ -356,22 +397,17 @@ export function OverviewHome({
               <p>{selectedSale.product}</p>
             </div>
 
-            <div className="sale-modal-section-title">{tr("Résumé", "Summary")}</div>
             <div className="sale-detail-grid">
-              <div><small>{tr("Statut", "Status")}</small><strong>{selectedSale.label}</strong></div>
-              <div><small>{tr("Montant", "Amount")}</small><strong>{selectedSale.amount}</strong></div>
-              <div><small>{tr("Date", "Date")}</small><strong>{selectedSale.dateTime}</strong></div>
-              <div><small>{tr("Produit", "Product")}</small><strong>{selectedSale.product}</strong></div>
+              <div><small>{tr("Client", "Customer")}</small><strong>{selectedSale.contact.name ?? "—"}</strong></div>
+              <div><small>{tr("E-mail", "Email")}</small><strong>{selectedSale.contact.email ?? "—"}</strong></div>
+              <div><small>{tr("Téléphone", "Phone")}</small><strong>{selectedSale.contact.phone ?? "—"}</strong></div>
+              <div><small>{tr("Pays", "Country")}</small><strong>{selectedSale.contact.country ?? "—"}</strong></div>
+              {selectedSale.group === "failed" ? (
+                <div><small>{tr("Raison de l'échec", "Failure reason")}</small><strong>{selectedSale.contact.failureReason ?? "—"}</strong></div>
+              ) : null}
+              <div><small>{tr("Date", "Date")}</small><strong>{selectedSale.date}</strong></div>
+              <div><small>{tr("Heure", "Time")}</small><strong>{selectedSale.clock}</strong></div>
             </div>
-
-            <div className="sale-modal-section-title">{tr("Informations envoyées par Chariow", "Information sent by Chariow")}</div>
-            {selectedSale.details.length ? (
-              <div className="sale-detail-grid">
-                {selectedSale.details.map((item, index) => (
-                  <div key={`${item.label}-${index}`}><small>{item.label}</small><strong>{item.value}</strong></div>
-                ))}
-              </div>
-            ) : <p className="hint-line">{tr("Aucune information supplémentaire reçue pour cet événement.", "No additional information received for this event.")}</p>}
           </section>
         </div>
       ) : null}
