@@ -4,6 +4,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCreative, updateMetaAdCreative } from "@/lib/meta/campaigns";
 import { fetchMetaPageAccessToken, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
+import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
 import { launchTikTok } from "@/lib/tiktok/launch";
 import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
 import { launchPinterest } from "@/lib/pinterest/api";
@@ -142,10 +143,10 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     try {
       const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
       const preparedImage = await prepareMetaCreativeImage({ userId, accountId: `act_${account.meta_account_id}`, accessToken, imageUrl: campaign.media_url });
-      const creative = await createMetaCreative({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative (relance)`, pageId, link: campaign.destination_url, message: campaign.ad_text, headline: campaignName, imageUrl: campaign.media_url, imageHash: preparedImage.imageHash });
+      const creative = await createMetaCreative({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative (relance)`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), message: campaign.ad_text, headline: campaignName, imageUrl: campaign.media_url, imageHash: preparedImage.imageHash });
       await updateMetaAdCreative({ adId: campaign.external_ad_id, accessToken, creativeId: String(creative.id) });
       await activateMetaCampaign({ campaignId: campaign.external_campaign_id, adSetId: campaign.external_adset_id, adId: campaign.external_ad_id, accessToken });
-      const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, external_creative_id: String(creative.id), external_error: null, autopilot_paused_at: null, autopilot_pause_reason: null }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
+      const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, external_creative_id: String(creative.id), external_error: null, autopilot_paused_at: null, autopilot_pause_reason: null, destination_url: withVendeoCampaignTracking(campaign.destination_url, campaign.id) }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
       if (updateError) return NextResponse.json({ error: "Campagne relancée chez Meta mais statut Vendeo non enregistré" }, { status: 502 });
       await supabase.from("meta_campaigns").update({ status: "ACTIVE" }).eq("meta_campaign_id", campaign.external_campaign_id);
       return NextResponse.json({ campaign: updated });
@@ -212,9 +213,9 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
       status: "ACTIVE",
     });
     const preparedImage = await prepareMetaCreativeImage({ userId, accountId: `act_${account.meta_account_id}`, accessToken, imageUrl: campaign.media_url });
-    const creative = await createMetaCreative({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: campaign.destination_url, message: campaign.ad_text, headline: campaignName, imageUrl: campaign.media_url, imageHash: preparedImage.imageHash });
+    const creative = await createMetaCreative({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), message: campaign.ad_text, headline: campaignName, imageUrl: campaign.media_url, imageHash: preparedImage.imageHash });
     const ad = await createMetaAd({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Ad`, adsetId: String(adSet.id), creativeId: String(creative.id), status: "ACTIVE" });
-    const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, effective_objective: effectiveObjective, external_campaign_id: external.id, external_adset_id: String(adSet.id), external_creative_id: String(creative.id), external_ad_id: String(ad.id), external_error: null }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
+    const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, effective_objective: effectiveObjective, external_campaign_id: external.id, external_adset_id: String(adSet.id), external_creative_id: String(creative.id), external_ad_id: String(ad.id), external_error: null, destination_url: withVendeoCampaignTracking(campaign.destination_url, campaign.id) }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
     if (updateError) return NextResponse.json({ error: "Campagne Meta créée mais statut Vendeo non enregistré" }, { status: 502 });
     await supabase.from("meta_campaigns").upsert({ ad_account_id: account.id, meta_campaign_id: external.id, name: campaign.title || "Campagne Vendeo", status: "ACTIVE", objective: external.objective }, { onConflict: "ad_account_id,meta_campaign_id" });
     return NextResponse.json({

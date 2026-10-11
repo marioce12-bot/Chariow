@@ -6,10 +6,11 @@ import { ArrowRight, BarChart3, Bot, CreditCard, Plus, Settings, Store, MessageS
 import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP, FaXTwitter } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { PinterestAdsPanel } from "@/components/PinterestAdsPanel";
+import { MetaHistoryOverview } from "@/components/dashboard/MetaHistoryOverview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMoney } from "@/lib/format";
 import { isAdPlatformAllowed, planMaxStores, type AdPlatform, type PlanId } from "@/lib/plans";
-import { LaunchAdBar, CampaignCrossTable, DiagnosticBoutique, type CampaignRow, type CampaignVerdictBadge, type DiagnosticCard } from "@/components/vendeo";
+import { CampaignCrossTable, DiagnosticBoutique, type CampaignRow, type CampaignVerdictBadge, type DiagnosticCard } from "@/components/vendeo";
 import { DiagnosticFunnel } from "@/components/vendeo/DiagnosticFunnel";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { AutopilotView } from "@/components/vendeo/AutopilotView";
@@ -461,7 +462,7 @@ export function Overview({
   const overviewCurrency = overview?.currency ?? currency;
   const overviewHasSales = (overview?.sales ?? 0) > 0;
   const [refreshing, setRefreshing] = useState(false);
-  const [metaConnected, setMetaConnected] = useState(false);
+  const [metaAccount, setMetaAccount] = useState<MetaAccountState | null>(null);
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
   useEffect(() => { setOverviewAnalytics(analytics); }, [analytics]);
   useEffect(() => {
@@ -486,7 +487,7 @@ export function Overview({
       const accountsResponse = await fetch("/api/integrations/meta/accounts");
       const accountsData = accountsResponse.ok ? await accountsResponse.json() : { accounts: [] };
       const accounts = accountsData.accounts ?? [];
-      setMetaConnected(accounts.length > 0);
+      setMetaAccount(accounts[0] ?? null);
       if (accounts[0]) {
         const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accounts[0].id)}`);
         if (metrics.ok) setMetaPerformance(await metrics.json());
@@ -499,7 +500,6 @@ export function Overview({
   };
   useEffect(() => { void refresh(); }, [campaignsVersion]);
 
-  const spend = metaPerformance?.overview.spend ?? 0;
   const performances = metaPerformance?.performances ?? [];
   const adsCurrency = metaPerformance?.currency ?? currency;
 
@@ -598,8 +598,7 @@ export function Overview({
 
       <section className="overview-economics"><div className="overview-economics-card app-card"><MetricHelp label={t("overview.customerValue")} description={t("overview.customerValueHelp")} /><strong>{overview?.customerValue === null || overview?.customerValue === undefined ? t("overview.soon") : `${overview.customerValue.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{overview?.lowData ? t("overview.lowData") : t("overview.history")}</span></div><div className="overview-economics-card app-card"><MetricHelp label={t("overview.maxCostPerCustomer")} description={t("overview.maxCostPerCustomerHelp")} /><strong>{overview?.maxCostPerCustomer === null || overview?.maxCostPerCustomer === undefined ? t("overview.soon") : `${overview.maxCostPerCustomer.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{Math.round((overview?.targetMargin ?? 0.3) * 100)} %</span></div></section>
 
-      <LaunchAdBar onLaunch={onLaunchAd} />
-      <section className="overview-store-tiles overview-provisional-spend"><OverviewMetricTile label={t("overview.spend")} value={metaConnected ? formatMoney(spend, adsCurrency) : "-"} badge={metaConnected ? t("overview.metaDeclared") : undefined} help={t("overview.spendHelp")} /></section>
+      <MetaHistoryOverview account={metaAccount} confirmedSales={overview?.sales ?? 0} maxCostPerCustomer={overview?.maxCostPerCustomer ?? null} storeCurrency={overviewCurrency} onLaunch={onLaunchAd} onRefresh={() => { void refresh(); }} />
       <div className="home-primary-grid">
         <div className="home-side-stack">
           <AdsSavingsSummary performances={performances} currency={adsCurrency} />
@@ -1322,14 +1321,17 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
   );
 }
 
+type MetaAccountState = { id: string; currency: string; last_backfill_at: string | null; backfill_status: "processing" | "in_progress" | "failed" | "complete" | null; backfill_next_from?: string | null };
+
 type MetaPerformance = {
   currency: string;
+  adCurrency: string;
   period: { from: string; to: string };
   chariowRevenueByCurrency: Array<{ currency: string; amount: number }>;
   lastSyncedAt: string | null;
   lastSyncError: string | null;
-  overview: { spend: number; chariowRevenue: number | null; metaReportedRevenue: number; attributedGrossRevenue: number | null; attributedNetRevenue: number | null; attributedRevenue: number | null; conversions: number; sales: number; cpa: number | null; cac: number | null; metaRoas: number | null; realRoas: number | null; attributionCoverage: number };
-  performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; realSales: number | null; realGrossRevenue: number | null; realRevenue: number | null; realRoas: number | null; attributionReliable: boolean; trackingReady: boolean; dailyBudget: number | null; daysSinceLaunch: number | null; suggestedIncrease: number | null; decision: "keep_running" | "pause" | "learning" | "insufficient_data"; decisionReasons: string[]; status: string }>;
+  overview: { spend: number; chariowRevenue: number | null; metaReportedRevenue: number; attributedGrossRevenue: number | null; attributedNetRevenue: number | null; attributedRevenue: number | null; attributedSpend: number | null; attributedCustomers: number; attributedCostPerCustomer: number | null; conversions: number; sales: number; cpa: number | null; cac: number | null; metaRoas: number | null; realRoas: number | null; attributionCoverage: number; state: "A" | "B" | "C" | "D"; vendeoCampaigns: number; verifiedSales: number };
+  performances: Array<{ id: string; name: string; impressions: number; clicks: number; spend: number; conversions: number; cpa: number | null; cac: number | null; roas: number | null; realSales: number | null; realGrossRevenue: number | null; realRevenue: number | null; realRoas: number | null; attributionReliable: boolean; trackingReady: boolean; dailyBudget: number | null; daysSinceLaunch: number | null; paybackDays: number | null; suggestedIncrease: number | null; decision: "keep_running" | "pause" | "learning" | "insufficient_data"; decisionReasons: string[]; status: string }>;
 };
 
 type MetaPixelOption = { id: string; name: string; configured_on_chariow?: boolean };

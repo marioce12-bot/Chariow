@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
@@ -6,6 +7,7 @@ import { toUsd } from "@/lib/currency";
 import { createMetaCampaign, createMetaAdSet, createMetaCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
 import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
+import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
 import { launchPinterest } from "@/lib/pinterest/api";
 import { PINTEREST_TAG_REQUIRED_CODE, isPinterestConversionTagError, pinterestTagChatMessage } from "@/lib/pinterest/tag-help";
 import { TIKTOK_FROM_CHAT_MESSAGE } from "@/lib/launch-platform";
@@ -205,6 +207,8 @@ export async function POST(request: Request) {
 
   // 1. Campagne. Si CETTE étape échoue, rien n'a été créé côté Meta : l'erreur
   // Graph est déjà claire, on peut la laisser remonter telle quelle.
+  const vendeoCampaignId = randomUUID();
+  const trackedLinkUrl = withVendeoCampaignTracking(linkUrl, vendeoCampaignId);
   let campaignId: string | undefined;
   try {
     const campaign = await createMetaCampaign({ accountId, accessToken, name: body.name, objective, dailyBudget, status: "ACTIVE" });
@@ -244,7 +248,7 @@ export async function POST(request: Request) {
       accessToken,
       name: `${body.name} — Créative`,
       pageId,
-      link: linkUrl,
+      link: trackedLinkUrl,
       message: body.message,
       headline: body.headline || body.name,
       imageUrl: body.imageUrl,
@@ -264,6 +268,7 @@ export async function POST(request: Request) {
     // l'erreur — une campagne créée chez Meta mais jamais enregistrée ici est
     // pire qu'une erreur affichée à l'utilisateur, elle est invisible.
     const { error: insertError } = await admin.from("ad_campaigns").insert({
+      id: vendeoCampaignId,
       user_id: user.id,
       store_id: store.id,
       platform: "meta",
@@ -272,7 +277,7 @@ export async function POST(request: Request) {
       title: body.name,
       ad_text: body.message,
       media_url: body.imageUrl,
-      destination_url: linkUrl,
+      destination_url: trackedLinkUrl,
       countries,
       min_age: minAge,
       max_age: maxAge,

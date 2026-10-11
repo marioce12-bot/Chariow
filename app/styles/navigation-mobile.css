@@ -276,3 +276,74 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 19-html[data-theme="dark"] .overview-trend-badge,html[data-theme="dark"] .overview-badge { background:#172b58; color:#b8c9ff; }
 20-@media (max-width:760px) { .overview-command-header { padding:14px; }.overview-net-hero { align-items:start; grid-template-columns:1fr auto; }.overview-revenue-chart { grid-column:1 / -1; height:55px; }.overview-connection { grid-column:1 / -1; }.overview-store-tiles { grid-template-columns:repeat(2,minmax(0,1fr)); }.overview-store-tile:last-child { grid-column:1 / -1; }.overview-economics { grid-template-columns:1fr; } }
 21-@media (max-width:390px) { .overview-store-tiles { gap:8px; }.overview-store-tile { padding:12px; }.overview-store-tile strong { font-size:19px; }.overview-net-hero { padding:16px; } }
+
+
+/* Overview unit economics — étape 4 (règles valides ajoutées après les styles historiques). */
+.overview-command-header { align-items:center; }
+.overview-net-hero { align-items:center; display:grid; gap:18px; grid-template-columns:minmax(0,1fr) minmax(160px,.8fr) auto; }
+.overview-net-copy { min-width:0; position:relative; }
+.overview-net-copy strong { display:block; font-size:clamp(30px,4vw,48px); letter-spacing:-.07em; margin-top:9px; overflow-wrap:anywhere; }
+.overview-trend-badge,.overview-badge { background:#eef2ff; border-radius:999px; color:var(--blue); display:inline-block; font-size:10px; font-weight:800; margin-top:9px; padding:5px 8px; }
+.overview-revenue-chart { color:var(--blue); height:62px; min-width:0; overflow:visible; width:100%; }
+.overview-connection { color:var(--muted); font-size:10px; white-space:nowrap; }
+.overview-store-tiles { display:grid; gap:12px; grid-template-columns:repeat(5,minmax(0,1fr)); }
+.overview-store-tile { min-width:0; padding:14px; }
+.overview-store-tile .metric-label,.overview-economics-card .metric-label { color:var(--muted); font-size:11px; }
+.overview-store-tile strong { display:block; font-size:22px; letter-spacing:-.05em; margin-top:15px; overflow-wrap:anywhere; }
+.overview-store-tile .overview-badge { margin-top:10px; }
+.overview-economics { display:grid; gap:14px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.overview-economics-card { min-width:0; padding:20px; }
+.overview-economics-card strong { display:block; font-size:clamp(25px,3vw,38px); letter-spacing:-.06em; margin-top:12px; overflow-wrap:anywhere; }
+html[data-theme="dark"] .overview-store-tile,html[data-theme="dark"] .overview-economics-card,html[data-theme="dark"] .overview-net-hero { background:#0b1734; border-color:#263867; }
+html[data-theme="dark"] .overview-trend-badge,html[data-theme="dark"] .overview-badge { background:#172b58; color:#b8c9ff; }
+.my-ads-overview { display:grid; gap:18px; min-width:0; padding:20px; }
+.my-ads-header,.my-ads-header > div,.meta-history-title { align-items:center; display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; }
+.my-ads-header h2 { font-size:16px; margin:0; }
+.my-ads-state,.my-ads-import,.source-meta,.source-verified { border-radius:999px; display:inline-flex; font-size:10px; font-weight:800; padding:5px 8px; white-space:nowrap; }
+.my-ads-state,.source-verified { background:#e9f7ef; color:#18794e; }
+.my-ads-import,.source-meta { background:#eef2ff; color:#3158a5; }
+.my-ads-import.is-complete { background:#e9f7ef; color:#18794e; }
+.my-ads-metrics { display:grid; gap:10px; grid-template-columns:repeat(5,minmax(0,1fr)); }
+.my-ads-metric { background:var(--surface,#fff); border:1px solid var(--border,#e6eaf0); border-radius:14px; display:flex; flex-direction:column; gap:8px; min-width:0; padding:14px; }
+.my-ads-metric > span { color:var(--muted); font-size:11px; }
+.my-ads-metric strong { font-size:clamp(17px,2vw,24px); letter-spacing:-.04em; overflow-wrap:anywhere; }
+.my-ads-health-track { background:#e9edf3; border-radius:99px; height:7px; overflow:hidden; }
+.my-ads-health-track i { background:#25a36f; display:block; height:100%; }
+.my-ads-health-track i[data-health="limit"] { background:#e4a11b; }
+.my-ads-health-track i[data-health="critical"] { background:#d34a4a; }
+.my-ads-launch { justify-self:start; }
+.my-ads-error,.my-ads-empty { color:var(--muted); font-size:12px; }
+.meta-history-levels { display:grid; gap:12px; grid-template-columns:repeat(3,minmax(0,1fr)); }
+.meta-history-level { border:1px solid var(--border,#e6eaf0); border-radius:14px; min-width:0; padding:12px; }
+.meta-history-title { margin-bottom:8px; }
+.meta-history-title > strong { font-size:12px; }
+.meta-history-row { border-top:1px solid var(--border,#e6eaf0); display:grid; gap:4px; grid-template-columns:minmax(0,1fr) auto; padding:9px 0; }
+.meta-history-name { font-size:11px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.meta-history-row > span:nth-child(2) { font-size:11px; font-weight:700; }
+.meta-history-row small { color:var(--muted); font-size:9px; grid-column:1 / -1; }
+html[data-theme="dark"] .my-ads-metric,html[data-theme="dark"] .meta-history-level { background:#0b1734; border-color:#263867; }
+html[data-theme="dark"] .my-ads-health-track { background:#263867; }
+@media (max-width:760px) {
+  .overview-command-header { padding:14px; }
+  .overview-net-hero { align-items:start; grid-template-columns:1fr auto; }
+  .overview-revenue-chart { grid-column:1 / -1; height:55px; }
+  .overview-connection { grid-column:1 / -1; }
+  .overview-store-tiles { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .overview-store-tile:last-child { grid-column:1 / -1; }
+  .overview-economics { grid-template-columns:1fr; }
+  .my-ads-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .meta-history-levels { grid-template-columns:1fr; }
+}
+@media (max-width:390px) {
+  .overview-store-tiles { gap:8px; }
+  .overview-store-tile { padding:12px; }
+  .overview-store-tile strong { font-size:19px; }
+  .overview-net-hero { padding:16px; }
+  .my-ads-overview { gap:12px; padding:14px; }
+  .my-ads-metrics { gap:8px; }
+  .my-ads-metric { padding:11px; }
+}
+
+.my-ads-state.state-b,.my-ads-state.state-d { background:#eef0f3; color:#5d6675; }
+.my-ads-state.state-c,.my-ads-state.state-a { background:#e9f7ef; color:#18794e; }
+html[data-theme="dark"] .my-ads-state.state-b,html[data-theme="dark"] .my-ads-state.state-d { background:#253149; color:#d0d7e4; }
