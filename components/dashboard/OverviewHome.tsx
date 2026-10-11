@@ -24,7 +24,18 @@ import "@/app/dashboard-overview.css";
 
 type CampaignSummary = { id: string; platform: string; status: string };
 type SaleGroup = "success" | "pending" | "failed";
-type SaleRow = { key: string; group: SaleGroup; label: string; product: string; amount: string; date: string };
+type SaleDetail = { label: string; value: string };
+type SaleRow = {
+  key: string;
+  group: SaleGroup;
+  label: string;
+  product: string;
+  image: string | null;
+  amount: string;
+  date: string;
+  dateTime: string;
+  details: SaleDetail[];
+};
 type PersistentAlert = { id: string; severity: string; title: string; description: string };
 
 const CHANNELS = [
@@ -77,6 +88,7 @@ export function OverviewHome({
   const [data, setData] = useState<AnalyticsData>(analytics);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [alerts, setAlerts] = useState<PersistentAlert[]>([]);
+  const [selectedSale, setSelectedSale] = useState<SaleRow | null>(null);
 
   const store = stores.find((item) => item.id === selectedStoreId) ?? stores[0];
   const storeId = store?.id ?? selectedStoreId;
@@ -116,6 +128,14 @@ export function OverviewHome({
     return () => { cancelled = true; };
   }, []);
 
+  // Fermer la fenêtre de détail avec la touche Échap.
+  useEffect(() => {
+    if (!selectedSale) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setSelectedSale(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedSale]);
+
   const overview = data?.overview ?? null;
   const products: ProductData[] = data?.products ?? analytics?.products ?? [];
   const currency = overview?.currency ?? products[0]?.currency ?? "XOF";
@@ -141,6 +161,9 @@ export function OverviewHome({
       refunded: ["Remboursement", "Refund"],
       cancelled: ["Achat annulé", "Cancelled purchase"],
     };
+    // Visuel du produit : on le retrouve dans le catalogue par identifiant, sinon par nom.
+    const imageById = new Map(products.map((item) => [String(item.id), item.image ?? null] as const));
+    const imageByName = new Map(products.map((item) => [item.name, item.image ?? null] as const));
     const rows = latestSales.map((sale, index): SaleRow & { time: number } => {
       const row = rec(sale);
       const status = String(row.status ?? row.state ?? "unknown").toLowerCase();
@@ -151,18 +174,26 @@ export function OverviewHome({
       const time = rawDate ? new Date(String(rawDate)).getTime() : 0;
       const group: SaleGroup = SUCCESS_STATUSES.includes(status) ? "success" : PENDING_STATUSES.includes(status) ? "pending" : "failed";
       const label = labels[status] ?? [status, status];
+      const productName = String(row.product_name ?? rec(row.product).name ?? "—");
+      const productId = row.product_id !== undefined && row.product_id !== null ? String(row.product_id) : null;
+      const details = Array.isArray(row.details)
+        ? (row.details as unknown[]).map(rec).filter((item) => typeof item.label === "string" && typeof item.value === "string").map((item) => ({ label: String(item.label), value: String(item.value) }))
+        : [];
       return {
         key: String(row.id ?? `${status}-${index}`),
         group,
         label: en ? label[1] : label[0],
-        product: String(row.product_name ?? rec(row.product).name ?? "—"),
+        product: productName,
+        image: (productId ? imageById.get(productId) : null) ?? imageByName.get(productName) ?? null,
         amount: Number.isFinite(amount) ? formatMoneyInUSD(amount, saleCurrency) ?? "—" : "—",
         date: time ? new Date(time).toLocaleDateString(en ? "en-GB" : "fr-FR") : "—",
+        dateTime: time ? new Date(time).toLocaleString(en ? "en-GB" : "fr-FR") : "—",
+        details,
         time,
       };
     });
     return rows.sort((a, b) => b.time - a.time).slice(0, LATEST_PURCHASES);
-  }, [latestSales, currency, en]);
+  }, [latestSales, products, currency, en]);
 
   const countBy = (group: SaleGroup) => saleRows.filter((row) => row.group === group).length;
 
@@ -174,8 +205,8 @@ export function OverviewHome({
     return formatMoney(value, product.currency ?? currency);
   }
 
-  const statusIcon = (group: SaleGroup) =>
-    group === "success" ? <CheckCircle2 size={16} color="#065F46" /> : group === "pending" ? <Clock size={16} color="#92400E" /> : <XCircle size={16} color="#991B1B" />;
+  const statusIcon = (group: SaleGroup, size = 16) =>
+    group === "success" ? <CheckCircle2 size={size} color="#065F46" /> : group === "pending" ? <Clock size={size} color="#92400E" /> : <XCircle size={size} color="#991B1B" />;
 
   return (
     <div className="dashboard-home" style={{ display: "grid", gap: 18 }}>
@@ -256,7 +287,7 @@ export function OverviewHome({
 
       {/* 4. Dernières transactions Chariow (réussies / en attente / échouées) */}
       <section className="app-card">
-        <div className="card-head"><div><h2>{tr("Derniers achats", "Latest purchases")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr("Les 10 dernières transactions de ta boutique Chariow.", "The 10 latest transactions from your Chariow store.")}</p></div></div>
+        <div className="card-head"><div><h2>{tr("Derniers achats", "Latest purchases")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr("Les 10 dernières transactions de ta boutique Chariow. Touche une ligne pour voir le détail.", "The 10 latest transactions from your Chariow store. Tap a row for details.")}</p></div></div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
           <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#D1FAE5", color: "#065F46" }}>{tr("Réussis", "Successful")} · {countBy("success")}</span>
           <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#FEF3C7", color: "#92400E" }}>{tr("En attente", "Pending")} · {countBy("pending")}</span>
@@ -265,13 +296,18 @@ export function OverviewHome({
         {saleRows.length ? (
           <ul className="ov-sales">
             {saleRows.map((row) => (
-              <li key={row.key} className="ov-sale">
-                {statusIcon(row.group)}
-                <span style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-                  <strong style={{ fontSize: 13 }}>{row.label}</strong>
-                  <span className="hint-line" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.product} · {row.date}</span>
-                </span>
-                <strong style={{ fontSize: 13, whiteSpace: "nowrap" }}>{row.amount}</strong>
+              <li key={row.key}>
+                <button type="button" className="ov-sale" onClick={() => setSelectedSale(row)} aria-haspopup="dialog">
+                  <span className="ov-sale-thumb">
+                    {row.image ? <img src={row.image} alt="" loading="lazy" /> : <Package size={18} />}
+                    <span className="ov-sale-dot">{statusIcon(row.group, 14)}</span>
+                  </span>
+                  <span className="ov-sale-text">
+                    <strong>{row.label}</strong>
+                    <span className="hint-line">{row.product} · {row.date}</span>
+                  </span>
+                  <strong className="ov-sale-amount">{row.amount}</strong>
+                </button>
               </li>
             ))}
           </ul>
@@ -306,6 +342,38 @@ export function OverviewHome({
             ))}
           </div>
         </section>
+      ) : null}
+
+      {/* Fenêtre de détail d'un événement Chariow */}
+      {selectedSale ? (
+        <div className="sale-modal-backdrop" role="presentation" onClick={() => setSelectedSale(null)}>
+          <section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-modal-title" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="sale-modal-close" aria-label={tr("Fermer", "Close")} onClick={() => setSelectedSale(null)}>×</button>
+            <span className="eyebrow">{tr("Détail de l'événement", "Event details")}</span>
+            <h2 id="sale-modal-title">{selectedSale.label}</h2>
+            <div className="ov-modal-product">
+              <span className="ov-sale-thumb">{selectedSale.image ? <img src={selectedSale.image} alt="" /> : <Package size={22} />}</span>
+              <p>{selectedSale.product}</p>
+            </div>
+
+            <div className="sale-modal-section-title">{tr("Résumé", "Summary")}</div>
+            <div className="sale-detail-grid">
+              <div><small>{tr("Statut", "Status")}</small><strong>{selectedSale.label}</strong></div>
+              <div><small>{tr("Montant", "Amount")}</small><strong>{selectedSale.amount}</strong></div>
+              <div><small>{tr("Date", "Date")}</small><strong>{selectedSale.dateTime}</strong></div>
+              <div><small>{tr("Produit", "Product")}</small><strong>{selectedSale.product}</strong></div>
+            </div>
+
+            <div className="sale-modal-section-title">{tr("Informations envoyées par Chariow", "Information sent by Chariow")}</div>
+            {selectedSale.details.length ? (
+              <div className="sale-detail-grid">
+                {selectedSale.details.map((item, index) => (
+                  <div key={`${item.label}-${index}`}><small>{item.label}</small><strong>{item.value}</strong></div>
+                ))}
+              </div>
+            ) : <p className="hint-line">{tr("Aucune information supplémentaire reçue pour cet événement.", "No additional information received for this event.")}</p>}
+          </section>
+        </div>
       ) : null}
     </div>
   );

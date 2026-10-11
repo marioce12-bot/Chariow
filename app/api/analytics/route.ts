@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getChariowSnapshot, normalizeChariowSnapshot } from "@/lib/chariow/analytics";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
+import { mergeSaleDetails } from "@/lib/chariow/sale-details";
 import { addDays, buildOverviewFromPages, buildProductPerformance, daysBetween, type SaleRow } from "@/lib/overview-aggregates";
 import { fetchAllPages } from "@/lib/paginated-query";
 import { DEFAULT_TARGET_MARGIN } from "@/lib/unit-economics";
@@ -98,7 +99,8 @@ export async function GET(request: Request) {
     const overview = buildOverviewFromPages(current, previous, targetCurrency, periodFrom, periodTo, store.connected_at ?? null, DEFAULT_TARGET_MARGIN);
     return withStatus(NextResponse.json({
       store: { name: normalized.storeName, status: store.connection_status, connectedAt: store.connected_at ?? null },
-      snapshot: { ...normalized, overview, productPerformance },
+      // `sales` est enrichi avec `id` et `details` (infos brutes Chariow lisibles) pour la fenêtre « Détail ».
+      snapshot: { ...normalized, sales: mergeSaleDetails(normalized.sales, snapshot.sales), overview, productPerformance },
     }), null);
   } catch (analyticsError) {
     const message = analyticsError instanceof Error ? analyticsError.message : String(analyticsError);
