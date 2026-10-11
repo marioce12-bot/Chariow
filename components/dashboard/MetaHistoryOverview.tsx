@@ -182,7 +182,7 @@ export function MetaHistoryOverview({ account, storeId, confirmedSales, maxCostP
   return (
     <section className="my-ads-overview app-card" aria-label={t("overview.myAds")}>
       <header className="my-ads-header">
-        <div><h2>{t("overview.myAds")}</h2><span className={`my-ads-state state-${state.toLowerCase()}`}>{t(`overview.${stateKey(state)}`)}</span></div>
+        <div><h2>{t("overview.myAds")}</h2><span className={`my-ads-state state-${state.toLowerCase()}`} title={state === "B" ? t("overview.stateBHelp") : undefined}>{t(`overview.${stateKey(state)}`)}</span></div>
         {account ? <span className={`my-ads-import ${backfillStatus === "complete" || account.last_backfill_at ? "is-complete" : ""}`}>{importLabel}</span> : null}
       </header>
       <div className="my-ads-metrics">
