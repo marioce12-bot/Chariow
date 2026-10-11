@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronRight, ImagePlus, Loader2, Pencil, Sparkles, X } 
 import type { Placement, Platform, WizardState } from "./types";
 import { isAdPlatformAllowed, type PlanId } from "@/lib/plans";
 import { useI18n } from "@/lib/i18n/i18n";
+import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 
 export interface Step2FooterState {
   backLabel: string;
@@ -65,6 +66,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   const en = locale === "en";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [mediaKind, setMediaKind] = useState<"image" | "video" | null>(null);
@@ -226,17 +228,16 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     if (!file) return;
 
     setUploadError(null);
+    setUploadProgress(0);
     setMediaKind(file.type.startsWith("video/") ? "video" : "image");
     setPreviewUrl(URL.createObjectURL(file));
     setUploading(true);
     patch({ mediaUrl: "" });
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/uploads/campaign-media", { method: "POST", body: formData });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "Échec de l'envoi du fichier");
+      // Envoi direct vers Cloudinary (sans passer par une fonction Vercel, limitée à 4,5 Mo),
+      // puis vérification côté serveur du résultat.
+      const data = await uploadCampaignMedia(file, setUploadProgress);
 
       const url: string | null = typeof data?.secure_url === "string" ? data.secure_url : null;
       if (!url) throw new Error("Le fichier a été envoyé mais aucune URL n'a été renvoyée");
@@ -627,7 +628,9 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             {uploading && (
               <div className="absolute inset-0 flex items-center justify-center gap-2 bg-white/80 text-sm font-medium text-[#3730A3]">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {en ? "Uploading…" : "Envoi en cours…"}
+                {uploadProgress >= 100
+                  ? (en ? "Checking…" : "Vérification…")
+                  : `${en ? "Uploading…" : "Envoi en cours…"}${uploadProgress > 0 ? ` ${uploadProgress} %` : ""}`}
               </div>
             )}
           </div>
