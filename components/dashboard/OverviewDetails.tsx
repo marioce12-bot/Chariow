@@ -96,7 +96,7 @@ export function OverviewDetails({ currency, period, revenueSeries, metaDaily, ca
             {product.image ? <img className="overview-product-image" src={product.image} alt="" /> : <span className="overview-product-image overview-product-placeholder" />}
             <div className="overview-product-content"><div className="overview-product-heading"><strong>{product.name}</strong><span>{product.sales} {t("overview.sales")} · {product.revenueNet === null ? "-" : `${formatMoney(product.revenueNet, currency)} ${t("overview.netRevenue")}`}</span></div><i className="overview-product-track"><b style={{ width: `${width}%` }} /></i></div>
           </div>;
-        })}</div> : <div className="overview-detail-empty">-</div>}
+        })}</div> : <div className="overview-detail-empty">{t("overview.noSalesThisPeriod")}</div>}
       </section>
 
       <section className="overview-detail-card app-card overview-funnel">
@@ -119,10 +119,10 @@ export function OverviewDetails({ currency, period, revenueSeries, metaDaily, ca
           return <div className="overview-campaign-row" key={campaign.id}>
             <strong className="overview-campaign-name">{campaign.name}</strong>
             <div><span>{t("overview.spend")}</span><strong>{formatMoney(campaign.spend, campaign.currency)}</strong><small className="source-meta">{t("overview.metaDeclared")}</small></div>
-            <div><span>{t("overview.profitability")}</span><strong>{campaign.attributionReliable && campaign.realRoas !== null ? `${(campaign.realRoas * 100).toFixed(1)} %` : "-"}</strong><small className="source-verified">{t("overview.verified")}</small></div>
+            <div><span>{t("overview.profitability")}</span><strong>{kpis.sales === 0 ? t("overview.noSalesThisPeriod") : campaign.attributionReliable && campaign.realRoas !== null ? `${(campaign.realRoas * 100).toFixed(1)} %` : "-"}</strong><small className="source-verified">{t("overview.verified")}</small></div>
             <span className={`overview-campaign-verdict verdict-${state.tone}`}>{t(`overview.${state.key}`)}</span>
           </div>;
-        })}</div> : <div className="overview-detail-empty">-</div>}
+        })}</div> : <div className="overview-detail-empty">{kpis.sales === 0 ? t("overview.noSalesThisPeriod") : t("overview.noCampaignsThisPeriod")}</div>}
         {campaignDaily.length && (hasCampaignSpend || hasCampaignRevenue) ? <div className="overview-campaign-daily">
           <div className="meta-history-title"><strong>{t("overview.dailyCampaigns")}</strong></div>
           <svg className="overview-details-svg overview-campaign-svg" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label={t("overview.dailyCampaigns")}>

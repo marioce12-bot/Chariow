@@ -142,7 +142,7 @@ export const fr: Dict = {
       importing: "Import en cours", upToDate: "À jour", importFailed: "Échec", retryImport: "Reprendre l’import", verified: "Vérifié",
       costPerSale: "Coût par vente", profitability: "Rentabilité", health: "Santé", recovery: "Récupération",
       campaigns: "Campagnes", adSets: "Ensembles", ads: "Annonces", impressions: "Impressions", clicks: "Clics",
-      purchases: "Achats", purchaseValue: "Valeur d’achat", noMetaHistory: "Aucun historique Meta",
+      purchases: "Achats", purchaseValue: "Valeur d’achat", noMetaHistory: "Aucun historique Meta", noSalesThisPeriod: "Aucune vente sur la période", noCampaignsThisPeriod: "Aucune campagne sur la période",
       netRevenueByDay: "Revenu net par jour", dailyCampaigns: "Campagnes · jour", funnel: "Entonnoir", visits: "Visites", conversionRate: "Taux de conversion",
       actions: "Actions", cutAction: "À couper", increaseAction: "À augmenter", gain: "Gagne", loss: "Perd", watch: "À surveiller", testing: "En test", analyzeCampaign: "Analyser",
       healthy: "Sain", limit: "Limite", critical: "Critique", daysUnit: "j",
