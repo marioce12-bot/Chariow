@@ -1,4 +1,5 @@
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
+import { convertCurrency } from "@/lib/currency";
 
 export type ProfitabilityAggregate = {
   spend: number;
@@ -11,14 +12,25 @@ export type ProfitabilityAggregate = {
   currency: string | null;
   abandonmentRate: number | null;
   failureRate: number | null;
+  /** Coût par vente : dépenses / ventes reliées aux campagnes Vendeo, dans la devise des dépenses. */
+  costPerSale: number | null;
+  /** @deprecated Alias de costPerSale, conservé pour les consommateurs existants. */
   cac: number | null;
   vendeoAttributedRoas: number | null;
+  /** Rentabilité en % (vendeoAttributedRoas x 100). */
+  profitabilityPct: number | null;
 };
 
+/**
+ * `sales` doit déjà être limité aux ventes reliées aux campagnes Vendeo (ou `linkedSales` doit
+ * être fourni). Ne jamais passer toutes les ventes de la boutique pour calculer un coût par vente.
+ */
 export function calculateProfitabilityAggregate(input: {
   spend: number;
   spendCurrency?: string | null;
   sales: Array<{ status?: string | null; amount?: number | string | null; net_amount?: number | string | null; currency?: string | null }>;
+  /** Nombre de ventes confirmées reliées aux campagnes Vendeo. Par défaut : les ventes confirmées de `sales`. */
+  linkedSales?: number;
   attributedNetRevenue?: number;
   attributedCurrency?: string | null;
 }): ProfitabilityAggregate {
@@ -44,11 +56,21 @@ export function calculateProfitabilityAggregate(input: {
   const grossRevenue = singleKnownCurrency ? revenueByCurrency[0].grossRevenue : null;
   const netRevenue = singleKnownCurrency ? revenueByCurrency[0].netRevenue : null;
   const spendCurrency = input.spendCurrency?.trim().toUpperCase() || null;
-  const spendCurrencyMatches = !!spendCurrency && currency === spendCurrency;
   const attempts = confirmed.length + abandoned.length + failed.length;
-  const comparableAttributedRevenue = input.attributedNetRevenue !== undefined && input.attributedCurrency?.trim().toUpperCase() === spendCurrency
-    ? input.attributedNetRevenue
-    : input.attributedNetRevenue === undefined && spendCurrencyMatches ? netRevenue : null;
+
+  // Revenu relié, converti dans la devise des dépenses (taux fixe de lib/currency.ts).
+  // Sans devise connue ou convertible : null, jamais de ratio entre devises différentes.
+  const toSpendCurrency = (amount: number, from: string | null): number | null => {
+    if (!spendCurrency || !from) return null;
+    return from === spendCurrency ? amount : convertCurrency(amount, from, spendCurrency);
+  };
+  const comparableAttributedRevenue = input.attributedNetRevenue !== undefined
+    ? toSpendCurrency(input.attributedNetRevenue, input.attributedCurrency?.trim().toUpperCase() || null)
+    : netRevenue !== null ? toSpendCurrency(netRevenue, currency) : null;
+
+  const linkedSales = input.linkedSales ?? confirmed.length;
+  const costPerSale = spendCurrency && linkedSales > 0 ? input.spend / linkedSales : null;
+  const roas = input.spend > 0 && comparableAttributedRevenue !== null ? comparableAttributedRevenue / input.spend : null;
 
   return {
     spend: input.spend,
@@ -61,7 +83,9 @@ export function calculateProfitabilityAggregate(input: {
     currency,
     abandonmentRate: attempts > 0 ? abandoned.length / attempts : null,
     failureRate: attempts > 0 ? failed.length / attempts : null,
-    cac: confirmed.length > 0 && spendCurrencyMatches ? input.spend / confirmed.length : null,
-    vendeoAttributedRoas: input.spend > 0 && comparableAttributedRevenue !== null ? comparableAttributedRevenue / input.spend : null,
+    costPerSale,
+    cac: costPerSale,
+    vendeoAttributedRoas: roas,
+    profitabilityPct: roas === null ? null : Math.round(roas * 1000) / 10,
   };
 }
