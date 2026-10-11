@@ -81,7 +81,7 @@ export function OverviewDetails({ currency, period, revenueSeries, metaDaily, ca
             {hasRevenue ? <polyline points={pointsFor(revenueByDate)} className="overview-chart-revenue" /> : null}
             {hasSpend ? <polyline points={pointsFor(spendByDate)} className="overview-chart-spend" /> : null}
           </svg>
-        ) : <div className="overview-detail-empty">-</div>}
+        ) : <div className="overview-detail-empty">{t("overview.noChartData")}</div>}
         <div className="overview-chart-legend">
           {hasRevenue ? <span><i className="legend-net" />{t("overview.netRevenue")}</span> : null}
           {hasSpend ? <span><i className="legend-spend" />{t("overview.spend")} <small className="source-meta">{t("overview.metaDeclared")}</small></span> : null}
@@ -94,7 +94,7 @@ export function OverviewDetails({ currency, period, revenueSeries, metaDaily, ca
           const width = product.revenueNet === null ? 0 : Math.max(0, Math.min(100, (product.revenueNet / maxProductRevenue) * 100));
           return <div className="overview-product-row" key={product.id}>
             {product.image ? <img className="overview-product-image" src={product.image} alt="" /> : <span className="overview-product-image overview-product-placeholder" />}
-            <div className="overview-product-content"><div className="overview-product-heading"><strong>{product.name}</strong><span>{product.sales} {t("overview.sales")} · {product.revenueNet === null ? "-" : `${formatMoney(product.revenueNet, currency)} ${t("overview.netRevenue")}`}</span></div><i className="overview-product-track"><b style={{ width: `${width}%` }} /></i></div>
+            <div className="overview-product-content"><div className="overview-product-heading"><strong>{product.name}</strong><span>{product.sales} {t("overview.sales")} · {product.revenueNet === null ? t("overview.metricUnavailable") : `${formatMoney(product.revenueNet, currency)} ${t("overview.netRevenue")}`}</span></div><i className="overview-product-track"><b style={{ width: `${width}%` }} /></i></div>
           </div>;
         })}</div> : <div className="overview-detail-empty">{t("overview.noSalesThisPeriod")}</div>}
       </section>
@@ -102,9 +102,9 @@ export function OverviewDetails({ currency, period, revenueSeries, metaDaily, ca
       <section className="overview-detail-card app-card overview-funnel">
         <div className="card-head"><h2>{t("overview.funnel")}</h2></div>
         <div className="overview-funnel-grid">
-          <div><span>{t("overview.visits")}</span><strong>{kpis.visits > 0 ? kpis.visits.toLocaleString() : "-"}</strong></div>
-          <div><span>{t("overview.purchases")}</span><strong>{kpis.visits > 0 || kpis.sales > 0 ? kpis.sales.toLocaleString() : "-"}</strong></div>
-          <div><span>{t("overview.conversionRate")}</span><strong>{kpis.visits > 0 ? kpis.conversionRate : "-"}</strong></div>
+          <div><span>{t("overview.visits")}</span><strong>{kpis.visits.toLocaleString()}</strong></div>
+          <div><span>{t("overview.purchases")}</span><strong>{kpis.sales.toLocaleString()}</strong></div>
+          <div><span>{t("overview.conversionRate")}</span><strong>{kpis.visits > 0 ? kpis.conversionRate : t("overview.metricUnavailable")}</strong></div>
         </div>
       </section>
 
@@ -119,7 +119,7 @@ export function OverviewDetails({ currency, period, revenueSeries, metaDaily, ca
           return <div className="overview-campaign-row" key={campaign.id}>
             <strong className="overview-campaign-name">{campaign.name}</strong>
             <div><span>{t("overview.spend")}</span><strong>{formatMoney(campaign.spend, campaign.currency)}</strong><small className="source-meta">{t("overview.metaDeclared")}</small></div>
-            <div><span>{t("overview.profitability")}</span><strong>{kpis.sales === 0 ? t("overview.noSalesThisPeriod") : campaign.attributionReliable && campaign.realRoas !== null ? `${(campaign.realRoas * 100).toFixed(1)} %` : "-"}</strong><small className="source-verified">{t("overview.verified")}</small></div>
+            <div><span>{t("overview.profitability")}</span><strong>{campaign.attributionReliable && campaign.realRoas !== null ? `${(campaign.realRoas * 100).toFixed(1)} %` : kpis.sales === 0 ? t("overview.noLinkedSales") : t("overview.metricUnavailable")}</strong>{campaign.attributionReliable && campaign.realRoas !== null ? <small className="source-verified">{t("overview.verified")}</small> : null}</div>
             <span className={`overview-campaign-verdict verdict-${state.tone}`}>{t(`overview.${state.key}`)}</span>
           </div>;
         })}</div> : <div className="overview-detail-empty">{kpis.sales === 0 ? t("overview.noSalesThisPeriod") : t("overview.noCampaignsThisPeriod")}</div>}
