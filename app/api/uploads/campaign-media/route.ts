@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { LOW_QUALITY_WIDTH, META_MIN_WIDTH, MIN_SOURCE_WIDTH, feedAdjustment, feedTransformFor, withCloudinaryTransform } from "@/lib/media/creative-format";
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime"]);
+
+// Vérifie que Cloudinary sait bien livrer la version transformée (et la met en cache CDN).
+// Si le compte Cloudinary bloque les transformations à la volée (« Strict transformations »),
+// on retombe sur l'image d'origine plutôt que de casser l'envoi.
+async function isDeliverable(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(request: Request) {
   const { user, response } = await requireUser();
@@ -35,5 +49,41 @@ export async function POST(request: Request) {
     console.error("Cloudinary campaign upload failed", { status: result.status, error: json?.error?.message });
     return NextResponse.json({ error: "Cloudinary n’a pas accepté le fichier" }, { status: 502 });
   }
-  return NextResponse.json({ secure_url: json.secure_url, public_id: json.public_id, resource_type: resourceType, original_filename: json.original_filename ?? file.name });
+
+  const original: string = json.secure_url;
+  const width = Number(json.width) || 0;
+  const height = Number(json.height) || 0;
+  const base = { public_id: json.public_id, resource_type: resourceType, original_filename: json.original_filename ?? file.name, width, height };
+
+  // Vidéo : pas de recadrage automatique pour l'instant, mais on refuse tout de suite ce que Meta refusera à l'étape 5.
+  if (resourceType === "video") {
+    if (width > 0 && width < META_MIN_WIDTH) {
+      return NextResponse.json({ error: `Vidéo trop petite (${width} px de large) : Meta exige au moins ${META_MIN_WIDTH} px. Choisis une vidéo plus grande.` }, { status: 422 });
+    }
+    return NextResponse.json({ secure_url: original, ...base, adjustment: null, low_quality: false });
+  }
+
+  if (width > 0 && width < MIN_SOURCE_WIDTH) {
+    return NextResponse.json({ error: `Image trop petite (${width} px de large). Choisis une image d'au moins ${MIN_SOURCE_WIDTH} px de large, idéalement 1080 px.` }, { status: 422 });
+  }
+
+  // Image : on normalise en arrière-plan (recadrage intelligent, agrandissement, conversion JPEG)
+  // pour que Meta accepte le visuel sur tous les placements dès l'étape 5.
+  const size = width > 0 && height > 0 ? { width, height } : null;
+  const format = typeof json.format === "string" ? json.format.toLowerCase() : "";
+  const isJpegOrPng = ["jpg", "jpeg", "png"].includes(format);
+  const transform = feedTransformFor(size, isJpegOrPng);
+  let finalUrl = original;
+  let adjustment = null;
+  if (transform) {
+    const candidate = withCloudinaryTransform(original, transform);
+    if (candidate && (await isDeliverable(candidate))) {
+      finalUrl = candidate;
+      adjustment = feedAdjustment(size, isJpegOrPng);
+    } else {
+      console.error("Cloudinary: transformation du visuel indisponible, image d'origine conservée", { transform });
+    }
+  }
+
+  return NextResponse.json({ secure_url: finalUrl, original_url: original, ...base, adjustment, low_quality: width > 0 && width < LOW_QUALITY_WIDTH });
 }

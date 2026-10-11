@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { FEED_TRANSFORM, VERTICAL_TRANSFORM, feedTransformFor, readImageSize, withCloudinaryTransform } from "@/lib/media/creative-format";
 import { META_GRAPH_BASE_URL } from "./api";
 
 // Meta ne sait pas toujours télécharger une image depuis une URL signée de stockage privé
@@ -58,6 +59,33 @@ export function extractAdImageHash(json: unknown): string | null {
   return null;
 }
 
+async function fetchBytes(url: string): Promise<Uint8Array | null> {
+  const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) return null;
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return bytes.length <= MAX_IMAGE_BYTES ? bytes : null;
+}
+
+// Filet de sécurité pour les images Cloudinary : même si l'upload n'a pas normalisé le visuel
+// (brouillon ancien, WebP, image trop étroite ou au mauvais ratio), on récupère une version
+// JPEG/PNG au format accepté par Meta avant de l'envoyer. Deux passes maximum :
+// 1. conversion en JPEG quand le format ou les dimensions sont illisibles (ex. WebP) ;
+// 2. recadrage / agrandissement une fois les dimensions connues.
+async function loadNormalizedCloudinaryBytes(imageUrl: string): Promise<Uint8Array | null> {
+  let url = imageUrl;
+  let bytes = await fetchBytes(url);
+  for (let pass = 0; pass < 3 && bytes; pass++) {
+    const type = detectMetaImageType(bytes);
+    const transform = feedTransformFor(type ? readImageSize(bytes) : null, type !== null);
+    if (!transform) return bytes;
+    const next = withCloudinaryTransform(url, transform);
+    if (!next || next === url) break;
+    url = next;
+    bytes = await fetchBytes(url);
+  }
+  return bytes && detectMetaImageType(bytes) ? bytes : null;
+}
+
 // Récupère les octets d'une image qui nous appartient : stockage Vendeo de l'utilisateur ou notre Cloudinary.
 async function loadOwnImageBytes(userId: string, imageUrl: string): Promise<Uint8Array | null> {
   const studioPath = ownStudioPathFromUrl(imageUrl, userId, process.env.NEXT_PUBLIC_SUPABASE_URL);
@@ -68,20 +96,17 @@ async function loadOwnImageBytes(userId: string, imageUrl: string): Promise<Uint
     return new Uint8Array(await data.arrayBuffer());
   }
   if (isOwnCloudinaryUrl(imageUrl, process.env.CLOUDINARY_CLOUD_NAME)) {
-    const response = await fetch(imageUrl, { cache: "no-store", signal: AbortSignal.timeout(15_000) });
-    if (!response.ok) return null;
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    return bytes.length <= MAX_IMAGE_BYTES ? bytes : null;
+    return loadNormalizedCloudinaryBytes(imageUrl);
   }
   return null;
 }
 
-export async function uploadMetaAdImage(input: { accountId: string; accessToken: string; bytes: Uint8Array }): Promise<string> {
+export async function uploadMetaAdImage(input: { accountId: string; accessToken: string; bytes: Uint8Array; filename?: string }): Promise<string> {
   const type = detectMetaImageType(input.bytes);
   if (!type) throw new Error("Format d'image non pris en charge (JPEG ou PNG attendu).");
   const form = new FormData();
   form.append("access_token", input.accessToken);
-  form.append("filename", new Blob([input.bytes as unknown as BlobPart], { type }), type === "image/png" ? "creative.png" : "creative.jpg");
+  form.append("filename", new Blob([input.bytes as unknown as BlobPart], { type }), input.filename ?? (type === "image/png" ? "creative.png" : "creative.jpg"));
   const response = await fetch(`${META_GRAPH_BASE_URL}/${input.accountId}/adimages`, { method: "POST", body: form, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
   const hash = extractAdImageHash(json);
@@ -103,4 +128,19 @@ export async function prepareMetaCreativeImage(input: { userId: string; accountI
     console.error("prepareMetaCreativeImage: envoi de l'image à Meta impossible, repli sur l'URL", error instanceof Error ? error.message : error);
     return {};
   }
+}
+
+// Variantes par placement : 4:5 (fils d'actualité) et 9:16 (Stories / Reels), toutes deux dérivées de
+// l'image d'origine par recadrage intelligent. Retourne null si l'image n'est pas sur notre Cloudinary
+// ou si une variante est illisible ; lève une erreur si Meta refuse l'envoi (l'appelant gère le repli).
+export async function prepareMetaPlacementImages(input: { accountId: string; accessToken: string; imageUrl: string }): Promise<{ feedHash: string; verticalHash: string } | null> {
+  if (!isOwnCloudinaryUrl(input.imageUrl, process.env.CLOUDINARY_CLOUD_NAME)) return null;
+  const feedUrl = withCloudinaryTransform(input.imageUrl, FEED_TRANSFORM);
+  const verticalUrl = withCloudinaryTransform(input.imageUrl, VERTICAL_TRANSFORM);
+  if (!feedUrl || !verticalUrl) return null;
+  const [feedBytes, verticalBytes] = await Promise.all([fetchBytes(feedUrl), fetchBytes(verticalUrl)]);
+  if (!feedBytes || !verticalBytes || !detectMetaImageType(feedBytes) || !detectMetaImageType(verticalBytes)) return null;
+  const feedHash = await uploadMetaAdImage({ accountId: input.accountId, accessToken: input.accessToken, bytes: feedBytes, filename: "creative-feed.jpg" });
+  const verticalHash = await uploadMetaAdImage({ accountId: input.accountId, accessToken: input.accessToken, bytes: verticalBytes, filename: "creative-vertical.jpg" });
+  return { feedHash, verticalHash };
 }
