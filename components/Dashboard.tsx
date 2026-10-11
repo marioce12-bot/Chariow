@@ -34,6 +34,7 @@ import { NotificationsView } from "@/components/NotificationsView";
 import { readCache, writeCache, DASHBOARD_CACHE_KEY, SESSION_STORAGE_PROMPT_KEY, ADS_CACHE_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
 import { StoreOnboarding, StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
 import { OverviewHome } from "./dashboard/OverviewHome";
+import { DashboardSkeleton } from "./dashboard/Skeleton";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
 const DEFAULT_DASHBOARD_SECTION = "Vue d'ensemble";
@@ -122,11 +123,15 @@ export function Dashboard() {
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  // Vrai tant que l'abonnement et les données de la boutique (analytics) n'ont pas fini de charger :
+  // la Vue d'ensemble affiche alors des skeletons au lieu de zéros / textes provisoires.
+  const [overviewLoading, setOverviewLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
-  const [userName, setUserName] = useState("créateur");
+  // null tant que le nom n'est pas connu : la salutation reste en skeleton (pas de « Bonjour créateur » provisoire).
+  const [userName, setUserName] = useState<string | null>(null);
 
-  const userFirstName = (userName || "créateur").trim().split(/\s+/)[0] ?? "créateur";
+  const userFirstName = userName ? (userName.trim().split(/\s+/)[0] || "créateur") : null;
   // Plus de quota de messages IA : l'accès est illimité tant que l'essai de
   // 15 jours ou l'abonnement Vendeo est actif.
   const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
@@ -202,7 +207,9 @@ export function Dashboard() {
       if (cancelled) return;
       const metadata = data.user?.user_metadata as { full_name?: string; name?: string; first_name?: string } | undefined;
       const name = metadata?.full_name ?? metadata?.name ?? metadata?.first_name ?? data.user?.email?.split("@")[0];
-      if (name) setUserName(name);
+      setUserName(name || "créateur");
+    }).catch(() => {
+      if (!cancelled) setUserName("créateur");
     });
 
     async function loadDashboard() {
@@ -215,6 +222,7 @@ export function Dashboard() {
         setSubscription(cached.subscription);
         setAnalytics(cached.analytics);
         setLoadingData(false);
+        setOverviewLoading(false);
       }
 
       const storeResponse = await fetch("/api/stores");
@@ -241,11 +249,15 @@ export function Dashboard() {
       const nextAnalytics = analyticsResult?.snapshot ?? analytics ?? null;
       setSubscription(nextSubscription);
       if (analyticsResult?.snapshot) setAnalytics(analyticsResult.snapshot);
+      setOverviewLoading(false);
       writeCache(DASHBOARD_CACHE_KEY, { stores: nextStores, selectedStoreId: nextSelected, subscription: nextSubscription, analytics: nextAnalytics });
     }
 
     loadDashboard().catch(() => {
-      if (!cancelled) setLoadingData(false);
+      if (!cancelled) {
+        setLoadingData(false);
+        setOverviewLoading(false);
+      }
     });
     return () => { cancelled = true; };
   }, []);
@@ -325,7 +337,7 @@ export function Dashboard() {
         </aside>
         <section className={active === "Vendeo AI" ? "app-main chat-page" : "app-main"}>
           {loadingData ? (
-            <div className="app-card">Chargement de ton espace…</div>
+            <DashboardSkeleton />
           ) : stores.length === 0 && !analytics && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
             <StoreOnboarding />
           ) : active === "Paramètres" ? (
@@ -369,6 +381,7 @@ export function Dashboard() {
               onGoToAds={() => setActive("Pub")}
               onGoToAI={() => setActive("Vendeo AI")}
               campaignsVersion={campaignsVersion}
+              loading={overviewLoading}
             />
           )}
          </section>
