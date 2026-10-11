@@ -1,4 +1,6 @@
 import { describeMetaAccountStatus, isMetaAccountStatusBlocking, META_GRAPH_BASE_URL } from "./api";
+import { isOwnCloudinaryUrl, prepareMetaPlacementImages } from "./ad-image";
+import { buildPlacementCreativeParams, placementVariantsEnabled } from "./placement-spec";
 
 type GraphResponse = Record<string, unknown>;
 
@@ -60,8 +62,8 @@ async function graphGet(path: string, accessToken: string, fields: string) {
 
 /**
  * Supprime un objet Meta (campagne, ad set ou annonce — la suppression d'une
- * campagne entraîne côté Meta celle de ses ad sets/annonces). Contrairement à
- * un simple passage à PAUSED, c'est irréversible : utilisé uniquement quand
+ * campagne entraîne côté Meta celle de ses ad sets/annonces). Contrairement à un
+ * simple passage à PAUSED, c'est irréversible : utilisé uniquement quand
  * l'utilisateur supprime explicitement la campagne depuis Vendeo.
  */
 async function graphDelete(path: string, accessToken: string) {
@@ -248,6 +250,22 @@ export async function createMetaCreative(input: {
    *  Désactivé par défaut : seuls les appelants qui le demandent explicitement en profitent. */
   advantageCreative?: boolean;
 }) {
+  // Variantes par placement (4:5 fils d'actualité + 9:16 Stories/Reels) : opt-in via
+  // META_PLACEMENT_VARIANTS=1 et uniquement pour nos images Cloudinary. Au moindre refus de Meta
+  // (ou si une variante est illisible), on retombe sur la créative à image unique ci-dessous.
+  if (placementVariantsEnabled() && isOwnCloudinaryUrl(input.imageUrl, process.env.CLOUDINARY_CLOUD_NAME)) {
+    try {
+      const variants = await prepareMetaPlacementImages({ accountId: input.accountId, accessToken: input.accessToken, imageUrl: input.imageUrl });
+      if (variants) {
+        return await graphPost(`${input.accountId}/adcreatives`, input.accessToken, {
+          name: input.name.slice(0, 200),
+          ...buildPlacementCreativeParams({ pageId: input.pageId, link: input.link, message: input.message, headline: input.headline, ...variants }),
+        });
+      }
+    } catch (error) {
+      console.error("createMetaCreative: créative par placement refusée, repli sur l'image unique", error instanceof Error ? error.message : error);
+    }
+  }
   const params: Record<string, string> = {
     name: input.name.slice(0, 200),
     // Dans link_data, le champ pour une image par URL s'appelle "picture", pas
