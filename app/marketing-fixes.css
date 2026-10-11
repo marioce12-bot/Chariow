@@ -68,3 +68,60 @@ html[data-theme="dark"] .problem-item { background: rgba(255, 255, 255, 0.04); b
 @media (prefers-reduced-motion: reduce) {
   .creators-track { animation: none; }
 }
+
+/* Carte tarif de la landing (plan unique).
+   .pricing-wrap est une grille à deux colonnes pensée pour deux cartes, et elle
+   sert encore telle quelle dans le tableau de bord (components/dashboard/
+   sections.tsx). Avec une seule carte, la landing n'en occupait que la moitié
+   (bande étroite, prix sur deux lignes, bouton coupé). On passe donc par une
+   variante dédiée, sans toucher à .pricing-wrap. */
+.pricing-wrap.pricing-wrap-single {
+  display: block;
+  margin: 0 auto;
+  max-width: 440px;
+}
+.pricing-wrap-single .price-card {
+  display: flex;
+  flex-direction: column;
+  padding: 36px 32px;
+}
+.pricing-wrap-single .pill {
+  align-self: flex-start;
+  margin-bottom: 20px;
+  white-space: nowrap;
+}
+.pricing-wrap-single .price-card h3 {
+  margin: 0 0 10px;
+}
+.pricing-wrap-single .price {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: nowrap;
+  font-size: clamp(34px, 8vw, 43px);
+  gap: 8px;
+  white-space: nowrap;
+}
+.pricing-wrap-single .price small {
+  font-size: 13px;
+}
+.pricing-wrap-single .price-card ul {
+  flex: 1;
+  padding: 22px 0 26px;
+}
+.pricing-wrap-single .price-card li {
+  align-items: flex-start;
+  display: flex;
+  font-size: 14px;
+  gap: 10px;
+  line-height: 1.45;
+  padding: 14px 0;
+}
+.pricing-wrap-single .price-card li .check {
+  flex-shrink: 0;
+  margin: 2px 0 0;
+}
+.pricing-wrap-single .btn {
+  justify-content: center;
+  min-height: 48px;
+  width: 100%;
+}
