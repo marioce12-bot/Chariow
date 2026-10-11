@@ -41,8 +41,8 @@ export async function GET(request: Request) {
     const snapshot = await getChariowSnapshot(store, { from, to });
     const normalized = normalizeChariowSnapshot(snapshot, { from: from ?? "", to: to ?? "" });
     const now = new Date();
-    const periodFrom = from ?? normalized.kpis.period.from ?? new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-    const periodTo = to ?? normalized.kpis.period.to ?? now.toISOString().slice(0, 10);
+    const periodFrom = from || normalized.kpis.period.from || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const periodTo = to || normalized.kpis.period.to || now.toISOString().slice(0, 10);
     const periodDays = daysBetween(periodFrom, periodTo);
     const previousFrom = addDays(periodFrom, -periodDays);
     const previousTo = addDays(periodFrom, -1);
