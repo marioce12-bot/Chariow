@@ -38,6 +38,55 @@ describe("computeAutopilotDecision", () => {
     expect(result.roas).toBeCloseTo(0.2, 5);
   });
 
+  it("laisse tourner si la valeur client fiable justifie un premier achat pas encore rentabilisé", () => {
+    const result = computeAutopilotDecision({
+      ...base,
+      spend: 300,
+      netRevenue: 100,
+      completedSales: 1,
+      historicalCustomerValue: 1000,
+      storeCustomerCount: 30,
+      campaignCustomerCount: 1,
+    });
+    expect(result.decision).toBe("keep_running");
+    expect(result.customerValueProtection).toBe(true);
+    expect(result.reasons.join(" ")).toContain("Valeur client fiable");
+    expect(result.reasons.join(" ")).toContain("sous le plafond");
+  });
+
+  it("garde le comportement de pause sans données client fiables", () => {
+    const lowSample = computeAutopilotDecision({
+      ...base,
+      spend: 300,
+      netRevenue: 60,
+      completedSales: 1,
+      historicalCustomerValue: 1000,
+      storeCustomerCount: 29,
+      campaignCustomerCount: 1,
+    });
+    const overCeiling = computeAutopilotDecision({
+      ...base,
+      spend: 300,
+      netRevenue: 60,
+      completedSales: 1,
+      historicalCustomerValue: 100,
+      storeCustomerCount: 30,
+      campaignCustomerCount: 1,
+    });
+    const noCustomerIds = computeAutopilotDecision({
+      ...base,
+      spend: 300,
+      netRevenue: 60,
+      completedSales: 1,
+      historicalCustomerValue: 1000,
+      storeCustomerCount: 30,
+      campaignCustomerCount: null,
+    });
+    expect(lowSample.decision).toBe("pause");
+    expect(overCeiling.decision).toBe("pause");
+    expect(noCustomerIds.decision).toBe("pause");
+  });
+
   it("reste en apprentissage avant 1,5 budget quotidien même après 24h", () => {
     const result = computeAutopilotDecision({ ...base, spend: 120, netRevenue: 30, grossRevenue: 30, completedSales: 1 });
     expect(result.decision).toBe("learning");

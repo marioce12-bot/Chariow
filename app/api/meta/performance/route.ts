@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { convertCurrency } from "@/lib/currency";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
 import { computeAutopilotDecision } from "@/lib/autopilot";
+import { loadStoreCustomerValue, type CustomerHistory } from "@/lib/autopilot-customer-value";
 import { overviewState, paybackDays } from "@/lib/unit-economics";
 import type { MetaEntityPerformance } from "@/lib/meta/types";
 
@@ -126,6 +127,14 @@ export async function GET(request: Request) {
     .eq("platform", "meta")
     .not("external_campaign_id", "is", null) : { data: [] });
   const launchedById = new Map((launchedCampaigns ?? []).map((row: { external_campaign_id: string; daily_budget: number | null; created_at: string; objective: string | null; effective_objective: string | null }) => [row.external_campaign_id, row]));
+  let customerHistory: CustomerHistory = { customerCount: null, customerValue: null, complete: false };
+  if (store && launchedCampaigns?.length) {
+    try {
+      customerHistory = await loadStoreCustomerValue(supabase, store.id, adCurrency);
+    } catch (historyError) {
+      console.warn("Meta performance: customer history unavailable", historyError instanceof Error ? historyError.message : historyError);
+    }
+  }
 
   const { data: pixelRows } = await supabase
     .from("meta_pixels")
@@ -216,6 +225,9 @@ export async function GET(request: Request) {
       convertedGross += gross;
     }
     const attributionReliable = linked && currencyReliable;
+    const linkedCustomerIds = new Set(attributedRows.map((sale) => String(sale.customer_id ?? "").trim()).filter(Boolean));
+    const linkedCustomerIdsComplete = attributedRows.every((sale) => typeof sale.customer_id === "string" && sale.customer_id.trim().length > 0);
+    const campaignCustomerCount = attributionReliable && linkedCustomerIdsComplete ? linkedCustomerIds.size : null;
     if (attributionReliable) {
       for (const sale of attributedRows) if (sale.customer_id) attributedCustomerIds.add(sale.customer_id);
     }
@@ -244,6 +256,9 @@ export async function GET(request: Request) {
       dailyBudget: dailyBudget ?? 0,
       daysSinceLaunch: daysSinceLaunch ?? 0,
       attributionReliable: decisionInputReady,
+      historicalCustomerValue: customerHistory.customerValue,
+      storeCustomerCount: customerHistory.customerCount,
+      campaignCustomerCount: decisionInputReady ? campaignCustomerCount : null,
     });
     const suggestedIncrease = decision.decision === "keep_running" && dailyBudget !== null
       ? Math.round(Math.max(0, dailyBudget * 0.2) * 2) / 2

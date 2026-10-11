@@ -11,10 +11,10 @@
 // Ce qu'Imole apporte réellement :
 //  1. Un motif rédigé en langage clair qui intègre le diagnostic déterministe
 //     existant (lib/meta/diagnostic.ts — audience / créative / attribution,
-//     comparé à la propre baseline de la campagne) plutôt qu'un simple
-//     "ROAS de 0.3".
+//     comparé à la référence habituelle de la campagne) plutôt qu'un simple
+//     "Rentabilité de 30 %".
 //  2. Un unique pouvoir de nuance : si le moteur de diagnostic a lui-même
-//     détecté une anomalie d'attribution grave (le ROAS Meta ne correspond pas
+//     détecté une anomalie d'attribution grave (la rentabilité Meta ne correspond pas
 //     aux ventes réelles), Imole peut recommander de repasser un "pause" en
 //     "keep_running" le temps de vérifier le tracking — sinon on couperait une
 //     campagne rentable sur la foi d'un chiffre faussé. Ce garde-fou est
@@ -56,7 +56,7 @@ export async function refineAutopilotVerdictWithAI(
 ): Promise<AutopilotDecision> {
   // Garde-fou de sécurité : phase d'apprentissage / pas assez de données —
   // l'IA ne juge jamais dans ce cas, il n'y a rien à interpréter.
-  if (base.decision === "learning" || base.decision === "insufficient_data") return base;
+  if (base.decision === "learning" || base.decision === "insufficient_data" || base.customerValueProtection) return base;
 
   const diagnosticAvailable = context.platform === "meta";
   const anomalyLines = anomalies.length ? anomalies.map(describeAnomaly).join(" ; ") : "aucune anomalie détectée";
@@ -69,14 +69,14 @@ Motif calculé par les règles : ${base.reasons.join(" ")}
 Chiffres de la campagne "${context.campaignTitle}" :
 - Dépense : ${input.spend.toFixed(0)} ${context.currency} sur ${Math.round(input.daysSinceLaunch)} jour(s), budget quotidien ${input.dailyBudget} ${context.currency}
 - Ventes confirmées : ${input.completedSales}, revenu net : ${input.netRevenue.toFixed(0)} ${context.currency}
-- ROAS net : ${base.roas !== null ? base.roas.toFixed(2) : "indisponible"}
+- Rentabilité nette : ${base.roas !== null ? (base.roas * 100).toFixed(1) + " %" : "-"}
 
-Diagnostic technique (moteur déterministe, comparaison à la propre baseline de la campagne)${diagnosticAvailable ? "" : " — non disponible pour cette plateforme"} : ${diagnosticAvailable ? anomalyLines : "n/a"}
+Diagnostic de campagne (mesures comparées à la référence propre de la campagne)${diagnosticAvailable ? "" : " — non disponible pour cette plateforme"} : ${diagnosticAvailable ? anomalyLines : "n/a"}
 
-Rédige UNIQUEMENT un motif de 2 à 3 phrases en français, clair, sans jargon technique, destiné à l'utilisateur final : explique la décision en t'appuyant sur le diagnostic quand il existe (ex: dire que la créa s'essouffle, que le ciblage ne convertit plus, ou que le ROAS affiché est probablement faussé par un problème de mesure). Ne change pas les chiffres, ne les invente pas.
+Rédige UNIQUEMENT un motif de 2 à 3 phrases en français, clair, sans jargon technique, destiné à l'utilisateur final : explique la décision en t'appuyant sur le diagnostic quand il existe (ex: dire que la créa s'essouffle, que le ciblage ne convertit plus, ou que la rentabilité affichée est probablement faussée par un problème de mesure). Ne change pas les chiffres, ne les invente pas.
 
 Réponds UNIQUEMENT avec un JSON compact, sans texte autour, sans balises markdown : {"reasoning": "...", "attribution_looks_broken": true|false}
-"attribution_looks_broken" = true seulement si le diagnostic ci-dessus indique clairement que le ROAS mesuré ne reflète pas les ventes réelles.`;
+"attribution_looks_broken" = true seulement si le diagnostic ci-dessus indique clairement que la rentabilité mesurée ne reflète pas les ventes réelles.`;
 
   try {
     const raw = await askImole([{ role: "user", content: prompt }]);

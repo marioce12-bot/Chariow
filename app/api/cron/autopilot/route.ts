@@ -4,6 +4,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { convertCurrency } from "@/lib/currency";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
 import { computeAutopilotDecision } from "@/lib/autopilot";
+import { loadStoreCustomerValue, type CustomerHistory } from "@/lib/autopilot-customer-value";
 import { pauseMetaCampaign } from "@/lib/meta/campaigns";
 import { pauseTikTokCampaign } from "@/lib/tiktok/campaigns";
 import { fetchTikTokCampaignReport } from "@/lib/tiktok/report";
@@ -27,8 +28,13 @@ function sumSales(sales: Array<Record<string, unknown>> | null | undefined, curr
   let net = 0;
   let completed = 0;
   let currencyReliable = true;
+  let customerIdsComplete = true;
+  const customerIds = new Set<string>();
   for (const sale of sales ?? []) {
     if (!isConfirmedChariowSaleStatus(sale.status)) continue;
+    const customerId = typeof sale.customer_id === "string" ? sale.customer_id.trim() : "";
+    if (customerId) customerIds.add(customerId);
+    else customerIdsComplete = false;
     const saleCurrency = typeof sale.currency === "string" ? sale.currency : "";
     const convertedGross = saleCurrency ? convertCurrency(num(sale.amount), saleCurrency, currency) : null;
     const convertedNet = saleCurrency ? convertCurrency(num(sale.net_amount), saleCurrency, currency) : null;
@@ -40,7 +46,7 @@ function sumSales(sales: Array<Record<string, unknown>> | null | undefined, curr
     net += convertedNet;
     completed += 1;
   }
-  return { gross, net, completed, currencyReliable };
+  return { gross, net, completed, currencyReliable, attributedCustomerCount: customerIdsComplete ? customerIds.size : null };
 }
 
 // Attribution des ventes réelles Chariow à une campagne. Pas de repli par produit :
@@ -61,7 +67,7 @@ async function attributedSales(supabase: any, campaign: any, currency: string) {
       .not("chariow_sale_id", "is", null);
     const saleIds = [...new Set((attributionRows ?? []).map((row: { chariow_sale_id: string | null }) => row.chariow_sale_id).filter(Boolean))] as string[];
     if (saleIds.length) {
-      const { data: sales } = await supabase.from("chariow_sales").select("amount,net_amount,currency,status").eq("store_id", campaign.store_id).in("chariow_sale_id", saleIds);
+      const { data: sales } = await supabase.from("chariow_sales").select("amount,net_amount,currency,status,customer_id").eq("store_id", campaign.store_id).in("chariow_sale_id", saleIds);
       return { ...sumSales(sales as Array<Record<string, unknown>> | null, currency), reliable: true };
     }
   }
@@ -81,7 +87,7 @@ async function attributedSales(supabase: any, campaign: any, currency: string) {
   if (campaignIds.length) {
     const { data: sales } = await supabase
       .from("chariow_sales")
-      .select("amount,net_amount,currency,status")
+      .select("amount,net_amount,currency,status,customer_id")
       .eq("store_id", campaign.store_id)
       .in("chariow_campaign_id", campaignIds)
       .gte("occurred_at", from)
@@ -89,7 +95,7 @@ async function attributedSales(supabase: any, campaign: any, currency: string) {
     return { ...sumSales(sales as Array<Record<string, unknown>> | null, currency), reliable: true };
   }
 
-  return { gross: 0, net: 0, completed: 0, currencyReliable: true, reliable: false };
+  return { gross: 0, net: 0, completed: 0, currencyReliable: true, attributedCustomerCount: null, reliable: false };
 }
 
 async function metaPurchaseTrackingReady(supabase: any, campaign: any): Promise<boolean> {
@@ -248,11 +254,26 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const results = [];
+  const customerHistoryCache = new Map<string, CustomerHistory>();
   for (const campaign of (campaigns ?? []) as Array<Record<string, unknown> & { id: string; user_id: string; platform: "meta" | "tiktok"; daily_budget: number; created_at: string }>) {
     try {
       const currency = await campaignCurrency(supabase, campaign);
       const spendData = await campaignSpend(supabase, campaign);
       const sales = await attributedSales(supabase, campaign, currency);
+      const storeId = String(campaign.store_id ?? "");
+      const historyKey = `${storeId}:${currency.trim().toUpperCase()}`;
+      let customerHistory = customerHistoryCache.get(historyKey);
+      if (!customerHistory) {
+        try {
+          customerHistory = storeId
+            ? await loadStoreCustomerValue(supabase, storeId, currency)
+            : { customerCount: null, customerValue: null, complete: false };
+        } catch (historyError) {
+          console.warn("autopilot: customer history unavailable", historyError instanceof Error ? historyError.message : historyError);
+          customerHistory = { customerCount: null, customerValue: null, complete: false };
+        }
+        customerHistoryCache.set(historyKey, customerHistory);
+      }
       const trackingReady = campaign.platform === "meta" ? await metaPurchaseTrackingReady(supabase, campaign) : true;
       const attributionReliable = sales.reliable && sales.currencyReliable && trackingReady;
       const daysSinceLaunch = Math.max(0, (Date.now() - new Date(campaign.created_at).getTime()) / 86400000);
@@ -264,6 +285,9 @@ export async function GET(request: Request) {
         daysSinceLaunch,
         dailyBudget: num(campaign.daily_budget),
         attributionReliable,
+        historicalCustomerValue: customerHistory.customerValue,
+        storeCustomerCount: customerHistory.customerCount,
+        campaignCustomerCount: sales.attributedCustomerCount,
       });
 
       // Diagnostic déterministe (Meta uniquement) puis raffinement du motif par
@@ -273,7 +297,7 @@ export async function GET(request: Request) {
         return [] as Anomaly[];
       });
       const decision = await refineAutopilotVerdictWithAI(
-        { spend: spendData.spend, netRevenue: sales.net, grossRevenue: sales.gross, completedSales: sales.completed, daysSinceLaunch, dailyBudget: num(campaign.daily_budget), attributionReliable },
+        { spend: spendData.spend, netRevenue: sales.net, grossRevenue: sales.gross, completedSales: sales.completed, daysSinceLaunch, dailyBudget: num(campaign.daily_budget), attributionReliable, historicalCustomerValue: customerHistory.customerValue, storeCustomerCount: customerHistory.customerCount, campaignCustomerCount: sales.attributedCustomerCount },
         baseDecision,
         anomalies,
         { campaignTitle: String(campaign.title || campaign.product_name || "Campagne"), currency, platform: campaign.platform },

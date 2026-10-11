@@ -1,4 +1,5 @@
 import { convertCurrency } from "./currency";
+import { isLowData, maxCostPerCustomer } from "./unit-economics";
 
 // Moteur de décision du pilotage automatique (déterministe, sans IA).
 // À partir des métriques d'une campagne (dépense pub + ventes réelles Chariow),
@@ -12,6 +13,8 @@ export type AutopilotDecision = {
   decision: AutopilotDecisionName;
   reasons: string[];
   roas: number | null;
+  /** Prevents the AI explanation layer from replacing the deterministic LTV safeguard. */
+  customerValueProtection?: boolean;
 };
 
 export type AutopilotInput = {
@@ -29,6 +32,12 @@ export type AutopilotInput = {
   dailyBudget: number;
   /** Vrai seulement si le suivi d'achat et l'attribution à cette campagne sont fiables. */
   attributionReliable: boolean;
+  /** Historical value per customer in the campaign currency, when complete. */
+  historicalCustomerValue?: number | null;
+  /** Distinct customers in the store's complete history. */
+  storeCustomerCount?: number | null;
+  /** Distinct customers with reliable sales linked to this campaign. */
+  campaignCustomerCount?: number | null;
 };
 
 function fmt(value: number): string {
@@ -85,12 +94,35 @@ export function computeAutopilotDecision(input: AutopilotInput): AutopilotDecisi
   if (roas !== null && roas >= BREAKEVEN_ROAS) {
     return {
       decision: "keep_running",
-      reasons: [`Rentable : ${fmt(netRevenue)} de ventes nettes pour ${fmt(spend)} de pub (ROAS ${roas.toFixed(2)}). La campagne se paie et rapporte.`],
+      reasons: [`Rentable : ${fmt(netRevenue)} de ventes nettes pour ${fmt(spend)} de pub. Rentabilité : ${fmt(roas * 100)} %.`],
       roas,
     };
   }
 
   const enoughSpend = spend >= dailyBudget * MIN_SPEND_TO_CONCLUDE_MULTIPLIER;
+  const customerCeiling = maxCostPerCustomer(input.historicalCustomerValue);
+  const campaignCostPerCustomer = input.campaignCustomerCount && input.campaignCustomerCount > 0
+    ? spend / input.campaignCustomerCount
+    : null;
+
+  // Une première commande peut ne pas rembourser le coût d'acquisition immédiat.
+  // Si l'historique client est fiable et que le coût d'acquisition reste sous le
+  // plafond de valeur client, ne pas interrompre la campagne pour cette raison.
+  if (
+    completedSales > 0 &&
+    netRevenue < spend &&
+    !isLowData(input.storeCustomerCount ?? 0) &&
+    customerCeiling !== null &&
+    campaignCostPerCustomer !== null &&
+    campaignCostPerCustomer < customerCeiling
+  ) {
+    return {
+      decision: "keep_running",
+      reasons: [`Valeur client fiable : coût par client de ${fmt(campaignCostPerCustomer)} sous le plafond de ${fmt(customerCeiling)}. La première vente n'a pas encore couvert la dépense : laisser tourner.`],
+      roas,
+      customerValueProtection: true,
+    };
+  }
 
   // Aucune vente après une dépense significative : signal fort d'arrêt.
   if (completedSales === 0 && enoughSpend) {
@@ -105,7 +137,7 @@ export function computeAutopilotDecision(input: AutopilotInput): AutopilotDecisi
   if (roas !== null && roas < STOP_ROAS && enoughSpend) {
     return {
       decision: "pause",
-      reasons: [`ROAS de ${roas.toFixed(2)} : ${fmt(netRevenue)} de ventes nettes pour ${fmt(spend)} de pub. La campagne coûte plus qu'elle ne rapporte.`],
+      reasons: [`Rentabilité : ${fmt(roas * 100)} %. ${fmt(netRevenue)} de ventes nettes pour ${fmt(spend)} de pub : la campagne coûte plus qu'elle ne rapporte.`],
       roas,
     };
   }
@@ -117,8 +149,8 @@ export function computeAutopilotDecision(input: AutopilotInput): AutopilotDecisi
       decision: "keep_running",
       reasons: [
         roas < STOP_ROAS
-          ? `ROAS de ${roas.toFixed(2)} mais dépense encore faible (${fmt(spend)}) : on attend d'avoir plus de données avant de trancher.`
-          : `ROAS de ${roas.toFixed(2)}, proche du seuil de rentabilité : la campagne collecte encore des données, on la laisse tourner sous surveillance.`,
+          ? `Rentabilité de ${fmt(roas * 100)} %, mais dépense encore faible (${fmt(spend)}) : on attend d'avoir plus de données avant de trancher.`
+          : `Rentabilité de ${fmt(roas * 100)} %, proche du seuil : la campagne collecte encore des données, on la laisse tourner sous surveillance.`,
       ],
       roas,
     };
