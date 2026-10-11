@@ -5,11 +5,16 @@
 --        from public, anon, authenticated;
 --    alors que GET /api/subscription l'appelle avec le client Supabase de
 --    l'utilisateur (rôle authenticated), grant posé dans 20260828023000.
---    Sans ce droit, l'appel RPC échoue et la route retombe sur un simple select :
---    le statut n'est plus mis à jour à l'ouverture de l'app. On rétablit le grant.
---    C'est sans risque : la fonction ne peut plus que faire passer une période
---    échue en 'past_due', jamais l'étendre.
-grant execute on function public.reset_subscription_period_if_needed(uuid) to authenticated;
+--    Sans ce droit, l'appel RPC échouait et la route retombait sur un simple select.
+--
+--    GRANT VOLONTAIREMENT RETIRÉ : ne PAS redonner l'exécution à authenticated.
+--    La fonction est SECURITY DEFINER et accepte n'importe quel target_user_id : elle
+--    renvoie la fiche d'abonnement correspondante sans vérifier que l'appelant est
+--    cet utilisateur. L'autoriser à authenticated permettrait à tout utilisateur
+--    connecté de lire l'abonnement d'un autre (fuite de données).
+--    Correctif retenu côté code : GET /api/subscription appelle la fonction avec le
+--    client admin (service_role), target_user_id provenant de l'utilisateur
+--    authentifié (requireUser). Aucun grant n'est nécessaire dans cette migration.
 
 -- 2. Rattrapage unique : passe tout de suite en 'past_due' les essais et les
 --    abonnements payants déjà échus (renouvelés gratuitement par l'ancien code),
