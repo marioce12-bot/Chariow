@@ -1,12 +1,13 @@
 "use client";
 
-import { Activity, ArrowRight, Brain, Camera, Copy, FileText, Lightbulb, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp, Wand2 } from "lucide-react";
+import { Activity, ArrowRight, Camera, Copy, FileText, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { normalizeCurrency, type SupportedCurrency } from "@/lib/currency";
 import { useI18n } from "@/lib/i18n/i18n";
 import "../app/vendeo-ai.css";
+import "../app/dashboard-fullwidth.css";
 
 // Assistant Vendeo AI : composant autonome (sorti de Dashboard.tsx).
 // Les styles de cette mise en page sont dans app/vendeo-ai.css (sélecteurs préfixés .ai-page).
@@ -801,28 +802,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           </form>
         </div>
       </section>
-
-      <aside className="ai-side">
-        <div className="app-card ai-side-card">
-          <div className="card-head">
-            <h2>{t("chat.capTitle")}</h2>
-            <Brain size={17} />
-          </div>
-          <ul className="ai-capability-list">
-            <li><Megaphone size={14} /> {t("chat.cap1")}</li>
-            <li><Package size={14} /> {t("chat.cap2")}</li>
-            <li><Wand2 size={14} /> {t("chat.cap3")}</li>
-            <li><Activity size={14} /> {t("chat.cap4")}</li>
-          </ul>
-        </div>
-        <div className="app-card ai-side-card">
-          <div className="card-head">
-            <h2>{t("chat.tipTitle")}</h2>
-            <Lightbulb size={17} color="#d28b3d" />
-          </div>
-          <p className="ai-tip">{t("chat.tipText")}</p>
-        </div>
-      </aside>
 
       {launchOpen ? (
         <div className="chat-launch-modal-backdrop" onClick={() => !launching && setLaunchOpen(false)}>
