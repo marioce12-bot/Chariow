@@ -141,6 +141,24 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
     return () => clearInterval(interval);
   }, [campaigns, load]);
 
+  // Sur téléphone, le navigateur met en veille les pages en arrière-plan et le
+  // minuteur ci-dessus s'arrête : le statut affiché reste alors périmé. Quand
+  // l'utilisateur revient sur la page ou l'onglet, on revérifie tout de suite
+  // les campagnes Meta en revue, puis on recharge la liste.
+  useEffect(() => {
+    const refreshOnReturn = () => {
+      if (document.visibilityState !== "visible") return;
+      const reviewingIds = campaigns.filter((c) => c.platform === "meta" && c.status === "review").map((c) => c.id);
+      void Promise.all(reviewingIds.map((id) => fetch(`/api/ad-campaigns/${id}/status`).catch(() => null))).then(() => load());
+    };
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    window.addEventListener("focus", refreshOnReturn);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+      window.removeEventListener("focus", refreshOnReturn);
+    };
+  }, [campaigns, load]);
+
   if (!storeId) return null;
 
   return (

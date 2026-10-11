@@ -31,14 +31,22 @@ export async function GET(_request: Request, context: Context) {
     .eq("id", campaign.meta_ad_account_id)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (accountError || !account) return NextResponse.json({ status: campaign.status });
+  if (accountError || !account) {
+    console.error("Meta status check: compte publicitaire introuvable", campaign.id, accountError?.message ?? "no account");
+    return NextResponse.json({ status: campaign.status });
+  }
 
   try {
     const accessToken = decryptSecret(account.access_token_encrypted);
     const { effectiveStatus, feedback } = await getMetaAdReviewStatus({ adId: campaign.external_ad_id, accessToken });
     const accountStatus = typeof account.account_status === "number" ? account.account_status : null;
     const mapped = mapMetaEffectiveStatus(effectiveStatus, feedback, accountStatus);
-    if (!mapped) return NextResponse.json({ status: campaign.status, meta_effective_status: effectiveStatus });
+    if (!mapped) {
+      // État Meta non reconnu : la campagne reste dans son statut actuel. On le trace pour
+      // pouvoir l'ajouter à mapMetaEffectiveStatus (sinon elle peut rester "en examen").
+      console.warn("Meta status check: effective_status non reconnu", campaign.id, effectiveStatus || "(vide)");
+      return NextResponse.json({ status: campaign.status, meta_effective_status: effectiveStatus });
+    }
 
     const externalError = mapped.status === "paused"
       ? markMetaPausedReason(mapped.error ?? "Meta signale que la publicité est en pause.")
@@ -49,11 +57,15 @@ export async function GET(_request: Request, context: Context) {
         .update({ status: mapped.status, external_error: externalError })
         .eq("id", campaign.id)
         .eq("user_id", user.id);
-      if (updateError) return NextResponse.json({ status: campaign.status, meta_effective_status: effectiveStatus });
+      if (updateError) {
+        console.error("Meta status check: mise à jour du statut impossible", campaign.id, updateError.message);
+        return NextResponse.json({ status: campaign.status, meta_effective_status: effectiveStatus });
+      }
     }
     return NextResponse.json({ status: mapped.status, external_error: externalError, meta_effective_status: effectiveStatus, account_status: accountStatus });
-  } catch {
-    // Si Meta est indisponible, on conserve le statut enregistré.
+  } catch (error) {
+    // Si Meta est indisponible, on conserve le statut enregistré (et on trace la cause).
+    console.error("Meta status check failed", campaign.id, error instanceof Error ? error.message : "unknown error");
     return NextResponse.json({ status: campaign.status });
   }
 }
