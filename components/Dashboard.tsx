@@ -32,7 +32,8 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { NotificationsView } from "@/components/NotificationsView";
 import { readCache, writeCache, DASHBOARD_CACHE_KEY, SESSION_STORAGE_PROMPT_KEY, ADS_CACHE_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
-import { StoreOnboarding, StudioView, Overview, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
+import { StoreOnboarding, StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
+import { OverviewHome } from "./dashboard/OverviewHome";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
 const DEFAULT_DASHBOARD_SECTION = "Vue d'ensemble";
@@ -356,16 +357,17 @@ export function Dashboard() {
           ) : active === "Pilotage auto" ? (
             <AutopilotView />
           ) : (
-            <Overview
+            <OverviewHome
               stores={stores}
               subscription={subscription}
               analytics={analytics}
               userFirstName={userFirstName}
-              onGoToAI={() => setActive("Vendeo AI")}
-              onGoToStores={() => setActive("Mes boutiques")}
+              plan={(subscription?.plan ?? "starter") as PlanId}
               selectedStoreId={selectedStoreId}
               onStoreChange={setSelectedStoreId}
               onLaunchAd={launchAd}
+              onGoToAds={() => setActive("Pub")}
+              onGoToAI={() => setActive("Vendeo AI")}
               campaignsVersion={campaignsVersion}
             />
           )}
