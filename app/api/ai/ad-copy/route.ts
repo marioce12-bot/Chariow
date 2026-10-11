@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { askGemini } from "@/lib/ai/gemini";
-import { askImole } from "@/lib/ai/imole";
+import { askText } from "@/lib/ai/text";
 
 function cleanAnswer(value: string) {
   return value
@@ -41,18 +40,7 @@ ${productDescription ? `Description connue : ${productDescription}.` : "Aucune d
 ${price ? `Prix : ${price}${currency ? ` ${currency}` : ""}.` : "Le prix n'est pas fourni : ne l'invente pas."}`;
 
   try {
-    let answer: string;
-    try {
-      answer = await askImole([{ role: "user", content: prompt }]);
-    } catch (imoleError) {
-      console.error("Imole ad copy error", imoleError instanceof Error ? imoleError.message : imoleError);
-      try {
-        answer = await askGemini([{ role: "user", content: prompt }]);
-      } catch (geminiError) {
-        console.error("Gemini ad copy error", geminiError instanceof Error ? geminiError.message : geminiError);
-        throw new Error("Les fournisseurs IA Imole et Gemini sont indisponibles");
-      }
-    }
+    const answer = await askText([{ role: "user", content: prompt }]);
     const text = cleanAnswer(answer);
     if (!text) throw new Error("Réponse IA vide");
     return NextResponse.json({ text });
