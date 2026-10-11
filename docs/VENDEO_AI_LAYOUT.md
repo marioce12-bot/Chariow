@@ -6,6 +6,7 @@ Ce document est la référence de design de l'assistant. Toute modification de l
 
 - `components/ChatView.tsx` : le composant de l'assistant (logique + mise en page).
 - `app/vendeo-ai.css` : ses styles, tous préfixés `.ai-page` (thème sombre compris). Importé par `ChatView.tsx`.
+- `app/dashboard-fullwidth.css` : règles « ordinateur » (> 900 px) : largeur du dashboard, cadre du chat pleine largeur, contenu centré à 860 px. Importé par `ChatView.tsx`.
 - Ne pas ajouter ces styles à `globals.css` et ne pas modifier les anciens blocs `.chat-*` / `.ai-*` de `globals.css`.
 
 ## Contrat de design
@@ -30,6 +31,7 @@ Règles :
 - Sur mobile, le champ texte reste à 16 px (évite le zoom automatique sur iPhone).
 - Aucune nouvelle dépendance ; icônes uniquement via `lucide-react`.
 - Ne pas changer les props de `ChatView` : `onGoToSubscription`, `onUsageChange`, `onBack`, `products`, `analytics`.
+- Pas de panneau latéral : sur ordinateur, le cadre du chat occupe toute la largeur disponible (l'ancien panneau « Ce que Vendeo AI sait faire » / « Astuce » a été supprimé).
 
 ## Vérifications visuelles (à faire sur téléphone)
 
@@ -38,4 +40,4 @@ Règles :
 3. Le bouton d'envoi est grisé quand le champ est vide.
 4. Le bouton baguette ouvre le générateur d'affiches.
 5. Thème sombre : écrans lisibles, puces bleues (pas vertes).
-6. Sur ordinateur (> 900 px) : le panneau « Ce que Vendeo AI sait faire » reste à droite.
+6. Sur ordinateur (> 900 px) : le cadre du chat occupe toute la largeur, sans panneau à droite ; messages et saisie centrés (860 px max).

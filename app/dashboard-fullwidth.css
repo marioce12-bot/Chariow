@@ -1,0 +1,20 @@
+/* Dashboard pleine largeur sur ordinateur (> 900 px).
+   Avant : .app-main était plafonné à 1100 px et collé à gauche (dashboard.css), ce qui
+   laissait un grand vide à droite sur les écrans larges (Accueil, Studio, Assistant).
+   Ce fichier est importé par components/ChatView.tsx, après les autres feuilles ; les
+   sélecteurs sont assez spécifiques pour l'emporter quel que soit l'ordre de chargement. */
+@media (min-width:901px) {
+  /* Toutes les sections : jusqu'à 1600 px, centré, marges proportionnelles à l'écran. */
+  .app-layout .app-main { margin-inline:auto; max-width:1600px; padding:clamp(20px,2.5vw,40px); }
+
+  /* Assistant : le cadre occupe toute la largeur disponible. */
+  .app-layout .app-main.chat-page { max-width:none; padding:0 16px 16px; }
+  /* Plus de double cadre : le cadre blanc du chat (.ai-main) suffit. */
+  .app-main.chat-page .ai-page { background:transparent; border:0; border-radius:0; gap:0; padding:0; }
+  /* Messages et saisie centrés à 860 px max, pour garder des lignes lisibles sur grand écran. */
+  .app-main.chat-page .ai-page .chat-messages,
+  .app-main.chat-page .ai-page .chat-composer { padding-left:max(12px,calc((100% - 860px) / 2)); padding-right:max(12px,calc((100% - 860px) / 2)); }
+
+  /* Sur l'Assistant le bandeau du haut est masqué : le menu de gauche se colle en haut. */
+  .app-layout-flush .sidebar { top:0; }
+}
