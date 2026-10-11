@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET() {
   const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   try {
-    const { data, error } = await supabase.rpc("reset_subscription_period_if_needed", { target_user_id: user.id });
+    // reset_subscription_period_if_needed() est SECURITY DEFINER et accepte n'importe quel
+    // target_user_id : son droit d'exécution est réservé à service_role (migration
+    // 20260929120000). On l'appelle donc avec le client admin, et target_user_id vient
+    // UNIQUEMENT de l'utilisateur authentifié (requireUser), jamais de la requête.
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("reset_subscription_period_if_needed", { target_user_id: user.id });
     if (error) throw error;
     return NextResponse.json({ subscription: data });
   } catch (error) {
