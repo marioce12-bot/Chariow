@@ -7,12 +7,13 @@ import { useI18n } from "@/lib/i18n/i18n";
 type RevenuePoint = { date: string; revenueNet: number };
 type SpendPoint = { date: string; spend: number | null };
 type CampaignDailyPoint = { date: string; spend: number | null; netRevenue: number | null; campaigns: number };
-type ProductPoint = { id: string; name: string; image: string | null; sales: number; revenueNet: number | null };
+type ProductPoint = { id: string; name: string; image: string | null; sales: number; revenueNet: number | null; approximate: boolean };
 type CampaignPoint = {
   id: string;
   name: string;
-  spend: number;
+  spend: number | null;
   currency: string;
+  approximate: boolean;
   realRoas: number | null;
   realSales: number | null;
   attributionReliable: boolean;
@@ -68,6 +69,7 @@ export function OverviewDetails({ currency, period, revenueSeries, metaDaily, ca
   const verdict = (campaign: CampaignPoint) => {
     if (campaign.decision === "pause") return { key: "loss", tone: "loss" };
     if (campaign.attributionReliable && campaign.realRoas !== null && campaign.realRoas >= 1) return { key: "gain", tone: "gain" };
+    if (campaign.spend === null) return { key: "metricUnavailable", tone: "testing" };
     if (campaign.spend <= 0) return { key: "noSpend", tone: "testing" };
     if (campaign.decision === "learning") return { key: "campaignStarting", tone: "testing" };
     if (campaign.realSales === 0) return { key: "noSalesDetected", tone: "testing" };
@@ -99,7 +101,7 @@ export function OverviewDetails({ currency, period, revenueSeries, metaDaily, ca
           const width = product.revenueNet === null ? 0 : Math.max(0, Math.min(100, (product.revenueNet / maxProductRevenue) * 100));
           return <div className="overview-product-row" key={product.id}>
             {product.image ? <img className="overview-product-image" src={product.image} alt="" /> : <span className="overview-product-image overview-product-placeholder" />}
-            <div className="overview-product-content"><div className="overview-product-heading"><strong>{product.name}</strong><span>{product.sales} {t("overview.sales")} · {product.revenueNet === null ? t("overview.metricUnavailable") : `${formatMoney(product.revenueNet, currency)} ${t("overview.netRevenue")}`}</span></div><i className="overview-product-track"><b style={{ width: `${width}%` }} /></i></div>
+            <div className="overview-product-content"><div className="overview-product-heading"><strong>{product.name}</strong><span>{product.sales} {t("overview.sales")} · {product.revenueNet === null ? t("overview.metricUnavailable") : `${product.approximate ? "≈ " : ""}${formatMoney(product.revenueNet, currency)} ${t("overview.netRevenue")}`}</span></div><i className="overview-product-track"><b style={{ width: `${width}%` }} /></i></div>
           </div>;
         })}</div> : <div className="overview-detail-empty">{t("overview.noSalesThisPeriod")}</div>}
       </section>
@@ -123,7 +125,7 @@ export function OverviewDetails({ currency, period, revenueSeries, metaDaily, ca
           const state = verdict(campaign);
           return <div className="overview-campaign-row" key={campaign.id}>
             <strong className="overview-campaign-name">{campaign.name}</strong>
-            <div><span>{t("overview.spend")}</span><strong>{formatMoney(campaign.spend, campaign.currency)}</strong><small className="source-meta">{t("overview.metaDeclared")}</small></div>
+            <div><span>{t("overview.spend")}</span><strong>{campaign.spend === null ? t("overview.metricUnavailable") : `${campaign.approximate ? "≈ " : ""}${formatMoney(campaign.spend, campaign.currency)}`}</strong><small className="source-meta">{t("overview.metaDeclared")}</small></div>
             <div><span>{t("overview.profitability")}</span><strong>{campaign.attributionReliable && campaign.realRoas !== null ? `${(campaign.realRoas * 100).toFixed(1)} %` : kpis.sales === 0 ? t("overview.noLinkedSales") : t("overview.metricUnavailable")}</strong>{campaign.attributionReliable && campaign.realRoas !== null ? <small className="source-verified">{t("overview.verified")}</small> : null}</div>
             <span className={`overview-campaign-verdict verdict-${state.tone}`}>{t(`overview.${state.key}`)}</span>
           </div>;

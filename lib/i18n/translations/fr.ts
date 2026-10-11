@@ -143,7 +143,7 @@ export const fr: Dict = {
       costPerSale: "Coût par vente", profitability: "Rentabilité", health: "Santé", recovery: "Récupération",
       campaigns: "Campagnes", adSets: "Ensembles", ads: "Annonces", impressions: "Impressions", clicks: "Clics",
       purchases: "Achats", purchaseValue: "Valeur d’achat", noMetaHistory: "Aucun historique Meta", noSalesThisPeriod: "Aucune vente sur la période", noCampaignsThisPeriod: "Aucune campagne sur la période",
-      noLinkedSales: "Aucune vente liée", noSales: "Aucune vente", noChartData: "Aucune donnée", metricUnavailable: "Indisponible", metricNotCalculated: "Non calculée", healthNotMeasured: "À mesurer", historyUnavailable: "Historique indisponible",
+      noLinkedSales: "Aucune vente liée", noSales: "Aucune vente", noChartData: "Aucune donnée", metricUnavailable: "Indisponible", usdUnavailable: "USD indisponible", grossRevenueUsd: "Revenu brut en USD", usdConversionNote: "Conversion estimée", metricNotCalculated: "Non calculée", healthNotMeasured: "À mesurer", historyUnavailable: "Historique indisponible",
       netRevenueByDay: "Revenu net par jour", dailyCampaigns: "Campagnes · jour", funnel: "Entonnoir", visits: "Visites", conversionRate: "Taux de conversion",
       actions: "Actions", cutAction: "À couper", increaseAction: "À augmenter", gain: "Gagne", loss: "Perd", watch: "À surveiller", campaignStarting: "Campagne en démarrage", noSpend: "Aucune dépense", salesNotVerified: "Ventes non vérifiées", noSalesDetected: "Aucune vente détectée", campaignDataInsufficient: "Données pub insuffisantes", analyzeCampaign: "Analyser",
       healthy: "Sain", limit: "Limite", critical: "Critique", daysUnit: "j",
