@@ -9,7 +9,7 @@ import { PinterestAdsPanel } from "@/components/PinterestAdsPanel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMoney } from "@/lib/format";
 import { isAdPlatformAllowed, planMaxStores, type AdPlatform, type PlanId } from "@/lib/plans";
-import { ImpactFinancierCard, LaunchAdBar, CampaignCrossTable, DiagnosticBoutique, type CampaignRow, type CampaignVerdictBadge, type DiagnosticCard } from "@/components/vendeo";
+import { LaunchAdBar, CampaignCrossTable, DiagnosticBoutique, type CampaignRow, type CampaignVerdictBadge, type DiagnosticCard } from "@/components/vendeo";
 import { DiagnosticFunnel } from "@/components/vendeo/DiagnosticFunnel";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { AutopilotView } from "@/components/vendeo/AutopilotView";
@@ -451,17 +451,10 @@ export function Overview({
     sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt);
     onGoToAI();
   };
-  const greeting = (userFirstName || "créateur").trim().split(/\s+/)[0] || "créateur";
   const store = stores[0];
   const connected = store?.connection_status === "connected";
   const products = analytics?.products ?? [];
-  const sales = analytics?.kpis.sales ?? 0;
-  const revenue = Number(analytics?.kpis.revenue.value ?? 0) || 0;
   const currency = products[0]?.currency ?? "XOF";
-  const revenueByCurrency = analytics?.kpis.revenueByCurrency ?? [];
-  const revenueDisplay = revenueByCurrency.length
-    ? revenueByCurrency.map((item) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(item.value)} ${item.currency}`).join(" · ")
-    : sales === 0 ? "Aucune vente encaissée" : "Devise de vente indisponible";
   const [periodDays, setPeriodDays] = useState(30);
   const [overviewAnalytics, setOverviewAnalytics] = useState<AnalyticsData>(analytics);
   const overview = overviewAnalytics?.overview;
@@ -470,8 +463,6 @@ export function Overview({
   const [refreshing, setRefreshing] = useState(false);
   const [metaConnected, setMetaConnected] = useState(false);
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
   useEffect(() => { setOverviewAnalytics(analytics); }, [analytics]);
   useEffect(() => {
     if (!selectedStoreId) return;
@@ -509,19 +500,8 @@ export function Overview({
   useEffect(() => { void refresh(); }, [campaignsVersion]);
 
   const spend = metaPerformance?.overview.spend ?? 0;
-  const roas = metaPerformance?.overview.realRoas ?? null;
   const performances = metaPerformance?.performances ?? [];
   const adsCurrency = metaPerformance?.currency ?? currency;
-
-  const statusText = !connected
-    ? "Connecte ta boutique Chariow pour commencer l'analyse."
-    : !metaConnected
-    ? "Ta boutique est connectée. Connecte Meta Ads pour relier tes dépenses à tes ventes."
-    : sales === 0 && spend > 0
-    ? "Les dépenses Meta ne produisent pas encore de vente confirmée."
-    : sales === 0
-    ? "Aucune vente confirmée sur la période. Commence par observer ton trafic et tes campagnes."
-    : "Ton activité est suivie. Voici ce que Vendeo recommande de faire maintenant.";
 
   const productsRanked = [...products].sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0));
   const productsSummary = productsRanked.slice(0, 3).map((product, index) => {
@@ -543,15 +523,6 @@ export function Overview({
   // Ces trois blocs réutilisent le même moteur de décision (getCampaignVerdict, plus
   // bas dans ce fichier) que les pages "Pubs" et "Rapports", pour rester cohérents
   // avec les verdicts déjà affichés ailleurs plutôt que d'inventer une seconde logique.
-  const withVerdict = performances.map((campaign) => ({ campaign, verdict: getCampaignVerdict(campaign, adsCurrency) }));
-
-  const budgetEconomise = withVerdict.filter((item) => item.verdict.tone === "stop").reduce((sum, item) => sum + item.campaign.spend, 0);
-  const revenuAdditionnelEstime = Math.round(
-    withVerdict
-      .filter((item) => item.verdict.tone === "optimize")
-      .reduce((sum, item) => sum + (item.campaign.suggestedIncrease ?? 0) * (item.campaign.realRoas ?? 0), 0)
-  );
-
   // Pas encore d'attribution campagne → produit branchée ici (cf. lib/attribution) :
   // on affiche donc le nom de campagne et les métriques réelles, sans inventer un
   // produit ou une audience que Vendeo ne connaît pas encore pour cette campagne.
@@ -595,6 +566,11 @@ export function Overview({
   const revenueSeries = overview?.revenueSeries ?? [];
   const seriesMax = Math.max(...revenueSeries.map((point) => point.revenueNet), 1);
   const seriesPoints = revenueSeries.map((point, index) => `${revenueSeries.length > 1 ? (index / (revenueSeries.length - 1)) * 100 : 50},${40 - (point.revenueNet / seriesMax) * 32}`).join(" ");
+  const periodStart = overview?.period.from ? new Date(`${overview.period.from}T00:00:00`).getTime() : 0;
+  const periodEnd = overview?.period.to ? new Date(`${overview.period.to}T23:59:59.999`).getTime() : 0;
+  const connectedAt = overview?.connectedAt ? new Date(overview.connectedAt).getTime() : 0;
+  const connectionIsInPeriod = Boolean(connectedAt && periodEnd >= periodStart && connectedAt >= periodStart && connectedAt <= periodEnd);
+  const connectionX = connectionIsInPeriod ? ((connectedAt - periodStart) / Math.max(1, periodEnd - periodStart)) * 100 : 0;
 
   return (
     <div className="dashboard-home">
@@ -616,12 +592,14 @@ export function Overview({
         </div>
       </div>
 
-      <section className="overview-net-hero app-card"><div className="overview-net-copy"><MetricHelp label={t("overview.netRevenue")} description={t("overview.netRevenueHelp")} /><strong>{overviewHasSales ? `${overview?.revenueNet.toLocaleString("fr-FR")} ${overviewCurrency}` : "—"}</strong><span className="overview-trend-badge">{overview?.revenueChangePct === null || overview?.revenueChangePct === undefined ? "—" : `${overview.revenueChangePct >= 0 ? "+" : ""}${overview.revenueChangePct.toFixed(1)} %`}</span></div><svg className="overview-revenue-chart" viewBox="0 0 100 44" role="img" aria-label={t("overview.netRevenue")}><polyline points={seriesPoints || "0,40 100,40"} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" /></svg><span className="overview-connection">{overview?.connectedAt ? "Connexion Vendeo" : "—"}</span></section>
+      <section className="overview-net-hero app-card"><div className="overview-net-copy"><MetricHelp label={t("overview.netRevenue")} description={t("overview.netRevenueHelp")} /><strong>{overviewHasSales ? `${overview?.revenueNet.toLocaleString("fr-FR")} ${overviewCurrency}` : "-"}</strong><span className="overview-trend-badge">{overview?.revenueChangePct === null || overview?.revenueChangePct === undefined ? "-" : `${overview.revenueChangePct >= 0 ? "+" : ""}${overview.revenueChangePct.toFixed(1)} %`}</span></div><svg className="overview-revenue-chart" viewBox="0 0 100 44" role="img" aria-label={t("overview.netRevenue")}><polyline points={seriesPoints || "0,40 100,40"} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />{connectionIsInPeriod ? <line x1={connectionX} x2={connectionX} y1="3" y2="42" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" aria-label={t("overview.connectedAt")}><title>{t("overview.connectedAt")}</title></line> : null}</svg>{connectionIsInPeriod ? <span className="overview-connection">{t("overview.connectedAt")}</span> : null}</section>
 
-      <section className="overview-store-tiles"><OverviewMetricTile label={t("overview.sales")} value={overviewHasSales ? String(overview?.sales) : "—"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.salesHelp")} /><OverviewMetricTile label={t("overview.averageBasket")} value={overview?.averageBasket === null || overview?.averageBasket === undefined ? "—" : `${overview.averageBasket.toLocaleString("fr-FR")} ${overviewCurrency}`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.averageBasketHelp")} /><OverviewMetricTile label={t("overview.customers")} value={overviewHasSales ? String(overview?.customers) : "—"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.customersHelp")} /><OverviewMetricTile label={t("overview.repeats")} value={overview?.repeatRate === null || overview?.repeatRate === undefined ? "—" : `${(overview.repeatRate * 100).toFixed(1)} %`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.repeatsHelp")} /><OverviewMetricTile label={t("overview.abandonedCarts")} value={overviewHasSales ? String(overview?.abandoned) : "—"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.abandonedCartsHelp")} /></section>
+      <section className="overview-store-tiles"><OverviewMetricTile label={t("overview.sales")} value={overviewHasSales ? String(overview?.sales) : "-"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.salesHelp")} /><OverviewMetricTile label={t("overview.averageBasket")} value={overview?.averageBasket === null || overview?.averageBasket === undefined ? "-" : `${overview.averageBasket.toLocaleString("fr-FR")} ${overviewCurrency}`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.averageBasketHelp")} /><OverviewMetricTile label={t("overview.customers")} value={overviewHasSales ? String(overview?.customers) : "-"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.customersHelp")} /><OverviewMetricTile label={t("overview.repeats")} value={overview?.repeatRate === null || overview?.repeatRate === undefined ? "-" : `${(overview.repeatRate * 100).toFixed(1)} %`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.repeatsHelp")} /><OverviewMetricTile label={t("overview.abandonedCarts")} value={overviewHasSales ? String(overview?.abandoned) : "-"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.abandonedCartsHelp")} /></section>
 
-      <section className="overview-economics"><div className="overview-economics-card app-card"><MetricHelp label={t("overview.customerValue")} description={t("overview.customerValueHelp")} /><strong>{overview?.customerValue === null || overview?.customerValue === undefined ? "Bientôt" : `${overview.customerValue.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{overview?.lowData ? t("overview.lowData") : t("overview.history")}</span></div><div className="overview-economics-card app-card"><MetricHelp label={t("overview.maxCostPerCustomer")} description={t("overview.maxCostPerCustomerHelp")} /><strong>{overview?.maxCostPerCustomer === null || overview?.maxCostPerCustomer === undefined ? "Bientôt" : `${overview.maxCostPerCustomer.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">30 %</span></div></section>
+      <section className="overview-economics"><div className="overview-economics-card app-card"><MetricHelp label={t("overview.customerValue")} description={t("overview.customerValueHelp")} /><strong>{overview?.customerValue === null || overview?.customerValue === undefined ? t("overview.soon") : `${overview.customerValue.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{overview?.lowData ? t("overview.lowData") : t("overview.history")}</span></div><div className="overview-economics-card app-card"><MetricHelp label={t("overview.maxCostPerCustomer")} description={t("overview.maxCostPerCustomerHelp")} /><strong>{overview?.maxCostPerCustomer === null || overview?.maxCostPerCustomer === undefined ? t("overview.soon") : `${overview.maxCostPerCustomer.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{Math.round((overview?.targetMargin ?? 0.3) * 100)} %</span></div></section>
 
+      <LaunchAdBar onLaunch={onLaunchAd} />
+      <section className="overview-store-tiles overview-provisional-spend"><OverviewMetricTile label={t("overview.spend")} value={metaConnected ? formatMoney(spend, adsCurrency) : "-"} badge={metaConnected ? t("overview.metaDeclared") : undefined} help={t("overview.spendHelp")} /></section>
       <div className="home-primary-grid">
         <div className="home-side-stack">
           <AdsSavingsSummary performances={performances} currency={adsCurrency} />
@@ -645,7 +623,7 @@ export function Overview({
                 </div>
                 <div className="product-perf-stats">
                   <div><small>{t("dashboard.sales")}</small><strong>{product.sales}</strong></div>
-                  <div><small>CA par devise</small><strong>—</strong></div>
+                  <div><small>CA par devise</small><strong>-</strong></div>
                 </div>
               </div>
             ))}

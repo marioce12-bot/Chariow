@@ -1,6 +1,7 @@
 import { convertCurrency } from "@/lib/currency";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
 import { aggregateCustomers, abandonmentRate, customerValue, isLowData, maxCostPerCustomer, repeatRate } from "@/lib/unit-economics";
+import type { PaginatedResult } from "@/lib/paginated-query";
 
 export type SaleRow = { status: string | null; net_amount: number | string | null; currency: string | null; occurred_at: string | null; customer_id: string | null };
 
@@ -17,11 +18,39 @@ export function buildOverviewAggregates(rows: SaleRow[], targetCurrency: string,
   const confirmed = rows.filter((sale) => isConfirmedChariowSaleStatus(sale.status));
   const customers = aggregateCustomers(rows, targetCurrency);
   const revenueNet = confirmed.reduce((sum, sale) => sum + (amountInCurrency(sale, targetCurrency) ?? 0), 0);
+  const convertedSales = confirmed.filter((sale) => amountInCurrency(sale, targetCurrency) !== null).length;
   const daily = new Map<string, number>();
   for (const sale of confirmed) { const amount = amountInCurrency(sale, targetCurrency); const day = sale.occurred_at?.slice(0, 10) ?? ""; if (amount !== null && day) daily.set(day, (daily.get(day) ?? 0) + amount); }
   const revenueSeries = Array.from({ length: daysBetween(periodFrom, periodTo) }, (_, index) => { const date = addDays(periodFrom, index); return { date, revenueNet: Math.round((daily.get(date) ?? 0) * 100) / 100 }; });
   const abandoned = rows.filter((sale) => sale.status?.trim().toLowerCase() === "abandoned").length;
   const failed = rows.filter((sale) => sale.status?.trim().toLowerCase() === "failed").length;
   const value = customerValue(customers.netByCustomer);
-  return { currency: targetCurrency, revenueNet: Math.round(revenueNet * 100) / 100, revenueSeries, sales: confirmed.length, averageBasket: confirmed.length ? Math.round((revenueNet / confirmed.length) * 100) / 100 : null, customers: customers.customers, repeatRate: repeatRate(customers.ordersByCustomer), abandoned, abandonmentRate: abandonmentRate({ completed: confirmed.length, abandoned, failed }), customerValue: value, maxCostPerCustomer: maxCostPerCustomer(value), lowData: isLowData(customers.customers), withoutCustomer: customers.withoutCustomer, skippedSales: customers.skippedSales };
+  return { currency: targetCurrency, revenueNet: Math.round(revenueNet * 100) / 100, revenueSeries, sales: confirmed.length, averageBasket: convertedSales ? Math.round((revenueNet / convertedSales) * 100) / 100 : null, customers: customers.customers, repeatRate: repeatRate(customers.ordersByCustomer), abandoned, abandonmentRate: abandonmentRate({ completed: confirmed.length, abandoned, failed }), customerValue: value, maxCostPerCustomer: maxCostPerCustomer(value), lowData: isLowData(customers.customers), withoutCustomer: customers.withoutCustomer, skippedSales: customers.skippedSales };
+}
+
+export function buildOverviewFromPages(
+  current: PaginatedResult<SaleRow>,
+  previous: PaginatedResult<SaleRow>,
+  targetCurrency: string,
+  periodFrom: string,
+  periodTo: string,
+  connectedAt: string | null,
+  targetMargin: number,
+) {
+  if (current.error || previous.error) return null;
+  const currentOverview = buildOverviewAggregates(current.rows, targetCurrency, periodFrom, periodTo);
+  const previousFrom = addDays(periodFrom, -daysBetween(periodFrom, periodTo));
+  const previousTo = addDays(periodFrom, -1);
+  const previousOverview = buildOverviewAggregates(previous.rows, targetCurrency, previousFrom, previousTo);
+  const revenueChangePct = previousOverview.revenueNet > 0
+    ? Math.round(((currentOverview.revenueNet - previousOverview.revenueNet) / previousOverview.revenueNet) * 1000) / 10
+    : null;
+  return {
+    ...currentOverview,
+    previousRevenueNet: previousOverview.revenueNet,
+    revenueChangePct,
+    targetMargin,
+    connectedAt,
+    period: { from: periodFrom, to: periodTo },
+  };
 }

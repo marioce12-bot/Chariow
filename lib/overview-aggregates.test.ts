@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOverviewAggregates, daysBetween } from "./overview-aggregates";
+import { buildOverviewAggregates, buildOverviewFromPages, daysBetween } from "./overview-aggregates";
 import { mixedCurrencySales, repeatBuyersSales, stateASales, stateDSales } from "@/tests/fixtures/unit-economics";
 
 describe("overview server aggregates", () => {
@@ -22,6 +22,20 @@ describe("overview server aggregates", () => {
     expect(result.sales).toBe(4);
     expect(result.skippedSales).toBe(2);
     expect(result.customerValue).toBeCloseTo(13119.14, 2);
+    expect(result.averageBasket).toBeCloseTo(6559.57, 2);
+  });
+
+  it("retourne null si la pagination de l’une des périodes échoue", () => {
+    const error = new Error("query failed");
+    expect(buildOverviewFromPages(
+      { rows: [], error },
+      { rows: [], error: null },
+      "XOF",
+      "2026-10-01",
+      "2026-10-07",
+      null,
+      0.3,
+    )).toBeNull();
   });
 
   it("retourne un état vide propre sans chiffre inventé", () => {
