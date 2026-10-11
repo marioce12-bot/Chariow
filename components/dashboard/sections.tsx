@@ -462,12 +462,29 @@ export function Overview({
   const revenueDisplay = revenueByCurrency.length
     ? revenueByCurrency.map((item) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(item.value)} ${item.currency}`).join(" · ")
     : sales === 0 ? "Aucune vente encaissée" : "Devise de vente indisponible";
-  const [period, setPeriod] = useState("30 derniers jours");
+  const [periodDays, setPeriodDays] = useState(30);
+  const [overviewAnalytics, setOverviewAnalytics] = useState<AnalyticsData>(analytics);
+  const overview = overviewAnalytics?.overview;
+  const overviewCurrency = overview?.currency ?? currency;
+  const overviewHasSales = (overview?.sales ?? 0) > 0;
   const [refreshing, setRefreshing] = useState(false);
   const [metaConnected, setMetaConnected] = useState(false);
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(null);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  useEffect(() => { setOverviewAnalytics(analytics); }, [analytics]);
+  useEffect(() => {
+    if (!selectedStoreId) return;
+    const to = new Date();
+    const from = new Date(to);
+    from.setDate(to.getDate() - periodDays + 1);
+    let cancelled = false;
+    void fetch(`/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}&from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((result) => { if (!cancelled && result?.snapshot) setOverviewAnalytics(result.snapshot as AnalyticsData); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [periodDays, selectedStoreId]);
 
   // Avant : on vérifiait juste si Meta était connecté, sans jamais récupérer
   // les performances. Résultat : la carte "Recommandations" restait vide en
@@ -575,11 +592,13 @@ export function Overview({
         ]
       : [];
 
+  const revenueSeries = overview?.revenueSeries ?? [];
+  const seriesMax = Math.max(...revenueSeries.map((point) => point.revenueNet), 1);
+  const seriesPoints = revenueSeries.map((point, index) => `${revenueSeries.length > 1 ? (index / (revenueSeries.length - 1)) * 100 : 50},${40 - (point.revenueNet / seriesMax) * 32}`).join(" ");
+
   return (
     <div className="dashboard-home">
-      <div className="home-greeting"><h1>{t("overview.greeting", { name: greeting })}</h1><p>{t("overview.subtitle")}</p></div>
-
-      <div className="home-header">
+      <div className="home-header overview-command-header">
         <div className="home-context"><span className="eyebrow">{t("dashboard.overview")}</span></div>
         <div className="home-controls">
           <label className="home-store-selector">
@@ -592,32 +611,16 @@ export function Overview({
           <div className="home-statuses">
             <span className={connected ? "status-positive" : "status-warning"}>{connected ? t("dashboard.connected") : t("dashboard.notConnected")}</span>
           </div>
-          <div className="home-period">
-            <span>{t("overview.period")}</span>
-            <select aria-label="Période" value={period} onChange={(event) => setPeriod(event.target.value)}>
-              <option>{t("overview.today")}</option><option>{t("overview.yesterday")}</option><option>{t("overview.last7")}</option><option>{t("overview.last30")}</option><option>{t("overview.thisMonth")}</option><option>{t("overview.lastMonth")}</option><option>{t("overview.custom")}</option>
-            </select>
-          </div>
-          {period === "Personnalisé" ? <>
-            <input aria-label="Date de début" type="date" value={customFrom} onChange={(event) => setCustomFrom(event.target.value)} />
-            <input aria-label="Date de fin" type="date" value={customTo} onChange={(event) => setCustomTo(event.target.value)} />
-          </> : null}
+          <label className="home-period"><span>{t("overview.period")}</span><select aria-label={t("overview.period")} value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}><option value={7}>{t("overview.last7")}</option><option value={30}>{t("overview.last30")}</option><option value={90}>{t("overview.last90")}</option></select></label>
           <button className="btn btn-ghost" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? t("dashboard.refreshing") : t("dashboard.refresh")}</button>
         </div>
       </div>
 
-      <LaunchAdBar onLaunch={onLaunchAd} />
+      <section className="overview-net-hero app-card"><div className="overview-net-copy"><MetricHelp label={t("overview.netRevenue")} description={t("overview.netRevenueHelp")} /><strong>{overviewHasSales ? `${overview?.revenueNet.toLocaleString("fr-FR")} ${overviewCurrency}` : "—"}</strong><span className="overview-trend-badge">{overview?.revenueChangePct === null || overview?.revenueChangePct === undefined ? "—" : `${overview.revenueChangePct >= 0 ? "+" : ""}${overview.revenueChangePct.toFixed(1)} %`}</span></div><svg className="overview-revenue-chart" viewBox="0 0 100 44" role="img" aria-label={t("overview.netRevenue")}><polyline points={seriesPoints || "0,40 100,40"} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" /></svg><span className="overview-connection">{overview?.connectedAt ? "Connexion Vendeo" : "—"}</span></section>
 
-      <ImpactFinancierCard data={{ budgetEconomise, revenuAdditionnelEstime, currency: adsCurrency }} />
+      <section className="overview-store-tiles"><OverviewMetricTile label={t("overview.sales")} value={overviewHasSales ? String(overview?.sales) : "—"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.salesHelp")} /><OverviewMetricTile label={t("overview.averageBasket")} value={overview?.averageBasket === null || overview?.averageBasket === undefined ? "—" : `${overview.averageBasket.toLocaleString("fr-FR")} ${overviewCurrency}`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.averageBasketHelp")} /><OverviewMetricTile label={t("overview.customers")} value={overviewHasSales ? String(overview?.customers) : "—"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.customersHelp")} /><OverviewMetricTile label={t("overview.repeats")} value={overview?.repeatRate === null || overview?.repeatRate === undefined ? "—" : `${(overview.repeatRate * 100).toFixed(1)} %`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.repeatsHelp")} /><OverviewMetricTile label={t("overview.abandonedCarts")} value={overviewHasSales ? String(overview?.abandoned) : "—"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.abandonedCartsHelp")} /></section>
 
-      <section className="home-ai-state app-card"><div><span className="eyebrow">{t("dashboard.aiAnalysis")}</span><h2>{t("dashboard.activityState")}</h2><p>{statusText}</p></div><Brain size={24} /></section>
-
-      <section className="home-kpis">
-        <HomeKpi label={t("overview.revenue")} value={connected ? revenueDisplay : t("overview.unavailable")} tone={revenue > 0 || revenueByCurrency.some((item) => item.value > 0) ? "positive" : "neutral"} help={t("overview.revenueHelp")} />
-        <HomeKpi label={t("overview.spend")} value={metaPerformance ? formatMoney(spend, adsCurrency) : t("overview.unavailable")} tone="info" help={t("overview.spendHelp")} />
-        <HomeKpi label={t("overview.sales")} value={connected ? String(sales) : t("overview.unavailable")} tone={sales > 0 ? "positive" : "neutral"} help={t("overview.salesHelp")} />
-        <HomeKpi label={t("overview.roas")} value={roas === null ? t("overview.unavailable") : `${roas.toFixed(2)}x`} tone={roas !== null && roas >= 1 ? "positive" : "info"} help={t("overview.roasHelp")} />
-      </section>
+      <section className="overview-economics"><div className="overview-economics-card app-card"><MetricHelp label={t("overview.customerValue")} description={t("overview.customerValueHelp")} /><strong>{overview?.customerValue === null || overview?.customerValue === undefined ? "Bientôt" : `${overview.customerValue.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{overview?.lowData ? t("overview.lowData") : t("overview.history")}</span></div><div className="overview-economics-card app-card"><MetricHelp label={t("overview.maxCostPerCustomer")} description={t("overview.maxCostPerCustomerHelp")} /><strong>{overview?.maxCostPerCustomer === null || overview?.maxCostPerCustomer === undefined ? "Bientôt" : `${overview.maxCostPerCustomer.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">30 %</span></div></section>
 
       <div className="home-primary-grid">
         <div className="home-side-stack">
@@ -665,6 +668,10 @@ export function Overview({
 }
 
 function HomeKpi({ label, value, help, tone, action }: { label: string; value: string; help: string; tone: string; action?: () => void }) { return <div className={`home-kpi ${tone}`}><small>{label}</small><strong>{value}</strong><span>{help}</span>{action ? <button className="btn btn-ghost" onClick={action}>Configurer</button> : null}</div>; }
+
+function OverviewMetricTile({ label, value, badge, help }: { label: string; value: string; badge?: string; help: string }) {
+  return <div className="overview-store-tile app-card"><MetricHelp label={label} description={help} /><strong>{value}</strong>{badge ? <span className="overview-badge">{badge}</span> : null}</div>;
+}
 
 export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => void }) {
   const { t } = useI18n();

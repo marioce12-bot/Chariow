@@ -74,6 +74,7 @@ export type StoreData = {
   is_active: boolean;
   connection_status?: string;
   connection_error?: string | null;
+  connected_at?: string | null;
   logo_url?: string | null;
   image?: string | null;
 };
@@ -98,6 +99,7 @@ export type AnalyticsData = {
   products: ProductData[];
   sales: unknown[];
   kpis: { period: { from: string | null; to: string | null }; revenue: { value: number | string | null; formatted: string | null }; revenueByCurrency?: Array<{ currency: string; value: number }>; sales: number; visits: number; conversionRate: string; customers: number; productsSold: number };
+  overview?: { currency: string; revenueNet: number; previousRevenueNet: number; revenueChangePct: number | null; revenueSeries: Array<{ date: string; revenueNet: number }>; sales: number; averageBasket: number | null; customers: number; repeatRate: number | null; abandoned: number; abandonmentRate: number | null; customerValue: number | null; maxCostPerCustomer: number | null; lowData: boolean; withoutCustomer: number; skippedSales: number; targetMargin: number; connectedAt: string | null; period: { from: string; to: string } };
 } | null;
 
 function subscriptionLimitFromStores(stores: StoreData[]) {
@@ -105,4 +107,3 @@ function subscriptionLimitFromStores(stores: StoreData[]) {
   // the visible counter useful before the subscription response is loaded.
   return 3;
 }
-
