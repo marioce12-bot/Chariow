@@ -415,3 +415,14 @@ html[data-theme="dark"] .my-ads-state.state-b,html[data-theme="dark"] .my-ads-st
 .overview-action-pills button.is-active{background:rgba(52,116,88,.12);border-color:var(--green)}
 .overview-action-pills b{background:var(--line);color:var(--ink)}
 .overview-campaign-row,.overview-campaign-daily{border-color:var(--line)}
+
+
+/* Étape 7 — provenance des mesures publicitaires (ajouts uniquement). */
+.source-history { background:#f1f5f9; border-radius:999px; color:#475569; display:inline-flex; font-size:10px; font-weight:800; padding:5px 8px; white-space:nowrap; }
+html[data-theme="dark"] .source-meta { background:#172b58; color:#b8c9ff; }
+html[data-theme="dark"] .source-verified { background:#163829; color:#9de0b9; }
+html[data-theme="dark"] .source-history { background:#253149; color:#d0d7e4; }
+@media (max-width:760px) {
+  .meta-campaigns .meta-table { overflow-x:auto; }
+  .meta-campaigns .meta-table-head,.meta-campaigns .meta-table-row { min-width:620px; }
+}
