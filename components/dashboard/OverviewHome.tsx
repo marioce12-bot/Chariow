@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock, Megaphone, Package, XCircle } from "lucide-react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
+import { getDailyQuote, getGreeting } from "@/lib/greetings";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { PlanId } from "@/lib/plans";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
@@ -84,11 +85,20 @@ export function OverviewHome({
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [alerts, setAlerts] = useState<PersistentAlert[]>([]);
   const [selectedSale, setSelectedSale] = useState<SaleRow | null>(null);
+  // Heure de l'appareil, définie après le montage (évite un décalage serveur / navigateur).
+  const [now, setNow] = useState<Date | null>(null);
 
   const store = stores.find((item) => item.id === selectedStoreId) ?? stores[0];
   const storeId = store?.id ?? selectedStoreId;
 
   useEffect(() => { setData(analytics); }, [analytics]);
+
+  // Salutation : on met l'heure à jour toutes les 10 minutes (matin → après-midi → soirée).
+  useEffect(() => {
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 10 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Période : on recharge les chiffres de la boutique pour 7 / 30 / 90 jours.
   useEffect(() => {
@@ -138,6 +148,9 @@ export function OverviewHome({
   const money = (value: number | null | undefined) => (value === null || value === undefined ? "—" : formatMoneyInUSD(value, currency) ?? "—");
 
   const activeCampaigns = campaigns.filter((c) => c.status === "active" || c.status === "review");
+
+  const greeting = now ? getGreeting(userFirstName, en ? "en" : "fr", now) : tr(`Bonjour ${userFirstName} 👋`, `Hello ${userFirstName} 👋`);
+  const dailyQuote = now ? getDailyQuote(en ? "en" : "fr", now) : null;
 
   // Dernières transactions Chariow : on part de la liste NON filtrée par période
   // (le snapshot initial, sans dates), sinon « Derniers achats » restait vide
@@ -216,7 +229,8 @@ export function OverviewHome({
       <section className="app-card">
         <div style={{ minWidth: 0 }}>
           <span className="eyebrow">{tr("Vue d'ensemble", "Overview")}</span>
-          <h1 style={{ margin: "4px 0 6px", fontSize: 24 }}>{tr(`Bonjour ${userFirstName} 👋`, `Hello ${userFirstName} 👋`)}</h1>
+          <h1 style={{ margin: "4px 0 6px", fontSize: 24 }}>{greeting}</h1>
+          {dailyQuote ? <p className="hint-line" style={{ margin: "0 0 6px", fontStyle: "italic" }}>{dailyQuote}</p> : null}
           <p className="hint-line" style={{ margin: 0 }}>
             {salesCount > 0
               ? tr(`Sur les ${periodDays} derniers jours : ${salesCount} vente${salesCount > 1 ? "s" : ""}, ${money(overview?.revenueNet)} de revenu net et ${activeCampaigns.length} campagne${activeCampaigns.length > 1 ? "s" : ""} en cours.`, `Over the last ${periodDays} days: ${salesCount} sale${salesCount > 1 ? "s" : ""}, ${money(overview?.revenueNet)} net revenue and ${activeCampaigns.length} running campaign${activeCampaigns.length > 1 ? "s" : ""}.`)
