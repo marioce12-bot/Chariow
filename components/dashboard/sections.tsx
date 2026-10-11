@@ -548,9 +548,26 @@ export function Overview({
         </div>
       </div>
 
-      <section className="overview-net-hero app-card"><div className="overview-net-copy"><MetricHelp label={t("overview.netRevenue")} description={t("overview.netRevenueHelp")} /><strong>{overviewHasSales ? `${overview?.revenueNet.toLocaleString("fr-FR")} ${overviewCurrency}` : "-"}</strong><span className="overview-trend-badge">{overview?.revenueChangePct === null || overview?.revenueChangePct === undefined ? "-" : `${overview.revenueChangePct >= 0 ? "+" : ""}${overview.revenueChangePct.toFixed(1)} %`}</span></div><svg className="overview-revenue-chart" viewBox="0 0 100 44" role="img" aria-label={t("overview.netRevenue")}><polyline points={seriesPoints || "0,40 100,40"} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />{connectionIsInPeriod ? <line x1={connectionX} x2={connectionX} y1="3" y2="42" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" aria-label={t("overview.connectedAt")}><title>{t("overview.connectedAt")}</title></line> : null}</svg>{connectionIsInPeriod ? <span className="overview-connection">{t("overview.connectedAt")}</span> : null}</section>
+      <section className="overview-net-hero app-card">
+        <div className="overview-net-copy">
+          <MetricHelp label={t("overview.netRevenue")} description={t("overview.netRevenueHelp")} />
+          <strong>{overview ? `${overview.revenueNet.toLocaleString("fr-FR")} ${overviewCurrency}` : t("overview.metricUnavailable")}</strong>
+          <span className="overview-trend-badge">{overview?.revenueChangePct === null || overview?.revenueChangePct === undefined ? t("overview.metricUnavailable") : `${overview.revenueChangePct >= 0 ? "+" : ""}${overview.revenueChangePct.toFixed(1)} %`}</span>
+        </div>
+        <svg className="overview-revenue-chart" viewBox="0 0 100 44" role="img" aria-label={t("overview.netRevenue")}>
+          <polyline points={seriesPoints || "0,40 100,40"} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          {connectionIsInPeriod ? <line x1={connectionX} x2={connectionX} y1="3" y2="42" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" aria-label={t("overview.connectedAt")}><title>{t("overview.connectedAt")}</title></line> : null}
+        </svg>
+        {connectionIsInPeriod ? <span className="overview-connection">{t("overview.connectedAt")}</span> : null}
+      </section>
 
-      <section className="overview-store-tiles"><OverviewMetricTile label={t("overview.sales")} value={overviewHasSales ? String(overview?.sales) : "-"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.salesHelp")} /><OverviewMetricTile label={t("overview.averageBasket")} value={overview?.averageBasket === null || overview?.averageBasket === undefined ? "-" : `${overview.averageBasket.toLocaleString("fr-FR")} ${overviewCurrency}`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.averageBasketHelp")} /><OverviewMetricTile label={t("overview.customers")} value={overviewHasSales ? String(overview?.customers) : "-"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.customersHelp")} /><OverviewMetricTile label={t("overview.repeats")} value={overview?.repeatRate === null || overview?.repeatRate === undefined ? "-" : `${(overview.repeatRate * 100).toFixed(1)} %`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.repeatsHelp")} /><OverviewMetricTile label={t("overview.abandonedCarts")} value={overviewHasSales ? String(overview?.abandoned) : "-"} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.abandonedCartsHelp")} /></section>
+      <section className="overview-store-tiles">
+        <OverviewMetricTile label={t("overview.sales")} value={overview ? String(overview.sales) : t("overview.metricUnavailable")} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.salesHelp")} />
+        <OverviewMetricTile label={t("overview.averageBasket")} value={overview?.averageBasket === null || overview?.averageBasket === undefined ? overview?.sales === 0 ? t("overview.noSales") : t("overview.metricUnavailable") : `${overview.averageBasket.toLocaleString("fr-FR")} ${overviewCurrency}`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.averageBasketHelp")} />
+        <OverviewMetricTile label={t("overview.customers")} value={overview ? String(overview.customers) : t("overview.metricUnavailable")} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.customersHelp")} />
+        <OverviewMetricTile label={t("overview.repeats")} value={overview?.repeatRate === null || overview?.repeatRate === undefined ? overview?.sales === 0 ? t("overview.noSales") : t("overview.metricUnavailable") : `${(overview.repeatRate * 100).toFixed(1)} %`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.repeatsHelp")} />
+        <OverviewMetricTile label={t("overview.abandonedCarts")} value={overview ? String(overview.abandoned) : t("overview.metricUnavailable")} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.abandonedCartsHelp")} />
+      </section>
 
       <section className="overview-economics"><div className="overview-economics-card app-card"><MetricHelp label={t("overview.customerValue")} description={t("overview.customerValueHelp")} /><strong>{overview?.customerValue === null || overview?.customerValue === undefined ? t("overview.soon") : `${overview.customerValue.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{overview?.lowData ? t("overview.lowData") : t("overview.history")}</span></div><div className="overview-economics-card app-card"><MetricHelp label={t("overview.maxCostPerCustomer")} description={t("overview.maxCostPerCustomerHelp")} /><strong>{overview?.maxCostPerCustomer === null || overview?.maxCostPerCustomer === undefined ? t("overview.soon") : `${overview.maxCostPerCustomer.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{Math.round((overview?.targetMargin ?? 0.3) * 100)} %</span></div></section>
 
@@ -575,7 +592,7 @@ export function Overview({
         kpis={{
           visits: overviewAnalytics?.kpis.visits ?? 0,
           sales: overview?.sales ?? 0,
-          conversionRate: overviewAnalytics?.kpis.conversionRate ?? "-",
+          conversionRate: overviewAnalytics?.kpis.conversionRate ?? t("overview.metricUnavailable"),
         }}
       />
 

@@ -161,6 +161,8 @@ export function MetaHistoryOverview({ account, storeId, confirmedSales, maxCostP
     : accountCurrency === storeCurrency ? attributedSpend : convertCurrency(attributedSpend, accountCurrency, storeCurrency);
   const verifiedSales = summary?.overview.attributionCoverage ?? 0;
   const verifiedCustomers = summary?.overview.attributedCustomers ?? 0;
+  const noLinkedSales = summary !== null && verifiedSales === 0;
+  const missingSalesLabel = t(noLinkedSales ? "overview.noLinkedSales" : "overview.metricUnavailable");
   const saleCost = costPerSale(attributedSpendStore, verifiedSales);
   const costPerCustomer = attributedSpendStore !== null && verifiedCustomers > 0 ? attributedSpendStore / verifiedCustomers : null;
   const healthLevel = health(costPerCustomer, maxCostPerCustomer);
@@ -184,15 +186,15 @@ export function MetaHistoryOverview({ account, storeId, confirmedSales, maxCostP
         {account ? <span className={`my-ads-import ${backfillStatus === "complete" || account.last_backfill_at ? "is-complete" : ""}`}>{importLabel}</span> : null}
       </header>
       <div className="my-ads-metrics">
-        <div className="my-ads-metric"><span>{t("overview.spend")}</span><strong>{declaredSpend === null ? "-" : formatMoney(declaredSpend, storeCurrency)}</strong><small className="source-meta">{t("overview.metaDeclared")}</small></div>
-        <div className="my-ads-metric"><span>{t("overview.costPerSale")}</span><strong>{saleCost === null ? "-" : formatMoney(saleCost, storeCurrency)}</strong><small className="source-verified">{verifiedSales > 0 ? `${t("overview.verified")} · ${verifiedSales}` : t("overview.verified")}</small></div>
-        <div className="my-ads-metric"><span>{t("overview.profitability")}</span><strong>{profitability === null ? "-" : `${profitability.toFixed(1)} %`}</strong><small className="source-verified">{t("overview.verified")}</small></div>
-        <div className="my-ads-metric"><span>{t("overview.health")}</span><strong>{healthLevel ? t(`overview.${healthKey(healthLevel)}`) : "-"}</strong><div className="my-ads-health-track"><i style={{ width: `${healthWidth}%` }} data-health={healthLevel ?? "none"} /></div></div>
-        <div className="my-ads-metric"><span>{t("overview.recovery")}</span><strong>{recoveryDays === null ? "-" : `${Math.ceil(recoveryDays)} ${t("overview.daysUnit")}`}</strong><small className="source-verified">{t("overview.verified")}</small></div>
+        <div className="my-ads-metric"><span>{t("overview.spend")}</span><strong>{declaredSpend === null ? t("overview.metricUnavailable") : formatMoney(declaredSpend, storeCurrency)}</strong><small className="source-meta">{t("overview.metaDeclared")}</small></div>
+        <div className="my-ads-metric"><span>{t("overview.costPerSale")}</span><strong>{saleCost === null ? missingSalesLabel : formatMoney(saleCost, storeCurrency)}</strong>{verifiedSales > 0 ? <small className="source-verified">{t("overview.verified")} · {verifiedSales}</small> : null}</div>
+        <div className="my-ads-metric"><span>{t("overview.profitability")}</span><strong>{profitability === null ? t(noLinkedSales ? "overview.metricNotCalculated" : "overview.metricUnavailable") : `${profitability.toFixed(1)} %`}</strong>{profitability !== null ? <small className="source-verified">{t("overview.verified")}</small> : null}</div>
+        <div className="my-ads-metric"><span>{t("overview.health")}</span><strong>{healthLevel ? t(`overview.${healthKey(healthLevel)}`) : summary ? t("overview.healthNotMeasured") : t("overview.metricUnavailable")}</strong>{healthLevel ? <div className="my-ads-health-track"><i style={{ width: `${healthWidth}%` }} data-health={healthLevel} /></div> : null}</div>
+        <div className="my-ads-metric"><span>{t("overview.recovery")}</span><strong>{recoveryDays === null ? t(noLinkedSales ? "overview.metricNotCalculated" : "overview.metricUnavailable") : `${Math.ceil(recoveryDays)} ${t("overview.daysUnit")}`}</strong>{recoveryDays !== null ? <small className="source-verified">{t("overview.verified")}</small> : null}</div>
       </div>
       {state === "A" || state === "D" ? <button className="btn btn-primary my-ads-launch" onClick={onLaunch}>{t("ads.launch")}</button> : null}
       {account && backfillStatus === "failed" ? <button className="btn btn-ghost" onClick={() => { setBackfillStatus("pending"); setRetryToken((value) => value + 1); }}>{t("overview.retryImport")}</button> : null}
-      {historyError ? <div className="my-ads-error">-</div> : null}
+      {historyError ? <div className="my-ads-error">{t("overview.historyUnavailable")}</div> : null}
       {account && !historyError && history && history.entities.length === 0 ? <div className="my-ads-empty">{t("overview.noMetaHistory")}</div> : null}
       {history && history.entities.length > 0 ? <div className="meta-history-levels">
         {levels.map((level) => {
@@ -203,9 +205,9 @@ export function MetaHistoryOverview({ account, storeId, confirmedSales, maxCostP
             <div className="meta-history-title"><strong>{title}</strong><span className="source-meta">{t("overview.metaDeclared")}</span></div>
             {rows.map((row) => <div className="meta-history-row" key={`${level}:${row.id}`}>
               <span className="meta-history-name" title={row.name}>{row.name}</span>
-              <span>{row.spend === null ? "-" : formatMoney(row.spend, history.currency)}</span>
+              <span>{row.spend === null ? t("overview.metricUnavailable") : formatMoney(row.spend, history.currency)}</span>
               <small>{row.impressions.toLocaleString()} {t("overview.impressions")} · {row.clicks.toLocaleString()} {t("overview.clicks")} · {row.purchases} {t("overview.purchases")}</small>
-              <small>{t("overview.purchaseValue")}: {row.purchaseValue === null ? "-" : formatMoney(row.purchaseValue, history.currency)}</small>
+              <small>{t("overview.purchaseValue")}: {row.purchaseValue === null ? t("overview.metricUnavailable") : formatMoney(row.purchaseValue, history.currency)}</small>
             </div>)}
           </div>;
         })}
