@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getChariowSnapshot, normalizeChariowSnapshot } from "@/lib/chariow/analytics";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
-import { addDays, buildOverviewFromPages, daysBetween, type SaleRow } from "@/lib/overview-aggregates";
+import { addDays, buildOverviewFromPages, buildProductPerformance, daysBetween, type SaleRow } from "@/lib/overview-aggregates";
 import { fetchAllPages } from "@/lib/paginated-query";
 import { DEFAULT_TARGET_MARGIN } from "@/lib/unit-economics";
 
-type AnalyticsSaleRow = SaleRow & { amount: number | string | null };
+type AnalyticsSaleRow = SaleRow & { amount: number | string | null; product_id: string | null };
 
 // Cookie lisible cote navigateur (non httpOnly, sans donnee sensible) : il permet
 // d'afficher un message clair quand Chariow est en panne (voir ChariowStatusNotice).
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     const loadSales = (start: string, end: string) => fetchAllPages<AnalyticsSaleRow>((pageFrom, pageTo) =>
       supabase
         .from("chariow_sales")
-        .select("status,amount,net_amount,currency,occurred_at,customer_id")
+        .select("status,amount,net_amount,currency,occurred_at,customer_id,product_id")
         .eq("store_id", store.id)
         .gte("occurred_at", `${start}T00:00:00.000Z`)
         .lte("occurred_at", `${end}T23:59:59.999Z`)
@@ -90,10 +90,15 @@ export async function GET(request: Request) {
     const targetCurrency = normalized.products.find((product) => product.currency)?.currency?.toUpperCase()
       ?? normalized.kpis.revenueByCurrency?.find((item) => item.currency !== "INCONNUE")?.currency
       ?? "XOF";
+    const productPerformance = buildProductPerformance(
+      current.rows,
+      normalized.products.map((product) => ({ id: product.id, name: product.name, image: product.image })),
+      targetCurrency,
+    );
     const overview = buildOverviewFromPages(current, previous, targetCurrency, periodFrom, periodTo, store.connected_at ?? null, DEFAULT_TARGET_MARGIN);
     return withStatus(NextResponse.json({
       store: { name: normalized.storeName, status: store.connection_status, connectedAt: store.connected_at ?? null },
-      snapshot: { ...normalized, overview },
+      snapshot: { ...normalized, overview, productPerformance },
     }), null);
   } catch (analyticsError) {
     const message = analyticsError instanceof Error ? analyticsError.message : String(analyticsError);

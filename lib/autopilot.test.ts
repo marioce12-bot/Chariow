@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeAutopilotDecision } from "./autopilot";
+import { aggregateDailyAutopilotReports, computeAutopilotDecision } from "./autopilot";
 
 const base = { grossRevenue: 0, daysSinceLaunch: 5, dailyBudget: 100, attributionReliable: true };
 
@@ -41,5 +41,20 @@ describe("computeAutopilotDecision", () => {
   it("reste en apprentissage avant 1,5 budget quotidien même après 24h", () => {
     const result = computeAutopilotDecision({ ...base, spend: 120, netRevenue: 30, grossRevenue: 30, completedSales: 1 });
     expect(result.decision).toBe("learning");
+  });
+});
+
+describe("aggregateDailyAutopilotReports", () => {
+  it("garde un instantané par campagne et par jour avant de calculer les variations", () => {
+    const daily = aggregateDailyAutopilotReports([
+      { campaign_id: "c1", created_at: "2026-10-01T09:00:00.000Z", spend: 100, net_revenue: 20, currency: "XOF" },
+      { campaign_id: "c1", created_at: "2026-10-01T23:00:00.000Z", spend: 150, net_revenue: 50, currency: "XOF" },
+      { campaign_id: "c1", created_at: "2026-10-02T23:00:00.000Z", spend: 200, net_revenue: 75, currency: "XOF" },
+      { campaign_id: "c2", created_at: "2026-10-01T22:00:00.000Z", spend: 20, net_revenue: 0, currency: "XOF" },
+      { campaign_id: "c2", created_at: "2026-10-02T22:00:00.000Z", spend: 35, net_revenue: 20, currency: "XOF" },
+      { campaign_id: "c2", created_at: "2026-10-03T22:00:00.000Z", spend: 70, net_revenue: 30, currency: "XOF" },
+    ], "2026-10-02", "2026-10-02", "XOF");
+
+    expect(daily).toEqual([{ date: "2026-10-02", spend: 65, netRevenue: 45, campaigns: 2 }]);
   });
 });

@@ -1,3 +1,5 @@
+import { convertCurrency } from "./currency";
+
 // Moteur de décision du pilotage automatique (déterministe, sans IA).
 // À partir des métriques d'une campagne (dépense pub + ventes réelles Chariow),
 // il décide s'il faut la laisser tourner ou la mettre en pause, avec un motif
@@ -127,4 +129,66 @@ export function computeAutopilotDecision(input: AutopilotInput): AutopilotDecisi
     reasons: [`${completedSales} vente(s) confirmée(s) pour ${fmt(spend)} de pub (${fmt(grossRevenue)} brut). La campagne reste sous surveillance.`],
     roas,
   };
+}
+
+export type AutopilotReportSnapshot = {
+  campaign_id: string;
+  created_at: string;
+  spend: number | string | null;
+  net_revenue: number | string | null;
+  currency: string | null;
+};
+
+export type DailyAutopilotAggregate = { date: string; spend: number | null; netRevenue: number | null; campaigns: number };
+
+/**
+ * Les rapports sont des instantanés cumulatifs généralement écrits chaque heure.
+ * On garde le dernier instantané de chaque campagne/jour puis on calcule la
+ * différence avec l'instantané précédent : additionner les lignes horaires
+ * compterait plusieurs fois les mêmes dépenses et ventes.
+ */
+export function aggregateDailyAutopilotReports(
+  reports: AutopilotReportSnapshot[],
+  from: string,
+  to: string,
+  targetCurrency: string,
+): DailyAutopilotAggregate[] {
+  const latestByCampaign = new Map<string, Map<string, { report: AutopilotReportSnapshot; timestamp: number }>>();
+  for (const report of reports) {
+    const timestamp = new Date(report.created_at).getTime();
+    if (!Number.isFinite(timestamp)) continue;
+    const date = new Date(timestamp).toISOString().slice(0, 10);
+    if (date > to) continue;
+    const days = latestByCampaign.get(report.campaign_id) ?? new Map();
+    const existing = days.get(date);
+    if (!existing || timestamp > existing.timestamp) days.set(date, { report, timestamp });
+    latestByCampaign.set(report.campaign_id, days);
+  }
+
+  const daily = new Map<string, { spend: number; netRevenue: number; campaigns: Set<string>; reliable: boolean }>();
+  for (const [campaignId, days] of latestByCampaign) {
+    const snapshots = [...days.entries()].sort(([a], [b]) => a.localeCompare(b));
+    let previous: AutopilotReportSnapshot | null = null;
+    for (const [date, { report }] of snapshots) {
+      if (date < from) { previous = report; continue; }
+      if (!previous) { previous = report; continue; }
+      const spendDelta = Math.max(0, Number(report.spend) - Number(previous.spend));
+      const revenueDelta = Number(report.net_revenue) - Number(previous.net_revenue);
+      const currency = report.currency?.trim().toUpperCase() ?? "";
+      const spend = currency ? convertCurrency(spendDelta, currency, targetCurrency) : null;
+      const netRevenue = currency ? convertCurrency(revenueDelta, currency, targetCurrency) : null;
+      const total = daily.get(date) ?? { spend: 0, netRevenue: 0, campaigns: new Set<string>(), reliable: true };
+      if (spend === null || netRevenue === null) total.reliable = false;
+      else { total.spend += spend; total.netRevenue += netRevenue; }
+      total.campaigns.add(campaignId);
+      daily.set(date, total);
+      previous = report;
+    }
+  }
+  return [...daily.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, row]) => ({
+    date,
+    spend: row.reliable ? Math.round(row.spend * 100) / 100 : null,
+    netRevenue: row.reliable ? Math.round(row.netRevenue * 100) / 100 : null,
+    campaigns: row.campaigns.size,
+  }));
 }

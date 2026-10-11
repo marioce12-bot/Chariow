@@ -143,6 +143,8 @@ export const fr: Dict = {
       costPerSale: "Coût par vente", profitability: "Rentabilité", health: "Santé", recovery: "Récupération",
       campaigns: "Campagnes", adSets: "Ensembles", ads: "Annonces", impressions: "Impressions", clicks: "Clics",
       purchases: "Achats", purchaseValue: "Valeur d’achat", noMetaHistory: "Aucun historique Meta",
+      netRevenueByDay: "Revenu net par jour", dailyCampaigns: "Campagnes · jour", funnel: "Entonnoir", visits: "Visites", conversionRate: "Taux de conversion",
+      actions: "Actions", cutAction: "À couper", increaseAction: "À augmenter", gain: "Gagne", loss: "Perd", watch: "À surveiller", testing: "En test",
       healthy: "Sain", limit: "Limite", critical: "Critique", daysUnit: "j",
       unavailable: "Non disponible",
       trend: "Tendance", trendTitle: "Évolution du chiffre d'affaires", trendSubtitle: "Ventes des 7 derniers jours, par produit.",

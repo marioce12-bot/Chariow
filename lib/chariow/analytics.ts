@@ -86,6 +86,20 @@ function firstText(...candidates: unknown[]): string | null {
   return null;
 }
 
+function publicSaleSummary(sale: Record<string, unknown>) {
+  const product = asRecord(sale.product);
+  const amount = asRecord(sale.amount);
+  const rawProductId = sale.product_id ?? product.id ?? product.uuid;
+  return {
+    status: firstText(sale.status, sale.state) ?? "unknown",
+    amount: numericValue(amount.value ?? sale.amount),
+    currency: firstText(sale.currency, sale.currency_code, amount.currency),
+    created_at: firstText(sale.created_at, sale.createdAt, sale.occurred_at),
+    product_id: typeof rawProductId === "string" || typeof rawProductId === "number" ? String(rawProductId) : null,
+    product_name: firstText(sale.product_name, product.name, product.title),
+  };
+}
+
 // Résout uniquement l'hôte de la boutique (sans chemin produit), à partir des
 // mêmes candidats que buildProductUrl. Réutilisé (1) pour construire un lien
 // produit avec le slug, et (2) comme secours quand aucun slug n'est
@@ -327,7 +341,9 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
     storeName: text(store.nom ?? store.name ?? store.store_name) ?? "Boutique Chariow",
     storeStatus: text(store.statut ?? store.status ?? store.connection_status) ?? "connected",
     products,
-    sales: firstArray(snapshot.sales),
+    // Le client reçoit uniquement les champs d'activité nécessaires à l'interface.
+    // Les objets client/paiement bruts (email, téléphone, identifiants) restent côté serveur.
+    sales: rawSales.map(publicSaleSummary),
     kpis: {
       period,
       revenue: { value: revenueValue, formatted: text(revenue.formatted) ?? (numericValue(revenueValue) === 0 ? formattedZero(currency) : (revenueValue?.toString() ?? formattedZero(currency))) },
