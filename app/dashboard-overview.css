@@ -1,5 +1,9 @@
 /* Vue d'ensemble (OverviewHome) : grille KPI 2×2, listes déroulantes lisibles en thème sombre, catalogue compact. */
 
+/* Empêche tout débordement horizontal : les cartes de la grille peuvent rétrécir. */
+.dashboard-home { max-width: 100%; min-width: 0; }
+.dashboard-home > * { max-width: 100%; min-width: 0; }
+
 .ov-controls { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; margin-top: 14px; width: 100%; }
 
 .ov-select {
@@ -24,9 +28,25 @@ html[data-theme="dark"] .ov-select option { background: #101f45; color: #e7edfb;
 .ov-kpi > strong { font-size: 20px; letter-spacing: -.02em; line-height: 1.15; overflow-wrap: anywhere; }
 .ov-kpi > small { font-size: 11px; }
 
-/* Derniers achats */
-.ov-sales { display: grid; gap: 6px; list-style: none; margin: 12px 0 0; padding: 0; }
-.ov-sale { align-items: center; border: 1px solid var(--line); border-radius: 10px; display: flex; gap: 10px; padding: 8px 12px; }
+/* Derniers achats : chaque ligne est un bouton qui ouvre la fenêtre de détail. */
+.ov-sales { display: grid; gap: 6px; list-style: none; margin: 12px 0 0; min-width: 0; padding: 0; }
+.ov-sales > li { min-width: 0; }
+.ov-sale { align-items: center; background: transparent; border: 1px solid var(--line); border-radius: 10px; color: inherit; cursor: pointer; display: flex; font: inherit; gap: 10px; min-width: 0; padding: 8px 10px; text-align: left; width: 100%; }
+.ov-sale:hover, .ov-sale:focus-visible { background: rgba(128, 128, 128, .1); }
+.ov-sale-thumb { align-items: center; background: rgba(128, 128, 128, .15); border-radius: 8px; display: flex; flex: none; height: 38px; justify-content: center; overflow: hidden; position: relative; width: 38px; }
+.ov-sale-thumb img { height: 100%; object-fit: cover; width: 100%; }
+.ov-sale-dot { align-items: center; background: #fff; border-radius: 50%; bottom: -3px; display: flex; height: 16px; justify-content: center; position: absolute; right: -3px; width: 16px; }
+.ov-sale-text { display: flex; flex: 1 1 0; flex-direction: column; gap: 1px; min-width: 0; }
+.ov-sale-text strong { font-size: 13px; line-height: 1.25; }
+.ov-sale-text span { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-sale-amount { flex: none; font-size: 13px; white-space: nowrap; }
+
+/* Fenêtre de détail : en-tête produit */
+.ov-modal-product { align-items: center; display: flex; gap: 12px; margin: 10px 0 4px; min-width: 0; }
+.ov-modal-product .ov-sale-thumb { height: 52px; width: 52px; }
+.ov-modal-product p { font-size: 13px; line-height: 1.35; margin: 0; overflow-wrap: anywhere; }
+html[data-theme="dark"] .sale-modal { background: #0b1734; }
+html[data-theme="dark"] .sale-detail-grid > div { background: #0e1c3f; }
 
 /* Catalogue : lignes serrées */
 .ov-catalogue-head { margin-bottom: 6px; }
