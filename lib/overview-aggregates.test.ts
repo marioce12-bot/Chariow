@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOverviewAggregates, buildOverviewFromPages, daysBetween } from "./overview-aggregates";
+import { buildOverviewAggregates, buildOverviewFromPages, buildProductPerformance, daysBetween } from "./overview-aggregates";
 import { mixedCurrencySales, repeatBuyersSales, stateASales, stateDSales } from "@/tests/fixtures/unit-economics";
 
 describe("overview server aggregates", () => {
@@ -55,5 +55,23 @@ describe("overview server aggregates", () => {
 
   it("calcule correctement la taille de période", () => {
     expect(daysBetween("2026-10-01", "2026-10-07")).toBe(7);
+  });
+
+  it("agrège le revenu net par produit, convertit les devises et ignore les ventes non confirmées", () => {
+    const products = [
+      { id: "p1", name: "Livre", image: null },
+      { id: "p2", name: "Formation", image: null },
+    ];
+    const result = buildProductPerformance([
+      { status: "completed", net_amount: 3000, currency: "XOF", product_id: "p1" },
+      { status: "settled", net_amount: 2, currency: "EUR", product_id: "p1" },
+      { status: "failed", net_amount: 9999, currency: "XOF", product_id: "p1" },
+      { status: "completed", net_amount: 10, currency: "NGN", product_id: "p2" },
+    ], products, "XOF");
+
+    expect(result).toEqual([
+      { id: "p1", name: "Livre", image: null, sales: 2, revenueNet: 4311.91 },
+      { id: "p2", name: "Formation", image: null, sales: 1, revenueNet: null },
+    ]);
   });
 });

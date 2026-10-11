@@ -8,10 +8,36 @@ export type SaleRow = { status: string | null; net_amount: number | string | nul
 function isoDate(value: Date) { return value.toISOString().slice(0, 10); }
 export function addDays(value: string, days: number) { const date = new Date(`${value}T00:00:00.000Z`); date.setUTCDate(date.getUTCDate() + days); return isoDate(date); }
 export function daysBetween(from: string, to: string) { return Math.max(1, Math.round((new Date(`${to}T00:00:00.000Z`).getTime() - new Date(`${from}T00:00:00.000Z`).getTime()) / 86400000) + 1); }
-function amountInCurrency(sale: SaleRow, targetCurrency: string) {
+function amountInCurrency(sale: Pick<SaleRow, "net_amount" | "currency">, targetCurrency: string) {
   const amount = Number(sale.net_amount); const currency = sale.currency?.trim().toUpperCase();
   if (!Number.isFinite(amount) || !currency) return null;
   return currency === targetCurrency ? amount : convertCurrency(amount, currency, targetCurrency);
+}
+
+export type ProductCatalogEntry = { id: string; name: string; image: string | null };
+export type ProductPerformance = ProductCatalogEntry & { sales: number; revenueNet: number | null };
+
+export function buildProductPerformance(
+  rows: Array<Pick<SaleRow, "status" | "net_amount" | "currency"> & { product_id: string | null }>,
+  products: ProductCatalogEntry[],
+  targetCurrency: string,
+): ProductPerformance[] {
+  const catalog = new Map(products.map((product) => [product.id, product]));
+  const totals = new Map<string, { sales: number; revenueNet: number; convertible: boolean }>();
+  for (const sale of rows) {
+    if (!isConfirmedChariowSaleStatus(sale.status) || !sale.product_id || !catalog.has(sale.product_id)) continue;
+    const total = totals.get(sale.product_id) ?? { sales: 0, revenueNet: 0, convertible: true };
+    total.sales += 1;
+    const converted = amountInCurrency(sale, targetCurrency);
+    if (converted === null) total.convertible = false;
+    else total.revenueNet += converted;
+    totals.set(sale.product_id, total);
+  }
+  return [...totals.entries()].map(([id, total]) => ({
+    ...catalog.get(id)!,
+    sales: total.sales,
+    revenueNet: total.convertible ? Math.round(total.revenueNet * 100) / 100 : null,
+  })).sort((a, b) => b.sales - a.sales || (b.revenueNet ?? -1) - (a.revenueNet ?? -1));
 }
 
 export function buildOverviewAggregates(rows: SaleRow[], targetCurrency: string, periodFrom: string, periodTo: string) {

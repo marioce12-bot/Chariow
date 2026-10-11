@@ -98,6 +98,7 @@ export type AnalyticsData = {
   storeStatus: string;
   products: ProductData[];
   sales: unknown[];
+  productPerformance?: Array<{ id: string; name: string; image: string | null; sales: number; revenueNet: number | null }>;
   kpis: { period: { from: string | null; to: string | null }; revenue: { value: number | string | null; formatted: string | null }; revenueByCurrency?: Array<{ currency: string; value: number }>; sales: number; visits: number; conversionRate: string; customers: number; productsSold: number };
   overview?: { currency: string; revenueNet: number; previousRevenueNet: number; revenueChangePct: number | null; revenueSeries: Array<{ date: string; revenueNet: number }>; sales: number; averageBasket: number | null; customers: number; repeatRate: number | null; abandoned: number; abandonmentRate: number | null; customerValue: number | null; maxCostPerCustomer: number | null; lowData: boolean; withoutCustomer: number; skippedSales: number; targetMargin: number; connectedAt: string | null; period: { from: string; to: string } } | null;
 } | null;

@@ -7,6 +7,7 @@ import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, F
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { PinterestAdsPanel } from "@/components/PinterestAdsPanel";
 import { MetaHistoryOverview } from "@/components/dashboard/MetaHistoryOverview";
+import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMoney } from "@/lib/format";
 import { isAdPlatformAllowed, planMaxStores, type AdPlatform, type PlanId } from "@/lib/plans";
@@ -448,16 +449,20 @@ export function Overview({
   campaignsVersion: number;
 }) {
   const { t } = useI18n();
-  const openAI = (prompt: string) => {
-    sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt);
-    onGoToAI();
-  };
-  const store = stores[0];
+  const store = stores.find((item) => item.id === selectedStoreId) ?? stores[0];
   const connected = store?.connection_status === "connected";
-  const products = analytics?.products ?? [];
-  const currency = products[0]?.currency ?? "XOF";
   const [periodDays, setPeriodDays] = useState(30);
   const [overviewAnalytics, setOverviewAnalytics] = useState<AnalyticsData>(analytics);
+  const [metaDaily, setMetaDaily] = useState<Array<{ date: string; spend: number | null }>>([]);
+  const [campaignDaily, setCampaignDaily] = useState<Array<{ date: string; spend: number | null; netRevenue: number | null; campaigns: number }>>([]);
+  const periodRange = useMemo(() => {
+    const to = new Date();
+    const from = new Date(to);
+    from.setDate(to.getDate() - periodDays + 1);
+    return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  }, [periodDays]);
+  const products = overviewAnalytics?.products ?? analytics?.products ?? [];
+  const currency = products[0]?.currency ?? "XOF";
   const overview = overviewAnalytics?.overview;
   const overviewCurrency = overview?.currency ?? currency;
   const overviewHasSales = (overview?.sales ?? 0) > 0;
@@ -467,20 +472,24 @@ export function Overview({
   useEffect(() => { setOverviewAnalytics(analytics); }, [analytics]);
   useEffect(() => {
     if (!selectedStoreId) return;
-    const to = new Date();
-    const from = new Date(to);
-    from.setDate(to.getDate() - periodDays + 1);
     let cancelled = false;
-    void fetch(`/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}&from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`)
+    void fetch(`/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}&from=${periodRange.from}&to=${periodRange.to}`)
       .then((res) => res.ok ? res.json() : null)
       .then((result) => { if (!cancelled && result?.snapshot) setOverviewAnalytics(result.snapshot as AnalyticsData); })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [periodDays, selectedStoreId]);
+  }, [periodRange, selectedStoreId]);
 
-  // Avant : on vérifiait juste si Meta était connecté, sans jamais récupérer
-  // les performances. Résultat : la carte "Recommandations" restait vide en
-  // permanence sur la Vue d'ensemble. On récupère maintenant les vraies données.
+  useEffect(() => {
+    if (!selectedStoreId) { setCampaignDaily([]); return; }
+    let cancelled = false;
+    void fetch(`/api/overview/campaign-history?store_id=${encodeURIComponent(selectedStoreId)}&from=${periodRange.from}&to=${periodRange.to}&currency=${encodeURIComponent(overviewCurrency)}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((result) => { if (!cancelled) setCampaignDaily(result?.daily ?? []); })
+      .catch(() => { if (!cancelled) setCampaignDaily([]); });
+    return () => { cancelled = true; };
+  }, [overviewCurrency, periodRange, selectedStoreId]);
+
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -489,79 +498,26 @@ export function Overview({
       const accounts = accountsData.accounts ?? [];
       setMetaAccount(accounts[0] ?? null);
       if (accounts[0]) {
-        const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accounts[0].id)}`);
+        const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accounts[0].id)}&store_id=${encodeURIComponent(selectedStoreId ?? "")}&from=${periodRange.from}&to=${periodRange.to}`);
         if (metrics.ok) setMetaPerformance(await metrics.json());
+        else setMetaPerformance(null);
       } else {
         setMetaPerformance(null);
       }
+    } catch {
+      setMetaPerformance(null);
     } finally {
       setRefreshing(false);
     }
   };
-  useEffect(() => { void refresh(); }, [campaignsVersion]);
+  useEffect(() => { void refresh(); }, [campaignsVersion, periodRange, selectedStoreId]);
 
   const performances = metaPerformance?.performances ?? [];
   const adsCurrency = metaPerformance?.currency ?? currency;
 
-  const productsRanked = [...products].sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0));
-  const productsSummary = productsRanked.slice(0, 3).map((product, index) => {
-    const productSales = product.sales ?? 0;
-    // Cette étiquette décrit uniquement les ventes Chariow du produit — elle ne dit
-    // rien sur une pub, qui peut ne même pas exister pour ce produit. On évite donc
-    // tout vocabulaire de verdict publicitaire ("Arrêter"/"Optimiser") ici : ce
-    // langage n'a de sens que sur une campagne, pas sur une fiche produit.
-    const state = productSales === 0
-      ? { label: "Aucune vente", tone: "none" as const }
-      : index === 0
-      ? { label: "Meilleure vente", tone: "optimize" as const }
-      : { label: "En progression", tone: "watch" as const };
-    return { name: product.name, sales: productSales, image: product.image, state };
-  });
-
-
-  // --- Refonte dashboard : verdict global, tableau croisé, diagnostic boutique ---
-  // Ces trois blocs réutilisent le même moteur de décision (getCampaignVerdict, plus
-  // bas dans ce fichier) que les pages "Pubs" et "Rapports", pour rester cohérents
-  // avec les verdicts déjà affichés ailleurs plutôt que d'inventer une seconde logique.
-  // Pas encore d'attribution campagne → produit branchée ici (cf. lib/attribution) :
-  // on affiche donc le nom de campagne et les métriques réelles, sans inventer un
-  // produit ou une audience que Vendeo ne connaît pas encore pour cette campagne.
-  const campaignRows: CampaignRow[] = performances.map((campaign) => {
-    const verdict = getCampaignVerdict(campaign, adsCurrency);
-    const badge: CampaignVerdictBadge = verdict.tone === "stop" ? "stop" : verdict.tone === "optimize" ? "scale" : "test";
-    return {
-      id: campaign.id,
-      campaignName: campaign.name,
-      productName: "",
-      audienceTags: [],
-      network: "meta",
-      currency: adsCurrency,
-      spend: campaign.spend,
-      realSales: campaign.realSales,
-      realRevenue: campaign.realRevenue,
-      verdict: badge,
-      recommendedAction: verdict.action,
-    };
-  });
-
-  // Diagnostic boutique : s'appuie sur les ventes déjà confirmées par Chariow pour ce
-  // produit (mêmes données que "Produits les plus performants" ci-dessous). On reste
-  // volontairement prudent — pas de calcul d'abandon de panier ici, contrairement au
-  // moteur complet de lib/pricing.ts — donc le texte évite d'affirmer "sans abandon".
-  const topProduct = productsRanked[0];
-  const diagnosticCards: DiagnosticCard[] =
-    topProduct && (topProduct.sales ?? 0) >= 2
-      ? [
-          {
-            id: `price-${topProduct.name}`,
-            type: "price_up",
-            title: "Ajustement de prix",
-            description: `« ${topProduct.name} » a déjà ${topProduct.sales} vente${(topProduct.sales ?? 0) > 1 ? "s" : ""} confirmée${(topProduct.sales ?? 0) > 1 ? "s" : ""} sur Chariow. Demande à Vendeo AI si une légère hausse de prix est jouable sans perdre de volume.`,
-            actionLabel: "Demander à Vendeo AI",
-            onAction: () => openAI(`Le produit "${topProduct.name}" a ${topProduct.sales} ventes confirmées. Est-ce que je peux augmenter son prix sans perdre de volume ?`),
-          },
-        ]
-      : [];
+  const productPerformance = overviewAnalytics?.productPerformance
+    ?? products.map((product) => ({ id: product.id, name: product.name, image: product.image, sales: product.sales ?? 0, revenueNet: null }));
+  const productsForOverview = productPerformance.filter((product) => product.sales > 0);
 
   const revenueSeries = overview?.revenueSeries ?? [];
   const seriesMax = Math.max(...revenueSeries.map((point) => point.revenueNet), 1);
@@ -598,47 +554,30 @@ export function Overview({
 
       <section className="overview-economics"><div className="overview-economics-card app-card"><MetricHelp label={t("overview.customerValue")} description={t("overview.customerValueHelp")} /><strong>{overview?.customerValue === null || overview?.customerValue === undefined ? t("overview.soon") : `${overview.customerValue.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{overview?.lowData ? t("overview.lowData") : t("overview.history")}</span></div><div className="overview-economics-card app-card"><MetricHelp label={t("overview.maxCostPerCustomer")} description={t("overview.maxCostPerCustomerHelp")} /><strong>{overview?.maxCostPerCustomer === null || overview?.maxCostPerCustomer === undefined ? t("overview.soon") : `${overview.maxCostPerCustomer.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{Math.round((overview?.targetMargin ?? 0.3) * 100)} %</span></div></section>
 
-      <MetaHistoryOverview account={metaAccount} confirmedSales={overview?.sales ?? 0} maxCostPerCustomer={overview?.maxCostPerCustomer ?? null} storeCurrency={overviewCurrency} onLaunch={onLaunchAd} onRefresh={() => { void refresh(); }} />
-      <div className="home-primary-grid">
-        <div className="home-side-stack">
-          <AdsSavingsSummary performances={performances} currency={adsCurrency} />
-        </div>
-      </div>
-
-      {performances.length > 0 ? <CampaignCrossTable rows={campaignRows} /> : null}
-
-      {diagnosticCards.length > 0 ? <DiagnosticBoutique cards={diagnosticCards} /> : null}
-
-      <section className="app-card product-perf-section">
-        <div className="card-head"><h2>{t("dashboard.bestProducts")}</h2></div>
-        {productsSummary.length ? (
-          <div className="product-perf-list">
-            {productsSummary.map((product) => (
-              <div className="product-perf-row" key={product.name}>
-                <div className="product-perf-image">{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}</div>
-                <div className="product-perf-info">
-                  <strong className="product-perf-name">{product.name}</strong>
-                  <span className={`product-perf-badge product-perf-badge-${product.state.tone}`}>{product.state.label}</span>
-                </div>
-                <div className="product-perf-stats">
-                  <div><small>{t("dashboard.sales")}</small><strong>{product.sales}</strong></div>
-                  <div><small>CA par devise</small><strong>-</strong></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState title={t("dashboard.noSales")} text={t("dashboard.noSalesText")} />}
-      </section>
-
-      <section className="home-chart app-card">
-        <div className="card-head"><div><span className="eyebrow">{t("overview.trend")}</span><h2>{t("overview.trendTitle")}</h2><p>{t("overview.trendSubtitle")}</p></div><LineChart size={19} /></div>
-        {!connected ? <EmptyState title={t("overview.noData")} text={t("overview.noDataText")} /> : <RealTrendChart sales={analytics?.sales ?? []} products={products} currency={currency} revenueCurrencies={analytics?.kpis.revenueByCurrency?.map((item) => item.currency)} />}
-      </section>
-
-      <section className="home-activity app-card">
-        <div className="card-head"><div><span className="eyebrow">Chariow</span><h2>{t("dashboard.recentActivity")}</h2><p>{t("dashboard.recentEvents")}</p></div><Activity size={19} /></div>
-        {analytics?.sales?.length ? <ul className="activity">{analytics.sales.slice(0, 5).map((sale, index) => <RecentSale key={index} sale={sale} />)}</ul> : <EmptyState title={t("dashboard.noSales")} text={t("dashboard.noSalesText")} />}
-      </section>
+      <MetaHistoryOverview account={metaAccount} storeId={selectedStoreId} confirmedSales={overview?.sales ?? 0} maxCostPerCustomer={overview?.maxCostPerCustomer ?? null} storeCurrency={overviewCurrency} onLaunch={onLaunchAd} onRefresh={() => { void refresh(); }} onDaily={setMetaDaily} />
+      <OverviewDetails
+        currency={overviewCurrency}
+        period={overview?.period ?? null}
+        revenueSeries={overview?.revenueSeries ?? []}
+        metaDaily={metaDaily}
+        campaignDaily={campaignDaily}
+        products={productsForOverview}
+        campaigns={performances.map((campaign) => ({
+          id: campaign.id,
+          name: campaign.name,
+          spend: campaign.spend,
+          currency: adsCurrency,
+          realRoas: campaign.realRoas,
+          attributionReliable: campaign.attributionReliable,
+          decision: campaign.decision,
+          suggestedIncrease: campaign.suggestedIncrease,
+        }))}
+        kpis={{
+          visits: overviewAnalytics?.kpis.visits ?? 0,
+          sales: overview?.sales ?? 0,
+          conversionRate: overviewAnalytics?.kpis.conversionRate ?? "-",
+        }}
+      />
 
     </div>
   );
@@ -779,54 +718,19 @@ function displayValue(value: unknown, keys: string[] = ["name", "label", "title"
   return undefined;
 }
 
-function displayPhone(value: unknown) {
-  if (typeof value === "string") return value;
-  if (!value || typeof value !== "object") return undefined;
-  const object = value as Record<string, unknown>;
-  const number = displayValue(object.number ?? object.phone_number ?? object.value ?? object.formatted);
-  const code = displayValue(object.country_code ?? object.dial_code ?? object.countryCode);
-  return [code, number].filter(Boolean).join(" ") || displayValue(value);
-}
-
 function RecentSale({ sale }: { sale: unknown }) {
-  const [open, setOpen] = useState(false);
-  const rec = (value: unknown): Record<string, unknown> => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
+  const rec = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const row = rec(sale);
   const status = String(row.status ?? row.state ?? "unknown");
-  const label = status === "completed" ? "Vente réussie" : status === "awaiting_payment" ? "Paiement en attente" : status === "failed" ? "Paiement échoué" : status === "abandoned" ? "Vente abandonnée" : status === "refunded" ? "Remboursement" : status === "settled" ? "Vente réglée" : status;
-  const saleCurrency = String(row.currency ?? rec(row.amount).currency ?? "Devise inconnue");
-  const amount = Number(rec(row.amount).value ?? row.amount ?? 0) || 0;
+  const labels: Record<string, string> = { completed: "Vente réussie", settled: "Vente réglée", awaiting_payment: "Paiement en attente", failed: "Paiement échoué", abandoned: "Vente abandonnée", refunded: "Remboursement" };
+  const amountRecord = rec(row.amount);
+  const amount = Number(amountRecord.value ?? row.amount);
+  const currency = String(row.currency ?? amountRecord.currency ?? "-");
+  const productName = String(row.product_name ?? rec(row.product).name ?? "-");
   const date = row.created_at ?? row.createdAt ?? row.occurred_at;
-  const customer = rec(row.customer);
-  const payment = rec(row.payment);
-  const context = rec(row.context);
-  const settlement = rec(row.settlement);
-  const discountInfo = rec(row.discount);
-  const failure = rec(payment.failure_error);
-  const legacyError = rec(row.error);
-  const money = (value: unknown): string | null => { if (value === null || value === undefined) return null; const numeric = Number(rec(value).value ?? value); if (!Number.isFinite(numeric) || numeric <= 0) return null; return `${numeric.toLocaleString("fr-FR")} ${String(rec(value).currency ?? saleCurrency)}`; };
-  const phone = displayPhone(customer.phone ?? row.phone ?? customer.phone_number ?? row.phone_number);
-  const customerName = displayValue(customer.name) ?? ([customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Non fourni");
-  const productName = String(row.product_name ?? rec(row.product).name ?? "Produit Chariow");
-  const price = money(row.original_amount ?? row.price ?? payment.price ?? row.amount);
-  const netAmount = money(row.amount ?? row.net_amount ?? row.netAmount ?? payment.net_amount);
-  const discountAmount = money(row.discount_amount);
-  const discountCode = displayValue(discountInfo.code ?? discountInfo.name);
-  const discountText = discountAmount ? (discountCode ? `${discountAmount} (${discountCode})` : discountAmount) : (discountCode ?? "Aucune");
-  const payoutAmount = money(settlement.amount);
-  const serviceFee = money(settlement.service_fee);
-  const paymentMethod = displayValue(rec(payment.method).name) ?? displayValue(payment.gateway);
-  const channelLabel = displayValue(rec(row.channel).label ?? row.channel);
-  const campaignName = displayValue(rec(row.campaign).name);
-  const source = [channelLabel, campaignName].filter(Boolean).join(" · ") || displayValue(row.source ?? payment.source) || "Non fourni";
-  const shop = displayValue(row.store_name ?? row.store ?? row.shop) ?? "Non fourni";
-  const country = displayValue(row.country ?? context.country ?? rec(row.shipping).country ?? customer.country) ?? "Non fourni";
-  const localeRaw = displayValue(context.locale ?? context.language ?? row.language ?? customer.language);
-  const language = localeRaw ? (() => { try { return new Intl.DisplayNames(["fr"], { type: "language" }).of(localeRaw.replace("_", "-")) ?? localeRaw; } catch { return localeRaw; } })() : "Non fournie";
-  const deviceRaw = displayValue(context.device_type ?? context.device ?? row.device);
-  const device = deviceRaw ? (({ desktop: "Ordinateur", mobile: "Mobile", tablet: "Tablette" } as Record<string, string>)[deviceRaw.toLowerCase()] ?? deviceRaw) : "Non fourni";
-  const failureReason = displayValue(failure.message ?? failure.description ?? failure.code ?? legacyError.message ?? legacyError.description ?? row.failure_reason ?? row.error_message ?? row.status_reason) ?? "Non fournie par Chariow";
-  return <><li><i className={`activity-dot activity-${status}`} /><span><b>{label}</b><br />{productName} · {amount ? `${amount.toLocaleString("fr-FR")} ${saleCurrency}` : "Montant indisponible"} · {date ? new Date(String(date)).toLocaleDateString("fr-FR") : "Date indisponible"}</span><button type="button" className="activity-detail" onClick={() => setOpen(true)}>Détail</button></li>{open ? <div className="sale-modal-backdrop" role="presentation" onClick={() => setOpen(false)}><section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-detail-title" onClick={(event) => event.stopPropagation()}><button type="button" className="sale-modal-close" aria-label="Fermer" onClick={() => setOpen(false)}>×</button><span className="eyebrow">Détail Chariow</span><h2 id="sale-detail-title">{label}</h2><h3 className="sale-modal-section-title">Client</h3><div className="sale-detail-grid"><div><small>Nom</small><strong>{customerName}</strong></div><div><small>Email</small><strong>{String(customer.email ?? row.email ?? "Non fourni")}</strong></div><div><small>Téléphone</small><strong>{phone ?? "Non fourni"}</strong></div></div><h3 className="sale-modal-section-title">Informations de paiement</h3><div className="sale-detail-grid"><div><small>Produit</small><strong>{productName}</strong></div><div><small>Prix</small><strong>{price ?? "Non fourni"}</strong></div><div><small>Réduction</small><strong>{discountText}</strong></div><div><small>Montant net</small><strong>{netAmount ?? "Non fourni"}</strong></div>{payoutAmount ? <div><small>Reversé après frais</small><strong>{payoutAmount}</strong></div> : null}{serviceFee ? <div><small>Frais Chariow</small><strong>{serviceFee}</strong></div> : null}{paymentMethod ? <div><small>Moyen de paiement</small><strong>{paymentMethod}</strong></div> : null}<div><small>Source</small><strong>{source}</strong></div><div><small>Boutique</small><strong>{shop}</strong></div></div><h3 className="sale-modal-section-title">Contexte</h3><div className="sale-detail-grid"><div><small>Pays</small><strong>{country}</strong></div><div><small>Langue</small><strong>{language}</strong></div><div><small>Appareil</small><strong>{device}</strong></div><div><small>Date</small><strong>{date ? new Date(String(date)).toLocaleString("fr-FR") : "Non fournie"}</strong></div><div><small>Raison de l'échec</small><strong>{status === "failed" ? failureReason : "Aucune"}</strong></div></div><button type="button" className="btn btn-dark sale-modal-action" onClick={() => setOpen(false)}>Fermer</button></section></div> : null}</>;
+  const amountLabel = Number.isFinite(amount) ? `${amount.toLocaleString("fr-FR")} ${currency}` : "-";
+  const dateLabel = date ? new Date(String(date)).toLocaleDateString("fr-FR") : "-";
+  return <li><i className={`activity-dot activity-${status}`} /><span><b>{labels[status] ?? status}</b><br />{productName} · {amountLabel} · {dateLabel}</span></li>;
 }
 function BusinessSignals({ analytics, health }: { analytics: AnalyticsData; health: StoreHealth }) {
   if (!analytics) return null;

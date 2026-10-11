@@ -57,6 +57,7 @@ export async function GET(request: Request) {
   if (!user) return response;
   const params = new URL(request.url).searchParams;
   const accountId = params.get("account_id");
+  const storeId = params.get("store_id");
   const from = params.get("from") ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const to = params.get("to") ?? new Date().toISOString().slice(0, 10);
   const accountsQuery = supabase.from("meta_ad_accounts").select("id,meta_account_id,currency,last_synced_at,last_sync_error").eq("user_id", user.id).eq("is_active", true);
@@ -74,7 +75,10 @@ export async function GET(request: Request) {
     .lte("date_start", to);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const { data: store } = await supabase.from("stores").select("id").eq("user_id", user.id).eq("is_active", true).eq("platform", "chariow").limit(1).maybeSingle();
+  const storesQuery = supabase.from("stores").select("id").eq("user_id", user.id).eq("is_active", true).eq("platform", "chariow");
+  const { data: store, error: storeError } = await (storeId ? storesQuery.eq("id", storeId).maybeSingle() : storesQuery.limit(1).maybeSingle());
+  if (storeError) return NextResponse.json({ error: "Impossible de vérifier la boutique" }, { status: 500 });
+  if (storeId && !store) return NextResponse.json({ error: "Boutique Chariow introuvable" }, { status: 404 });
   let saleRows: SaleRow[] = [];
   if (store) {
     try {
@@ -105,20 +109,22 @@ export async function GET(request: Request) {
     campaignSummary.set(id, current);
   }
   const campaignSummaryRows = [...campaignSummary.values()];
-  const { data: launchedCampaigns } = await supabase
+  const { data: launchedCampaigns } = await (store ? supabase
     .from("ad_campaigns")
     .select("external_campaign_id,daily_budget,created_at,objective,effective_objective")
     .eq("user_id", user.id)
+    .eq("store_id", store.id)
     .eq("meta_ad_account_id", account.id)
     .eq("platform", "meta")
-    .in("external_campaign_id", campaignIds.length ? campaignIds : ["__none__"]);
-  const { data: launchedVendeoCampaigns } = await supabase
+    .in("external_campaign_id", campaignIds.length ? campaignIds : ["__none__"]) : { data: [] });
+  const { data: launchedVendeoCampaigns } = await (store ? supabase
     .from("ad_campaigns")
     .select("id")
     .eq("user_id", user.id)
+    .eq("store_id", store.id)
     .eq("meta_ad_account_id", account.id)
     .eq("platform", "meta")
-    .not("external_campaign_id", "is", null);
+    .not("external_campaign_id", "is", null) : { data: [] });
   const launchedById = new Map((launchedCampaigns ?? []).map((row: { external_campaign_id: string; daily_budget: number | null; created_at: string; objective: string | null; effective_objective: string | null }) => [row.external_campaign_id, row]));
 
   const { data: pixelRows } = await supabase

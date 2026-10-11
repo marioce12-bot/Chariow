@@ -347,3 +347,71 @@ html[data-theme="dark"] .my-ads-health-track { background:#263867; }
 .my-ads-state.state-b,.my-ads-state.state-d { background:#eef0f3; color:#5d6675; }
 .my-ads-state.state-c,.my-ads-state.state-a { background:#e9f7ef; color:#18794e; }
 html[data-theme="dark"] .my-ads-state.state-b,html[data-theme="dark"] .my-ads-state.state-d { background:#253149; color:#d0d7e4; }
+
+
+/* Étape 6 — visualisations compactes de l’Overview */
+.overview-details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+.overview-detail-card{min-width:0;padding:18px}
+.overview-daily-chart,.overview-campaigns{grid-column:1/-1}
+.overview-detail-card .card-head{margin-bottom:12px}
+.overview-detail-card .card-head h2{margin:0;font-size:16px}
+.overview-details-svg{display:block;width:100%;height:168px;overflow:visible}
+.overview-chart-axis{stroke:rgba(64,82,73,.18);stroke-width:.5;vector-effect:non-scaling-stroke}
+.overview-chart-revenue,.overview-chart-spend{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.overview-chart-revenue{stroke:#27684e}
+.overview-chart-spend{stroke:#d38a3b;stroke-dasharray:4 2}
+.overview-chart-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:12px;color:#52635a}
+.overview-chart-legend span{display:inline-flex;align-items:center;gap:6px}
+.overview-chart-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;background:#27684e}
+.overview-chart-legend .legend-spend{background:#d38a3b}
+.overview-chart-legend small{font-size:10px}
+.overview-detail-empty{display:grid;min-height:112px;place-items:center;color:#829087;font-size:20px}
+.overview-product-list{display:flex;flex-direction:column;gap:14px}
+.overview-product-row{display:flex;align-items:center;gap:10px;min-width:0}
+.overview-product-image{width:36px;height:36px;flex:0 0 36px;object-fit:cover;border-radius:9px;background:#edf2ee}
+.overview-product-placeholder{display:block}
+.overview-product-content{flex:1;min-width:0}
+.overview-product-heading{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+.overview-product-heading strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.overview-product-heading span{flex:0 0 auto;font-size:12px;color:#52635a}
+.overview-product-track,.overview-product-track b{display:block;height:5px;border-radius:99px}
+.overview-product-track{overflow:hidden;background:#e9efeb}
+.overview-product-track b{background:#347458}
+.overview-funnel-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.overview-funnel-grid>div{display:flex;flex-direction:column;gap:8px;padding:12px 10px;border-radius:12px;background:#f5f7f5;min-width:0}
+.overview-funnel-grid span,.overview-campaign-row>div>span{font-size:11px;color:#68776f}
+.overview-funnel-grid strong{font-size:19px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.overview-action-pills{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+.overview-action-pills button{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid #dce5df;border-radius:99px;background:#f7f9f7;color:#34483d;font:inherit;font-size:12px;cursor:pointer}
+.overview-action-pills button.is-active{border-color:#347458;background:#eaf3ed}
+.overview-action-pills b{display:grid;min-width:19px;height:19px;place-items:center;border-radius:50%;background:#e5ece7;font-size:11px}
+.overview-campaign-list{display:flex;flex-direction:column}
+.overview-campaign-row{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(120px,.7fr) minmax(120px,.7fr) auto;align-items:center;gap:14px;padding:12px 0;border-top:1px solid #edf0ee}
+.overview-campaign-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.overview-campaign-row>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.overview-campaign-row>div>strong{font-size:13px}
+.overview-campaign-row small{font-size:10px}
+.overview-campaign-verdict{justify-self:end;padding:5px 9px;border-radius:99px;font-size:11px;font-weight:650;white-space:nowrap}
+.verdict-gain{background:#e7f2eb;color:#286246}
+.verdict-loss{background:#fae9e7;color:#a33d37}
+.verdict-testing{background:#eef0f2;color:#59636b}
+.verdict-watch{background:#fff2dc;color:#8a5c17}
+@media(max-width:760px){.overview-details-grid{grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}.overview-daily-chart,.overview-campaigns{grid-column:auto}.overview-detail-card{padding:15px}.overview-details-svg{height:140px}.overview-campaign-row{grid-template-columns:minmax(0,1fr) auto;gap:9px 12px}.overview-campaign-name{grid-column:1/-1}.overview-campaign-row>div{grid-row:2}.overview-campaign-verdict{grid-column:2;grid-row:3;justify-self:end}.overview-funnel-grid{gap:7px}.overview-funnel-grid>div{padding:10px 8px}.overview-product-heading{align-items:flex-start}.overview-product-heading span{text-align:right}}
+
+.overview-campaign-daily{border-top:1px solid #edf0ee;margin-top:12px;padding-top:12px}
+.overview-campaign-svg{height:108px}
+
+/* Ajustements thème clair/sombre pour les cartes ajoutées */
+.overview-chart-legend{color:var(--muted)}
+.overview-detail-empty{color:var(--muted)}
+.overview-product-image{background:var(--surface);border:1px solid var(--line)}
+.overview-product-placeholder{border-style:dashed}
+.overview-product-heading span{color:var(--muted)}
+.overview-product-track{background:var(--line)}
+.overview-product-track b{background:var(--green)}
+.overview-funnel-grid>div{background:var(--surface);border:1px solid var(--line)}
+.overview-funnel-grid span,.overview-campaign-row>div>span{color:var(--muted)}
+.overview-action-pills button{background:var(--surface);border-color:var(--line);color:var(--ink)}
+.overview-action-pills button.is-active{background:rgba(52,116,88,.12);border-color:var(--green)}
+.overview-action-pills b{background:var(--line);color:var(--ink)}
+.overview-campaign-row,.overview-campaign-daily{border-color:var(--line)}

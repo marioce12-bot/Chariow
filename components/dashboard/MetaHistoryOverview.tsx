@@ -49,17 +49,20 @@ type HistoryEntity = {
 };
 type History = {
   entities: HistoryEntity[];
+  daily?: Array<{ date: string; spend: number | null; purchases: number; purchaseValue: number | null }>;
   currency: string;
   backfillStatus: string;
   lastBackfillAt: string | null;
 };
 type Props = {
   account: MetaAccount | null;
+  storeId: string | null;
   confirmedSales: number;
   maxCostPerCustomer: number | null;
   storeCurrency: string;
   onLaunch: () => void;
   onRefresh: () => void;
+  onDaily?: (daily: Array<{ date: string; spend: number | null }>) => void;
 };
 
 const levels = ["campaign", "adset", "ad"] as const;
@@ -71,11 +74,13 @@ function healthKey(value: HealthLevel | null): HealthLevel | null {
   return value;
 }
 
-export function MetaHistoryOverview({ account, confirmedSales, maxCostPerCustomer, storeCurrency, onLaunch, onRefresh }: Props) {
+export function MetaHistoryOverview({ account, storeId, confirmedSales, maxCostPerCustomer, storeCurrency, onLaunch, onRefresh, onDaily }: Props) {
   const { t } = useI18n();
   const accountId = account?.id;
   const onRefreshRef = useRef(onRefresh);
   onRefreshRef.current = onRefresh;
+  const onDailyRef = useRef(onDaily);
+  onDailyRef.current = onDaily;
   const [history, setHistory] = useState<History | null>(null);
   const [summary, setSummary] = useState<PerformanceSnapshot | null>(null);
   const [backfillStatus, setBackfillStatus] = useState<string>(account?.last_backfill_at ? "complete" : account?.backfill_status ?? "pending");
@@ -85,27 +90,30 @@ export function MetaHistoryOverview({ account, confirmedSales, maxCostPerCustome
   const from = useMemo(() => initialBackfillDate(today), [today]);
 
   const loadHistory = useCallback(async () => {
-    if (!accountId) { setHistory(null); return; }
+    if (!accountId) { setHistory(null); onDailyRef.current?.([]); return; }
     try {
       const response = await fetch(`/api/meta/history?account_id=${encodeURIComponent(accountId)}&from=${from}&currency=${encodeURIComponent(storeCurrency)}`);
-      if (!response.ok) { setHistoryError(true); return; }
-      setHistory(await response.json());
+      if (!response.ok) { setHistoryError(true); onDailyRef.current?.([]); return; }
+      const result = await response.json() as History;
+      setHistory(result);
+      onDailyRef.current?.((result.daily ?? []).map(({ date, spend }) => ({ date, spend })));
       setHistoryError(false);
     } catch {
       setHistoryError(true);
+      onDailyRef.current?.([]);
     }
   }, [accountId, from, storeCurrency]);
 
   const loadSummary = useCallback(async () => {
     if (!accountId) { setSummary(null); return; }
     try {
-      const response = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}&from=${from}&to=${today}`);
+      const response = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}&store_id=${encodeURIComponent(storeId ?? "")}&from=${from}&to=${today}`);
       if (response.ok) setSummary(await response.json());
       else setSummary(null);
     } catch {
       setSummary(null);
     }
-  }, [accountId, from, today]);
+  }, [accountId, from, today, storeId]);
 
   useEffect(() => {
     setBackfillStatus(account?.last_backfill_at ? "complete" : account?.backfill_status ?? "pending");
