@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, PlayCircle, RefreshCw, X } from "lucide-react";
+import { PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
 import { LaunchAdWizard } from "./wizard/LaunchAdWizard";
 import type { Platform } from "./wizard/types";
+import { SkeletonRows } from "@/components/dashboard/Skeleton";
 import { useI18n } from "@/lib/i18n/i18n";
 import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
 import type { PlanId } from "@/lib/plans";
@@ -154,10 +155,10 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
         </div>
       </div>
 
-      {loading ? (
-        <p className="hint-line" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Loader2 size={14} className="animate-spin" /> {t("campaigns.loading")}
-        </p>
+      {/* Skeleton uniquement au premier chargement : lors d'un rafraîchissement (bouton ou auto-sync
+          des campagnes en revue), la liste déjà affichée reste en place au lieu de clignoter. */}
+      {loading && campaigns.length === 0 ? (
+        <SkeletonRows count={2} label={t("campaigns.loading")} />
       ) : campaigns.length === 0 ? (
         <p className="hint-line">{t("campaigns.empty")}</p>
       ) : (
