@@ -143,7 +143,7 @@ export const en: Dict = {
       costPerSale: "Cost per sale", profitability: "Profitability", health: "Health", recovery: "Recovery",
       campaigns: "Campaigns", adSets: "Ad sets", ads: "Ads", impressions: "Impressions", clicks: "Clicks",
       purchases: "Purchases", purchaseValue: "Purchase value", noMetaHistory: "No Meta history", noSalesThisPeriod: "No sales this period", noCampaignsThisPeriod: "No campaigns this period",
-      noLinkedSales: "No linked sales", noSales: "No sales", noChartData: "No data", metricUnavailable: "Unavailable", metricNotCalculated: "Not calculated", healthNotMeasured: "Not measured", historyUnavailable: "History unavailable",
+      noLinkedSales: "No linked sales", noSales: "No sales", noChartData: "No data", metricUnavailable: "Unavailable", usdUnavailable: "USD unavailable", grossRevenueUsd: "Gross revenue in USD", usdConversionNote: "Estimated conversion", metricNotCalculated: "Not calculated", healthNotMeasured: "Not measured", historyUnavailable: "History unavailable",
       netRevenueByDay: "Daily net revenue", dailyCampaigns: "Campaigns · daily", funnel: "Funnel", visits: "Visits", conversionRate: "Conversion rate",
       actions: "Actions", cutAction: "Cut", increaseAction: "Scale", gain: "Winning", loss: "Losing", watch: "Watch", campaignStarting: "Campaign starting", noSpend: "No ad spend", salesNotVerified: "Sales not verified", noSalesDetected: "No sales detected", campaignDataInsufficient: "Insufficient ad data", analyzeCampaign: "Analyze",
       healthy: "Healthy", limit: "Limit", critical: "Critical", daysUnit: "days",

@@ -9,7 +9,8 @@ import { PinterestAdsPanel } from "@/components/PinterestAdsPanel";
 import { MetaHistoryOverview } from "@/components/dashboard/MetaHistoryOverview";
 import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatMoneyInUSD } from "@/lib/format";
+import { toUsd } from "@/lib/currency";
 import { isAdPlatformAllowed, planMaxStores, type AdPlatform, type PlanId } from "@/lib/plans";
 import { CampaignCrossTable, DiagnosticBoutique, type CampaignRow, type CampaignVerdictBadge, type DiagnosticCard } from "@/components/vendeo";
 import { DiagnosticFunnel } from "@/components/vendeo/DiagnosticFunnel";
@@ -21,6 +22,27 @@ import { VIDEO_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/s
 import { useI18n } from "@/lib/i18n/i18n";
 import { readCache, writeCache, MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY, ADS_CACHE_KEY } from "./shared";
 import type { StoreData, SubscriptionData, ProductData, AnalyticsData } from "./shared";
+
+function sumInUSD(entries: Array<{ amount: number; currency: string }>): number | null {
+  if (!entries.length) return null;
+  const converted = entries.map(({ amount, currency }) => toUsd(amount, currency));
+  const values = converted.filter((amount): amount is number => amount !== null);
+  if (values.length !== entries.length) return null;
+  return Math.round(values.reduce((sum, amount) => sum + amount, 0) * 100) / 100;
+}
+
+function numericAmount(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const amount = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function formatUsdTotal(entries: Array<{ amount: number; currency: string }>): string | null {
+  const total = sumInUSD(entries);
+  if (total === null) return null;
+  const approximate = entries.some((entry) => entry.currency.trim().toUpperCase() !== "USD") ? "≈ " : "";
+  return `${approximate}${formatMoney(total, "USD")}`;
+}
 
 export function StoreOnboarding() {
   const [saving, setSaving] = useState(false);
@@ -517,9 +539,21 @@ export function Overview({
 
   const productPerformance = overviewAnalytics?.productPerformance
     ?? products.map((product) => ({ id: product.id, name: product.name, image: product.image, sales: product.sales ?? 0, revenueNet: null }));
-  const productsForOverview = productPerformance.filter((product) => product.sales > 0);
+  const productsForOverview = productPerformance.filter((product) => product.sales > 0).map((product) => ({
+    ...product,
+    revenueNet: product.revenueNet === null ? null : toUsd(product.revenueNet, overviewCurrency),
+    approximate: overviewCurrency.trim().toUpperCase() !== "USD",
+  }));
 
-  const revenueSeries = overview?.revenueSeries ?? [];
+  const revenueSeries = (overview?.revenueSeries ?? []).flatMap((point) => {
+    const revenueNet = toUsd(point.revenueNet, overviewCurrency);
+    return revenueNet === null ? [] : [{ ...point, revenueNet }];
+  });
+  const campaignDailyUsd = campaignDaily.map((point) => ({
+    ...point,
+    spend: point.spend === null ? null : toUsd(point.spend, overviewCurrency),
+    netRevenue: point.netRevenue === null ? null : toUsd(point.netRevenue, overviewCurrency),
+  }));
   const seriesMax = Math.max(...revenueSeries.map((point) => point.revenueNet), 1);
   const seriesPoints = revenueSeries.map((point, index) => `${revenueSeries.length > 1 ? (index / (revenueSeries.length - 1)) * 100 : 50},${40 - (point.revenueNet / seriesMax) * 32}`).join(" ");
   const periodStart = overview?.period.from ? new Date(`${overview.period.from}T00:00:00`).getTime() : 0;
@@ -551,7 +585,7 @@ export function Overview({
       <section className="overview-net-hero app-card">
         <div className="overview-net-copy">
           <MetricHelp label={t("overview.netRevenue")} description={t("overview.netRevenueHelp")} />
-          <strong>{overview ? `${overview.revenueNet.toLocaleString("fr-FR")} ${overviewCurrency}` : t("overview.metricUnavailable")}</strong>
+          <strong>{overview ? formatMoneyInUSD(overview.revenueNet, overviewCurrency) ?? t("overview.metricUnavailable") : t("overview.metricUnavailable")}</strong>
           <span className="overview-trend-badge">{overview?.revenueChangePct === null || overview?.revenueChangePct === undefined ? t("overview.metricUnavailable") : `${overview.revenueChangePct >= 0 ? "+" : ""}${overview.revenueChangePct.toFixed(1)} %`}</span>
         </div>
         <svg className="overview-revenue-chart" viewBox="0 0 100 44" role="img" aria-label={t("overview.netRevenue")}>
@@ -563,27 +597,28 @@ export function Overview({
 
       <section className="overview-store-tiles">
         <OverviewMetricTile label={t("overview.sales")} value={overview ? String(overview.sales) : t("overview.metricUnavailable")} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.salesHelp")} />
-        <OverviewMetricTile label={t("overview.averageBasket")} value={overview?.averageBasket === null || overview?.averageBasket === undefined ? overview?.sales === 0 ? t("overview.noSales") : t("overview.metricUnavailable") : `${overview.averageBasket.toLocaleString("fr-FR")} ${overviewCurrency}`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.averageBasketHelp")} />
+        <OverviewMetricTile label={t("overview.averageBasket")} value={overview?.averageBasket === null || overview?.averageBasket === undefined ? overview?.sales === 0 ? t("overview.noSales") : t("overview.metricUnavailable") : (formatMoneyInUSD(overview.averageBasket, overviewCurrency) ?? t("overview.metricUnavailable"))} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.averageBasketHelp")} />
         <OverviewMetricTile label={t("overview.customers")} value={overview ? String(overview.customers) : t("overview.metricUnavailable")} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.customersHelp")} />
         <OverviewMetricTile label={t("overview.repeats")} value={overview?.repeatRate === null || overview?.repeatRate === undefined ? overview?.sales === 0 ? t("overview.noSales") : t("overview.metricUnavailable") : `${(overview.repeatRate * 100).toFixed(1)} %`} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.repeatsHelp")} />
         <OverviewMetricTile label={t("overview.abandonedCarts")} value={overview ? String(overview.abandoned) : t("overview.metricUnavailable")} badge={overviewHasSales ? t("overview.history") : undefined} help={t("overview.abandonedCartsHelp")} />
       </section>
 
-      <section className="overview-economics"><div className="overview-economics-card app-card"><MetricHelp label={t("overview.customerValue")} description={t("overview.customerValueHelp")} /><strong>{overview?.customerValue === null || overview?.customerValue === undefined ? t("overview.soon") : `${overview.customerValue.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{overview?.lowData ? t("overview.lowData") : t("overview.history")}</span></div><div className="overview-economics-card app-card"><MetricHelp label={t("overview.maxCostPerCustomer")} description={t("overview.maxCostPerCustomerHelp")} /><strong>{overview?.maxCostPerCustomer === null || overview?.maxCostPerCustomer === undefined ? t("overview.soon") : `${overview.maxCostPerCustomer.toLocaleString("fr-FR")} ${overviewCurrency}`}</strong><span className="overview-badge">{Math.round((overview?.targetMargin ?? 0.3) * 100)} %</span></div></section>
+      <section className="overview-economics"><div className="overview-economics-card app-card"><MetricHelp label={t("overview.customerValue")} description={t("overview.customerValueHelp")} /><strong>{overview?.customerValue === null || overview?.customerValue === undefined ? t("overview.soon") : formatMoneyInUSD(overview.customerValue, overviewCurrency) ?? t("overview.metricUnavailable")}</strong><span className="overview-badge">{overview?.lowData ? t("overview.lowData") : t("overview.history")}</span></div><div className="overview-economics-card app-card"><MetricHelp label={t("overview.maxCostPerCustomer")} description={t("overview.maxCostPerCustomerHelp")} /><strong>{overview?.maxCostPerCustomer === null || overview?.maxCostPerCustomer === undefined ? t("overview.soon") : formatMoneyInUSD(overview.maxCostPerCustomer, overviewCurrency) ?? t("overview.metricUnavailable")}</strong><span className="overview-badge">{Math.round((overview?.targetMargin ?? 0.3) * 100)} %</span></div></section>
 
       <MetaHistoryOverview account={metaAccount} storeId={selectedStoreId} confirmedSales={overview?.sales ?? 0} maxCostPerCustomer={overview?.maxCostPerCustomer ?? null} storeCurrency={overviewCurrency} onLaunch={onLaunchAd} onRefresh={() => { void refresh(); }} onDaily={setMetaDaily} />
       <OverviewDetails
-        currency={overviewCurrency}
+        currency="USD"
         period={overview?.period ?? null}
-        revenueSeries={overview?.revenueSeries ?? []}
+        revenueSeries={revenueSeries}
         metaDaily={metaDaily}
-        campaignDaily={campaignDaily}
+        campaignDaily={campaignDailyUsd}
         products={productsForOverview}
         campaigns={performances.map((campaign) => ({
           id: campaign.id,
           name: campaign.name,
-          spend: campaign.spend,
-          currency: adsCurrency,
+          spend: toUsd(campaign.spend, adsCurrency),
+          currency: "USD",
+          approximate: adsCurrency.trim().toUpperCase() !== "USD",
           realRoas: campaign.realRoas,
           realSales: campaign.realSales,
           attributionReliable: campaign.attributionReliable,
@@ -673,6 +708,7 @@ function ActionItem({ title, proof, action, onClick }: { title: string; proof: s
 function SummaryTable({ title, columns, rows, empty }: { title: string; columns: string[]; rows: Array<Array<string | number>>; empty: string }) { return <section className="home-summary app-card"><div className="card-head"><h2>{title}</h2><BarChart3 size={18} /></div>{rows.length ? <div className="home-table"><div className="home-table-row home-table-head">{columns.map((column) => <span key={column}>{column}</span>)}</div>{rows.map((row, index) => <div className="home-table-row" key={index}>{row.map((value, valueIndex) => <span key={valueIndex}>{value}</span>)}</div>)}</div> : <EmptyState title={empty} text="Les données apparaîtront après synchronisation." />}</section>; }
 
 function SalesView({ stores, analytics }: { stores: StoreData[]; analytics: AnalyticsData }) {
+  const { t } = useI18n();
   const [filter, setFilter] = useState("all");
   const allSales = analytics?.sales ?? [];
   const sales = allSales.filter((sale) => {
@@ -683,13 +719,13 @@ function SalesView({ stores, analytics }: { stores: StoreData[]; analytics: Anal
   });
   const revenueByCurrency = analytics?.kpis.revenueByCurrency ?? [];
   const revenueLabel = revenueByCurrency.length
-    ? revenueByCurrency.map((item) => `${item.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ${item.currency}`).join(" · ")
-    : "Indisponible par devise";
+    ? formatUsdTotal(revenueByCurrency.map((item) => ({ amount: item.value, currency: item.currency }))) ?? t("overview.usdUnavailable")
+    : formatMoneyInUSD(numericAmount(analytics?.kpis.revenue.value), analytics?.products?.[0]?.currency ?? "XOF") ?? t("overview.usdUnavailable");
   const confirmedCount = analytics?.kpis.sales ?? allSales.filter((sale) => {
     const status = String((sale as Record<string, unknown>)?.status ?? (sale as Record<string, unknown>)?.state ?? "");
     return status === "completed" || status === "settled";
   }).length;
-  return <div className="sales-page"><div className="page-top"><div><span className="eyebrow">Chariow</span><h1>Ventes</h1><p>Suivi des événements et revenus remontés par ta boutique.</p></div></div><div className="sales-kpis"><HomeKpi label="Ventes confirmées (encaissées)" value={String(confirmedCount)} tone="positive" help="Paiements validés par Chariow, statuts completed et settled." /><HomeKpi label="Revenu brut par devise" value={revenueLabel} tone="info" help="Montant des ventes confirmées, sans mélange entre monnaies." /><HomeKpi label="Événements listés" value={String(sales.length)} tone="neutral" help="Événements Chariow récupérés pour cette boutique." /></div><div className="sales-toolbar"><label>Statut<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Tous</option><option value="completed">Réussies et réglées</option><option value="awaiting_payment">En attente</option><option value="failed">Échouées</option><option value="abandoned">Abandonnées</option><option value="refunded">Remboursées</option></select></label></div><section className="app-card sales-list"><div className="card-head"><h2>Activité Chariow</h2><Activity size={18} /></div>{sales.length ? <ul className="activity">{sales.map((sale, index) => <RecentSale key={index} sale={sale} />)}</ul> : <EmptyState title="Aucun événement" text="Les événements Chariow apparaîtront après synchronisation." />}</section></div>;
+  return <div className="sales-page"><div className="page-top"><div><span className="eyebrow">Chariow</span><h1>Ventes</h1><p>Suivi des événements et revenus remontés par ta boutique.</p></div></div><div className="sales-kpis"><HomeKpi label="Ventes confirmées (encaissées)" value={String(confirmedCount)} tone="positive" help="Paiements validés par Chariow, statuts completed et settled." /><HomeKpi label={t("overview.grossRevenueUsd")} value={revenueLabel} tone="info" help={t("overview.usdConversionNote")} /><HomeKpi label="Événements listés" value={String(sales.length)} tone="neutral" help="Événements Chariow récupérés pour cette boutique." /></div><div className="sales-toolbar"><label>Statut<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Tous</option><option value="completed">Réussies et réglées</option><option value="awaiting_payment">En attente</option><option value="failed">Échouées</option><option value="abandoned">Abandonnées</option><option value="refunded">Remboursées</option></select></label></div><section className="app-card sales-list"><div className="card-head"><h2>Activité Chariow</h2><Activity size={18} /></div>{sales.length ? <ul className="activity">{sales.map((sale, index) => <RecentSale key={index} sale={sale} />)}</ul> : <EmptyState title="Aucun événement" text="Les événements Chariow apparaîtront après synchronisation." />}</section></div>;
 }
 
 const STACK_DAYS = 7;
@@ -737,6 +773,7 @@ function displayValue(value: unknown, keys: string[] = ["name", "label", "title"
 }
 
 function RecentSale({ sale }: { sale: unknown }) {
+  const { t } = useI18n();
   const rec = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const row = rec(sale);
   const status = String(row.status ?? row.state ?? "unknown");
@@ -746,7 +783,7 @@ function RecentSale({ sale }: { sale: unknown }) {
   const currency = String(row.currency ?? amountRecord.currency ?? "-");
   const productName = String(row.product_name ?? rec(row.product).name ?? "-");
   const date = row.created_at ?? row.createdAt ?? row.occurred_at;
-  const amountLabel = Number.isFinite(amount) ? `${amount.toLocaleString("fr-FR")} ${currency}` : "-";
+  const amountLabel = Number.isFinite(amount) ? formatMoneyInUSD(amount, currency) ?? t("overview.usdUnavailable") : t("overview.metricUnavailable");
   const dateLabel = date ? new Date(String(date)).toLocaleDateString("fr-FR") : "-";
   return <li><i className={`activity-dot activity-${status}`} /><span><b>{labels[status] ?? status}</b><br />{productName} · {amountLabel} · {dateLabel}</span></li>;
 }
@@ -831,6 +868,7 @@ function ProductCatalog({ products, onPromote }: { products: ProductData[]; onPr
 }
 
 export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; analytics: AnalyticsData; selectedStoreId: string | null }) {
+  const { t } = useI18n();
   // Date par défaut alignée sur celle du backend (lib/chariow/analytics.ts) :
   // du 1er du mois en cours jusqu'à aujourd'hui, tant que l'utilisateur n'a
   // rien choisi lui-même.
@@ -853,6 +891,10 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
   const kpis = reportAnalytics?.kpis;
   const period = from && to ? `${formatReportDate(from)} – ${formatReportDate(to)}` : "Période sélectionnée";
   const currency = reportAnalytics?.products?.[0]?.currency ?? "XOF";
+  const reportRevenueCurrencies = kpis?.revenueByCurrency ?? [];
+  const reportRevenueLabel = (reportRevenueCurrencies.length
+    ? formatUsdTotal(reportRevenueCurrencies.map((item) => ({ amount: item.value, currency: item.currency })))
+    : formatMoneyInUSD(numericAmount(kpis?.revenue.value), currency)) ?? t("overview.usdUnavailable");
 
   async function runReport(nextFrom: string, nextTo: string) {
     if (!selectedStoreId) { setReportError("Sélectionne une boutique pour lancer un rapport."); return; }
@@ -923,7 +965,7 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
     {!reportAnalytics || !kpis ? <div className="empty-state">{loadingReport ? "Chargement du rapport…" : "Aucune donnée pour cette période."}</div> : <>
       <div className="report-period"><span>Rapport analysé</span><strong>{period}</strong></div>
       <div className="report-summary">
-        <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{kpis.revenueByCurrency?.length ? kpis.revenueByCurrency.map((item) => `${item.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ${item.currency}`).join(" · ") : kpis.revenue.formatted ?? "Devise indisponible"}</strong><p>{kpis.sales === 0 ? "Aucune vente enregistrée pour cette période." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} enregistrée${kpis.sales > 1 ? "s" : ""}.`}</p></div>
+        <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{reportRevenueLabel}</strong><p>{kpis.sales === 0 ? "Aucune vente enregistrée pour cette période." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} enregistrée${kpis.sales > 1 ? "s" : ""}.`}</p></div>
         <div className="report-summary-side"><ReportStat icon={<ShoppingBag size={16} />} label="Ventes" value={kpis.sales} /><ReportStat icon={<Eye size={16} />} label="Visites" value={kpis.visits} /><ReportStat icon={<Users size={16} />} label="Clients" value={kpis.customers} /><ReportStat icon={<BarChart3 size={16} />} label="Conversion" value={kpis.conversionRate} /></div>
       </div>
 
@@ -931,8 +973,8 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
         <div className="card-head"><div><span className="eyebrow">Boutique · Publicité</span><h2>Dépenses · Visites · Ventes</h2><p>Période sélectionnée · données boutique et Meta</p></div><Activity size={18} color="#103ef8" /></div>
         {loadingAds ? <p className="hint-line">Analyse des campagnes en cours…</p> : !performances.length ? <p className="hint-line">Connecte et synchronise Meta Ads pour voir le croisement avec tes ventes Chariow.</p> : <>
           <div className="vendeo-kpi-grid" style={{ marginBottom: 14 }}>
-            <div className="vendeo-kpi"><MetricHelp label="Dépensé (Meta)" description="Somme des dépenses publicitaires synchronisées sur la période." /><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, adsCurrency)}</strong></div>
-            <div className="vendeo-kpi"><MetricHelp label="Revenu net boutique" description="Ventes encaissées (completed et settled), ventilées par devise pour éviter tout mélange de montants." /><strong>{metaPerformance?.chariowRevenueByCurrency.length ? metaPerformance.chariowRevenueByCurrency.map((item) => `${formatMoney(item.amount, item.currency)} ${item.currency}`).join(" · ") : "-"}</strong></div>
+            <div className="vendeo-kpi"><MetricHelp label="Dépensé (Meta)" description="Somme des dépenses publicitaires synchronisées sur la période." /><strong>{(metaPerformance ? formatMoneyInUSD(metaPerformance.overview.spend, adsCurrency) : null) ?? t("overview.usdUnavailable")}</strong></div>
+            <div className="vendeo-kpi"><MetricHelp label="Revenu net boutique" description="Ventes encaissées (completed et settled), ventilées par devise pour éviter tout mélange de montants." /><strong>{formatUsdTotal(metaPerformance?.chariowRevenueByCurrency.map((item) => ({ amount: item.amount, currency: item.currency })) ?? []) ?? t("overview.usdUnavailable")}</strong></div>
             <div className="vendeo-kpi"><MetricHelp label="Ventes boutique" description="Nombre de ventes completed et settled remontées par Chariow." /><strong>{metaPerformance?.overview.sales ?? 0}</strong></div>
           </div>
           <p className="hint-line" style={{ marginBottom: 10 }}>Les dépenses Meta et les ventes Chariow ci-dessus couvrent la période sélectionnée. Les revenus Chariow restent ventilés par devise.</p>
@@ -941,7 +983,7 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
             {withVerdict.map(({ campaign, verdict }) => (
               <div className="report-table-row" key={campaign.id}>
                 <strong>{campaign.name}</strong>
-                <span>{formatMoney(campaign.spend, adsCurrency)}</span>
+                <span>{formatMoneyInUSD(campaign.spend, adsCurrency) ?? t("overview.usdUnavailable")}</span>
                 <span>{campaign.realSales === null ? "-" : campaign.realSales}</span>
                 <AdVerdictBadge verdict={verdict} />
               </div>
@@ -1519,7 +1561,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
         {pinterestAccounts.length ? <PinterestAdsPanel accounts={pinterestAccounts} /> : null}
       </section> : null}
 
-      {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{formatMoney(metaPerformance?.overview.spend ?? 0, metaPerformance?.currency ?? "XOF")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${(metaPerformance.overview.realRoas * 100).toFixed(1)} %`}</strong></div></div></section> : channel === "meta" ? (
+      {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{(metaPerformance ? formatMoneyInUSD(metaPerformance.overview.spend, metaPerformance.currency) : null) ?? t("ads.unavailable")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${(metaPerformance.overview.realRoas * 100).toFixed(1)} %`}</strong></div></div></section> : channel === "meta" ? (
         <>
           <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.connected")}</span> : <button className="btn btn-dark" onClick={connectMeta}><Plus size={15} /> {t("ads.connectMeta")}</button>}</div>
           {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n'est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
@@ -1560,9 +1602,9 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
             {metaPerformance ? (
               <>
                 <div className="vendeo-kpi-grid meta-kpis">
-                  <div className="vendeo-kpi"><MetricHelp label={t("ads.spend")} description={en ? "Spend synced from Meta Insights." : "Dépenses synchronisées depuis Meta Insights."} /><strong>{formatMoney(metaPerformance.overview.spend, metaPerformance.currency)}</strong><small className="source-meta">{t("overview.metaDeclared")}</small></div>
-                  <div className="vendeo-kpi"><MetricHelp label={t("overview.netRevenue")} description={en ? "Historical store net revenue, not linked to campaigns." : "Revenu net historique de la boutique, non relié aux campagnes."} /><strong>{metaPerformance.chariowRevenueByCurrency.length ? metaPerformance.chariowRevenueByCurrency.map((item) => formatMoney(item.amount, item.currency)).join(" · ") : "-"}</strong><small className="source-history">{t("overview.history")}</small></div>
-                  <div className="vendeo-kpi"><MetricHelp label={t("overview.costPerSale")} description={en ? "Spend divided by linked, verified sales." : "Dépenses rapportées aux ventes liées et vérifiées."} /><strong>{metaPerformance.overview.cac === null ? "-" : formatMoney(metaPerformance.overview.cac, metaPerformance.currency)}</strong></div>
+                  <div className="vendeo-kpi"><MetricHelp label={t("ads.spend")} description={en ? "Spend synced from Meta Insights." : "Dépenses synchronisées depuis Meta Insights."} /><strong>{formatMoneyInUSD(metaPerformance.overview.spend, metaPerformance.currency) ?? t("overview.metricUnavailable")}</strong><small className="source-meta">{t("overview.metaDeclared")}</small></div>
+                  <div className="vendeo-kpi"><MetricHelp label={t("overview.netRevenue")} description={en ? "Historical store net revenue, not linked to campaigns." : "Revenu net historique de la boutique, non relié aux campagnes."} /><strong>{formatUsdTotal(metaPerformance.chariowRevenueByCurrency.map((item) => ({ amount: item.amount, currency: item.currency }))) ?? t("overview.metricUnavailable")}</strong><small className="source-history">{t("overview.history")}</small></div>
+                  <div className="vendeo-kpi"><MetricHelp label={t("overview.costPerSale")} description={en ? "Spend divided by linked, verified sales." : "Dépenses rapportées aux ventes liées et vérifiées."} /><strong>{metaPerformance.overview.cac === null ? t("overview.metricUnavailable") : formatMoneyInUSD(metaPerformance.overview.cac, metaPerformance.currency) ?? t("overview.metricUnavailable")}</strong></div>
                   <div className="vendeo-kpi"><MetricHelp label={t("overview.profitability")} description={en ? "Purchase value reported by Meta divided by spend." : "Valeur d’achat déclarée par Meta rapportée aux dépenses."} /><strong>{metaPerformance.overview.metaRoas === null ? "-" : `${(metaPerformance.overview.metaRoas * 100).toFixed(1)} %`}</strong><small className="source-meta">{t("overview.metaDeclared")}</small></div>
                   <div className="vendeo-kpi"><MetricHelp label={t("overview.profitability")} description={en ? "Net revenue linked to a Vendeo campaign divided by spend." : "Revenu net lié à une campagne Vendeo, rapporté aux dépenses."} /><strong>{metaPerformance.overview.realRoas === null ? "-" : `${(metaPerformance.overview.realRoas * 100).toFixed(1)} %`}</strong><small className="source-verified">{t("overview.verified")}</small></div>
                 </div>
@@ -1574,7 +1616,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
                       const verdict = getCampaignVerdict(campaign);
                       return <div className="meta-table-row" key={campaign.id}>
                         <strong>{campaign.name}</strong>
-                        <span>{formatMoney(campaign.spend, metaPerformance.currency)}</span>
+                        <span>{formatMoneyInUSD(campaign.spend, metaPerformance.currency) ?? t("overview.metricUnavailable")}</span>
                         <span>{campaign.realSales === null ? "-" : campaign.realSales}</span>
                         <span>{campaign.realRoas === null ? "-" : `${(campaign.realRoas * 100).toFixed(1)} %`} <small className="source-verified">{t("overview.verified")}</small></span>
                         <AdVerdictBadge verdict={verdict} />
