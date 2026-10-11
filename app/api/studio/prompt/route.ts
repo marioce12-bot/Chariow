@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { askImole } from "@/lib/ai/imole";
-import { askGemini } from "@/lib/ai/gemini";
+import { askText } from "@/lib/ai/text";
 import { cleanAiText } from "@/lib/ai/format";
 
 const MAX_PROMPT_CHARS = 3_800;
@@ -106,15 +105,10 @@ export async function POST(request: Request) {
 
   let answer: string;
   try {
-    answer = await askImole(messages);
-  } catch (imoleError) {
-    console.error("Studio prompt Imole error", imoleError instanceof Error ? imoleError.message : imoleError);
-    try {
-      answer = await askGemini(messages);
-    } catch (geminiError) {
-      console.error("Studio prompt Gemini error", geminiError instanceof Error ? geminiError.message : geminiError);
-      return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
-    }
+    answer = await askText(messages, { order: ["imole", "groq", "gemini"] });
+  } catch (error) {
+    console.error("Studio prompt AI error", error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
   }
 
   const prompt = cleanAiText(answer).slice(0, MAX_PROMPT_CHARS).trim();
