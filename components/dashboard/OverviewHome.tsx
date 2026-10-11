@@ -6,6 +6,7 @@ import { formatMoney, formatMoneyInUSD } from "@/lib/format";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { PlanId } from "@/lib/plans";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
+import { AdSpendByChannel } from "./AdSpendByChannel";
 import { ChannelBadge } from "./shared";
 import type { AnalyticsData, ProductData, StoreData, SubscriptionData } from "./shared";
 
@@ -15,7 +16,7 @@ import type { AnalyticsData, ProductData, StoreData, SubscriptionData } from "./
  * Elle remplace l'ancien écran centré sur Meta (MetaHistoryOverview / OverviewDetails),
  * dont le détail reste disponible dans l'onglet Pub. Elle répond à 4 questions :
  *  1. Où j'en suis ? (bilan de la période)
- *  2. Que font mes campagnes, tous canaux confondus ?
+ *  2. Que font mes campagnes et combien coûtent-elles, tous canaux confondus ?
  *  3. Que vend ma boutique ? (catalogue)
  *  4. Que se passe-t-il côté achats ? (réussis / en attente / échoués)
  */
@@ -240,7 +241,10 @@ export function OverviewHome({
 
       <AdCampaignsList key={campaignsVersion} storeId={storeId ?? null} plan={plan} onNewCampaign={onLaunchAd} />
 
-      {/* 3. Achats réussis / échoués */}
+      {/* 3. Dépenses pub par canal */}
+      <AdSpendByChannel plan={plan} storeId={storeId ?? null} periodDays={periodDays} refreshKey={campaignsVersion} />
+
+      {/* 4. Achats réussis / échoués */}
       <section className="app-card">
         <div className="card-head"><div><h2>{tr("Derniers achats", "Latest purchases")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr("Paiements réussis, en attente ou échoués sur ta boutique.", "Successful, pending and failed payments on your store.")}</p></div></div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
@@ -264,7 +268,7 @@ export function OverviewHome({
         ) : <p className="hint-line" style={{ marginTop: 12 }}>{tr("Aucun achat pour le moment. Ils apparaîtront ici dès la première vente.", "No purchases yet. They will show up here after the first sale.")}</p>}
       </section>
 
-      {/* 4. Catalogue */}
+      {/* 5. Catalogue */}
       <section className="app-card">
         <div className="card-head"><div><h2>{tr("Mon catalogue", "My catalogue")}</h2><p className="hint-line" style={{ margin: 0 }}>{products.length ? tr(`${products.length} produit${products.length > 1 ? "s" : ""} dans ${store?.store_name ?? "ta boutique"}.`, `${products.length} product${products.length > 1 ? "s" : ""} in ${store?.store_name ?? "your store"}.`) : tr("Aucun produit trouvé dans ta boutique.", "No product found in your store.")}</p></div></div>
         {products.length ? (
@@ -280,7 +284,7 @@ export function OverviewHome({
         ) : null}
       </section>
 
-      {/* 5. Prochaine action + alertes */}
+      {/* 6. Prochaine action + alertes */}
       <section className="app-card">
         <div className="card-head"><div><span className="eyebrow">{tr("Prochaine action", "Next step")}</span><h2>{nextAction.title}</h2></div></div>
         <p className="hint-line" style={{ margin: "4px 0 12px" }}>{nextAction.text}</p>
