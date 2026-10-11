@@ -11,6 +11,15 @@
 
 export type SaleDetail = { label: string; value: string };
 
+/** Les seules infos affichées dans la fenêtre « Détail de l'événement ». */
+export type SaleContact = {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  country: string | null;
+  failureReason: string | null;
+};
+
 const SECRET_KEY = /token|secret|password|passwd|signature|authorization|api[_-]?key|credential/i;
 const SKIP_KEY = /^(links?|_links|meta|__typename)$/i;
 
@@ -142,6 +151,92 @@ export function buildSaleDetails(rawSale: unknown): SaleDetail[] {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Infos utiles uniquement : client, e-mail, téléphone, pays, motif d'échec.
+// (la date et l'heure viennent de la vente elle-même, côté interface)
+// ---------------------------------------------------------------------------
+
+type Rec = Record<string, unknown>;
+
+function asRec(value: unknown): Rec | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Rec) : null;
+}
+
+function text(value: unknown): string | null {
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  const object = asRec(value);
+  if (object) {
+    for (const key of ["formatted", "full", "number", "name", "label", "value"]) {
+      const found = text(object[key]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function phoneText(value: unknown): string | null {
+  const object = asRec(value);
+  if (!object) return text(value);
+  const whole = text(object.formatted) ?? text(object.full);
+  if (whole) return whole;
+  const number = text(object.number) ?? text(object.national);
+  if (!number) return null;
+  const code = text(object.dial_code) ?? text(object.country_code) ?? text(object.prefix);
+  if (!code || number.startsWith("+")) return number;
+  return `${code.startsWith("+") ? code : `+${code}`} ${number}`;
+}
+
+function countryText(value: unknown): string | null {
+  return text(value) ?? text(asRec(value)?.code);
+}
+
+function firstOf(sources: Rec[], keys: string[], read: (value: unknown) => string | null = text): string | null {
+  for (const source of sources) {
+    for (const key of keys) {
+      const found = read(source[key]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+const FAILURE_FR: Record<string, string> = {
+  CUSTOMER_CANCEL_TRANSACTION: "Le client a annulé la transaction.",
+};
+
+export function buildSaleContact(rawSale: unknown): SaleContact {
+  const raw = asRec(rawSale);
+  if (!raw) return { name: null, email: null, phone: null, country: null, failureReason: null };
+
+  const people = [raw.customer, raw.buyer, raw.client, raw.billing, raw.billing_details, raw.contact, raw.user]
+    .map(asRec)
+    .filter((item): item is Rec => item !== null);
+  const all = [...people, raw];
+
+  const name =
+    firstOf(people, ["name", "full_name", "fullName", "display_name"])
+    ?? ([firstOf(people, ["first_name", "firstName"]), firstOf(people, ["last_name", "lastName"])].filter(Boolean).join(" ") || null)
+    ?? firstOf([raw], ["customer_name", "client_name", "buyer_name"]);
+  const email = firstOf(all, ["email", "customer_email", "client_email"]);
+  const phone = firstOf(all, ["phone", "phone_number", "phoneNumber", "mobile", "customer_phone"], phoneText);
+  const country = firstOf(all, ["country", "country_name", "customer_country"], countryText);
+
+  const payment = asRec(raw.payment);
+  const failure = asRec(raw.failure_error) ?? asRec(payment?.failure_error) ?? asRec(raw.error) ?? asRec(payment?.error);
+  const code = text(failure?.code);
+  const failureReason =
+    (code ? FAILURE_FR[code] : undefined)
+    ?? text(failure?.message)
+    ?? text(failure?.customer_message)
+    ?? text(raw.failure_reason)
+    ?? text(payment?.failure_reason)
+    ?? text(raw.failure_message)
+    ?? code;
+
+  return { name, email, phone, country, failureReason };
+}
+
 function firstArray(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   if (value && typeof value === "object") {
@@ -154,7 +249,7 @@ function firstArray(value: unknown): unknown[] {
 }
 
 /**
- * Ajoute `id` et `details` à chaque vente publique, dans le même ordre que la liste brute
+ * Ajoute `id`, `details` et `contact` à chaque vente publique, dans le même ordre que la liste brute
  * (normalizeChariowSnapshot construit `sales` avec un simple map sur cette même liste).
  */
 export function mergeSaleDetails(publicSales: unknown[], rawSalesPayload: unknown): unknown[] {
@@ -167,6 +262,7 @@ export function mergeSaleDetails(publicSales: unknown[], rawSalesPayload: unknow
       ...(sale as Record<string, unknown>),
       ...(typeof id === "string" || typeof id === "number" ? { id: String(id) } : {}),
       details: buildSaleDetails(source),
+      contact: buildSaleContact(source),
     };
   });
 }

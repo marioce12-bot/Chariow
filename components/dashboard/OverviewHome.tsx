@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock, Megaphone, Package, Plus, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Megaphone, Package, XCircle } from "lucide-react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { PlanId } from "@/lib/plans";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { AdSpendByChannel } from "./AdSpendByChannel";
-import { ChannelBadge } from "./shared";
 import type { AnalyticsData, ProductData, StoreData, SubscriptionData } from "./shared";
 import "@/app/dashboard-overview.css";
 
@@ -24,25 +23,20 @@ import "@/app/dashboard-overview.css";
 
 type CampaignSummary = { id: string; platform: string; status: string };
 type SaleGroup = "success" | "pending" | "failed";
-type SaleDetail = { label: string; value: string };
+type SaleContact = { name: string | null; email: string | null; phone: string | null; country: string | null; failureReason: string | null };
 type SaleRow = {
   key: string;
+  status: string;
   group: SaleGroup;
   label: string;
   product: string;
   image: string | null;
   amount: string;
   date: string;
-  dateTime: string;
-  details: SaleDetail[];
+  clock: string;
+  contact: SaleContact;
 };
 type PersistentAlert = { id: string; severity: string; title: string; description: string };
-
-const CHANNELS = [
-  { id: "meta", badge: "facebook", label: "Meta" },
-  { id: "tiktok", badge: "tiktok", label: "TikTok" },
-  { id: "pinterest", badge: "pinterest", label: "Pinterest" },
-] as const;
 
 const SUCCESS_STATUSES = ["completed", "settled", "paid", "succeeded", "success"];
 const PENDING_STATUSES = ["awaiting_payment", "pending", "processing"];
@@ -50,11 +44,12 @@ const PENDING_STATUSES = ["awaiting_payment", "pending", "processing"];
 // Nombre de transactions Chariow affichées dans « Derniers achats ».
 const LATEST_PURCHASES = 10;
 
-const tileStyle: React.CSSProperties = { border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 };
-const gridStyle = (min: number): React.CSSProperties => ({ display: "grid", gap: 12, gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))` });
-
 function rec(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function str(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 export function OverviewHome({
@@ -176,19 +171,26 @@ export function OverviewHome({
       const label = labels[status] ?? [status, status];
       const productName = String(row.product_name ?? rec(row.product).name ?? "—");
       const productId = row.product_id !== undefined && row.product_id !== null ? String(row.product_id) : null;
-      const details = Array.isArray(row.details)
-        ? (row.details as unknown[]).map(rec).filter((item) => typeof item.label === "string" && typeof item.value === "string").map((item) => ({ label: String(item.label), value: String(item.value) }))
-        : [];
+      const contactRecord = rec(row.contact);
+      const failureReason = str(contactRecord.failureReason)
+        ?? (status === "abandoned" ? (en ? "Purchase abandoned before payment was completed" : "Achat abandonné avant la fin du paiement") : null);
       return {
         key: String(row.id ?? `${status}-${index}`),
+        status,
         group,
         label: en ? label[1] : label[0],
         product: productName,
         image: (productId ? imageById.get(productId) : null) ?? imageByName.get(productName) ?? null,
         amount: Number.isFinite(amount) ? formatMoneyInUSD(amount, saleCurrency) ?? "—" : "—",
         date: time ? new Date(time).toLocaleDateString(en ? "en-GB" : "fr-FR") : "—",
-        dateTime: time ? new Date(time).toLocaleString(en ? "en-GB" : "fr-FR") : "—",
-        details,
+        clock: time ? new Date(time).toLocaleTimeString(en ? "en-GB" : "fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—",
+        contact: {
+          name: str(contactRecord.name),
+          email: str(contactRecord.email),
+          phone: str(contactRecord.phone),
+          country: str(contactRecord.country),
+          failureReason,
+        },
         time,
       };
     });
@@ -257,29 +259,7 @@ export function OverviewHome({
         </div>
       </section>
 
-      {/* 2. Campagnes, tous canaux */}
-      <section className="app-card">
-        <div className="card-head">
-          <div><h2>{tr("Mes campagnes", "My campaigns")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr("Meta, TikTok et Pinterest au même endroit.", "Meta, TikTok and Pinterest in one place.")}</p></div>
-          <button type="button" className="btn btn-dark" onClick={onLaunchAd}><Plus size={14} /> {tr("Lancer une pub", "Launch an ad")}</button>
-        </div>
-        <div style={{ ...gridStyle(170), marginTop: 14 }}>
-          {CHANNELS.map((channel) => {
-            const mine = campaigns.filter((c) => c.platform === channel.id);
-            const running = mine.filter((c) => c.status === "active" || c.status === "review").length;
-            return (
-              <div key={channel.id} style={{ ...tileStyle, flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <ChannelBadge id={channel.badge} />
-                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                  <strong style={{ fontSize: 14 }}>{channel.label}</strong>
-                  <span className="hint-line">{mine.length === 0 ? tr("Aucune campagne", "No campaign") : tr(`${running} en cours · ${mine.length} au total`, `${running} running · ${mine.length} total`)}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
+      {/* 2. Liste des campagnes publicitaires */}
       <AdCampaignsList key={campaignsVersion} storeId={storeId ?? null} plan={plan} onNewCampaign={onLaunchAd} />
 
       {/* 3. Dépenses pub par canal */}
@@ -344,7 +324,7 @@ export function OverviewHome({
         </section>
       ) : null}
 
-      {/* Fenêtre de détail d'un événement Chariow */}
+      {/* Fenêtre de détail d'un événement Chariow : uniquement les infos utiles */}
       {selectedSale ? (
         <div className="sale-modal-backdrop" role="presentation" onClick={() => setSelectedSale(null)}>
           <section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-modal-title" onClick={(event) => event.stopPropagation()}>
@@ -356,22 +336,17 @@ export function OverviewHome({
               <p>{selectedSale.product}</p>
             </div>
 
-            <div className="sale-modal-section-title">{tr("Résumé", "Summary")}</div>
             <div className="sale-detail-grid">
-              <div><small>{tr("Statut", "Status")}</small><strong>{selectedSale.label}</strong></div>
-              <div><small>{tr("Montant", "Amount")}</small><strong>{selectedSale.amount}</strong></div>
-              <div><small>{tr("Date", "Date")}</small><strong>{selectedSale.dateTime}</strong></div>
-              <div><small>{tr("Produit", "Product")}</small><strong>{selectedSale.product}</strong></div>
+              <div><small>{tr("Client", "Customer")}</small><strong>{selectedSale.contact.name ?? "—"}</strong></div>
+              <div><small>{tr("E-mail", "Email")}</small><strong>{selectedSale.contact.email ?? "—"}</strong></div>
+              <div><small>{tr("Téléphone", "Phone")}</small><strong>{selectedSale.contact.phone ?? "—"}</strong></div>
+              <div><small>{tr("Pays", "Country")}</small><strong>{selectedSale.contact.country ?? "—"}</strong></div>
+              {selectedSale.group === "failed" ? (
+                <div><small>{tr("Raison de l'échec", "Failure reason")}</small><strong>{selectedSale.contact.failureReason ?? "—"}</strong></div>
+              ) : null}
+              <div><small>{tr("Date", "Date")}</small><strong>{selectedSale.date}</strong></div>
+              <div><small>{tr("Heure", "Time")}</small><strong>{selectedSale.clock}</strong></div>
             </div>
-
-            <div className="sale-modal-section-title">{tr("Informations envoyées par Chariow", "Information sent by Chariow")}</div>
-            {selectedSale.details.length ? (
-              <div className="sale-detail-grid">
-                {selectedSale.details.map((item, index) => (
-                  <div key={`${item.label}-${index}`}><small>{item.label}</small><strong>{item.value}</strong></div>
-                ))}
-              </div>
-            ) : <p className="hint-line">{tr("Aucune information supplémentaire reçue pour cet événement.", "No additional information received for this event.")}</p>}
           </section>
         </div>
       ) : null}
