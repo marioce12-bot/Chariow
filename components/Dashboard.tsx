@@ -134,6 +134,9 @@ export function Dashboard() {
   }, []);
   const [stores, setStores] = useState<StoreData[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+  // Boutique réellement utilisée pour l'onglet "Pub" et le lancement d'une campagne : celle choisie
+  // dans le sélecteur (si elle existe encore), sinon la première. Avant, on prenait toujours stores[0].
+  const activeStoreId = (selectedStoreId && stores.some((store) => store.id === selectedStoreId) ? selectedStoreId : stores[0]?.id) ?? null;
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   // Vrai tant que l'abonnement et les données de la boutique (analytics) n'ont pas fini de charger :
@@ -155,7 +158,7 @@ export function Dashboard() {
   // ouvrent directement le même formulaire, au lieu que celui de "Pub" se contente
   // de changer d'onglet en laissant l'utilisateur cliquer une seconde fois.
   function launchAd() {
-    if (!stores[0]?.id) {
+    if (!activeStoreId) {
       setActive("Mes boutiques");
       return;
     }
@@ -382,7 +385,7 @@ export function Dashboard() {
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Pub" ? (
-             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={launchAd} storeId={stores[0]?.id ?? null} campaignsVersion={campaignsVersion} />
+             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" onBack={() => setActive(previousSection)} />
           ) : active === "Radar marché" ? (
@@ -414,9 +417,10 @@ export function Dashboard() {
             />
           )}
          </section>
-         {wizardOpen && stores[0]?.id ? (
+         {wizardOpen && activeStoreId ? (
            <LaunchAdWizard
-             storeId={stores[0].id}
+             key={activeStoreId}
+             storeId={activeStoreId}
              plan={(subscription?.plan ?? "starter") as PlanId}
              onClose={() => setWizardOpen(false)}
              onLaunched={() => setCampaignsVersion((v) => v + 1)}
