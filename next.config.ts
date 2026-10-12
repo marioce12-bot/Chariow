@@ -24,14 +24,32 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
-// En-têtes appliqués à tout le reste du site (accueil, login, dashboard, admin, API). Pas de CSP ici pour l'instant :
-// le dashboard charge plusieurs services externes et un CSP trop strict casserait l'appli. À ajouter ensuite en
-// mode "Report-Only".
+// CSP du reste du site (accueil, login, dashboard, admin) en mode REPORT-ONLY : le navigateur ne bloque rien, il
+// signale seulement ce qui serait bloqué à /api/csp-report (visible dans les logs Vercel). Une fois les rapports
+// propres, on passera cette règle en "Content-Security-Policy" (blocage réel).
+const appCspReportOnly = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} https://connect.facebook.net`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.facebook.com https://connect.facebook.net https://graph.facebook.com${isProd ? "" : " ws: wss:"}`,
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "report-uri /api/csp-report",
+].join("; ");
+
+// En-têtes appliqués à tout le reste du site (accueil, login, dashboard, admin, API).
 const globalSecurityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Content-Security-Policy-Report-Only", value: appCspReportOnly },
 ];
 
 const nextConfig: NextConfig = {
