@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
-import { DEFAULT_WIZARD_STATE, wizardStateFromCampaign, type EditableCampaign, type WizardState } from "./types";
+import { DEFAULT_WIZARD_STATE, wizardStateFromCampaign, type ChariowProductLite, type EditableCampaign, type WizardState } from "./types";
 import type { PlanId } from "@/lib/plans";
 import { Step1Product } from "./Step1Product";
 import { Step2NetworkCreative, type Step2FooterState } from "./Step2NetworkCreative";
@@ -16,6 +16,8 @@ interface LaunchAdWizardProps {
   plan: PlanId;
   onClose: () => void;
   onLaunched?: (campaignId: string) => void;
+  /** Produit déjà choisi (ex. bouton « Promouvoir » du catalogue) : l'étape 1 « Produit » est alors sautée. */
+  initialProduct?: ChariowProductLite | null;
   /** Mode modification : campagne existante dont les valeurs pré-remplissent les 5 étapes. */
   editCampaign?: EditableCampaign;
   /** Message affiché en haut en mode modification (ex. motif du dernier refus). */
@@ -60,12 +62,14 @@ const META_PREVIEW_CACHE_MS = 10 * 60 * 1000;
  * Step2NetworkCreative.tsx pour le détail. Les autres étapes gardent leur
  * propre pied de page interne (sticky bottom-0 dans leur zone de scroll).
  */
-export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, editCampaign, editNotice, onEdited }: LaunchAdWizardProps) {
+export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProduct, editCampaign, editNotice, onEdited }: LaunchAdWizardProps) {
   const { locale } = useI18n();
   const en = locale === "en";
   const stepLabels = en ? ["Product", "Ad set & creative", "Audience", "Budget", "Creation"] : ["Produit", "Ensemble & publicité", "Audience", "Budget", "Création"];
-  const [step, setStep] = useState(1);
-  const [state, setState] = useState<WizardState>(() => (editCampaign ? wizardStateFromCampaign(editCampaign, storeId) : { ...DEFAULT_WIZARD_STATE, storeId }));
+  // Produit déjà choisi (bouton « Promouvoir » du catalogue) : on démarre directement à l'étape 2.
+  // Le bouton « Retour » de l'étape 2 permet quand même de revenir choisir un autre produit.
+  const [step, setStep] = useState(() => (!editCampaign && initialProduct ? 2 : 1));
+  const [state, setState] = useState<WizardState>(() => (editCampaign ? wizardStateFromCampaign(editCampaign, storeId) : { ...DEFAULT_WIZARD_STATE, storeId, product: initialProduct ?? null }));
   const [step2Footer, setStep2Footer] = useState<Step2FooterState | null>(null);
   const [mounted, setMounted] = useState(false);
   // Aperçus Meta : état indexé par format pour que chaque onglet ait son propre
