@@ -24,10 +24,21 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
+// En-têtes appliqués à tout le reste du site (accueil, login, dashboard, admin, API). Pas de CSP ici pour l'instant :
+// le dashboard charge plusieurs services externes et un CSP trop strict casserait l'appli. À ajouter ensuite en
+// mode "Report-Only".
+const globalSecurityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+];
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   async headers() {
     return [
+      { source: "/:path*", headers: globalSecurityHeaders },
       { source: "/shop/:path*", headers: [...securityHeaders, { key: "Content-Security-Policy", value: shopCsp }] },
       { source: "/api/shop/:path*", headers: [{ key: "X-Content-Type-Options", value: "nosniff" }, { key: "Cache-Control", value: "no-store" }] },
     ];
