@@ -66,6 +66,7 @@ export function OverviewHome({
   selectedStoreId,
   onStoreChange,
   onLaunchAd,
+  onPromoteProduct,
   campaignsVersion,
   loading = false,
 }: {
@@ -77,6 +78,9 @@ export function OverviewHome({
   selectedStoreId: string | null;
   onStoreChange: (storeId: string) => void;
   onLaunchAd: () => void;
+  /** Bouton « Promouvoir » d'un produit du catalogue : ouvre le lancement de pub avec ce produit déjà choisi.
+   *  Sans cette fonction, on retombe sur le lancement classique (choix du produit à l'étape 1). */
+  onPromoteProduct?: (product: ProductData) => void;
   onGoToAds?: () => void;
   onGoToAI?: () => void;
   campaignsVersion: number;
@@ -367,7 +371,7 @@ export function OverviewHome({
               <div key={product.id} className="ov-product">
                 <div className="ov-product-thumb">{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}</div>
                 <div className="ov-product-info"><strong>{product.name}</strong><span>{productPrice(product)}{product.sales ? ` · ${product.sales} ${tr("vente(s)", "sale(s)")}` : ""}</span></div>
-                <button type="button" className="btn btn-ghost ov-promote" onClick={onLaunchAd}><Megaphone size={14} /> {tr("Promouvoir", "Promote")}</button>
+                <button type="button" className="btn btn-ghost ov-promote" onClick={() => (onPromoteProduct ? onPromoteProduct(product) : onLaunchAd())}><Megaphone size={14} /> {tr("Promouvoir", "Promote")}</button>
               </div>
             ))}
           </div>
