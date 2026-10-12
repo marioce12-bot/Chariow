@@ -152,6 +152,8 @@ export function Dashboard() {
   // 15 jours ou l'abonnement Vendeo est actif.
   const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
   const [wizardOpen, setWizardOpen] = useState(false);
+  // Produit choisi via le bouton « Promouvoir » du catalogue : le formulaire de pub saute alors l'étape « Produit ».
+  const [wizardProduct, setWizardProduct] = useState<ProductData | null>(null);
   const [campaignsVersion, setCampaignsVersion] = useState(0);
   // Le formulaire de création de pub (LaunchAdWizard) vit ici, au niveau de l'appli,
   // pour que le bouton "Lancer une pub" de l'accueil ET celui de l'onglet "Pub"
@@ -162,6 +164,18 @@ export function Dashboard() {
       setActive("Mes boutiques");
       return;
     }
+    // Lancement classique (sans produit précis) : l'utilisateur choisit le produit à l'étape 1.
+    setWizardProduct(null);
+    setWizardOpen(true);
+  }
+
+  // Bouton « Promouvoir » d'un produit du catalogue : on ouvre le même formulaire, produit déjà choisi.
+  function promoteProduct(product: ProductData) {
+    if (!activeStoreId) {
+      setActive("Mes boutiques");
+      return;
+    }
+    setWizardProduct(product);
     setWizardOpen(true);
   }
 
@@ -410,6 +424,7 @@ export function Dashboard() {
               selectedStoreId={selectedStoreId}
               onStoreChange={setSelectedStoreId}
               onLaunchAd={launchAd}
+              onPromoteProduct={promoteProduct}
               onGoToAds={() => setActive("Pub")}
               onGoToAI={() => setActive("Vendeo AI")}
               campaignsVersion={campaignsVersion}
@@ -419,10 +434,11 @@ export function Dashboard() {
          </section>
          {wizardOpen && activeStoreId ? (
            <LaunchAdWizard
-             key={activeStoreId}
+             key={`${activeStoreId}:${wizardProduct?.id ?? ""}`}
              storeId={activeStoreId}
+             initialProduct={wizardProduct}
              plan={(subscription?.plan ?? "starter") as PlanId}
-             onClose={() => setWizardOpen(false)}
+             onClose={() => { setWizardOpen(false); setWizardProduct(null); }}
              onLaunched={() => setCampaignsVersion((v) => v + 1)}
            />
          ) : null}
