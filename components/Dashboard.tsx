@@ -37,6 +37,10 @@ import { OverviewHome } from "./dashboard/OverviewHome";
 import { DashboardSkeleton } from "./dashboard/Skeleton";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
+// Dernière boutique choisie dans le sélecteur : conservée dans localStorage (et non
+// sessionStorage) pour survivre à la fermeture de l'appli, quel que soit l'ordre
+// dans lequel les boutiques ont été connectées.
+const SELECTED_STORE_STORAGE_KEY = "vendeo_selected_store_id";
 const DEFAULT_DASHBOARD_SECTION = "Vue d'ensemble";
 const PERSISTED_DASHBOARD_SECTIONS = new Set([
   DEFAULT_DASHBOARD_SECTION,
@@ -60,6 +64,15 @@ function getInitialDashboardSection() {
     return savedSection && PERSISTED_DASHBOARD_SECTIONS.has(savedSection) ? savedSection : DEFAULT_DASHBOARD_SECTION;
   } catch {
     return DEFAULT_DASHBOARD_SECTION;
+  }
+}
+
+function readSavedStoreId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(SELECTED_STORE_STORAGE_KEY) || null;
+  } catch {
+    return null;
   }
 }
 
@@ -214,11 +227,16 @@ export function Dashboard() {
 
     async function loadDashboard() {
       const cached = readCache<{ stores: StoreData[]; selectedStoreId: string | null; subscription: SubscriptionData | null; analytics: AnalyticsData }>(DASHBOARD_CACHE_KEY);
+      // Boutique à afficher en priorité : le dernier choix de l'utilisateur, sinon celle du cache.
+      // (Avant, on comparait à l'état React `selectedStoreId`, toujours vide à ce stade car cet effet
+      // ne s'exécute qu'une fois : on retombait donc systématiquement sur la première boutique connectée.)
+      const preferredStoreId = readSavedStoreId() ?? cached?.selectedStoreId ?? null;
       if (cached && !cancelled) {
         // On affiche tout de suite les dernières données connues : plus d'écran
         // "Chargement de ton espace…" à chaque ouverture, la mise à jour se fait en silence.
         setStores(cached.stores);
-        if (cached.selectedStoreId) setSelectedStoreId(cached.selectedStoreId);
+        if (preferredStoreId && cached.stores.some((store: StoreData) => store.id === preferredStoreId)) setSelectedStoreId(preferredStoreId);
+        else if (cached.selectedStoreId) setSelectedStoreId(cached.selectedStoreId);
         setSubscription(cached.subscription);
         setAnalytics(cached.analytics);
         setLoadingData(false);
@@ -231,10 +249,11 @@ export function Dashboard() {
       const nextStores = storeResult.stores ?? [];
       setStores(nextStores);
 
-      const nextSelected = selectedStoreId && nextStores.some((store: StoreData) => store.id === selectedStoreId)
-        ? selectedStoreId
+      // Si la boutique mémorisée n'existe plus (supprimée, déconnectée), on se rabat sur la première.
+      const nextSelected = preferredStoreId && nextStores.some((store: StoreData) => store.id === preferredStoreId)
+        ? preferredStoreId
         : nextStores[0]?.id ?? null;
-      if (nextSelected !== selectedStoreId) setSelectedStoreId(nextSelected);
+      setSelectedStoreId(nextSelected);
 
       setLoadingData(false);
 
@@ -261,6 +280,16 @@ export function Dashboard() {
     });
     return () => { cancelled = true; };
   }, []);
+
+  // Mémorise le choix de boutique à chaque changement, pour le retrouver à la réouverture de l'appli.
+  useEffect(() => {
+    if (!selectedStoreId) return;
+    try {
+      window.localStorage.setItem(SELECTED_STORE_STORAGE_KEY, selectedStoreId);
+    } catch {
+      // Le stockage peut être indisponible en navigation privée ou si le quota est plein.
+    }
+  }, [selectedStoreId]);
 
   useEffect(() => {
     if (!selectedStoreId) return;
