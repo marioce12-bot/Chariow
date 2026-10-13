@@ -15,9 +15,11 @@ import { Skeleton } from "./Skeleton";
  * Pinterest ne renvoient que des totaux (pas de courbe jour par jour) : on compare
  * donc les canaux entre eux avec un graphique en barres.
  *
- * Meta : on affiche aussi le détail par campagne (clics, impressions, dépense), y compris
- * les campagnes lancées directement depuis Meta Ads Manager. Si la dernière synchro date de
- * plus de 15 minutes, on la relance en arrière-plan puis on rafraîchit les chiffres.
+ * Meta : on additionne TOUS les comptes publicitaires connectés (un utilisateur peut en avoir
+ * plusieurs, tous marqués « sélectionnés ») et on affiche le détail par campagne (clics,
+ * impressions, dépense), y compris les campagnes lancées directement depuis Meta Ads Manager
+ * et celles lancées depuis Vendeo qui n'ont pas encore de données. Si la dernière synchro d'un
+ * compte date de plus de 15 minutes, on la relance en arrière-plan puis on rafraîchit.
  */
 
 type ChannelId = "meta" | "tiktok" | "pinterest";
@@ -40,7 +42,8 @@ type CampaignStat = {
   spendUsd: number;
   conversions: number;
 };
-type MetaReading = { stat: ChannelStat; campaigns: CampaignStat[]; stale: boolean };
+type MetaAccountReading = { accountId: string; ok: boolean; spendUsd: number; clicks: number; conversions: number; campaigns: CampaignStat[]; stale: boolean };
+type VendeoCampaign = { platform?: string; title?: string | null; product_name?: string | null; external_campaign_id?: string | null };
 type AccountRef = { id: string; currency?: string; is_selected?: boolean | null };
 
 const CHANNELS: Array<Pick<ChannelStat, "id" | "badge" | "label" | "color">> = [
@@ -71,6 +74,32 @@ function sumUsd(entries: Array<{ spend: number; currency: string }>) {
   return entries.reduce((total, entry) => total + (toUsd(entry.spend, entry.currency) ?? 0), 0);
 }
 
+/** Regroupe les lectures de tous les comptes Meta en un seul canal + une liste de campagnes. */
+function mergeMeta(readings: MetaAccountReading[], vendeoCampaigns: VendeoCampaign[]): { stat: ChannelStat; campaigns: CampaignStat[] } {
+  const base = emptyStat(CHANNELS[0]);
+  const valid = readings.filter((reading) => reading.ok);
+  const byId = new Map<string, CampaignStat>();
+  for (const reading of valid) for (const campaign of reading.campaigns) byId.set(campaign.id, campaign);
+  // Campagnes lancées depuis Vendeo qui n'ont encore aucune donnée chez Meta (en revue, tout juste lancées) :
+  // on les affiche quand même, à zéro, pour que la liste soit complète.
+  for (const campaign of vendeoCampaigns) {
+    const id = campaign.external_campaign_id;
+    if (campaign.platform !== "meta" || !id || byId.has(id)) continue;
+    byId.set(id, { id, name: campaign.title || campaign.product_name || id, clicks: 0, impressions: 0, spendUsd: 0, conversions: 0 });
+  }
+  return {
+    stat: {
+      ...base,
+      connected: true,
+      failed: valid.length === 0,
+      spendUsd: valid.reduce((total, reading) => total + reading.spendUsd, 0),
+      clicks: valid.reduce((total, reading) => total + reading.clicks, 0),
+      conversions: valid.reduce((total, reading) => total + reading.conversions, 0),
+    },
+    campaigns: [...byId.values()].sort((a, b) => b.spendUsd - a.spendUsd || b.clicks - a.clicks),
+  };
+}
+
 export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { plan: PlanId; storeId: string | null; periodDays: number; refreshKey: number }) {
   const { locale } = useI18n();
   const en = locale === "en";
@@ -89,10 +118,9 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
     const toDay = to.toISOString().slice(0, 10);
     const range = `from=${fromDay}&to=${toDay}`;
 
-    async function readMeta(accountId: string): Promise<MetaReading> {
-      const base = emptyStat(CHANNELS[0]);
+    async function readMetaAccount(accountId: string): Promise<MetaAccountReading> {
       const perf = await getJson(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}&store_id=${encodeURIComponent(storeId ?? "")}&${range}`);
-      if (!perf) return { stat: { ...base, connected: true, failed: true }, campaigns: [], stale: false };
+      if (!perf) return { accountId, ok: false, spendUsd: 0, clicks: 0, conversions: 0, campaigns: [], stale: false };
       const performances: Array<{ id?: string; name?: string; clicks?: number; impressions?: number; spend?: number; conversions?: number }> = perf.performances ?? [];
       const lastSynced = perf.lastSyncedAt ? new Date(perf.lastSyncedAt).getTime() : 0;
       const campaigns: CampaignStat[] = performances
@@ -104,27 +132,25 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
           spendUsd: toUsd(Number(item.spend ?? 0), perf.currency) ?? 0,
           conversions: Number(item.conversions ?? 0),
         }))
-        .filter((item) => item.id)
-        .sort((a, b) => b.spendUsd - a.spendUsd);
+        .filter((item) => item.id);
       return {
-        stat: {
-          ...base,
-          connected: true,
-          spendUsd: toUsd(Number(perf.overview?.spend ?? 0), perf.currency) ?? 0,
-          clicks: performances.reduce((total, item) => total + (item.clicks ?? 0), 0),
-          conversions: Number(perf.overview?.conversions ?? 0),
-        },
+        accountId,
+        ok: true,
+        spendUsd: toUsd(Number(perf.overview?.spend ?? 0), perf.currency) ?? 0,
+        clicks: performances.reduce((total, item) => total + (item.clicks ?? 0), 0),
+        conversions: Number(perf.overview?.conversions ?? 0),
         campaigns,
         stale: !lastSynced || Date.now() - lastSynced > STALE_MS,
       };
     }
 
-    async function loadMeta(): Promise<MetaReading & { accountId: string | null }> {
-      const accountsData = await getJson("/api/integrations/meta/accounts");
+    async function loadMeta() {
+      const [accountsData, campaignsData] = await Promise.all([getJson("/api/integrations/meta/accounts"), getJson("/api/ad-campaigns")]);
+      const vendeoCampaigns: VendeoCampaign[] = Array.isArray(campaignsData?.campaigns) ? campaignsData.campaigns : [];
       const accounts: AccountRef[] = accountsData?.accounts ?? [];
-      if (!accounts.length) return { stat: emptyStat(CHANNELS[0]), campaigns: [], stale: false, accountId: null };
-      const chosen = accounts.find((account) => account.is_selected) ?? accounts[0];
-      return { ...(await readMeta(chosen.id)), accountId: chosen.id };
+      if (!accounts.length) return { stat: emptyStat(CHANNELS[0]), campaigns: [] as CampaignStat[], readings: [] as MetaAccountReading[], vendeoCampaigns };
+      const readings = await Promise.all(accounts.map((account) => readMetaAccount(account.id)));
+      return { ...mergeMeta(readings, vendeoCampaigns), readings, vendeoCampaigns };
     }
 
     async function syncMeta(accountId: string) {
@@ -170,16 +196,16 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
       setMetaCampaigns(meta.campaigns);
       setLoading(false);
 
-      // Données Meta anciennes (ou jamais synchronisées) : on resynchronise en arrière-plan,
-      // puis on relit les chiffres. Les données déjà affichées restent en place pendant ce temps.
-      if (!meta.stale || !meta.accountId) return;
-      const last = lastAutoSync.get(meta.accountId) ?? 0;
-      if (Date.now() - last < AUTO_SYNC_COOLDOWN_MS) return;
-      lastAutoSync.set(meta.accountId, Date.now());
+      // Comptes Meta dont les données sont anciennes (ou jamais synchronisées) : on resynchronise en
+      // arrière-plan, puis on relit les chiffres. Les données déjà affichées restent en place.
+      const staleIds = meta.readings.filter((reading) => reading.ok && reading.stale).map((reading) => reading.accountId)
+        .filter((accountId) => Date.now() - (lastAutoSync.get(accountId) ?? 0) >= AUTO_SYNC_COOLDOWN_MS);
+      if (!staleIds.length) return;
+      for (const accountId of staleIds) lastAutoSync.set(accountId, Date.now());
       setMetaSyncing(true);
-      const synced = await syncMeta(meta.accountId);
-      if (synced && !cancelled) {
-        const fresh = await readMeta(meta.accountId);
+      const outcomes = await Promise.all(staleIds.map((accountId) => syncMeta(accountId)));
+      if (outcomes.some(Boolean) && !cancelled) {
+        const fresh = await loadMeta();
         if (!cancelled) {
           setStats((current) => [fresh.stat, current[1], current[2]]);
           setMetaCampaigns(fresh.campaigns);
@@ -255,7 +281,7 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
 
           {metaCampaigns.length > 0 ? (
             <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
-              <strong style={{ fontSize: 14 }}>{tr("Campagnes Meta", "Meta campaigns")}</strong>
+              <strong style={{ fontSize: 14 }}>{tr(`Campagnes Meta (${metaCampaigns.length})`, `Meta campaigns (${metaCampaigns.length})`)}</strong>
               {metaCampaigns.map((campaign) => (
                 <div key={campaign.id} style={{ display: "grid", gap: 2, padding: "10px 12px", border: "1px solid var(--line)", borderRadius: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
