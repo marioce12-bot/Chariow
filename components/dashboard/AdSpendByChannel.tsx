@@ -14,6 +14,10 @@ import { Skeleton } from "./Skeleton";
  * Chaque canal est converti en USD pour pouvoir être comparé. Les API TikTok et
  * Pinterest ne renvoient que des totaux (pas de courbe jour par jour) : on compare
  * donc les canaux entre eux avec un graphique en barres.
+ *
+ * Meta : on affiche aussi le détail par campagne (clics, impressions, dépense), y compris
+ * les campagnes lancées directement depuis Meta Ads Manager. Si la dernière synchro date de
+ * plus de 15 minutes, on la relance en arrière-plan puis on rafraîchit les chiffres.
  */
 
 type ChannelId = "meta" | "tiktok" | "pinterest";
@@ -28,6 +32,15 @@ type ChannelStat = {
   clicks: number;
   conversions: number;
 };
+type CampaignStat = {
+  id: string;
+  name: string;
+  clicks: number;
+  impressions: number;
+  spendUsd: number;
+  conversions: number;
+};
+type MetaReading = { stat: ChannelStat; campaigns: CampaignStat[]; stale: boolean };
 type AccountRef = { id: string; currency?: string; is_selected?: boolean | null };
 
 const CHANNELS: Array<Pick<ChannelStat, "id" | "badge" | "label" | "color">> = [
@@ -35,6 +48,11 @@ const CHANNELS: Array<Pick<ChannelStat, "id" | "badge" | "label" | "color">> = [
   { id: "tiktok", badge: "tiktok", label: "TikTok", color: "#111827" },
   { id: "pinterest", badge: "pinterest", label: "Pinterest", color: "#E60023" },
 ];
+
+const STALE_MS = 15 * 60 * 1000;
+const AUTO_SYNC_COOLDOWN_MS = 2 * 60 * 1000;
+// Évite de relancer la synchro en boucle (changement de période, rafraîchissements).
+const lastAutoSync = new Map<string, number>();
 
 function emptyStat(base: (typeof CHANNELS)[number]): ChannelStat {
   return { ...base, connected: false, failed: false, spendUsd: 0, clicks: 0, conversions: 0 };
@@ -58,6 +76,8 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
   const en = locale === "en";
   const tr = (fr: string, english: string) => (en ? english : fr);
   const [stats, setStats] = useState<ChannelStat[]>(CHANNELS.map(emptyStat));
+  const [metaCampaigns, setMetaCampaigns] = useState<CampaignStat[]>([]);
+  const [metaSyncing, setMetaSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,24 +85,59 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
     const to = new Date();
     const from = new Date(to);
     from.setDate(to.getDate() - periodDays + 1);
-    const range = `from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`;
+    const fromDay = from.toISOString().slice(0, 10);
+    const toDay = to.toISOString().slice(0, 10);
+    const range = `from=${fromDay}&to=${toDay}`;
 
-    async function loadMeta(): Promise<ChannelStat> {
+    async function readMeta(accountId: string): Promise<MetaReading> {
       const base = emptyStat(CHANNELS[0]);
+      const perf = await getJson(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}&store_id=${encodeURIComponent(storeId ?? "")}&${range}`);
+      if (!perf) return { stat: { ...base, connected: true, failed: true }, campaigns: [], stale: false };
+      const performances: Array<{ id?: string; name?: string; clicks?: number; impressions?: number; spend?: number; conversions?: number }> = perf.performances ?? [];
+      const lastSynced = perf.lastSyncedAt ? new Date(perf.lastSyncedAt).getTime() : 0;
+      const campaigns: CampaignStat[] = performances
+        .map((item) => ({
+          id: String(item.id ?? ""),
+          name: String(item.name ?? item.id ?? ""),
+          clicks: Number(item.clicks ?? 0),
+          impressions: Number(item.impressions ?? 0),
+          spendUsd: toUsd(Number(item.spend ?? 0), perf.currency) ?? 0,
+          conversions: Number(item.conversions ?? 0),
+        }))
+        .filter((item) => item.id)
+        .sort((a, b) => b.spendUsd - a.spendUsd);
+      return {
+        stat: {
+          ...base,
+          connected: true,
+          spendUsd: toUsd(Number(perf.overview?.spend ?? 0), perf.currency) ?? 0,
+          clicks: performances.reduce((total, item) => total + (item.clicks ?? 0), 0),
+          conversions: Number(perf.overview?.conversions ?? 0),
+        },
+        campaigns,
+        stale: !lastSynced || Date.now() - lastSynced > STALE_MS,
+      };
+    }
+
+    async function loadMeta(): Promise<MetaReading & { accountId: string | null }> {
       const accountsData = await getJson("/api/integrations/meta/accounts");
       const accounts: AccountRef[] = accountsData?.accounts ?? [];
-      if (!accounts.length) return base;
+      if (!accounts.length) return { stat: emptyStat(CHANNELS[0]), campaigns: [], stale: false, accountId: null };
       const chosen = accounts.find((account) => account.is_selected) ?? accounts[0];
-      const perf = await getJson(`/api/meta/performance?account_id=${encodeURIComponent(chosen.id)}&store_id=${encodeURIComponent(storeId ?? "")}&${range}`);
-      if (!perf) return { ...base, connected: true, failed: true };
-      const performances: Array<{ clicks?: number }> = perf.performances ?? [];
-      return {
-        ...base,
-        connected: true,
-        spendUsd: toUsd(Number(perf.overview?.spend ?? 0), perf.currency) ?? 0,
-        clicks: performances.reduce((total, item) => total + (item.clicks ?? 0), 0),
-        conversions: Number(perf.overview?.conversions ?? 0),
-      };
+      return { ...(await readMeta(chosen.id)), accountId: chosen.id };
+    }
+
+    async function syncMeta(accountId: string) {
+      try {
+        const response = await fetch("/api/meta/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ account_id: accountId, from: fromDay, to: toDay }),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
     }
 
     // TikTok et Pinterest ont la même forme de réponse : on additionne tous les comptes connectés.
@@ -109,24 +164,43 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
       loadMeta(),
       isAdPlatformAllowed(plan, "tiktok") ? loadSimple(1, "/api/integrations/tiktok/accounts", "/api/tiktok/performance") : Promise.resolve(emptyStat(CHANNELS[1])),
       loadSimple(2, "/api/integrations/pinterest/accounts", "/api/pinterest/performance"),
-    ]).then((next) => {
+    ]).then(async ([meta, tiktok, pinterest]) => {
       if (cancelled) return;
-      setStats(next);
+      setStats([meta.stat, tiktok, pinterest]);
+      setMetaCampaigns(meta.campaigns);
       setLoading(false);
-    }).catch(() => { if (!cancelled) setLoading(false); });
+
+      // Données Meta anciennes (ou jamais synchronisées) : on resynchronise en arrière-plan,
+      // puis on relit les chiffres. Les données déjà affichées restent en place pendant ce temps.
+      if (!meta.stale || !meta.accountId) return;
+      const last = lastAutoSync.get(meta.accountId) ?? 0;
+      if (Date.now() - last < AUTO_SYNC_COOLDOWN_MS) return;
+      lastAutoSync.set(meta.accountId, Date.now());
+      setMetaSyncing(true);
+      const synced = await syncMeta(meta.accountId);
+      if (synced && !cancelled) {
+        const fresh = await readMeta(meta.accountId);
+        if (!cancelled) {
+          setStats((current) => [fresh.stat, current[1], current[2]]);
+          setMetaCampaigns(fresh.campaigns);
+        }
+      }
+      if (!cancelled) setMetaSyncing(false);
+    }).catch(() => { if (!cancelled) { setLoading(false); setMetaSyncing(false); } });
     return () => { cancelled = true; };
   }, [plan, storeId, periodDays, refreshKey]);
 
   const connected = stats.filter((stat) => stat.connected);
   const totalUsd = stats.reduce((total, stat) => total + stat.spendUsd, 0);
   const maxUsd = Math.max(1, ...stats.map((stat) => stat.spendUsd));
+  const numberLocale = en ? "en-US" : "fr-FR";
 
   return (
     <section className="app-card">
       <div className="card-head">
         <div>
           <h2>{tr("Dépenses publicitaires", "Ad spend")}</h2>
-          <p className="hint-line" style={{ margin: 0 }}>{tr(`Tous canaux, ${periodDays} derniers jours, convertis en USD.`, `All channels, last ${periodDays} days, converted to USD.`)}</p>
+          <p className="hint-line" style={{ margin: 0 }}>{tr(`Tous canaux, ${periodDays} derniers jours, convertis en USD.`, `All channels, last ${periodDays} days, converted to USD.`)}{metaSyncing ? ` ${tr("Mise à jour de Meta…", "Updating Meta…")}` : ""}</p>
         </div>
         <BarChart3 size={18} />
       </div>
@@ -173,11 +247,28 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
                     ? tr("Connecte ce canal dans « Comptes publicitaires ».", "Connect this channel in “Ad accounts”.")
                     : stat.failed
                       ? tr("Données indisponibles pour le moment.", "Data unavailable right now.")
-                      : `${stat.clicks.toLocaleString(en ? "en-US" : "fr-FR")} ${tr("clics", "clicks")} · ${stat.conversions.toLocaleString(en ? "en-US" : "fr-FR")} conversions`}
+                      : `${stat.clicks.toLocaleString(numberLocale)} ${tr("clics", "clicks")} · ${stat.conversions.toLocaleString(numberLocale)} conversions`}
                 </span>
               </div>
             ))}
           </div>
+
+          {metaCampaigns.length > 0 ? (
+            <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
+              <strong style={{ fontSize: 14 }}>{tr("Campagnes Meta", "Meta campaigns")}</strong>
+              {metaCampaigns.map((campaign) => (
+                <div key={campaign.id} style={{ display: "grid", gap: 2, padding: "10px 12px", border: "1px solid var(--line)", borderRadius: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={campaign.name}>{campaign.name}</span>
+                    <strong style={{ fontSize: 13, whiteSpace: "nowrap" }}>{formatMoney(campaign.spendUsd, "USD")}</strong>
+                  </div>
+                  <span className="hint-line">
+                    {campaign.clicks.toLocaleString(numberLocale)} {tr("clics", "clicks")} · {campaign.impressions.toLocaleString(numberLocale)} {tr("impressions", "impressions")} · {campaign.conversions.toLocaleString(numberLocale)} conversions
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </>
       )}
     </section>
