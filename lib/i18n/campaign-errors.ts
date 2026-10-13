@@ -41,6 +41,16 @@ export function campaignErrorMessage(rawError: string | null | undefined, locale
     return t("ads.errors.objective");
   }
 
+  // Meta : « Calendrier de campagne trop court » (subcode 1487793). Avec un budget
+  // quotidien, la diffusion doit durer au moins 24 h. Testé AVANT la règle du budget :
+  // le message d'origine contient « budget quotidien » et était pris à tort pour un
+  // budget trop bas.
+  if (/1487793|calendrier de campagne trop court|campaign schedule.{0,40}too short|at least 24 hours|au moins 24 heures/.test(lower)) {
+    return locale === "fr"
+      ? "La durée de la campagne est trop courte pour Meta : avec un budget quotidien, la diffusion doit durer au moins 24 heures. Allonge la durée dans les paramètres de la campagne, puis réessaie."
+      : "The campaign schedule is too short for Meta: with a daily budget, delivery must last at least 24 hours. Increase the duration in the campaign settings, then try again.";
+  }
+
   if (/complete payment to continue|payment.{0,45}(required|due|incomplete|not complete)|billing.{0,45}(incomplete|overdue|not complete)|outstanding balance/.test(lower)) {
     return t("ads.errors.billing", { platform: platformLabel });
   }
