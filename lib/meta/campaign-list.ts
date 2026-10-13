@@ -11,10 +11,14 @@ export type MetaCampaignRef = { id: string; name: string | null; effectiveStatus
  * sans identifiant et étaient ignorées. Les campagnes créées dans Meta n'avaient
  * ainsi aucune ligne au niveau campagne (ni dépenses, ni clics dans Vendeo).
  * En connaissant les IDs, on interroge /{campaign_id}/insights directement.
+ *
+ * Par défaut Meta ne renvoie pas les campagnes archivées : on les demande
+ * explicitement pour ne pas perdre l'historique de dépenses.
  */
 export async function fetchMetaCampaignList(accountId: string, accessToken: string, maxCampaigns = 300): Promise<MetaCampaignRef[]> {
   const url = new URL(`${META_GRAPH_BASE_URL}/${accountId}/campaigns`);
   url.searchParams.set("fields", "id,name,effective_status");
+  url.searchParams.set("effective_status", JSON.stringify(["ACTIVE", "PAUSED", "ARCHIVED", "IN_PROCESS", "WITH_ISSUES"]));
   url.searchParams.set("limit", "100");
   url.searchParams.set("access_token", accessToken);
 
