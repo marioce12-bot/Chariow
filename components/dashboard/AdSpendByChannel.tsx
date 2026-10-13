@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { BarChart3 } from "lucide-react";
-import { formatMoney } from "@/lib/format";
 import { toUsd } from "@/lib/currency";
 import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -56,6 +55,11 @@ const STALE_MS = 15 * 60 * 1000;
 const AUTO_SYNC_COOLDOWN_MS = 2 * 60 * 1000;
 // Évite de relancer la synchro en boucle (changement de période, rafraîchissements).
 const lastAutoSync = new Map<string, number>();
+
+/** Montant en USD avec 2 décimales : les petites dépenses (ex. 2,63 USD) ne sont plus arrondies à 3. */
+function usd(value: number, locale: string) {
+  return `${value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;
+}
 
 function emptyStat(base: (typeof CHANNELS)[number]): ChannelStat {
   return { ...base, connected: false, failed: false, spendUsd: 0, clicks: 0, conversions: 0 };
@@ -222,7 +226,8 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
   const numberLocale = en ? "en-US" : "fr-FR";
 
   return (
-    <section className="app-card">
+    // minWidth/maxWidth : sans eux, un nom de campagne très long élargit la carte au-delà de l'écran sur téléphone.
+    <section className="app-card" style={{ minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
       <div className="card-head">
         <div>
           <h2>{tr("Dépenses publicitaires", "Ad spend")}</h2>
@@ -253,19 +258,19 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
         <>
           <div style={{ marginTop: 12 }}>
             <span className="hint-line">{tr("Total dépensé", "Total spent")}</span>
-            <div style={{ fontSize: 22, fontWeight: 800 }}>{formatMoney(totalUsd, "USD")}</div>
+            <div style={{ fontSize: 22, fontWeight: 800 }}>{usd(totalUsd, numberLocale)}</div>
           </div>
-          <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 12, marginTop: 14 }}>
             {stats.map((stat) => (
-              <div key={stat.id} style={{ display: "grid", gap: 6, opacity: stat.connected ? 1 : 0.6 }}>
+              <div key={stat.id} style={{ display: "grid", gap: 6, minWidth: 0, opacity: stat.connected ? 1 : 0.6 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                     <ChannelBadge id={stat.badge} />
                     <strong style={{ fontSize: 14 }}>{stat.label}</strong>
                   </span>
-                  <strong style={{ fontSize: 14, whiteSpace: "nowrap" }}>{stat.connected ? formatMoney(stat.spendUsd, "USD") : tr("Non connecté", "Not connected")}</strong>
+                  <strong style={{ fontSize: 14, whiteSpace: "nowrap" }}>{stat.connected ? usd(stat.spendUsd, numberLocale) : tr("Non connecté", "Not connected")}</strong>
                 </div>
-                <div style={{ height: 8, borderRadius: 999, background: "#EEF2F7", overflow: "hidden" }} role="img" aria-label={`${stat.label}: ${formatMoney(stat.spendUsd, "USD")}`}>
+                <div style={{ height: 8, borderRadius: 999, background: "#EEF2F7", overflow: "hidden" }} role="img" aria-label={`${stat.label}: ${usd(stat.spendUsd, numberLocale)}`}>
                   <div style={{ width: `${stat.connected ? Math.max(stat.spendUsd > 0 ? 3 : 0, (stat.spendUsd / maxUsd) * 100) : 0}%`, height: "100%", background: stat.color, borderRadius: 999 }} />
                 </div>
                 <span className="hint-line">
@@ -280,13 +285,13 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
           </div>
 
           {metaCampaigns.length > 0 ? (
-            <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
+            <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
               <strong style={{ fontSize: 14 }}>{tr(`Campagnes Meta (${metaCampaigns.length})`, `Meta campaigns (${metaCampaigns.length})`)}</strong>
               {metaCampaigns.map((campaign) => (
-                <div key={campaign.id} style={{ display: "grid", gap: 2, padding: "10px 12px", border: "1px solid var(--line)", borderRadius: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={campaign.name}>{campaign.name}</span>
-                    <strong style={{ fontSize: 13, whiteSpace: "nowrap" }}>{formatMoney(campaign.spendUsd, "USD")}</strong>
+                <div key={campaign.id} style={{ display: "grid", gap: 2, minWidth: 0, padding: "10px 12px", border: "1px solid var(--line)", borderRadius: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, minWidth: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, flex: "1 1 0", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={campaign.name}>{campaign.name}</span>
+                    <strong style={{ fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}>{usd(campaign.spendUsd, numberLocale)}</strong>
                   </div>
                   <span className="hint-line">
                     {campaign.clicks.toLocaleString(numberLocale)} {tr("clics", "clicks")} · {campaign.impressions.toLocaleString(numberLocale)} {tr("impressions", "impressions")} · {campaign.conversions.toLocaleString(numberLocale)} conversions
