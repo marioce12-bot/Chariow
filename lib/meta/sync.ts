@@ -1,5 +1,6 @@
 import { decryptSecret } from "@/lib/crypto";
 import { fetchMetaInsights, actionValue } from "./api";
+import { fetchMetaCampaignList } from "./campaign-list";
 import type { MetaInsight } from "./types";
 
 function number(value: unknown) {
@@ -12,6 +13,8 @@ function dateValue(value: unknown, fallback: string) {
 }
 
 type Level = "campaign" | "adset" | "ad";
+
+const MAX_CONCURRENT_CAMPAIGN_REQUESTS = 5;
 
 async function upsertInsightRows<T extends object>(supabase: any, rows: Array<T | null>) {
   const safeRows = rows.filter((row): row is T => row !== null);
@@ -65,9 +68,24 @@ export async function syncMetaInsights(supabase: any, account: { id: string; met
   // Le niveau "campaign" n'est pas fiable au niveau du compte : on ne demande pas
   // campaign_id (erreur #100 sur certains tokens), donc Meta peut renvoyer des
   // lignes sans identifiant, qui seraient alors ignorées. On interroge donc
-  // chaque campagne lancée depuis la plateforme directement par son ID
-  // (/{campaign_id}/insights) : l'identifiant est alors connu avec certitude et
-  // l'autopilote dispose toujours de la dépense réelle.
+  // chaque campagne directement par son ID (/{campaign_id}/insights) : l'identifiant
+  // est alors connu avec certitude.
+  //
+  // Les IDs viennent de DEUX sources :
+  //  1. toutes les campagnes que Meta liste pour le compte (dont celles lancées
+  //     directement depuis Meta Ads Manager, absentes de la table ad_campaigns) ;
+  //  2. les campagnes lancées depuis Vendeo (le titre Vendeo est prioritaire).
+  const errors: string[] = [];
+  const targets = new Map<string, string | null>();
+
+  try {
+    for (const campaign of await fetchMetaCampaignList(`act_${account.meta_account_id}`, accessToken)) {
+      targets.set(campaign.id, campaign.name);
+    }
+  } catch (error) {
+    errors.push(`liste des campagnes: ${error instanceof Error ? error.message.slice(0, 200) : "erreur"}`);
+  }
+
   const { data: launched, error: launchedError } = await supabase
     .from("ad_campaigns")
     .select("external_campaign_id,title,product_name")
@@ -76,21 +94,29 @@ export async function syncMetaInsights(supabase: any, account: { id: string; met
     .not("external_campaign_id", "is", null)
     .limit(200);
   if (launchedError) throw launchedError;
-
-  let byIdCount = 0;
-  const errors: string[] = [];
   for (const campaign of (launched ?? []) as Array<{ external_campaign_id: string; title: string | null; product_name: string | null }>) {
-    try {
-      const insights = await fetchMetaInsights(campaign.external_campaign_id, accessToken, from, to, "campaign");
-      const rows = insights
-        .map((insight: MetaInsight) => buildRow(account, "campaign", insight, from, to, { id: campaign.external_campaign_id, name: campaign.title || campaign.product_name }))
-        .filter(Boolean);
-      await upsertInsightRows(supabase, rows);
-      byIdCount += rows.length;
-    } catch (error) {
-      errors.push(`${campaign.external_campaign_id}: ${error instanceof Error ? error.message.slice(0, 200) : "erreur"}`);
-    }
+    targets.set(campaign.external_campaign_id, campaign.title || campaign.product_name || targets.get(campaign.external_campaign_id) || null);
   }
+
+  const entries = [...targets.entries()];
+  let byIdCount = 0;
+  let nextIndex = 0;
+  const workerCount = Math.min(MAX_CONCURRENT_CAMPAIGN_REQUESTS, entries.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < entries.length) {
+      const [campaignId, campaignName] = entries[nextIndex++];
+      try {
+        const insights = await fetchMetaInsights(campaignId, accessToken, from, to, "campaign");
+        const rows = insights
+          .map((insight: MetaInsight) => buildRow(account, "campaign", insight, from, to, { id: campaignId, name: campaignName }))
+          .filter(Boolean);
+        await upsertInsightRows(supabase, rows);
+        byIdCount += rows.length;
+      } catch (error) {
+        errors.push(`${campaignId}: ${error instanceof Error ? error.message.slice(0, 200) : "erreur"}`);
+      }
+    }
+  }));
   results.push({ level: "campaign_by_id", count: byIdCount, ...(errors.length ? { error: errors.join(" | ") } : {}) });
 
   const { error: accountUpdateError } = await supabase.from("meta_ad_accounts").update({ last_synced_at: new Date().toISOString() }).eq("id", account.id);
