@@ -202,7 +202,16 @@ export async function createMetaAdSet(input: {
     status: input.status ?? "PAUSED",
   };
   if (objective === "sales" && input.pixelId) params.promoted_object = JSON.stringify({ pixel_id: input.pixelId, custom_event_type: "PURCHASE" });
-  if (input.endTime) params.end_time = input.endTime;
+  if (input.endTime) {
+    // Avec un budget quotidien, Meta exige une diffusion d'au moins 24 h (subcode
+    // 1487793 : « Calendrier de campagne trop court »). Une durée de 1 jour calculée
+    // comme « maintenant + 24 h » tombait juste en dessous, car le début réel chez
+    // Meta est postérieur de quelques secondes. On garantit donc au moins 25 h
+    // (marge d'1 h) ; les durées plus longues ne sont pas modifiées.
+    const requestedEnd = new Date(input.endTime).getTime();
+    const minimumEnd = Date.now() + 25 * 60 * 60 * 1000;
+    params.end_time = Number.isFinite(requestedEnd) ? new Date(Math.max(requestedEnd, minimumEnd)).toISOString() : input.endTime;
+  }
   // Annonceur / payeur (DSA) : sans ces deux champs Meta refuse l'ad set avec
   // « Aucun annonceur indiqué » (subcode 3858081), même si un compte publicitaire
   // est bien sélectionné dans Vendeo — ce champ est distinct du compte pub.
