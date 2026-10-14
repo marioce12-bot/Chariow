@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildPosterDirection } from "@/lib/studio/poster-direction";
-import { buildLayoutDirection } from "@/lib/studio/poster-layouts";
+import { buildLayoutDirection, type PersonMode } from "@/lib/studio/poster-layouts";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { cleanAiText } from "@/lib/ai/format";
@@ -33,11 +33,13 @@ Le TEXTE dans l'image (c'est la priorité n° 1) :
 
 Ce qui ne se négocie pas :
 - Image belle et nette au premier regard, comme une vraie publicité professionnelle : un point focal clair, de l'air entre les éléments, des proportions réalistes, des couleurs franches.
+- Les couleurs collent à l'univers du produit : si le produit parle d'une marque ou d'une plateforme connue (LinkedIn, WhatsApp, TikTok…), reprends ses couleurs ; un produit professionnel ou business a une palette sobre et crédible, jamais rose ou bordeaux.
 - Le produit est reconnaissable, net, grand, bien visible et jamais coupé ni masqué. Un ebook est toujours un livre physique (jamais dans un écran), avec son titre exact sur la couverture et aucun autre texte ni logo dessus. Une formation, un outil ou un abonnement peut être montré par son écran ou son interface.
 - N'affiche aucun prix, montant ni devise, sauf si l'utilisateur le demande explicitement. N'invente jamais de chiffre, de statistique, de garantie, de témoignage, de logo ou de nom d'auteur : tout vient du nom et de la description du produit (si la description manque, déduis le thème du nom sans rien inventer de précis).
 - Toute personne représentée a par défaut la peau noire ou métisse (personnes africaines ou afro-descendantes, représentées de façon naturelle et valorisante) ; précise-le dans le prompt. Ne change cela que si l'utilisateur ou la description du produit le demandent clairement.
+- Si l'utilisateur a choisi explicitement d'avoir ou de ne pas avoir de personne sur l'affiche, respecte ce choix à la lettre.
 - Respecte le format d'image demandé.
-- Chaque génération doit ressembler à une affiche différente des précédentes : structure, palette, style (photo, 3D, illustration plate, collage…), décor, personne. Si un prompt précédent t'est fourni, ne reprends ni sa structure, ni sa palette, ni son décor, ni sa personne.
+- Chaque génération doit ressembler à une affiche différente des précédentes : structure, style (photo, 3D, illustration plate, collage…), décor, personne. Si un prompt précédent t'est fourni, ne reprends ni sa structure, ni son décor, ni sa personne.
 - Si l'utilisateur a écrit ses propres consignes, intègre-les fidèlement et donne-leur la priorité sur tout le reste, y compris sur la mise en page imposée.
 - Termine par une courte phrase sur ce qu'il faut éviter (mains ou visages déformés, fautes dans les textes, titre trop petit, effets d'IA excessifs).`;
 }
@@ -54,13 +56,14 @@ export async function POST(request: Request) {
   const locale: "fr" | "en" = body?.locale === "en" ? "en" : "fr";
   const orientationKey: "square" | "landscape" | "portrait" = body?.orientation === "landscape" ? "landscape" : body?.orientation === "portrait" ? "portrait" : "square";
   const background = typeof body?.background === "string" ? body.background : "auto";
+  const person: PersonMode = body?.person === "with" || body?.person === "without" ? body.person : "auto";
   const price = typeof product?.price === "number" || typeof product?.price === "string" ? String(product.price).slice(0, 40) : "";
   const currency = typeof product?.currency === "string" ? product.currency.slice(0, 10) : "";
   const description = typeof product?.description === "string" ? product.description.trim().slice(0, 3_000) : "";
   const userBrief = typeof body?.userBrief === "string" ? body.userBrief.trim().slice(0, 1_500) : "";
   const previousPrompt = typeof body?.previousPrompt === "string" ? body.previousPrompt.trim().slice(0, 1_800) : "";
   const direction = buildPosterDirection({ name, description, userBrief, previousPrompt });
-  const layout = buildLayoutDirection({ orientation: orientationKey, userBrief, previousPrompt });
+  const layout = buildLayoutDirection({ orientation: orientationKey, productText: `${name} ${description}`, person, userBrief, previousPrompt });
 
   const lines = [
     `Nom du produit : ${name}`,
@@ -69,7 +72,7 @@ export async function POST(request: Request) {
     `Format de l'image : ${ORIENTATION_LABELS[locale][orientationKey]}`,
     background === "transparent" ? "Fond : transparent (sujet détouré, sans décor)." : "",
     userBrief ? `Consignes personnelles de l'utilisateur à intégrer :\n${userBrief}` : "",
-    previousPrompt ? `Prompt précédent (à ne pas reproduire : change de structure, de palette, de style et de personne) :\n${previousPrompt}` : "",
+    previousPrompt ? `Prompt précédent (à ne pas reproduire : change de structure, de style et de personne) :\n${previousPrompt}` : "",
     direction.text,
     layout.text,
   ].filter(Boolean).join("\n");
