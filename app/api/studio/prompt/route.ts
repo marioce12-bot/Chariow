@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { buildPosterDirection } from "@/lib/studio/poster-direction";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { cleanAiText } from "@/lib/ai/format";
@@ -52,79 +53,6 @@ function pickRandom(list: string[], count: number) {
 }
 
 
-// Casting tiré au sort à chaque génération. Sans cela, le modèle de texte retombe toujours sur la même
-// « jeune femme noire souriante » (même visage, même coiffure, même pose). On impose donc le genre, l'âge,
-// la coiffure, la tenue et l'attitude côté serveur ; l'IA doit les reprendre tels quels dans le prompt.
-const CASTING_AGES = ["environ 22 ans", "environ 28 ans", "environ 35 ans", "environ 42 ans", "environ 50 ans"];
-const CASTING_MAN_HAIR = ["crâne rasé et barbe courte taillée", "coupe courte dégradée (fade) sans barbe", "petites locks courtes", "afro court et naturel avec une fine moustache", "cheveux ras et barbe de trois jours", "twists courts sur le dessus"];
-const CASTING_WOMAN_HAIR = ["tresses africaines longues (box braids)", "cheveux crépus naturels coupés très court", "foulard ou headwrap en wax coloré", "chignon haut avec quelques mèches", "locks mi-longues attachées", "cheveux lissés au carré", "afro volumineux naturel"];
-const CASTING_MAN_OUTFIT = ["chemise en pagne wax moderne", "t-shirt uni et veste légère", "chemise blanche remontée aux manches", "polo sobre", "sweat à capuche décontracté", "costume sans cravate"];
-const CASTING_WOMAN_OUTFIT = ["robe wax moderne", "chemisier clair et pantalon taille haute", "blazer coloré sur t-shirt blanc", "t-shirt uni décontracté", "ensemble en lin", "tenue de sport propre"];
-const CASTING_ATTITUDES = [
-  "rire franc et spontané, regard légèrement détourné de la caméra",
-  "concentré et sérieux, regard sur le produit",
-  "sourire confiant, bras croisés ou une main dans la poche",
-  "surpris et enthousiaste, le produit levé à bout de bras",
-  "regard caméra calme et assuré, produit tenu bas contre la poitrine",
-  "en mouvement, pris sur le vif (marche, geste, rotation du buste)",
-  "penché vers l'avant, complice, qui montre le produit du doigt",
-];
-
-// Si l'utilisateur décrit lui-même la personne, on ne tire rien au sort : ses consignes passent d'abord.
-const USER_DESCRIBES_PERSON = /(homme|femme|man\b|woman|men\b|women|garçon|fille|mère|père|couple|groupe|enfant|étudiant|étudiante|personnage|sans personne|no person)/i;
-
-function pickOne<T>(list: T[]): T {
-  return list[Math.floor(Math.random() * list.length)];
-}
-
-function pickCasting(userBrief: string) {
-  if (USER_DESCRIBES_PERSON.test(userBrief)) return "";
-  const man = Math.random() < 0.5;
-  return `Casting imposé à reprendre tel quel dans le prompt : ${man ? "un homme" : "une femme"} ${pickOne(CASTING_AGES)}, peau noire ou métisse, ${pickOne(man ? CASTING_MAN_HAIR : CASTING_WOMAN_HAIR)}, ${pickOne(man ? CASTING_MAN_OUTFIT : CASTING_WOMAN_OUTFIT)}, attitude : ${pickOne(CASTING_ATTITUDES)}. Donne-lui un visage distinctif et naturel.`;
-}
-
-// Direction artistique tirée au sort (style, palette, mise en place du produit, présence humaine). Sans cela, toutes
-// les affiches sortent dans les mêmes tons turquoise/orange, avec la même personne qui tient le produit en main.
-const ART_STYLES = [
-  "photo publicitaire de studio haut de gamme sur fond uni coloré, ombres douces",
-  "photo lifestyle naturelle en lumière du jour dans un vrai décor du thème",
-  "composition 3D minimaliste avec formes géométriques et volumes doux",
-  "illustration moderne en aplats nets, style éditorial coloré",
-  "photo éditoriale façon magazine, grands aplats de couleur et typographie forte",
-  "scène réaliste et chaleureuse du quotidien africain, profondeur de champ",
-];
-const ART_PALETTES = [
-  "bleu roi profond et jaune soleil",
-  "vert émeraude et crème",
-  "rouge vif et blanc cassé",
-  "violet électrique et rose clair",
-  "orange brûlé et bleu nuit",
-  "noir élégant avec un accent jaune doré",
-  "bleu ciel et blanc très lumineux",
-  "vert menthe et corail",
-];
-const PRODUCT_PLACEMENTS = [
-  "posé sur une table ou un bureau, légèrement de trois quarts",
-  "debout contre un mur ou sur une étagère, bien éclairé",
-  "tenu en main par la personne, à hauteur de poitrine",
-  "posé à côté de la personne, en gros plan au premier plan",
-  "en légère suspension devant un fond uni, ombre douce dessous",
-  "plusieurs exemplaires empilés ou en éventail",
-  "posé sur un canapé, un comptoir ou une marche, dans un décor du thème",
-];
-
-function pickDirection(userBrief: string) {
-  const personWanted = !USER_DESCRIBES_PERSON.test(userBrief);
-  const withoutPerson = personWanted && Math.random() < 0.3;
-  const parts = [
-    `style : ${pickOne(ART_STYLES)}`,
-    `palette dominante : ${pickOne(ART_PALETTES)}`,
-    `mise en place du produit : ${pickOne(withoutPerson ? PRODUCT_PLACEMENTS.filter((placement) => !placement.includes("personne")) : PRODUCT_PLACEMENTS)}`,
-  ];
-  if (withoutPerson) parts.push("sans aucune personne : le produit est le héros de l'image");
-  return { withoutPerson, text: `Direction artistique imposée à reprendre dans le prompt : ${parts.join(" ; ")}.` };
-}
-
 function systemPrompt(locale: "fr" | "en") {
   const language = locale === "en" ? "English" : "français";
   return `Tu es un directeur artistique et prompt engineer senior, spécialisé dans les affiches publicitaires pour des produits digitaux (ebooks, formations, templates, abonnements) vendues par des créateurs francophones et anglophones, principalement en Afrique. Tes affiches doivent avoir le niveau des meilleures publicités Facebook / Instagram : un visage humain expressif, un message qui accroche en un coup d'œil, un produit bien visible. Pas de prix sur l'affiche.
@@ -141,7 +69,7 @@ Chaque affiche est unique : il n'y a PAS de gabarit à recopier. Tu inventes la 
 Ce qui doit toujours être vrai, quelle que soit la mise en page :
 - ACCROCHE : un titre court et percutant (3 à 8 mots), très grand, en gras, avec un fort contraste, qui vend un résultat ou un désir du client plutôt que de répéter le nom du produit. Tu peux jouer sur la typographie (un mot-clé plus grand ou d'une autre couleur) si cela sert l'idée ; invente la formule, ne copie jamais un exemple.
 - BÉNÉFICES : 0 à 3 bénéfices très courts (2 à 5 mots) que le client obtient concrètement, bien lisibles, présentés comme tu le sens. Moins de texte vaut mieux : si l'image est plus forte avec l'accroche seule, n'en mets aucun.
-- PERSONNE : une présence humaine réelle, expressive et crédible (regard caméra, vrai sourire ou émotion forte, ou action naturelle), de taille importante, qui regarde la caméra, utilise le produit ou vit la situation qu'il améliore. La personne ne tient PAS forcément le produit : il peut être posé à côté d'elle. Si un « Casting imposé » t'est fourni (genre, âge, coiffure, tenue, attitude), reprends-le exactement : ne le remplace pas par une jeune femme souriante par défaut. Sinon, varie le genre (homme comme femme), l'âge adulte, la coiffure, la pose, la tenue et le cadrage. Retire la personne seulement si le produit s'y prête vraiment mal.
+- PERSONNE : une présence humaine réelle, expressive et crédible (regard caméra, vrai sourire ou émotion forte, ou action naturelle), de taille importante, qui regarde la caméra, utilise le produit ou vit la situation qu'il améliore. La personne ne tient PAS forcément le produit : il peut être posé à côté d'elle. Si une « Direction artistique déduite du produit » t'est fournie, elle contient le genre, l'âge, la coiffure, la tenue et l'attitude adaptés au public du produit : reprends-les (ne les remplace pas par une jeune femme souriante par défaut), sauf si la description du produit les contredit clairement. Sinon, varie le genre (homme comme femme), l'âge adulte, la coiffure, la pose, la tenue et le cadrage. Retire la personne seulement si le produit s'y prête vraiment mal.
 - PRODUIT : reconnaissable au premier coup d'œil (règles plus bas).
 - PRIX : n'affiche AUCUN prix, montant, devise ni badge de prix sur l'affiche, sauf si les consignes personnelles de l'utilisateur le demandent explicitement.
 - ACTION : un appel à l'action clair avec un verbe adapté au produit (« Télécharge maintenant », « Commande aujourd'hui », « Rejoins la formation »…), dont tu varies la forme (bouton, bandeau, étiquette).
@@ -149,14 +77,14 @@ Ce qui doit toujours être vrai, quelle que soit la mise en page :
 Liberté créative :
 - Tu as carte blanche sur le style (photo réaliste de préférence, mais aussi illustration premium ou 3D si cela sert le produit), la lumière, la palette, le décor et le ton. Choisis une couleur d'accent cohérente avec le thème du produit.
 - QUALITÉ : une image belle et attirante au premier regard, comme une vraie publicité professionnelle : UN seul point focal, une composition aérée avec de la place pour respirer, une lumière flatteuse, des proportions réalistes. Pas de collage chargé ni d'éléments qui flottent sans raison, pas de faux logos, pas de texte minuscule.
-- Si une « Direction artistique imposée » (style, palette, mise en place du produit, présence humaine) t'est fournie, reprends-la exactement : c'est elle qui garantit que les affiches ne se ressemblent pas.
+- La « Direction artistique déduite du produit » (thème, style, palette, décor, mise en place du produit, personne) est calculée à partir du produit et de son public : suis-la, c'est elle qui évite que toutes les affiches se ressemblent.
 - Évite les clichés : le livre posé à plat sur un bureau en bois vu de dessus, la table en bois avec tasse de café et carnet, la même personne souriante assise devant un ordinateur la main sous le menton.
 - Fond : choisi pour mettre en valeur le titre et le produit, sans décor chargé qui les concurrence.
 - Des pistes d'inspiration facultatives te sont aussi proposées : prends-les, mélange-les ou ignore-les. Si un prompt précédent t'est fourni, propose un concept nettement différent (mise en page, personne, pose, cadrage, décor, palette) et ne le recopie pas.
 
 Règles sur le produit :
 - Le produit est net, en haute définition, bien éclairé, en premier plan, assez grand pour être lu. Il n'est jamais coupé ni masqué (les doigts tiennent le bord ou la tranche, jamais le titre de la couverture).
-- Pour un ebook : un livre mockup 3D réaliste (couverture rigide ou souple, épaisseur, tranche et ombres crédibles), couverture entièrement visible et lisible, face à la caméra ou légèrement de trois quarts. Sa mise en place suit la « Direction artistique imposée » (tenu en main, posé sur une table ou un meuble, debout contre un mur, sur une étagère, empilé, en suspension…) : ne le fais pas tenir en main par défaut. Seul le titre figure sur la couverture, sans autre texte ni logo. L'ebook n'est JAMAIS affiché à l'intérieur d'une tablette, d'un téléphone, d'un ordinateur ou de tout autre écran : uniquement un livre physique. Le nom exact du produit est écrit sur la couverture, entre guillemets dans le prompt.
+- Pour un ebook : un livre mockup 3D réaliste (couverture rigide ou souple, épaisseur, tranche et ombres crédibles), couverture entièrement visible et lisible, face à la caméra ou légèrement de trois quarts. Sa mise en place suit la « Direction artistique déduite du produit » (tenu en main, posé sur une table ou un meuble, debout contre un mur, sur une étagère, empilé, en suspension…) : ne le fais pas tenir en main par défaut. Seul le titre figure sur la couverture, sans autre texte ni logo. L'ebook n'est JAMAIS affiché à l'intérieur d'une tablette, d'un téléphone, d'un ordinateur ou de tout autre écran : uniquement un livre physique. Le nom exact du produit est écrit sur la couverture, entre guillemets dans le prompt.
 - Pour une formation : un grand écran ou une tablette affichant l'interface de cours, avec la vignette portant le titre. Pour un template ou un outil : l'écran qui le montre, en grand. Pour un abonnement ou un service : son interface ou sa carte, en grand.
 
 Règles sur le texte :
@@ -194,8 +122,7 @@ export async function POST(request: Request) {
   const previousPrompt = typeof body?.previousPrompt === "string" ? body.previousPrompt.trim().slice(0, 1_800) : "";
   const territories = pickRandom(CREATIVE_TERRITORIES, 3);
   const layouts = pickRandom(LAYOUT_ARCHETYPES, 2);
-  const direction = pickDirection(userBrief);
-  const casting = direction.withoutPerson ? "" : pickCasting(userBrief);
+  const direction = buildPosterDirection({ name, description, userBrief, previousPrompt });
 
   const lines = [
     `Nom du produit : ${name}`,
@@ -206,7 +133,6 @@ export async function POST(request: Request) {
     userBrief ? `Consignes personnelles de l'utilisateur à intégrer :\n${userBrief}` : "",
     previousPrompt ? `Prompt précédent (à ne pas reproduire, propose un concept nettement différent) :\n${previousPrompt}` : "",
     direction.text,
-    casting,
     `Mises en page proposées (pars de l'une d'elles ou invente mieux) : ${layouts.join(" ; ")}`,
     `Pistes d'inspiration facultatives : ${territories.join(" ; ")}`,
   ].filter(Boolean).join("\n");
