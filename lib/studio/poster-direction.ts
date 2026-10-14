@@ -80,6 +80,12 @@ function hash(text: string) {
   return value;
 }
 function pick<T>(list: T[], random: () => number): T { return list[Math.floor(random() * list.length)]; }
+function pickMany<T>(list: T[], count: number, random: () => number): T[] {
+  const pool = [...list];
+  const out: T[] = [];
+  while (out.length < count && pool.length) out.push(pool.splice(Math.floor(random() * pool.length), 1)[0]);
+  return out;
+}
 
 export function detectTheme(text: string): Theme {
   return THEMES.find((theme) => theme.keywords.test(text)) ?? DEFAULT_THEME;
@@ -110,21 +116,24 @@ export function buildPosterDirection(input: { name: string; description?: string
   const userDescribesPerson = USER_DESCRIBES_PERSON.test(userBrief);
   const withoutPerson = !userDescribesPerson && random() >= PERSON_CHANCE[type];
 
+  // Ce ne sont que des PISTES de départ : l'IA analyse elle-même le produit et reste libre de les suivre, de les
+  // mélanger ou de proposer mieux. On donne 2 options (palette, mise en place) plutôt qu'un choix unique.
   const placements = PLACEMENTS[type].filter((option) => !withoutPerson || !/(personne|en main)/.test(option));
-  const placement = pick(placements.length ? placements : ["posé bien en vue au premier plan, dans le décor"], random);
+  const placementOptions = pickMany(placements.length ? placements : ["posé bien en vue au premier plan, dans le décor"], 2, random);
+  const paletteOptions = pickMany(theme.palettes, 2, random);
 
   const parts = [
-    `thème : ${theme.id}`,
-    `style : ${theme.style}`,
-    `palette dominante : ${pick(theme.palettes, random)}`,
-    `décor : ${theme.setting}`,
-    `mise en place du produit (${type}) : ${placement}`,
+    `thème probable : ${theme.id}`,
+    `décor possible : ${theme.setting}`,
+    `ambiance possible : ${theme.style}`,
+    `palettes possibles : ${paletteOptions.join(" ou ")}`,
+    `mise en place possible du produit (${type}) : ${placementOptions.join(" ou ")}`,
   ];
-  if (withoutPerson) parts.push("sans aucune personne : le produit est le héros de l'image");
+  if (withoutPerson) parts.push("l'affiche peut très bien se passer de personne : le produit peut être le héros de l'image");
   else if (!userDescribesPerson) {
     const gender = detectAudience(text, theme, input.name, input.previousPrompt ?? "");
     const man = gender === "homme";
-    parts.push(`personne : ${man ? "un homme" : "une femme"} ${detectAge(text)}, peau noire ou métisse, ${pick(man ? HAIR_MAN : HAIR_WOMAN, random)}, ${pick(man ? theme.outfitMan : theme.outfitWoman, random)}, attitude : ${pick(ATTITUDES, random)}`);
+    parts.push(`public probable : ${man ? "un homme" : "une femme"} ${detectAge(text)} (pour varier d'une génération à l'autre, ne reprends pas la dernière personne) ; pense à la coiffure, à la tenue et à l'attitude qui collent le mieux au produit, avec un visage distinctif`);
   }
-  return { withoutPerson, themeId: theme.id, text: `Direction artistique déduite du produit et de son public (à reprendre dans le prompt) : ${parts.join(" ; ")}.` };
+  return { withoutPerson, themeId: theme.id, text: `Pistes déduites du produit et de son public (simples suggestions : analyse toi-même le produit, tu restes libre de les suivre, de les mélanger ou de faire mieux) : ${parts.join(" ; ")}.` };
 }

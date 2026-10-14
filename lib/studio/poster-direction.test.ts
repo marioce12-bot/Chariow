@@ -28,7 +28,7 @@ describe("direction artistique d'affiche", () => {
 
   it("ne choisit pas de personne si l'utilisateur la décrit", () => {
     const result = buildPosterDirection({ name: "Ebook business", userBrief: "avec un couple devant un ordinateur" }, always(0.99));
-    expect(result.text).not.toContain("personne :");
+    expect(result.text).not.toContain("public probable");
     expect(result.withoutPerson).toBe(false);
   });
 
