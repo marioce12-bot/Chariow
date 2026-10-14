@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { META_GRAPH_BASE_URL } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
+import { LEGACY_META_CTA, normalizeMetaCta } from "@/lib/meta/cta";
 
 export const maxDuration = 30;
 
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
         message: typeof body?.message === "string" ? body.message : "",
         name: typeof body?.headline === "string" ? body.headline : "",
         ...(imageHash ? { image_hash: imageHash } : { picture: imageUrl }),
-        call_to_action: { type: "LEARN_MORE", value: { link } },
+        call_to_action: { type: normalizeMetaCta(body?.call_to_action) ?? LEGACY_META_CTA, value: { link } },
       },
     },
   };

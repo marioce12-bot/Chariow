@@ -14,6 +14,8 @@ export type PlacementCreativeInput = {
   headline: string;
   feedHash: string;
   verticalHash: string;
+  /** Type de bouton (voir lib/meta/cta.ts) ; LEARN_MORE si absent. */
+  callToAction?: string;
 };
 
 export function placementVariantsEnabled(): boolean {
@@ -29,7 +31,7 @@ export function buildPlacementCreativeParams(input: PlacementCreativeInput): { o
     bodies: [{ text: input.message }],
     titles: [{ text: input.headline }],
     link_urls: [{ website_url: input.link }],
-    call_to_action_types: ["LEARN_MORE"],
+    call_to_action_types: [input.callToAction ?? "LEARN_MORE"],
     ad_formats: ["SINGLE_IMAGE"],
     optimization_type: "PLACEMENT",
     asset_customization_rules: [

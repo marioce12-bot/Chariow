@@ -98,7 +98,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
     }));
 
   const fetchMetaPreview = (formatId: string, isCancelled: () => boolean = () => false) => {
-    const contentKey = JSON.stringify([state.metaAdAccountId, state.metaPageId, state.placement, state.destinationUrl, state.mediaUrl, state.adText, state.title, state.product?.name ?? ""]);
+    const contentKey = JSON.stringify([state.metaAdAccountId, state.metaPageId, state.placement, state.destinationUrl, state.mediaUrl, state.adText, state.title, state.callToAction, state.product?.name ?? ""]);
     const cacheKey = `${contentKey}|${formatId}`;
     const cached = metaPreviewCacheRef.current.get(cacheKey);
     if (cached && Date.now() - cached.at < META_PREVIEW_CACHE_MS) {
@@ -126,6 +126,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
         image_hash: knownHash,
         message: state.adText,
         headline: state.title || state.product?.name || "",
+        call_to_action: state.callToAction,
       }),
     })
       .then(async (response) => {
@@ -199,7 +200,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, state.platform, state.metaAdAccountId, state.metaPageId, state.placement, state.destinationUrl, state.mediaUrl, state.adText, state.title, state.product?.name]);
+  }, [step, state.platform, state.metaAdAccountId, state.metaPageId, state.placement, state.destinationUrl, state.mediaUrl, state.adText, state.title, state.callToAction, state.product?.name]);
 
   const selectMetaPreview = (formatId: string) => {
     setActiveMetaPreview(formatId);

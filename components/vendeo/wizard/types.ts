@@ -1,6 +1,7 @@
 // components/vendeo/wizard/types.ts
 
 import { WORLD_COUNTRIES } from "@/lib/geo/countries";
+import { DEFAULT_META_CTA, LEGACY_META_CTA, normalizeMetaCta, type MetaCtaType } from "@/lib/meta/cta";
 
 export type Platform = "meta" | "tiktok" | "pinterest";
 export type Objective = "sales" | "traffic" | "engagement" | "leads";
@@ -50,6 +51,8 @@ export interface WizardState {
   adText: string;
   title: string;
   destinationUrl: string;
+  // Bouton d'appel à l'action (Meta uniquement) — éditeur "Configuration de la publicité".
+  callToAction: MetaCtaType;
   // "Identité" de la publicité (page Meta / identité TikTok)
   metaPageId?: string;
   tiktokIdentityId?: string;
@@ -89,6 +92,7 @@ export interface EditableCampaign {
   ad_text?: string | null;
   media_url?: string | null;
   destination_url?: string | null;
+  call_to_action?: string | null;
   countries?: string[] | null;
   geo_targeting?: { countries?: string[]; regions?: { key: string; name: string }[]; cities?: { key: string; name: string }[] } | null;
   min_age?: number | null;
@@ -115,6 +119,7 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   adText: "",
   title: "",
   destinationUrl: "",
+  callToAction: DEFAULT_META_CTA,
   locations: [DEFAULT_LOCATION],
   countries: ["BJ"],
   minAge: 18,
@@ -179,6 +184,8 @@ export function wizardStateFromCampaign(campaign: EditableCampaign, storeId: str
     adText: campaign.ad_text ?? "",
     title: campaign.title ?? "",
     destinationUrl: campaign.destination_url ?? "",
+    // Campagne créée avant ce réglage (colonne vide) : elle partait avec LEARN_MORE, on le garde.
+    callToAction: normalizeMetaCta(campaign.call_to_action) ?? LEGACY_META_CTA,
     metaAdAccountId: campaign.meta_ad_account_id ?? undefined,
     tiktokAdAccountId: campaign.tiktok_ad_account_id ?? undefined,
     pinterestAdAccountId: campaign.pinterest_ad_account_id ?? undefined,
