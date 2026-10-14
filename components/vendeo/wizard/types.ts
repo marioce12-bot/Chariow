@@ -53,6 +53,10 @@ export interface WizardState {
   destinationUrl: string;
   // Bouton d'appel à l'action (Meta uniquement) — éditeur "Configuration de la publicité".
   callToAction: MetaCtaType;
+  // Advantage+ (Meta uniquement) : créative = améliorations automatiques du visuel/texte (étape 2) ;
+  // audience = Meta peut élargir l'audience au-delà du ciblage choisi (étape 3).
+  advantageCreative: boolean;
+  advantageAudience: boolean;
   // "Identité" de la publicité (page Meta / identité TikTok)
   metaPageId?: string;
   tiktokIdentityId?: string;
@@ -93,6 +97,8 @@ export interface EditableCampaign {
   media_url?: string | null;
   destination_url?: string | null;
   call_to_action?: string | null;
+  advantage_creative?: boolean | null;
+  advantage_audience?: boolean | null;
   countries?: string[] | null;
   geo_targeting?: { countries?: string[]; regions?: { key: string; name: string }[]; cities?: { key: string; name: string }[] } | null;
   min_age?: number | null;
@@ -120,6 +126,8 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   title: "",
   destinationUrl: "",
   callToAction: DEFAULT_META_CTA,
+  advantageCreative: true,
+  advantageAudience: false, // désactivé : on garde exactement l'âge et les lieux choisis
   locations: [DEFAULT_LOCATION],
   countries: ["BJ"],
   minAge: 18,
@@ -186,6 +194,8 @@ export function wizardStateFromCampaign(campaign: EditableCampaign, storeId: str
     destinationUrl: campaign.destination_url ?? "",
     // Campagne créée avant ce réglage (colonne vide) : elle partait avec LEARN_MORE, on le garde.
     callToAction: normalizeMetaCta(campaign.call_to_action) ?? LEGACY_META_CTA,
+    advantageCreative: campaign.advantage_creative ?? DEFAULT_WIZARD_STATE.advantageCreative,
+    advantageAudience: campaign.advantage_audience ?? DEFAULT_WIZARD_STATE.advantageAudience,
     metaAdAccountId: campaign.meta_ad_account_id ?? undefined,
     tiktokAdAccountId: campaign.tiktok_ad_account_id ?? undefined,
     pinterestAdAccountId: campaign.pinterest_ad_account_id ?? undefined,

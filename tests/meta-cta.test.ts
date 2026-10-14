@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_META_CTA, LEGACY_META_CTA, META_CTA_TYPES, normalizeMetaCta } from "@/lib/meta/cta";
 import { buildPlacementCreativeParams } from "@/lib/meta/placement-spec";
-import { createMetaCreative } from "@/lib/meta/campaigns";
+import { createMetaAdSet, createMetaCreative } from "@/lib/meta/campaigns";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -76,5 +76,29 @@ describe("createMetaCreative — bouton et Advantage+", () => {
     const fetchMock = stubGraph();
     await createMetaCreative(base);
     expect(sentParams(fetchMock).get("degrees_of_freedom_spec")).toBeNull();
+  });
+});
+
+describe("createMetaAdSet — audience Advantage+", () => {
+  const base = { accountId: "act_1", accessToken: "tok", campaignId: "c1", name: "Audience", dailyBudget: 5, countries: ["BJ"], minAge: 18, maxAge: 45, advertiserName: "Boutique" };
+
+  async function sentTargeting(extra: { advantageAudience?: boolean }) {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "as_1" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await createMetaAdSet({ ...base, ...extra });
+    const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+    return JSON.parse(new URLSearchParams(String(init.body)).get("targeting") ?? "{}");
+  }
+
+  it("désactive l'audience Advantage+ par défaut", async () => {
+    const targeting = await sentTargeting({});
+    expect(targeting.targeting_automation).toEqual({ advantage_audience: 0 });
+    expect(targeting.age_min).toBe(18);
+    expect(targeting.age_max).toBe(45);
+  });
+
+  it("l'active quand demandé", async () => {
+    const targeting = await sentTargeting({ advantageAudience: true });
+    expect(targeting.targeting_automation).toEqual({ advantage_audience: 1 });
   });
 });

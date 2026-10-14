@@ -29,6 +29,8 @@ export async function PATCH(request: Request, context: Context) {
   // Bouton d'appel à l'action Meta : une valeur hors liste est ignorée (la colonne garde sa valeur).
   const callToAction = normalizeMetaCta(body.call_to_action);
   if (callToAction) updates.call_to_action = callToAction;
+  if (typeof body.advantage_creative === "boolean") updates.advantage_creative = body.advantage_creative;
+  if (typeof body.advantage_audience === "boolean") updates.advantage_audience = body.advantage_audience;
   if ("geo_targeting" in body) updates.geo_targeting = sanitizeGeoTargeting(body.geo_targeting);
   const dailyBudget = Number(body.daily_budget);
   const durationDays = Number(body.duration_days);

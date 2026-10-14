@@ -661,6 +661,24 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             <p className="mt-1 text-xs text-gray-400">{en ? "Button shown under your ad on Facebook and Instagram. It opens your destination link." : "Bouton affiché sous ta publicité sur Facebook et Instagram. Il ouvre ton lien de destination."}</p>
           </div>
         )}
+        {state.platform === "meta" && (
+          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3">
+            <input
+              type="checkbox"
+              checked={state.advantageCreative}
+              onChange={(e) => patch({ advantageCreative: e.target.checked })}
+              className="mt-0.5 h-4 w-4 shrink-0"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-gray-700">{en ? "Advantage+ creative" : "Créative Advantage+"}</span>
+              <span className="block text-xs text-gray-500">
+                {en
+                  ? "Meta can automatically touch up your image (crop, brightness), improve your text and add overlays to boost results. Turn off to keep your ad exactly as written."
+                  : "Meta peut retoucher ton image (recadrage, luminosité), améliorer ton texte et ajouter des superpositions pour de meilleurs résultats. Désactive pour garder ta publicité exactement telle quelle."}
+              </span>
+            </span>
+          </label>
+        )}
       </div>
     );
   }

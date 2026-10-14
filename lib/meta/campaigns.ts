@@ -160,6 +160,9 @@ export async function createMetaAdSet(input: {
   objective?: "sales" | "traffic" | "engagement" | "leads";
   pixelId?: string | null;
   endTime?: string | null;
+  /** Audience Advantage+ : Meta peut élargir l'audience au-delà du ciblage (âge, centres d'intérêt).
+   *  Désactivée par défaut pour garder exactement l'âge et les lieux choisis. */
+  advantageAudience?: boolean;
 }) {
   const hasPreciseTargeting = !!(input.geoTargeting && ((input.geoTargeting.regions?.length ?? 0) > 0 || (input.geoTargeting.cities?.length ?? 0) > 0));
   const geoLocations: Record<string, unknown> = hasPreciseTargeting
@@ -180,11 +183,12 @@ export async function createMetaAdSet(input: {
     // Requis par Meta (Graph API v23.0+, subcode 1870227) dès que l'âge min/max
     // n'est pas la config par défaut : il faut dire explicitement si l'audience
     // Advantage+ (élargissement automatique de l'audience par l'IA de Meta) est
-    // activée. 0 = désactivée, pour garder exactement l'âge/pays choisis par
-    // l'utilisateur plutôt que de laisser Meta les élargir automatiquement.
+    // activée. 0 (défaut) = désactivée, pour garder exactement l'âge/pays choisis par
+    // l'utilisateur ; 1 = Meta peut élargir l'audience (choix « Audience Advantage+ »
+    // à l'étape 3 du wizard).
     // (Ne concerne QUE l'audience : l'Advantage+ créative, lui, se règle sur la
     // créative — voir ADVANTAGE_CREATIVE_FEATURES plus bas.)
-    targeting_automation: { advantage_audience: 0 },
+    targeting_automation: { advantage_audience: input.advantageAudience ? 1 : 0 },
   };
   // Plan Éco : diffusion restreinte à Facebook uniquement (pas Instagram).
   // Sans ce champ, Meta diffuse automatiquement sur tous les emplacements disponibles.
