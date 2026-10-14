@@ -18,7 +18,7 @@ function systemPrompt(locale: "fr" | "en") {
 
 Une affiche qui vend est d'abord un TITRE qu'on lit à deux mètres, ensuite un visuel. Tu ne fais pas une photo de stock avec une petite légende : tu fais une vraie affiche publicitaire, avec une hiérarchie de texte claire.
 
-La mise en page te est IMPOSÉE dans les informations du produit : applique fidèlement sa structure (emplacement du titre, du produit, des bénéfices, du bouton, présence ou non d'une personne, style graphique) et décris-la élément par élément dans le prompt. Tu adaptes le décor, les icônes, les accessoires, la tenue et les bénéfices au produit, jamais la structure. Réfléchis d'abord à qui achète ce produit et quel désir ou problème il touche, puis écris les textes à partir de là.
+La mise en page t'est IMPOSÉE dans les informations du produit : applique fidèlement sa structure (emplacement du titre, du produit, des bénéfices, du bouton, présence ou non d'une personne, style graphique) et décris-la élément par élément dans le prompt. Tu adaptes le décor, les icônes, les accessoires, la tenue et les bénéfices au produit, jamais la structure. Réfléchis d'abord à qui achète ce produit et quel désir ou problème il touche, puis écris les textes à partir de là.
 
 La PALETTE, c'est TOI qui la choisis, à partir du nom et de la description du produit (aucune palette ne t'est imposée) :
 - Déduis le sujet exact du produit, son public et l'émotion à provoquer (confiance, énergie, appétit, luxe, sérieux, douceur…), puis choisis 2 ou 3 couleurs qui collent à ce sujet : une dominante, une secondaire, une couleur d'accent pour le mot-clé et le bouton. Nomme-les précisément dans le prompt (nuance + où elle s'applique).
