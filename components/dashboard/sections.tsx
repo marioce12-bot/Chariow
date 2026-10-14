@@ -867,131 +867,6 @@ function ProductCatalog({ products, onPromote }: { products: ProductData[]; onPr
   );
 }
 
-type AdChannelReading = { id: string; label: string; connected: boolean; failed: boolean; spendUsd: number; clicks: number };
-
-async function readJsonOrNull(url: string): Promise<any | null> {
-  try {
-    const response = await fetch(url);
-    return response.ok ? await response.json() : null;
-  } catch {
-    return null;
-  }
-}
-
-// Dépenses et clics pub de TOUS les canaux connectés (Meta, TikTok, Pinterest), tous comptes confondus, en USD.
-// Le Rapport ne détaille pas les campagnes (c'est le rôle de l'onglet Pubs) : il ne garde que ce qui sert à
-// relier la pub aux visites et aux ventes de la boutique.
-async function loadAdChannels(from: string, to: string): Promise<AdChannelReading[]> {
-  const range = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
-  async function channel(id: string, label: string, accountsUrl: string, perfUrl: string): Promise<AdChannelReading> {
-    const base: AdChannelReading = { id, label, connected: false, failed: false, spendUsd: 0, clicks: 0 };
-    const accountsData = await readJsonOrNull(accountsUrl);
-    const accounts: Array<{ id: string }> = accountsData?.accounts ?? [];
-    if (!accounts.length) return base;
-    const results = await Promise.all(accounts.map((account) => readJsonOrNull(`${perfUrl}?account_id=${encodeURIComponent(account.id)}&${range}`)));
-    const valid = results.filter(Boolean) as Array<{ currency: string; overview?: { spend?: number; clicks?: number }; performances?: Array<{ clicks?: number }> }>;
-    if (!valid.length) return { ...base, connected: true, failed: true };
-    return {
-      ...base,
-      connected: true,
-      failed: valid.length < results.length,
-      spendUsd: valid.reduce((total, item) => total + (toUsd(Number(item.overview?.spend ?? 0), item.currency) ?? 0), 0),
-      clicks: valid.reduce((total, item) => total + (item.overview?.clicks ?? (item.performances ?? []).reduce((sum, p) => sum + (p.clicks ?? 0), 0)), 0),
-    };
-  }
-  return Promise.all([
-    channel("meta", "Meta", "/api/integrations/meta/accounts", "/api/meta/performance"),
-    channel("tiktok", "TikTok", "/api/integrations/tiktok/accounts", "/api/tiktok/performance"),
-    channel("pinterest", "Pinterest", "/api/integrations/pinterest/accounts", "/api/pinterest/performance"),
-  ]);
-}
-
-type ReportReading = {
-  funnelNote: string;
-  notes: Array<{ title: string; text: string }>;
-  happened: string;
-  weakPoint: string;
-  actions: string[];
-};
-
-const pctOf = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : null);
-const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count > 1 ? many : one}`;
-
-// Lecture et conclusion du rapport : uniquement des constats chiffrés issus des données de la période, et des
-// actions précises. Aucun ROAS/CPC ici : ces indicateurs par campagne vivent déjà dans l'onglet Pubs.
-function buildReportReading(analytics: NonNullable<AnalyticsData>, ads: { spendUsd: number; clicks: number; connected: boolean }): ReportReading {
-  const { kpis, overview, products } = analytics;
-  const sales = kpis.sales;
-  const visits = kpis.visits;
-  const spendLabel = formatMoney(ads.spendUsd, "USD");
-  const money = (value: number, currency: string) => formatMoneyInUSD(value, currency) ?? formatMoney(value, currency);
-
-  // 1. Où se situe la fuite entre la pub, la visite et l'achat.
-  let funnelNote: string;
-  if (ads.connected && ads.spendUsd > 0 && ads.clicks === 0) funnelNote = `${spendLabel} dépensés sans aucun clic : la pub n'est pas encore diffusée ou n'a pas été validée par la régie.`;
-  else if (ads.clicks > 0 && visits === 0) funnelNote = `${plural(ads.clicks, "clic")} sur tes pubs mais aucune visite enregistrée : vérifie que le lien des annonces pointe bien vers ta boutique Chariow.`;
-  else if (ads.clicks >= 10 && visits < ads.clicks * 0.5) funnelNote = `Seulement ${pctOf(visits, ads.clicks)} % des clics pub deviennent des visites (${visits} pour ${ads.clicks}) : le lien ou le temps de chargement de ta page fait perdre des visiteurs avant même qu'ils voient ton offre.`;
-  else if (visits >= 20 && sales === 0) funnelNote = `${plural(visits, "visite")} et aucune vente : la pub amène du monde, le blocage est sur la page de vente ou le paiement.`;
-  else if (visits > 0 && sales === 0) funnelNote = `${plural(visits, "visite")} et aucune vente pour l'instant : c'est encore trop peu de trafic pour conclure, continue à envoyer des visiteurs.`;
-  else if (sales > 0 && visits > 0) funnelNote = `${plural(sales, "vente")} pour ${plural(visits, "visite")} (${pctOf(sales, visits)} % des visiteurs achètent).`;
-  else funnelNote = "Pas assez de données sur cette période pour situer où tu perds tes acheteurs.";
-
-  // 2. Lecture rapide : ce qui bouge dans la boutique.
-  const notes: ReportReading["notes"] = [];
-  if (overview) {
-    const { revenueNet, previousRevenueNet, revenueChangePct, currency } = overview;
-    if (revenueChangePct !== null && revenueChangePct !== undefined) notes.push({ title: `Chiffre d'affaires ${revenueChangePct >= 0 ? "+" : ""}${revenueChangePct.toFixed(1)} % vs période précédente`, text: `${money(revenueNet, currency)} sur cette période contre ${money(previousRevenueNet, currency)} sur la précédente.` });
-    else if (revenueNet > 0) notes.push({ title: "Premier chiffre d'affaires", text: `${money(revenueNet, currency)} encaissés alors que la période précédente n'avait aucune vente : c'est ton point de départ.` });
-  }
-  const ranked = [...(analytics.productPerformance ?? [])].sort((a, b) => b.sales - a.sales);
-  if (ranked[0] && ranked[0].sales > 0) {
-    const share = pctOf(ranked[0].sales, sales || ranked.reduce((sum, item) => sum + item.sales, 0));
-    notes.push({ title: `Produit moteur : ${ranked[0].name}`, text: `${plural(ranked[0].sales, "vente")}${share !== null ? `, soit ${share} % de tes ventes` : ""}. C'est lui qu'il faut pousser en priorité.` });
-  }
-  const unsold = products.filter((product) => (product.sales ?? 0) === 0);
-  if (products.length > 1 && unsold.length > 0) notes.push({ title: `${plural(unsold.length, "produit")} sans vente`, text: `${unsold.slice(0, 3).map((product) => product.name).join(", ")}${unsold.length > 3 ? "…" : ""} : à retravailler (titre, visuel, prix) ou à retirer du catalogue.` });
-  if (overview && overview.abandoned > 0) {
-    const rate = overview.abandonmentRate !== null && overview.abandonmentRate !== undefined ? ` (${Math.round(overview.abandonmentRate * 100)} % des tentatives)` : "";
-    notes.push({ title: `${plural(overview.abandoned, "paiement abandonné", "paiements abandonnés")}${rate}`, text: "Ces clients voulaient acheter : relance-les par WhatsApp ou email avec le lien de paiement, c'est la vente la plus facile à récupérer." });
-  }
-  if (overview?.averageBasket && sales > 0) notes.push({ title: `Panier moyen ${money(overview.averageBasket, overview.currency)}`, text: "Propose un second produit ou un lot au moment de l'achat pour faire monter ce chiffre." });
-  if (!notes.length) notes.push({ title: "Rien à signaler sur cette période", text: "Pas de vente ni d'abandon enregistrés : élargis la période ci-dessus ou lance une première pub depuis l'onglet Pubs." });
-
-  // 3. Conclusion : ce qui s'est passé, le point faible, puis jusqu'à 3 actions.
-  const happened = sales === 0 && visits === 0 && ads.spendUsd === 0
-    ? "Période calme : aucune visite, aucune vente, aucune dépense pub."
-    : `${plural(sales, "vente")} pour ${plural(visits, "visite")}${ads.connected ? `, ${spendLabel} dépensés en pub` : ""}.`;
-  const actions: string[] = [];
-  let weakPoint: string;
-  const abandonedMany = !!overview && overview.abandoned > 0 && (overview.abandonmentRate ?? 0) >= 0.3;
-  if (sales === 0 && visits === 0 && ads.spendUsd === 0) {
-    weakPoint = "Aucun trafic : sans visiteur, rien ne peut se vendre.";
-    actions.push("Lance une première pub sur ton produit principal depuis l'onglet Pubs.", "Partage le lien de ta boutique dans 3 groupes WhatsApp ou ton statut.");
-  } else if (ads.connected && ads.spendUsd > 0 && ads.clicks === 0) {
-    weakPoint = "Tu paies une pub qui ne génère aucun clic.";
-    actions.push("Ouvre la campagne dans l'onglet Pubs et vérifie qu'elle est bien active et validée.", "Si elle est refusée ou bloquée, change le visuel ou le texte.");
-  } else if (ads.clicks >= 10 && visits < ads.clicks * 0.5) {
-    weakPoint = "Tes clics pub n'arrivent pas jusqu'à ta boutique.";
-    actions.push("Teste le lien de ta pub depuis ton téléphone en 4G : la page doit s'ouvrir en moins de 3 secondes.", "Vérifie que l'annonce renvoie vers la page produit et non vers un lien cassé.");
-  } else if (visits >= 20 && sales === 0) {
-    weakPoint = "Les visiteurs arrivent mais n'achètent pas.";
-    actions.push("Mets le bénéfice principal et le prix dans les premières lignes de la page produit.", "Ajoute une preuve sociale (témoignage, capture de résultat) et vérifie que Mobile Money s'affiche bien au paiement.");
-  } else if (abandonedMany) {
-    weakPoint = "Beaucoup de clients commencent à payer puis abandonnent.";
-    actions.push("Relance chaque paiement abandonné avec le lien de paiement.", "Vérifie que les moyens de paiement proposés correspondent à ceux de ton public.");
-  } else if (sales > 0) {
-    weakPoint = ads.connected && ads.spendUsd > 0 ? "Ça vend : le sujet est maintenant de savoir quelle pub y est pour quelque chose." : "Ça vend, mais sans pub : ta croissance dépend uniquement de ton réseau.";
-    if (ranked[0] && ranked[0].sales > 0) actions.push(`Lance ou relance une pub sur « ${ranked[0].name} », ton produit qui vend déjà.`);
-    if (ads.connected && ads.spendUsd > 0) actions.push("Compare tes campagnes dans l'onglet Pubs : coupe celles qui dépensent sans vente liée, garde celles qui en apportent.");
-  } else {
-    weakPoint = "Trop peu de données pour conclure.";
-    actions.push("Laisse la pub tourner quelques jours de plus avant de changer quoi que ce soit.");
-  }
-  if (abandonedMany && actions.length < 3 && !actions.some((action) => action.startsWith("Relance"))) actions.push("Relance les paiements abandonnés avec le lien de paiement.");
-  if (unsold.length > 0 && products.length > 1 && sales > 0 && actions.length < 3) actions.push(`Retravaille ou retire « ${unsold[0].name} » : aucune vente sur la période.`);
-  return { funnelNote, notes, happened, weakPoint, actions: actions.slice(0, 3) };
-}
-
 export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; analytics: AnalyticsData; selectedStoreId: string | null }) {
   const { t } = useI18n();
   // Date par défaut alignée sur celle du backend (lib/chariow/analytics.ts) :
@@ -1011,8 +886,6 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
 
-  const [adChannels, setAdChannels] = useState<AdChannelReading[]>([]);
-  const [loadingAds, setLoadingAds] = useState(true);
   const kpis = reportAnalytics?.kpis;
   const period = from && to ? `${formatReportDate(from)} – ${formatReportDate(to)}` : "Période sélectionnée";
   const currency = reportAnalytics?.products?.[0]?.currency ?? "XOF";
@@ -1053,25 +926,8 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStoreId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingAds(true);
-    void loadAdChannels(from, to).then((channels) => {
-      if (cancelled) return;
-      setAdChannels(channels);
-      setLoadingAds(false);
-    });
-    return () => { cancelled = true; };
-  }, [from, to]);
-
-  const connectedChannels = adChannels.filter((channel) => channel.connected);
-  const adsTotals = { spendUsd: connectedChannels.reduce((total, channel) => total + channel.spendUsd, 0), clicks: connectedChannels.reduce((total, channel) => total + channel.clicks, 0), connected: connectedChannels.length > 0 };
-  const reading = reportAnalytics ? buildReportReading(reportAnalytics, adsTotals) : null;
-  const visitsRate = adsTotals.clicks > 0 && kpis ? pctOf(kpis.visits, adsTotals.clicks) : null;
-  const salesRate = kpis && kpis.visits > 0 ? pctOf(kpis.sales, kpis.visits) : null;
-
   return <>
-    <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui s'est passé, ce que ça a coûté en pub, et ce que Vendeo recommande de faire.</p></div></div>
+    <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui s'est passé dans ta boutique sur la période choisie.</p></div></div>
     <div className="app-card report-filters" style={{ marginBottom: 18 }}>
       <div className="report-filter-title"><CalendarDays size={17} /><div><strong>Période du rapport</strong><span>Les données Chariow sont analysées au format jour.</span></div></div>
       <div className="report-filter-fields">
@@ -1088,25 +944,10 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
         <div className="report-summary-side"><ReportStat icon={<ShoppingBag size={16} />} label="Ventes" value={kpis.sales} /><ReportStat icon={<Eye size={16} />} label="Visites" value={kpis.visits} /><ReportStat icon={<Users size={16} />} label="Clients" value={kpis.customers} /><ReportStat icon={<BarChart3 size={16} />} label="Conversion" value={kpis.conversionRate} /></div>
       </div>
 
-      <section className="app-card report-section" style={{ marginBottom: 18 }}>
-        <div className="card-head"><div><span className="eyebrow">Boutique · Publicité</span><h2>Dépenses · Visites · Ventes</h2><p>Du clic sur ta pub jusqu'à l'achat, sur la période choisie. Le détail par campagne et par canal est dans l'onglet Pubs.</p></div><Activity size={18} color="#103ef8" /></div>
-        {loadingAds ? <p className="hint-line">Analyse des pubs en cours…</p> : <>
-          <div className="vendeo-kpi-grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))", marginBottom: 14 }}>
-            <div className="vendeo-kpi"><MetricHelp label="Dépensé en pub" description="Total dépensé sur tous tes canaux connectés (Meta, TikTok, Pinterest), converti en USD." /><strong>{adsTotals.connected ? formatMoney(adsTotals.spendUsd, "USD") : "—"}</strong><small style={{ margin: "6px 0 0" }}>{adsTotals.connected ? connectedChannels.map((channel) => `${channel.label} ${formatMoney(channel.spendUsd, "USD")}`).join(" · ") : "Aucune régie connectée"}</small></div>
-            <div className="vendeo-kpi"><MetricHelp label="Clics sur tes pubs" description="Nombre de personnes qui ont cliqué sur tes annonces, tous canaux confondus." /><strong>{adsTotals.connected ? adsTotals.clicks : "—"}</strong><small style={{ margin: "6px 0 0" }}>{adsTotals.connected ? "Personnes parties vers ta boutique" : "Connecte Meta dans l'onglet Pubs"}</small></div>
-            <div className="vendeo-kpi"><MetricHelp label="Visites boutique" description="Visites enregistrées par Chariow sur la période, toutes sources confondues (pub, WhatsApp, réseaux…)." /><strong>{kpis.visits}</strong><small style={{ margin: "6px 0 0" }}>{visitsRate !== null ? `${visitsRate} % des clics pub (toutes sources comprises)` : "Toutes sources confondues"}</small></div>
-            <div className="vendeo-kpi"><MetricHelp label="Ventes" description="Ventes encaissées par ta boutique sur la période." /><strong>{kpis.sales}</strong><small style={{ margin: "6px 0 0" }}>{salesRate !== null ? `${salesRate} % des visiteurs ont acheté` : "Pas encore de visiteurs"}</small></div>
-          </div>
-          {reading ? <div className="report-insight"><strong>Où tu perds des acheteurs</strong><p>{reading.funnelNote}</p></div> : null}
-        </>}
-      </section>
-
       <div className="report-columns">
         <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Inventaire et performance</span><h2>Détail des produits</h2></div><strong>{reportAnalytics.products.length} produit{reportAnalytics.products.length > 1 ? "s" : ""}</strong></div>{reportAnalytics.products.length === 0 ? <p className="report-muted">Aucun produit trouvé dans ton catalogue.</p> : <div className="report-table"><div className="report-table-head"><span>Produit</span><span>Statut</span><span>Ventes</span></div>{reportAnalytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong title={product.name}>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseigné"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
-        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Lecture rapide</span><h2>À retenir</h2></div><Lightbulb size={18} color="#d28b3d" /></div>{(reading?.notes ?? []).map((note) => <div className="report-insight" key={note.title}><strong>{note.title}</strong><p>{note.text}</p></div>)}</section>
       </div>
 
-      {reading ? <div className="app-card report-conclusion"><div className="card-head"><div><span className="eyebrow">Conclusion Vendeo</span><h2>Ce que tu dois retenir</h2></div><Target size={18} color="#34684d" /></div><div className="conclusion-grid"><div><small>Ce qui s'est passé</small><strong>{reading.happened}</strong></div><div><small>Le point faible</small><strong>{reading.weakPoint}</strong></div><div><small>À faire maintenant</small><ol style={{ margin: 0, paddingLeft: 16, fontSize: 12, lineHeight: 1.5, fontWeight: 700 }}>{reading.actions.map((action) => <li key={action} style={{ marginBottom: 6 }}>{action}</li>)}</ol></div></div></div> : null}
     </>}
   </>;
 }
