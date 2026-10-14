@@ -1,12 +1,14 @@
 // Mises en page d'affiches publicitaires, inspirées d'affiches pro de produits digitaux.
 // Chaque mise en page a sa propre structure, son propre style et sa propre présence (ou non) de personne :
 // on en IMPOSE une (tirée au sort) à l'IA pour que deux affiches ne se ressemblent jamais.
-// La PALETTE n'est plus imposée : l'IA la choisit elle-même d'après le nom et la description du produit.
+// La PALETTE n'est pas imposée : l'IA la choisit elle-même d'après le nom et la description du produit.
 // Les briefs ci-dessous parlent donc de « couleur principale / sombre / d'accent », jamais d'une teinte précise.
+// PERSONNE PAR DÉFAUT : sans choix contraire, on ne tire que des mises en page avec une personne ; c'est l'IA qui décide
+// qui elle est, sa tenue, sa posture et si elle tient le produit. Les mises en page sans personne ne servent que pour « sans personnage ».
 
 type Orientation = "square" | "landscape" | "portrait";
 
-// Choix de l'utilisateur dans la fenêtre « avec ou sans personnage » (auto = on laisse l'IA / le hasard décider).
+// auto = personne par défaut ; with = personne imposée ; without = aucune personne (choix explicite ou demandé dans les consignes).
 export type CharacterChoice = "with" | "without" | "auto";
 
 // yes : la personne fait partie de la structure ; no : la structure n'en a pas ; optional : la personne est un détail qu'on peut retirer.
@@ -15,7 +17,7 @@ type Person = "yes" | "no" | "optional";
 type Layout = { id: string; person: Person; brief: string };
 
 const LAYOUTS: Layout[] = [
-  { id: "manchette géante + bénéfices", person: "no", brief: "Fond clair lumineux. En haut, un petit mot-étiquette (ex. « EBOOK ») avec un filet, puis un TITRE MONUMENTAL sur 2 lignes (un mot-clé dans la couleur d'accent) et une question qui interpelle en dessous. Au centre, le produit en grand, légèrement incliné, posé sur une table en bois près d'une plante. À droite du produit, 3 pastilles-icônes rondes alignées, chacune avec un bénéfice de 3 à 5 mots. En bas, une grande vague de la couleur la plus sombre de la palette avec un appel à l'action à gauche et une phrase manuscrite soulignée avec une flèche à droite. Aucune personne." },
+  { id: "manchette géante + bénéfices", person: "yes", brief: "Fond clair lumineux. En haut à gauche, un petit mot-étiquette (ex. « EBOOK ») avec un filet, puis un TITRE MONUMENTAL sur 2 lignes (un mot-clé dans la couleur d'accent) et une sous-ligne qui interpelle. À droite, une personne en plan taille, regard caméra, qui présente le produit. Le produit en grand au centre-bas, légèrement incliné, posé sur une table en bois près d'une plante (ou tenu par la personne). Sous le titre, 3 pastilles-icônes rondes alignées, chacune avec un bénéfice de 3 à 5 mots. En bas, une grande vague de la couleur la plus sombre de la palette avec un appel à l'action à gauche et une phrase manuscrite soulignée avec une flèche à droite." },
   { id: "géométrique + bulles flottantes", person: "optional", brief: "Fond clair avec de grandes formes géométriques (un grand cercle de la couleur d'accent coupé par le bord, des coins de la couleur sombre). TITRE EN MAJUSCULES sur 3 lignes en haut, en deux couleurs contrastées. Le produit flotte en grand au centre, entouré de 4 à 5 bulles d'icônes ou d'interface en 3D douce, choisies pour le thème du produit. À gauche, 3 pastilles numérotées qui racontent 3 étapes. Une personne détourée en bas à droite, bras croisés ou main ouverte vers le produit. Un large bouton arrondi plein en bas avec une icône et l'appel à l'action." },
   { id: "portrait héros + étiquette", person: "yes", brief: "Une personne en gros plan occupe toute la moitié droite, regard caméra, lumière de studio, décor flou d'étagères et de plantes. En haut à gauche, le titre dans un bloc de couleur franche façon logo, avec une sous-ligne en dessous. Le produit debout au premier plan en bas à gauche. À droite du produit, 3 bénéfices avec icônes rondes séparées par de fines lignes. Un autocollant en coup de pinceau de la couleur d'accent, incliné, avec une phrase d'accroche. En bas, un bandeau sombre avec 3 mini-icônes d'arguments puis un bouton d'appel à l'action de la couleur d'accent avec une flèche." },
   { id: "titre surligneur + bonus", person: "yes", brief: "Un bandeau arrondi sombre en haut avec une petite icône de fusée et une phrase d'urgence, puis un titre COLOSSAL sur 2 lignes dont un mot posé sur un grand coup de surligneur/pinceau de la couleur d'accent la plus vive. Colonne de 3 bénéfices à gauche avec des icônes rondes colorées. À droite, une personne souriante, le menton dans la main ; devant elle, le produit et une tablette qui montre son contenu. Un badge BONUS en forme de pastille. En bas, une grande vague de la couleur sombre avec une phrase manuscrite et une flèche." },
@@ -38,20 +40,18 @@ const ORIENTATION_HINT: Record<Orientation, string> = {
   square: "format carré : un titre large en haut ou sur le côté, le visuel principal au centre, l'appel à l'action en bas",
 };
 
-// Mises en page compatibles avec le choix « avec / sans personnage » de l'utilisateur.
+// Mises en page compatibles : avec personne par défaut (auto) ou sur demande (with), sans personne seulement sur choix explicite (without).
 function eligibleLayouts(character: CharacterChoice): Layout[] {
-  const list = character === "with"
-    ? LAYOUTS.filter((layout) => layout.person !== "no")
-    : character === "without"
-      ? LAYOUTS.filter((layout) => layout.person !== "yes")
-      : LAYOUTS;
+  const list = character === "without"
+    ? LAYOUTS.filter((layout) => layout.person !== "yes")
+    : LAYOUTS.filter((layout) => layout.person !== "no");
   return list.length ? list : LAYOUTS;
 }
 
 const CHARACTER_TEXT: Record<CharacterChoice, string> = {
-  with: "PERSONNAGE (choix de l'utilisateur) : l'affiche est AVEC personnage. Une personne bien visible, expressive, de bonne taille, doit figurer sur l'affiche (visage net, mains naturelles, tenue adaptée au produit).",
+  auto: "PERSONNAGE (par défaut) : l'affiche comporte une personne bien visible, expressive et de bonne taille (visage net, mains naturelles). C'est TOI qui décides qui elle est (genre, âge, style, coiffure), sa tenue, sa posture et son expression d'après le produit et son public, ainsi que son rôle : elle tient le produit, le désigne du doigt, le présente de la main ouverte ou le regarde, ou bien le produit est posé près d'elle. Le produit reste le héros : grand, net et jamais masqué par la personne.",
+  with: "PERSONNAGE (choix de l'utilisateur) : l'affiche est AVEC personnage. Une personne bien visible, expressive, de bonne taille, doit figurer sur l'affiche (visage net, mains naturelles, tenue adaptée au produit). Tu décides de son profil, de sa posture et de son rôle (elle tient le produit ou non) d'après le produit.",
   without: "PERSONNAGE (choix de l'utilisateur) : l'affiche est SANS personnage. Aucune personne, aucun visage, aucune main humaine, aucune silhouette. Le produit est le héros ; si la mise en page prévoit une personne, remplace-la par des éléments graphiques (icônes, objets du thème, décor).",
-  auto: "",
 };
 
 export function buildLayoutDirection(

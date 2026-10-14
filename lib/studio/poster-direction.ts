@@ -6,9 +6,10 @@ import type { CharacterChoice } from "./poster-layouts";
 // - le public visé fixe le genre et l'âge de la personne (si le public est mixte, on alterne avec la
 //   génération précédente pour ne pas retomber sur la même personne) ;
 // - le type de produit (ebook, formation, logiciel…) fixe la façon de le mettre en scène ;
-// - la PALETTE n'est plus suggérée ici : l'IA la choisit elle-même d'après le nom et la description du produit.
-// Le hasard n'intervient que pour choisir PARMI des options déjà adaptées au produit (coiffure, attitude…).
-// Si l'utilisateur a choisi « avec » ou « sans » personnage, ce choix l'emporte sur le hasard.
+// - la PALETTE n'est pas suggérée ici : l'IA la choisit elle-même d'après le nom et la description du produit.
+// PERSONNE PAR DÉFAUT : toute affiche comporte une personne, sauf choix explicite « sans personnage ».
+// L'IA décide du profil, de la tenue, de la posture et de ce que fait la personne avec le produit.
+// Le hasard n'intervient que pour choisir PARMI des options déjà adaptées au produit.
 
 type Audience = "femme" | "homme" | "mixte";
 type Theme = {
@@ -56,8 +57,16 @@ const DEFAULT_THEME: Theme = {
   outfitMan: ["t-shirt uni et veste légère", "chemise en pagne wax moderne"], outfitWoman: ["t-shirt uni décontracté", "robe wax moderne"],
 };
 
+// Les options qui parlent de « la personne » ou de « en main » sont écartées quand l'affiche est sans personnage.
 const PLACEMENTS: Record<ProductType, string[]> = {
-  ebook: ["tenu en main à hauteur de poitrine, couverture entièrement lisible", "posé debout sur une table ou un bureau, légèrement de trois quarts", "plusieurs exemplaires empilés ou en éventail au premier plan", "posé sur un canapé ou un comptoir, dans le décor du thème"],
+  ebook: [
+    "tenu en main à hauteur de poitrine, couverture entièrement lisible, la personne regarde l'objectif",
+    "la personne le désigne du doigt ou le présente de la main ouverte, l'ebook en grand au premier plan",
+    "posé debout sur une table ou un bureau, légèrement de trois quarts",
+    "l'ebook en grand à côté de la personne, qui le présente avec un sourire confiant",
+    "plusieurs exemplaires empilés ou en éventail au premier plan",
+    "posé sur un canapé ou un comptoir, dans le décor du thème",
+  ],
   formation: ["affiché en grand sur l'écran d'un ordinateur portable posé sur un bureau, vignette du cours lisible", "affiché sur une tablette posée ou tenue, vignette du cours lisible"],
   saas: ["interface affichée en grand sur un écran d'ordinateur, propre et lisible", "interface affichée sur un téléphone au premier plan"],
   mode: ["porté par la personne, bien visible de la tête aux pieds ou en plan taille", "présenté en gros plan au premier plan"],
@@ -67,9 +76,6 @@ const PLACEMENTS: Record<ProductType, string[]> = {
   evenement: ["ambiance de l'événement, scène ou public, sans montrer de produit en main"],
   autre: ["posé sur une table ou un meuble du décor, bien visible au premier plan", "tenu en main par la personne", "présenté debout, légèrement de trois quarts"],
 };
-
-// Probabilité qu'une personne apparaisse, selon le type de produit (utilisée seulement quand l'utilisateur n'a pas choisi).
-const PERSON_CHANCE: Record<ProductType, number> = { ebook: 0.8, formation: 0.9, saas: 0.55, mode: 0.95, food: 0.4, physique: 0.5, service: 1, evenement: 0.8, autre: 0.8 };
 
 const HAIR_MAN = ["crâne rasé et barbe courte taillée", "coupe courte dégradée (fade) sans barbe", "petites locks courtes", "afro court naturel avec une fine moustache", "cheveux ras et barbe de trois jours", "twists courts sur le dessus"];
 const HAIR_WOMAN = ["tresses africaines longues (box braids)", "cheveux crépus naturels coupés très court", "foulard ou headwrap en wax coloré", "chignon haut avec quelques mèches", "locks mi-longues attachées", "cheveux lissés au carré", "afro volumineux naturel"];
@@ -118,12 +124,8 @@ export function buildPosterDirection(input: { name: string; description?: string
   const type = inferProductType(input.name, input.description);
   const character = input.character ?? "auto";
   const userDescribesPerson = USER_DESCRIBES_PERSON.test(userBrief);
-  // Le choix explicite de l'utilisateur (fenêtre « avec / sans personnage ») prime sur le hasard.
-  const withoutPerson = character === "without"
-    ? true
-    : character === "with"
-      ? false
-      : !userDescribesPerson && random() >= PERSON_CHANCE[type];
+  // Personne par défaut : seul le choix « sans personnage » l'enlève.
+  const withoutPerson = character === "without";
 
   // Ce ne sont que des PISTES de départ : l'IA analyse elle-même le produit et reste libre de les suivre, de les mélanger ou de proposer mieux.
   // La palette n'en fait pas partie : l'IA la choisit seule d'après le nom et la description du produit.
@@ -136,13 +138,12 @@ export function buildPosterDirection(input: { name: string; description?: string
     `ambiance possible : ${theme.style}`,
     `mise en place possible du produit (${type}) : ${placementOptions.join(" ou ")}`,
   ];
-  if (withoutPerson) parts.push(character === "without"
-    ? "aucune personne sur l'affiche (choix de l'utilisateur) : le produit est le héros de l'image"
-    : "l'affiche peut très bien se passer de personne : le produit peut être le héros de l'image");
+  if (type === "ebook") parts.push("l'ebook est le héros : grand (au moins un tiers de la hauteur de l'image), net, bien éclairé, avec son titre lisible sur la couverture ; montre aussi 3 ou 4 détails concrets de son contenu tirés de la description (thèmes, étapes, outils, modèles, checklists, bonus)");
+  if (withoutPerson) parts.push("aucune personne sur l'affiche (choix de l'utilisateur) : le produit est le héros de l'image");
   else if (!userDescribesPerson) {
     const gender = detectAudience(text, theme, input.name, input.previousPrompt ?? "");
-    const man = gender === "homme";
-    parts.push(`public probable : ${man ? "un homme" : "une femme"} ${detectAge(text)} (pour varier d'une génération à l'autre, ne reprends pas la dernière personne) ; pense à la coiffure, à la tenue et à l'attitude qui collent le mieux au produit, avec un visage distinctif`);
+    const man = gender === "homme" ? "un homme" : "une femme";
+    parts.push(`personne à inclure (c'est toi qui décides de son profil, de sa tenue, de sa posture et de ce qu'elle fait avec le produit : elle le tient ou non, le désigne, le présente) ; piste de départ d'après le public : ${man} ${detectAge(text)}, à varier d'une génération à l'autre (ne reprends pas la dernière personne), avec un visage distinctif et une tenue qui colle au produit`);
   }
   return { withoutPerson, themeId: theme.id, text: `Pistes déduites du produit et de son public (simples suggestions : analyse toi-même le produit, tu restes libre de les suivre, de les mélanger ou de faire mieux) : ${parts.join(" ; ")}.` };
 }
