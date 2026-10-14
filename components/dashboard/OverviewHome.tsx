@@ -175,12 +175,12 @@ export function OverviewHome({
   const greeting = userFirstName ? getGreeting(userFirstName, en ? "en" : "fr", now) : null;
   const dailyQuote = getDailyQuote(en ? "en" : "fr", now);
 
-  // Dernières transactions Chariow : on part de la liste NON filtrée par période
-  // (le snapshot initial, sans dates), sinon « Derniers achats » restait vide
-  // dès qu'aucune vente ne tombait dans la période choisie (7 / 30 / 90 jours).
+  // Transactions Chariow : on part de la liste NON filtrée par période (le snapshot initial, sans dates),
+  // puis on filtre nous-mêmes sur la période choisie (7 / 30 / 90 jours) ci-dessous. Ainsi la liste
+  // reste fiable quel que soit ce que renvoie le snapshot filtré.
   const latestSales = analytics?.sales?.length ? analytics.sales : data?.sales ?? [];
 
-  // Événements d'achat : réussis / en attente / échoués (10 plus récents).
+  // Événements d'achat de la période choisie : réussis / en attente / échoués (10 plus récents, le plus récent en haut).
   const saleRows: SaleRow[] = useMemo(() => {
     const labels: Record<string, [string, string]> = {
       completed: ["Vente réussie", "Successful sale"],
@@ -192,6 +192,11 @@ export function OverviewHome({
       refunded: ["Remboursement", "Refund"],
       cancelled: ["Achat annulé", "Cancelled purchase"],
     };
+    // Début de la période : minuit (heure de l'appareil) il y a `periodDays - 1` jours, comme la plage envoyée à l'API.
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - periodDays + 1);
+    cutoff.setHours(0, 0, 0, 0);
+    const cutoffTime = cutoff.getTime();
     // Visuel du produit : on le retrouve dans le catalogue par identifiant, sinon par nom.
     const imageById = new Map(products.map((item) => [String(item.id), item.image ?? null] as const));
     const imageByName = new Map(products.map((item) => [item.name, item.image ?? null] as const));
@@ -230,8 +235,11 @@ export function OverviewHome({
         time,
       };
     });
-    return rows.sort((a, b) => b.time - a.time).slice(0, LATEST_PURCHASES);
-  }, [latestSales, products, currency, en]);
+    return rows
+      .filter((row) => row.time >= cutoffTime)
+      .sort((a, b) => b.time - a.time)
+      .slice(0, LATEST_PURCHASES);
+  }, [latestSales, products, currency, en, periodDays]);
 
   const countBy = (group: SaleGroup) => saleRows.filter((row) => row.group === group).length;
 
@@ -318,9 +326,9 @@ export function OverviewHome({
       {/* 3. Dépenses pub par canal */}
       <AdSpendByChannel plan={plan} storeId={storeId ?? null} periodDays={periodDays} refreshKey={campaignsVersion} />
 
-      {/* 4. Dernières transactions Chariow (réussies / en attente / échouées) */}
+      {/* 4. Derniers événements Chariow de la période (réussis / en attente / échoués) */}
       <section className="app-card">
-        <div className="card-head"><div><h2>{tr("Derniers achats", "Latest purchases")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr("Les 10 dernières transactions de ta boutique Chariow. Touche une ligne pour voir le détail.", "The 10 latest transactions from your Chariow store. Tap a row for details.")}</p></div></div>
+        <div className="card-head"><div><h2>{tr("Derniers achats", "Latest purchases")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr(`Les 10 derniers événements des ${periodDays} derniers jours sur ta boutique Chariow, le plus récent en haut. Touche une ligne pour voir le détail.`, `The 10 latest events over the last ${periodDays} days on your Chariow store, most recent first. Tap a row for details.`)}</p></div></div>
         {loading ? (
           <>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
@@ -355,7 +363,7 @@ export function OverviewHome({
                   </li>
                 ))}
               </ul>
-            ) : <p className="hint-line" style={{ marginTop: 12 }}>{tr("Aucune transaction récente trouvée sur ta boutique Chariow.", "No recent transaction found on your Chariow store.")}</p>}
+            ) : <p className="hint-line" style={{ marginTop: 12 }}>{tr(`Aucun événement sur les ${periodDays} derniers jours.`, `No event over the last ${periodDays} days.`)}</p>}
           </>
         )}
       </section>
