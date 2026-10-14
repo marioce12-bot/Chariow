@@ -153,8 +153,16 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
       const vendeoCampaigns: VendeoCampaign[] = Array.isArray(campaignsData?.campaigns) ? campaignsData.campaigns : [];
       const accounts: AccountRef[] = accountsData?.accounts ?? [];
       if (!accounts.length) return { stat: emptyStat(CHANNELS[0]), campaigns: [] as CampaignStat[], readings: [] as MetaAccountReading[], vendeoCampaigns };
-      const readings = await Promise.all(accounts.map((account) => readMetaAccount(account.id)));
-      return { ...mergeMeta(readings, vendeoCampaigns), readings, vendeoCampaigns };
+      const [readings, activeLists] = await Promise.all([
+        Promise.all(accounts.map((account) => readMetaAccount(account.id))),
+        Promise.all(accounts.map((account) => getJson(`/api/meta/active-campaigns?account_id=${encodeURIComponent(account.id)}`))),
+      ]);
+      const merged = mergeMeta(readings, vendeoCampaigns);
+      // Seules les campagnes en cours chez Meta sont listées (les anciennes, en pause ou archivées, sont masquées).
+      // Si le statut est illisible pour un compte, on ne filtre pas pour ne rien cacher à tort.
+      const statusKnown = activeLists.every((list) => Array.isArray(list?.activeIds));
+      const activeIds = new Set<string>(activeLists.flatMap((list) => (Array.isArray(list?.activeIds) ? list.activeIds : [])));
+      return { ...merged, campaigns: statusKnown ? merged.campaigns.filter((campaign) => activeIds.has(campaign.id)) : merged.campaigns, readings, vendeoCampaigns };
     }
 
     async function syncMeta(accountId: string) {
