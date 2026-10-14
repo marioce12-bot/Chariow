@@ -57,13 +57,14 @@ export function buildStudioPrompt(kind: "image" | "video", userPrompt: string, p
     return [`Produit : « ${product.name} ».${product.description ? ` ${product.description}` : ""}${priceLine}`, brief].filter(Boolean).join(" ").slice(0, 6000);
   }
   if (!product) return brief;
-  const priceLine = product.price ? `Prix : ${product.price}${product.currency ? ` ${product.currency}` : ""}.` : "";
+  // Le prix n'est volontairement pas transmis : il ne doit pas apparaître sur l'affiche.
+  const priceLine = "";
   const defaultBrief = "visuel promotionnel soigné mettant le produit en valeur";
   return [
     "Crée un visuel professionnel pour ce produit numérique de la boutique.",
     `Produit : « ${product.name} ».`, product.description ? `Description : ${product.description}` : "", priceLine,
     `Demande de l'utilisateur : ${brief || defaultBrief}.`,
     hasReference ? "Image de référence : c'est la couverture du produit ; conserve fidèlement son apparence (forme, couleurs, titre) et ne la déforme pas." : "",
-    "Consignes : composition professionnelle, produit bien mis en valeur, aucun texte flou ni faute d'orthographe, n'invente ni prix, ni logo, ni promesse absents des informations ci-dessus.",
+    "Consignes : composition professionnelle, produit bien mis en valeur, aucun texte flou ni faute d'orthographe, n'affiche aucun prix, n'invente ni logo, ni promesse absents des informations ci-dessus.",
   ].filter(Boolean).join(" ").slice(0, 6000);
 }
