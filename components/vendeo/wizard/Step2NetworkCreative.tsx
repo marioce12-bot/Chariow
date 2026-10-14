@@ -6,6 +6,7 @@ import type { Placement, Platform, WizardState } from "./types";
 import { isAdPlatformAllowed, type PlanId } from "@/lib/plans";
 import { useI18n } from "@/lib/i18n/i18n";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
+import { META_CTA_LABELS, META_CTA_TYPES, normalizeMetaCta } from "@/lib/meta/cta";
 
 export interface Step2FooterState {
   backLabel: string;
@@ -441,7 +442,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           <Row label={en ? "Ad name" : "Nom de la publicité"} value={state.adName || (en ? "New ad" : "Nouvelle publicité")} onEdit={() => setEditingField("adName")} />
           <Row
             label={en ? "Ad setup" : "Configuration de la publicité"}
-            value={state.mediaUrl ? (en ? "Single image/video — creative added" : "Image/Vidéo unique — visuel ajouté") : (en ? "Single image/video — no creative" : "Image/Vidéo unique — aucun visuel")}
+            value={`${state.mediaUrl ? (en ? "Single image/video — creative added" : "Image/Vidéo unique — visuel ajouté") : (en ? "Single image/video — no creative" : "Image/Vidéo unique — aucun visuel")}${state.platform === "meta" ? ` · ${META_CTA_LABELS[state.callToAction][en ? "en" : "fr"]}` : ""}`}
             onEdit={() => setEditingField("media")}
           />
           <Row
@@ -639,6 +640,44 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           <p className="mt-1 text-xs text-[#991B1B]">{uploadError}</p>
         ) : (
           <p className="mt-1 text-xs text-gray-400">{en ? "JPG, PNG or short video. Upload starts automatically after selection." : "JPG, PNG ou courte vidéo. L'envoi démarre automatiquement dès la sélection."}</p>
+        )}
+        {state.platform === "meta" && (
+          <div className="mt-5">
+            <label className="mb-1.5 block text-sm font-semibold text-gray-700">{en ? "Call to action button" : "Bouton d'appel à l'action"}</label>
+            <select
+              value={state.callToAction}
+              onChange={(e) => {
+                const value = normalizeMetaCta(e.target.value);
+                if (value) patch({ callToAction: value });
+              }}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              {META_CTA_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {META_CTA_LABELS[type][en ? "en" : "fr"]}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-400">{en ? "Button shown under your ad on Facebook and Instagram. It opens your destination link." : "Bouton affiché sous ta publicité sur Facebook et Instagram. Il ouvre ton lien de destination."}</p>
+          </div>
+        )}
+        {state.platform === "meta" && (
+          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3">
+            <input
+              type="checkbox"
+              checked={state.advantageCreative}
+              onChange={(e) => patch({ advantageCreative: e.target.checked })}
+              className="mt-0.5 h-4 w-4 shrink-0"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-gray-700">{en ? "Advantage+ creative" : "Créative Advantage+"}</span>
+              <span className="block text-xs text-gray-500">
+                {en
+                  ? "Meta can automatically touch up your image (crop, brightness), improve your text and add overlays to boost results. Turn off to keep your ad exactly as written."
+                  : "Meta peut retoucher ton image (recadrage, luminosité), améliorer ton texte et ajouter des superpositions pour de meilleurs résultats. Désactive pour garder ta publicité exactement telle quelle."}
+              </span>
+            </span>
+          </label>
         )}
       </div>
     );

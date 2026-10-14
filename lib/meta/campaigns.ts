@@ -1,6 +1,7 @@
 import { describeMetaAccountStatus, isMetaAccountStatusBlocking, META_GRAPH_BASE_URL } from "./api";
 import { isOwnCloudinaryUrl, prepareMetaPlacementImages } from "./ad-image";
 import { buildPlacementCreativeParams, placementVariantsEnabled } from "./placement-spec";
+import { LEGACY_META_CTA, normalizeMetaCta } from "./cta";
 
 type GraphResponse = Record<string, unknown>;
 
@@ -159,6 +160,9 @@ export async function createMetaAdSet(input: {
   objective?: "sales" | "traffic" | "engagement" | "leads";
   pixelId?: string | null;
   endTime?: string | null;
+  /** Audience Advantage+ : Meta peut élargir l'audience au-delà du ciblage (âge, centres d'intérêt).
+   *  Désactivée par défaut pour garder exactement l'âge et les lieux choisis. */
+  advantageAudience?: boolean;
 }) {
   const hasPreciseTargeting = !!(input.geoTargeting && ((input.geoTargeting.regions?.length ?? 0) > 0 || (input.geoTargeting.cities?.length ?? 0) > 0));
   const geoLocations: Record<string, unknown> = hasPreciseTargeting
@@ -179,11 +183,12 @@ export async function createMetaAdSet(input: {
     // Requis par Meta (Graph API v23.0+, subcode 1870227) dès que l'âge min/max
     // n'est pas la config par défaut : il faut dire explicitement si l'audience
     // Advantage+ (élargissement automatique de l'audience par l'IA de Meta) est
-    // activée. 0 = désactivée, pour garder exactement l'âge/pays choisis par
-    // l'utilisateur plutôt que de laisser Meta les élargir automatiquement.
+    // activée. 0 (défaut) = désactivée, pour garder exactement l'âge/pays choisis par
+    // l'utilisateur ; 1 = Meta peut élargir l'audience (choix « Audience Advantage+ »
+    // à l'étape 3 du wizard).
     // (Ne concerne QUE l'audience : l'Advantage+ créative, lui, se règle sur la
     // créative — voir ADVANTAGE_CREATIVE_FEATURES plus bas.)
-    targeting_automation: { advantage_audience: 0 },
+    targeting_automation: { advantage_audience: input.advantageAudience ? 1 : 0 },
   };
   // Plan Éco : diffusion restreinte à Facebook uniquement (pas Instagram).
   // Sans ce champ, Meta diffuse automatiquement sur tous les emplacements disponibles.
@@ -258,7 +263,10 @@ export async function createMetaCreative(input: {
   /** Active les améliorations Advantage+ créative (voir ADVANTAGE_CREATIVE_FEATURES).
    *  Désactivé par défaut : seuls les appelants qui le demandent explicitement en profitent. */
   advantageCreative?: boolean;
+  /** Type du bouton d'appel à l'action (voir lib/meta/cta.ts). Valeur inconnue ou absente : LEARN_MORE, comme avant. */
+  callToAction?: string | null;
 }) {
+  const callToAction = normalizeMetaCta(input.callToAction) ?? LEGACY_META_CTA;
   // Variantes par placement (4:5 fils d'actualité + 9:16 Stories/Reels) : opt-in via
   // META_PLACEMENT_VARIANTS=1 et uniquement pour nos images Cloudinary. Au moindre refus de Meta
   // (ou si une variante est illisible), on retombe sur la créative à image unique ci-dessous.
@@ -268,7 +276,7 @@ export async function createMetaCreative(input: {
       if (variants) {
         return await graphPost(`${input.accountId}/adcreatives`, input.accessToken, {
           name: input.name.slice(0, 200),
-          ...buildPlacementCreativeParams({ pageId: input.pageId, link: input.link, message: input.message, headline: input.headline, ...variants }),
+          ...buildPlacementCreativeParams({ pageId: input.pageId, link: input.link, message: input.message, headline: input.headline, callToAction, ...variants }),
         });
       }
     } catch (error) {
@@ -281,7 +289,7 @@ export async function createMetaCreative(input: {
     // "image_url" — "image_url" n'existe que dans video_data/photo_data et Meta
     // le refuse ici (subcode 1443050 : "Utilisation d'un champ non pris en
     // charge dans object_story_spec").
-    object_story_spec: JSON.stringify({ page_id: input.pageId, link_data: { link: input.link, message: input.message, name: input.headline, ...(input.imageHash ? { image_hash: input.imageHash } : { picture: input.imageUrl }), call_to_action: { type: "LEARN_MORE", value: { link: input.link } } } }),
+    object_story_spec: JSON.stringify({ page_id: input.pageId, link_data: { link: input.link, message: input.message, name: input.headline, ...(input.imageHash ? { image_hash: input.imageHash } : { picture: input.imageUrl }), call_to_action: { type: callToAction, value: { link: input.link } } } }),
   };
   if (input.advantageCreative) {
     try {

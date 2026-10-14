@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
+import { normalizeMetaCta } from "@/lib/meta/cta";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -25,6 +26,11 @@ export async function PATCH(request: Request, context: Context) {
   if (typeof body.ad_set_name === "string") updates.ad_set_name = body.ad_set_name.trim() || null;
   if (typeof body.ad_name === "string") updates.ad_name = body.ad_name.trim() || null;
   if (typeof body.meta_page_id === "string") updates.meta_page_id = body.meta_page_id.trim() || null;
+  // Bouton d'appel à l'action Meta : une valeur hors liste est ignorée (la colonne garde sa valeur).
+  const callToAction = normalizeMetaCta(body.call_to_action);
+  if (callToAction) updates.call_to_action = callToAction;
+  if (typeof body.advantage_creative === "boolean") updates.advantage_creative = body.advantage_creative;
+  if (typeof body.advantage_audience === "boolean") updates.advantage_audience = body.advantage_audience;
   if ("geo_targeting" in body) updates.geo_targeting = sanitizeGeoTargeting(body.geo_targeting);
   const dailyBudget = Number(body.daily_budget);
   const durationDays = Number(body.duration_days);

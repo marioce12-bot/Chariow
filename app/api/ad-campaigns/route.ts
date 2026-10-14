@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
+import { normalizeMetaCta } from "@/lib/meta/cta";
 
 const objectives = new Set(["sales", "traffic", "engagement", "leads"]);
 
@@ -81,6 +82,10 @@ export async function POST(request: Request) {
     estimated_budget: dailyBudget * durationDays,
     meta_ad_account_id: metaAdAccountId,
     meta_page_id: body.platform === "meta" && typeof body.meta_page_id === "string" ? body.meta_page_id.trim() || null : null,
+    call_to_action: body.platform === "meta" ? normalizeMetaCta(body.call_to_action) : null,
+    // Advantage+ (Meta) : NULL si non fourni → le lancement applique les valeurs par défaut.
+    advantage_creative: body.platform === "meta" && typeof body.advantage_creative === "boolean" ? body.advantage_creative : null,
+    advantage_audience: body.platform === "meta" && typeof body.advantage_audience === "boolean" ? body.advantage_audience : null,
     tiktok_ad_account_id: tiktokAdAccountId,
     pinterest_ad_account_id: pinterestAdAccountId,
   }).select("id,status").single();
@@ -94,7 +99,7 @@ export async function POST(request: Request) {
 export async function GET() {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
-  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,destination_url,countries,geo_targeting,meta_page_id,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,destination_url,countries,geo_targeting,meta_page_id,call_to_action,advantage_creative,advantage_audience,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "Impossible de charger les campagnes" }, { status: 500 });
   return NextResponse.json({ campaigns: data ?? [] });
 }

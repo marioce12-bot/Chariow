@@ -67,6 +67,25 @@ export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
         </div>
       </div>
 
+      {state.platform === "meta" && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3">
+          <input
+            type="checkbox"
+            checked={state.advantageAudience}
+            onChange={(e) => patch({ advantageAudience: e.target.checked })}
+            className="mt-0.5 h-4 w-4 shrink-0"
+          />
+          <span>
+            <span className="block text-sm font-semibold text-gray-700">{en ? "Advantage+ audience" : "Audience Advantage+"}</span>
+            <span className="block text-xs text-gray-500">
+              {state.advantageAudience
+                ? (en ? "On: Meta can reach people beyond your age range to find more buyers. Your locations are still respected." : "Activée : Meta peut dépasser ta tranche d'âge pour trouver plus d'acheteurs. Tes lieux restent respectés.")
+                : (en ? "Off: your ad is shown only to the age range and locations you chose." : "Désactivée : ta publicité n'est montrée qu'à la tranche d'âge et aux lieux choisis.")}
+            </span>
+          </span>
+        </label>
+      )}
+
       <div className="sticky bottom-0 -mx-5 mt-4 flex justify-between border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button onClick={onBack} className="text-sm font-medium text-gray-500">
           {en ? "Back" : "Retour"}
