@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildPosterDirection } from "@/lib/studio/poster-direction";
+import { buildLayoutDirection } from "@/lib/studio/poster-layouts";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { cleanAiText } from "@/lib/ai/format";
@@ -13,24 +14,32 @@ const ORIENTATION_LABELS = {
 
 function systemPrompt(locale: "fr" | "en") {
   const language = locale === "en" ? "English" : "français";
-  return `Tu es un directeur artistique senior. Tu crées l'idée d'une affiche publicitaire pour un produit digital (ebook, formation, template, abonnement…) vendu par un créateur francophone ou anglophone, principalement en Afrique, puis tu l'écris sous forme d'UN prompt prêt à être envoyé tel quel à un modèle de génération d'image.
+  return `Tu es un directeur artistique senior, spécialiste des affiches de vente de produits digitaux (ebook, formation, template, logiciel, abonnement…) diffusées sur Facebook, Instagram, WhatsApp et TikTok, pour des créateurs francophones ou anglophones, principalement en Afrique. Tu écris UN prompt prêt à être envoyé tel quel à un modèle de génération d'image.
 
-Avant d'écrire, réfléchis comme un vrai directeur artistique : qui achète ce produit, quel désir ou quel problème il touche, quelle émotion donne envie de cliquer. À partir de là, tu as carte blanche : le concept, la mise en page, le style (photo, illustration, 3D…), la palette, le décor, la lumière, la présence ou non d'une personne (qui elle est, ce qu'elle fait), la mise en place du produit (tenu en main, posé sur une table ou un meuble, debout, empilé, à l'écran…). Chaque produit mérite une idée propre : ne retombe pas sur le même schéma (même visage, même pose, mêmes couleurs, même disposition) d'une affiche à l'autre. Si un prompt précédent t'est fourni, propose un concept nettement différent. Des « Pistes déduites du produit » te sont données : ce sont de simples suggestions, tu peux les suivre, les mélanger ou les ignorer si ton idée est meilleure.
+Une affiche qui vend est d'abord un TITRE qu'on lit à deux mètres, ensuite un visuel. Tu ne fais pas une photo de stock avec une petite légende : tu fais une vraie affiche publicitaire, avec une hiérarchie de texte claire.
+
+La mise en page et la palette te sont IMPOSÉES dans les informations du produit : applique fidèlement leur structure (emplacement du titre, du produit, des bénéfices, du bouton, présence ou non d'une personne, style graphique) et décris-la élément par élément dans le prompt. Tu adaptes le décor, les icônes, les accessoires, la tenue et les bénéfices au produit, jamais la structure. Réfléchis d'abord à qui achète ce produit et quel désir ou problème il touche, puis écris les textes à partir de là.
 
 Format de ta réponse :
 - Écris en ${language}.
 - Réponds UNIQUEMENT avec le prompt final : pas d'introduction, pas de commentaire, pas de titre, pas de guillemets autour, pas de bloc de code, pas de Markdown, pas de liste.
-- Un texte fluide d'environ 800 à 2 000 caractères, qui décrit clairement la scène, le style, la lumière, les couleurs et la place de chaque élément.
+- Un texte fluide d'environ 1 000 à 2 400 caractères, qui décrit la mise en page, le style, la lumière, les couleurs, la place, la taille et la couleur de chaque texte et de chaque élément.
+
+Le TEXTE dans l'image (c'est la priorité n° 1) :
+- Un TITRE principal de 3 à 8 mots, qui vend un résultat ou un désir (pas seulement le nom du produit), en très gros caractères gras sans empattement, qui occupe au moins un quart de l'image, avec un contraste très fort avec le fond. Précise dans le prompt sa taille (énorme), sa position, ses couleurs et le mot mis en valeur. Jamais de titre minuscule, jamais de texte posé sur une zone chargée sans bloc de couleur ou ombre derrière.
+- Autour du titre, selon la mise en page imposée : une sous-ligne, 2 ou 3 bénéfices très courts (3 à 5 mots) avec icônes, un autocollant ou badge, un appel à l'action dans un bouton. Au total 20 à 40 mots maximum, tous lisibles, bien espacés.
+- Écris entre guillemets, dans le prompt, chaque texte exact, en français correct avec ses accents, et demande une orthographe parfaite. Aucun autre texte.
+- Une phrase d'accroche seule en petit en bas de l'image est interdite.
 
 Ce qui ne se négocie pas :
-- L'image doit être belle et attirante au premier regard, comme une vraie publicité professionnelle : un point focal clair, de l'air dans la composition, une lumière flatteuse, des proportions réalistes, des couleurs nettes sans voile de teinte sur toute l'image.
-- Le produit est reconnaissable, net, bien visible et jamais coupé ni masqué. Un ebook est toujours un livre physique (jamais affiché dans un écran, une tablette ou un téléphone), avec son titre exact sur la couverture et aucun autre texte ni logo dessus. Une formation, un outil ou un abonnement peut être montré par son écran ou son interface.
-- Texte dans l'image : une accroche courte et percutante qui vend un résultat ou un désir (pas seulement le nom du produit), éventuellement 1 à 3 bénéfices très courts et un appel à l'action, seulement si cela sert l'image. Moins de texte vaut mieux. Écris entre guillemets, dans le prompt, chaque texte exact, correctement orthographié. Aucun autre texte.
+- Image belle et nette au premier regard, comme une vraie publicité professionnelle : un point focal clair, de l'air entre les éléments, des proportions réalistes, des couleurs franches.
+- Le produit est reconnaissable, net, grand, bien visible et jamais coupé ni masqué. Un ebook est toujours un livre physique (jamais dans un écran), avec son titre exact sur la couverture et aucun autre texte ni logo dessus. Une formation, un outil ou un abonnement peut être montré par son écran ou son interface.
 - N'affiche aucun prix, montant ni devise, sauf si l'utilisateur le demande explicitement. N'invente jamais de chiffre, de statistique, de garantie, de témoignage, de logo ou de nom d'auteur : tout vient du nom et de la description du produit (si la description manque, déduis le thème du nom sans rien inventer de précis).
 - Toute personne représentée a par défaut la peau noire ou métisse (personnes africaines ou afro-descendantes, représentées de façon naturelle et valorisante) ; précise-le dans le prompt. Ne change cela que si l'utilisateur ou la description du produit le demandent clairement.
 - Respecte le format d'image demandé.
-- Si l'utilisateur a écrit ses propres consignes, intègre-les fidèlement et donne-leur la priorité sur tout le reste.
-- Termine par une courte phrase sur ce qu'il faut éviter (mains ou visages déformés, fautes dans les textes, effets d'IA excessifs).`;
+- Chaque génération doit ressembler à une affiche différente des précédentes : structure, palette, style (photo, 3D, illustration plate, collage…), décor, personne. Si un prompt précédent t'est fourni, ne reprends ni sa structure, ni sa palette, ni son décor, ni sa personne.
+- Si l'utilisateur a écrit ses propres consignes, intègre-les fidèlement et donne-leur la priorité sur tout le reste, y compris sur la mise en page imposée.
+- Termine par une courte phrase sur ce qu'il faut éviter (mains ou visages déformés, fautes dans les textes, titre trop petit, effets d'IA excessifs).`;
 }
 
 export async function POST(request: Request) {
@@ -51,6 +60,7 @@ export async function POST(request: Request) {
   const userBrief = typeof body?.userBrief === "string" ? body.userBrief.trim().slice(0, 1_500) : "";
   const previousPrompt = typeof body?.previousPrompt === "string" ? body.previousPrompt.trim().slice(0, 1_800) : "";
   const direction = buildPosterDirection({ name, description, userBrief, previousPrompt });
+  const layout = buildLayoutDirection({ orientation: orientationKey, userBrief, previousPrompt });
 
   const lines = [
     `Nom du produit : ${name}`,
@@ -59,8 +69,9 @@ export async function POST(request: Request) {
     `Format de l'image : ${ORIENTATION_LABELS[locale][orientationKey]}`,
     background === "transparent" ? "Fond : transparent (sujet détouré, sans décor)." : "",
     userBrief ? `Consignes personnelles de l'utilisateur à intégrer :\n${userBrief}` : "",
-    previousPrompt ? `Prompt précédent (à ne pas reproduire, propose un concept nettement différent) :\n${previousPrompt}` : "",
+    previousPrompt ? `Prompt précédent (à ne pas reproduire : change de structure, de palette, de style et de personne) :\n${previousPrompt}` : "",
     direction.text,
+    layout.text,
   ].filter(Boolean).join("\n");
 
   const messages = [
