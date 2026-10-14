@@ -2,11 +2,14 @@ import { fal } from "@fal-ai/client";
 import { isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoAspectRatio, type VideoDuration, type VideoResolution, type VideoAspectRatio } from "@/lib/studio/creative-workflows";
 
 // Modèles choisis :
-// - Texte→image : GPT Image 2.5 Flare, conçu pour les compositions et le texte lisible.
-// - Édition image avec références : GPT Image 2.5 Flare edit.
-// - Vidéo texte→vidéo et image→vidéo : Seedance 2.5 (jusqu'à 30 s, 480p/720p/1080p).
-const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2.5/flare/text-to-image";
-const DEFAULT_IMAGE_EDIT_MODEL = "openai/gpt-image-2.5/flare/edit";
+// - Texte→image : GPT Image 2 (« ChatGPT Images 2.0 », openai/gpt-image-2), le modèle d'image de ChatGPT,
+//   le plus fiable pour du texte lisible dans l'image.
+// - Édition image avec références : GPT Image 2 edit (openai/gpt-image-2/edit).
+// - Vidéo texte→vidéo et image→vidéo : Grok Imagine Video v1.5.
+// Chaque modèle peut être remplacé par une variable d'environnement (FAL_IMAGE_MODEL, FAL_IMAGE_EDIT_MODEL,
+// FAL_VIDEO_TEXT_MODEL, FAL_VIDEO_IMAGE_MODEL).
+const DEFAULT_IMAGE_MODEL = "openai/gpt-image-2";
+const DEFAULT_IMAGE_EDIT_MODEL = "openai/gpt-image-2/edit";
 const DEFAULT_VIDEO_TEXT_MODEL = "xai/grok-imagine-video/v1.5/text-to-video";
 const DEFAULT_VIDEO_IMAGE_MODEL = "xai/grok-imagine-video/v1.5/image-to-video";
 
@@ -24,7 +27,7 @@ export function getAiImageModel() {
 }
 
 export function getAiImageEditModel() {
-  return DEFAULT_IMAGE_EDIT_MODEL;
+  return process.env.FAL_IMAGE_EDIT_MODEL?.trim() || DEFAULT_IMAGE_EDIT_MODEL;
 }
 
 export function getAiVideoTextModel() {
@@ -56,13 +59,24 @@ const ORIENTATION_TO_IMAGE_SIZE: Record<string, string> = {
   landscape: "landscape_16_9",
   portrait: "portrait_16_9",
 };
+// Contraintes de GPT Image 2 sur les tailles personnalisées : largeur et hauteur multiples de 16,
+// bord max 3840 px, ratio <= 3:1, entre 655 360 et 8 294 400 pixels au total.
+// (576x1024 est trop petit et 1080 n'est pas un multiple de 16 : on utilise 1280x720 et 1920x1088.)
 const ADVANCED_IMAGE_SIZES: Record<string, Record<string, { width: number; height: number }>> = {
   square: { hd: { width: 1024, height: 1024 }, full_hd: { width: 1536, height: 1536 }, "2k": { width: 2048, height: 2048 }, "4k": { width: 2880, height: 2880 } },
-  landscape: { hd: { width: 1024, height: 576 }, full_hd: { width: 1920, height: 1080 }, "2k": { width: 2560, height: 1440 }, "4k": { width: 3840, height: 2160 } },
-  portrait: { hd: { width: 576, height: 1024 }, full_hd: { width: 1080, height: 1920 }, "2k": { width: 1440, height: 2560 }, "4k": { width: 2160, height: 3840 } },
+  landscape: { hd: { width: 1280, height: 720 }, full_hd: { width: 1920, height: 1088 }, "2k": { width: 2560, height: 1440 }, "4k": { width: 3840, height: 2160 } },
+  portrait: { hd: { width: 720, height: 1280 }, full_hd: { width: 1088, height: 1920 }, "2k": { width: 1440, height: 2560 }, "4k": { width: 2160, height: 3840 } },
 };
 function isAdvancedImageModel(model: string) {
   return /gpt-image|nano-banana/i.test(model);
+}
+function isGptImageModel(model: string) {
+  return /gpt-image/i.test(model);
+}
+// GPT Image 2 n'accepte que auto / low / medium / high : les niveaux « xhigh » et « max » de l'interface
+// sont ramenés à « high ».
+function gptImageQuality(quality: StudioImageOptions["quality"]) {
+  return quality === "xhigh" || quality === "max" ? "high" : quality ?? "medium";
 }
 function imageInput(model: string, options: StudioImageOptions, orientation: string) {
   const input: Record<string, unknown> = {
@@ -70,7 +84,7 @@ function imageInput(model: string, options: StudioImageOptions, orientation: str
     num_images: 1,
   };
   if (isAdvancedImageModel(model)) {
-    input.quality = options.quality ?? "medium";
+    input.quality = isGptImageModel(model) ? gptImageQuality(options.quality) : options.quality ?? "medium";
     input.output_format = options.outputFormat === "jpeg" ? "jpeg" : "png";
     if (options.background !== "auto") input.background = options.background;
   }
@@ -122,10 +136,13 @@ export async function generateFalImageWithReferences(
 
 // Variante de l'édition qui part directement d'une URL publique (ex. une image
 // déjà stockée dans Supabase Storage) plutôt que de re-télécharger le fichier
-// pour le repasser en base64.
+// pour le repasser en base64. La qualité est fixée à « medium » : GPT Image 2 utilise « high » par défaut,
+// ce qui coûterait plus cher que ce que l'utilisateur paie.
 export async function generateFalImageFromUrl(prompt: string, imageUrl: string) {
   const model = getAiImageEditModel();
-  return runImageModel(model, { prompt, image_urls: [imageUrl], num_images: 1 }, "fal.ai image edit API error");
+  const input: Record<string, unknown> = { prompt, image_urls: [imageUrl], num_images: 1 };
+  if (isGptImageModel(model)) input.quality = "medium";
+  return runImageModel(model, input, "fal.ai image edit API error");
 }
 
 export type StudioVideoGenerationOptions = {
