@@ -1,11 +1,14 @@
 import { inferProductType, type ProductType } from "./creative-workflows";
+import type { CharacterChoice } from "./poster-layouts";
 
 // Direction artistique d'une affiche, DÉDUITE du produit (nom, description, type) et non tirée au hasard :
-// - le thème (business, tech, beauté, sport, cuisine…) fixe la palette, le décor, le style et les tenues ;
+// - le thème (business, tech, beauté, sport, cuisine…) fixe le décor, le style et les tenues ;
 // - le public visé fixe le genre et l'âge de la personne (si le public est mixte, on alterne avec la
 //   génération précédente pour ne pas retomber sur la même personne) ;
-// - le type de produit (ebook, formation, logiciel…) fixe la façon de le mettre en scène.
+// - le type de produit (ebook, formation, logiciel…) fixe la façon de le mettre en scène ;
+// - la PALETTE n'est plus suggérée ici : l'IA la choisit elle-même d'après le nom et la description du produit.
 // Le hasard n'intervient que pour choisir PARMI des options déjà adaptées au produit (coiffure, attitude…).
+// Si l'utilisateur a choisi « avec » ou « sans » personnage, ce choix l'emporte sur le hasard.
 
 type Audience = "femme" | "homme" | "mixte";
 type Theme = {
@@ -65,7 +68,7 @@ const PLACEMENTS: Record<ProductType, string[]> = {
   autre: ["posé sur une table ou un meuble du décor, bien visible au premier plan", "tenu en main par la personne", "présenté debout, légèrement de trois quarts"],
 };
 
-// Probabilité qu'une personne apparaisse, selon le type de produit.
+// Probabilité qu'une personne apparaisse, selon le type de produit (utilisée seulement quand l'utilisateur n'a pas choisi).
 const PERSON_CHANCE: Record<ProductType, number> = { ebook: 0.8, formation: 0.9, saas: 0.55, mode: 0.95, food: 0.4, physique: 0.5, service: 1, evenement: 0.8, autre: 0.8 };
 
 const HAIR_MAN = ["crâne rasé et barbe courte taillée", "coupe courte dégradée (fade) sans barbe", "petites locks courtes", "afro court naturel avec une fine moustache", "cheveux ras et barbe de trois jours", "twists courts sur le dessus"];
@@ -108,28 +111,34 @@ export function detectAge(text: string) {
   return "environ 30 ans";
 }
 
-export function buildPosterDirection(input: { name: string; description?: string; userBrief?: string; previousPrompt?: string }, random: () => number = Math.random) {
+export function buildPosterDirection(input: { name: string; description?: string; userBrief?: string; previousPrompt?: string; character?: CharacterChoice }, random: () => number = Math.random) {
   const userBrief = input.userBrief ?? "";
   const text = `${input.name} ${input.description ?? ""}`;
   const theme = detectTheme(text);
   const type = inferProductType(input.name, input.description);
+  const character = input.character ?? "auto";
   const userDescribesPerson = USER_DESCRIBES_PERSON.test(userBrief);
-  const withoutPerson = !userDescribesPerson && random() >= PERSON_CHANCE[type];
+  // Le choix explicite de l'utilisateur (fenêtre « avec / sans personnage ») prime sur le hasard.
+  const withoutPerson = character === "without"
+    ? true
+    : character === "with"
+      ? false
+      : !userDescribesPerson && random() >= PERSON_CHANCE[type];
 
-  // Ce ne sont que des PISTES de départ : l'IA analyse elle-même le produit et reste libre de les suivre, de les
-  // mélanger ou de proposer mieux. On donne 2 options (palette, mise en place) plutôt qu'un choix unique.
+  // Ce ne sont que des PISTES de départ : l'IA analyse elle-même le produit et reste libre de les suivre, de les mélanger ou de proposer mieux.
+  // La palette n'en fait pas partie : l'IA la choisit seule d'après le nom et la description du produit.
   const placements = PLACEMENTS[type].filter((option) => !withoutPerson || !/(personne|en main)/.test(option));
   const placementOptions = pickMany(placements.length ? placements : ["posé bien en vue au premier plan, dans le décor"], 2, random);
-  const paletteOptions = pickMany(theme.palettes, 2, random);
 
   const parts = [
     `thème probable : ${theme.id}`,
     `décor possible : ${theme.setting}`,
     `ambiance possible : ${theme.style}`,
-    `palettes possibles : ${paletteOptions.join(" ou ")}`,
     `mise en place possible du produit (${type}) : ${placementOptions.join(" ou ")}`,
   ];
-  if (withoutPerson) parts.push("l'affiche peut très bien se passer de personne : le produit peut être le héros de l'image");
+  if (withoutPerson) parts.push(character === "without"
+    ? "aucune personne sur l'affiche (choix de l'utilisateur) : le produit est le héros de l'image"
+    : "l'affiche peut très bien se passer de personne : le produit peut être le héros de l'image");
   else if (!userDescribesPerson) {
     const gender = detectAudience(text, theme, input.name, input.previousPrompt ?? "");
     const man = gender === "homme";

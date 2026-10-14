@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildPosterDirection } from "@/lib/studio/poster-direction";
-import { buildLayoutDirection } from "@/lib/studio/poster-layouts";
+import { buildLayoutDirection, type CharacterChoice } from "@/lib/studio/poster-layouts";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { cleanAiText } from "@/lib/ai/format";
@@ -18,7 +18,12 @@ function systemPrompt(locale: "fr" | "en") {
 
 Une affiche qui vend est d'abord un TITRE qu'on lit à deux mètres, ensuite un visuel. Tu ne fais pas une photo de stock avec une petite légende : tu fais une vraie affiche publicitaire, avec une hiérarchie de texte claire.
 
-La mise en page et la palette te sont IMPOSÉES dans les informations du produit : applique fidèlement leur structure (emplacement du titre, du produit, des bénéfices, du bouton, présence ou non d'une personne, style graphique) et décris-la élément par élément dans le prompt. Tu adaptes le décor, les icônes, les accessoires, la tenue et les bénéfices au produit, jamais la structure. Réfléchis d'abord à qui achète ce produit et quel désir ou problème il touche, puis écris les textes à partir de là.
+La mise en page t'est IMPOSÉE dans les informations du produit : applique fidèlement sa structure (emplacement du titre, du produit, des bénéfices, du bouton, présence ou non d'une personne, style graphique) et décris-la élément par élément dans le prompt. Tu adaptes le décor, les icônes, les accessoires, la tenue et les bénéfices au produit, jamais la structure. Réfléchis d'abord à qui achète ce produit et quel désir ou problème il touche, puis écris les textes à partir de là.
+
+La PALETTE, c'est TOI qui la choisis, à partir du nom et de la description du produit (aucune palette ne t'est imposée) :
+- Déduis le sujet exact du produit, son public et l'émotion à provoquer (confiance, énergie, appétit, luxe, sérieux, douceur…), puis choisis 2 ou 3 couleurs qui collent à ce sujet : une dominante, une secondaire, une couleur d'accent pour le mot-clé et le bouton. Nomme-les précisément dans le prompt (nuance + où elle s'applique).
+- Les couleurs doivent être évidentes pour le sujet : par exemple des bleus pour un réseau professionnel ou LinkedIn, du vert et de l'or pour l'argent et l'investissement, des tons chauds pour la cuisine, du vert frais pour le sport ou la santé, des tons doux pour la beauté ou la famille. Ce ne sont que des repères : adapte-toi au produit réel et si la description ou les consignes de l'utilisateur citent des couleurs ou une marque, utilise-les.
+- Pas de palette par défaut : n'utilise pas rose, bordeaux ou violet sauf si le sujet le justifie. Le titre doit toujours avoir un très fort contraste avec son fond.
 
 Format de ta réponse :
 - Écris en ${language}.
@@ -35,9 +40,9 @@ Ce qui ne se négocie pas :
 - Image belle et nette au premier regard, comme une vraie publicité professionnelle : un point focal clair, de l'air entre les éléments, des proportions réalistes, des couleurs franches.
 - Le produit est reconnaissable, net, grand, bien visible et jamais coupé ni masqué. Un ebook est toujours un livre physique (jamais dans un écran), avec son titre exact sur la couverture et aucun autre texte ni logo dessus. Une formation, un outil ou un abonnement peut être montré par son écran ou son interface.
 - N'affiche aucun prix, montant ni devise, sauf si l'utilisateur le demande explicitement. N'invente jamais de chiffre, de statistique, de garantie, de témoignage, de logo ou de nom d'auteur : tout vient du nom et de la description du produit (si la description manque, déduis le thème du nom sans rien inventer de précis).
-- Toute personne représentée a par défaut la peau noire ou métisse (personnes africaines ou afro-descendantes, représentées de façon naturelle et valorisante) ; précise-le dans le prompt. Ne change cela que si l'utilisateur ou la description du produit le demandent clairement.
+- Si l'utilisateur a choisi « avec personnage » ou « sans personnage », respecte ce choix à la lettre. Toute personne représentée a par défaut la peau noire ou métisse (personnes africaines ou afro-descendantes, représentées de façon naturelle et valorisante) ; précise-le dans le prompt. Ne change cela que si l'utilisateur ou la description du produit le demandent clairement.
 - Respecte le format d'image demandé.
-- Chaque génération doit ressembler à une affiche différente des précédentes : structure, palette, style (photo, 3D, illustration plate, collage…), décor, personne. Si un prompt précédent t'est fourni, ne reprends ni sa structure, ni sa palette, ni son décor, ni sa personne.
+- Chaque génération doit ressembler à une affiche différente des précédentes : structure, palette, style (photo, 3D, illustration plate, collage…), décor, personne. Si un prompt précédent t'est fourni, ne reprends ni sa structure, ni sa palette, ni son décor, ni sa personne (en restant toujours cohérent avec le sujet du produit).
 - Si l'utilisateur a écrit ses propres consignes, intègre-les fidèlement et donne-leur la priorité sur tout le reste, y compris sur la mise en page imposée.
 - Termine par une courte phrase sur ce qu'il faut éviter (mains ou visages déformés, fautes dans les textes, titre trop petit, effets d'IA excessifs).`;
 }
@@ -53,14 +58,15 @@ export async function POST(request: Request) {
 
   const locale: "fr" | "en" = body?.locale === "en" ? "en" : "fr";
   const orientationKey: "square" | "landscape" | "portrait" = body?.orientation === "landscape" ? "landscape" : body?.orientation === "portrait" ? "portrait" : "square";
+  const character: CharacterChoice = body?.character === "with" ? "with" : body?.character === "without" ? "without" : "auto";
   const background = typeof body?.background === "string" ? body.background : "auto";
   const price = typeof product?.price === "number" || typeof product?.price === "string" ? String(product.price).slice(0, 40) : "";
   const currency = typeof product?.currency === "string" ? product.currency.slice(0, 10) : "";
   const description = typeof product?.description === "string" ? product.description.trim().slice(0, 3_000) : "";
   const userBrief = typeof body?.userBrief === "string" ? body.userBrief.trim().slice(0, 1_500) : "";
   const previousPrompt = typeof body?.previousPrompt === "string" ? body.previousPrompt.trim().slice(0, 1_800) : "";
-  const direction = buildPosterDirection({ name, description, userBrief, previousPrompt });
-  const layout = buildLayoutDirection({ orientation: orientationKey, userBrief, previousPrompt });
+  const direction = buildPosterDirection({ name, description, userBrief, previousPrompt, character });
+  const layout = buildLayoutDirection({ orientation: orientationKey, userBrief, previousPrompt, character });
 
   const lines = [
     `Nom du produit : ${name}`,
