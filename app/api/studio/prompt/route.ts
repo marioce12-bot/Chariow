@@ -51,6 +51,38 @@ function pickRandom(list: string[], count: number) {
   return picked;
 }
 
+
+// Casting tiré au sort à chaque génération. Sans cela, le modèle de texte retombe toujours sur la même
+// « jeune femme noire souriante » (même visage, même coiffure, même pose). On impose donc le genre, l'âge,
+// la coiffure, la tenue et l'attitude côté serveur ; l'IA doit les reprendre tels quels dans le prompt.
+const CASTING_AGES = ["environ 22 ans", "environ 28 ans", "environ 35 ans", "environ 42 ans", "environ 50 ans"];
+const CASTING_MAN_HAIR = ["crâne rasé et barbe courte taillée", "coupe courte dégradée (fade) sans barbe", "petites locks courtes", "afro court et naturel avec une fine moustache", "cheveux ras et barbe de trois jours", "twists courts sur le dessus"];
+const CASTING_WOMAN_HAIR = ["tresses africaines longues (box braids)", "cheveux crépus naturels coupés très court", "foulard ou headwrap en wax coloré", "chignon haut avec quelques mèches", "locks mi-longues attachées", "cheveux lissés au carré", "afro volumineux naturel"];
+const CASTING_MAN_OUTFIT = ["chemise en pagne wax moderne", "t-shirt uni et veste légère", "chemise blanche remontée aux manches", "polo sobre", "sweat à capuche décontracté", "costume sans cravate"];
+const CASTING_WOMAN_OUTFIT = ["robe wax moderne", "chemisier clair et pantalon taille haute", "blazer coloré sur t-shirt blanc", "t-shirt uni décontracté", "ensemble en lin", "tenue de sport propre"];
+const CASTING_ATTITUDES = [
+  "rire franc et spontané, regard légèrement détourné de la caméra",
+  "concentré et sérieux, regard sur le produit",
+  "sourire confiant, bras croisés ou une main dans la poche",
+  "surpris et enthousiaste, le produit levé à bout de bras",
+  "regard caméra calme et assuré, produit tenu bas contre la poitrine",
+  "en mouvement, pris sur le vif (marche, geste, rotation du buste)",
+  "penché vers l'avant, complice, qui montre le produit du doigt",
+];
+
+// Si l'utilisateur décrit lui-même la personne, on ne tire rien au sort : ses consignes passent d'abord.
+const USER_DESCRIBES_PERSON = /(homme|femme|man\b|woman|men\b|women|garçon|fille|mère|père|couple|groupe|enfant|étudiant|étudiante|personnage|sans personne|no person)/i;
+
+function pickOne<T>(list: T[]): T {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function pickCasting(userBrief: string) {
+  if (USER_DESCRIBES_PERSON.test(userBrief)) return "";
+  const man = Math.random() < 0.5;
+  return `Casting imposé à reprendre tel quel dans le prompt : ${man ? "un homme" : "une femme"} ${pickOne(CASTING_AGES)}, peau noire ou métisse, ${pickOne(man ? CASTING_MAN_HAIR : CASTING_WOMAN_HAIR)}, ${pickOne(man ? CASTING_MAN_OUTFIT : CASTING_WOMAN_OUTFIT)}, attitude : ${pickOne(CASTING_ATTITUDES)}. Donne-lui un visage distinctif et naturel.`;
+}
+
 function systemPrompt(locale: "fr" | "en") {
   const language = locale === "en" ? "English" : "français";
   return `Tu es un directeur artistique et prompt engineer senior, spécialisé dans les affiches publicitaires pour des produits digitaux (ebooks, formations, templates, abonnements) vendues par des créateurs francophones et anglophones, principalement en Afrique. Tes affiches doivent avoir le niveau des meilleures publicités Facebook / Instagram : un visage humain expressif, un message qui accroche en un coup d'œil, un produit bien visible et un prix clair.
@@ -67,7 +99,7 @@ Chaque affiche est unique : il n'y a PAS de gabarit à recopier. Tu inventes la 
 Ce qui doit toujours être vrai, quelle que soit la mise en page :
 - ACCROCHE : un titre court et percutant (3 à 8 mots), très grand, en gras, avec un fort contraste, qui vend un résultat ou un désir du client plutôt que de répéter le nom du produit. Tu peux jouer sur la typographie (un mot-clé plus grand ou d'une autre couleur) si cela sert l'idée ; invente la formule, ne copie jamais un exemple.
 - BÉNÉFICES : 2 à 4 bénéfices très courts (2 à 5 mots) que le client obtient concrètement, bien lisibles, présentés comme tu le sens (icônes, pastilles, cartes, puces stylisées, étiquettes…).
-- PERSONNE : une présence humaine réelle, expressive et crédible (regard caméra, vrai sourire ou émotion forte, ou action naturelle), de taille importante, qui tient le produit, le montre ou vit la situation qu'il améliore. Varie librement le genre, l'âge adulte, la pose, la tenue, le cadrage. Retire la personne seulement si le produit s'y prête vraiment mal.
+- PERSONNE : une présence humaine réelle, expressive et crédible (regard caméra, vrai sourire ou émotion forte, ou action naturelle), de taille importante, qui tient le produit, le montre ou vit la situation qu'il améliore. Si un « Casting imposé » t'est fourni (genre, âge, coiffure, tenue, attitude), reprends-le exactement : ne le remplace pas par une jeune femme souriante par défaut. Sinon, varie le genre (homme comme femme), l'âge adulte, la coiffure, la pose, la tenue et le cadrage. Retire la personne seulement si le produit s'y prête vraiment mal.
 - PRODUIT : reconnaissable au premier coup d'œil (règles plus bas).
 - PRIX ET ACTION : si un prix est fourni, il est bien visible et lisible (badge, bandeau, sticker, encart…, jamais minuscule), avec le montant et la devise exactement tels que fournis. Un appel à l'action clair avec un verbe adapté au produit (« Télécharge maintenant », « Commande aujourd'hui », « Rejoins la formation »…), dont tu varies la forme (bouton, bandeau, étiquette).
 
@@ -117,6 +149,7 @@ export async function POST(request: Request) {
   const previousPrompt = typeof body?.previousPrompt === "string" ? body.previousPrompt.trim().slice(0, 1_800) : "";
   const territories = pickRandom(CREATIVE_TERRITORIES, 3);
   const layouts = pickRandom(LAYOUT_ARCHETYPES, 2);
+  const casting = pickCasting(userBrief);
 
   const lines = [
     `Nom du produit : ${name}`,
@@ -126,6 +159,7 @@ export async function POST(request: Request) {
     background === "transparent" ? "Fond : transparent (sujet détouré, sans décor)." : "",
     userBrief ? `Consignes personnelles de l'utilisateur à intégrer :\n${userBrief}` : "",
     previousPrompt ? `Prompt précédent (à ne pas reproduire, propose un concept nettement différent) :\n${previousPrompt}` : "",
+    casting,
     `Mises en page proposées (pars de l'une d'elles ou invente mieux) : ${layouts.join(" ; ")}`,
     `Pistes d'inspiration facultatives : ${territories.join(" ; ")}`,
   ].filter(Boolean).join("\n");
