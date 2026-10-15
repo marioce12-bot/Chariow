@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { PlayCircle, RefreshCw, X } from "lucide-react";
+import { Copy, PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
 import { LaunchAdWizard } from "./wizard/LaunchAdWizard";
 import type { Platform } from "./wizard/types";
@@ -31,6 +31,9 @@ type AdCampaign = {
   countries?: string[] | null;
   geo_targeting?: { countries?: string[]; regions?: { key: string; name: string }[]; cities?: { key: string; name: string }[] } | null;
   meta_page_id?: string | null;
+  call_to_action?: string | null;
+  advantage_creative?: boolean | null;
+  advantage_audience?: boolean | null;
   meta_ad_account_id?: string | null;
   tiktok_ad_account_id?: string | null;
   pinterest_ad_account_id?: string | null;
@@ -90,6 +93,8 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const [loading, setLoading] = useState(true);
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
   const [correcting, setCorrecting] = useState<AdCampaign | null>(null);
+  // Duplication : wizard pré-rempli avec cette campagne, qui crée un nouveau brouillon.
+  const [duplicating, setDuplicating] = useState<AdCampaign | null>(null);
   const [correctionFromDetail, setCorrectionFromDetail] = useState(false);
   const [selected, setSelected] = useState<AdCampaign | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -239,6 +244,9 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                   >
                     {statusLabels[statusKey] ?? meta.label}
                   </span>
+                  <button type="button" className="btn btn-ghost" title={t("campaigns.duplicate")} aria-label={t("campaigns.duplicate")} onClick={(event) => { event.stopPropagation(); setDuplicating(c); }}>
+                    <Copy size={14} />
+                  </button>
                   {canResume ? (
                     <button type="button" className="btn btn-dark" onClick={(event) => { event.stopPropagation(); setResuming(c); }}>
                       <PlayCircle size={14} /> {t("campaigns.launch")}
@@ -269,6 +277,16 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
             setResuming(null);
             void load();
           }}
+        />
+      ) : null}
+      {duplicating && storeId ? (
+        <LaunchAdWizard
+          key={`duplicate:${duplicating.id}`}
+          storeId={storeId}
+          plan={plan}
+          duplicateCampaign={duplicating}
+          onClose={() => setDuplicating(null)}
+          onLaunched={() => { void load(); }}
         />
       ) : null}
       {correcting && storeId ? (
@@ -322,7 +340,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                 </button>
               </div>
             ) : null}
-            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}<button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button></div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>{selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setDuplicating(selected); setSelected(null); }}><Copy size={14} /> {t("campaigns.duplicate")}</button>{(selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Relancer la campagne"}</button> : null}<button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button></div>
           </div>
         </div>
       ) : null}
