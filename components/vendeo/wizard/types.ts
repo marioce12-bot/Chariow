@@ -2,6 +2,7 @@
 
 import { WORLD_COUNTRIES } from "@/lib/geo/countries";
 import { DEFAULT_META_CTA, LEGACY_META_CTA, normalizeMetaCta, type MetaCtaType } from "@/lib/meta/cta";
+import { stripVendeoCampaignTracking } from "@/lib/meta/tracking";
 
 export type Platform = "meta" | "tiktok" | "pinterest";
 export type Objective = "sales" | "traffic" | "engagement" | "leads";
@@ -208,5 +209,20 @@ export function wizardStateFromCampaign(campaign: EditableCampaign, storeId: str
     durationDays: campaign.duration_days || DEFAULT_WIZARD_STATE.durationDays,
     campaignId: campaign.id,
     editingCampaignId: campaign.id,
+  };
+}
+
+/** État initial du wizard pour DUPLIQUER une campagne : mêmes valeurs que l'original (produit,
+ *  visuel, texte, audience, budget, bouton, réglages Advantage+…), mais aucun lien avec lui —
+ *  sans `campaignId` ni `editingCampaignId`, l'étape 4 crée un nouveau brouillon (POST) et
+ *  l'original n'est jamais modifié ni supprimé. Le `utm_campaign` de l'original est retiré du
+ *  lien de destination pour que les ventes de la copie ne lui soient pas attribuées. */
+export function wizardStateForDuplicate(campaign: EditableCampaign, storeId: string): WizardState {
+  const copy = wizardStateFromCampaign(campaign, storeId);
+  return {
+    ...copy,
+    destinationUrl: stripVendeoCampaignTracking(copy.destinationUrl, campaign.id),
+    campaignId: null,
+    editingCampaignId: null,
   };
 }

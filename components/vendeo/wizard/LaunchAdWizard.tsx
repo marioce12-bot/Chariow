@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
-import { DEFAULT_WIZARD_STATE, wizardStateFromCampaign, type ChariowProductLite, type EditableCampaign, type WizardState } from "./types";
+import { DEFAULT_WIZARD_STATE, wizardStateForDuplicate, wizardStateFromCampaign, type ChariowProductLite, type EditableCampaign, type WizardState } from "./types";
 import type { PlanId } from "@/lib/plans";
 import { Step1Product } from "./Step1Product";
 import { Step2NetworkCreative, type Step2FooterState } from "./Step2NetworkCreative";
@@ -24,6 +24,9 @@ interface LaunchAdWizardProps {
   editNotice?: string | null;
   /** Mode modification : appelé à la fin de l'étape 5 pour revenir au lancement. */
   onEdited?: (campaignId: string) => void;
+  /** Mode duplication : campagne dont les valeurs pré-remplissent les étapes. Contrairement à
+   *  `editCampaign`, le wizard crée un NOUVEAU brouillon et ne touche jamais à l'original. */
+  duplicateCampaign?: EditableCampaign;
 }
 
 type MetaPreview = { id: string; label: string; html: string };
@@ -62,14 +65,21 @@ const META_PREVIEW_CACHE_MS = 10 * 60 * 1000;
  * Step2NetworkCreative.tsx pour le détail. Les autres étapes gardent leur
  * propre pied de page interne (sticky bottom-0 dans leur zone de scroll).
  */
-export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProduct, editCampaign, editNotice, onEdited }: LaunchAdWizardProps) {
+export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProduct, editCampaign, editNotice, onEdited, duplicateCampaign }: LaunchAdWizardProps) {
   const { locale } = useI18n();
   const en = locale === "en";
   const stepLabels = en ? ["Product", "Ad set & creative", "Audience", "Budget", "Creation"] : ["Produit", "Ensemble & publicité", "Audience", "Budget", "Création"];
   // Produit déjà choisi (bouton « Promouvoir » du catalogue) : on démarre directement à l'étape 2.
   // Le bouton « Retour » de l'étape 2 permet quand même de revenir choisir un autre produit.
-  const [step, setStep] = useState(() => (!editCampaign && initialProduct ? 2 : 1));
-  const [state, setState] = useState<WizardState>(() => (editCampaign ? wizardStateFromCampaign(editCampaign, storeId) : { ...DEFAULT_WIZARD_STATE, storeId, product: initialProduct ?? null }));
+  // Duplication : le produit est déjà celui de la campagne copiée, on démarre aussi à l'étape 2.
+  const [step, setStep] = useState(() => (!editCampaign && (initialProduct || duplicateCampaign) ? 2 : 1));
+  const [state, setState] = useState<WizardState>(() => (
+    editCampaign
+      ? wizardStateFromCampaign(editCampaign, storeId)
+      : duplicateCampaign
+        ? wizardStateForDuplicate(duplicateCampaign, storeId)
+        : { ...DEFAULT_WIZARD_STATE, storeId, product: initialProduct ?? null }
+  ));
   const [step2Footer, setStep2Footer] = useState<Step2FooterState | null>(null);
   const [mounted, setMounted] = useState(false);
   // Aperçus Meta : état indexé par format pour que chaque onglet ait son propre
@@ -220,7 +230,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
       <div className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[85vh] sm:max-w-2xl sm:rounded-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-base font-bold text-gray-900">{editCampaign ? (en ? "Edit the campaign" : "Modifier la campagne") : (en ? "Launch an ad" : "Lancer une pub")}</h2>
+          <h2 className="text-base font-bold text-gray-900">{editCampaign ? (en ? "Edit the campaign" : "Modifier la campagne") : duplicateCampaign ? (en ? "Duplicate the campaign" : "Dupliquer la campagne") : (en ? "Launch an ad" : "Lancer une pub")}</h2>
           <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">
             {en ? "Close" : "Fermer"}
           </button>
@@ -262,6 +272,12 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
             <div className="mb-4 rounded-xl bg-[#FFFBEB] p-3 text-sm text-[#92400E]">
               <strong className="block">{en ? "To fix" : "À corriger"}</strong>
               <span>{editNotice}</span>
+            </div>
+          ) : null}
+          {duplicateCampaign && step < 5 ? (
+            <div className="mb-4 rounded-xl bg-[#EEF2FF] p-3 text-sm text-[#3730A3]">
+              <strong className="block">{en ? "Copy of an existing campaign" : "Copie d'une campagne existante"}</strong>
+              <span>{en ? "Everything is pre-filled from the original. Change what you want: the original campaign is not modified." : "Tout est pré-rempli à partir de l'original. Modifie ce que tu veux : la campagne d'origine n'est pas modifiée."}</span>
             </div>
           ) : null}
           {step === 1 && <Step1Product state={state} patch={patch} onNext={next} />}
