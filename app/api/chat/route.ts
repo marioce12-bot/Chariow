@@ -152,7 +152,10 @@ export async function POST(request: Request) {
   }
   // Plafond du contexte analytique envoyé au modèle (voir plus bas). Il est défini ici car chaque boutique
   // reçoit sa part du budget : sinon la dernière boutique était coupée par la troncature globale.
-  const MAX_CONTEXT_CHARS = 4_000;
+  // 9 000 caractères (≈ 2 500 jetons) : de quoi donner le catalogue et les ventes récentes de 3 à 4 boutiques.
+  // À 4 000, le prompt système (~7 200 caractères) ne laissait que ~2 000 caractères pour les boutiques, et la
+  // 3e boutique était coupée (l'assistant ne pouvait pas lire son catalogue).
+  const MAX_CONTEXT_CHARS = 9_000;
   let context = "Aucune boutique n'est encore connectée.";
 
   if (stores && stores.length > 0) {
@@ -247,7 +250,7 @@ export async function POST(request: Request) {
   // Le prompt système à lui seul fait ~7 500 caractères (règles de création de
   // campagne comprises) : ce plafond doit rester nettement au-dessus, sinon la fin
   // du prompt (format du JSON de lancement) serait tronquée avant d'arriver à l'IA.
-  const MAX_SYSTEM_CONTENT_CHARS = 9_500;
+  const MAX_SYSTEM_CONTENT_CHARS = 14_500; // = prompt (~7 500) + MAX_CONTEXT_CHARS (9 000) avec une petite marge
   // Budget dédié au texte des documents joints (pdf/docx) : distinct du contexte
   // analytique ci-dessus pour ne jamais l'amputer quand un document est envoyé.
   const MAX_DOCUMENT_CONTEXT_CHARS = 8_000;
