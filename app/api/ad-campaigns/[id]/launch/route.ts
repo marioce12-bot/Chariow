@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
-import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCarouselCreative, createMetaCreative, publishMetaAdWithAdvantage, updateMetaAdCreative } from "@/lib/meta/campaigns";
+import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCarouselCreative, createMetaCreative, deleteMetaCampaign, publishMetaAdWithAdvantage, updateMetaAdCreative } from "@/lib/meta/campaigns";
 import { fetchMetaPageAccessToken, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
+import { AbTestError, abAdSetEndIso, abBudgetPerVariant, addAbVariantAndStartTest, assertAbBudget, generateAbVariantB, resolveMetaBusinessId, type AbVariant } from "@/lib/meta/ab-test";
 import { launchTikTok } from "@/lib/tiktok/launch";
 import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
 import { launchPinterest } from "@/lib/pinterest/api";
@@ -215,22 +216,47 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     // le lancement pour autant — Meta refusera de toute façon la création si besoin.
   }
 
+  // Test A/B (case cochée à l'étape 5 du wizard, Meta uniquement) : tout ce qui peut échouer SANS rien créer
+  // chez Meta est vérifié ici, avant la création de la campagne — budget suffisant pour deux versions,
+  // Business Manager lisible (obligatoire pour créer le test) et version B de la créative générée.
+  const abRequested = body?.ab_test === true;
+  let abBusinessId: string | null = null;
+  let abVariantB: AbVariant | null = null;
+  if (abRequested) {
+    try {
+      assertAbBudget(Number(campaign.daily_budget));
+      abBusinessId = await resolveMetaBusinessId(`act_${account.meta_account_id}`, accessToken);
+      abVariantB = await generateAbVariantB({ message: campaign.ad_text, headline: campaign.title || campaign.product_name || "Campagne Vendeo", productName: campaign.product_name });
+    } catch (abError) {
+      if (abError instanceof AbTestError) {
+        return NextResponse.json({ error: abError.message, code: abError.code }, { status: abError.code === "AB_TEST_VARIANT_FAILED" ? 502 : 400 });
+      }
+      throw abError;
+    }
+  }
+
   const { data: subscription } = await supabase.from("subscriptions").select("plan").eq("user_id", userId).maybeSingle();
   const plan = isPlanId(subscription?.plan) ? subscription.plan : "starter";
   const publisherPlatforms = metaPublisherPlatforms(plan);
   await supabase.from("ad_campaigns").update({ meta_ad_account_id: account.id, external_error: null }).eq("id", campaign.id).eq("user_id", userId);
+  // Id de la campagne créée chez Meta : sert, en test A/B, à tout supprimer si une étape échoue après sa création
+  // (sinon un « Réessayer » créerait une deuxième campagne en doublon).
+  let createdMetaCampaignId: string | null = null;
   try {
     const pageAccessToken = await fetchMetaPageAccessToken(pageId, accessToken);
     const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
     // On crée directement en ACTIVE : le clic sur "Lancer la campagne" soumet
     // immédiatement la campagne à la modération Meta.
     const external = await createMetaCampaign({ accountId: `act_${account.meta_account_id}`, accessToken, name: campaignName, objective: effectiveObjective, dailyBudget: Number(campaign.daily_budget), status: "ACTIVE" });
-    const adSet = await createMetaAdSet({
+    createdMetaCampaignId = external.id;
+    // Test A/B : budget partagé à parts égales entre les deux versions, même fin pour les deux ensembles de pubs.
+    const abEndIso = abRequested ? abAdSetEndIso(durationDays) : null;
+    const adSetInput: Parameters<typeof createMetaAdSet>[0] = {
       accountId: `act_${account.meta_account_id}`,
       accessToken,
       campaignId: external.id,
-      name: `${campaignName} - Audience`,
-      dailyBudget: Number(campaign.daily_budget),
+      name: abRequested ? `${campaignName} - Ensemble A` : `${campaignName} - Audience`,
+      dailyBudget: abRequested ? abBudgetPerVariant(Number(campaign.daily_budget)) : Number(campaign.daily_budget),
       countries: campaign.countries?.length ? campaign.countries : ["BJ"],
       // Ciblage précis (région/ville) choisi via le widget de recherche
       // d'audience — retombe sur `countries` (pays entiers) si absent.
@@ -240,16 +266,48 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
       publisherPlatforms,
       objective: effectiveObjective,
       pixelId: effectiveObjective === "sales" ? pixelId : null,
-      endTime,
+      endTime: abEndIso ?? endTime,
       advantageAudience,
       status: "ACTIVE",
-    });
+    };
+    const adSet = await createMetaAdSet(adSetInput);
     const creative = await createCampaignCreative({ userId, accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), headline: campaignName, advantageCreative, campaign });
     // Advantage+ créative activé : Meta impose le parcours création en PAUSED → aperçu des
     // fonctions → activation (publishMetaAdWithAdvantage). Désactivé : annonce créée ACTIVE directement.
     const adInput = { accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Ad`, adsetId: String(adSet.id), creativeId: String(creative.id) };
     const ad = advantageCreative ? await publishMetaAdWithAdvantage(adInput) : await createMetaAd({ ...adInput, status: "ACTIVE" });
-    const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, effective_objective: effectiveObjective, external_campaign_id: external.id, external_adset_id: String(adSet.id), external_creative_id: String(creative.id), external_ad_id: String(ad.id), external_error: null, destination_url: withVendeoCampaignTracking(campaign.destination_url, campaign.id) }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
+
+    // Version B + test A/B Meta (ensemble B, créative B avec le texte/titre de la variante, puis le Split Test
+    // qui oppose les ensembles A et B). Le lien de destination (et donc le suivi des ventes) reste celui de la campagne.
+    let ab: Awaited<ReturnType<typeof addAbVariantAndStartTest>> | null = null;
+    if (abRequested && abBusinessId && abVariantB && abEndIso) {
+      ab = await addAbVariantAndStartTest({
+        accountId: `act_${account.meta_account_id}`,
+        accessToken,
+        businessId: abBusinessId,
+        campaignName,
+        adSetAId: String(adSet.id),
+        adSetInput,
+        endTimeIso: abEndIso,
+        variantB: abVariantB,
+        advantageCreative,
+        createCreative: (variant) =>
+          createCampaignCreative({ userId, accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative B`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), headline: variant.headline, advantageCreative, campaign: { ...campaign, ad_text: variant.message } }),
+      });
+    }
+
+    const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({
+      status: "review",
+      meta_ad_account_id: account.id,
+      effective_objective: effectiveObjective,
+      external_campaign_id: external.id,
+      external_adset_id: String(adSet.id),
+      external_creative_id: String(creative.id),
+      external_ad_id: String(ad.id),
+      external_error: null,
+      destination_url: withVendeoCampaignTracking(campaign.destination_url, campaign.id),
+      ...(ab && abVariantB ? { ab_test: true, ab_study_id: ab.studyId, ab_adset_b_id: ab.adSetBId, ab_creative_b_id: ab.creativeBId, ab_ad_b_id: ab.adBId, ab_message_b: abVariantB.message, ab_headline_b: abVariantB.headline } : {}),
+    }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
     if (updateError) return NextResponse.json({ error: "Campagne Meta créée mais statut Vendeo non enregistré" }, { status: 502 });
     await supabase.from("meta_campaigns").upsert({ ad_account_id: account.id, meta_campaign_id: external.id, name: campaign.title || "Campagne Vendeo", status: "ACTIVE", objective: external.objective }, { onConflict: "ad_account_id,meta_campaign_id" });
     return NextResponse.json({
@@ -259,10 +317,21 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
       // Pixel du compte pub utilisé automatiquement (non marqué "configuré sur Chariow") :
       // on prévient l'utilisateur de vérifier qu'il est bien installé dans sa boutique.
       pixel_auto_selected: effectiveObjective === "sales" && pixelAutoSelected,
+      ab_test: Boolean(ab),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : "Meta campaign creation failed";
+    // Test A/B : la campagne (avec ses deux ensembles) existe déjà chez Meta mais n'est pas enregistrée côté Vendeo.
+    // On la supprime (cascade sur ses ensembles et annonces) pour qu'elle ne dépense pas dans le vide et qu'un
+    // nouvel essai reparte de zéro. Best-effort : une erreur de suppression ne masque jamais l'erreur d'origine.
+    if (abRequested && createdMetaCampaignId) {
+      try {
+        await deleteMetaCampaign({ campaignId: createdMetaCampaignId, accessToken });
+      } catch (cleanupError) {
+        console.error("launch A/B: échec du nettoyage de la campagne Meta", { campaignId: createdMetaCampaignId, cleanupMessage: cleanupError instanceof Error ? cleanupError.message : cleanupError });
+      }
+    }
     await supabase.from("ad_campaigns").update({ external_error: message }).eq("id", campaign.id).eq("user_id", userId);
-    return NextResponse.json({ error: `Meta n’a pas accepté la campagne : ${message}. Réessaie.` }, { status: 502 });
+    return NextResponse.json({ error: `Meta n’a pas accepté la campagne${abRequested ? " (test A/B)" : ""} : ${message}. Réessaie.` }, { status: 502 });
   }
 }
