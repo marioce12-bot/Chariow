@@ -522,7 +522,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
       setLaunchError("Indique un budget journalier valide (ex. 2 en dollars, ou 1000 en F CFA).");
       return;
     }
-    const payload = payload_or(launchPayload);
+    const payload = launchPayload;
     // Carrousel : réservé à Meta. La première image est l'image principale, les autres sont les cartes suivantes.
     const isPinterest = payload.platform === "pinterest";
     const carouselUrls = isPinterest ? [] : launchImageUrls.slice(1);
