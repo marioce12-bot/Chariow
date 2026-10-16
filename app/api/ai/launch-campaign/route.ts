@@ -4,9 +4,10 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { toUsd } from "@/lib/currency";
-import { createMetaCampaign, createMetaAdSet, createMetaCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
+import { createMetaCampaign, createMetaAdSet, createMetaCreative, createMetaCarouselCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
 import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
+import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
 import { launchPinterest } from "@/lib/pinterest/api";
 import { PINTEREST_TAG_REQUIRED_CODE, isPinterestConversionTagError, pinterestTagChatMessage } from "@/lib/pinterest/tag-help";
@@ -29,6 +30,7 @@ type LaunchBody = {
   headline?: string;
   linkUrl?: string; // lien de la page de redirection (page de vente de l'utilisateur) — OBLIGATOIRE
   imageUrl?: string;
+  carouselUrls?: string[]; // images supplémentaires après imageUrl (Meta : carrousel de 2 à 10 cartes)
   pageId?: string;
   metaAdAccountId?: string; // id de la ligne meta_ad_accounts (compte choisi dans l'appli)
   pinterestAdAccountId?: string;
@@ -204,6 +206,9 @@ export async function POST(request: Request) {
   const minAge = body.ageMin ?? 18;
   const maxAge = body.ageMax ?? 65;
   const durationDays = 1;
+  // Carrousel : images supplémentaires (https, sans doublon, 9 au plus) après l'image principale.
+  // Aucune image supplémentaire = publicité à image unique, comme avant.
+  const carouselExtraUrls = parseCarouselUrls(body.carouselUrls, body.imageUrl);
 
   // 1. Campagne. Si CETTE étape échoue, rien n'a été créé côté Meta : l'erreur
   // Graph est déjà claire, on peut la laisser remonter telle quelle.
@@ -242,19 +247,41 @@ export async function POST(request: Request) {
     // superpositions (recommandation du Score d'opportunité de Meta).
     // L'image est envoyée à Meta par Vendeo (image_hash) : une URL signée de notre stockage privé
     // n'est pas toujours téléchargeable par Meta (« Image non téléchargée »). Repli sur l'URL si l'envoi échoue.
-    const { imageHash } = await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl: body.imageUrl });
-    const creative = await createMetaCreative({
-      accountId,
-      accessToken,
-      name: `${body.name} — Créative`,
-      pageId,
-      link: trackedLinkUrl,
-      message: body.message,
-      headline: body.headline || body.name,
-      imageUrl: body.imageUrl,
-      imageHash,
-      advantageCreative: true,
-    });
+    // Carrousel : chaque carte est envoyée à Meta de la même façon (une image_hash par carte) ;
+    // les améliorations Advantage+ ne s'appliquent qu'à l'image unique.
+    let creative: { id?: unknown };
+    if (carouselExtraUrls.length >= 1) {
+      const cards = await Promise.all(
+        [body.imageUrl, ...carouselExtraUrls].map(async (url) => ({
+          url,
+          hash: (await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl: url })).imageHash,
+        }))
+      );
+      creative = await createMetaCarouselCreative({
+        accountId,
+        accessToken,
+        name: `${body.name} — Créative`,
+        pageId,
+        link: trackedLinkUrl,
+        message: body.message,
+        headline: body.headline || body.name,
+        cards,
+      });
+    } else {
+      const { imageHash } = await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl: body.imageUrl });
+      creative = await createMetaCreative({
+        accountId,
+        accessToken,
+        name: `${body.name} — Créative`,
+        pageId,
+        link: trackedLinkUrl,
+        message: body.message,
+        headline: body.headline || body.name,
+        imageUrl: body.imageUrl,
+        imageHash,
+        advantageCreative: true,
+      });
+    }
     const creativeId = String(creative.id);
 
     // Annonce créée en PAUSED, aperçu des fonctions Advantage+, puis activée
@@ -277,6 +304,7 @@ export async function POST(request: Request) {
       title: body.name,
       ad_text: body.message,
       media_url: body.imageUrl,
+      carousel_urls: carouselExtraUrls.length ? carouselExtraUrls : null,
       destination_url: trackedLinkUrl,
       countries,
       min_age: minAge,
@@ -293,7 +321,7 @@ export async function POST(request: Request) {
     });
     if (insertError) throw new Error(`Campagne créée chez Meta mais non enregistrée côté Vendeo (${insertError.message}).`);
 
-    return NextResponse.json({ campaignId, adSetId, creativeId, adId, dailyBudgetUsd: dailyBudget });
+    return NextResponse.json({ campaignId, adSetId, creativeId, adId, dailyBudgetUsd: dailyBudget, carouselCards: carouselExtraUrls.length ? carouselExtraUrls.length + 1 : 1 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur de lancement Meta.";
     console.error("launch-campaign Meta error (après création de la campagne)", message, { campaignId });
