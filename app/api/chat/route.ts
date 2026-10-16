@@ -65,10 +65,11 @@ export async function POST(request: Request) {
   // comme parts structurées pour qu'elle puisse réellement "voir" le média), et
   // documents PDF/Word dont le texte a déjà été extrait à l'upload (voir
   // app/api/chat/upload/route.ts) et qu'on rattache ici au message.
+  // 10 au maximum par message (aligné sur MAX_CHAT_ATTACHMENTS dans components/ChatView.tsx).
   const attachments = Array.isArray(body?.attachments)
     ? (body.attachments as Array<{ url?: string; type?: string; name?: string; text?: string }>)
         .filter((a): a is { url: string; type?: string; name?: string; text?: string } => typeof a?.url === "string")
-        .slice(0, 5)
+        .slice(0, 10)
         .map((a) => ({
           url: a.url,
           type: (a.type === "video" ? "video" : a.type === "document" ? "document" : "image") as "image" | "video" | "document",
@@ -314,7 +315,7 @@ export async function POST(request: Request) {
   // de la place ; seul le contexte analytique (ci-dessus) est raccourci si besoin.
   const safeHistory = recentPreviousHistory.map((item) => {
     const raw = typeof item.content === "string" ? item.content : "";
-    const content = raw.length > MAX_MESSAGE_CHARS ? `${raw.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : raw;
+    const content = raw.length > MAX_MESSAGE_CHARS ? `${raw.slice(0, MAX_MESSAGE_CHARS)}[...troné...]` : raw;
     return { role: item.role as "user" | "assistant", content };
   });
 
@@ -334,7 +335,7 @@ export async function POST(request: Request) {
   const currentTurnContent = `${message}${attachmentNote}${documentNote}`;
   const currentTurn = {
     role: "user" as const,
-    content: currentTurnContent.length > MAX_MESSAGE_CHARS ? `${currentTurnContent.slice(0, MAX_MESSAGE_CHARS)}[...troncé...]` : currentTurnContent,
+    content: currentTurnContent.length > MAX_MESSAGE_CHARS ? `${currentTurnContent.slice(0, MAX_MESSAGE_CHARS)}[...troné...]` : currentTurnContent,
     attachments: attachments.length ? attachments : undefined,
   };
 
@@ -371,5 +372,5 @@ export async function POST(request: Request) {
   const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer, conversation_id: conversationId }).select("id, role, content, attachments, created_at").single();
   if (assistantError) return NextResponse.json({ error: assistantError.message }, { status: 500 });
   await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
-  return NextResponse.json({ message: assistant, conversationId, conversationTitle, usage: { free_used: quota.free_messages_used, free_limit: quota.free_messages_limit, used: quota.messages_used_this_month, limit: quota.messages_limit, trial_active: quota.trial_active, trial_ends_at: quota.trial_ends_at, status: quota.status, plan: quota.plan } });
+  return NextResponse.json({ message: assistant, conversationId, conversationTitle, usage: { free_used: quota.free_messages_used, free_limit: quota.free_messages_limit, used: quota.messages_used_this_month, limit: quota.messages_limit, trial_active: quota.trial_ends_at, status: quota.status, plan: quota.plan } });
 }
