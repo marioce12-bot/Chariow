@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getChariowSnapshot, normalizeChariowSnapshot } from "@/lib/chariow/analytics";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { chariowSaleRows } from "@/lib/chariow/sales-rows";
 import { mergeSaleDetails } from "@/lib/chariow/sale-details";
 import { addDays, buildOverviewFromPages, buildProductPerformance, daysBetween, type SaleRow } from "@/lib/overview-aggregates";
 import { fetchAllPages } from "@/lib/paginated-query";
@@ -40,6 +42,19 @@ export async function GET(request: Request) {
   if (!store) return NextResponse.json({ error: "Aucune boutique active" }, { status: 404 });
   try {
     const snapshot = await getChariowSnapshot(store, { from, to });
+    // Enregistre tout de suite les ventes renvoyées par Chariow : la synchro automatique ne tourne qu'une fois
+    // par nuit, donc sans cela une vente faite dans la journée n'apparaissait pas dans les chiffres du tableau
+    // de bord (toujours à 0) jusqu'au lendemain. Une erreur ici ne doit jamais bloquer l'affichage.
+    try {
+      const freshRows = chariowSaleRows(store.id, snapshot.sales);
+      if (freshRows.length) {
+        // Client admin : la table n'autorise que la lecture à l'utilisateur. La boutique a déjà été vérifiée comme sienne ci-dessus.
+        const { error: upsertError } = await createAdminClient().from("chariow_sales").upsert(freshRows, { onConflict: "chariow_sale_id" });
+        if (upsertError) console.error("Chariow sales upsert error", upsertError.message);
+      }
+    } catch (syncError) {
+      console.error("Chariow sales upsert failed", syncError instanceof Error ? syncError.message : syncError);
+    }
     const normalized = normalizeChariowSnapshot(snapshot, { from: from ?? "", to: to ?? "" });
     const now = new Date();
     const periodFrom = from || normalized.kpis.period.from || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
