@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
 import { normalizeMetaCta } from "@/lib/meta/cta";
+import { parseCarouselUrls } from "@/lib/meta/carousel";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -17,6 +18,11 @@ export async function PATCH(request: Request, context: Context) {
   if (typeof body.ad_text === "string" && body.ad_text.trim()) updates.ad_text = body.ad_text.trim();
   if (typeof body.destination_url === "string" && body.destination_url.trim()) updates.destination_url = body.destination_url.trim();
   if (typeof body.media_url === "string") updates.media_url = body.media_url.trim() || null;
+  // Carrousel : une liste (même vide) remplace les images supplémentaires ; vide = retour à l'image unique.
+  if (Array.isArray(body.carousel_urls)) {
+    const carouselUrls = parseCarouselUrls(body.carousel_urls, typeof body.media_url === "string" ? body.media_url : null);
+    updates.carousel_urls = carouselUrls.length ? carouselUrls : null;
+  }
   if (Array.isArray(body.countries)) updates.countries = body.countries.filter((country): country is string => typeof country === "string" && country.length > 0);
   if (Number.isInteger(body.min_age) && Number(body.min_age) >= 13) updates.min_age = Number(body.min_age);
   if (Number.isInteger(body.max_age) && Number(body.max_age) >= 13) updates.max_age = Number(body.max_age);

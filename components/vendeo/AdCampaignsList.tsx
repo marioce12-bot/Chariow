@@ -42,6 +42,7 @@ type AdCampaign = {
   min_age?: number | null;
   max_age?: number | null;
   media_url?: string | null;
+  carousel_urls?: string[] | null;
   autopilot_enabled?: boolean | null;
   autopilot_paused_at?: string | null;
   autopilot_pause_reason?: string | null;

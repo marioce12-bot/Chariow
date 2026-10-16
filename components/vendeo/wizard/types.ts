@@ -49,6 +49,10 @@ export interface WizardState {
   // Étape 2 — Publicité
   adName: string;
   mediaUrl: string;
+  // Carrousel (Meta) : images supplémentaires après l'image principale (mediaUrl). Vide = image unique.
+  carouselUrls: string[];
+  // La campagne enregistrée avait déjà un carrousel : sert à envoyer la liste vide si l'utilisateur le retire.
+  carouselSaved: boolean;
   adText: string;
   title: string;
   destinationUrl: string;
@@ -96,6 +100,7 @@ export interface EditableCampaign {
   title?: string | null;
   ad_text?: string | null;
   media_url?: string | null;
+  carousel_urls?: string[] | null;
   destination_url?: string | null;
   call_to_action?: string | null;
   advantage_creative?: boolean | null;
@@ -123,6 +128,8 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   placement: "auto",
   adName: "",
   mediaUrl: "",
+  carouselUrls: [],
+  carouselSaved: false,
   adText: "",
   title: "",
   destinationUrl: "",
@@ -190,6 +197,8 @@ export function wizardStateFromCampaign(campaign: EditableCampaign, storeId: str
     adSetName: campaign.ad_set_name ?? "",
     adName: campaign.ad_name ?? "",
     mediaUrl: campaign.media_url ?? "",
+    carouselUrls: Array.isArray(campaign.carousel_urls) ? campaign.carousel_urls.filter((url): url is string => typeof url === "string") : [],
+    carouselSaved: Array.isArray(campaign.carousel_urls) && campaign.carousel_urls.length > 0,
     adText: campaign.ad_text ?? "",
     title: campaign.title ?? "",
     destinationUrl: campaign.destination_url ?? "",
