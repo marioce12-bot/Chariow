@@ -6,6 +6,7 @@ import type { Placement, Platform, WizardState } from "./types";
 import { isAdPlatformAllowed, type PlanId } from "@/lib/plans";
 import { useI18n } from "@/lib/i18n/i18n";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
+import { MAX_CAROUSEL_EXTRA_IMAGES } from "@/lib/meta/carousel";
 import { META_CTA_LABELS, META_CTA_TYPES, normalizeMetaCta } from "@/lib/meta/cta";
 
 export interface Step2FooterState {
@@ -71,6 +72,9 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [mediaKind, setMediaKind] = useState<"image" | "video" | null>(null);
+  const carouselInputRef = useRef<HTMLInputElement>(null);
+  const [carouselUploading, setCarouselUploading] = useState(false);
+  const [carouselError, setCarouselError] = useState<string | null>(null);
   const [generatingCopy, setGeneratingCopy] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
 
@@ -233,7 +237,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     setMediaKind(file.type.startsWith("video/") ? "video" : "image");
     setPreviewUrl(URL.createObjectURL(file));
     setUploading(true);
-    patch({ mediaUrl: "" });
+    patch({ mediaUrl: "", ...(file.type.startsWith("video/") ? { carouselUrls: [] } : {}) });
 
     try {
       // Envoi direct vers Cloudinary (sans passer par une fonction Vercel, limitée à 4,5 Mo),
@@ -255,8 +259,37 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     setPreviewUrl(null);
     setMediaKind(null);
     setUploadError(null);
-    patch({ mediaUrl: "" });
+    patch({ mediaUrl: "", carouselUrls: [] });
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  // Carrousel : ajoute plusieurs images d'un coup (envoi une par une vers Cloudinary, dans l'ordre choisi).
+  async function handleCarouselSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (carouselInputRef.current) carouselInputRef.current.value = "";
+    if (!files.length) return;
+    const slots = MAX_CAROUSEL_EXTRA_IMAGES - state.carouselUrls.length;
+    if (slots <= 0) { setCarouselError(en ? "A carousel holds 10 images at most." : "Un carrousel contient 10 images au maximum."); return; }
+    setCarouselError(files.length > slots ? (en ? `Only ${slots} more image(s) fit: the others were ignored.` : `Seulement ${slots} image(s) de plus peuvent être ajoutées : les autres sont ignorées.`) : null);
+    setCarouselUploading(true);
+    let next = [...state.carouselUrls];
+    try {
+      for (const file of files.slice(0, slots)) {
+        const data = await uploadCampaignMedia(file, () => {});
+        const url: string | null = typeof data?.secure_url === "string" ? data.secure_url : null;
+        if (!url) throw new Error("Le fichier a été envoyé mais aucune URL n'a été renvoyée");
+        next = [...next, url];
+        patch({ carouselUrls: next });
+      }
+    } catch (err) {
+      setCarouselError(err instanceof Error ? err.message : "Erreur d'envoi inconnue");
+    } finally {
+      setCarouselUploading(false);
+    }
+  }
+
+  function removeCarouselImage(index: number) {
+    patch({ carouselUrls: state.carouselUrls.filter((_, position) => position !== index) });
   }
 
   async function generateAdCopy() {
@@ -442,7 +475,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           <Row label={en ? "Ad name" : "Nom de la publicité"} value={state.adName || (en ? "New ad" : "Nouvelle publicité")} onEdit={() => setEditingField("adName")} />
           <Row
             label={en ? "Ad setup" : "Configuration de la publicité"}
-            value={`${state.mediaUrl ? (en ? "Single image/video — creative added" : "Image/Vidéo unique — visuel ajouté") : (en ? "Single image/video — no creative" : "Image/Vidéo unique — aucun visuel")}${state.platform === "meta" ? ` · ${META_CTA_LABELS[state.callToAction][en ? "en" : "fr"]}` : ""}`}
+            value={`${state.mediaUrl ? (state.carouselUrls.length > 0 ? (en ? `Carousel — ${state.carouselUrls.length + 1} images` : `Carrousel — ${state.carouselUrls.length + 1} images`) : (en ? "Single image/video — creative added" : "Image/Vidéo unique — visuel ajouté")) : (en ? "Single image/video — no creative" : "Image/Vidéo unique — aucun visuel")}${state.platform === "meta" ? ` · ${META_CTA_LABELS[state.callToAction][en ? "en" : "fr"]}` : ""}`}
             onEdit={() => setEditingField("media")}
           />
           <Row
@@ -640,6 +673,31 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           <p className="mt-1 text-xs text-[#991B1B]">{uploadError}</p>
         ) : (
           <p className="mt-1 text-xs text-gray-400">{en ? "JPG, PNG or short video. Upload starts automatically after selection." : "JPG, PNG ou courte vidéo. L'envoi démarre automatiquement dès la sélection."}</p>
+        )}
+        {state.platform === "meta" && state.mediaUrl && mediaKind !== "video" && (
+          <div className="mt-5">
+            <label className="mb-1.5 block text-sm font-semibold text-gray-700">{en ? "Carousel (optional)" : "Carrousel (optionnel)"}</label>
+            <p className="mb-2 text-xs text-gray-400">{en ? "Add more images to show several cards people can swipe through (up to 10 images in total). The first card is the image above." : "Ajoute d'autres images pour afficher plusieurs cartes à faire défiler (10 images au maximum, en comptant celle du dessus). La première carte est l'image ci-dessus."}</p>
+            <input ref={carouselInputRef} type="file" accept="image/*" multiple onChange={handleCarouselSelected} className="hidden" />
+            <div className="flex flex-wrap gap-2">
+              {state.carouselUrls.map((url, index) => (
+                <div key={url} className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={`${en ? "Card" : "Carte"} ${index + 2}`} className="h-full w-full object-cover" />
+                  <button type="button" onClick={() => removeCarouselImage(index)} className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white transition hover:bg-black/80" aria-label={en ? "Remove this image" : "Retirer cette image"}>
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {state.carouselUrls.length < MAX_CAROUSEL_EXTRA_IMAGES && (
+                <button type="button" disabled={carouselUploading || uploading} onClick={() => carouselInputRef.current?.click()} className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 text-xs text-gray-500 transition hover:border-[#6366F1] hover:text-[#6366F1] disabled:opacity-50">
+                  {carouselUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
+                  {carouselUploading ? (en ? "Uploading…" : "Envoi…") : (en ? "Add" : "Ajouter")}
+                </button>
+              )}
+            </div>
+            {carouselError ? <p className="mt-1 text-xs text-[#991B1B]">{carouselError}</p> : state.carouselUrls.length > 0 ? <p className="mt-1 text-xs text-gray-400">{en ? `Carousel of ${state.carouselUrls.length + 1} images.` : `Carrousel de ${state.carouselUrls.length + 1} images.`}</p> : null}
+          </div>
         )}
         {state.platform === "meta" && (
           <div className="mt-5">

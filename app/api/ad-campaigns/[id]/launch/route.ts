@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
-import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCreative, publishMetaAdWithAdvantage, updateMetaAdCreative } from "@/lib/meta/campaigns";
+import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCarouselCreative, createMetaCreative, publishMetaAdWithAdvantage, updateMetaAdCreative } from "@/lib/meta/campaigns";
 import { fetchMetaPageAccessToken, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
+import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
 import { launchTikTok } from "@/lib/tiktok/launch";
 import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
@@ -32,6 +33,33 @@ type Context = { params: Promise<{ id: string }> };
 //
 // Le lancement TikTok vit dans lib/tiktok/launch.ts (vérifications avant création,
 // nettoyage en cas d'échec, support image et vidéo).
+// Créative Meta de la campagne : image unique, ou carrousel quand des images supplémentaires ont été ajoutées.
+// Chaque image est envoyée à Meta (image_hash) comme pour l'image unique ; les améliorations Advantage+ ne
+// s'appliquent qu'à l'image unique.
+async function createCampaignCreative(input: {
+  userId: string;
+  accountId: string;
+  accessToken: string;
+  name: string;
+  pageId: string;
+  link: string;
+  headline: string;
+  advantageCreative: boolean;
+  campaign: { ad_text: string; media_url: string; carousel_urls?: unknown; call_to_action?: string | null };
+}) {
+  const { campaign } = input;
+  const extraUrls = parseCarouselUrls(campaign.carousel_urls, campaign.media_url);
+  if (extraUrls.length >= 1) {
+    const cards = await Promise.all([campaign.media_url, ...extraUrls].map(async (url) => ({
+      url,
+      hash: (await prepareMetaCreativeImage({ userId: input.userId, accountId: input.accountId, accessToken: input.accessToken, imageUrl: url })).imageHash,
+    })));
+    return createMetaCarouselCreative({ accountId: input.accountId, accessToken: input.accessToken, name: input.name, pageId: input.pageId, link: input.link, message: campaign.ad_text, headline: input.headline, cards, callToAction: campaign.call_to_action });
+  }
+  const preparedImage = await prepareMetaCreativeImage({ userId: input.userId, accountId: input.accountId, accessToken: input.accessToken, imageUrl: campaign.media_url });
+  return createMetaCreative({ accountId: input.accountId, accessToken: input.accessToken, name: input.name, pageId: input.pageId, link: input.link, message: campaign.ad_text, headline: input.headline, imageUrl: campaign.media_url, imageHash: preparedImage.imageHash, advantageCreative: input.advantageCreative, callToAction: campaign.call_to_action });
+}
+
 export async function POST(request: Request, context: Context) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
@@ -39,7 +67,7 @@ export async function POST(request: Request, context: Context) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const { data: campaign, error: campaignError } = await supabase
     .from("ad_campaigns")
-    .select("id,store_id,title,product_name,platform,objective,effective_objective,daily_budget,duration_days,countries,geo_targeting,min_age,max_age,destination_url,ad_text,media_url,call_to_action,advantage_creative,advantage_audience,status,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,pinterest_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
+    .select("id,store_id,title,product_name,platform,objective,effective_objective,daily_budget,duration_days,countries,geo_targeting,min_age,max_age,destination_url,ad_text,media_url,carousel_urls,call_to_action,advantage_creative,advantage_audience,status,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,pinterest_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -146,8 +174,7 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     if (!pageId) return NextResponse.json({ error: "Sélectionne une page Facebook avant de relancer la campagne" }, { status: 400 });
     try {
       const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
-      const preparedImage = await prepareMetaCreativeImage({ userId, accountId: `act_${account.meta_account_id}`, accessToken, imageUrl: campaign.media_url });
-      const creative = await createMetaCreative({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative (relance)`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), message: campaign.ad_text, headline: campaignName, imageUrl: campaign.media_url, imageHash: preparedImage.imageHash, advantageCreative, callToAction: campaign.call_to_action });
+      const creative = await createCampaignCreative({ userId, accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative (relance)`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), headline: campaignName, advantageCreative, campaign });
       await updateMetaAdCreative({ adId: campaign.external_ad_id, accessToken, creativeId: String(creative.id) });
       await activateMetaCampaign({ campaignId: campaign.external_campaign_id, adSetId: campaign.external_adset_id, adId: campaign.external_ad_id, accessToken });
       const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, external_creative_id: String(creative.id), external_error: null, autopilot_paused_at: null, autopilot_pause_reason: null, destination_url: withVendeoCampaignTracking(campaign.destination_url, campaign.id) }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
@@ -217,8 +244,7 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
       advantageAudience,
       status: "ACTIVE",
     });
-    const preparedImage = await prepareMetaCreativeImage({ userId, accountId: `act_${account.meta_account_id}`, accessToken, imageUrl: campaign.media_url });
-    const creative = await createMetaCreative({ accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), message: campaign.ad_text, headline: campaignName, imageUrl: campaign.media_url, imageHash: preparedImage.imageHash, advantageCreative, callToAction: campaign.call_to_action });
+    const creative = await createCampaignCreative({ userId, accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), headline: campaignName, advantageCreative, campaign });
     // Advantage+ créative activé : Meta impose le parcours création en PAUSED → aperçu des
     // fonctions → activation (publishMetaAdWithAdvantage). Désactivé : annonce créée ACTIVE directement.
     const adInput = { accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Ad`, adsetId: String(adSet.id), creativeId: String(creative.id) };

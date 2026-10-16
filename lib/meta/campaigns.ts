@@ -2,6 +2,7 @@ import { describeMetaAccountStatus, isMetaAccountStatusBlocking, META_GRAPH_BASE
 import { isOwnCloudinaryUrl, prepareMetaPlacementImages } from "./ad-image";
 import { buildPlacementCreativeParams, placementVariantsEnabled } from "./placement-spec";
 import { LEGACY_META_CTA, normalizeMetaCta } from "./cta";
+import { buildCarouselObjectStorySpec, type CarouselCard } from "./carousel";
 
 type GraphResponse = Record<string, unknown>;
 
@@ -304,6 +305,25 @@ export async function createMetaCreative(input: {
     }
   }
   return graphPost(`${input.accountId}/adcreatives`, input.accessToken, params);
+}
+
+/** Créative carrousel : une carte par image (la première est l'image principale de la publicité). */
+export async function createMetaCarouselCreative(input: {
+  accountId: string;
+  accessToken: string;
+  name: string;
+  pageId: string;
+  link: string;
+  message: string;
+  headline: string;
+  cards: CarouselCard[];
+  callToAction?: string | null;
+}) {
+  const callToAction = normalizeMetaCta(input.callToAction) ?? LEGACY_META_CTA;
+  return graphPost(`${input.accountId}/adcreatives`, input.accessToken, {
+    name: input.name.slice(0, 200),
+    object_story_spec: JSON.stringify(buildCarouselObjectStorySpec({ pageId: input.pageId, link: input.link, message: input.message, headline: input.headline, callToAction, cards: input.cards })),
+  });
 }
 
 export async function createMetaAd(input: { accountId: string; accessToken: string; name: string; adsetId: string; creativeId: string; status?: "ACTIVE" | "PAUSED" }) {

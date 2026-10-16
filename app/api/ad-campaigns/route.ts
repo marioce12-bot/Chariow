@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
 import { normalizeMetaCta } from "@/lib/meta/cta";
+import { parseCarouselUrls } from "@/lib/meta/carousel";
 
 const objectives = new Set(["sales", "traffic", "engagement", "leads"]);
 
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
   // `countries` reste dans tous les cas la donnée envoyée à TikTok et le repli
   // de sécurité pour Meta si aucune région/ville précise n'a été choisie.
   const geoTargeting = sanitizeGeoTargeting(body.geo_targeting);
+  const carouselUrls = body.platform === "meta" ? parseCarouselUrls(body.carousel_urls, typeof body.media_url === "string" ? body.media_url : null) : [];
 
   const { data, error } = await supabase.from("ad_campaigns").insert({
     user_id: user.id,
@@ -73,6 +75,8 @@ export async function POST(request: Request) {
     title: typeof body.title === "string" ? body.title.trim() : null,
     destination_url: body.link.trim(),
     media_url: typeof body.media_url === "string" ? body.media_url.trim() : null,
+    // Carrousel : colonne écrite seulement s'il y a des images supplémentaires (publicités à image unique inchangées).
+    ...(carouselUrls.length ? { carousel_urls: carouselUrls } : {}),
     countries: typeof body.countries === "string" ? body.countries.split(",").map((country: string) => country.trim()).filter(Boolean) : [],
     geo_targeting: geoTargeting,
     min_age: Number(body.minAge) || 18,
@@ -99,7 +103,7 @@ export async function POST(request: Request) {
 export async function GET() {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
-  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,destination_url,countries,geo_targeting,meta_page_id,call_to_action,advantage_creative,advantage_audience,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,carousel_urls,destination_url,countries,geo_targeting,meta_page_id,call_to_action,advantage_creative,advantage_audience,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "Impossible de charger les campagnes" }, { status: 500 });
   return NextResponse.json({ campaigns: data ?? [] });
 }
