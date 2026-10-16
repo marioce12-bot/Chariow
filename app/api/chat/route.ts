@@ -150,15 +150,26 @@ export async function POST(request: Request) {
   } catch (diagnosticError) {
     console.error("diagnostic context error", diagnosticError instanceof Error ? diagnosticError.message : diagnosticError);
   }
+  // Plafond du contexte analytique envoyé au modèle (voir plus bas). Il est défini ici car chaque boutique
+  // reçoit sa part du budget : sinon la dernière boutique était coupée par la troncature globale.
+  const MAX_CONTEXT_CHARS = 4_000;
   let context = "Aucune boutique n'est encore connectée.";
 
   if (stores && stores.length > 0) {
     try {
+      // Budget partagé équitablement entre les boutiques : avant, les snapshots étaient simplement concaténés puis
+      // coupés à 4 000 caractères, donc avec 3 boutiques la dernière disparaissait du contexte et l'assistant
+      // répondait qu'il n'y avait que deux boutiques.
+      const storeNames = stores.map((store) => store.store_name).join(", ");
+      const header = `Boutiques actives (${stores.length}) : ${storeNames}.\nDonnées réelles de toutes tes boutiques actives pour la période du mois en cours :`;
+      const reserved = diagnosticContext.length + header.length + 700; // agrégat financier + comptes Meta ajoutés plus bas
+      const perStoreBudget = Math.max(500, Math.floor((MAX_CONTEXT_CHARS - reserved) / stores.length));
       const snapshots = await Promise.all(
         stores.map(async (store) => {
+          const clip = (text: string) => (text.length > perStoreBudget ? `${text.slice(0, perStoreBudget)}\n[... données de cette boutique tronquées ...]` : text);
           try {
             const snapshot = await getChariowSnapshot(store);
-            return `--- Boutique : ${store.store_name} ---\n${serializeChariowContext(snapshot)}`;
+            return clip(`--- Boutique : ${store.store_name} ---\n${serializeChariowContext(snapshot)}`);
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             console.error("Chariow MCP error", message);
@@ -175,7 +186,7 @@ export async function POST(request: Request) {
         })
       );
 
-      context = `${diagnosticContext ? `${diagnosticContext}\n\n` : ""}Données réelles de toutes tes boutiques actives pour la période du mois en cours :\n${snapshots.join("\n\n")}`;
+      context = `${diagnosticContext ? `${diagnosticContext}\n\n` : ""}${header}\n${snapshots.join("\n\n")}`;
     } catch {
       context = "Données Chariow momentanément indisponibles pour l'une ou plusieurs boutiques. Ne fabrique aucun chiffre.";
     }
@@ -231,7 +242,6 @@ export async function POST(request: Request) {
   // un tunnel de création de campagne (produit, créative, audience...). Le supprimer
   // entièrement (comme avant) faisait "oublier" les réponses et redemander les mêmes
   // questions après quelques échanges.
-  const MAX_CONTEXT_CHARS = 4_000;
   const MAX_MESSAGE_CHARS = 1_200;
   const MAX_HISTORY_MESSAGES = 14; // couvre un tunnel complet de 7 questions/réponses.
   // Le prompt système à lui seul fait ~7 500 caractères (règles de création de
