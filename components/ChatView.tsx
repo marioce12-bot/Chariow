@@ -6,6 +6,8 @@ import { cleanAiText } from "@/lib/ai/format";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { normalizeCurrency, type SupportedCurrency } from "@/lib/currency";
 import { useI18n } from "@/lib/i18n/i18n";
+import { uploadCampaignMedia } from "@/lib/media/direct-upload";
+import { SERVER_UPLOAD_LIMIT, prepareChatImage } from "@/lib/media/chat-attachment";
 import "../app/vendeo-ai.css";
 import "../app/dashboard-fullwidth.css";
 
@@ -20,6 +22,8 @@ const LAUNCH_TAG = "[[LANCE_CAMPAGNE]]";
 const CHAT_REQUEST_TIMEOUT_MS = 70_000;
 // Carrousel Meta : 10 cartes au maximum (1 image principale + 9 supplémentaires).
 const MAX_LAUNCH_IMAGES = 10;
+// Pièces jointes par message : doit rester aligné avec le `.slice(0, 5)` de app/api/chat/route.ts.
+const MAX_CHAT_ATTACHMENTS = 5;
 
 type UsagePlan = "starter";
 type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
@@ -156,6 +160,32 @@ function formatConversationDate(value: string) {
   return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
+// Envoie un fichier et renvoie la pièce jointe prête à être jointe au message.
+// - Images : redimensionnées côté navigateur si elles dépassent la limite de Vercel (~4,5 Mo).
+// - Vidéos lourdes : envoyées directement à Cloudinary (comme pour les créatives de campagne).
+// - Documents : envoyés au serveur (qui en extrait le texte), limités à 4 Mo.
+// Lance une Error avec un message lisible en cas d'échec.
+async function uploadChatFile(file: File): Promise<Omit<ChatAttachment, "id" | "uploading">> {
+  if (file.type.startsWith("video/") && file.size > SERVER_UPLOAD_LIMIT) {
+    const media = await uploadCampaignMedia(file);
+    if (typeof media.secure_url !== "string") throw new Error("Impossible d'envoyer cette vidéo.");
+    return { url: media.secure_url, type: "video", name: file.name };
+  }
+  const prepared = file.type.startsWith("image/") ? await prepareChatImage(file) : file;
+  if (prepared.size > SERVER_UPLOAD_LIMIT) {
+    throw new Error(prepared.type.startsWith("image/") ? "Cette image est trop lourde, choisis-en une plus légère." : "Ce fichier est trop lourd (4 Mo maximum).");
+  }
+  const data = new FormData();
+  data.append("file", prepared);
+  const response = await fetch("/api/chat/upload", { method: "POST", body: data });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.url) {
+    throw new Error(result.error ?? (response.status === 413 ? "Ce fichier est trop lourd." : "Impossible d'envoyer ce fichier."));
+  }
+  // `text` (présent seulement pour un document) est conservé pour être renvoyé à /api/chat.
+  return { url: result.url, type: result.type, name: result.name, text: result.text };
+}
+
 // Rendu d'une pièce jointe (image, vidéo ou document) : factorisé car utilisé à la
 // fois dans les bulles de la conversation et dans le composeur. Quand `uploading` est
 // vrai (import Cloudinary en cours), un spinner s'affiche par-dessus l'aperçu local.
@@ -208,7 +238,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Galerie (photos/vidéos, sélection multiple), documents (PDF/Word) et appareil photo : trois inputs distincts.
+  // Mélanger images et PDF dans un seul input ouvre, sur Android, le gestionnaire de fichiers où la
+  // sélection multiple demande un appui long : séparés, la galerie native permet de cocher plusieurs photos.
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchPayload, setLaunchPayload] = useState<LaunchPayload | null>(null);
@@ -351,7 +385,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     }
   }
 
-  async function send(message = input) {
+  async function send(rawMessage = input) {
+    // Pas d'envoi tant qu'un fichier est en cours d'import : sinon l'aperçu local (blob:) partirait au serveur.
+    if (uploading) return;
+    // Photos/vidéos/documents sans texte : on envoie un message par défaut plutôt que de bloquer l'envoi.
+    const message = !rawMessage.trim() && attachments.length ? (attachments.every((a) => a.type === "document") ? "Voici mon document." : "Voici mes images.") : rawMessage;
     if (!message.trim() || sending || plansRequired) return;
     const epoch = sessionEpochRef.current;
     const isCurrentSession = () => sessionEpochRef.current === epoch;
@@ -440,14 +478,29 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     }
   }
 
+  function resetFileInputs() {
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (docInputRef.current) docInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+  }
+
   async function handleAttach(files: FileList | null) {
     if (!files || !files.length) return;
+    // Copie des fichiers AVANT toute remise à zéro des inputs (la FileList est « vivante »).
+    const selected = Array.from(files);
+    const remaining = MAX_CHAT_ATTACHMENTS - attachments.length;
+    if (remaining <= 0) {
+      setUploadError(`Maximum ${MAX_CHAT_ATTACHMENTS} fichiers par message.`);
+      resetFileInputs();
+      return;
+    }
     setUploading(true);
     setUploadError(null);
-    const fileList = Array.from(files);
+    const fileList = selected.slice(0, remaining);
+    let firstError: string | null = selected.length > remaining ? `Maximum ${MAX_CHAT_ATTACHMENTS} fichiers par message : les ${remaining} premiers ont été gardés.` : null;
     // Aperçu immédiat : dès que les fichiers sont choisis (galerie ou caméra), on les
     // ajoute tout de suite au composeur avec un aperçu local (blob) et `uploading: true`,
-    // avant même que l'upload vers Cloudinary ne démarre. Sans ça, il y avait un blanc de
+    // avant même que l'upload ne démarre. Sans ça, il y avait un blanc de
     // quelques secondes où l'utilisateur ne savait pas si sa sélection avait été prise en
     // compte. On remplace ensuite chaque entrée par l'URL distante une fois l'upload fini.
     const pending = fileList.map((file) => {
@@ -458,32 +511,20 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     });
     setAttachments((current) => [...current, ...pending.map((p) => p.placeholder)]);
 
-    let firstError: string | null = null;
     for (const { file, placeholder } of pending) {
       try {
-        const data = new FormData();
-        data.append("file", file);
-        const response = await fetch("/api/chat/upload", { method: "POST", body: data });
-        const result = await response.json().catch(() => ({}));
-        if (response.ok && result.url) {
-          // `text` (présent seulement pour un document) est conservé ici pour être
-          // renvoyé à /api/chat au moment de l'envoi du message.
-          setAttachments((current) =>
-            current.map((a) => (a.id === placeholder.id ? { id: placeholder.id, url: result.url, type: result.type, name: result.name, text: result.text } : a)),
-          );
-        } else {
-          if (!firstError) firstError = result.error ?? "Impossible d'envoyer ce fichier.";
-          setAttachments((current) => current.filter((a) => a.id !== placeholder.id));
-        }
-      } catch {
-        if (!firstError) firstError = "Impossible d'envoyer ce fichier.";
+        const uploaded = await uploadChatFile(file);
+        setAttachments((current) => current.map((a) => (a.id === placeholder.id ? { ...uploaded, id: placeholder.id } : a)));
+      } catch (error) {
+        if (!firstError) firstError = error instanceof Error && error.message ? error.message : "Impossible d'envoyer ce fichier.";
         setAttachments((current) => current.filter((a) => a.id !== placeholder.id));
+      } finally {
+        if (placeholder.url) URL.revokeObjectURL(placeholder.url);
       }
     }
     if (firstError) setUploadError(firstError);
     setUploading(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    resetFileInputs();
   }
 
   // Ouvre une popup de confirmation au lieu du formulaire complet : l'IA a déjà
@@ -770,7 +811,15 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,video/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              accept="image/*,video/*"
+              multiple
+              hidden
+              onChange={(event) => void handleAttach(event.target.files)}
+            />
+            <input
+              ref={docInputRef}
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               multiple
               hidden
               onChange={(event) => void handleAttach(event.target.files)}
@@ -796,12 +845,22 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             <button
               type="button"
               className="chat-suggest-toggle"
-              aria-label="Joindre depuis la galerie ou un document (PDF, Word)"
-              title="Joindre depuis la galerie ou un document (PDF, Word)"
+              aria-label="Joindre des photos ou vidéos depuis la galerie (plusieurs possibles)"
+              title="Joindre des photos ou vidéos (plusieurs possibles)"
               disabled={uploading || plansRequired}
               onClick={() => fileInputRef.current?.click()}
             >
               <Paperclip size={16} />
+            </button>
+            <button
+              type="button"
+              className="chat-suggest-toggle"
+              aria-label="Joindre un document (PDF, Word)"
+              title="Joindre un document (PDF, Word)"
+              disabled={uploading || plansRequired}
+              onClick={() => docInputRef.current?.click()}
+            >
+              <FileText size={16} />
             </button>
             <textarea
               disabled={plansRequired}
@@ -819,7 +878,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             <button
               type="submit"
               className="chat-send-button"
-              disabled={sending || plansRequired || !input.trim()}
+              disabled={sending || plansRequired || uploading || (!input.trim() && !attachments.length)}
               aria-label={sending ? t("chat.sending") : t("chat.send")}
             >
               {sending ? <span className="chat-send-dots" aria-hidden="true">…</span> : <ArrowRight size={18} style={{ transform: "rotate(-90deg)" }} />}
