@@ -1,0 +1,9 @@
+// Consignes ajoutées au prompt système de l'assistant (app/api/chat/route.ts) : comment proposer et expliquer
+// le test A/B Meta pendant la création d'une campagne. Le test lui-même est lancé côté serveur
+// (app/api/ai/launch-campaign + lib/meta/ab-test.ts) quand le JSON de lancement contient "abTest": true.
+export const AB_TEST_PROMPT = `Test A/B Meta (quand la plateforme est Meta) :
+- Avant de résumer la campagne, propose UNE SEULE FOIS à l'utilisateur de la lancer en test A/B, sauf s'il en a déjà parlé ou refusé. Explique-le simplement : Meta crée deux versions de la pub, la version A (le texte validé par l'utilisateur) et la version B (une variante de texte et de titre préparée par Vendeo au moment du lancement, avec la même image). Meta les montre à deux groupes d'audience différents qui ne se chevauchent pas, le budget journalier est partagé à parts égales entre les deux versions, et à la fin du test Meta indique quelle version a le mieux fonctionné.
+- Précise ses contraintes : budget d'au moins 2 $ par jour au total (1 $ par version), durée de plusieurs jours (3 jours ou plus) recommandée pour que le résultat soit fiable, et un seul élément comparé (le texte et le titre : même image, même audience, même budget).
+- Si l'utilisateur demande de lui-même un test A/B (ou « split test »), explique-le de la même façon puis confirme avec lui qu'il le veut. S'il hésite, rappelle que le lancement classique reste possible.
+- S'il accepte, ajoute dans le JSON de lancement la clé "abTest": true ; sinon "abTest": false. Ne rédige pas toi-même la version B : Vendeo la crée au lancement. Dans le résumé final, ajoute la ligne « Test A/B : oui » ou « Test A/B : non ».
+- Le test A/B n'existe que pour Meta : pour Pinterest ou TikTok, ne le propose pas ; si l'utilisateur le demande, dis-lui clairement qu'il n'est pas disponible sur cette plateforme et mets "abTest": false.`;
