@@ -25,15 +25,23 @@ type Phase = "ready" | "launching" | "done" | "error" | "tag_required";
  * Pinterest + objectif Ventes : si Pinterest refuse faute de balise (Pinterest Tag), on explique
  * comment la récupérer et l'installer sur Chariow, et on ne lance en Trafic QUE si l'utilisateur
  * le confirme explicitement (confirm_traffic_fallback).
+ *
+ * Meta : case « Lancer en test A/B ». Cochée, le lancement suit le parcours test A/B de Meta
+ * (version A = la pub telle quelle, version B = variante de texte/titre générée par Vendeo, budget partagé
+ * en deux — voir lib/meta/ab-test.ts). Proposée seulement pour un premier lancement : une campagne déjà
+ * créée chez Meta (reprise, relance après refus) est simplement réactivée, sans test.
  */
 export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialStatus, initialError }: StepProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [error, setError] = useState<string | null>(null);
   const [objectiveFallback, setObjectiveFallback] = useState(false);
   const [pixelAutoSelected, setPixelAutoSelected] = useState(false);
+  const [abTest, setAbTest] = useState(false);
+  const [abLaunched, setAbLaunched] = useState(false);
   const { locale, t } = useI18n();
   const platformLabel = state.platform === "meta" ? "Meta" : state.platform === "pinterest" ? "Pinterest" : "TikTok";
   const tagCopy = pinterestTagCopy(locale);
+  const canChooseAbTest = state.platform === "meta" && (!initialStatus || initialStatus === "draft");
 
   useEffect(() => {
     if (initialError) {
@@ -55,7 +63,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
     try {
       const body =
         state.platform === "meta"
-          ? { meta_ad_account_id: state.metaAdAccountId, page_id: state.metaPageId }
+          ? { meta_ad_account_id: state.metaAdAccountId, page_id: state.metaPageId, ...(canChooseAbTest && abTest ? { ab_test: true } : {}) }
           : state.platform === "pinterest"
             ? { pinterest_ad_account_id: state.pinterestAdAccountId, confirm_traffic_fallback: options?.confirmTraffic === true }
             : { tiktok_ad_account_id: state.tiktokAdAccountId, identity_id: state.tiktokIdentityId, identity_type: state.tiktokIdentityType };
@@ -74,6 +82,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
       }
       setObjectiveFallback(Boolean(data.objective_fallback));
       setPixelAutoSelected(Boolean(data.pixel_auto_selected));
+      setAbLaunched(Boolean(data.ab_test));
       setPhase("done");
       onLaunched(state.campaignId);
     } catch (e) {
@@ -105,6 +114,19 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
               <p>{locale === "en" ? "Pinterest needs its tag (Pinterest Tag) installed on your Chariow store to see purchases. If it is missing, Pinterest will refuse the campaign: we will then explain how to install the tag, and we will only launch with the Traffic objective if you confirm." : "Pour cela, Pinterest a besoin de sa balise (Pinterest Tag) installée sur ta boutique Chariow pour voir les achats. Si elle manque, Pinterest refusera la campagne : nous t’expliquerons alors comment installer la balise, et nous ne lancerons en Trafic que si tu le confirmes."}</p>
             </div>
           ) : null}
+          {canChooseAbTest ? (
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-800">
+              <input type="checkbox" checked={abTest} onChange={(event) => setAbTest(event.target.checked)} className="mt-0.5 h-4 w-4 flex-none accent-[#6366F1]" />
+              <span className="space-y-1">
+                <span className="block font-semibold">{locale === "en" ? "Launch as an A/B test" : "Lancer en test A/B"}</span>
+                <span className="block text-xs text-gray-500">
+                  {locale === "en"
+                    ? "Meta compares two versions of your ad (A: your text, B: a variant suggested by Vendeo) on two separate audience groups. Your budget is split in two (minimum $2 per day) and Meta shows the best version at the end of the test."
+                    : "Meta compare deux versions de ta pub (A : ton texte, B : une variante proposée par Vendeo) sur deux groupes d’audience distincts. Ton budget est partagé en deux (minimum 2 $ par jour) et Meta désigne la meilleure version à la fin du test."}
+                </span>
+              </span>
+            </label>
+          ) : null}
           {error && <p className="text-sm text-[#991B1B]">{campaignErrorMessage(error, locale, t, state.platform)}</p>}
           <button onClick={() => void launchCampaign()} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">
             {t("ads.launchButton")}
@@ -121,6 +143,11 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
       {phase === "done" && (
         <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm font-semibold text-[#065F46]">
           {t("ads.launchSuccess", { platform: platformLabel })}
+          {abLaunched ? (
+            <p className="mt-2 font-normal">
+              {locale === "en" ? "A/B test started: Meta is comparing version A (your text) and version B (the variant). You can follow it in Meta Ads Manager (Experiments)." : "Test A/B lancé : Meta compare la version A (ton texte) et la version B (la variante). Tu peux le suivre dans Meta Ads Manager (Expériences)."}
+            </p>
+          ) : null}
           {objectiveFallback && state.platform === "pinterest" ? (
             <p className="mt-2 font-normal">{tagCopy.trafficDone}</p>
           ) : objectiveFallback ? (
