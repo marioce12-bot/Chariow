@@ -4,6 +4,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCarouselCreative, createMetaCreative, publishMetaAdWithAdvantage, updateMetaAdCreative } from "@/lib/meta/campaigns";
 import { fetchMetaPageAccessToken, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
+import { createMetaVideoCreative, isVideoMediaUrl, prepareMetaCreativeVideo } from "@/lib/meta/ad-video";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
 import { launchTikTok } from "@/lib/tiktok/launch";
@@ -33,9 +34,10 @@ type Context = { params: Promise<{ id: string }> };
 //
 // Le lancement TikTok vit dans lib/tiktok/launch.ts (vérifications avant création,
 // nettoyage en cas d'échec, support image et vidéo).
-// Créative Meta de la campagne : image unique, ou carrousel quand des images supplémentaires ont été ajoutées.
-// Chaque image est envoyée à Meta (image_hash) comme pour l'image unique ; les améliorations Advantage+ ne
-// s'appliquent qu'à l'image unique.
+// Créative Meta de la campagne : image unique, carrousel quand des images supplémentaires ont été ajoutées,
+// ou vidéo quand media_url est une vidéo (voir lib/meta/ad-video.ts).
+// Chaque image est envoyée à Meta (image_hash) comme pour l'image unique ; les améliorations Advantage+ créative
+// ne s'appliquent qu'à l'image unique.
 async function createCampaignCreative(input: {
   userId: string;
   accountId: string;
@@ -46,8 +48,14 @@ async function createCampaignCreative(input: {
   headline: string;
   advantageCreative: boolean;
   campaign: { ad_text: string; media_url: string; carousel_urls?: unknown; call_to_action?: string | null };
+  // Vidéo déjà envoyée à Meta et traitée (voir launchMeta) : évite de la renvoyer une seconde fois.
+  preparedVideo?: { videoId: string; thumbnailUrl: string } | null;
 }) {
   const { campaign } = input;
+  if (isVideoMediaUrl(campaign.media_url)) {
+    const video = input.preparedVideo ?? (await prepareMetaCreativeVideo({ accountId: input.accountId, accessToken: input.accessToken, videoUrl: campaign.media_url, name: input.name }));
+    return createMetaVideoCreative({ accountId: input.accountId, accessToken: input.accessToken, name: input.name, pageId: input.pageId, link: input.link, message: campaign.ad_text, headline: input.headline, videoId: video.videoId, thumbnailUrl: video.thumbnailUrl, callToAction: campaign.call_to_action });
+  }
   const extraUrls = parseCarouselUrls(campaign.carousel_urls, campaign.media_url);
   if (extraUrls.length >= 1) {
     const cards = await Promise.all([campaign.media_url, ...extraUrls].map(async (url) => ({
@@ -160,6 +168,9 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   // créative activée, audience désactivée.
   const advantageCreative = campaign.advantage_creative !== false;
   const advantageAudience = campaign.advantage_audience === true;
+  // Vidéo : pas de fonctions Advantage+ créative (retouches d'image, superpositions), et l'annonce
+  // est créée directement ACTIVE (voir plus bas).
+  const isVideo = isVideoMediaUrl(campaign.media_url);
 
   // Cas "rejected" : la publicité a été refusée par Meta après revue (voir
   // mapMetaEffectiveStatus / DISAPPROVED-WITH_ISSUES). On ne peut pas repasser
@@ -222,6 +233,9 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   try {
     const pageAccessToken = await fetchMetaPageAccessToken(pageId, accessToken);
     const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
+    // Vidéo : envoyée à Meta et traitée AVANT de créer la campagne, pour ne pas laisser de
+    // campagne orpheline chez Meta si la vidéo est refusée ou trop longue à traiter.
+    const preparedVideo = isVideo ? await prepareMetaCreativeVideo({ accountId: `act_${account.meta_account_id}`, accessToken, videoUrl: campaign.media_url, name: campaignName }) : null;
     // On crée directement en ACTIVE : le clic sur "Lancer la campagne" soumet
     // immédiatement la campagne à la modération Meta.
     const external = await createMetaCampaign({ accountId: `act_${account.meta_account_id}`, accessToken, name: campaignName, objective: effectiveObjective, dailyBudget: Number(campaign.daily_budget), status: "ACTIVE" });
@@ -244,11 +258,12 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
       advantageAudience,
       status: "ACTIVE",
     });
-    const creative = await createCampaignCreative({ userId, accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), headline: campaignName, advantageCreative, campaign });
+    const creative = await createCampaignCreative({ userId, accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), headline: campaignName, advantageCreative, campaign, preparedVideo });
     // Advantage+ créative activé : Meta impose le parcours création en PAUSED → aperçu des
-    // fonctions → activation (publishMetaAdWithAdvantage). Désactivé : annonce créée ACTIVE directement.
+    // fonctions → activation (publishMetaAdWithAdvantage). Désactivé (ou vidéo, sans fonction Advantage+) :
+    // annonce créée ACTIVE directement.
     const adInput = { accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Ad`, adsetId: String(adSet.id), creativeId: String(creative.id) };
-    const ad = advantageCreative ? await publishMetaAdWithAdvantage(adInput) : await createMetaAd({ ...adInput, status: "ACTIVE" });
+    const ad = advantageCreative && !isVideo ? await publishMetaAdWithAdvantage(adInput) : await createMetaAd({ ...adInput, status: "ACTIVE" });
     const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, effective_objective: effectiveObjective, external_campaign_id: external.id, external_adset_id: String(adSet.id), external_creative_id: String(creative.id), external_ad_id: String(ad.id), external_error: null, destination_url: withVendeoCampaignTracking(campaign.destination_url, campaign.id) }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
     if (updateError) return NextResponse.json({ error: "Campagne Meta créée mais statut Vendeo non enregistré" }, { status: 502 });
     await supabase.from("meta_campaigns").upsert({ ad_account_id: account.id, meta_campaign_id: external.id, name: campaign.title || "Campagne Vendeo", status: "ACTIVE", objective: external.objective }, { onConflict: "ad_account_id,meta_campaign_id" });
