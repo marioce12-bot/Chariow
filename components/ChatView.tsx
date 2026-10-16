@@ -18,6 +18,8 @@ const LAUNCH_TAG = "[[LANCE_CAMPAGNE]]";
 // Au-delà, on arrête d'attendre l'IA : le message d'erreur s'affiche et le bouton d'envoi
 // est débloqué (sinon une réponse jamais arrivée laissait le chat « en train d'écrire » à vie).
 const CHAT_REQUEST_TIMEOUT_MS = 70_000;
+// Carrousel Meta : 10 cartes au maximum (1 image principale + 9 supplémentaires).
+const MAX_LAUNCH_IMAGES = 10;
 
 type UsagePlan = "starter";
 type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
@@ -99,6 +101,23 @@ function guessCurrencyFromMessages(list: ChatMessageItem[]): SupportedCurrency |
     if (/f\s?\.?\s?cfa|\bxof\b|\bxaf\b|\bcfa\b|francs?/.test(text)) return "XOF";
   }
   return null;
+}
+
+// Images de la pub : toutes celles que l'utilisateur a envoyées dans le chat depuis le dernier
+// bouton de lancement (dans l'ordre d'envoi, sans doublon, 10 au plus). Une seule image = pub
+// classique ; deux ou plus = carrousel Meta. Elles restent modifiables dans la popup de lancement.
+function collectLaunchImages(previous: ChatMessageItem[]): string[] {
+  const urls: string[] = [];
+  for (let index = previous.length - 1; index >= 0; index -= 1) {
+    const item = previous[index];
+    if (item.role !== "user") {
+      if (typeof item.content === "string" && item.content.includes(LAUNCH_TAG)) break;
+      continue;
+    }
+    const images = (item.attachments ?? []).filter((a) => a.type === "image" && a.url && !a.uploading).map((a) => a.url);
+    urls.unshift(...images);
+  }
+  return Array.from(new Set(urls)).slice(0, MAX_LAUNCH_IMAGES);
 }
 
 // Extrait le texte affichable et, si présent, le JSON de lancement d'un message assistant.
@@ -193,7 +212,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchPayload, setLaunchPayload] = useState<LaunchPayload | null>(null);
-  const [launchImageUrl, setLaunchImageUrl] = useState<string | null>(null);
+  // Images de la pub : la première est l'image principale, les suivantes forment le carrousel.
+  const [launchImageUrls, setLaunchImageUrls] = useState<string[]>([]);
   const [launchLink, setLaunchLink] = useState("");
   const [launchBudget, setLaunchBudget] = useState("");
   const [launchCurrency, setLaunchCurrency] = useState<SupportedCurrency>("XOF");
@@ -469,9 +489,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   // Ouvre une popup de confirmation au lieu du formulaire complet : l'IA a déjà
   // collecté toutes les infos dans la conversation, on ne fait que les relire et
   // demander « confirmer et lancer » avant d'envoyer directement sur Meta.
-  function openLaunchConfirm(payload: LaunchPayload | null, fallbackImageUrl?: string) {
+  function openLaunchConfirm(payload: LaunchPayload | null, fallbackImageUrls?: string[]) {
     setLaunchPayload(payload);
-    setLaunchImageUrl(fallbackImageUrl ?? null);
+    setLaunchImageUrls(fallbackImageUrls ?? []);
     // Lien de redirection : celui donné par l'utilisateur dans la conversation, sinon
     // vide — il devra le saisir ici (aucun lien par défaut n'est jamais injecté).
     setLaunchLink(payload?.linkUrl ?? "");
@@ -502,7 +522,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
       setLaunchError("Indique un budget journalier valide (ex. 2 en dollars, ou 1000 en F CFA).");
       return;
     }
-    const payload = launchPayload;
+    const payload = payload_or(launchPayload);
+    // Carrousel : réservé à Meta. La première image est l'image principale, les autres sont les cartes suivantes.
+    const isPinterest = payload.platform === "pinterest";
+    const carouselUrls = isPinterest ? [] : launchImageUrls.slice(1);
     setLaunching(true);
     setLaunchError(null);
     try {
@@ -522,7 +545,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           message: payload.message,
           headline: payload.headline,
           linkUrl,
-          imageUrl: launchImageUrl ?? undefined,
+          imageUrl: launchImageUrls[0] ?? undefined,
+          carouselUrls: carouselUrls.length ? carouselUrls : undefined,
           platform: payload.platform ?? "meta",
           durationDays: payload.durationDays ?? 1,
           ...(payload.platform === "pinterest" ? { pinterestAdAccountId: launchAccountId ?? undefined } : { metaAdAccountId: launchAccountId ?? undefined }),
@@ -534,9 +558,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         return;
       }
       const usdNote = typeof data.dailyBudgetUsd === "number" && launchCurrency !== "USD" ? ` (≈ ${data.dailyBudgetUsd} $)` : "";
+      const carouselNote = carouselUrls.length ? ` en carrousel de ${carouselUrls.length + 1} images` : "";
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: `✅ Campagne « ${payload.name} » lancée sur ${payload.platform === "pinterest" ? "Pinterest" : "Meta"} avec ${dailyBudget} ${launchCurrency}/jour${usdNote}. Elle apparaît dans la page Pub.` },
+        { role: "assistant", content: `✅ Campagne « ${payload.name} » lancée sur ${isPinterest ? "Pinterest" : "Meta"}${carouselNote} avec ${dailyBudget} ${launchCurrency}/jour${usdNote}. Elle apparaît dans la page Pub.` },
       ]);
       setLaunchOpen(false);
     } catch {
@@ -629,9 +654,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             const hasLaunchAction = isAssistant && message.content.includes(LAUNCH_TAG);
             const isLong = content.length > 520;
             const expanded = expandedMessages[index] === true;
-            // Dernière pièce jointe image envoyée par l'utilisateur avant ce message : servira
-            // de créative par défaut si l'IA n'a pas explicitement redonné une image dans le JSON.
-            const lastUserImage = [...messages.slice(0, index)].reverse().find((m) => m.attachments?.some((a) => a.type === "image"))?.attachments?.find((a) => a.type === "image")?.url;
+            // Images envoyées par l'utilisateur avant ce message (depuis le dernier bouton de lancement) :
+            // elles servent de créative par défaut — une seule = pub classique, plusieurs = carrousel.
+            const launchImages = hasLaunchAction ? collectLaunchImages(messages.slice(0, index)) : [];
             return (
               <div key={index} className={isAssistant ? "chat-bubble assistant" : "chat-bubble user"}>
                 {isAssistant && (
@@ -661,7 +686,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                   </div>
                 ) : null}
                 {hasLaunchAction ? (
-                  <button type="button" className="btn btn-dark chat-launch-action" onClick={() => openLaunchConfirm(launchPayload, lastUserImage)}>
+                  <button type="button" className="btn btn-dark chat-launch-action" onClick={() => openLaunchConfirm(launchPayload, launchImages)}>
                     <Rocket size={15} /> {t("chat.launchNow")}
                   </button>
                 ) : null}
@@ -818,10 +843,36 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
               <div className="chat-launch-row"><span>{t("chat.launchAge")}</span><strong>{launchPayload?.ageMin != null || launchPayload?.ageMax != null ? `${launchPayload?.ageMin ?? 18}–${launchPayload?.ageMax ?? 65} ans` : "—"}</strong></div>
               <div className="chat-launch-row chat-launch-message"><span>{t("chat.launchMessage")}</span><strong>{launchPayload?.message ?? "—"}</strong></div>
             </div>
-            {launchImageUrl ? (
+            {launchImageUrls.length === 1 ? (
               <div className="chat-launch-image">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={launchImageUrl} alt={t("chat.launchCreative")} />
+                <img src={launchImageUrls[0]} alt={t("chat.launchCreative")} />
+              </div>
+            ) : null}
+            {launchImageUrls.length > 1 ? (
+              <div className="chat-launch-image">
+                <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 600 }}>
+                  {launchIsPinterest
+                    ? `${launchImageUrls.length} images : Pinterest utilisera seulement la première.`
+                    : `Carrousel : ${launchImageUrls.length} images (la première est la carte principale).`}
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                  {launchImageUrls.map((url, imageIndex) => (
+                    <span key={url} style={{ position: "relative", display: "inline-block" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={`${t("chat.launchCreative")} ${imageIndex + 1}`} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, display: "block" }} />
+                      <button
+                        type="button"
+                        aria-label="Retirer cette image"
+                        disabled={launching}
+                        onClick={() => setLaunchImageUrls((current) => current.filter((item) => item !== url))}
+                        style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#111", color: "#fff", fontSize: 12, lineHeight: "20px", padding: 0, cursor: "pointer" }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
             ) : null}
             <label className="chat-launch-account">
