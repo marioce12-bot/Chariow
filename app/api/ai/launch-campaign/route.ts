@@ -167,6 +167,37 @@ export async function POST(request: Request) {
   const accessToken = decryptSecret(account.access_token_encrypted);
   const accountId = `act_${(body.adAccountId || account.meta_account_id).replace(/^act_/, "")}`;
 
+  // Objectif Ventes : l'ad set doit optimiser sur l'événement Achat (OFFSITE_CONVERSIONS + pixel +
+  // PURCHASE). Sans objectif ni pixel transmis, createMetaAdSet retombe sur « Trafic »
+  // (LANDING_PAGE_VIEWS = vues de la page de destination) même si la campagne est en Ventes.
+  // Même choix de pixel que le wizard (/api/ad-campaigns/[id]/launch) : d'abord celui marqué
+  // « configuré sur Chariow », sinon le plus récemment actif du compte pub. Sans pixel, on
+  // refuse de lancer plutôt que de diffuser en silence une campagne optimisée sur les vues.
+  const objective = toSimpleObjective(body.objective);
+  let pixelId: string | null = null;
+  if (objective === "sales") {
+    const { data: accountPixels } = await supabase
+      .from("meta_pixels")
+      .select("pixel_id,configured_on_chariow,last_fired_at")
+      .eq("user_id", user.id)
+      .eq("ad_account_id", account.id)
+      .order("configured_on_chariow", { ascending: false })
+      .order("last_fired_at", { ascending: false, nullsFirst: false })
+      .limit(1);
+    pixelId = typeof accountPixels?.[0]?.pixel_id === "string" ? accountPixels[0].pixel_id : null;
+    if (!pixelId) {
+      return NextResponse.json(
+        {
+          error:
+            "Aucun pixel Meta n'est connecté à ce compte publicitaire : impossible d'optimiser sur l'événement Achat. " +
+            "Connecte ou installe ton pixel Meta (Chariow), puis relance la campagne — ou choisis l'objectif Trafic.",
+          code: "PIXEL_REQUIRED",
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   // Vérifie AVANT de créer quoi que ce soit que le compte peut réellement publier
   // (compte actif + moyen de paiement). Même vérification, mêmes fonctions que
   // /api/ad-campaigns/[id]/launch : on renvoie la raison exacte à l'utilisateur
@@ -203,7 +234,6 @@ export async function POST(request: Request) {
     }
   }
 
-  const objective = toSimpleObjective(body.objective);
   const countries = body.countries?.length ? body.countries : ["BJ"];
   const minAge = body.ageMin ?? 18;
   const maxAge = body.ageMax ?? 65;
@@ -258,6 +288,9 @@ export async function POST(request: Request) {
       countries,
       minAge,
       maxAge,
+      // Optimisation de l'ad set : Ventes = événement Achat du pixel ; sinon l'objectif choisi.
+      objective,
+      pixelId: objective === "sales" ? pixelId : null,
       status: "ACTIVE",
     });
     const adSetId = String(adSet.id);
@@ -336,6 +369,7 @@ export async function POST(request: Request) {
       platform: "meta",
       status: "review",
       objective,
+      effective_objective: objective,
       title: body.name,
       ad_text: body.message,
       media_url: body.imageUrl,
