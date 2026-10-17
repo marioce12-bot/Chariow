@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { buildOverviewAggregates, buildOverviewFromPages, buildProductPerformance, daysBetween } from "./overview-aggregates";
-import { mixedCurrencySales, repeatBuyersSales, stateASales, stateDSales } from "@/tests/fixtures/unit-economics";
+import { mixedCurrencySales as mixedCurrencyFixtures, repeatBuyersSales as repeatBuyerFixtures, stateASales as stateAFixtures, stateDSales as stateDFixtures } from "@/tests/fixtures/unit-economics";
 
+// These aggregate fixtures also require the timestamp selected by the production query.
+const withDate = (rows: typeof stateAFixtures) => rows.map((row) => ({ ...row, status: row.status ?? null, net_amount: row.net_amount ?? null, currency: row.currency ?? null, customer_id: row.customer_id ?? null, occurred_at: "2026-10-01T12:00:00Z" }));
+const stateASales = withDate(stateAFixtures);
+const stateDSales = withDate(stateDFixtures);
+const mixedCurrencySales = withDate(mixedCurrencyFixtures);
+const repeatBuyersSales = withDate(repeatBuyerFixtures);
 describe("overview server aggregates", () => {
   it("calcule revenu net, panier, clients, rachats et plafond sans données sensibles", () => {
     const result = buildOverviewAggregates(stateASales, "XOF", "2026-10-01", "2026-10-03");
