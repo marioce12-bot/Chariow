@@ -59,6 +59,7 @@ const CHARACTER_TEXT: Record<CharacterChoice, string> = {
 // Règles communes à toutes les mises en page.
 const COLOR_RULE = "COULEURS : l'image reste claire et lumineuse. Les tons foncés (noir, bleu nuit, bordeaux foncé…) ne dominent jamais : au plus un quart de l'image, en petites touches (lettres du titre, fine bande, ombres). Le fond principal est clair ou de ton moyen vif, et la couleur d'accent est bien visible. Dans la mise en page, « couleur principale » et « secondaire » désignent des tons francs de la palette, jamais du noir.";
 const NO_INVENTED_TEXT_RULE = "AUCUNE MENTION INVENTÉE : aucun badge, autocollant, bandeau, bouton, écran ou tablette ne contient un mot, une promesse ou un contenu absent du nom et de la description du produit. Interdits sauf s'ils figurent dans la description : « BONUS », « Nouveau », « Offre limitée », « Gratuit », « Promo », « Garantie », une fausse urgence, ainsi que des listes ou des chiffres inventés sur un écran. Sans information, utilise des icônes seules, des formes simples ou une phrase d'accroche neutre tirée du produit.";
+const PREMIUM_FINISH_RULE = "FINITION PREMIUM OBLIGATOIRE : ne produis pas un template générique de plateforme avec trois cartes blanches identiques empilées, un bandeau standard en haut et un bouton standard en bas. Transforme la structure en vraie direction artistique éditoriale : profondeur de décor, hiérarchie asymétrique maîtrisée, formes graphiques organiques, superposition subtile, matière, ombres douces, détails de campagne et transitions visuelles entre le sujet et le texte. Les bénéfices doivent être intégrés dans la composition (pastilles, annotations, rubans, pictogrammes ou micro-blocs variés), jamais dans une colonne répétitive de composants UI. Le résultat doit évoquer une campagne conçue par un directeur artistique, pas un modèle Canva ou une fiche produit.";
 
 export function buildLayoutDirection(
   input: { orientation: Orientation; previousPrompt?: string; userBrief?: string; character?: CharacterChoice },
@@ -73,6 +74,7 @@ export function buildLayoutDirection(
     "PALETTE : LIBRE. Elle n'est pas imposée : choisis toi-même 2 ou 3 couleurs (une dominante, une secondaire, une couleur d'accent pour le bouton et le mot-clé) en fonction du sujet, du public et de l'émotion du produit d'après son nom et sa description, et nomme-les dans le prompt. Les mots « couleur principale », « secondaire » et « d'accent » de la mise en page renvoient à ces couleurs.",
     COLOR_RULE,
     NO_INVENTED_TEXT_RULE,
+    PREMIUM_FINISH_RULE,
     CHARACTER_TEXT[character],
     `Adaptation au format : ${ORIENTATION_HINT[input.orientation]}.`,
     "Adapte cette mise en page au produit (décor, accessoires, icônes, tenue, bénéfices) sans en changer la structure. Les « pistes déduites » plus haut servent seulement pour le décor, le public et la mise en place du produit ; en cas de contradiction avec la mise en page imposée (présence de personne, style), la mise en page l'emporte.",
