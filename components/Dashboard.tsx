@@ -38,6 +38,9 @@ import { readCache, writeCache, DASHBOARD_CACHE_KEY, SESSION_STORAGE_PROMPT_KEY,
 import { StoreOnboarding, StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
 import { OverviewHome } from "./dashboard/OverviewHome";
 import { DashboardSkeleton } from "./dashboard/Skeleton";
+import ProductProfitPanel from "./dashboard/ProductProfitPanel";
+import RecoveryPanel from "./dashboard/RecoveryPanel";
+import "@/app/dashboard-refinement.css";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
 // Dernière boutique choisie dans le sélecteur : conservée dans localStorage (et non
@@ -54,6 +57,8 @@ const PERSISTED_DASHBOARD_SECTIONS = new Set([
   "Radar marché",
   "Mes boutiques",
   "Rapports",
+  "Bénéfices nets",
+  "Relances WhatsApp",
   "Pilotage auto",
   "Abonnement",
   "Paramètres",
@@ -124,6 +129,10 @@ export function Dashboard() {
     } catch {
       // Le stockage peut être indisponible en navigation privée ou si le quota est plein.
     }
+  }, [active]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [active]);
 
   const searchParams = useSearchParams();
@@ -298,22 +307,22 @@ export function Dashboard() {
       {isOffline ? <div role="status" aria-live="polite" className="offline-notice">Connexion internet perdue. Certaines données peuvent être obsolètes.</div> : null}
         <header className="app-header">
           <Link href="/" className="brand">
-            <Image className="brand-logo" src="/vendeo-logo-light.webp" alt="Vendeo" width={150} height={40} unoptimized />
+            <Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40} unoptimized />
           </Link>
+          <div className="dashboard-header-context"><span>Espace de travail</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? "Aperçu" : active}</strong></div>
           <DashboardHeaderNavigation active={active} onChange={setActive} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
-             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Mes boutiques", "Abonnement", "Paramètres", "Comptes publicitaires"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
+             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Bénéfices nets", "Relances WhatsApp", "Mes boutiques", "Abonnement", "Paramètres", "Comptes publicitaires"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
-            <button className="desktop-signout" onClick={signOut} style={{ background: "transparent", border: 0, color: "#c7d2fe", fontSize: 11 }}>
-              Déconnexion
-            </button>
+            <button type="button" className="dashboard-profile" onClick={() => setActive("Paramètres")} aria-label="Mon profil et mes paramètres" title="Mon profil et mes paramètres"><span className="dashboard-avatar">{userFirstName?.slice(0, 2).toUpperCase() || "V"}</span></button>
+            <button type="button" className="desktop-signout" onClick={signOut} aria-label="Déconnexion" title="Déconnexion"><LogOut size={15} /></button>
           </div>
         </header>
       <div className={`app-layout${active === "Vendeo AI" ? " app-layout-flush" : ""}${isOffline ? " app-layout-offline" : ""}`}>
         <aside className="sidebar">
-          <div className="side-label">Workspace</div>
+          <div className="side-label">ESPACE DE TRAVAIL</div>
           <label className="store-selector">
             <span>Boutique affichée</span>
             <select
@@ -359,6 +368,10 @@ export function Dashboard() {
             <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
           ) : active === "Abonnement" ? (
             <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("Paramètres")} />
+          ) : active === "Bénéfices nets" ? (
+            <ProductProfitPanel key={activeStoreId} storeId={activeStoreId} />
+          ) : active === "Relances WhatsApp" ? (
+            <RecoveryPanel key={activeStoreId} storeId={activeStoreId} />
           ) : active === "Rapports" ? (
             <Reports stores={stores} analytics={analytics} selectedStoreId={selectedStoreId} />
           ) : active === "Notifications" ? (
@@ -376,6 +389,7 @@ export function Dashboard() {
               onLaunchAd={launchAd}
               onPromoteProduct={promoteProduct}
               campaignsVersion={campaignsVersion}
+              onNavigate={setActive}
               loading={overviewLoading}
             />
           )}
@@ -421,6 +435,9 @@ export function Dashboard() {
           <>
             <button type="button" className="mobile-more-backdrop" aria-label="Fermer le menu" onClick={() => setMoreOpen(false)} />
             <div className="mobile-more-menu" role="menu" aria-label="Plus d'options">
+              <span className="mobile-more-label">Mon activité</span>
+              <button type="button" role="menuitem" className={active === "Bénéfices nets" ? "active" : ""} onClick={() => { setActive("Bénéfices nets"); setMoreOpen(false); }}><BarChart3 size={16} /> Bénéfices nets</button>
+              <button type="button" role="menuitem" className={active === "Relances WhatsApp" ? "active" : ""} onClick={() => { setActive("Relances WhatsApp"); setMoreOpen(false); }}><MessageSquare size={16} /> Relances WhatsApp</button>
               <span className="mobile-more-label">Analyse</span>
               <button type="button" role="menuitem" className={active === "Rapports" ? "active" : ""} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
               <button type="button" role="menuitem" className={active === "Pilotage auto" ? "active" : ""} onClick={() => { setActive("Pilotage auto"); setMoreOpen(false); }}><Bot size={16} /> Pilotage auto</button>

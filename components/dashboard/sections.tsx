@@ -963,7 +963,6 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">(() => (typeof document !== "undefined" && document.documentElement.dataset.theme === "dark" ? "dark" : "light"));
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [metaConnected, setMetaConnected] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
@@ -1046,20 +1045,10 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
     }
   }
 
-  function applyTheme(next: "light" | "dark") {
-    setTheme(next);
-    if (next === "dark") document.documentElement.dataset.theme = "dark";
-    else delete document.documentElement.dataset.theme;
-    try {
-      localStorage.setItem("vendeo-theme", next);
-    } catch {
-      // Stockage indisponible : le choix s'applique seulement à la session.
-    }
-  }
   const mobileSections = [
     { id: "accounts", title: t("settings.storesAndSubscription"), description: t("settings.manageStoresAndPlan"), icon: <Store size={20} /> },
     { id: "channels", title: t("settings.connectedAccounts"), description: t("settings.connectedAccountsDescription"), icon: <ExternalLink size={20} /> },
-    { id: "appearance", title: t("settings.appearance"), description: t("settings.themeAndLanguageDescription"), icon: <Sun size={20} /> },
+    { id: "appearance", title: t("settings.appearance"), description: locale === "en" ? "Light workspace and language" : "Espace clair et langue", icon: <Sun size={20} /> },
     { id: "about", title: t("settings.aboutLegal"), description: t("settings.aboutDescription"), icon: <Lightbulb size={20} /> },
     { id: "session", title: t("settings.session"), description: t("settings.leaveOrDelete"), icon: <LogOut size={20} /> },
   ];
@@ -1120,20 +1109,15 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
           <div>
             <span className="eyebrow">{t("settings.appearance")}</span>
             <h2>{t("settings.theme")}</h2>
-            <p>{t("settings.themeDescription")}</p>
+            <p>{locale === "en" ? "One carefully designed palette across your workspace." : "Une seule palette soignée pour toute ton interface."}</p>
           </div>
         </div>
         <div className="theme-choice-grid">
-          <button type="button" className={`theme-choice ${theme === "light" ? "selected" : ""}`} onClick={() => applyTheme("light")} aria-pressed={theme === "light"}>
+          <div className="theme-choice selected" aria-label="Thème clair unique">
             <span className="mobile-settings-icon"><Sun size={20} /></span>
-            <span><strong>{t("settings.light")}</strong><small>{t("settings.lightDescription")}</small></span>
-            {theme === "light" ? <CheckCircle2 size={16} /> : null}
-          </button>
-          <button type="button" className={`theme-choice ${theme === "dark" ? "selected" : ""}`} onClick={() => applyTheme("dark")} aria-pressed={theme === "dark"}>
-            <span className="mobile-settings-icon"><Moon size={20} /></span>
-            <span><strong>{t("settings.dark")}</strong><small>{t("settings.darkDescription")}</small></span>
-            {theme === "dark" ? <CheckCircle2 size={16} /> : null}
-          </button>
+            <span><strong>{locale === "en" ? "Vendeo Light" : "Vendeo Clair"}</strong><small>{locale === "en" ? "A consistent, comfortable workspace." : "Un espace de travail unifié, clair et confortable."}</small></span>
+            <CheckCircle2 size={16} />
+          </div>
         </div>
       </section>
       <section className="settings-section settings-language-extra" data-settings-panel="appearance" aria-label={t("settings.language.title")}>

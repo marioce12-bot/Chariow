@@ -9,10 +9,12 @@ vi.mock("@/lib/i18n/i18n", () => ({
 import { DashboardHeaderNavigation, DashboardPrimaryNavigation } from "@/components/dashboard/DesktopNavigation";
 
 describe("dashboard desktop navigation", () => {
-  it("keeps primary navigation to its seven destinations", () => {
+  it("keeps primary navigation to its nine destinations", () => {
     const html = renderToStaticMarkup(<DashboardPrimaryNavigation active="Vue d'ensemble" onChange={() => {}} />);
-    expect((html.match(/<button/g) ?? []).length).toBe(7);
+    expect((html.match(/<button/g) ?? []).length).toBe(9);
     expect(html).toContain("translated:nav.overview");
+    expect(html).toContain("Bénéfices nets");
+    expect(html).toContain("Relances WhatsApp");
     expect(html).toContain("translated:nav.autopilot");
     expect(html).not.toContain("nav.stores");
     expect(html).not.toContain("nav.adAccounts");

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
-const CACHE_NAME = "vendeo-shell-v3";
+const CACHE_NAME = "vendeo-shell-v4";
 
 async function cacheDashboardShell() {
   if (!navigator.onLine || !("caches" in window)) return;
@@ -40,6 +40,7 @@ export function PwaRegister() {
   const pathname = usePathname();
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
     let cancelled = false;
 

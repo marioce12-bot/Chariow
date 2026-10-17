@@ -68,6 +68,7 @@ export function OverviewHome({
   onPromoteProduct,
   campaignsVersion,
   loading = false,
+  onNavigate,
 }: {
   stores: StoreData[];
   subscription: SubscriptionData | null;
@@ -82,6 +83,7 @@ export function OverviewHome({
   campaignsVersion: number;
   /** Vrai tant que les données de la boutique et l'abonnement ne sont pas arrivés. */
   loading?: boolean;
+  onNavigate?: (section: string) => void;
 }) {
   const { locale } = useI18n();
   const en = locale === "en";
@@ -312,6 +314,10 @@ export function OverviewHome({
         </div>
       </section>
 
+      {onNavigate ? <div className="overview-business-shortcuts" aria-label="Outils pour développer vos bénéfices">
+        <button type="button" onClick={() => onNavigate("Bénéfices nets")}><span className="overview-shortcut-icon"><Package size={20} /></span><span><strong>Que me rapporte chaque produit ?</strong><small>Renseigne tes coûts et découvre tes marges.</small></span><span aria-hidden="true">↗</span></button>
+        <button type="button" onClick={() => onNavigate("Relances WhatsApp")}><span className="overview-shortcut-icon recovery"><Clock size={20} /></span><span><strong>Transforme les abandons en ventes</strong><small>Relance sur WhatsApp, avec consentement.</small></span><span aria-hidden="true">↗</span></button>
+      </div> : null}
       {/* 2. Liste des campagnes publicitaires */}
       <AdCampaignsList key={campaignsVersion} storeId={storeId ?? null} plan={plan} onNewCampaign={onLaunchAd} />
 

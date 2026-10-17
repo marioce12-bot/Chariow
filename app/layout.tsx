@@ -37,7 +37,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020B35",
+  themeColor: "#f7f8fa",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -45,8 +45,8 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-// Applique le thème choisi (localStorage) avant le premier rendu pour éviter un flash clair.
-const themeInitScript = `(function(){try{var t=localStorage.getItem("vendeo-theme");if(t==="dark"||(!t&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.dataset.theme="dark"}}catch(e){}})()`;
+// Thème clair unique, y compris pour les anciens choix sombres persistés.
+const themeInitScript = `(function(){document.documentElement.dataset.theme="light";try{localStorage.setItem("vendeo-theme","light")}catch(e){}})()`;
 
 // Applique la langue persistée (ou celle du navigateur) avant le premier rendu.
 const langInitScript = `(function(){try{var l=localStorage.getItem("vendeo-lang");if(l!=="fr"&&l!=="en"){var m=document.cookie.match(/(?:^|; )vendeo-lang=(fr|en)(?:;|$)/);l=m?m[1]:((navigator.language||"").toLowerCase().indexOf("en")===0?"en":"fr")}document.documentElement.lang=l}catch(e){}})()`;
