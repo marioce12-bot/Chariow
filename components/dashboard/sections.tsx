@@ -960,6 +960,7 @@ const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "x" | "pinter
 
 export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: "channels"; onBack?: () => void }) {
   const { locale, setLocale, t } = useI18n();
+  const [mobileSettingsSection, setMobileSettingsSection] = useState<string | null>(focus === "channels" ? "channels" : null);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
@@ -972,6 +973,10 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
   const [connectionBusy, setConnectionBusy] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const channelsRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    setMobileSettingsSection(focus === "channels" ? "channels" : null);
+  }, [focus]);
 
   useEffect(() => {
     if (focus === "channels") channelsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1066,8 +1071,15 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
       // Stockage indisponible : le choix s'applique seulement à la session.
     }
   }
+  const mobileSections = [
+    { id: "accounts", title: t("settings.storesAndSubscription"), description: t("settings.manageStoresAndPlan"), icon: <Store size={20} /> },
+    { id: "channels", title: t("settings.connectedAccounts"), description: t("settings.connectedAccountsDescription"), icon: <ExternalLink size={20} /> },
+    { id: "appearance", title: t("settings.appearance"), description: t("settings.themeAndLanguageDescription"), icon: <Sun size={20} /> },
+    { id: "about", title: t("settings.aboutLegal"), description: t("settings.aboutDescription"), icon: <Lightbulb size={20} /> },
+    { id: "session", title: t("settings.session"), description: t("settings.leaveOrDelete"), icon: <LogOut size={20} /> },
+  ];
   return (
-    <div className="settings-page">
+    <div className="settings-page" data-mobile-settings-section={mobileSettingsSection ?? "list"}>
       <div className="page-top settings-head">
         <div>
           <span className="eyebrow">{t("settings.account")}</span>
@@ -1076,7 +1088,13 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
         </div>
         {onBack && <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {t("settings.back")}</button>}
       </div>
-      <section className="settings-section settings-section-account" aria-label="Boutiques et abonnement">
+      <nav className="mobile-settings-index" aria-label={t("settings.sectionsLabel")} hidden={mobileSettingsSection !== null}>
+        {mobileSections.map((item) => <button type="button" className="mobile-settings-card" key={item.id} onClick={() => setMobileSettingsSection(item.id)}>
+          <span className="mobile-settings-icon">{item.icon}</span><span><strong>{item.title}</strong><small>{item.description}</small></span><ArrowRight size={16} aria-hidden="true" />
+        </button>)}
+      </nav>
+      {mobileSettingsSection !== null && <button type="button" className="mobile-settings-return" onClick={() => setMobileSettingsSection(null)} aria-label={t("settings.backToSections")}><ArrowRight size={16} aria-hidden="true" /> {t("settings.backToSettings")}</button>}
+      <section className="settings-section settings-section-account" data-settings-panel="accounts" aria-label={t("settings.storesAndSubscription")}>
         <div className="mobile-settings-grid">
           <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
             <span className="mobile-settings-icon"><Store size={20} /></span>
@@ -1090,7 +1108,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
           </button>
         </div>
       </section>
-      <section className="settings-section settings-section-session" aria-label="Session et compte">
+      <section className="settings-section settings-section-session" data-settings-panel="session" aria-label="Session et compte">
         <div className="page-top settings-mobile-only">
           <div>
             <span className="eyebrow">{t("settings.session")}</span>
@@ -1112,7 +1130,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
           </button>
         </div>
       </section>
-      <section className="settings-section settings-section-theme" aria-label="Apparence">
+      <section className="settings-section settings-section-theme settings-section-language" data-settings-panel="appearance" aria-label={t("settings.appearance")}>
         <div className="page-top settings-section-head">
           <div>
             <span className="eyebrow">{t("settings.appearance")}</span>
@@ -1133,7 +1151,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
           </button>
         </div>
       </section>
-      <section className="settings-section settings-section-language" aria-label="Langue">
+      <section className="settings-section settings-language-extra" data-settings-panel="appearance" aria-label={t("settings.language.title")}>
         <div className="page-top settings-section-head">
           <div>
             <h2>{t("settings.language.title")}</h2>
@@ -1153,7 +1171,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
           </button>
         </div>
       </section>
-      <section className="settings-section settings-section-legal" aria-label="À propos et légal">
+      <section className="settings-section settings-section-legal" data-settings-panel="about" aria-label={t("settings.aboutLegal")}>
         <div className="page-top settings-section-head">
           <div>
             <span className="eyebrow">{t("settings.aboutLegal")}</span>
@@ -1179,7 +1197,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
           </a>
         </div>
       </section>
-      <section className="settings-section settings-section-channels" ref={channelsRef} aria-label="Canaux publicitaires">
+      <section className="settings-section settings-section-channels" data-settings-panel="channels" ref={channelsRef} aria-label={t("settings.adChannels")}>
         <div className="page-top settings-section-head">
           <div>
             <span className="eyebrow">{t("settings.adChannels")}</span>

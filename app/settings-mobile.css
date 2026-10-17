@@ -87,11 +87,12 @@
   .settings-page .settings-section-account { order: 1; }
   .settings-page .settings-section-channels { order: 2; }
   .settings-page .settings-section-theme { order: 3; }
-  .settings-page .settings-section-legal { order: 4; }
+  .settings-page .settings-language-extra { order: 4; }
+  .settings-page .settings-section-legal { order: 5; }
   .settings-page .settings-section-session {
     border-top: 1px solid var(--line);
     margin-bottom: 0;
-    order: 5;
+    order: 6;
     padding-top: 22px;
   }
   .settings-page .settings-section-head,
@@ -136,4 +137,21 @@ html[data-theme="dark"] .mobile-more-menu[role="menu"] > button.danger { color: 
 .app-card button.btn[aria-label="TikTok"] svg {
   filter: drop-shadow(-1.3px -1px 0 #25f4ee) drop-shadow(1.3px 1px 0 #fe2c55);
   overflow: visible;
+}
+
+/* Navigation des paramètres : index compact sur mobile, un panneau à la fois. */
+.mobile-settings-index, .mobile-settings-return { display: none; }
+@media (max-width: 760px) {
+  .settings-page[data-mobile-settings-section="list"] > .settings-section,
+  .settings-page[data-mobile-settings-section="accounts"] > .settings-section:not([data-settings-panel="accounts"]),
+  .settings-page[data-mobile-settings-section="channels"] > .settings-section:not([data-settings-panel="channels"]),
+  .settings-page[data-mobile-settings-section="appearance"] > .settings-section:not([data-settings-panel="appearance"]):not(.settings-language-extra),
+  .settings-page[data-mobile-settings-section="about"] > .settings-section:not([data-settings-panel="about"]),
+  .settings-page[data-mobile-settings-section="session"] > .settings-section:not([data-settings-panel="session"]) { display: none !important; }
+  .settings-page[data-mobile-settings-section="appearance"] > .settings-language-extra { display: block; }
+  .settings-page[data-mobile-settings-section="list"] .mobile-settings-index { display: grid; gap: 10px; }
+  .settings-page:not([data-mobile-settings-section="list"]) .mobile-settings-return { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 12px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+  .settings-page:not([data-mobile-settings-section="list"]) .mobile-settings-return svg { transform: rotate(180deg); }
+  .settings-page .mobile-settings-index .mobile-settings-card { width: 100%; text-align: left; }
+  .settings-page :is(button, a):focus-visible { outline: 3px solid #356cf6; outline-offset: 3px; }
 }

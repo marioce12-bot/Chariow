@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { aggregateDailyAutopilotReports, computeAutopilotDecision } from "./autopilot";
+import { aggregateDailyAutopilotReports, computeAutopilotDecision, isAutopilotDataFresh } from "./autopilot";
 
 const base = { grossRevenue: 0, daysSinceLaunch: 5, dailyBudget: 100, attributionReliable: true };
 
 describe("computeAutopilotDecision", () => {
+  it("considers missing/future/stale insight dates unsafe and accepts dates up to two days old", () => {
+    const today = new Date("2026-10-17T12:00:00Z");
+    expect(isAutopilotDataFresh("2026-10-17", today)).toBe(true);
+    expect(isAutopilotDataFresh("2026-10-15", today)).toBe(true);
+    expect(isAutopilotDataFresh("2026-10-14", today)).toBe(false);
+    expect(isAutopilotDataFresh("2026-10-18", today)).toBe(false);
+    expect(isAutopilotDataFresh(null, today)).toBe(false);
+  });
+
   it("ne conclut rien sans dépense", () => {
     const result = computeAutopilotDecision({ ...base, spend: 0, netRevenue: 0, completedSales: 0 });
     expect(result.decision).toBe("insufficient_data");

@@ -15,7 +15,7 @@ export type MetaCampaignRef = { id: string; name: string | null; effectiveStatus
  * Par défaut Meta ne renvoie pas les campagnes archivées : on les demande
  * explicitement pour ne pas perdre l'historique de dépenses.
  */
-export async function fetchMetaCampaignList(accountId: string, accessToken: string, maxCampaigns = 300): Promise<MetaCampaignRef[]> {
+export async function fetchMetaCampaignList(accountId: string, accessToken: string, maxCampaigns = Number.POSITIVE_INFINITY): Promise<MetaCampaignRef[]> {
   const url = new URL(`${META_GRAPH_BASE_URL}/${accountId}/campaigns`);
   url.searchParams.set("fields", "id,name,effective_status");
   url.searchParams.set("effective_status", JSON.stringify(["ACTIVE", "PAUSED", "ARCHIVED", "IN_PROCESS", "WITH_ISSUES"]));
@@ -24,12 +24,16 @@ export async function fetchMetaCampaignList(accountId: string, accessToken: stri
 
   const campaigns: MetaCampaignRef[] = [];
   let next: string | null = url.toString();
+  const visited = new Set<string>();
   while (next && campaigns.length < maxCampaigns) {
+    if (visited.has(next)) throw new Error("Meta campaigns pagination did not advance");
+    visited.add(next);
     const response: Response = await fetch(next, { cache: "no-store" });
     const json = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(typeof json?.error?.message === "string" ? json.error.message : `Meta campaigns request failed (${response.status})`);
-    for (const row of Array.isArray(json.data) ? json.data as Array<Record<string, unknown>> : []) {
-      if (typeof row.id !== "string" || !row.id) continue;
+    if (json.error || !Array.isArray(json.data)) throw new Error("Meta campaigns inventory response is incomplete");
+    for (const row of json.data as Array<Record<string, unknown>>) {
+      if (!row || typeof row.id !== "string" || !row.id) throw new Error("Meta campaigns inventory contains an invalid entry");
       campaigns.push({
         id: row.id,
         name: typeof row.name === "string" && row.name.trim() ? row.name.trim() : null,
@@ -38,5 +42,5 @@ export async function fetchMetaCampaignList(accountId: string, accessToken: stri
     }
     next = typeof json?.paging?.next === "string" ? json.paging.next : null;
   }
-  return campaigns.slice(0, maxCampaigns);
+  return Number.isFinite(maxCampaigns) ? campaigns.slice(0, maxCampaigns) : campaigns;
 }

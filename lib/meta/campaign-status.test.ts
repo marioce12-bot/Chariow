@@ -31,6 +31,16 @@ describe("Meta campaign status mapping", () => {
     expect(mapMetaEffectiveStatus("PENDING_REVIEW", null)?.status).toBe("review");
     expect(mapMetaEffectiveStatus("DISAPPROVED", { reason: "policy" })?.status).toBe("rejected");
   });
+
+  it.each(["ARCHIVED", "DELETED", "CAMPAIGN_ARCHIVED", "CAMPAIGN_DELETED", "ADSET_ARCHIVED", "ADSET_DELETED", "AD_ARCHIVED", "AD_DELETED"])("keeps history while reflecting Meta state %s", (state) => {
+    const result = mapMetaEffectiveStatus(state, null);
+    expect(result?.status).toBe("paused");
+    expect(result?.error).toContain("historique est conservé");
+  });
+
+  it("does not infer deletion from an unknown state", () => {
+    expect(mapMetaEffectiveStatus("UNKNOWN", null)).toBeNull();
+  });
 });
 
 describe("Meta pause marker", () => {

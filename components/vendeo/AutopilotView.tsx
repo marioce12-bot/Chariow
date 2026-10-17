@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Activity, AlertTriangle, Bot, PauseCircle, ShieldCheck, TrendingUp } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 
@@ -56,29 +56,36 @@ export function AutopilotView() {
   const [reports, setReports] = useState<AutopilotReport[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const loadData = useCallback(async (cancelled: () => boolean) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [reportsRes, alertsRes] = await Promise.all([
+        fetch("/api/autopilot/reports"),
+        fetch("/api/alerts"),
+      ]);
+      if (!reportsRes.ok) throw new Error(`Rapports indisponibles (HTTP ${reportsRes.status}).`);
+      if (!alertsRes.ok) throw new Error(`Notifications indisponibles (HTTP ${alertsRes.status}).`);
+      const [reportsData, alertsData] = await Promise.all([reportsRes.json(), alertsRes.json()]);
+      if (!cancelled()) {
+        setReports(reportsData.reports ?? []);
+        setAlerts((alertsData.alerts ?? []).filter((alert: Alert) => alert.status !== "resolved"));
+      }
+    } catch (cause) {
+      if (!cancelled()) setError(cause instanceof Error ? cause.message : "Impossible de charger les rapports.");
+    } finally {
+      if (!cancelled()) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const [reportsRes, alertsRes] = await Promise.all([
-          fetch("/api/autopilot/reports"),
-          fetch("/api/alerts"),
-        ]);
-        const reportsData = reportsRes.ok ? await reportsRes.json() : { reports: [] };
-        const alertsData = alertsRes.ok ? await alertsRes.json() : { alerts: [] };
-        if (!cancelled) {
-          setReports(reportsData.reports ?? []);
-          setAlerts((alertsData.alerts ?? []).filter((alert: Alert) => alert.status !== "resolved"));
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadData(() => cancelled);
+    return () => { cancelled = true; };
+  }, [loadData, reloadKey]);
 
   const latest = latestPerCampaign(reports);
   const decisionMeta = (decision: AutopilotReport["decision"]) => ({
@@ -126,7 +133,13 @@ export function AutopilotView() {
           <Bot size={18} color="#103ef8" />
         </div>
         {loading ? (
-          <p className="hint-line">{t("autopilot.loading")}</p>
+          <p className="hint-line" role="status">Chargement des rapports et notifications…</p>
+        ) : error ? (
+          <div role="alert" style={{ padding: 14, borderRadius: 10, background: "#FEF2F2", color: "#991B1B" }}>
+            <strong>Les rapports n’ont pas pu être chargés.</strong>
+            <p style={{ margin: "4px 0 10px" }}>{error}</p>
+            <button type="button" onClick={() => setReloadKey((key) => key + 1)}>Réessayer</button>
+          </div>
         ) : latest.length === 0 ? (
           <div className="empty-state" style={{ textAlign: "left" }}>
             <strong>{t("autopilot.emptyTitle")}</strong>
@@ -148,7 +161,13 @@ export function AutopilotView() {
                     <span>{report.roas === null ? "-" : `${(report.roas * 100).toFixed(1)} %`}</span>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: decision.tone, fontWeight: 700 }}>{decision.icon}{decision.label}</span>
                   </div>
-                  {report.reasons.length > 0 ? (
+                  {report.decision === "insufficient_data" ? (
+                    <div style={{ margin: "0 0 4px", padding: "10px 12px", borderLeft: "3px solid #9CA3AF", background: "#F9FAFB", color: "#374151", fontSize: 13 }}>
+                      <strong>Données insuffisantes pour conclure</strong>
+                      <p style={{ margin: "4px 0 0" }}>Cela peut venir du suivi des achats, de l’attribution des ventes ou de données trop récentes. Aucun changement de campagne n’est recommandé sur la base de ce seul statut.</p>
+                      {report.reasons.length > 0 ? <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{report.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul> : null}
+                    </div>
+                  ) : report.reasons.length > 0 ? (
                     <ul style={{ margin: "0 0 4px", paddingLeft: 18, fontSize: 12, color: "#6B7280", listStyle: "disc" }}>
                       {report.reasons.map((reason) => <li key={reason}>{reason}</li>)}
                     </ul>
@@ -160,9 +179,7 @@ export function AutopilotView() {
         )}
       </section>
 
-      <p className="hint-line">
-        {t("autopilot.footer")}
-      </p>
+      <p className="hint-line">{t("autopilot.footer")}</p>
     </>
   );
 }

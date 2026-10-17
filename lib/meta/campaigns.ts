@@ -532,5 +532,11 @@ export function mapMetaEffectiveStatus(
   if (["PENDING_REVIEW", "IN_PROCESS", "PREAPPROVED", "PENDING_PROCESS"].includes(effectiveStatus)) {
     return { status: "review", error: null };
   }
+  // Meta exposes archive/delete as effective states (often inherited by the ad
+  // from its campaign/ad set). Keep the local row and its reporting history;
+  // never translate these states into a database deletion.
+  if (["ARCHIVED", "DELETED", "CAMPAIGN_ARCHIVED", "CAMPAIGN_DELETED", "ADSET_ARCHIVED", "ADSET_DELETED", "AD_ARCHIVED", "AD_DELETED"].includes(effectiveStatus)) {
+    return { status: "paused", error: `Meta indique que la publicité ou son ensemble/campagne est ${effectiveStatus.toLowerCase().replaceAll("_", " ")}. L'historique est conservé.` };
+  }
   return null;
 }

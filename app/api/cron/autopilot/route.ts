@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { convertCurrency } from "@/lib/currency";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
-import { computeAutopilotDecision } from "@/lib/autopilot";
+import { computeAutopilotDecision, isAutopilotDataFresh } from "@/lib/autopilot";
 import { loadStoreCustomerValue, type CustomerHistory } from "@/lib/autopilot-customer-value";
 import { pauseMetaCampaign } from "@/lib/meta/campaigns";
 import { pauseTikTokCampaign } from "@/lib/tiktok/campaigns";
@@ -56,7 +56,7 @@ async function attributedSales(supabase: any, campaign: any, currency: string) {
   const to = new Date().toISOString();
 
   if (campaign.platform === "meta") {
-    const { data: attributionRows } = await supabase
+    const { data: attributionRows, error: attributionError } = await supabase
       .from("meta_attributions")
       .select("chariow_sale_id")
       .eq("user_id", campaign.user_id)
@@ -65,9 +65,11 @@ async function attributedSales(supabase: any, campaign: any, currency: string) {
       .gte("attributed_at", from)
       .lte("attributed_at", to)
       .not("chariow_sale_id", "is", null);
+    if (attributionError) throw new Error(`Meta attribution query failed: ${attributionError.message}`);
     const saleIds = [...new Set((attributionRows ?? []).map((row: { chariow_sale_id: string | null }) => row.chariow_sale_id).filter(Boolean))] as string[];
     if (saleIds.length) {
-      const { data: sales } = await supabase.from("chariow_sales").select("amount,net_amount,currency,status,customer_id").eq("store_id", campaign.store_id).in("chariow_sale_id", saleIds);
+      const { data: sales, error } = await supabase.from("chariow_sales").select("amount,net_amount,currency,status,customer_id").eq("store_id", campaign.store_id).in("chariow_sale_id", saleIds);
+      if (error) throw new Error(`Attributed sales query failed: ${error.message}`);
       return { ...sumSales(sales as Array<Record<string, unknown>> | null, currency), reliable: true };
     }
   }
@@ -75,23 +77,25 @@ async function attributedSales(supabase: any, campaign: any, currency: string) {
   const mappingTable = campaign.platform === "meta" ? "meta_campaign_mappings" : "tiktok_campaign_mappings";
   const externalIdField = campaign.platform === "meta" ? "meta_campaign_id" : "tiktok_campaign_id";
 
-  const { data: mappings } = await supabase
+  const { data: mappings, error: mappingError } = await supabase
     .from(mappingTable)
     .select("chariow_campaign_id")
     .eq("user_id", campaign.user_id)
     .eq("store_id", campaign.store_id)
     .eq(externalIdField, campaign.external_campaign_id)
     .eq("status", "active");
+  if (mappingError) throw new Error(`Campaign mapping query failed: ${mappingError.message}`);
   const campaignIds = (mappings ?? []).map((m: { chariow_campaign_id: string }) => m.chariow_campaign_id);
 
   if (campaignIds.length) {
-    const { data: sales } = await supabase
+    const { data: sales, error } = await supabase
       .from("chariow_sales")
       .select("amount,net_amount,currency,status,customer_id")
       .eq("store_id", campaign.store_id)
       .in("chariow_campaign_id", campaignIds)
       .gte("occurred_at", from)
       .lte("occurred_at", to);
+    if (error) throw new Error(`Campaign sales query failed: ${error.message}`);
     return { ...sumSales(sales as Array<Record<string, unknown>> | null, currency), reliable: true };
   }
 
@@ -100,26 +104,31 @@ async function attributedSales(supabase: any, campaign: any, currency: string) {
 
 async function metaPurchaseTrackingReady(supabase: any, campaign: any): Promise<boolean> {
   if (campaign.platform !== "meta" || campaign.objective !== "sales" || campaign.effective_objective !== "sales") return false;
-  const { data } = await supabase.from("meta_pixels").select("pixel_id").eq("user_id", campaign.user_id).eq("ad_account_id", campaign.meta_ad_account_id).eq("configured_on_chariow", true).limit(1);
+  const { data, error } = await supabase.from("meta_pixels").select("pixel_id").eq("user_id", campaign.user_id).eq("ad_account_id", campaign.meta_ad_account_id).eq("configured_on_chariow", true).limit(1);
+  if (error) throw new Error(`Meta purchase tracking query failed: ${error.message}`);
   return Boolean(data?.length);
 }
 
 // Devise du compte publicitaire de la campagne (pour un rapport lisible).
 async function campaignCurrency(supabase: any, campaign: any) {
   if (campaign.platform === "meta") {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("meta_ad_accounts")
       .select("currency")
       .eq("id", campaign.meta_ad_account_id)
+      .eq("user_id", campaign.user_id)
       .maybeSingle();
-    return data?.currency || "XOF";
+    if (error || !data?.currency) throw new Error("Meta campaign currency unavailable");
+    return data.currency;
   }
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("tiktok_ad_accounts")
     .select("currency")
     .eq("id", campaign.tiktok_ad_account_id)
+    .eq("user_id", campaign.user_id)
     .maybeSingle();
-  return data?.currency || "XOF";
+  if (error || !data?.currency) throw new Error("TikTok campaign currency unavailable");
+  return data.currency;
 }
 
 // Dépense + volumes pour une campagne, depuis son lancement.
@@ -128,17 +137,22 @@ async function campaignSpend(supabase: any, campaign: any) {
   const to = isoDay(new Date());
 
   if (campaign.platform === "meta") {
-    const { data } = await supabase
+    const { data: accountSync, error: accountSyncError } = await supabase.from("meta_ad_accounts").select("last_sync_error").eq("id", campaign.meta_ad_account_id).eq("user_id", campaign.user_id).maybeSingle();
+    if (accountSyncError) throw new Error(`Meta account sync state query failed: ${accountSyncError.message}`);
+    if (!accountSync) throw new Error("Meta account missing for campaign report");
+    const { data, error } = await supabase
       .from("meta_insights_daily")
-      .select("spend,impressions,clicks")
+      .select("spend,impressions,clicks,date_start")
       .eq("ad_account_id", campaign.meta_ad_account_id)
       .eq("level", "campaign")
       .eq("entity_id", campaign.external_campaign_id)
       .gte("date_start", from)
       .lte("date_start", to);
+    if (error) throw new Error(`Meta insight query failed: ${error.message}`);
+    const latestDate = (data ?? []).reduce((max: string | null, row: { date_start?: string }) => row.date_start && (!max || row.date_start > max) ? row.date_start : max, null);
     return (data ?? []).reduce(
-      (acc: { spend: number; impressions: number; clicks: number }, row: Record<string, unknown>) => ({ spend: acc.spend + num(row.spend), impressions: acc.impressions + num(row.impressions), clicks: acc.clicks + num(row.clicks) }),
-      { spend: 0, impressions: 0, clicks: 0 },
+      (acc: { spend: number; impressions: number; clicks: number; latestDate: string | null; syncOk: boolean }, row: Record<string, unknown>) => ({ ...acc, spend: acc.spend + num(row.spend), impressions: acc.impressions + num(row.impressions), clicks: acc.clicks + num(row.clicks) }),
+      { spend: 0, impressions: 0, clicks: 0, latestDate, syncOk: !accountSync?.last_sync_error },
     );
   }
 
@@ -149,22 +163,23 @@ async function campaignSpend(supabase: any, campaign: any) {
     .eq("id", campaign.tiktok_ad_account_id)
     .eq("user_id", campaign.user_id)
     .maybeSingle();
-  if (!account) return { spend: 0, impressions: 0, clicks: 0 };
+  if (!account) throw new Error("TikTok ad account missing for campaign report");
   const { data: integration } = await supabase
     .from("tiktok_integrations")
     .select("access_token_encrypted")
     .eq("id", account.tiktok_integration_id)
     .eq("user_id", campaign.user_id)
     .maybeSingle();
-  if (!integration) return { spend: 0, impressions: 0, clicks: 0 };
+  if (!integration) throw new Error("TikTok integration missing for campaign report");
   try {
     const accessToken = decryptSecret(integration.access_token_encrypted);
     const campaigns = await fetchTikTokCampaignReport(account.tiktok_advertiser_id, accessToken, from, to);
     const row = campaigns.find((c) => c.id === campaign.external_campaign_id);
-    return { spend: row?.spend ?? 0, impressions: row?.impressions ?? 0, clicks: row?.clicks ?? 0 };
+    if (!row) throw new Error("TikTok campaign absent from live report");
+    return { spend: row.spend, impressions: row.impressions, clicks: row.clicks, latestDate: null as string | null };
   } catch (error) {
     console.error("autopilot: TikTok report failed", error instanceof Error ? error.message : error);
-    return { spend: 0, impressions: 0, clicks: 0 };
+    throw error;
   }
 }
 
@@ -275,7 +290,7 @@ export async function GET(request: Request) {
         customerHistoryCache.set(historyKey, customerHistory);
       }
       const trackingReady = campaign.platform === "meta" ? await metaPurchaseTrackingReady(supabase, campaign) : true;
-      const attributionReliable = sales.reliable && sales.currencyReliable && trackingReady;
+      const attributionReliable = sales.reliable && sales.currencyReliable && trackingReady && (campaign.platform !== "meta" || (isAutopilotDataFresh(spendData.latestDate) && spendData.syncOk));
       const daysSinceLaunch = Math.max(0, (Date.now() - new Date(campaign.created_at).getTime()) / 86400000);
       const baseDecision = computeAutopilotDecision({
         spend: spendData.spend,
@@ -320,18 +335,20 @@ export async function GET(request: Request) {
         cac: sales.completed > 0 ? spendData.spend / sales.completed : null,
         decision: decision.decision,
         reasons: decision.reasons,
-        metrics: { daily_budget: num(campaign.daily_budget), days_since_launch: Math.round(daysSinceLaunch * 10) / 10, anomalies },
+        metrics: { daily_budget: num(campaign.daily_budget), days_since_launch: Math.round(daysSinceLaunch * 10) / 10, anomalies, insights_latest_date: spendData.latestDate ?? null, insights_fresh: campaign.platform !== "meta" || (isAutopilotDataFresh(spendData.latestDate) && spendData.syncOk), meta_sync_error: campaign.platform === "meta" ? Boolean(!spendData.syncOk) : false },
       };
-      await supabase.from("ad_campaign_autopilot_reports").insert(report);
+      const { error: reportError } = await supabase.from("ad_campaign_autopilot_reports").insert(report);
+      if (reportError) throw new Error(`Autopilot report insert failed: ${reportError.message}`);
 
       if (decision.decision === "pause") {
         await pauseCampaign(supabase, campaign);
-        await supabase
+        const { error: updateError } = await supabase
           .from("ad_campaigns")
           .update({ status: "autopilot_paused", autopilot_paused_at: new Date().toISOString(), autopilot_pause_reason: decision.reasons.join(" ") })
           .eq("id", campaign.id);
+        if (updateError) throw new Error(`Campaign pause state update failed after ad platform pause: ${updateError.message}`);
         const title = String(campaign.title || campaign.product_name || "Campagne");
-        await supabase.from("vendeo_alerts").upsert(
+        const { error: alertError } = await supabase.from("vendeo_alerts").upsert(
           {
             user_id: campaign.user_id,
             store_id: campaign.store_id,
@@ -345,7 +362,8 @@ export async function GET(request: Request) {
           },
           { onConflict: "user_id,dedupe_key" },
         );
-        await supabase.from("user_notifications").upsert(
+        if (alertError) throw new Error(`Autopilot alert upsert failed after pause: ${alertError.message}`);
+        const { error: notificationError } = await supabase.from("user_notifications").upsert(
           {
             user_id: campaign.user_id,
             type: "autopilot",
@@ -357,6 +375,7 @@ export async function GET(request: Request) {
           },
           { onConflict: "user_id,dedupe_key" },
         );
+        if (notificationError) throw new Error(`Autopilot notification upsert failed after pause: ${notificationError.message}`);
       }
 
       results.push({ campaign_id: campaign.id, platform: campaign.platform, decision: decision.decision, spend: spendData.spend, sales: sales.completed, roas: decision.roas, anomalies: anomalies.map((a) => a.stage) });
@@ -366,5 +385,6 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ evaluated: results.length, results });
+  const failed = results.filter((result: { error?: string }) => Boolean(result.error)).length;
+  return NextResponse.json({ evaluated: results.length - failed, failed, results }, { status: failed ? 500 : 200 });
 }

@@ -9,6 +9,14 @@ import { isLowData, maxCostPerCustomer } from "./unit-economics";
 
 export type AutopilotDecisionName = "keep_running" | "pause" | "learning" | "insufficient_data";
 
+/** Stale metrics are not evidence for an irreversible automatic pause. */
+export function isAutopilotDataFresh(latestDate: string | null | undefined, today = new Date(), maxAgeDays = 2): boolean {
+  if (!latestDate || !/^\d{4}-\d{2}-\d{2}$/.test(latestDate)) return false;
+  const latest = new Date(`${latestDate}T00:00:00.000Z`).getTime();
+  const current = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  return Number.isFinite(latest) && latest <= current && current - latest <= maxAgeDays * 86400000;
+}
+
 export type AutopilotDecision = {
   decision: AutopilotDecisionName;
   reasons: string[];
