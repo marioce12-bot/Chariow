@@ -174,6 +174,25 @@ async function assertSalesAdSetOnPurchase(input: { adSetId: string; campaignId: 
   );
 }
 
+/**
+ * Âges envoyés à Meta. Avec l'audience Advantage+, Meta n'accepte pas un âge max
+ * inférieur à 65 ans (subcode 1870189) ni un âge min supérieur à 25 ans : ce sont
+ * des limites strictes. La tranche d'âge choisie dans le wizard est alors envoyée
+ * comme simple suggestion (age_range), que Meta peut élargir. Sans Advantage+,
+ * l'âge choisi est appliqué tel quel.
+ */
+export function metaAgeTargeting(minAge: number, maxAge: number, advantageAudience: boolean): Record<string, unknown> {
+  if (!advantageAudience) return { age_min: minAge, age_max: maxAge };
+  const suggestedMin = Math.max(18, Math.min(minAge, 65));
+  const suggestedMax = Math.max(suggestedMin, Math.min(maxAge, 65));
+  const narrowerThanDefault = suggestedMin > 18 || suggestedMax < 65;
+  return {
+    age_min: Math.min(minAge, 25),
+    age_max: 65,
+    ...(narrowerThanDefault ? { age_range: [suggestedMin, suggestedMax] } : {}),
+  };
+}
+
 export async function createMetaAdSet(input: {
   accountId: string;
   accessToken: string;
@@ -213,8 +232,8 @@ export async function createMetaAdSet(input: {
 
   const targeting: Record<string, unknown> = {
     geo_locations: geoLocations,
-    age_min: input.minAge,
-    age_max: input.maxAge,
+    // Âges : voir metaAgeTargeting (limites strictes imposées par Meta avec Advantage+).
+    ...metaAgeTargeting(input.minAge, input.maxAge, input.advantageAudience === true),
     // Requis par Meta (Graph API v23.0+, subcode 1870227) dès que l'âge min/max
     // n'est pas la config par défaut : il faut dire explicitement si l'audience
     // Advantage+ (élargissement automatique de l'audience par l'IA de Meta) est
