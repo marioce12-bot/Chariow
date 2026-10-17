@@ -107,21 +107,29 @@ function guessCurrencyFromMessages(list: ChatMessageItem[]): SupportedCurrency |
   return null;
 }
 
-// Images de la pub : toutes celles que l'utilisateur a envoyées dans le chat depuis le dernier
-// bouton de lancement (dans l'ordre d'envoi, sans doublon, 10 au plus). Une seule image = pub
-// classique ; deux ou plus = carrousel Meta. Elles restent modifiables dans la popup de lancement.
-function collectLaunchImages(previous: ChatMessageItem[]): string[] {
-  const urls: string[] = [];
+// Média de la pub : tout ce que l'utilisateur a envoyé dans le chat depuis le dernier bouton de
+// lancement. Images : dans l'ordre d'envoi, sans doublon, 10 au plus — une seule = pub classique,
+// deux ou plus = carrousel Meta. Vidéo : si l'utilisateur a envoyé une vidéo, c'est elle (la plus
+// récente) qui sert de créative, seule — une vidéo ne se combine pas avec un carrousel d'images.
+// Le média reste modifiable (images) dans la popup de lancement.
+type LaunchMedia = { urls: string[]; kind: "image" | "video" };
+
+function collectLaunchMedia(previous: ChatMessageItem[]): LaunchMedia {
+  const imageUrls: string[] = [];
+  const videoUrls: string[] = [];
   for (let index = previous.length - 1; index >= 0; index -= 1) {
     const item = previous[index];
     if (item.role !== "user") {
       if (typeof item.content === "string" && item.content.includes(LAUNCH_TAG)) break;
       continue;
     }
-    const images = (item.attachments ?? []).filter((a) => a.type === "image" && a.url && !a.uploading).map((a) => a.url);
-    urls.unshift(...images);
+    const usable = (item.attachments ?? []).filter((a) => a.url && !a.uploading);
+    imageUrls.unshift(...usable.filter((a) => a.type === "image").map((a) => a.url));
+    videoUrls.unshift(...usable.filter((a) => a.type === "video").map((a) => a.url));
   }
-  return Array.from(new Set(urls)).slice(0, MAX_LAUNCH_IMAGES);
+  const uniqueVideos = Array.from(new Set(videoUrls));
+  if (uniqueVideos.length) return { urls: [uniqueVideos[uniqueVideos.length - 1]], kind: "video" };
+  return { urls: Array.from(new Set(imageUrls)).slice(0, MAX_LAUNCH_IMAGES), kind: "image" };
 }
 
 // Extrait le texte affichable et, si présent, le JSON de lancement d'un message assistant.
@@ -246,8 +254,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchPayload, setLaunchPayload] = useState<LaunchPayload | null>(null);
-  // Images de la pub : la première est l'image principale, les suivantes forment le carrousel.
+  // Média de la pub : la première image est l'image principale, les suivantes forment le carrousel.
+  // En mode vidéo (launchMediaKind === "video"), launchImageUrls contient la seule URL de la vidéo.
   const [launchImageUrls, setLaunchImageUrls] = useState<string[]>([]);
+  const [launchMediaKind, setLaunchMediaKind] = useState<"image" | "video">("image");
   const [launchLink, setLaunchLink] = useState("");
   const [launchBudget, setLaunchBudget] = useState("");
   const [launchCurrency, setLaunchCurrency] = useState<SupportedCurrency>("XOF");
@@ -530,9 +540,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   // Ouvre une popup de confirmation au lieu du formulaire complet : l'IA a déjà
   // collecté toutes les infos dans la conversation, on ne fait que les relire et
   // demander « confirmer et lancer » avant d'envoyer directement sur Meta.
-  function openLaunchConfirm(payload: LaunchPayload | null, fallbackImageUrls?: string[]) {
+  function openLaunchConfirm(payload: LaunchPayload | null, fallbackMedia?: LaunchMedia) {
     setLaunchPayload(payload);
-    setLaunchImageUrls(fallbackImageUrls ?? []);
+    setLaunchImageUrls(fallbackMedia?.urls ?? []);
+    setLaunchMediaKind(fallbackMedia?.kind ?? "image");
     // Lien de redirection : celui donné par l'utilisateur dans la conversation, sinon
     // vide — il devra le saisir ici (aucun lien par défaut n'est jamais injecté).
     setLaunchLink(payload?.linkUrl ?? "");
@@ -564,9 +575,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
       return;
     }
     const payload = launchPayload;
-    // Carrousel : réservé à Meta. La première image est l'image principale, les autres sont les cartes suivantes.
+    // Carrousel : réservé à Meta et aux images. La première image est l'image principale, les autres sont les cartes suivantes.
+    // Une vidéo est toujours envoyée seule.
     const isPinterest = payload.platform === "pinterest";
-    const carouselUrls = isPinterest ? [] : launchImageUrls.slice(1);
+    const isVideo = launchMediaKind === "video";
+    const carouselUrls = isPinterest || isVideo ? [] : launchImageUrls.slice(1);
     setLaunching(true);
     setLaunchError(null);
     try {
@@ -586,7 +599,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           message: payload.message,
           headline: payload.headline,
           linkUrl,
+          // `imageUrl` porte le média principal, image ou vidéo : `mediaType` dit lequel des deux.
           imageUrl: launchImageUrls[0] ?? undefined,
+          mediaType: launchMediaKind,
           carouselUrls: carouselUrls.length ? carouselUrls : undefined,
           platform: payload.platform ?? "meta",
           durationDays: payload.durationDays ?? 1,
@@ -599,7 +614,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         return;
       }
       const usdNote = typeof data.dailyBudgetUsd === "number" && launchCurrency !== "USD" ? ` (≈ ${data.dailyBudgetUsd} $)` : "";
-      const carouselNote = carouselUrls.length ? ` en carrousel de ${carouselUrls.length + 1} images` : "";
+      const carouselNote = carouselUrls.length ? ` en carrousel de ${carouselUrls.length + 1} images` : isVideo ? " avec ta vidéo" : "";
       setMessages((current) => [
         ...current,
         { role: "assistant", content: `✅ Campagne « ${payload.name} » lancée sur ${isPinterest ? "Pinterest" : "Meta"}${carouselNote} avec ${dailyBudget} ${launchCurrency}/jour${usdNote}. Elle apparaît dans la page Pub.` },
@@ -695,9 +710,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             const hasLaunchAction = isAssistant && message.content.includes(LAUNCH_TAG);
             const isLong = content.length > 520;
             const expanded = expandedMessages[index] === true;
-            // Images envoyées par l'utilisateur avant ce message (depuis le dernier bouton de lancement) :
-            // elles servent de créative par défaut — une seule = pub classique, plusieurs = carrousel.
-            const launchImages = hasLaunchAction ? collectLaunchImages(messages.slice(0, index)) : [];
+            // Médias envoyés par l'utilisateur avant ce message (depuis le dernier bouton de lancement) :
+            // ils servent de créative par défaut — une seule image = pub classique, plusieurs = carrousel,
+            // une vidéo = pub vidéo.
+            const launchMedia: LaunchMedia = hasLaunchAction ? collectLaunchMedia(messages.slice(0, index)) : { urls: [], kind: "image" };
             return (
               <div key={index} className={isAssistant ? "chat-bubble assistant" : "chat-bubble user"}>
                 {isAssistant && (
@@ -727,7 +743,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                   </div>
                 ) : null}
                 {hasLaunchAction ? (
-                  <button type="button" className="btn btn-dark chat-launch-action" onClick={() => openLaunchConfirm(launchPayload, launchImages)}>
+                  <button type="button" className="btn btn-dark chat-launch-action" onClick={() => openLaunchConfirm(launchPayload, launchMedia)}>
                     <Rocket size={15} /> {t("chat.launchNow")}
                   </button>
                 ) : null}
@@ -904,8 +920,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             </div>
             {launchImageUrls.length === 1 ? (
               <div className="chat-launch-image">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={launchImageUrls[0]} alt={t("chat.launchCreative")} />
+                {launchMediaKind === "video" ? (
+                  <video src={launchImageUrls[0]} controls muted playsInline preload="metadata" style={{ maxWidth: "100%", borderRadius: 10 }} />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={launchImageUrls[0]} alt={t("chat.launchCreative")} />
+                )}
               </div>
             ) : null}
             {launchImageUrls.length > 1 ? (
