@@ -1,3 +1,4 @@
+import { resolveChariowProductUrl } from "./product-urls";
 import { decryptSecret } from "@/lib/crypto";
 import { ChariowMcpClient } from "./mcp-client";
 import { isConfirmedChariowSaleStatus } from "./sales";
@@ -223,7 +224,7 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       product.checkout_url,
       product.sales_url,
       product.link
-    ) ?? buildProductUrl(store, product);
+    ) ?? resolveChariowProductUrl(product) ?? buildProductUrl(store, product);
     // Secours : quand ni un champ URL direct ni le slug ne sont disponibles
     // (produit non publié côté Chariow, le plus souvent), on pointe vers
     // l'accueil de la boutique plutôt que de laisser le lien de destination

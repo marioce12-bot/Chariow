@@ -347,7 +347,7 @@ export function Dashboard() {
           ) : stores.length === 0 && !analytics && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
             <StoreOnboarding />
           ) : active === "Paramètres" ? (
-            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} onBack={() => setActive(previousSection)} />
+            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="preferences" onBack={() => setActive(previousSection)} />
           ) : active === "Vendeo AI" ? (
             <ChatView
               onGoToSubscription={() => setActive("Abonnement")}

@@ -1,11 +1,9 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { recoveryDraftError } from "@/lib/recovery";
 import {
   Check,
   Clock3,
   MessageCircle,
-  Plus,
   RefreshCw,
   ShieldCheck,
   X,
@@ -52,25 +50,6 @@ type Total = {
   estimated: number;
   total: number;
 };
-const blank = {
-  customerName: "",
-  phone: "",
-  email: "",
-  productName: "",
-  amount: "",
-  currency: "XOF",
-  abandonedAt: "",
-  consentSource: "",
-  paymentUrl: "",
-  customerId: "",
-  consentAt: "",
-};
-function localDate(value: string | Date) {
-  const date = new Date(value);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 16);
-}
 function money(value: number | null, currency: string | null) {
   if (value == null) return "—";
   try {
@@ -100,17 +79,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     [notice, setNotice] = useState(""),
     [error, setError] = useState(""),
     [limitNote, setLimitNote] = useState("");
-  const [form, setForm] = useState(blank),
-    [selected, setSelected] = useState(""),
-    [consent, setConsent] = useState(false),
-    [showForm, setShowForm] = useState(false);
-  const formRef = useRef<HTMLFormElement | null>(null);
-  const [formOpenVersion, setFormOpenVersion] = useState(0);
-  useEffect(() => {
-    if (!showForm || !formRef.current) return;
-    formRef.current.scrollIntoView({ behavior: "auto", block: "start" });
-    formRef.current.focus({ preventScroll: true });
-  }, [showForm, formOpenVersion]);
+  const [consents, setConsents] = useState<Record<string, boolean>>({});
   const [preview, setPreview] = useState<{
     id: string;
     url: string;
@@ -164,19 +133,16 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     setCandidates([]);
     setTotals([]);
     setPreview(null);
-    setForm(blank);
-    setSelected("");
-    setShowForm(false);
-    setConsent(false);
+    setConsents({});
     void load();
     return () => loadController.current?.abort();
   }, [load]);
-  async function post(payload: Record<string, unknown>) {
+  async function post(payload: Record<string, unknown>, endpoint = "/api/recovery") {
     setBusy(true);
     setNotice("");
     setError("");
     try {
-      const response = await fetch("/api/recovery", {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...payload, storeId }),
@@ -194,61 +160,41 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
       if (live.current) setBusy(false);
     }
   }
-  function choose(candidate: Candidate) {
-    setSelected(candidate.id);
-    setConsent(false);
-    setError("");
-    setShowForm(true);
-    setFormOpenVersion((version) => version + 1);
-    setForm({
-      ...blank,
-      customerName: candidate.customerName || "",
-      phone: candidate.phone || "",
-      email: candidate.email || "",
-      productName: candidate.productName || "",
-      amount: candidate.amount == null ? "" : String(candidate.amount),
-      currency: candidate.currency || "XOF",
-      abandonedAt: localDate(candidate.abandonedAt),
-      paymentUrl: candidate.paymentUrl || "",
-    });
+  function beginWhatsAppWindow() {
+    const target = window.open("about:blank", "_blank");
+    if (target) {
+      target.opener = null;
+      target.document.title = "Préparation de la relance";
+      target.document.body.textContent = "Préparation de votre message WhatsApp…";
+    }
+    return target;
   }
-  async function add(event: React.FormEvent) {
-    event.preventDefault();
-    const validationError = recoveryDraftError({ ...form, consent });
-    if (validationError) {
-      setError(validationError);
+  function showWhatsApp(data: {id: string; url: string; message: string}, target: Window | null) {
+    if (target && !target.closed) {
+      target.location.replace(data.url);
+      setPreview(null);
+    } else {
+      setPreview(data);
+    }
+    setNotice("Message préparé pour WhatsApp. Appuie sur Envoyer dans WhatsApp, puis confirme ici l’envoi réel.");
+  }
+  async function launch(candidate: Candidate) {
+    if (!consents[candidate.id]) {
+      setError("Confirme d’abord que ce client a accepté les relances WhatsApp.");
       return;
     }
-    setError("");
-    const data = await post({
-      action: "create",
-      ...form,
-      consent,
-      sourceSaleId: selected || null,
-      amount: form.amount === "" ? null : Number(form.amount),
-      abandonedAt: new Date(form.abandonedAt).toISOString(),
-      consentAt: form.consentAt ? new Date(form.consentAt).toISOString() : null,
-    });
-    if (data) {
-      setForm(blank);
-      setSelected("");
-      setConsent(false);
-      setShowForm(false);
-      setNotice(
-        "Cas enregistré. Le consentement déclaré est daté et conservé.",
-      );
-      await load();
-    }
+    const target = beginWhatsAppWindow();
+    const data = await post({sourceSaleId:candidate.id,consent:true}, "/api/recovery/launch");
+    if (!data) { target?.close(); return; }
+    showWhatsApp({id:data.id,url:data.url,message:data.message},target);
+    await load();
   }
   async function prepare(row: CaseRow) {
+    const target = beginWhatsAppWindow();
     const data = await post({ action: "prepare", id: row.id });
-    if (data) {
-      setPreview({ id: row.id, url: data.url, message: data.message });
-      setNotice(
-        "Message prêt à vérifier. Ouvre ensuite WhatsApp pour l’envoyer toi-même.",
-      );
-      await load();
-    }
+    if (!data) { target?.close(); return; }
+    showWhatsApp({id:row.id,url:data.url,message:data.message},target);
+    await load();
   }
   async function markSent(row: CaseRow) {
     if (
@@ -301,22 +247,6 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     }
   }
   const disabled = busy || reconciling;
-  const field = (
-    label: string,
-    key: keyof typeof blank,
-    props: React.InputHTMLAttributes<HTMLInputElement> = {},
-  ) => (
-    <label className="rec-field">
-      {label}
-      <input
-        {...props}
-        value={form[key]}
-        onChange={(event) =>
-          setForm((current) => ({ ...current, [key]: event.target.value }))
-        }
-      />
-    </label>
-  );
   if (!storeId)
     return (
       <section className="recovery">
@@ -331,24 +261,17 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
           <span className="business-eyebrow">RELATION CLIENT</span>
           <h2>Une seconde chance pour chaque panier</h2>
           <p>
-            Retrouve les paiements abandonnés, prépare une relance utile et suis
-            les ventes payées après l’envoi.
+            Retrouve les paiements abandonnés et ouvre directement une relance polie
+            dans WhatsApp, sans formulaire à remplir.
           </p>
         </div>
         <button
           type="button"
           className="rec-primary"
           disabled={disabled}
-          onClick={() => {
-            setForm(blank);
-            setSelected("");
-            setConsent(false);
-            setShowForm(true);
-            setError("");
-            setFormOpenVersion((version) => version + 1);
-          }}
+          onClick={() => void load()}
         >
-          <Plus size={15} /> Ajouter un cas
+          <RefreshCw size={15} /> Actualiser les abandons
         </button>
       </div>
       <div className="rec-safety">
@@ -356,9 +279,9 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
         <div>
           <strong>Avec consentement, toujours.</strong>
           <p>
-            Envoi manuel dans WhatsApp, jamais automatique. Un numéro enregistré
-            ne vaut pas consentement. Si un client répond STOP, utilise « Ne
-            plus relancer ».
+            Un clic prépare le message avec les données et le lien Chariow. Tu valides
+            l’envoi dans WhatsApp. Un numéro enregistré ne vaut pas consentement.
+            Si un client répond STOP, utilise « Ne plus relancer ».
           </p>
         </div>
       </div>
@@ -387,7 +310,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
       {preview && (
         <div className="rec-box rec-preview">
           <div className="rec-section-heading">
-            <h3>Vérifie ton message</h3>
+            <h3>Ouvrir la relance</h3>
             <button
               className="rec-icon-button"
               aria-label="Fermer l’aperçu du message"
@@ -496,8 +419,8 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
               <div>
                 <h3>Paiements abandonnés</h3>
                 <p>
-                  Vérifie les coordonnées et le consentement avant de créer une
-                  relance.
+                  Les coordonnées et le lien sont récupérés automatiquement depuis Chariow.
+                  Confirme le consentement, puis clique sur Relancer.
                 </p>
               </div>
               <span className="rec-count">{candidates.length}</span>
@@ -537,119 +460,29 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                       )}
                       {!candidate.phone && (
                         <small className="rec-warning">
-                          Numéro WhatsApp à vérifier et à compléter.
+                          Numéro WhatsApp absent des données Chariow : relance indisponible.
                         </small>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      className="rec-secondary"
-                      disabled={disabled}
-                      onClick={() => choose(candidate)}
-                    >
-                      Vérifier le cas
-                    </button>
+                    <div className="rec-direct-actions">
+                      {!candidate.paymentUrl && <small className="rec-warning">Lien produit indisponible dans Chariow. Publie la page puis actualise.</small>}
+                      {candidate.phone && candidate.paymentUrl && <label className="rec-consent">
+                        <input type="checkbox" checked={!!consents[candidate.id]}
+                          onChange={event => setConsents(current => ({...current,[candidate.id]:event.target.checked}))}/>
+                        <span>Ce client a accepté les relances WhatsApp ; je dispose de son consentement.</span>
+                      </label>}
+                      <button type="button" className="rec-primary"
+                        disabled={disabled || !candidate.phone || !candidate.paymentUrl || !consents[candidate.id]}
+                        onClick={() => void launch(candidate)}>
+                        <MessageCircle size={15}/> Relancer sur WhatsApp
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>
             )}
           </div>
         </>
-      )}
-      {showForm && (
-        <form
-          id="recovery-form"
-          ref={formRef}
-          tabIndex={-1}
-          aria-label={selected ? "Vérifier le paiement abandonné" : "Ajouter un paiement abandonné"}
-          style={{ scrollMarginTop: 96 }}
-          className="rec-box"
-          noValidate
-          onSubmit={add}
-        >
-          <div className="rec-section-heading">
-            <div>
-              <h3>
-                {selected
-                  ? "Préparer ce paiement abandonné"
-                  : "Ajouter un paiement abandonné"}
-              </h3>
-              <p>
-                Le lien de paiement doit provenir de la boutique. Aucun lien
-                n’est inventé.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="rec-icon-button"
-              aria-label="Fermer le formulaire de relance"
-              onClick={() => setShowForm(false)}
-            >
-              <X size={17} />
-            </button>
-          </div>
-          <div className="rec-form-grid">
-            {field("Nom du client", "customerName", { autoComplete: "name" })}
-            {field("Téléphone WhatsApp", "phone", {
-              type: "tel",
-              autoComplete: "tel",
-              placeholder: "+229…",
-            })}
-            {field("E-mail", "email", { type: "email", autoComplete: "email" })}
-            {field("Produit", "productName")}
-            {field("Montant du paiement", "amount", {
-              type: "number",
-              min: 0,
-              max: 999999999999.99,
-              step: "0.01",
-            })}
-            {field("Devise", "currency", { maxLength: 8 })}
-            {field("Date d’abandon", "abandonedAt", {
-              type: "datetime-local",
-              max: localDate(new Date()),
-            })}
-            {field("Date réelle du consentement (facultatif)", "consentAt", {
-              type: "datetime-local",
-              max: localDate(new Date()),
-            })}
-            {field("Preuve / provenance du consentement", "consentSource", {
-              minLength: 3,
-              maxLength: 300,
-              placeholder: "Formulaire, date et version, échange client…",
-            })}
-            {field("Lien de paiement HTTPS", "paymentUrl", {
-              type: "url",
-              placeholder: "https://…",
-            })}
-          </div>
-          {error && (
-            <p role="alert" className="rec-error">
-              {error}
-            </p>
-          )}
-          <label className="rec-consent">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(event) => setConsent(event.target.checked)}
-            />
-            <span>
-              Je confirme que ce client a explicitement consenti à cette relance
-              WhatsApp, et que je dispose de la preuve indiquée ci-dessus.
-            </span>
-          </label>
-          <p className="rec-muted">
-            La déclaration est conservée. Si la date réelle est renseignée, elle
-            est également enregistrée.
-          </p>
-          <button
-            type="submit"
-            className="rec-primary"
-            disabled={disabled}
-          >
-            {busy ? "Enregistrement…" : "Enregistrer le cas"}
-          </button>
-        </form>
       )}
       {!loading && (
         <div className="rec-box">
@@ -659,8 +492,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
           </div>
           {!rows.length ? (
             <div className="rec-empty">
-              Aucune relance enregistrée. Commence par vérifier un paiement
-              abandonné.
+              Aucune relance enregistrée. Lance une relance depuis un paiement abandonné.
             </div>
           ) : (
             <div className="rec-cases">
@@ -712,9 +544,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                           disabled={disabled}
                           onClick={() => void prepare(row)}
                         >
-                          {row.status === "open"
-                            ? "Préparer le message"
-                            : "Revoir le message"}
+                          {row.status === "open" ? "Relancer sur WhatsApp" : "Rouvrir WhatsApp"}
                         </button>
                       )}
                     {!row.opt_out_at && row.status === "prepared" && (
@@ -744,6 +574,10 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
           )}
         </div>
       )}
+      <div className="rec-box rec-automation-info">
+        <strong>Envoi automatique : non connecté</strong>
+        <p className="rec-muted">Pour envoyer sans ouvrir WhatsApp, connecte un numéro WhatsApp Business à l’API officielle, avec un modèle de message approuvé et le consentement client. Aucun envoi automatique n’est actif actuellement.</p>
+      </div>
       <p className="rec-footnote">
         Un rapprochement indique une vente payée après une relance : il ne
         prouve pas, à lui seul, que la relance a causé cette vente. Les réponses

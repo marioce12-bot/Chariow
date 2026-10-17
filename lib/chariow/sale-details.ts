@@ -182,8 +182,13 @@ function phoneText(value: unknown): string | null {
   if (whole) return whole;
   const number = text(object.number) ?? text(object.national);
   if (!number) return null;
-  const code = text(object.dial_code) ?? text(object.country_code) ?? text(object.prefix);
+  const country = asRec(object.country);
+  const code = text(object.dial_code) ?? text(object.country_code) ?? text(object.prefix) ?? text(country?.dial_code);
   if (!code || number.startsWith("+")) return number;
+  const digits = number.replace(/\D/g, "");
+  const countryDigits = code.replace(/\D/g, "");
+  // Chariow's phone.number already includes the country code without '+'.
+  if (countryDigits && digits.startsWith(countryDigits)) return `+${digits}`;
   return `${code.startsWith("+") ? code : `+${code}`} ${number}`;
 }
 

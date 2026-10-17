@@ -155,8 +155,13 @@ html[data-theme="dark"] .mobile-more-menu[role="menu"] > button.danger { color: 
 
 /* Navigation des paramètres : index compact sur mobile, un panneau à la fois. */
 .mobile-settings-index, .mobile-settings-return { display: none; }
+@media (min-width: 761px) {
+  .settings-page[data-mobile-settings-section="channels"] > .settings-section:not([data-settings-panel="channels"]) { display: none !important; }
+  .settings-page[data-mobile-settings-section="preferences"] > .settings-section:is([data-settings-panel="accounts"], [data-settings-panel="channels"]) { display: none !important; }
+}
 @media (max-width: 760px) {
   .settings-page[data-mobile-settings-section="list"] > .settings-section,
+  .settings-page[data-mobile-settings-section="preferences"] > .settings-section:is([data-settings-panel="accounts"], [data-settings-panel="channels"]),
   .settings-page[data-mobile-settings-section="accounts"] > .settings-section:not([data-settings-panel="accounts"]),
   .settings-page[data-mobile-settings-section="channels"] > .settings-section:not([data-settings-panel="channels"]),
   .settings-page[data-mobile-settings-section="appearance"] > .settings-section:not([data-settings-panel="appearance"]):not(.settings-language-extra),

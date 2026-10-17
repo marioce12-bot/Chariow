@@ -30,4 +30,10 @@ describe("buildSaleContact country extraction", () => {
     expect(buildSaleContact({ customer: { phone: "+1 555 0100" } }).country).toBeNull();
     expect(buildSaleContact({}).country).toBeNull();
   });
+
+  it("uses Chariow phone.country.dial_code without doubling an existing international prefix", () => {
+    expect(buildSaleContact({customer:{phone:{number:"2290100000000",country:{dial_code:"229"}}}}).phone).toBe("+2290100000000");
+    expect(buildSaleContact({customer:{phone:{number:"0100000000",country:{dial_code:"229"}}}}).phone).toBe("+229 0100000000");
+    expect(buildSaleContact({customer:{phone:{number:"+2290100000000",country:{dial_code:"229"}}}}).phone).toBe("+2290100000000");
+  });
 });

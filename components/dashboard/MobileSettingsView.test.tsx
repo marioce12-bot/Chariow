@@ -30,6 +30,13 @@ describe("MobileSettingsView SSR", () => {
     const css = readFileSync(new URL("../../app/settings-mobile.css", import.meta.url), "utf8");
     expect(css).toContain('.settings-page[data-mobile-settings-section]:not([data-mobile-settings-section="list"]) .settings-head .mobile-back-button { display: none; }');
     expect(css).toContain('.mobile-nav-hidden-on-stores { display: none !important; }');
+    expect(css).toContain('.settings-page[data-mobile-settings-section="channels"] > .settings-section:not([data-settings-panel="channels"])');
+    expect(css).toContain('.settings-page[data-mobile-settings-section="preferences"] > .settings-section:is([data-settings-panel="accounts"], [data-settings-panel="channels"])');
+    const preferences = renderToStaticMarkup(
+      <MobileSettingsView onNavigate={vi.fn()} onSignOut={vi.fn()} plan="starter" focus="preferences" />,
+    );
+    expect(preferences).toContain('data-mobile-settings-section="preferences"');
+    expect(css).toContain('.settings-page[data-mobile-settings-section="preferences"]');
     expect(css).toContain('.settings-page .settings-section-theme .theme-choice-grid');
     writeFileSync("/tmp/vendeo-settings-check.html", `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body><main>${html}</main></body></html>`);
   });

@@ -62,3 +62,17 @@
 
 .landing-premium{overflow:clip}
 @media(min-width:851px){.landing-premium .hero.landing-hero{padding-top:48px}.landing-premium .landing-hero .hero-title-gradient{font-size:clamp(40px,4.15vw,56px)}.landing-premium .landing-hero .hero-tagline{font-size:18px}.landing-premium .landing-intro{font-size:13px;line-height:1.65}}
+
+/* Titre plus ample et canaux publicitaires, sans les confondre avec les boutiques. */
+.landing-premium .problem-section .problem-section-head{display:block;max-width:none;width:100%;margin-bottom:32px;}
+.landing-premium .problem-section .problem-section-head h2{font-size:clamp(36px,4.2vw,54px);max-width:100%;}.landing-premium .problem-section .problem-section-head>p{max-width:760px;margin:22px 0 0;}
+.landing-premium .campaign-channels{background:linear-gradient(115deg,#f0f4ff,#f0fbfc);border:1px solid #e1e8f7;border-radius:18px;margin:0 0 28px;padding:22px 24px;}
+.landing-premium .campaign-channels-label{color:#263c78;font-size:15px;font-weight:700;margin:0 0 14px;}
+.landing-premium .campaign-channel-list{display:grid;gap:12px;grid-template-columns:repeat(3,minmax(0,1fr));}
+.landing-premium .campaign-channel{align-items:center;background:#fff;border:1px solid #e1e8f4;border-radius:12px;display:grid;gap:3px;grid-template-columns:1fr auto;padding:14px 16px;}
+.landing-premium .campaign-channel strong{color:#172650;font-size:17px;}
+.landing-premium .campaign-channel span{color:#69738c;font-size:12px;grid-column:1;}
+.landing-premium .campaign-channel small{background:#f1f4fa;border-radius:99px;color:#596781;font-size:10px;font-weight:650;grid-column:2;grid-row:1 / span 2;padding:5px 8px;white-space:nowrap;}
+.landing-premium .campaign-channels-note{color:#69738c;font-size:12px;line-height:1.5;margin:13px 0 0;}
+@media(max-width:850px){.landing-premium .problem-section .problem-section-head{gap:14px;grid-template-columns:minmax(0,1fr);}.landing-premium .problem-section .problem-section-head h2{max-width:100%;}.landing-premium .campaign-channels{padding:19px;}}
+@media(max-width:560px){.landing-premium .problem-section .problem-section-head h2{font-size:clamp(33px,9vw,43px);}.landing-premium .campaign-channel-list{grid-template-columns:minmax(0,1fr);}.landing-premium .campaign-channel{padding:12px 14px;}}

@@ -957,9 +957,9 @@ const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; 
   { id: "pinterest", label: "Pinterest", description: "Diffuse tes campagnes sur Pinterest Ads.", badge: "pinterest", live: true },
 ];
 
-export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: "channels"; onBack?: () => void }) {
+export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: "channels" | "preferences"; onBack?: () => void }) {
   const { locale, setLocale, t } = useI18n();
-  const [mobileSettingsSection, setMobileSettingsSection] = useState<string | null>(focus === "channels" ? "channels" : null);
+  const [mobileSettingsSection, setMobileSettingsSection] = useState<string | null>(focus ?? null);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
@@ -972,7 +972,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
   const channelsRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    setMobileSettingsSection(focus === "channels" ? "channels" : null);
+    setMobileSettingsSection(focus ?? null);
   }, [focus]);
 
   useEffect(() => {

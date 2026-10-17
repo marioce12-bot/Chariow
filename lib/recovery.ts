@@ -98,7 +98,7 @@ export function recoveryMessage(
   paymentUrl: string,
 ) {
   const greet = name?.trim() ? `Bonjour ${name.trim()},` : "Bonjour,";
-  return `${greet} vous aviez commencé un achat${product ? ` de ${product}` : ""} sur ${store}. Si vous souhaitez le reprendre, voici le lien de paiement : ${paymentUrl}. Répondez STOP si vous ne souhaitez plus recevoir de message.`;
+  return `${greet}\n\nNous nous permettons un petit message au sujet de votre achat${product ? ` de « ${product.trim()} »` : ""} sur ${store}. Il semble que le paiement n’ait pas été finalisé.\n\nSi vous souhaitez toujours en profiter, vous pouvez reprendre votre achat ici : ${paymentUrl}\n\nSi vous avez déjà réglé votre achat ou si vous n’êtes plus intéressé(e), vous pouvez simplement ignorer ce message. Merci pour votre temps et belle journée !\n\nPour ne plus recevoir de relance, répondez STOP.`;
 }
 export function isConfirmedChariowSaleStatus(status: unknown) {
   return ["completed", "settled"].includes(String(status ?? "").toLowerCase());

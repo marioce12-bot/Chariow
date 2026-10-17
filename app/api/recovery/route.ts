@@ -10,27 +10,16 @@ import {
   type RecoveryCase,
   normalizePhone,
 } from "@/lib/recovery";
+import { getRecoveryPaymentUrl, loadRecoveryProducts, type RecoveryLinkProduct } from "@/lib/chariow/product-links";
 import { buildSaleContact } from "@/lib/chariow/sale-details";
 async function ownedStore(supabase: any, userId: string, storeId: string) {
   return supabase
     .from("stores")
-    .select("id,store_name")
+    .select("id,store_name,mcp_url,access_token_encrypted")
     .eq("id", storeId)
     .eq("user_id", userId)
     .maybeSingle();
 }
-const paymentUrl = (raw: any) => {
-  for (const k of [
-    "payment_url",
-    "checkout_url",
-    "payment_link",
-    "checkout_link",
-  ]) {
-    const v = raw?.[k];
-    if (validHttpsUrl(v)) return v;
-  }
-  return null;
-};
 const fail = (error: string, status = 400) =>
   NextResponse.json({ error }, { status });
 const safeString = (...values: any[]) => {
@@ -71,6 +60,12 @@ export async function GET(request: Request) {
       `Impossible de charger les abandons: ${abandonedError.message}`,
       500,
     );
+  let catalog: RecoveryLinkProduct[] = [];
+  let catalogNote = "";
+  if ((abandoned ?? []).some(s => !getRecoveryPaymentUrl(s.raw_payload))) {
+    try { catalog = await loadRecoveryProducts(store); }
+    catch { catalogNote = "Les liens du catalogue Chariow n’ont pas pu être actualisés. Réessaie dans un instant."; }
+  }
   const candidates = (abandoned ?? [])
     .filter(
       (s) =>
@@ -96,7 +91,7 @@ export async function GET(request: Request) {
           raw.data?.sale?.product_name,
           raw.data?.sale?.product?.name,
         ),
-        paymentUrl: paymentUrl(raw),
+        paymentUrl: getRecoveryPaymentUrl(raw, catalog),
         failureReason: contact.failureReason,
         hasContact: !!(
           contact.phone ||
@@ -113,7 +108,7 @@ export async function GET(request: Request) {
         ? "Liste des cas plafonnée à 200."
         : (abandoned ?? []).length >= 300
           ? "Liste des abandons plafonnée à 300; affinez la période."
-          : null,
+          : catalogNote || null,
     candidates: candidates
       .slice(0, 300)
       .filter((x) => !cases?.some((c) => c.source_sale_id === x.id)),
