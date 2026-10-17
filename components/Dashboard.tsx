@@ -31,6 +31,7 @@ import { useI18n } from "@/lib/i18n/i18n";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { NotificationsView } from "@/components/NotificationsView";
+import { useUsageTracking } from "@/components/useUsageTracking";
 import { readCache, writeCache, DASHBOARD_CACHE_KEY, SESSION_STORAGE_PROMPT_KEY, ADS_CACHE_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
 import { StoreOnboarding, StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
 import { OverviewHome } from "./dashboard/OverviewHome";
@@ -79,6 +80,8 @@ function readSavedStoreId(): string | null {
 export function Dashboard() {
   const { t } = useI18n();
   const [active, setActive] = useState(getInitialDashboardSection);
+  // Suivi anonyme du temps passé par section (alimente l'onglet « Usage de l'app » de la console admin).
+  useUsageTracking(active);
   const [moreOpen, setMoreOpen] = useState(false);
   // Se souvient de la section affichée juste avant d'ouvrir "Vendeo AI", pour que
   // le bouton retour de la section IA ramène exactement là d'où l'utilisateur vient

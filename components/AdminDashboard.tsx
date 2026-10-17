@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Bell, Building2, CreditCard, FileText, LogOut, RefreshCw, ShieldCheck, Users, Wallet, Receipt, Sparkles, Send, Gift, BadgeCheck } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
+import { Activity, AlertTriangle, BarChart3, Bell, Building2, Clock, CreditCard, FileText, LogOut, RefreshCw, ShieldCheck, Users, UserPlus, Wallet, Receipt, Sparkles, Send, Gift, BadgeCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
 
 type AdminData = {
@@ -19,13 +19,56 @@ type AdminData = {
   payouts?: Array<{ id: string; amount_xof: number; recipient_name: string; recipient_phone: string; recipient_method: string; status: string; created_at: string }>;
 };
 
-const sections = [["overview", "Vue générale", Activity], ["users", "Utilisateurs", Users], ["notifications", "Notifications", Bell], ["subscriptions", "Abonnements", CreditCard], ["purchases", "Achats & recharges", Receipt], ["payouts", "Décaissement", Send], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText]] as const;
+type UsageStats = {
+  signups_24h: number;
+  signups_7d: number;
+  signups_30d: number;
+  signups_total: number;
+  active_users_24h: number;
+  days: number;
+  sessions: number;
+  active_users: number;
+  avg_session_seconds: number;
+  sections: Array<{ section: string; seconds: number; visits: number; users: number }>;
+  signups_by_day: Array<{ day: string; count: number }>;
+};
+
+const sections = [["overview", "Vue générale", Activity], ["users", "Inscriptions", UserPlus], ["usage", "Usage de l’app", BarChart3], ["notifications", "Notifications", Bell], ["subscriptions", "Abonnements", CreditCard], ["purchases", "Achats & recharges", Receipt], ["payouts", "Décaissement", Send], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText]] as const;
+
+// Menu regroupé par thème pour que la console reste lisible.
+const groups = [
+  { label: "Pilotage", items: ["overview", "users", "usage"] },
+  { label: "Finance", items: ["subscriptions", "purchases", "payouts"] },
+  { label: "Plateforme", items: ["notifications", "integrations", "audit"] },
+] as const;
+
+const groupLabelStyle: React.CSSProperties = { fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em", opacity: 0.55, padding: "12px 12px 2px" };
+
+function formatDuration(totalSeconds = 0) {
+  const seconds = Math.round(totalSeconds);
+  if (seconds < 60) return `${seconds} s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ${String(seconds % 60).padStart(2, "0")} s`;
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
+}
 
 export function AdminDashboard() {
   const [active, setActive] = useState("overview");
   const [data, setData] = useState<AdminData | null>(null);
+  const [usage, setUsage] = useState<UsageStats | null>(null);
+  const [usageDays, setUsageDays] = useState(7);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+
+  async function loadUsage(days: number) {
+    try {
+      const response = await fetch(`/api/admin/usage?days=${days}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok && payload.usage) setUsage(payload.usage);
+    } catch {
+      // Les stats d'usage sont optionnelles : la console reste utilisable sans elles.
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -35,9 +78,11 @@ export function AdminDashboard() {
     if (!response.ok) setError(payload.error ?? "Accès administrateur refusé.");
     else setData(payload);
     setLoading(false);
+    if (response.ok) void loadUsage(usageDays);
   }
 
   useEffect(() => { void load(); }, []);
+  useEffect(() => { void loadUsage(usageDays); }, [usageDays]);
 
   async function signOut() {
     await fetch("/api/admin/password-logout", { method: "POST" });
@@ -45,17 +90,18 @@ export function AdminDashboard() {
     window.location.href = "/admin/login";
   }
 
-  if (loading) return <main className="admin-shell"><div className="admin-loading">Chargement de la console administrateur…</div></main>;
+  if (loading && !data) return <main className="admin-shell"><div className="admin-loading">Chargement de la console administrateur…</div></main>;
   if (error || !data) return <main className="admin-shell"><div className="admin-error"><ShieldCheck size={25} /><h1>Console indisponible</h1><p>{error || "Impossible de charger la console administrateur."}</p>{error?.includes("Authentification") ? <a className="admin-link" href="/admin/login">Se connecter</a> : null}</div></main>;
 
   return <main className="admin-shell">
     <header className="admin-header"><div><span className="admin-kicker">Vendeo interne</span><h1>Console administrateur</h1></div><div className="admin-header-actions"><span className="admin-role">{data.admin.role}</span><button type="button" onClick={signOut} className="admin-logout"><LogOut size={15} /> Déconnexion</button></div></header>
     <div className="admin-layout">
-      <aside className="admin-sidebar">{sections.map(([key, label, Icon]) => <button type="button" key={key} className={active === key ? "active" : ""} onClick={() => setActive(key)}><Icon size={17} /><span>{label}</span></button>)}</aside>
+      <aside className="admin-sidebar">{groups.map((group) => <Fragment key={group.label}><span style={groupLabelStyle}>{group.label}</span>{group.items.map((key) => { const entry = sections.find(([sectionKey]) => sectionKey === key); if (!entry) return null; const [, label, Icon] = entry; return <button type="button" key={key} className={active === key ? "active" : ""} onClick={() => setActive(key)}><Icon size={17} /><span>{label}</span></button>; })}</Fragment>)}</aside>
       <section className="admin-content">
-        <div className="admin-toolbar"><div><span className="admin-kicker">Pilotage plateforme</span><h2>{sections.find(([key]) => key === active)?.[1]}</h2></div><button type="button" className="admin-refresh" onClick={() => void load()}><RefreshCw size={15} /> Actualiser</button></div>
-        {active === "overview" && <Overview data={data} />}
-        {active === "users" && <UsersSection data={data} />}
+        <div className="admin-toolbar"><div><span className="admin-kicker">Pilotage plateforme</span><h2>{sections.find(([key]) => key === active)?.[1]}</h2></div><button type="button" className="admin-refresh" onClick={() => void load()}><RefreshCw size={15} /> {loading ? "Actualisation…" : "Actualiser"}</button></div>
+        {active === "overview" && <Overview data={data} usage={usage} />}
+        {active === "users" && <UsersSection data={data} usage={usage} />}
+        {active === "usage" && <UsageSection usage={usage} days={usageDays} onDaysChange={setUsageDays} />}
         {active === "notifications" && <NotificationsSection users={data.users} />}
         {active === "subscriptions" && <SubscriptionsSection data={data} />}
         {active === "purchases" && <PurchasesSection data={data} />}
@@ -67,18 +113,45 @@ export function AdminDashboard() {
   </main>;
 }
 
-function Overview({ data }: { data: AdminData }) {
+function Overview({ data, usage }: { data: AdminData; usage: UsageStats | null }) {
   const money = (value = 0) => `${Number(value).toLocaleString("fr-FR")} XOF`;
-  const cards = [["Chiffre d'affaires", money(data.business.total_revenue_xof), Wallet], ["Recharges Studio", money(data.business.credit_revenue_xof), Receipt], ["Abonnements encaissés", money(data.business.subscription_revenue_xof), CreditCard], ["Utilisateurs inscrits", data.metrics.users, Users], ["Générations Studio", data.business.studio_generations ?? 0, Sparkles]] as const;
-  return <><div className="admin-kpi-grid">{cards.map(([label, value, Icon]) => <div className="admin-kpi" key={label}><Icon size={18} /><small>{label}</small><strong>{value}</strong></div>)}</div><div className="admin-columns"><section className="admin-card"><div className="admin-card-head"><h3>Derniers utilisateurs</h3><Users size={17} /></div><AdminTable headers={["Nom", "Email", "Inscription"]}>{data.users.slice(0, 8).map((user) => <div className="admin-row" key={user.id}><strong>{user.full_name || "Sans nom"}</strong><span>{user.email || "—"}</span><span>{new Date(user.created_at).toLocaleDateString("fr-FR")}</span></div>)}</AdminTable></section><section className="admin-card"><div className="admin-card-head"><h3>Dernières actions réelles</h3><FileText size={17} /></div>{data.audit.length ? data.audit.slice(0, 8).map((item) => <div className="admin-event" key={item.id}><strong>{item.action}</strong><span>{item.resource_type} · {new Date(item.created_at).toLocaleString("fr-FR")}</span></div>) : <Empty text="Aucune activité enregistrée." />}</section></div></>;
+  const signups24h = usage?.signups_24h ?? data.users.filter((user) => Date.now() - new Date(user.created_at).getTime() <= 24 * 3600 * 1000).length;
+  const topSection = usage?.sections?.[0]?.section ?? "—";
+  const cards = [["Chiffre d'affaires", money(data.business.total_revenue_xof), Wallet], ["Recharges Studio", money(data.business.credit_revenue_xof), Receipt], ["Abonnements encaissés", money(data.business.subscription_revenue_xof), CreditCard], ["Utilisateurs inscrits", data.metrics.users, Users], ["Inscriptions (24 h)", signups24h, UserPlus], ["Temps moyen / session", usage?.sessions ? formatDuration(usage.avg_session_seconds) : "—", Clock], ["Section la plus utilisée", topSection, BarChart3], ["Générations Studio", data.business.studio_generations ?? 0, Sparkles]] as const;
+  return <><div className="admin-kpi-grid">{cards.map(([label, value, Icon]) => <div className="admin-kpi" key={label}><Icon size={18} /><small>{label}</small><strong>{value}</strong></div>)}</div><div className="admin-columns"><section className="admin-card"><div className="admin-card-head"><h3>Derniers inscrits</h3><Users size={17} /></div><AdminTable headers={["Nom", "Email", "Inscription"]}>{data.users.slice(0, 8).map((user) => <div className="admin-row" key={user.id}><strong>{user.full_name || "Sans nom"}</strong><span>{user.email || "—"}</span><span>{new Date(user.created_at).toLocaleString("fr-FR")}</span></div>)}</AdminTable></section><section className="admin-card"><div className="admin-card-head"><h3>Dernières actions réelles</h3><FileText size={17} /></div>{data.audit.length ? data.audit.slice(0, 8).map((item) => <div className="admin-event" key={item.id}><strong>{item.action}</strong><span>{item.resource_type} · {new Date(item.created_at).toLocaleString("fr-FR")}</span></div>) : <Empty text="Aucune activité enregistrée." />}</section></div></>;
 }
 
-function UsersSection({ data }: { data: AdminData }) {
+function UsageSection({ usage, days, onDaysChange }: { usage: UsageStats | null; days: number; onDaysChange: (days: number) => void }) {
+  const rows = usage?.sections ?? [];
+  const maxSeconds = Math.max(1, ...rows.map((row) => row.seconds));
+  const totalSeconds = rows.reduce((sum, row) => sum + row.seconds, 0) || 1;
+  const periods = [[1, "24 h"], [7, "7 jours"], [30, "30 jours"]] as const;
+  const cards = [["Temps moyen / session", usage?.sessions ? formatDuration(usage.avg_session_seconds) : "—", Clock], ["Sessions", usage?.sessions ?? 0, Activity], ["Utilisateurs actifs", usage?.active_users ?? 0, Users], ["Actifs (24 h)", usage?.active_users_24h ?? 0, UserPlus]] as const;
+  return <>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>{periods.map(([value, label]) => <button type="button" key={value} className={`admin-btn ${days === value ? "admin-btn-primary" : "admin-btn-soft"}`} onClick={() => onDaysChange(value)}>{label}</button>)}</div>
+    <div className="admin-kpi-grid">{cards.map(([label, value, Icon]) => <div className="admin-kpi" key={label}><Icon size={18} /><small>{label}</small><strong>{value}</strong></div>)}</div>
+    <section className="admin-card">
+      <div className="admin-card-head"><div><h3>Sections les plus utilisées</h3><p className="admin-help">Temps passé par section sur la période (onglet visible uniquement).</p></div><BarChart3 size={17} /></div>
+      {rows.length ? <AdminTable headers={["Section", "Temps passé", "Part", "Visites", "Utilisateurs"]}>{rows.map((row) => <div className="admin-row" key={row.section}><strong>{row.section}</strong><span><span style={{ display: "block", height: 6, borderRadius: 4, background: "rgba(99,102,241,.18)", marginBottom: 4 }}><span style={{ display: "block", height: 6, borderRadius: 4, background: "#6366f1", width: `${Math.max(2, (row.seconds / maxSeconds) * 100)}%` }} /></span>{formatDuration(row.seconds)}</span><span>{Math.round((row.seconds / totalSeconds) * 100)} %</span><span>{Number(row.visits).toLocaleString("fr-FR")}</span><span>{Number(row.users).toLocaleString("fr-FR")}</span></div>)}</AdminTable> : <Empty text="Pas encore de données d'usage : le suivi démarre dès que les utilisateurs ouvrent l'app après le déploiement." />}
+    </section>
+  </>;
+}
+
+function UsersSection({ data, usage }: { data: AdminData; usage: UsageStats | null }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [grantUser, setGrantUser] = useState<string | null>(null);
   const [grantCredits, setGrantCredits] = useState("500");
   const [grantReason, setGrantReason] = useState("");
   const [message, setMessage] = useState("");
+  const [range, setRange] = useState<"all" | "24h" | "7d" | "30d">("all");
+  const [query, setQuery] = useState("");
+  const rangeMs = { "24h": 24 * 3600 * 1000, "7d": 7 * 24 * 3600 * 1000, "30d": 30 * 24 * 3600 * 1000 } as const;
+  const ageMs = (user: { created_at: string }) => Date.now() - new Date(user.created_at).getTime();
+  const localCount = (ms: number) => data.users.filter((user) => ageMs(user) <= ms).length;
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredUsers = data.users.filter((user) => (range === "all" || ageMs(user) <= rangeMs[range]) && (!normalizedQuery || (user.email ?? "").toLowerCase().includes(normalizedQuery) || (user.full_name ?? "").toLowerCase().includes(normalizedQuery)));
+  const counters = [["Total inscrits", usage?.signups_total ?? data.metrics.users], ["Dernières 24 h", usage?.signups_24h ?? localCount(rangeMs["24h"])], ["7 derniers jours", usage?.signups_7d ?? localCount(rangeMs["7d"])], ["30 derniers jours", usage?.signups_30d ?? localCount(rangeMs["30d"])]] as const;
+  const filters = [["all", "Tous"], ["24h", "24 h"], ["7d", "7 jours"], ["30d", "30 jours"]] as const;
   async function activate(userId: string) {
     setBusy(userId); setMessage("");
     const response = await fetch("/api/admin/subscriptions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: userId, plan: "starter" }) });
@@ -97,7 +170,17 @@ function UsersSection({ data }: { data: AdminData }) {
     if (response.ok) { setGrantUser(null); setGrantReason(""); }
     setBusy(null);
   }
-  return <section className="admin-card"><div className="admin-card-head"><h3>Utilisateurs inscrits</h3><Users size={17} /></div>{message ? <p className="admin-action-message">{message}</p> : null}<AdminTable headers={["Nom", "Email", "Inscription", "Abonnement", "Actions"]}>{data.users.map((user) => <div className="admin-row admin-user-row" key={user.id}><strong>{user.full_name || "Sans nom"}</strong><span>{user.email || "—"}</span><span>{new Date(user.created_at).toLocaleDateString("fr-FR")}</span><span><i className={`admin-pill ${user.subscription?.status === "active" ? "on" : "off"}`}>{user.subscription?.status === "active" ? "Actif" : "Inactif"}</i></span><span className="admin-plan-actions"><button type="button" className="admin-btn admin-btn-primary" disabled={busy === user.id} onClick={() => void activate(user.id)}><BadgeCheck size={15} />Activer l’abonnement</button><button type="button" className="admin-btn admin-btn-soft" disabled={busy === user.id} onClick={() => setGrantUser(grantUser === user.id ? null : user.id)}><Gift size={15} />Donner des crédits</button>{grantUser === user.id ? <span className="admin-grant-form"><input type="number" min="1" max="100000" value={grantCredits} onChange={(event) => setGrantCredits(event.target.value)} aria-label="Quantité de crédits" /><input maxLength={200} placeholder="Motif (optionnel)" value={grantReason} onChange={(event) => setGrantReason(event.target.value)} aria-label="Motif du cadeau" /><button type="button" className="admin-btn admin-btn-primary" disabled={busy === user.id} onClick={() => void grant(user)}>Confirmer</button></span> : null}</span></div>)}</AdminTable></section>;
+  return <>
+    <div className="admin-kpi-grid">{counters.map(([label, value]) => <div className="admin-kpi" key={label}><UserPlus size={18} /><small>{label}</small><strong>{Number(value).toLocaleString("fr-FR")}</strong></div>)}</div>
+    <section className="admin-card"><div className="admin-card-head"><h3>Utilisateurs inscrits ({filteredUsers.length})</h3><Users size={17} /></div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+        {filters.map(([value, label]) => <button type="button" key={value} className={`admin-btn ${range === value ? "admin-btn-primary" : "admin-btn-soft"}`} onClick={() => setRange(value)}>{label}</button>)}
+        <input style={{ flex: "1 1 180px", minWidth: 140 }} placeholder="Rechercher un nom ou un email…" value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Rechercher un utilisateur" />
+      </div>
+      {message ? <p className="admin-action-message">{message}</p> : null}
+      {filteredUsers.length ? <AdminTable headers={["Nom", "Email", "Inscription", "Abonnement", "Actions"]}>{filteredUsers.map((user) => <div className="admin-row admin-user-row" key={user.id}><strong>{user.full_name || "Sans nom"} {ageMs(user) <= rangeMs["24h"] ? <i className="admin-pill on">Nouveau</i> : null}</strong><span>{user.email || "—"}</span><span>{new Date(user.created_at).toLocaleString("fr-FR")}</span><span><i className={`admin-pill ${user.subscription?.status === "active" ? "on" : "off"}`}>{user.subscription?.status === "active" ? "Actif" : "Inactif"}</i></span><span className="admin-plan-actions"><button type="button" className="admin-btn admin-btn-primary" disabled={busy === user.id} onClick={() => void activate(user.id)}><BadgeCheck size={15} />Activer l’abonnement</button><button type="button" className="admin-btn admin-btn-soft" disabled={busy === user.id} onClick={() => setGrantUser(grantUser === user.id ? null : user.id)}><Gift size={15} />Donner des crédits</button>{grantUser === user.id ? <span className="admin-grant-form"><input type="number" min="1" max="100000" value={grantCredits} onChange={(event) => setGrantCredits(event.target.value)} aria-label="Quantité de crédits" /><input maxLength={200} placeholder="Motif (optionnel)" value={grantReason} onChange={(event) => setGrantReason(event.target.value)} aria-label="Motif du cadeau" /><button type="button" className="admin-btn admin-btn-primary" disabled={busy === user.id} onClick={() => void grant(user)}>Confirmer</button></span> : null}</span></div>)}</AdminTable> : <Empty text="Aucun inscrit pour ce filtre." />}
+    </section>
+  </>;
 }
 function SubscriptionsSection({ data }: { data: AdminData }) { const names = new Map(data.users.map((user) => [user.id, `${user.full_name || "Sans nom"} · ${user.email || "—"}`])); return <section className="admin-card"><div className="admin-card-head"><h3>Suivi des abonnements</h3><CreditCard size={17} /></div><AdminTable headers={["Utilisateur", "Plan", "Statut", "Fin de période"]}>{data.subscriptions.map((item) => <div className="admin-row" key={item.id}><strong>{names.get(item.user_id) || item.user_id}</strong><span>{item.plan}</span><span className={`admin-status ${item.status}`}>{item.status}</span><span>{item.current_period_end ? new Date(item.current_period_end).toLocaleDateString("fr-FR") : "—"}</span></div>)}</AdminTable></section>; }
 function PurchasesSection({ data }: { data: AdminData }) { const names = new Map(data.users.map((user) => [user.id, user.full_name || user.email || user.id])); return <><section className="admin-card"><div className="admin-card-head"><h3>Recharges Studio</h3><Wallet size={17} /></div><AdminTable headers={["Utilisateur", "Crédits", "Montant", "Date"]}>{data.creditPurchases.map((item) => <div className="admin-row" key={item.id}><strong>{names.get(item.user_id)}</strong><span>{item.credits.toLocaleString("fr-FR")} crédits</span><span>{item.operation === "admin_grant" || item.metadata?.provider === "admin_grant" ? "Offert (admin)" : `${Number(item.metadata?.amount_xof ?? 0).toLocaleString("fr-FR")} XOF`}</span><span>{new Date(item.created_at).toLocaleString("fr-FR")}</span></div>)}</AdminTable></section><section className="admin-card"><div className="admin-card-head"><h3>Générations débitées</h3><Sparkles size={17} /></div><AdminTable headers={["Utilisateur", "Opération", "Modèle", "Crédits", "Date"]}>{data.creditTransactions.map((item) => <div className="admin-row" key={item.id}><strong>{names.get(item.user_id)}</strong><span>{item.operation || "Studio"}</span><span>{item.model || "—"}</span><span>-{item.credits}</span><span>{new Date(item.created_at).toLocaleString("fr-FR")}</span></div>)}</AdminTable></section></>; }
