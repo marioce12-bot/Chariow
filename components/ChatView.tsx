@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { normalizeCurrency, type SupportedCurrency } from "@/lib/currency";
+import { META_CTA_TYPES, META_CTA_LABELS, normalizeMetaCta, type MetaCtaType } from "@/lib/meta/cta";
 import { useI18n } from "@/lib/i18n/i18n";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import { SERVER_UPLOAD_LIMIT, prepareChatImage } from "@/lib/media/chat-attachment";
@@ -77,6 +78,7 @@ type LaunchPayload = {
   linkUrl?: string | null;
   durationDays?: number | null;
   platform?: "meta" | "pinterest" | "tiktok" | null;
+  callToAction?: string | null;
 };
 
 // Le lien de redirection est propre à chaque utilisateur (sa page de vente) : il n'y a
@@ -259,6 +261,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const [launchImageUrls, setLaunchImageUrls] = useState<string[]>([]);
   const [launchMediaKind, setLaunchMediaKind] = useState<"image" | "video">("image");
   const [launchLink, setLaunchLink] = useState("");
+  const [launchCta, setLaunchCta] = useState<MetaCtaType | "">("");
   const [launchBudget, setLaunchBudget] = useState("");
   const [launchCurrency, setLaunchCurrency] = useState<SupportedCurrency>("XOF");
   const [launching, setLaunching] = useState(false);
@@ -542,6 +545,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   // demander « confirmer et lancer » avant d'envoyer directement sur Meta.
   function openLaunchConfirm(payload: LaunchPayload | null, fallbackMedia?: LaunchMedia) {
     setLaunchPayload(payload);
+    setLaunchCta(normalizeMetaCta(payload?.callToAction) ?? "");
     setLaunchImageUrls(fallbackMedia?.urls ?? []);
     setLaunchMediaKind(fallbackMedia?.kind ?? "image");
     // Lien de redirection : celui donné par l'utilisateur dans la conversation, sinon
@@ -578,6 +582,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     // Carrousel : réservé à Meta et aux images. La première image est l'image principale, les autres sont les cartes suivantes.
     // Une vidéo est toujours envoyée seule.
     const isPinterest = payload.platform === "pinterest";
+    if (!isPinterest && !launchCta) {
+      setLaunchError("Choisis le bouton d'appel à l'action de ta publicité avant de lancer la campagne.");
+      return;
+    }
     const isVideo = launchMediaKind === "video";
     const carouselUrls = isPinterest || isVideo ? [] : launchImageUrls.slice(1);
     setLaunching(true);
@@ -604,6 +612,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           mediaType: launchMediaKind,
           carouselUrls: carouselUrls.length ? carouselUrls : undefined,
           platform: payload.platform ?? "meta",
+          callToAction: launchCta || undefined,
           durationDays: payload.durationDays ?? 1,
           ...(payload.platform === "pinterest" ? { pinterestAdAccountId: launchAccountId ?? undefined } : { metaAdAccountId: launchAccountId ?? undefined }),
         }),
@@ -988,6 +997,17 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                 required
               />
             </label>
+            {!launchIsPinterest ? (
+              <label className="chat-launch-account">
+                <span>Bouton d'appel à l'action *</span>
+                <select value={launchCta} onChange={(event) => setLaunchCta(normalizeMetaCta(event.target.value) ?? "")} disabled={launching} required>
+                  <option value="">Choisir un bouton</option>
+                  {META_CTA_TYPES.map((type) => (
+                    <option key={type} value={type}>{META_CTA_LABELS[type].fr}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {launchAccounts.length > 0 ? (
               <label className="chat-launch-account">
                 <span>{t("chat.launchAccount")}</span>
@@ -1006,7 +1026,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             {launchError ? <p className="store-error" role="alert">{launchError}</p> : null}
             <div className="chat-launch-actions">
               <button type="button" className="btn btn-ghost" disabled={launching} onClick={() => setLaunchOpen(false)}>{t("chat.cancel")}</button>
-              <button type="button" className="btn btn-dark" disabled={launching || !normalizeLinkUrl(launchLink)} onClick={() => void confirmLaunch()}>{launching ? t("chat.sending") : t("chat.confirmLaunch")}</button>
+              <button type="button" className="btn btn-dark" disabled={launching || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && !launchCta)} onClick={() => void confirmLaunch()}>{launching ? t("chat.sending") : t("chat.confirmLaunch")}</button>
             </div>
           </div>
         </div>
