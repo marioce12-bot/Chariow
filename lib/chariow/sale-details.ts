@@ -188,7 +188,13 @@ function phoneText(value: unknown): string | null {
 }
 
 function countryText(value: unknown): string | null {
-  return text(value) ?? text(asRec(value)?.code);
+  const object = asRec(value);
+  if (!object) return text(value);
+  // Chariow may serialize country as an object (often {code, name}); favor
+  // the readable name, but keep an explicit ISO/code as useful fallback.
+  return text(object.name) ?? text(object.label) ?? text(object.formatted)
+    ?? text(object.code) ?? text(object.iso_code) ?? text(object.isoCode)
+    ?? text(object.country_code) ?? text(object.countryCode) ?? text(object.value);
 }
 
 function firstOf(sources: Rec[], keys: string[], read: (value: unknown) => string | null = text): string | null {
@@ -212,7 +218,9 @@ export function buildSaleContact(rawSale: unknown): SaleContact {
   const people = [raw.customer, raw.buyer, raw.client, raw.billing, raw.billing_details, raw.contact, raw.user]
     .map(asRec)
     .filter((item): item is Rec => item !== null);
-  const all = [...people, raw];
+  const addresses = people.flatMap((person) => [person.address, person.billing_address, person.shipping_address])
+    .map(asRec).filter((item): item is Rec => item !== null);
+  const all = [...people, ...addresses, raw];
 
   const name =
     firstOf(people, ["name", "full_name", "fullName", "display_name"])
@@ -220,7 +228,13 @@ export function buildSaleContact(rawSale: unknown): SaleContact {
     ?? firstOf([raw], ["customer_name", "client_name", "buyer_name"]);
   const email = firstOf(all, ["email", "customer_email", "client_email"]);
   const phone = firstOf(all, ["phone", "phone_number", "phoneNumber", "mobile", "customer_phone"], phoneText);
-  const country = firstOf(all, ["country", "country_name", "customer_country"], countryText);
+  // Chariow's checkout country lives in context.country, separate from the
+  // customer's phone.country (dialling metadata, not necessarily their location).
+  const checkoutContext = asRec(raw.context);
+  const rootAddresses = [raw.address, raw.billing_address, raw.shipping_address, raw.shipping]
+    .map(asRec).filter((item): item is Rec => item !== null);
+  const countrySources = [...all, ...rootAddresses, ...(checkoutContext ? [checkoutContext] : [])];
+  const country = firstOf(countrySources, ["country", "country_name", "countryName", "customer_country", "country_code", "countryCode", "country_iso", "country_iso_code"], countryText);
 
   const payment = asRec(raw.payment);
   const failure = asRec(raw.failure_error) ?? asRec(payment?.failure_error) ?? asRec(raw.error) ?? asRec(payment?.error);

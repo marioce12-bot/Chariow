@@ -2,247 +2,86 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Check, Layers, Rocket, Wand2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowRight, Check, Layers, Rocket, Wand2, Menu, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
-import "@/app/proof-images.css";
 import "@/app/marketing-fixes.css";
+import "@/app/landing-premium.css";
 
-type ProofImage = { src: string; alt: string; height: number };
-
-function AnimatedCounter({ end, duration = 1600, className, prefix = "", suffix = "" }: { end: number; duration?: number; className?: string; prefix?: string; suffix?: string }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const started = useRef(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !started.current) {
-            started.current = true;
-            const startTime = performance.now();
-            const step = (now: number) => {
-              const progress = Math.min((now - startTime) / duration, 1);
-              const eased = 1 - Math.pow(1 - progress, 3);
-              setCount(Math.floor(eased * end));
-              if (progress < 1) requestAnimationFrame(step);
-              else setCount(end);
-            };
-            requestAnimationFrame(step);
-          }
-        });
-      },
-      { threshold: 0.4 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [end, duration]);
-
-  return <span ref={ref} className={className}>{prefix}{count}{suffix}</span>;
-}
-
-// Bandeau d'avatars sous "150+ créateurs actifs" — pas de vraies photos de
-// profil disponibles ici, donc des initiales sur fond dégradé (façon avatar
-// par défaut), dupliquées deux fois pour boucler sans coupure visible.
-const CREATOR_AVATARS: Array<[string, string, string]> = [
-  ["AK", "#8f2afb", "#103ef8"],
-  ["MD", "#103ef8", "#029bfc"],
-  ["FT", "#029bfc", "#22d3ee"],
-  ["KY", "#f97316", "#f43f5e"],
-  ["AM", "#22c55e", "#0ea5e9"],
-  ["IB", "#8f2afb", "#ec4899"],
-  ["ND", "#103ef8", "#6366f1"],
-  ["SK", "#f59e0b", "#f97316"],
-  ["KH", "#ec4899", "#8f2afb"],
-  ["MS", "#0ea5e9", "#103ef8"],
-  ["AD", "#22c55e", "#84cc16"],
-  ["YA", "#f43f5e", "#f97316"],
+const demos = [
+  { label: "Vue d’ensemble", src: "/landing/dashboard-demo.webp", alt: "Aperçu du tableau de bord Vendeo" },
+  { label: "Analyse des ventes", src: "/landing/profit-demo.webp", alt: "Aperçu de l’analyse des ventes" },
+  { label: "Récupération", src: "/landing/recovery-demo.webp", alt: "Aperçu des outils de récupération" },
 ];
 
-function CreatorsMarquee() {
-  return (
-    <div className="creators-marquee" aria-hidden="true">
-      <div className="creators-track">
-        {[0, 1].map((copy) => (
-          <div className="creators-group" key={copy}>
-            {CREATOR_AVATARS.map(([initials, from, to], index) => (
-              <span
-                className="creators-avatar"
-                key={`${copy}-${index}`}
-                style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
-              >
-                {initials}
-              </span>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function useInView<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  const [inView, setInView] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setInView(true); return; }
-    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setInView(true); observer.disconnect(); } }, { threshold: 0.35 });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  return { ref, inView };
-}
-
-// Variable CSS --i qui fixe le rang d'un élément dans une cascade de
-// révélation ; voir la classe "reveal-item" dans marketing-fixes.css.
-function revealStyle(i: number) {
-  return { "--i": i } as React.CSSProperties;
-}
-
-// Vidéo de démo du bloc "hero-preview". Pas d'attribut poster : l'ancienne
-// capture statique ne doit plus apparaître avant la vidéo, qui démarre seule
-// (autoPlay + muted + playsInline, avec un play() de secours au montage).
-const heroVideo = "/vendeo-hero-video.mp4";
-
-export function Marketing({ proofImages = [] }: { proofImages?: ProofImage[] }) {
+export function Marketing() {
   const { t } = useI18n();
   const [open, setOpen] = useState<number | null>(null);
-  const heroVideoRef = useRef<HTMLVideoElement>(null);
-  const heroReveal = useInView<HTMLDivElement>();
-  const problemReveal = useInView<HTMLDivElement>();
-  const howReveal = useInView<HTMLDivElement>();
-  const howLine = useInView<HTMLDivElement>();
-  const featuresReveal = useInView<HTMLDivElement>();
-  const proofReveal = useInView<HTMLDivElement>();
-  const pricingReveal = useInView<HTMLDivElement>();
-  const faqReveal = useInView<HTMLDivElement>();
-  const ctaReveal = useInView<HTMLDivElement>();
-
-  // Certains navigateurs (iOS Safari, économiseur de données) ignorent
-  // autoPlay : on relance la lecture explicitement une fois monté.
+  const [activeDemo, setActiveDemo] = useState(0);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  function demoKey(event: React.KeyboardEvent<HTMLDivElement>) {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? 0 : event.key === "End" ? demos.length - 1
+      : (activeDemo + (event.key === "ArrowRight" ? 1 : -1) + demos.length) % demos.length;
+    setActiveDemo(next);
+    event.currentTarget.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
+  }
   useEffect(() => {
-    const video = heroVideoRef.current;
-    if (!video) return;
-    video.muted = true;
-    const playing = video.play();
-    if (playing) playing.catch(() => {});
+    const root = document.querySelector(".landing-premium");
+    if (!root || window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
+    root.classList.add("reveal-enabled");
+    const items = root.querySelectorAll<HTMLElement>(".landing-reveal");
+    const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
+      if (entry.isIntersecting) { entry.target.classList.add("revealed"); observer.unobserve(entry.target); }
+    }), { threshold: 0.12 });
+    items.forEach((item) => observer.observe(item));
+    return () => { observer.disconnect(); root.classList.remove("reveal-enabled"); };
   }, []);
-
   const faqs: Array<[string, string]> = [
-    [t("landing.faq.q1"), t("landing.faq.a1")],
-    [t("landing.faq.q2"), t("landing.faq.a2")],
-    [t("landing.faq.q3"), t("landing.faq.a3")],
-    [t("landing.faq.q4"), t("landing.faq.a4")],
-    [t("landing.faq.q5"), t("landing.faq.a5")],
-    [t("landing.faq.q6"), t("landing.faq.a6")],
+    [t("landing.faq.q1"), t("landing.faq.a1")], [t("landing.faq.q2"), t("landing.faq.a2")],
+    [t("landing.faq.q3"), t("landing.faq.a3")], [t("landing.faq.q4"), t("landing.faq.a4")],
+    [t("landing.faq.q5"), t("landing.faq.a5")], [t("landing.faq.q6"), t("landing.faq.a6")],
   ];
+  return <main className="landing-premium">
+    <header className="marketing-header"><div className="container"><nav className="marketing-nav" aria-label="Navigation principale">
+      <Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40}/></Link>
+      <div id="landing-navigation" className={`nav-links${mobileOpen ? " mobile-open" : ""}`}><a href="#comment" onClick={() => setMobileOpen(false)}>{t("landing.nav.how")}</a><a href="#fonctionnalites" onClick={() => setMobileOpen(false)}>{t("landing.nav.features")}</a><a href="#tarifs" onClick={() => setMobileOpen(false)}>{t("landing.nav.pricing")}</a><a href="#faq" onClick={() => setMobileOpen(false)}>{t("landing.nav.faq")}</a></div>
+      <div className="marketing-actions"><Link className="btn btn-ghost" href="/login">{t("landing.nav.login")}</Link><Link className="btn btn-white" href="/register">{t("landing.nav.start")} <ArrowRight size={15}/></Link></div>
+      <button className="landing-menu" type="button" aria-label={mobileOpen ? "Fermer le menu" : "Ouvrir le menu"} aria-expanded={mobileOpen} aria-controls="landing-navigation" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X/> : <Menu/>}</button>
+    </nav></div></header>
 
-  return <main>
-      <header className="marketing-header"><div className="container"><nav className="marketing-nav"><Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo-light.webp" alt="Vendeo" width={150} height={40}/></Link><div className="nav-links"><a href="#comment">{t("landing.nav.how")}</a><a href="#fonctionnalites">{t("landing.nav.features")}</a><a href="#tarifs">{t("landing.nav.pricing")}</a><a href="#faq">{t("landing.nav.faq")}</a></div><div className="marketing-actions"><Link className="btn btn-ghost" href="/login">{t("landing.nav.login")}</Link><Link className="btn btn-white" href="/register">{t("landing.nav.start")} <ArrowRight size={15}/></Link></div></nav></div></header>
-
-      <section className="hero">
-        <div className={`container hero-grid hero-vendeo-grid reveal-group${heroReveal.inView ? " is-visible" : ""}`} ref={heroReveal.ref}>
-          <div className="hero-title hero-copy reveal-item" style={revealStyle(0)}>
-            <h1 className="hero-title-gradient">{t("landing.hero.title1")}<br/>{t("landing.hero.title2")}<br/>{t("landing.hero.title3")}</h1>
-            <p className="hero-tagline">{t("landing.hero.tagline")}</p>
-          </div>
-
-          <div className="hero-paragraph hero-copy reveal-item" style={revealStyle(1)}>
-             <p>{t("landing.hero.paragraph")}</p>
-          </div>
-
-          <div className="hero-actions-block reveal-item" style={revealStyle(2)}>
-            <div className="hero-actions">
-              <Link href="/register" className="btn btn-lime">{t("landing.hero.cta")} <ArrowRight size={16}/></Link>
-            </div>
-            <div className="hero-stat-row">
-              <div className="hero-stat"><strong>1</strong><span>{t("landing.hero.stat")}</span></div>
-            </div>
-            <CreatorsMarquee />
-          </div>
-
-          <div className="hero-preview reveal-item" style={revealStyle(3)}>
-            <div className="dashboard-preview"><video ref={heroVideoRef} className="platform-preview-image" src={heroVideo} width={900} height={620} autoPlay muted loop playsInline preload="auto" aria-label="Aperçu de l’espace Vendeo"/></div>
-          </div>
-          <div className="hero-logos reveal-item" style={revealStyle(4)}>
-            <div className="logos hero-logos-inner">
-              <span className="platform-logo"><Image src="/logos/chariow.svg" alt="Chariow" width={132} height={32}/></span>
-              <span className="platform-logo"><Image src="/logos/selar.png" alt="Selar" width={102} height={32}/><small>({t("landing.hero.soon")})</small></span>
-              <span className="platform-logo"><Image src="/logos/gumroad.svg" alt="Gumroad" width={125} height={32}/><small>({t("landing.hero.soon")})</small></span>
-            </div>
-          </div>
+    <section className="hero landing-hero">
+      <div className="landing-orb landing-orb-one" aria-hidden="true"/><div className="landing-orb landing-orb-two" aria-hidden="true"/>
+      <div className="container landing-hero-inner">
+        <div className="landing-hero-copy"><span className="landing-kicker"><i/> {t("landing.hero.stat")}</span>
+          <h1 className="hero-title-gradient">{t("landing.hero.title1")} {t("landing.hero.title2")}<br/>{t("landing.hero.title3")}</h1>
+          <p className="hero-tagline">{t("landing.hero.tagline")}</p><p className="landing-intro">{t("landing.hero.paragraph")}</p>
+          <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{t("landing.hero.cta")} <ArrowRight size={17}/></Link><a className="landing-text-link" href="#apercu">Voir l’interface <span>↓</span></a></div>
         </div>
-      </section>
-
-      <section className="section problem-section">
-        <div className={`container reveal-group${problemReveal.inView ? " is-visible" : ""}`} ref={problemReveal.ref}>
-          <div className="section-head reveal-item" style={revealStyle(0)}><div><h2>{t("landing.problem.title1")}<br/>{t("landing.problem.title2")}</h2></div><p>{t("landing.problem.paragraph")}</p></div>
-          <div className="problem-grid">
-            <article className="problem-item reveal-item" style={revealStyle(1)}>
-              <strong>{t("landing.problem.p1Title")}</strong>
-              <p>{t("landing.problem.p1")}</p>
-            </article>
-            <article className="problem-item reveal-item" style={revealStyle(2)}>
-              <strong>{t("landing.problem.p2Title")}</strong>
-              <p>{t("landing.problem.p2")}</p>
-            </article>
-            <article className="problem-item reveal-item" style={revealStyle(3)}>
-              <strong>{t("landing.problem.p3Title")}</strong>
-              <p>{t("landing.problem.p3")}</p>
-            </article>
-          </div>
+          <div className="landing-showcase" id="apercu">
+          <div className="showcase-topline"><span className="showcase-dots"><i/><i/><i/></span><span>Vendeo <b>•</b> Espace de travail</span><span className="showcase-live"><i/> Interface</span></div>
+          <div className="showcase-tabs" role="tablist" onKeyDown={demoKey} aria-label="Aperçus du produit">{demos.map((demo, i) => <button role="tab" tabIndex={activeDemo === i ? 0 : -1} type="button" id={`demo-tab-${i}`} aria-selected={activeDemo === i} aria-controls="demo-panel" key={demo.src} onClick={() => setActiveDemo(i)}>{demo.label}</button>)}</div>
+          <div className="showcase-screen" id="demo-panel" role="tabpanel" aria-labelledby={`demo-tab-${activeDemo}`}><Image key={demos[activeDemo].src} src={demos[activeDemo].src} alt={demos[activeDemo].alt} width={1265} height={649} sizes="(max-width: 850px) 95vw, 650px" priority className="showcase-image"/><div className="showcase-caption">Aperçu du produit · données de démonstration</div></div>
+          <div className="showcase-foot"><span>Une vue claire de votre activité</span><span>Chariow <b>↗</b></span></div>
         </div>
-      </section>
+        <div className="landing-platforms"><span>Connectez votre espace</span><div className="logos"><span className="platform-logo"><Image src="/logos/chariow.svg" alt="Chariow" width={112} height={28}/></span><span className="platform-logo"><Image src="/logos/selar.png" alt="Selar" width={88} height={28}/><small>({t("landing.hero.soon")})</small></span><span className="platform-logo"><Image src="/logos/gumroad.svg" alt="Gumroad" width={105} height={28}/><small>({t("landing.hero.soon")})</small></span></div></div>
+      </div>
+    </section>
 
-      <section className="section" id="comment">
-        <div className={`container reveal-group${howReveal.inView ? " is-visible" : ""}`} ref={howReveal.ref}>
-          <div className="section-head reveal-item" style={revealStyle(0)}><div><span className="eyebrow">{t("landing.how.eyebrow")}</span><h2>{t("landing.how.title1")}<br/>{t("landing.how.title2")}</h2></div><p>{t("landing.how.paragraph")}</p></div>
-          <div className="how-grid" ref={howLine.ref}>
-            <div className="how-line"><div className={`how-line-fill ${howLine.inView ? "filled" : ""}`}/></div>
-            <article className="step-card reveal-item" style={revealStyle(1)}><span className="step-num mono">{t("landing.how.s1num")}</span><h3>{t("landing.how.s1title")}</h3><p>{t("landing.how.s1")}</p></article>
-            <article className="step-card reveal-item" style={revealStyle(2)}><span className="step-num mono">{t("landing.how.s2num")}</span><h3>{t("landing.how.s2title")}</h3><p>{t("landing.how.s2")}</p></article>
-            <article className="step-card reveal-item" style={revealStyle(3)}><span className="step-num mono">{t("landing.how.s3num")}</span><h3>{t("landing.how.s3title")}</h3><p>{t("landing.how.s3")}</p></article>
-            <article className="step-card reveal-item" style={revealStyle(4)}><span className="step-num mono">{t("landing.how.s4num")}</span><h3>{t("landing.how.s4title")}</h3><p>{t("landing.how.s4")}</p></article>
-          </div>
-        </div>
-      </section>
+    <section className="section problem-section"><div className="container landing-reveal"><div className="section-head"><div><h2>{t("landing.problem.title1")}<br/>{t("landing.problem.title2")}</h2></div><p>{t("landing.problem.paragraph")}</p></div><div className="problem-grid"><article className="problem-item"><strong>{t("landing.problem.p1Title")}</strong><p>{t("landing.problem.p1")}</p></article><article className="problem-item"><strong>{t("landing.problem.p2Title")}</strong><p>{t("landing.problem.p2")}</p></article><article className="problem-item"><strong>{t("landing.problem.p3Title")}</strong><p>{t("landing.problem.p3")}</p></article></div></div></section>
 
-      <section className="section features-section" id="fonctionnalites">
-        <div className={`container reveal-group${featuresReveal.inView ? " is-visible" : ""}`} ref={featuresReveal.ref}>
-          <div className="section-head reveal-item" style={revealStyle(0)}><div><span className="eyebrow">{t("landing.features.eyebrow")}</span><h2>{t("landing.features.title1")}<br/>{t("landing.features.title2")}</h2></div><p>{t("landing.features.paragraph")}</p></div>
-          <div className="feature-grid triple">
-            <article className="feature-card dark reveal-item" style={revealStyle(1)}>
-              <Layers size={22}/>
-              <h3>{t("landing.features.f1title")}</h3>
-              <p>{t("landing.features.f1")}</p>
-            </article>
-            <article className="feature-card accent reveal-item" style={revealStyle(2)}>
-              <Wand2 size={22}/>
-              <h3>{t("landing.features.f2title")}</h3>
-              <p>{t("landing.features.f2")}</p>
-            </article>
-            <article className="feature-card light reveal-item" style={revealStyle(3)}>
-              <Rocket size={22}/>
-              <h3>{t("landing.features.f3title")}</h3>
-              <p>{t("landing.features.f3")}</p>
-            </article>
-          </div>
-        </div>
-      </section>
+    <section className="section" id="comment"><div className="container landing-reveal"><div className="section-head"><div><span className="eyebrow">{t("landing.how.eyebrow")}</span><h2>{t("landing.how.title1")}<br/>{t("landing.how.title2")}</h2></div><p>{t("landing.how.paragraph")}</p></div><div className="how-grid"><div className="how-line"><div className="how-line-fill filled"/></div><article className="step-card"><span className="step-num mono">{t("landing.how.s1num")}</span><h3>{t("landing.how.s1title")}</h3><p>{t("landing.how.s1")}</p></article><article className="step-card"><span className="step-num mono">{t("landing.how.s2num")}</span><h3>{t("landing.how.s2title")}</h3><p>{t("landing.how.s2")}</p></article><article className="step-card"><span className="step-num mono">{t("landing.how.s3num")}</span><h3>{t("landing.how.s3title")}</h3><p>{t("landing.how.s3")}</p></article><article className="step-card"><span className="step-num mono">{t("landing.how.s4num")}</span><h3>{t("landing.how.s4title")}</h3><p>{t("landing.how.s4")}</p></article></div></div></section>
 
-     {proofImages.length ? <section className="section" style={{paddingTop:0}}><div className={`container reveal-group${proofReveal.inView ? " is-visible" : ""}`} ref={proofReveal.ref}><div className="section-head reveal-item" style={revealStyle(0)}><div><span className="eyebrow">{t("landing.proof.eyebrow")}</span><h2>{t("landing.proof.title1")}<br/>{t("landing.proof.title2")}</h2></div><p>{t("landing.proof.paragraph")}</p></div></div><div className="proof-carousel"><div className="proof-track">{[0,1].map((copy) => <div className="proof-group" key={copy} aria-hidden={copy===1}>{proofImages.map((proof) => <div className="proof-card" key={`${copy}-${proof.src}`}><Image src={proof.src} alt={proof.alt} width={497} height={proof.height}/></div>)}</div>)}</div></div></section> : null}
+    <section className="section features-section" id="fonctionnalites"><div className="container landing-reveal"><div className="section-head"><div><span className="eyebrow">{t("landing.features.eyebrow")}</span><h2>{t("landing.features.title1")}<br/>{t("landing.features.title2")}</h2></div><p>{t("landing.features.paragraph")}</p></div><div className="feature-grid triple"><article className="feature-card dark"><Layers size={22}/><h3>{t("landing.features.f1title")}</h3><p>{t("landing.features.f1")}</p></article><article className="feature-card accent"><Wand2 size={22}/><h3>{t("landing.features.f2title")}</h3><p>{t("landing.features.f2")}</p></article><article className="feature-card light"><Rocket size={22}/><h3>{t("landing.features.f3title")}</h3><p>{t("landing.features.f3")}</p></article></div></div></section>
 
-      <section className="section" id="tarifs"><div className={`container reveal-group${pricingReveal.inView ? " is-visible" : ""}`} ref={pricingReveal.ref}><div className="section-head reveal-item" style={revealStyle(0)}><div><span className="eyebrow">{t("landing.pricing.eyebrow")}</span><h2>{t("landing.pricing.title1")}<br/>{t("landing.pricing.title2")}</h2></div><p>{t("landing.pricing.paragraph")}</p></div><div className="pricing-wrap pricing-wrap-single"><article className="price-card pro reveal-item" style={revealStyle(1)}><span className="pill">{t("landing.pricing.pill")}</span><h3>Vendeo</h3><div className="price">{t("landing.pricing.price")} <small>{t("landing.pricing.perMonth")}</small></div><ul><li><Check className="check" size={15}/>{t("landing.pricing.b1")}</li><li><Check className="check" size={15}/>{t("landing.pricing.b2")}</li><li><Check className="check" size={15}/>{t("landing.pricing.b3")}</li><li><Check className="check" size={15}/>{t("landing.pricing.b4")}</li><li><Check className="check" size={15}/>{t("landing.pricing.b5")}</li></ul><Link href="/register" className="btn btn-lime" style={{width:'100%'}}>{t("landing.pricing.cta")} <ArrowRight size={15}/></Link></article></div></div></section>
+    <section className="section landing-product-section"><div className="container landing-reveal"><div className="section-head"><div><span className="eyebrow">Une interface conçue pour décider</span><h2>Vos données,<br/>en un regard.</h2></div><p>Explorez les principaux espaces Vendeo dans un aperçu interactif. Les écrans illustrent le produit avec des données de démonstration.</p></div><div className="product-detail"><div className="product-detail-copy"><span className="landing-kicker"><i/> Aperçu du produit · données de démonstration</span><h3>{demos[activeDemo].label}</h3><p>Retrouvez les informations utiles dans une interface claire, pensée pour accompagner votre activité sur Chariow.</p><div className="showcase-tabs product-tabs" role="tablist" onKeyDown={demoKey} aria-label="Choisir un écran à explorer">{demos.map((demo, i) => <button role="tab" tabIndex={activeDemo === i ? 0 : -1} type="button" id={`detail-tab-${i}`} aria-controls="detail-demo-panel" aria-selected={activeDemo === i} key={demo.src} onClick={() => setActiveDemo(i)}>{demo.label}</button>)}</div></div><div className="product-detail-screen" id="detail-demo-panel" role="tabpanel" aria-labelledby={`detail-tab-${activeDemo}`}><Image key={demos[activeDemo].src} src={demos[activeDemo].src} alt={demos[activeDemo].alt} width={1265} height={649} sizes="(max-width: 850px) 90vw, 650px" className="showcase-image"/><span>Aperçu du produit · données de démonstration</span></div></div></div></section>
 
-    <section className="section" id="faq"><div className={`container reveal-group${faqReveal.inView ? " is-visible" : ""}`} ref={faqReveal.ref}><div className="section-head reveal-item" style={revealStyle(0)}><div><span className="eyebrow">{t("landing.faq.eyebrow")}</span><h2>{t("landing.faq.title1")}<br/>{t("landing.faq.title2")}</h2></div><p>{t("landing.faq.paragraph")}</p></div><div className="faq-list">{faqs.map(([q,a],i)=><div className="faq-item reveal-item" style={revealStyle(i+1)} key={q}><button className="faq-question" onClick={()=>setOpen(open===i?null:i)} aria-expanded={open===i}>{q}<span>{open===i?'−':'+'}</span></button>{open===i&&<div className="faq-answer">{a}</div>}</div>)}</div></div></section>
+    <section className="section" id="tarifs"><div className="container landing-reveal"><div className="section-head"><div><span className="eyebrow">{t("landing.pricing.eyebrow")}</span><h2>{t("landing.pricing.title1")}<br/>{t("landing.pricing.title2")}</h2></div><p>{t("landing.pricing.paragraph")}</p></div><div className="pricing-wrap pricing-wrap-single"><article className="price-card pro"><span className="pill">{t("landing.pricing.pill")}</span><h3>Vendeo</h3><div className="price">{t("landing.pricing.price")} <small>{t("landing.pricing.perMonth")}</small></div><ul><li><Check className="check" size={15}/>{t("landing.pricing.b1")}</li><li><Check className="check" size={15}/>{t("landing.pricing.b2")}</li><li><Check className="check" size={15}/>{t("landing.pricing.b3")}</li><li><Check className="check" size={15}/>{t("landing.pricing.b4")}</li><li><Check className="check" size={15}/>{t("landing.pricing.b5")}</li></ul><Link href="/register" className="btn btn-lime" style={{width:"100%"}}>{t("landing.pricing.cta")} <ArrowRight size={15}/></Link></article></div></div></section>
 
-     <section className="section" style={{paddingTop:0}}><div className={`container reveal-group${ctaReveal.inView ? " is-visible" : ""}`} ref={ctaReveal.ref}><div className="cta reveal-item" style={revealStyle(0)}><span className="eyebrow">{t("landing.cta.eyebrow")}</span><h2>{t("landing.cta.title1")}<br/>{t("landing.cta.title2")}</h2><p>{t("landing.cta.paragraph")}</p><Link href="/register" className="btn btn-dark">{t("landing.cta.button")} <ArrowRight size={16}/></Link></div></div></section>
-
-      <footer className="site-footer"><div className="container footer-row"><Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo-light.webp" alt="Vendeo" width={150} height={40}/></Link><div className="footer-links"><Link href="/about">{t("landing.footer.about")}</Link><Link href="/privacy">{t("landing.footer.privacy")}</Link><Link href="/terms">{t("landing.footer.terms")}</Link></div><span style={{color:'#91a3c8',fontSize:11}}>© 2026 Vendeo</span></div></footer>
+    <section className="section" id="faq"><div className="container landing-reveal"><div className="section-head"><div><span className="eyebrow">{t("landing.faq.eyebrow")}</span><h2>{t("landing.faq.title1")}<br/>{t("landing.faq.title2")}</h2></div><p>{t("landing.faq.paragraph")}</p></div><div className="faq-list">{faqs.map(([q,a],i)=><div className="faq-item" key={q}><button className="faq-question" onClick={()=>setOpen(open===i?null:i)} aria-expanded={open===i}>{q}<span>{open===i?"−":"+"}</span></button>{open===i&&<div className="faq-answer">{a}</div>}</div>)}</div></div></section>
+    <section className="section landing-cta-section"><div className="container landing-reveal"><div className="cta"><span className="eyebrow">{t("landing.cta.eyebrow")}</span><h2>{t("landing.cta.title1")}<br/>{t("landing.cta.title2")}</h2><p>{t("landing.cta.paragraph")}</p><Link href="/register" className="btn btn-dark">{t("landing.cta.button")} <ArrowRight size={16}/></Link></div></div></section>
+    <footer className="site-footer"><div className="container footer-row"><Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40}/></Link><div className="footer-links"><Link href="/about">{t("landing.footer.about")}</Link><Link href="/privacy">{t("landing.footer.privacy")}</Link><Link href="/terms">{t("landing.footer.terms")}</Link></div><span style={{color:"#91a3c8",fontSize:11}}>© 2026 Vendeo</span></div></footer>
   </main>;
 }

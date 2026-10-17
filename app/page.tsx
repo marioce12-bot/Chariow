@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Marketing } from "@/components/Marketing";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getProofImages } from "@/lib/get-proof-images";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -22,11 +21,10 @@ export default async function Home() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (user) redirect("/dashboard");
-  const proofImages = getProofImages();
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} />
-      <Marketing proofImages={proofImages} />
+      <Marketing />
     </>
   );
 }
