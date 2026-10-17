@@ -26,6 +26,7 @@
 
 /* ---------- Mobile ---------- */
 @media (max-width: 760px) {
+  .mobile-nav-hidden-on-stores { display: none !important; }
   /* Menu « Plus » */
   .mobile-more-backdrop {
     background: transparent;
@@ -78,6 +79,7 @@
   }
   .settings-section-channels { display: block; }
   .settings-page .settings-head { margin-bottom: 18px; order: 0; }
+  .settings-page[data-mobile-settings-section]:not([data-mobile-settings-section="list"]) .settings-head .mobile-back-button { display: none; }
   .settings-page .settings-section {
     display: block;
     margin: 0 0 26px;
@@ -112,6 +114,18 @@
   .settings-page .settings-session-grid { margin-top: 0; }
   .settings-page .mobile-settings-card,
   .settings-page .theme-choice { padding: 14px; }
+  .settings-page .settings-section-theme,
+  .settings-page .settings-language-extra { margin-bottom: 14px; padding-top: 14px; }
+  .settings-page[data-mobile-settings-section="appearance"] { gap: 12px; }
+  .settings-page[data-mobile-settings-section="appearance"] .settings-head,
+  .settings-page[data-mobile-settings-section="appearance"] > button.mobile-settings-return,
+  .settings-page[data-mobile-settings-section="appearance"] > .settings-section { margin-bottom: 0; }
+  .settings-page .settings-section-theme .settings-section-head,
+  .settings-page .settings-language-extra .settings-section-head { margin-bottom: 8px; }
+  .settings-page .settings-section-theme .theme-choice-grid,
+  .settings-page .settings-language-extra .theme-choice-grid { gap: 8px; }
+  .settings-page .settings-section-theme .theme-choice,
+  .settings-page .settings-language-extra .theme-choice { gap: 8px; min-height: 0; padding: 10px 12px; }
   .settings-page .settings-integration-card { gap: 10px; }
   .settings-page .settings-integration-card > div:first-child { flex: 1; min-width: 0; }
   .settings-page .settings-integration-card > div:first-child > div { min-width: 0; }

@@ -20,7 +20,7 @@ import { MobileSettingsView } from "./sections";
 describe("MobileSettingsView SSR", () => {
   it("renders the five-section index and applies the channels focus attribute", () => {
     const html = renderToStaticMarkup(
-      <MobileSettingsView onNavigate={vi.fn()} onSignOut={vi.fn()} plan="starter" focus="channels" />,
+      <MobileSettingsView onNavigate={vi.fn()} onSignOut={vi.fn()} onBack={vi.fn()} plan="starter" focus="channels" />,
     );
     const index = html.match(/<nav class="mobile-settings-index"[\s\S]*?<\/nav>/)?.[0] ?? "";
     expect(index.match(/class="mobile-settings-card"/g)).toHaveLength(5);
@@ -28,6 +28,9 @@ describe("MobileSettingsView SSR", () => {
     expect(html).toContain('class="mobile-settings-return"');
     expect(html).toContain('aria-label="settings.backToSections"');
     const css = readFileSync(new URL("../../app/settings-mobile.css", import.meta.url), "utf8");
+    expect(css).toContain('.settings-page[data-mobile-settings-section]:not([data-mobile-settings-section="list"]) .settings-head .mobile-back-button { display: none; }');
+    expect(css).toContain('.mobile-nav-hidden-on-stores { display: none !important; }');
+    expect(css).toContain('.settings-page .settings-section-theme .theme-choice-grid');
     writeFileSync("/tmp/vendeo-settings-check.html", `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body><main>${html}</main></body></html>`);
   });
 });

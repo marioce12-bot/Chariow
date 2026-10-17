@@ -446,7 +446,7 @@ export function Dashboard() {
 
 
         {active !== "Paramètres" ? (
-         <nav className="mobile-nav" aria-label="Navigation mobile">
+         <nav className={`mobile-nav${active === "Mes boutiques" ? " mobile-nav-hidden-on-stores" : ""}`} aria-label="Navigation mobile">
          <button type="button" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
            <LayoutDashboard size={18} />
             <span>{t("nav.overview")}</span>
