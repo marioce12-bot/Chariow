@@ -62,7 +62,7 @@ describe("dashboard desktop navigation", () => {
     expect(css).toContain('@media (min-width: 761px)');
     expect(css).toContain('.dashboard-platform .app-layout .sidebar');
     expect(css).toContain('position: fixed');
-    expect(css).toContain('.dashboard-platform.dashboard-assistant-active > .app-header { display: none; }');
+    expect(css).toMatch(/\.dashboard-platform\.dashboard-assistant-active\s*>\s*\.app-header\s*\{\s*display:\s*none;\s*\}/);
     expect(css).not.toContain('.admin-');
   });
 });
