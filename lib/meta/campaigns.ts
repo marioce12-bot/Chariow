@@ -140,6 +140,40 @@ async function resolveAdvertiserName(accountId: string, accessToken: string, exp
   }
 }
 
+/**
+ * Contrôle après création : relit l'ad set chez Meta et vérifie qu'une campagne Ventes optimise bien
+ * sur l'achat du site (OFFSITE_CONVERSIONS + événement PURCHASE + emplacement « site web »).
+ * Si Meta a appliqué autre chose (par ex. « conversations » = messagerie), la campagne est supprimée
+ * et une erreur claire est renvoyée, pour ne jamais diffuser une pub mal réglée.
+ * Ne bloque que sur une valeur renvoyée par Meta ET différente de ce qui est attendu : une lecture
+ * impossible ou un champ absent ne fait pas échouer le lancement.
+ */
+async function assertSalesAdSetOnPurchase(input: { adSetId: string; campaignId: string; accessToken: string }) {
+  let json: GraphResponse;
+  try {
+    json = await graphGet(input.adSetId, input.accessToken, "optimization_goal,destination_type,promoted_object");
+  } catch (error) {
+    console.error("createMetaAdSet: relecture de l'ad set impossible, contrôle ignoré", error instanceof Error ? error.message : error);
+    return;
+  }
+  const goal = typeof json.optimization_goal === "string" ? json.optimization_goal : "";
+  const destination = typeof json.destination_type === "string" ? json.destination_type : "";
+  const promoted = (json.promoted_object ?? null) as { custom_event_type?: unknown } | null;
+  const event = typeof promoted?.custom_event_type === "string" ? promoted.custom_event_type : "";
+  const wrong = (goal && goal !== "OFFSITE_CONVERSIONS") || (destination && destination !== "WEBSITE") || (event && event !== "PURCHASE");
+  if (!wrong) return;
+  console.error("createMetaAdSet: l'ad set Ventes n'est pas réglé sur l'achat du site", { adSetId: input.adSetId, goal, destination, event });
+  try {
+    await graphDelete(input.campaignId, input.accessToken);
+  } catch (cleanupError) {
+    console.error("createMetaAdSet: suppression de la campagne mal réglée impossible", cleanupError instanceof Error ? cleanupError.message : cleanupError);
+  }
+  throw new Error(
+    `Meta a réglé l'ensemble de publicités sur « ${goal || "?"} » (emplacement : ${destination || "non précisé"}, événement : ${event || "aucun"}) ` +
+      "au lieu de l'achat sur ton site (conversions + Achat). La campagne a été annulée : rien n'est diffusé ni dépensé."
+  );
+}
+
 export async function createMetaAdSet(input: {
   accountId: string;
   accessToken: string;
@@ -226,7 +260,28 @@ export async function createMetaAdSet(input: {
     params.dsa_beneficiary = advertiserName;
     params.dsa_payor = advertiserName;
   }
-  return graphPost(`${input.accountId}/adsets`, input.accessToken, params);
+
+  // Emplacement de conversion explicite : le site web. Sans destination_type, c'est Meta qui choisit
+  // l'emplacement par défaut (risque de « messagerie / conversations » au lieu des achats sur le site).
+  // Si Meta refuse ce champ, on retente sans (et le contrôle ci-dessous vérifie le résultat).
+  const adsetsPath = `${input.accountId}/adsets`;
+  let adSet: GraphResponse;
+  if (objective === "sales" || objective === "traffic") {
+    try {
+      adSet = await graphPost(adsetsPath, input.accessToken, { ...params, destination_type: "WEBSITE" });
+    } catch (error) {
+      console.error("createMetaAdSet: destination_type WEBSITE refusé par Meta, nouvel essai sans", error instanceof Error ? error.message : error);
+      adSet = await graphPost(adsetsPath, input.accessToken, params);
+    }
+  } else {
+    adSet = await graphPost(adsetsPath, input.accessToken, params);
+  }
+
+  // Ventes : contrôle après création que l'ad set optimise bien sur l'achat du site.
+  if (objective === "sales") {
+    await assertSalesAdSetOnPurchase({ adSetId: String(adSet.id), campaignId: input.campaignId, accessToken: input.accessToken });
+  }
+  return adSet;
 }
 
 /**
