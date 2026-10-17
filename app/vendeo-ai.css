@@ -151,3 +151,11 @@ html[data-theme="dark"] .ai-page .chat-history-list button.active { background:r
    de rédiger. Elle est le frère suivant du conteneur .app-layout ; quand l'Assistant
    est actif, ce conteneur porte .app-layout-flush, on masque donc la barre. */
 .app-layout-flush ~ .mobile-nav { display:none !important; }
+
+/* Confort de lecture sur grand écran : les messages ne s'étirent plus sur toute la fenêtre. */
+@media (min-width: 761px) {
+  .ai-page .chat-messages { margin-left: auto; margin-right: auto; max-width: 1080px; padding-left: clamp(20px, 4vw, 64px); padding-right: clamp(20px, 4vw, 64px); width: 100%; }
+  .ai-page .chat-bubble.assistant { align-self: flex-start; max-width: min(78ch, 100%); }
+  .ai-page .chat-bubble.user { max-width: min(68ch, 88%); }
+  .ai-page .chat-composer { margin-left: auto; margin-right: auto; max-width: 980px; width: 100%; }
+}

@@ -1,13 +1,22 @@
-/* Paramètres + menu « Plus » — réorganisation mobile uniquement.
-   Sur PC (> 760px) les wrappers sont en `display: contents` : la page garde
-   exactement le rendu d'origine. */
+/* Paramètres : groupes visuels sur PC, ordre vertical adapté au mobile. */
 
-/* ---------- Base (PC) : aucun changement visuel ---------- */
-.settings-page,
-.settings-section { display: contents; }
-.settings-page .settings-mobile-only { display: none; }
-.settings-page .settings-section-head { margin-top: 28px; }
-.settings-page .settings-session-grid { margin-top: 12px; }
+/* ---------- Base (PC) ---------- */
+.settings-page { display: grid; gap: 22px; margin: 0 auto; max-width: 1120px; width: 100%; }
+.settings-section { border-top: 1px solid var(--line); display: block; margin: 0; min-width: 0; padding-top: 20px; }
+.settings-section-account { border-top: 0; padding-top: 0; }
+.settings-page .settings-mobile-only { display: flex; }
+.settings-page .settings-section-head,
+.settings-page .settings-mobile-only { margin: 0 0 14px; }
+.settings-page .settings-session-grid { margin-top: 0; }
+.settings-page .mobile-settings-grid,
+.settings-page .theme-choice-grid { margin-top: 0; }
+.settings-page .settings-integration-card { margin-bottom: 0; min-height: 78px; padding: 16px; }
+.settings-section-channels { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.settings-section-channels > .page-top,
+.settings-section-channels > .settings-inline-message { grid-column: 1 / -1; }
+@media (min-width: 761px) and (max-width: 1120px) {
+  .settings-section-channels { grid-template-columns: 1fr; }
+}
 
 .mobile-more-backdrop { display: none; }
 
@@ -67,6 +76,7 @@
     min-width: 0;
     width: 100%;
   }
+  .settings-section-channels { display: block; }
   .settings-page .settings-head { margin-bottom: 18px; order: 0; }
   .settings-page .settings-section {
     display: block;

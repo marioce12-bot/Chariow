@@ -938,9 +938,8 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
       {reportError ? <p className="store-error" role="alert" style={{ marginTop: 10 }}>{reportError}</p> : null}
     </div>
     {!reportAnalytics || !kpis ? <div className="empty-state">{loadingReport ? "Chargement du rapport…" : "Aucune donnée pour cette période."}</div> : <>
-      <div className="report-period"><span>Rapport analysé</span><strong>{period}</strong></div>
       <div className="report-summary">
-        <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{reportRevenueLabel}</strong><p>{kpis.sales === 0 ? "Aucune vente enregistrée pour cette période." : `${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} enregistrée${kpis.sales > 1 ? "s" : ""}.`}</p></div>
+        <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{reportRevenueLabel}</strong><p>Synthèse des résultats : {period}.</p></div>
         <div className="report-summary-side"><ReportStat icon={<ShoppingBag size={16} />} label="Ventes" value={kpis.sales} /><ReportStat icon={<Eye size={16} />} label="Visites" value={kpis.visits} /><ReportStat icon={<Users size={16} />} label="Clients" value={kpis.customers} /><ReportStat icon={<BarChart3 size={16} />} label="Conversion" value={kpis.conversionRate} /></div>
       </div>
 
@@ -1137,7 +1136,6 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
       <section className="settings-section settings-section-language" aria-label="Langue">
         <div className="page-top settings-section-head">
           <div>
-            <span className="eyebrow">{t("settings.language.title")}</span>
             <h2>{t("settings.language.title")}</h2>
             <p>{t("settings.language.subtitle")}</p>
           </div>
@@ -1492,17 +1490,17 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     <>
       <div className="page-top" style={{ gap: 12 }}><div><span className="eyebrow">{t("ads.eyebrow")}</span><h1>{t("ads.title")}</h1><p>{t("ads.subtitle")}</p></div><button type="button" className="btn btn-dark" style={{ flexShrink: 0 }} onClick={onLaunchAd}><Plus size={15} /> {t("ads.launch")}</button></div>
 
-      <div className="app-card ads-channel-switcher">{channels.map((item) => <button key={item.id} type="button" aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={20} /> : item.id === "tiktok" ? <FaTiktok size={18} /> : item.id === "pinterest" ? <FaPinterestP size={18} style={{ color: "#E60023" }} /> : item.id === "x" ? <FaXTwitter size={18} /> : item.label}</button>)}</div>
+      <div className="app-card ads-channel-switcher" role="tablist" aria-label={t("ads.title")}>{channels.map((item) => <button key={item.id} type="button" role="tab" aria-selected={channel === item.id} aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={18} /> : item.id === "tiktok" ? <FaTiktok size={17} /> : item.id === "pinterest" ? <FaPinterestP size={17} style={{ color: "#E60023" }} /> : item.id === "x" ? <FaXTwitter size={17} /> : null}<span>{item.label}</span></button>)}</div>
 
       {message && <p className="store-error" role="status">{message}</p>}
 
       {channel === "overview" ? <AdCampaignsList storeId={storeId} onNewCampaign={onLaunchAd} key={campaignsVersion} /> : null}
 
       {channel === "x" ? <section className="x-ads-panel">
-        <div className="app-card x-ads-status-card">
+        {xAccounts.length ? <div className="app-card x-ads-status-card">
           <div className="x-ads-brand"><FaXTwitter size={24} /><div><span className="eyebrow">X Ads</span><h2>Compte publicitaire X</h2><p>Connecte ton compte X Ads pour accéder à tes comptes publicitaires depuis Vendeo.</p><p className="x-ads-requirement">{t("ads.xAccountRequired")}</p><a className="btn btn-ghost x-ads-create-link" href="https://ads.x.com/" target="_blank" rel="noreferrer">{t("ads.createXAccount")} <ExternalLink size={14} /></a></div></div>
-          {xAccounts.length ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.xAccountConnected")}</span> : <button type="button" className="btn btn-dark" onClick={connectX}><Plus size={15} /> {t("ads.connectX")}</button>}
-        </div>
+          <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.xAccountConnected")}</span>
+        </div> : null}
         {xAccounts.length ? <div className="app-card x-ads-accounts"><div className="card-head"><div><span className="eyebrow">Comptes accessibles</span><h2>Comptes publicitaires X</h2></div></div>{xAccounts.map((account) => <div className="x-ads-account-row" key={account.id}><div><strong>{account.name || account.x_account_id}</strong><small>{account.x_account_id}{account.currency ? ` · ${account.currency}` : ""}{account.approval_status ? ` · ${account.approval_status}` : ""}</small></div><span className="status-positive">Connecté</span></div>)}</div> : <div className="empty-state"><FaXTwitter size={28} /><strong>{t("ads.xNoAccount")}</strong><span>{t("ads.xAuthorize")}</span><button type="button" className="btn btn-dark" onClick={connectX}>{t("ads.connectX")}</button><a className="btn btn-ghost" href="https://ads.x.com/" target="_blank" rel="noreferrer">{t("ads.createXAccount")} <ExternalLink size={14} /></a></div>}
       </section> : null}
 
@@ -1513,14 +1511,14 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{(metaPerformance ? formatMoneyInUSD(metaPerformance.overview.spend, metaPerformance.currency) : null) ?? t("ads.unavailable")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${(metaPerformance.overview.realRoas * 100).toFixed(1)} %`}</strong></div></div></section> : channel === "meta" ? (
         <>
-          <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{metaConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.connected")}</span> : <button className="btn btn-dark" onClick={connectMeta}><Plus size={15} /> {t("ads.connectMeta")}</button>}</div>
+          {metaConnected ? <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.connected")}</span></div> : null}
           {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n'est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
           {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noMeta")}</strong><span>{t("ads.noMetaText")}</span><button className="btn btn-dark" onClick={connectMeta}>{t("ads.connectMeta")}</button></div> : <>
             <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><span className="hint-line">Dernière synchro : {metaPerformance?.lastSyncedAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(metaPerformance.lastSyncedAt)) : "Jamais"}{metaPerformance?.lastSyncError ? ` · Erreur : ${metaPerformance.lastSyncError}` : ""}</span><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
             {metaConnected && metaResources ? (
               <section className="app-card" style={{ marginBottom: 18 }}>
-                <div className="card-head"><div><span className="eyebrow">Suivi des conversions</span><h2>Pixel Meta</h2><p>Copie l'identifiant du pixel et configure-le dans ton parcours de vente Chariow (Pixel ou Conversions API). Une fois installé, marque-le « configuré ».</p></div>{!metaResources.pixels.some((pixel) => pixel.configured_on_chariow) ? <a href="https://business.facebook.com/events_manager2/list" target="_blank" rel="noreferrer" className="btn btn-ghost">Créer un pixel</a> : null}</div>
+                <div className="card-head"><div><span className="eyebrow">Suivi des conversions</span><h2>Pixel Meta</h2><p>Copie l'identifiant du pixel et configure-le dans ton parcours de vente Chariow (Pixel ou Conversions API). Une fois installé, marque-le « configuré ».</p></div>{metaResources.pixels.length > 0 && !metaResources.pixels.some((pixel) => pixel.configured_on_chariow) ? <a href="https://business.facebook.com/events_manager2/list" target="_blank" rel="noreferrer" className="btn btn-ghost">Créer un pixel</a> : null}</div>
                 {metaResources.pixels.length > 0 ? (
                   <div style={{ display: "grid", gap: 10 }}>
                     {metaResources.pixels.map((pixel) => (
@@ -1591,7 +1589,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
         </>
       ) : channel === "tiktok" ? (
         tiktokLoading ? <TikTokSkeleton /> : <>
-          <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>{tiktokConnected ? <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.tiktokConnected")}</span> : <button className="btn btn-dark" onClick={connectTiktok}><Plus size={15} /> {t("ads.connectTiktok")}</button>}</div>
+          {tiktokConnected ? <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.tiktokConnected")}</span></div> : null}
           {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noTiktok")}</strong><span>{t("ads.noTiktokText")}</span><button className="btn btn-dark" 
 onClick={connectTiktok}>{t("ads.connectTiktok")}</button></div> : <TikTokAdsPanel accounts={tiktokAccounts} />}        </>
       ) : null}
@@ -1712,11 +1710,8 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
               </div>
               <div className="store-info">
                 <strong>{store.store_name}</strong>
-                <span>
-                  {store.platform} · {status === "failed" ? "Connexion échouée — relance l'autorisation" : status}
-                </span>
+                <span>{store.platform} · {status === "connected" ? "Connectée" : status === "failed" ? "Connexion échouée — relance l'autorisation" : status === "expired" ? "Connexion expirée" : "Connexion en attente"}</span>
               </div>
-              <span className="status">● {status}</span>
               {canDisconnect ? (
                 <button className="btn btn-ghost" onClick={() => disconnectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
                   Déconnecter

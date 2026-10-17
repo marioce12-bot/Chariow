@@ -422,11 +422,8 @@ export function Dashboard() {
               userFirstName={userFirstName}
               plan={(subscription?.plan ?? "starter") as PlanId}
               selectedStoreId={selectedStoreId}
-              onStoreChange={setSelectedStoreId}
               onLaunchAd={launchAd}
               onPromoteProduct={promoteProduct}
-              onGoToAds={() => setActive("Pub")}
-              onGoToAI={() => setActive("Vendeo AI")}
               campaignsVersion={campaignsVersion}
               loading={overviewLoading}
             />

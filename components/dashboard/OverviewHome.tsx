@@ -64,7 +64,6 @@ export function OverviewHome({
   userFirstName,
   plan,
   selectedStoreId,
-  onStoreChange,
   onLaunchAd,
   onPromoteProduct,
   campaignsVersion,
@@ -76,13 +75,10 @@ export function OverviewHome({
   userFirstName: string | null;
   plan: PlanId;
   selectedStoreId: string | null;
-  onStoreChange: (storeId: string) => void;
   onLaunchAd: () => void;
   /** Bouton « Promouvoir » d'un produit du catalogue : ouvre le lancement de pub avec ce produit déjà choisi.
    *  Sans cette fonction, on retombe sur le lancement classique (choix du produit à l'étape 1). */
   onPromoteProduct?: (product: ProductData) => void;
-  onGoToAds?: () => void;
-  onGoToAI?: () => void;
   campaignsVersion: number;
   /** Vrai tant que les données de la boutique et l'abonnement ne sont pas arrivés. */
   loading?: boolean;
@@ -279,18 +275,14 @@ export function OverviewHome({
           ) : (
             <p className="hint-line" style={{ margin: 0 }}>
               {salesCount > 0
-                ? tr(`Sur les ${periodDays} derniers jours : ${salesCount} vente${salesCount > 1 ? "s" : ""}, ${money(overview?.revenueNet)} de revenu net et ${activeCampaigns.length} campagne${activeCampaigns.length > 1 ? "s" : ""} en cours.`, `Over the last ${periodDays} days: ${salesCount} sale${salesCount > 1 ? "s" : ""}, ${money(overview?.revenueNet)} net revenue and ${activeCampaigns.length} running campaign${activeCampaigns.length > 1 ? "s" : ""}.`)
-                : tr(`Pas encore de vente sur les ${periodDays} derniers jours. ${activeCampaigns.length ? `${activeCampaigns.length} campagne(s) en cours.` : "Lance une pub pour démarrer."}`, `No sales yet over the last ${periodDays} days. ${activeCampaigns.length ? `${activeCampaigns.length} running campaign(s).` : "Launch an ad to get started."}`)}
+                ? tr(`Sur les ${periodDays} derniers jours : ${money(overview?.revenueNet)} de revenu net.`, `Over the last ${periodDays} days: ${money(overview?.revenueNet)} net revenue.`)
+                : tr(`Pas encore de vente sur les ${periodDays} derniers jours. Lance une pub pour démarrer.`, `No sales yet over the last ${periodDays} days. Launch an ad to get started.`)}
             </p>
           )}
           {trialLabel ? <p className="hint-line" style={{ margin: "6px 0 0" }}>{trialLabel}</p> : null}
         </div>
 
         <div className="ov-controls">
-          <select className="ov-select" aria-label={tr("Boutique", "Store")} value={selectedStoreId ?? ""} disabled={!stores.length} onChange={(event) => onStoreChange(event.target.value)}>
-            {!stores.length && <option value="">{tr("Aucune boutique", "No store")}</option>}
-            {stores.map((item) => <option key={item.id} value={item.id}>{item.store_name}</option>)}
-          </select>
           <select className="ov-select" aria-label={tr("Période", "Period")} value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
             <option value={7}>{tr("7 jours", "7 days")}</option>
             <option value={30}>{tr("30 jours", "30 days")}</option>
@@ -298,7 +290,7 @@ export function OverviewHome({
           </select>
         </div>
 
-        {/* 4 cadres rectangulaires, 2 par ligne */}
+        {/* Indicateurs clés de la boutique active */}
         <div className="ov-kpi-grid" aria-busy={statsLoading || !campaignsReady}>
           <div className="ov-kpi">
             <span className="hint-line">{tr("Revenu net", "Net revenue")}</span>
@@ -328,7 +320,7 @@ export function OverviewHome({
 
       {/* 4. Derniers événements Chariow de la période (réussis / en attente / échoués) */}
       <section className="app-card">
-        <div className="card-head"><div><h2>{tr("Derniers achats", "Latest purchases")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr(`Les 10 derniers événements des ${periodDays} derniers jours sur ta boutique Chariow, le plus récent en haut. Touche une ligne pour voir le détail.`, `The 10 latest events over the last ${periodDays} days on your Chariow store, most recent first. Tap a row for details.`)}</p></div></div>
+        <div className="card-head"><div><h2>{tr("Derniers achats", "Latest purchases")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr(`Les 10 derniers événements des ${periodDays} derniers jours sur ta boutique Chariow, le plus récent en haut. Clique sur une ligne pour voir le détail.`, `The 10 latest events over the last ${periodDays} days on your Chariow store, most recent first. Click a row to see details.`)}</p></div></div>
         {loading ? (
           <>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
