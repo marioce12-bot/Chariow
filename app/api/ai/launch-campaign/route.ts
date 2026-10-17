@@ -9,6 +9,7 @@ import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } f
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 import { createMetaVideoCreative, isVideoMediaUrl, prepareMetaCreativeVideo } from "@/lib/meta/ad-video";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
+import { normalizeMetaCta } from "@/lib/meta/cta";
 import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
 import { launchPinterest } from "@/lib/pinterest/api";
 import { PINTEREST_TAG_REQUIRED_CODE, isPinterestConversionTagError, pinterestTagChatMessage } from "@/lib/pinterest/tag-help";
@@ -30,6 +31,7 @@ type LaunchBody = {
   message?: string; // texte de la créative
   headline?: string;
   linkUrl?: string; // lien de la page de redirection (page de vente de l'utilisateur) — OBLIGATOIRE
+  callToAction?: string; // bouton d'appel à l'action Meta (SHOP_NOW, LEARN_MORE…) — OBLIGATOIRE pour Meta, choisi par l'utilisateur
   imageUrl?: string; // média principal : image OU vidéo (voir mediaType)
   mediaType?: string; // "image" | "video" — "video" si imageUrl est une vidéo (sinon détecté via l'URL)
   carouselUrls?: string[]; // images supplémentaires après imageUrl (Meta : carrousel de 2 à 10 cartes)
@@ -124,6 +126,15 @@ export async function POST(request: Request) {
 
   if (typeof body.platform === "string" && /pinterest/i.test(body.platform)) {
     return launchPinterestFromChat({ supabase, userId: user.id, body, dailyBudget, linkUrl });
+  }
+
+  // Bouton d'appel à l'action (Meta) : choisi par l'utilisateur, jamais deviné. Vérifié AVANT tout appel Meta.
+  const callToAction = normalizeMetaCta(body.callToAction);
+  if (!callToAction) {
+    return NextResponse.json(
+      { error: "Choisis le bouton d'appel à l'action de ta publicité (Acheter, Commander, En savoir plus…) avant de lancer la campagne.", code: "CTA_REQUIRED" },
+      { status: 400 }
+    );
   }
 
   const admin = createAdminClient();
@@ -302,6 +313,7 @@ export async function POST(request: Request) {
     // Carrousel : chaque carte est envoyée à Meta de la même façon (une image_hash par carte) ;
     // les améliorations Advantage+ ne s'appliquent qu'à l'image unique.
     // Vidéo : créative video_data (la vidéo a déjà été envoyée et traitée plus haut), sans Advantage+.
+    // Dans les trois cas, le bouton d'appel à l'action choisi par l'utilisateur est transmis à la créative.
     let creative: { id?: unknown };
     if (video) {
       creative = await createMetaVideoCreative({
@@ -314,6 +326,7 @@ export async function POST(request: Request) {
         headline: body.headline || body.name,
         videoId: video.videoId,
         thumbnailUrl: video.thumbnailUrl,
+        callToAction,
       });
     } else if (carouselExtraUrls.length >= 1) {
       const cards = await Promise.all(
@@ -331,6 +344,7 @@ export async function POST(request: Request) {
         message: body.message,
         headline: body.headline || body.name,
         cards,
+        callToAction,
       });
     } else {
       const { imageHash } = await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl: body.imageUrl });
@@ -345,6 +359,7 @@ export async function POST(request: Request) {
         imageUrl: body.imageUrl,
         imageHash,
         advantageCreative: true,
+        callToAction,
       });
     }
     const creativeId = String(creative.id);
@@ -375,6 +390,7 @@ export async function POST(request: Request) {
       media_url: body.imageUrl,
       carousel_urls: carouselExtraUrls.length ? carouselExtraUrls : null,
       destination_url: trackedLinkUrl,
+      call_to_action: callToAction,
       countries,
       min_age: minAge,
       max_age: maxAge,
@@ -390,7 +406,7 @@ export async function POST(request: Request) {
     });
     if (insertError) throw new Error(`Campagne créée chez Meta mais non enregistrée côté Vendeo (${insertError.message}).`);
 
-    return NextResponse.json({ campaignId, adSetId, creativeId, adId, dailyBudgetUsd: dailyBudget, carouselCards: carouselExtraUrls.length ? carouselExtraUrls.length + 1 : 1 });
+    return NextResponse.json({ campaignId, adSetId, creativeId, adId, dailyBudgetUsd: dailyBudget, callToAction, carouselCards: carouselExtraUrls.length ? carouselExtraUrls.length + 1 : 1 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur de lancement Meta.";
     console.error("launch-campaign Meta error (après création de la campagne)", message, { campaignId });

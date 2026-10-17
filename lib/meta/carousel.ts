@@ -20,13 +20,18 @@ export function parseCarouselUrls(value: unknown, mainUrl?: string | null): stri
 
 export type CarouselCard = { url: string; hash?: string };
 
-/** `object_story_spec` d'une annonce carrousel : une carte par image, même lien, même titre et même bouton. */
-export function buildCarouselObjectStorySpec(input: { pageId: string; link: string; message: string; headline: string; callToAction: string; cards: CarouselCard[] }) {
+/**
+ * `object_story_spec` d'une annonce carrousel : une carte par image, même lien, même titre et même bouton.
+ * `withTopLevelCallToAction` ajoute aussi le bouton au niveau de l'annonce (link_data.call_to_action) :
+ * sans lui, le bouton n'existe que sur chaque carte et Ads Manager n'affiche aucun bouton choisi pour l'annonce.
+ */
+export function buildCarouselObjectStorySpec(input: { pageId: string; link: string; message: string; headline: string; callToAction: string; cards: CarouselCard[]; withTopLevelCallToAction?: boolean }) {
   return {
     page_id: input.pageId,
     link_data: {
       link: input.link,
       message: input.message,
+      ...(input.withTopLevelCallToAction ? { call_to_action: { type: input.callToAction, value: { link: input.link } } } : {}),
       // Meta ordonne les cartes lui-même selon leurs performances ; on garde l'ordre choisi par l'utilisateur.
       multi_share_optimized: false,
       multi_share_end_card: false,
