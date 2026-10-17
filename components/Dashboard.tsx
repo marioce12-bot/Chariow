@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 
 import "@/app/settings-mobile.css";
+import "@/app/dashboard-navigation.css";
+import { DashboardHeaderNavigation, DashboardPrimaryNavigation } from "./dashboard/DesktopNavigation";
 import { type PlanId } from "@/lib/plans";
 import {
   ImpactFinancierCard,
@@ -182,34 +184,6 @@ export function Dashboard() {
     setWizardOpen(true);
   }
 
-  const links = [
-    ["Vue d'ensemble", LayoutDashboard],
-    ["Vendeo AI", MessageSquare],
-    ["Studio", Sparkles],
-    ["Pub", Megaphone],
-    ["Comptes publicitaires", BarChart3],
-    ["Radar marché", Lightbulb],
-    ["Mes boutiques", Store],
-    ["Rapports", FileText],
-    ["Pilotage auto", Bot],
-    ["Abonnement", CreditCard],
-  ] as const;
-
-  // Clé d'internationalisation par section : l'état interne reste en français,
-  // seul le libellé affiché change selon la langue.
-  const navKey: Record<string, string> = {
-    "Vue d'ensemble": "nav.overview",
-    "Vendeo AI": "nav.assistant",
-    "Studio": "nav.studio",
-    "Pub": "nav.pubs",
-    "Comptes publicitaires": "nav.adAccounts",
-    "Radar marché": "nav.radar",
-    "Mes boutiques": "nav.stores",
-    "Rapports": "nav.reports",
-    "Pilotage auto": "nav.autopilot",
-    "Abonnement": "nav.subscription",
-    "Paramètres": "nav.settings",
-  };
 
   async function signOut() {
     try {
@@ -320,13 +294,13 @@ export function Dashboard() {
   }, [selectedStoreId]);
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell dashboard-platform${active === "Vendeo AI" ? " dashboard-assistant-active" : ""}${isOffline ? " dashboard-is-offline" : ""}`}>
       {isOffline ? <div role="status" aria-live="polite" className="offline-notice">Connexion internet perdue. Certaines données peuvent être obsolètes.</div> : null}
-      {active !== "Vendeo AI" ? (
         <header className="app-header">
           <Link href="/" className="brand">
             <Image className="brand-logo" src="/vendeo-logo-light.webp" alt="Vendeo" width={150} height={40} unoptimized />
           </Link>
+          <DashboardHeaderNavigation active={active} onChange={setActive} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
              <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Mes boutiques", "Abonnement", "Paramètres", "Comptes publicitaires"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
@@ -337,7 +311,6 @@ export function Dashboard() {
             </button>
           </div>
         </header>
-      ) : null}
       <div className={`app-layout${active === "Vendeo AI" ? " app-layout-flush" : ""}${isOffline ? " app-layout-offline" : ""}`}>
         <aside className="sidebar">
           <div className="side-label">Workspace</div>
@@ -352,33 +325,12 @@ export function Dashboard() {
               {stores.map((s) => <option key={s.id} value={s.id}>{s.store_name}</option>)}
             </select>
           </label>
-          {links.map(([name, Icon]) => (
-            <button key={name} className={`side-link ${active === name ? "active" : ""}`} onClick={() => setActive(name)}>
-              <Icon size={16} />
-              {t(navKey[name] ?? name)}
-            </button>
-          ))}
-          <div className="side-label" style={{ marginTop: 28 }}>
-            Compte
-          </div>
-          <button
-            className="side-link"
-            type="button"
-            onClick={() => setActive("Paramètres")}
-          >
-            <Settings size={16} />Paramètres
+          <DashboardPrimaryNavigation active={active} onChange={setActive} />
+          <button type="button" className="dashboard-plan-status" onClick={() => setActive("Abonnement")}>
+            <span className="dashboard-plan-dot" aria-hidden="true" />
+            <span><strong>{isActivePlan ? "Abonnement actif" : subscription?.status === "past_due" ? "Abonnement expiré" : "Essai gratuit"}</strong><small>{isActivePlan ? "Gérer mon abonnement" : "Voir mon abonnement"}</small></span>
+            <CreditCard size={16} aria-hidden="true" />
           </button>
-          <div style={{ background: "linear-gradient(135deg,#ede9fe,#e0f2fe)", borderRadius: 10, margin: "35px 4px 0", padding: 14 }}>
-            <span className="eyebrow" style={{ fontSize: 9 }}>
-              {isActivePlan ? "Abonnement actif" : subscription?.status === "past_due" ? "Abonnement expiré" : "Essai gratuit"}
-            </span>
-            {isActivePlan ? <p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>Ton abonnement Vendeo est actif.</p> : <><p style={{ fontSize: 11, lineHeight: 1.5, margin: "9px 0", color: "#334155" }}>{subscription?.status === "past_due" ? "Ton abonnement a expiré. Réactive-le pour continuer." : "Choisis l'abonnement pour continuer après ton essai."}</p><button className="btn btn-dark" style={{ fontSize: 10, padding: "8px 10px", width: "100%" }} onClick={() => setActive("Abonnement")}>Voir l'abonnement</button></>}
-          </div>
-
-          <div className="side-usage">
-            <div className="side-usage-label">Usage IA</div>
-            <div className="side-usage-value">Accès illimité</div>
-          </div>
         </aside>
         <section className={active === "Vendeo AI" ? "app-main chat-page" : "app-main"}>
           {loadingData ? (
