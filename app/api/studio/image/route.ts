@@ -7,6 +7,7 @@ import { generateFalImage, generateFalImageWithReferences, getAiImageEditModel, 
 import { imageCreditCost } from "@/lib/studio/credits";
 import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
 import { fetchReferenceImage } from "@/lib/studio/reference-image";
+import { buildPremiumImagePrompt } from "@/lib/studio/premium-prompt";
 
 const qualities = ["medium", "high", "xhigh", "max"] as const;
 const resolutions = ["hd", "full_hd", "2k", "4k"] as const;
@@ -45,21 +46,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Les images de référence ne sont pas accessibles ou leur format n'est pas supporté." }, { status: 400 });
   }
 
+  const finalPrompt = buildPremiumImagePrompt({
+    prompt: userPrompt,
+    orientation: options.orientation ?? "square",
+    background: options.background ?? "auto",
+    hasReferences: references.length > 0,
+  });
+
   const format = options.orientation === "portrait" ? "story" : options.orientation === "landscape" ? "banner" : "square";
   const model = references.length ? getAiImageEditModel() : getAiImageModel();
   const cost = imageCreditCost(options.resolution ?? "hd", options.quality ?? "medium");
 
-  // Le prompt est volontairement conservé tel quel : aucune réécriture métier,
-  // ajout de produit ou consigne de composition ne doit modifier la demande.
   const admin = createAdminClient();
   const { data: generation, error: generationError } = await admin
     .from("studio_generations")
     .insert({
       user_id: user.id,
       kind: "image",
-      prompt: userPrompt,
+      prompt: finalPrompt,
       options,
-      metadata: { prompt: userPrompt, model, referenceCount: references.length },
+      metadata: { prompt: finalPrompt, originalPrompt: userPrompt, promptVersion: "premium-creative-director-v1", model, referenceCount: references.length },
       status: "processing",
       credits_cost: cost,
     })
@@ -84,8 +90,8 @@ export async function POST(request: Request) {
 
   try {
     const imageUrl = references.length
-      ? await generateFalImageWithReferences(userPrompt, references, options)
-      : await generateFalImage(userPrompt, format, options);
+      ? await generateFalImageWithReferences(finalPrompt, references, options)
+      : await generateFalImage(finalPrompt, format, options);
     await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     let storagePath: string | null = null;
     try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat); } catch (storageError) { console.error("Studio image storage error", storageError); }
