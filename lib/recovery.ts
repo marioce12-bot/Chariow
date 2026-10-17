@@ -66,6 +66,28 @@ export function validRecoveryInput(x: any) {
     (amount === null || (Number.isFinite(amount) && amount >= 0))
   );
 }
+export function recoveryDraftError(x: {
+  phone?: string;
+  abandonedAt?: string;
+  consentSource?: string;
+  paymentUrl?: string;
+  consent?: boolean;
+}) {
+  const digits = normalizePhone(x.phone ?? "").replace(/\D/g, "");
+  if (digits.length < 8 || digits.length > 15)
+    return "Ajoute un numéro WhatsApp valide (8 à 15 chiffres).";
+  if (!x.abandonedAt || !Number.isFinite(Date.parse(x.abandonedAt)))
+    return "Indique une date d’abandon valide.";
+  if (Date.parse(x.abandonedAt) > Date.now())
+    return "La date d’abandon ne peut pas être dans le futur.";
+  if ((x.consentSource ?? "").trim().length < 3)
+    return "Indique la preuve ou la provenance du consentement (3 caractères minimum).";
+  if (!validHttpsUrl(x.paymentUrl))
+    return "Ajoute le lien de paiement HTTPS fourni par la boutique.";
+  if (!x.consent)
+    return "Confirme le consentement explicite du client avant d’enregistrer.";
+  return null;
+}
 export function waLink(phone: string, message: string) {
   return `https://wa.me/${normalizePhone(phone).replace(/\D/g, "")}?text=${encodeURIComponent(message)}`;
 }

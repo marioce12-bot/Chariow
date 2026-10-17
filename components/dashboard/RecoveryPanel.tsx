@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { recoveryDraftError } from "@/lib/recovery";
 import {
   Check,
   Clock3,
@@ -103,6 +104,13 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     [selected, setSelected] = useState(""),
     [consent, setConsent] = useState(false),
     [showForm, setShowForm] = useState(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const [formOpenVersion, setFormOpenVersion] = useState(0);
+  useEffect(() => {
+    if (!showForm || !formRef.current) return;
+    formRef.current.scrollIntoView({ behavior: "auto", block: "start" });
+    formRef.current.focus({ preventScroll: true });
+  }, [showForm, formOpenVersion]);
   const [preview, setPreview] = useState<{
     id: string;
     url: string;
@@ -189,7 +197,9 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
   function choose(candidate: Candidate) {
     setSelected(candidate.id);
     setConsent(false);
+    setError("");
     setShowForm(true);
+    setFormOpenVersion((version) => version + 1);
     setForm({
       ...blank,
       customerName: candidate.customerName || "",
@@ -204,7 +214,12 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
   }
   async function add(event: React.FormEvent) {
     event.preventDefault();
-    if (!consent) return;
+    const validationError = recoveryDraftError({ ...form, consent });
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError("");
     const data = await post({
       action: "create",
       ...form,
@@ -329,6 +344,8 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
             setSelected("");
             setConsent(false);
             setShowForm(true);
+            setError("");
+            setFormOpenVersion((version) => version + 1);
           }}
         >
           <Plus size={15} /> Ajouter un cas
@@ -540,7 +557,16 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
         </>
       )}
       {showForm && (
-        <form id="recovery-form" className="rec-box" onSubmit={add}>
+        <form
+          id="recovery-form"
+          ref={formRef}
+          tabIndex={-1}
+          aria-label={selected ? "Vérifier le paiement abandonné" : "Ajouter un paiement abandonné"}
+          style={{ scrollMarginTop: 96 }}
+          className="rec-box"
+          noValidate
+          onSubmit={add}
+        >
           <div className="rec-section-heading">
             <div>
               <h3>
@@ -566,7 +592,6 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
             {field("Nom du client", "customerName", { autoComplete: "name" })}
             {field("Téléphone WhatsApp", "phone", {
               type: "tel",
-              required: true,
               autoComplete: "tel",
               placeholder: "+229…",
             })}
@@ -581,7 +606,6 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
             {field("Devise", "currency", { maxLength: 8 })}
             {field("Date d’abandon", "abandonedAt", {
               type: "datetime-local",
-              required: true,
               max: localDate(new Date()),
             })}
             {field("Date réelle du consentement (facultatif)", "consentAt", {
@@ -589,21 +613,23 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
               max: localDate(new Date()),
             })}
             {field("Preuve / provenance du consentement", "consentSource", {
-              required: true,
               minLength: 3,
               maxLength: 300,
               placeholder: "Formulaire, date et version, échange client…",
             })}
             {field("Lien de paiement HTTPS", "paymentUrl", {
               type: "url",
-              required: true,
               placeholder: "https://…",
             })}
           </div>
+          {error && (
+            <p role="alert" className="rec-error">
+              {error}
+            </p>
+          )}
           <label className="rec-consent">
             <input
               type="checkbox"
-              required
               checked={consent}
               onChange={(event) => setConsent(event.target.checked)}
             />
@@ -619,7 +645,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
           <button
             type="submit"
             className="rec-primary"
-            disabled={disabled || !consent}
+            disabled={disabled}
           >
             {busy ? "Enregistrement…" : "Enregistrer le cas"}
           </button>

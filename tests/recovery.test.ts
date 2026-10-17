@@ -5,6 +5,7 @@ import {
   validHttpsUrl,
   waLink,
   saleMatch,
+  recoveryDraftError,
   type RecoveryCase,
 } from "@/lib/recovery";
 const base: RecoveryCase = {
@@ -25,6 +26,27 @@ const base: RecoveryCase = {
   attribution: null,
 };
 describe("payment recovery safeguards", () => {
+  it("explains missing relance details and accepts a complete consented draft", () => {
+    expect(recoveryDraftError({})).toMatch(/numéro WhatsApp valide/);
+    expect(
+      recoveryDraftError({
+        phone: "+221770000000",
+        abandonedAt: "2026-10-10T00:00:00Z",
+        consentSource: "Formulaire client",
+        paymentUrl: "",
+        consent: true,
+      }),
+    ).toMatch(/lien de paiement HTTPS/);
+    expect(
+      recoveryDraftError({
+        phone: "+221770000000",
+        abandonedAt: "2026-10-10T00:00:00Z",
+        consentSource: "Formulaire client",
+        paymentUrl: "https://pay.example/x",
+        consent: true,
+      }),
+    ).toBeNull();
+  });
   it("normalizes phone and encodes a manual WhatsApp link", () => {
     expect(normalizePhone("+221 77-000-00-00")).toBe("+221770000000");
     expect(waLink("+221770000000", "bonjour test")).toContain(

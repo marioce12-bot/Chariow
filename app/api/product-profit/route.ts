@@ -51,6 +51,7 @@ export async function GET(request: Request) {
     currency: string | null;
     status: string;
     product_name?: string | null;
+    raw_payload?: unknown;
   }> = [];
   while (true) {
     const { data, error } = await supabase
@@ -84,7 +85,7 @@ export async function PUT(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
   const body = await request.json().catch(() => null);
-  const { storeId, productId, currency, unitCost, feePerSale = 0 } = body ?? {};
+  const { storeId, productId, currency, unitCost = 0, feePerSale = 0 } = body ?? {};
   const code =
     typeof currency === "string" ? currency.trim().toUpperCase() : "";
   const validCost = (v: unknown) =>

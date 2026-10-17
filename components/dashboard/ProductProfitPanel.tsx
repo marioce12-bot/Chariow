@@ -7,6 +7,9 @@ type Product = {
   units: number;
   grossRevenue: number;
   netRevenue: number | null;
+  chariowFees: number | null;
+  estimatedNetRevenue: boolean;
+  chariowFeeRate: 0.15;
   totalCosts: number | null;
   profit: number | null;
   marginPercent: number | null;
@@ -170,9 +173,11 @@ export default function ProductProfitPanel({
           <span className="business-eyebrow">RENTABILITÉ</span>
           <h2 style={title}>Bénéfice estimé par produit</h2>
           <p style={muted}>
-            Montant net reçu selon Chariow, moins les coûts saisis. Estimation
-            avant dépenses publicitaires non ventilées. Les frais déjà déduits
-            par Chariow ne doivent pas être ajoutés une seconde fois.
+            Le net inclut les frais Chariow (15 %) automatiquement : ceux-ci ne
+            sont jamais déduits une seconde fois. Si le net réel est indisponible,
+            il est estimé à 85 % du brut. Le coût de fabrication est distinct du
+            prix de vente; saisissez vos coûts réels, hors frais Chariow.
+            Estimation avant dépenses publicitaires non ventilées.
           </p>
         </div>
         <label style={periodLabel}>
@@ -215,13 +220,13 @@ export default function ProductProfitPanel({
               </b>
               <div className="profit-summary-metrics">
                 <div>
-                  <small>Montant net reçu</small>
+                  <small>Montant net après frais</small>
                   <strong>
                     {t.missing ? "Données incomplètes" : money(t.net, currency)}
                   </strong>
                 </div>
                 <div>
-                  <small>Coûts renseignés</small>
+                  <small>Fabrication et autres frais</small>
                   <strong>{money(t.costs, currency)}</strong>
                 </div>
                 <div className="profit-summary-result">
@@ -244,8 +249,8 @@ export default function ProductProfitPanel({
                   c.product_id === p.productId && c.currency === p.currency,
               );
             const val = draft[key] ?? {
-              unitCost: cost ? String(cost.unit_cost) : "",
-              feePerSale: cost ? String(cost.fee_per_sale) : "",
+              unitCost: cost ? String(cost.unit_cost) : "0",
+              feePerSale: cost ? String(cost.fee_per_sale) : "0",
             };
             return (
               <article className="profit-product" key={key} style={card}>
@@ -266,10 +271,15 @@ export default function ProductProfitPanel({
                     Brut <b>{money(p.grossRevenue, p.currency)}</b>
                   </span>
                   <span>
-                    Net reçu <b>{money(p.netRevenue, p.currency)}</b>
+                    Frais Chariow ({(p.chariowFeeRate * 100).toFixed(0)} %)
+                    <b>{money(p.chariowFees, p.currency)}</b>
                   </span>
                   <span>
-                    Coûts <b>{money(p.totalCosts, p.currency)}</b>
+                    {p.estimatedNetRevenue ? "Montant net estimé" : "Montant net reçu"}
+                    <b>{money(p.netRevenue, p.currency)}</b>
+                  </span>
+                  <span>
+                    Fabrication et autres frais <b>{money(p.totalCosts, p.currency)}</b>
                   </span>
                 </div>
                 <div className="profit-product-result" style={profitRow}>
@@ -285,14 +295,14 @@ export default function ProductProfitPanel({
                 </div>
                 <div style={editGrid}>
                   <label>
-                    Coût unitaire
+                    Coût de fabrication unitaire
                     <input
                       aria-label={`Coût unitaire ${p.productName || p.productId} ${p.currency}`}
                       type="number"
                       min="0"
                       max="999999999999.99"
                       step="0.01"
-                      placeholder="Requis (0 accepté)"
+                      placeholder="0 par défaut"
                       value={val.unitCost}
                       onChange={(e) =>
                         setDraft((d) => ({
@@ -311,7 +321,7 @@ export default function ProductProfitPanel({
                       min="0"
                       max="999999999999.99"
                       step="0.01"
-                      placeholder="Requis (0 accepté)"
+                      placeholder="0 par défaut"
                       value={val.feePerSale}
                       onChange={(e) =>
                         setDraft((d) => ({
@@ -324,9 +334,9 @@ export default function ProductProfitPanel({
                   </label>
                 </div>
                 <p style={note}>
-                  Ces frais sont facultatifs dans la réalité mais doivent être
-                  indiqués : saisissez 0 si aucun frais supplémentaire. Ne pas
-                  ressaisir les frais déduits du net Chariow.
+                  Le coût de fabrication n’est pas le prix de vente. Ces champs
+                  sont facultatifs (0 par défaut) et concernent uniquement vos
+                  coûts hors frais Chariow, déjà inclus dans le net ci-dessus.
                 </p>
                 <button
                   disabled={saving !== null}

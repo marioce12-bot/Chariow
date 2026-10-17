@@ -72,6 +72,13 @@ describe("Product profit API", () => {
     expect(mocks.eq).toHaveBeenCalledWith("user_id", "owner");
     expect(mocks.upsert).not.toHaveBeenCalled();
   });
+  it("defaults omitted ebook manufacturing and optional other fees to zero", async () => {
+    expect((await PUT(req({ storeId: "store", productId: "ebook", currency: "XOF" }))).status).toBe(200);
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ unit_cost: 0, fee_per_sale: 0 }),
+      expect.anything(),
+    );
+  });
   it.each([1.1, 1.15, 2.55, 0])(
     "accepts the valid monetary value %s including explicit zero",
     async (value) => {
