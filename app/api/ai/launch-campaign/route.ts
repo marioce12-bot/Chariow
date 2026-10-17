@@ -4,9 +4,10 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { toUsd } from "@/lib/currency";
-import { createMetaCampaign, createMetaAdSet, createMetaCreative, createMetaCarouselCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
+import { createMetaCampaign, createMetaAdSet, createMetaAd, createMetaCreative, createMetaCarouselCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
 import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
+import { createMetaVideoCreative, isVideoMediaUrl, prepareMetaCreativeVideo } from "@/lib/meta/ad-video";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
 import { launchPinterest } from "@/lib/pinterest/api";
@@ -29,7 +30,8 @@ type LaunchBody = {
   message?: string; // texte de la créative
   headline?: string;
   linkUrl?: string; // lien de la page de redirection (page de vente de l'utilisateur) — OBLIGATOIRE
-  imageUrl?: string;
+  imageUrl?: string; // média principal : image OU vidéo (voir mediaType)
+  mediaType?: string; // "image" | "video" — "video" si imageUrl est une vidéo (sinon détecté via l'URL)
   carouselUrls?: string[]; // images supplémentaires après imageUrl (Meta : carrousel de 2 à 10 cartes)
   pageId?: string;
   metaAdAccountId?: string; // id de la ligne meta_ad_accounts (compte choisi dans l'appli)
@@ -206,9 +208,26 @@ export async function POST(request: Request) {
   const minAge = body.ageMin ?? 18;
   const maxAge = body.ageMax ?? 65;
   const durationDays = 1;
+  // Vidéo : le média principal est une vidéo (indiqué par le client, sinon détecté via l'URL).
+  // Une vidéo n'est jamais combinée à un carrousel d'images.
+  const mediaUrl: string = body.imageUrl;
+  const isVideo = body.mediaType === "video" || isVideoMediaUrl(mediaUrl);
   // Carrousel : images supplémentaires (https, sans doublon, 9 au plus) après l'image principale.
   // Aucune image supplémentaire = publicité à image unique, comme avant.
-  const carouselExtraUrls = parseCarouselUrls(body.carouselUrls, body.imageUrl);
+  const carouselExtraUrls = isVideo ? [] : parseCarouselUrls(body.carouselUrls, body.imageUrl);
+
+  // Vidéo : envoyée à Meta et traitée AVANT de créer la campagne. Si Meta refuse la vidéo
+  // ou met trop de temps à la traiter, rien n'a encore été créé chez Meta (pas de campagne orpheline).
+  let video: { videoId: string; thumbnailUrl: string } | null = null;
+  if (isVideo) {
+    try {
+      video = await prepareMetaCreativeVideo({ accountId, accessToken, videoUrl: mediaUrl, name: body.name });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Impossible d'envoyer la vidéo à Meta.";
+      console.error("launch-campaign Meta error (étape vidéo)", message);
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
+  }
 
   // 1. Campagne. Si CETTE étape échoue, rien n'a été créé côté Meta : l'erreur
   // Graph est déjà claire, on peut la laisser remonter telle quelle.
@@ -249,8 +268,21 @@ export async function POST(request: Request) {
     // n'est pas toujours téléchargeable par Meta (« Image non téléchargée »). Repli sur l'URL si l'envoi échoue.
     // Carrousel : chaque carte est envoyée à Meta de la même façon (une image_hash par carte) ;
     // les améliorations Advantage+ ne s'appliquent qu'à l'image unique.
+    // Vidéo : créative video_data (la vidéo a déjà été envoyée et traitée plus haut), sans Advantage+.
     let creative: { id?: unknown };
-    if (carouselExtraUrls.length >= 1) {
+    if (video) {
+      creative = await createMetaVideoCreative({
+        accountId,
+        accessToken,
+        name: `${body.name} — Créative`,
+        pageId,
+        link: trackedLinkUrl,
+        message: body.message,
+        headline: body.headline || body.name,
+        videoId: video.videoId,
+        thumbnailUrl: video.thumbnailUrl,
+      });
+    } else if (carouselExtraUrls.length >= 1) {
       const cards = await Promise.all(
         [body.imageUrl, ...carouselExtraUrls].map(async (url) => ({
           url,
@@ -284,9 +316,12 @@ export async function POST(request: Request) {
     }
     const creativeId = String(creative.id);
 
-    // Annonce créée en PAUSED, aperçu des fonctions Advantage+, puis activée
+    // Image : annonce créée en PAUSED, aperçu des fonctions Advantage+, puis activée
     // (parcours exigé par Meta quand une fonction générée par IA est activée).
-    const ad = await publishMetaAdWithAdvantage({ accountId, accessToken, name: `${body.name} — Pub`, adsetId: adSetId, creativeId });
+    // Vidéo : pas de fonction Advantage+ créative, l'annonce est créée directement ACTIVE.
+    const ad = video
+      ? await createMetaAd({ accountId, accessToken, name: `${body.name} — Pub`, adsetId: adSetId, creativeId, status: "ACTIVE" })
+      : await publishMetaAdWithAdvantage({ accountId, accessToken, name: `${body.name} — Pub`, adsetId: adSetId, creativeId });
     const adId = String(ad.id);
 
     // Enregistre la campagne pour qu'elle apparaisse dans la page Pub.
