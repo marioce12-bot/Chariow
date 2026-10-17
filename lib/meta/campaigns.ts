@@ -375,10 +375,23 @@ export async function createMetaCarouselCreative(input: {
   callToAction?: string | null;
 }) {
   const callToAction = normalizeMetaCta(input.callToAction) ?? LEGACY_META_CTA;
-  return graphPost(`${input.accountId}/adcreatives`, input.accessToken, {
-    name: input.name.slice(0, 200),
-    object_story_spec: JSON.stringify(buildCarouselObjectStorySpec({ pageId: input.pageId, link: input.link, message: input.message, headline: input.headline, callToAction, cards: input.cards })),
-  });
+  const spec = { pageId: input.pageId, link: input.link, message: input.message, headline: input.headline, callToAction, cards: input.cards };
+  const path = `${input.accountId}/adcreatives`;
+  // Le bouton est envoyé sur chaque carte ET au niveau de l'annonce (c'est ce dernier qu'Ads Manager affiche
+  // comme « bouton d'appel à l'action »). Si Meta refuse le champ au niveau de l'annonce, on retombe sur
+  // l'ancien format (bouton par carte uniquement) pour ne jamais bloquer le lancement.
+  try {
+    return await graphPost(path, input.accessToken, {
+      name: input.name.slice(0, 200),
+      object_story_spec: JSON.stringify(buildCarouselObjectStorySpec({ ...spec, withTopLevelCallToAction: true })),
+    });
+  } catch (error) {
+    console.error("createMetaCarouselCreative: bouton au niveau de l'annonce refusé par Meta, nouvel essai avec le bouton par carte seulement", error instanceof Error ? error.message : error);
+    return graphPost(path, input.accessToken, {
+      name: input.name.slice(0, 200),
+      object_story_spec: JSON.stringify(buildCarouselObjectStorySpec(spec)),
+    });
+  }
 }
 
 export async function createMetaAd(input: { accountId: string; accessToken: string; name: string; adsetId: string; creativeId: string; status?: "ACTIVE" | "PAUSED" }) {
