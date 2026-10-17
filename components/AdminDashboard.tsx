@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Activity, AlertTriangle, BarChart3, Bell, Building2, Clock, CreditCard, FileText, LogOut, RefreshCw, ShieldCheck, Users, UserPlus, Wallet, Receipt, Sparkles, Send, Gift, BadgeCheck } from "lucide-react";
-import { AdminNavigation } from "./AdminNavigation";
+import { AdminHeaderNavigation, AdminNavigation } from "./AdminNavigation";
 import { AdminNotifications } from "./AdminNotifications";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -47,6 +47,7 @@ function formatDuration(totalSeconds = 0) {
 
 export function AdminDashboard() {
   const [active, setActive] = useState("overview");
+  const headerRef = useRef<HTMLElement>(null);
   const [data, setData] = useState<AdminData | null>(null);
   const [usage, setUsage] = useState<UsageStats | null>(null);
   const [usageDays, setUsageDays] = useState(7);
@@ -86,6 +87,19 @@ export function AdminDashboard() {
   useEffect(() => { void load(); }, []);
   useEffect(() => { void loadUsage(usageDays); }, [usageDays]);
 
+  // Keep the fixed sidebar below the header, including wrapped desktop layouts.
+  const hasData = Boolean(data);
+  useEffect(() => {
+    const header = headerRef.current;
+    const shell = header?.closest<HTMLElement>(".admin-shell");
+    if (!header || !shell) return;
+    const update = () => shell.style.setProperty("--admin-header-height", `${header.getBoundingClientRect().height}px`);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [hasData, error]);
+
   async function signOut() {
     await fetch("/api/admin/password-logout", { method: "POST" });
     await createClient().auth.signOut();
@@ -96,7 +110,7 @@ export function AdminDashboard() {
   if (error || !data) return <main className="admin-shell"><div className="admin-error"><ShieldCheck size={25} /><h1>Console indisponible</h1><p>{error || "Impossible de charger la console administrateur."}</p>{error?.includes("Authentification") ? <a className="admin-link" href="/admin/login">Se connecter</a> : null}</div></main>;
 
   return <main className="admin-shell">
-    <header className="admin-header"><div><span className="admin-kicker">Vendeo interne</span><h1>Console administrateur</h1></div><div className="admin-header-actions"><span className="admin-role">{data.admin.role}</span><button type="button" onClick={signOut} className="admin-logout"><LogOut size={15} /> Déconnexion</button></div></header>
+    <header ref={headerRef} className="admin-header"><div className="admin-header-title"><span className="admin-kicker">Vendeo interne</span><h1>Console administrateur</h1></div><AdminHeaderNavigation active={active} onChange={setActive} /><div className="admin-header-actions"><span className="admin-role">{data.admin.role}</span><button type="button" onClick={signOut} className="admin-logout"><LogOut size={15} /> Déconnexion</button></div></header>
     <div className="admin-layout">
       <AdminNavigation active={active} onChange={setActive} />
       <section className="admin-content">

@@ -8,7 +8,7 @@ export type AdminNavigationProps = {
   onChange: (section: string) => void;
 };
 
-const groups = [
+export const adminNavigationGroups = [
   { label: "Pilotage", items: [["overview", "Vue générale", Activity], ["users", "Inscriptions", Users], ["usage", "Usage de l’app", BarChart3]] },
   { label: "Finance", items: [["subscriptions", "Abonnements", CreditCard], ["purchases", "Achats & recharges", Receipt], ["payouts", "Décaissements", Send]] },
   { label: "Plateforme", items: [["notifications", "Notifications", Bell], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText]] },
@@ -59,10 +59,20 @@ export function AdminNavigation({ active, onChange }: AdminNavigationProps) {
     {open && <button type="button" className="admin-nav-overlay" aria-label="Fermer le menu" onClick={() => setOpen(false)} />}
     <nav ref={drawerRef} id={titleId} className={`admin-sidebar admin-navigation${open ? " is-open" : ""}`} role={open ? "dialog" : undefined} aria-label="Navigation administrateur" aria-modal={open ? "true" : undefined}>
       <div className="admin-nav-mobile-head"><strong>Navigation</strong><button type="button" className="admin-nav-close" aria-label="Fermer le menu" onClick={() => setOpen(false)}><X size={20} /></button></div>
-      {groups.map((group) => <div className="admin-nav-group" key={group.label}>
+      {adminNavigationGroups.map((group) => <div className={`admin-nav-group${group.label === "Plateforme" ? " admin-nav-platform" : ""}`} key={group.label}>
         <span className="admin-nav-group-label">{group.label}</span>
         {group.items.map(([key, label, Icon]) => <button type="button" key={key} className={active === key ? "active" : ""} aria-current={active === key ? "page" : undefined} onClick={() => choose(key)}><Icon size={17} aria-hidden="true" /><span>{label}</span></button>)}
       </div>)}
     </nav>
   </>;
+}
+
+/** Platform tools live in the desktop header; mobile keeps the complete drawer. */
+export function AdminHeaderNavigation({ active, onChange }: AdminNavigationProps) {
+  return <nav className="admin-header-navigation" aria-label="Outils de la plateforme">
+    {adminNavigationGroups[2].items.map(([key, label, Icon]) => <button
+      type="button" key={key} className={active === key ? "active" : ""}
+      aria-current={active === key ? "page" : undefined} onClick={() => onChange(key)}
+    ><Icon size={16} aria-hidden="true" /><span>{label}</span></button>)}
+  </nav>;
 }
