@@ -15,7 +15,7 @@ export const PLAN_CONFIG = {
     amount: 2000,
     periodDays: 30,
     maxStores: 3,
-    adPlatforms: ["facebook", "instagram", "tiktok", "x", "whatsapp", "pinterest", "linkedin", "google"] as const,
+    adPlatforms: ["facebook", "instagram", "tiktok", "whatsapp", "pinterest", "linkedin", "google"] as const,
   },
 } as const;
 
@@ -24,7 +24,6 @@ export type AdPlatform =
   | "facebook"
   | "instagram"
   | "tiktok"
-  | "x"
   | "whatsapp"
   | "pinterest"
   | "linkedin"

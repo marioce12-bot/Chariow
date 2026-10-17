@@ -224,12 +224,8 @@ export function Dashboard() {
 
   useEffect(() => {
     const s = searchParams.get("chariow");
-    const x = searchParams.get("x");
     if (s && ["connected", "failed", "expired", "revoked", "pending"].includes(s)) {
       setActive("Mes boutiques");
-    }
-    if (x && ["connected", "no_ad_account", "account_access_denied", "failed"].includes(x)) {
-      setActive("Paramètres");
     }
   }, [searchParams]);
 

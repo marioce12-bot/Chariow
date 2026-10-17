@@ -1,6 +1,6 @@
 "use client";
 
-import { FaFacebookF, FaInstagram, FaLinkedinIn, FaPinterestP, FaTiktok, FaWhatsapp, FaXTwitter } from "react-icons/fa6";
+import { FaFacebookF, FaInstagram, FaLinkedinIn, FaPinterestP, FaTiktok, FaWhatsapp } from "react-icons/fa6";
 import type { AdPlatform } from "@/lib/plans";
 
 export const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
@@ -57,7 +57,6 @@ export function ChannelBadge({ id }: { id: AdPlatform }) {
     );
   }
   if (id === "tiktok") return <span className="channel-badge tiktok" aria-label="TikTok"><FaTiktok size={16} /></span>;
-  if (id === "x") return <span className="channel-badge linkedin" aria-label="X"><FaXTwitter size={16} /></span>;
   if (id === "whatsapp") return <span className="channel-badge whatsapp" aria-label="WhatsApp"><FaWhatsapp size={17} /></span>;
   if (id === "pinterest") return <span className="channel-badge pinterest" aria-label="Pinterest"><FaPinterestP size={16} /></span>;
   if (id === "linkedin") return <span className="channel-badge linkedin" aria-label="LinkedIn"><FaLinkedinIn size={16} /></span>;

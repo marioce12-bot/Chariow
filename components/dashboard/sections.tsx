@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, BarChart3, Bot, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages, ExternalLink } from "lucide-react";
-import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP, FaXTwitter } from "react-icons/fa6";
+import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { PinterestAdsPanel } from "@/components/PinterestAdsPanel";
 import { MetaHistoryOverview } from "@/components/dashboard/MetaHistoryOverview";
@@ -951,10 +951,9 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
   </>;
 }
 
-const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "x" | "pinterest"; label: string; description: string; badge: AdPlatform; live: boolean }> = [
+const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; label: string; description: string; badge: AdPlatform; live: boolean }> = [
   { id: "meta", label: "Meta (Facebook & Instagram)", description: "Diffuse tes campagnes sur Facebook et Instagram.", badge: "facebook", live: true },
   { id: "tiktok", label: "TikTok", description: "Diffuse tes campagnes sur TikTok Ads.", badge: "tiktok", live: true },
-  { id: "x", label: "X Ads", description: "Diffuse tes campagnes sur X Ads.", badge: "x", live: true },
   { id: "pinterest", label: "Pinterest", description: "Diffuse tes campagnes sur Pinterest Ads.", badge: "pinterest", live: true },
 ];
 
@@ -968,7 +967,6 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [metaConnected, setMetaConnected] = useState(false);
   const [tiktokConnected, setTiktokConnected] = useState(false);
-  const [xConnected, setXConnected] = useState(false);
   const [pinterestConnected, setPinterestConnected] = useState(false);
   const [connectionBusy, setConnectionBusy] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -986,30 +984,18 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
     let active = true;
     async function loadConnections() {
       try {
-        const [metaResponse, tiktokResponse, xResponse, pinterestResponse] = await Promise.all([
+        const [metaResponse, tiktokResponse, pinterestResponse] = await Promise.all([
           fetch("/api/integrations/meta/accounts"),
           fetch("/api/integrations/tiktok/accounts"),
-          fetch("/api/integrations/x/accounts"),
           fetch("/api/integrations/pinterest/accounts"),
         ]);
         const metaData = metaResponse.ok ? await metaResponse.json().catch(() => ({})) : {};
         const tiktokData = tiktokResponse.ok ? await tiktokResponse.json().catch(() => ({})) : {};
-        const xData = xResponse.ok ? await xResponse.json().catch(() => ({})) : {};
         const pinterestData = pinterestResponse.ok ? await pinterestResponse.json().catch(() => ({})) : {};
         if (!active) return;
         setMetaConnected((metaData.accounts ?? []).length > 0);
         setTiktokConnected((tiktokData.accounts ?? []).length > 0);
-        setXConnected(Boolean(xData.connected));
         setPinterestConnected((pinterestData.accounts ?? []).length > 0);
-        setConnectionError(
-          typeof xData.connectionError === "string"
-            ? xData.connectionError.includes("(403)")
-              ? "Connexion X autorisée, mais l’API X Ads refuse l’accès aux comptes publicitaires (403). Vérifie que ton compte X a accès à X Ads et que l’application est autorisée à utiliser l’API Ads."
-              : "Connexion X autorisée, mais la récupération des comptes X Ads a échoué. Vérifie les accès X Ads, puis réessaie."
-            : xData.connected && (xData.accounts ?? []).length === 0
-              ? "Connexion X autorisée, mais aucun compte publicitaire X Ads n’est rattaché à ce profil."
-              : null,
-        );
       } finally {
         if (active) setLoadingAccounts(false);
       }
@@ -1020,11 +1006,11 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
     };
   }, []);
 
-  function connectAccount(platform: "meta" | "tiktok" | "x" | "pinterest") {
+  function connectAccount(platform: "meta" | "tiktok" | "pinterest") {
     window.location.href = `/api/integrations/${platform}/connect`;
   }
 
-  async function disconnectAccount(platform: "meta" | "tiktok" | "x" | "pinterest") {
+  async function disconnectAccount(platform: "meta" | "tiktok" | "pinterest") {
     setConnectionBusy(platform);
     setConnectionError(null);
     try {
@@ -1035,7 +1021,6 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
       }
       if (platform === "meta") setMetaConnected(false);
       else if (platform === "tiktok") setTiktokConnected(false);
-      else if (platform === "x") setXConnected(false);
       else setPinterestConnected(false);
     } catch {
       setConnectionError("Impossible de déconnecter ce compte pour le moment.");
@@ -1208,7 +1193,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
       {connectionError ? <p className="settings-inline-message settings-account-error" role="alert">{connectionError}</p> : null}
       {CONNECTED_ACCOUNT_PLATFORMS.map((platform) => {
         const allowed = isAdPlatformAllowed(plan, platform.badge);
-        const isConnected = platform.id === "meta" ? metaConnected : platform.id === "tiktok" ? tiktokConnected : platform.id === "x" ? xConnected : pinterestConnected;
+        const isConnected = platform.id === "meta" ? metaConnected : platform.id === "tiktok" ? tiktokConnected : pinterestConnected;
         const busy = connectionBusy === platform.id;
         return (
           <div className="settings-integration-card" key={platform.id}>
@@ -1234,11 +1219,11 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
                 {!platform.live ? t("settings.comingSoon") : t("settings.unavailable")}
               </button>
             ) : isConnected ? (
-              <button type="button" className="settings-disconnect" onClick={() => void disconnectAccount(platform.id as "meta" | "tiktok" | "x" | "pinterest")} disabled={busy}>
+              <button type="button" className="settings-disconnect" onClick={() => void disconnectAccount(platform.id as "meta" | "tiktok" | "pinterest")} disabled={busy}>
                 {busy ? t("settings.disconnecting") : t("settings.disconnect")}
               </button>
             ) : (
-              <button type="button" className="settings-connect" onClick={() => connectAccount(platform.id as "meta" | "tiktok" | "x" | "pinterest")} disabled={busy}>
+              <button type="button" className="settings-connect" onClick={() => connectAccount(platform.id as "meta" | "tiktok" | "pinterest")} disabled={busy}>
                 {t("settings.connect")}
               </button>
             )}
@@ -1331,7 +1316,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const en = locale === "en";
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
   const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
-  const [channel, setChannel] = useState<"overview" | "meta" | "tiktok" | "pinterest" | "x">("overview");
+  const [channel, setChannel] = useState<"overview" | "meta" | "tiktok" | "pinterest">("overview");
   const [message, setMessage] = useState<string | null>(null);
 
   const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>>(cachedOnce?.metaAccounts ?? []);
@@ -1345,7 +1330,6 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
   const [tiktokAccounts, setTiktokAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>>(cachedOnce?.tiktokAccounts ?? []);
   const [pinterestAccounts, setPinterestAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; country: string | null }>>([]);
-  const [xAccounts, setXAccounts] = useState<Array<{ id: string; x_account_id: string; name: string | null; currency: string | null; timezone: string | null; approval_status: string | null }>>([]);
   // Tant que le statut TikTok n'est pas connu (pas de cache), on affiche des skeletons
   // au lieu du bouton « Connecter TikTok » pour éviter le flash d'interface.
   const [tiktokLoading, setTiktokLoading] = useState(!cachedOnce);
@@ -1440,20 +1424,12 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     writeCache(ADS_CACHE_KEY, { metaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts });
   }
 
-  useEffect(() => { void load(); void loadXAccounts(); }, []);
+  useEffect(() => { void load(); }, []);
 
   const connectMeta = () => { window.location.href = "/api/integrations/meta/connect"; };
   const connectTiktok = () => { window.location.href = "/api/integrations/tiktok/connect"; };
   const connectPinterest = () => { window.location.href = "/api/integrations/pinterest/connect"; };
-  const connectX = () => { window.location.href = "/api/integrations/x/connect"; };
 
-  async function loadXAccounts() {
-    const response = await fetch("/api/integrations/x/accounts", { cache: "no-store" });
-    if (response.ok) {
-      const data = await response.json().catch(() => ({}));
-      setXAccounts(data.accounts ?? []);
-    }
-  }
 
   async function syncMeta() {
     if (!selectedMetaAccount) return;
@@ -1502,28 +1478,20 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const metaConnected = metaAccounts.length > 0;
   const tiktokConnected = tiktokAccounts.length > 0;
 
-  const channels: Array<{ id: "overview" | "meta" | "tiktok" | "pinterest" | "x"; label: string }> = [{ id: "overview", label: t("ads.overview") }, { id: "meta", label: t("ads.meta") }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: t("ads.tiktok") }] : []), { id: "pinterest", label: "Pinterest" }, { id: "x", label: "X Ads" }];
+  const channels: Array<{ id: "overview" | "meta" | "tiktok" | "pinterest"; label: string }> = [{ id: "overview", label: t("ads.overview") }, { id: "meta", label: t("ads.meta") }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: t("ads.tiktok") }] : []), { id: "pinterest", label: "Pinterest" }];
 
   return (
     <>
       <div className="page-top" style={{ gap: 12 }}><div><span className="eyebrow">{t("ads.eyebrow")}</span><h1>{t("ads.title")}</h1><p>{t("ads.subtitle")}</p></div><button type="button" className="btn btn-dark" style={{ flexShrink: 0 }} onClick={onLaunchAd}><Plus size={15} /> {t("ads.launch")}</button></div>
 
-      <div className="app-card ads-channel-switcher" role="tablist" aria-label={t("ads.title")}>{channels.map((item) => <button key={item.id} type="button" role="tab" aria-selected={channel === item.id} aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={18} /> : item.id === "tiktok" ? <FaTiktok size={17} /> : item.id === "pinterest" ? <FaPinterestP size={17} style={{ color: "#E60023" }} /> : item.id === "x" ? <FaXTwitter size={17} /> : null}<span>{item.label}</span></button>)}</div>
+      <div className="app-card ads-channel-switcher" role="tablist" aria-label={t("ads.title")}>{channels.map((item) => <button key={item.id} type="button" role="tab" aria-selected={channel === item.id} aria-label={item.label} title={item.label} className={`btn ${channel === item.id ? "btn-dark" : "btn-ghost"}`} onClick={() => setChannel(item.id)}>{item.id === "meta" ? <FaMeta size={18} /> : item.id === "tiktok" ? <FaTiktok size={17} /> : item.id === "pinterest" ? <FaPinterestP size={17} style={{ color: "#E60023" }} /> : null}<span>{item.label}</span></button>)}</div>
 
       {message && <p className="store-error" role="status">{message}</p>}
 
       {channel === "overview" ? <AdCampaignsList storeId={storeId} onNewCampaign={onLaunchAd} key={campaignsVersion} /> : null}
 
-      {channel === "x" ? <section className="x-ads-panel">
-        {xAccounts.length ? <div className="app-card x-ads-status-card">
-          <div className="x-ads-brand"><FaXTwitter size={24} /><div><span className="eyebrow">X Ads</span><h2>Compte publicitaire X</h2><p>Connecte ton compte X Ads pour accéder à tes comptes publicitaires depuis Vendeo.</p><p className="x-ads-requirement">{t("ads.xAccountRequired")}</p><a className="btn btn-ghost x-ads-create-link" href="https://ads.x.com/" target="_blank" rel="noreferrer">{t("ads.createXAccount")} <ExternalLink size={14} /></a></div></div>
-          <span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.xAccountConnected")}</span>
-        </div> : null}
-        {xAccounts.length ? <div className="app-card x-ads-accounts"><div className="card-head"><div><span className="eyebrow">Comptes accessibles</span><h2>Comptes publicitaires X</h2></div></div>{xAccounts.map((account) => <div className="x-ads-account-row" key={account.id}><div><strong>{account.name || account.x_account_id}</strong><small>{account.x_account_id}{account.currency ? ` · ${account.currency}` : ""}{account.approval_status ? ` · ${account.approval_status}` : ""}</small></div><span className="status-positive">Connecté</span></div>)}</div> : <div className="empty-state"><FaXTwitter size={28} /><strong>{t("ads.xNoAccount")}</strong><span>{t("ads.xAuthorize")}</span><button type="button" className="btn btn-dark" onClick={connectX}>{t("ads.connectX")}</button><a className="btn btn-ghost" href="https://ads.x.com/" target="_blank" rel="noreferrer">{t("ads.createXAccount")} <ExternalLink size={14} /></a></div>}
-      </section> : null}
-
-      {channel === "pinterest" ? <section className="x-ads-panel">
-        {pinterestAccounts.length ? <div className="app-card x-ads-accounts"><div className="card-head"><div><span className="eyebrow">Comptes accessibles</span><h2>Comptes publicitaires Pinterest</h2></div></div>{pinterestAccounts.map((account) => <div className="x-ads-account-row" key={account.id}><div><strong>{account.name || account.advertiser_id}</strong><small>{account.advertiser_id}{account.currency ? ` · ${account.currency}` : ""}{account.country ? ` · ${account.country}` : ""}</small></div><span className="status-positive">Connecté</span></div>)}</div> : <div className="empty-state"><FaPinterestP size={28} style={{ color: "#E60023" }} /><strong>Aucun compte Pinterest Ads connecté</strong><span>Connecte un compte Pinterest Ads pour le sélectionner dans le flux de création de publicité.</span><button type="button" className="btn btn-dark" onClick={connectPinterest}>Connecter Pinterest Ads</button></div>}
+      {channel === "pinterest" ? <section className="ads-accounts-panel">
+        {pinterestAccounts.length ? <div className="app-card ads-accounts"><div className="card-head"><div><span className="eyebrow">Comptes accessibles</span><h2>Comptes publicitaires Pinterest</h2></div></div>{pinterestAccounts.map((account) => <div className="ads-account-row" key={account.id}><div><strong>{account.name || account.advertiser_id}</strong><small>{account.advertiser_id}{account.currency ? ` · ${account.currency}` : ""}{account.country ? ` · ${account.country}` : ""}</small></div><span className="status-positive">Connecté</span></div>)}</div> : <div className="empty-state"><FaPinterestP size={28} style={{ color: "#E60023" }} /><strong>Aucun compte Pinterest Ads connecté</strong><span>Connecte un compte Pinterest Ads pour le sélectionner dans le flux de création de publicité.</span><button type="button" className="btn btn-dark" onClick={connectPinterest}>Connecter Pinterest Ads</button></div>}
         {pinterestAccounts.length ? <PinterestAdsPanel accounts={pinterestAccounts} /> : null}
       </section> : null}
 

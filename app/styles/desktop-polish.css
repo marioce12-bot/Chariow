@@ -78,8 +78,7 @@
   .ads-channel-switcher .btn-dark { box-shadow: 0 4px 12px rgba(16, 62, 248, .16); }
   .ads-channel-switcher [role="tab"] span { font-size: 12px; font-weight: 650; }
   .meta-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .x-ads-panel { gap: 14px; }
-  .x-ads-status-card { align-items: center; }
+  .ads-accounts-panel { gap: 14px; }
   .empty-state { min-height: 150px; }
 }
 
