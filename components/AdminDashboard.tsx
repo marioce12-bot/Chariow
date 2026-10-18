@@ -1,218 +1,751 @@
 "use client";
 
-import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
-import { Activity, AlertTriangle, BarChart3, Bell, Building2, Clock, CreditCard, FileText, LogOut, RefreshCw, ShieldCheck, Users, UserPlus, Wallet, Receipt, Sparkles, Send, Gift, BadgeCheck, MessageSquareText } from "lucide-react";
-import { AdminHeaderNavigation, AdminNavigation } from "./AdminNavigation";
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
+import {
+  Activity,
+  ArrowRight,
+  Bell,
+  CheckCircle2,
+  ChevronRight,
+  CreditCard,
+  FileText,
+  Globe2,
+  Loader2,
+  LogOut,
+  Plug,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  TriangleAlert,
+  Users,
+} from "lucide-react";
+import {
+  AdminNavigation,
+  adminLabel,
+  adminSectionKeys,
+} from "./AdminNavigation";
 import { AdminNotifications } from "./AdminNotifications";
 import { AdminFeedbackSection } from "./FeedbackView";
-import { createClient } from "@/lib/supabase/browser";
-
-type AdminData = {
-  admin: { role: string };
-  metrics: { users: number; stores: number; subscriptions: number; messages: number; metaAccounts: number };
-  business: { total_revenue_xof?: number; credit_revenue_xof?: number; subscription_revenue_xof?: number; credit_purchases?: number; credits_sold?: number; active_subscriptions?: number; registered_users?: number; studio_generations?: number };
-  users: Array<{ id: string; email: string | null; full_name: string | null; created_at: string; subscription?: { plan: string; status: string } | null }>;
-  stores: Array<{ id: string; store_name: string; platform: string; connection_status: string; user_id: string }>;
-  subscriptions: Array<{ id: string; user_id: string; plan: string; status: string; messages_used_this_month: number; messages_limit: number; current_period_end?: string }>;
-  metaAccounts: Array<{ id: string; name: string | null; meta_account_id: string; last_synced_at: string | null }>;
-  audit: Array<{ id: string; action: string; resource_type: string; resource_id?: string | null; created_at: string }>;
-  creditPurchases: Array<{ id: string; user_id: string; credits: number; status: string; operation?: string; metadata?: { amount_xof?: number; provider?: string }; created_at: string }>;
-  creditTransactions: Array<{ id: string; user_id: string; credits: number; operation?: string; model?: string; status: string; created_at: string }>;
-  paymentEvents: Array<{ id: string; user_id: string; plan?: string; status: string; created_at: string }>;
-  payouts?: Array<{ id: string; amount_xof: number; recipient_name: string; recipient_phone: string; recipient_method: string; status: string; created_at: string }>;
-};
-
-type UsageStats = {
-  signups_24h: number;
-  signups_7d: number;
-  signups_30d: number;
-  signups_total: number;
-  active_users_24h: number;
-  days: number;
-  sessions: number;
-  active_users: number;
-  avg_session_seconds: number;
-  sections: Array<{ section: string; seconds: number; visits: number; users: number }>;
-  signups_by_day: Array<{ day: string; count: number }>;
-};
-
-const sections = [["overview", "Vue générale", Activity], ["users", "Inscriptions", UserPlus], ["usage", "Usage de l’app", BarChart3], ["notifications", "Notifications", Bell], ["subscriptions", "Abonnements", CreditCard], ["purchases", "Achats & recharges", Receipt], ["payouts", "Décaissement", Send], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText], ["feedback", "Retours & notes", MessageSquareText]] as const;
-
-function formatDuration(totalSeconds = 0) {
-  const seconds = Math.round(totalSeconds);
-  if (seconds < 60) return `${seconds} s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ${String(seconds % 60).padStart(2, "0")} s`;
-  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
-}
+import {
+  UsersSection,
+  UsageSection,
+  SubscriptionsSection,
+  PurchasesSection,
+  PayoutsSection,
+  IntegrationsSection,
+  AuditSection,
+} from "./AdminSections";
+import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
+import "./admin-dashboard.css";
 
 export function AdminDashboard() {
-  const { t, locale } = useI18n();
+  const { locale, setLocale } = useI18n();
+  const en = locale === "en";
   const [active, setActive] = useState("overview");
-  const headerRef = useRef<HTMLElement>(null);
   const [data, setData] = useState<AdminData | null>(null);
   const [usage, setUsage] = useState<UsageStats | null>(null);
   const [usageDays, setUsageDays] = useState(7);
-  const usageRequest = useRef(0);
   const [usageError, setUsageError] = useState("");
   const [usageLoading, setUsageLoading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [updated, setUpdated] = useState<Date | null>(null);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const usageRequest = useRef(0);
+  const overviewRequest = useRef(0);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   async function loadUsage(days: number) {
-    const requestId = ++usageRequest.current;
-    setUsageLoading(true); setUsageError("");
+    const request = ++usageRequest.current;
+    setUsageLoading(true);
+    setUsageError("");
     try {
-      const response = await fetch(`/api/admin/usage?days=${days}`, { cache: "no-store" });
+      const response = await fetch(`/api/admin/usage?days=${days}`, {
+        cache: "no-store",
+      });
       const payload = await response.json().catch(() => ({}));
-      if (requestId !== usageRequest.current) return;
-      if (!response.ok || !payload.usage) throw new Error(payload.error || t("adminComplete.statsUnavailable"));
-      setUsage(payload.usage);
-    } catch (error) {
-      if (requestId !== usageRequest.current) return;
-      setUsage(null);
-      setUsageError(error instanceof Error ? error.message : t("adminComplete.statsUnavailable"));
-    } finally { if (requestId === usageRequest.current) setUsageLoading(false); }
+      if (!response.ok || !payload.usage) throw new Error("usage_unavailable");
+      if (request === usageRequest.current) setUsage(payload.usage);
+    } catch {
+      if (request === usageRequest.current) {
+        setUsage(null);
+        setUsageError("usage_unavailable");
+      }
+    } finally {
+      if (request === usageRequest.current) setUsageLoading(false);
+    }
   }
-
   async function load() {
+    const request = ++overviewRequest.current;
     setLoading(true);
     setError("");
-    const response = await fetch("/api/admin/overview");
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) setError(payload.error ?? t("adminComplete.adminDenied"));
-    else setData(payload);
-    setLoading(false);
-    if (response.ok) void loadUsage(usageDays);
+    try {
+      const response = await fetch("/api/admin/overview", {
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(
+          response.status === 401 || response.status === 403
+            ? "access_denied"
+            : "overview_unavailable",
+        );
+      if (!payload.metrics || !Array.isArray(payload.users))
+        throw new Error("overview_unavailable");
+      if (request === overviewRequest.current) {
+        setData(payload);
+        setUpdated(new Date());
+      }
+    } catch (cause) {
+      if (request === overviewRequest.current)
+        setError(
+          cause instanceof Error ? cause.message : "overview_unavailable",
+        );
+    } finally {
+      if (request === overviewRequest.current) setLoading(false);
+    }
   }
-
-  useEffect(() => { void load(); }, []);
-  useEffect(() => { void loadUsage(usageDays); }, [usageDays]);
-
-  // Keep the fixed sidebar below the header, including wrapped desktop layouts.
-  const hasData = Boolean(data);
   useEffect(() => {
-    const header = headerRef.current;
-    const shell = header?.closest<HTMLElement>(".admin-shell");
-    if (!header || !shell) return;
-    const update = () => shell.style.setProperty("--admin-header-height", `${header.getBoundingClientRect().height}px`);
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(header);
-    return () => observer.disconnect();
-  }, [hasData, error]);
-
+    void load();
+    return () => {
+      overviewRequest.current++;
+    };
+  }, []);
+  useEffect(() => {
+    void loadUsage(usageDays);
+    return () => {
+      usageRequest.current++;
+    };
+  }, [usageDays]);
+  useEffect(() => {
+    const sync = () => {
+      const key = window.location.hash.slice(1);
+      if (adminSectionKeys.some((item) => item === key)) setActive(key);
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
+  function navigate(section: string) {
+    setActive(section);
+    window.history.replaceState(null, "", `#${section}`);
+    titleRef.current?.focus();
+  }
   async function signOut() {
-    await fetch("/api/admin/password-logout", { method: "POST" });
-    await createClient().auth.signOut();
-    window.location.href = "/admin/login";
+    setLogoutBusy(true);
+    try {
+      const response = await fetch("/api/admin/password-logout", {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error();
+      window.location.assign("/admin/login");
+    } catch {
+      setError("logout_failed");
+      setLogoutBusy(false);
+    }
   }
+  const errorText =
+    error === "access_denied"
+      ? en
+        ? "Your admin session is unavailable. Sign in again."
+        : "Votre session administrateur est indisponible. Reconnectez-vous."
+      : error === "logout_failed"
+        ? en
+          ? "Sign-out failed. Please retry."
+          : "La déconnexion a échoué. Veuillez réessayer."
+        : en
+          ? "The console could not be refreshed. No unavailable value is shown as zero."
+          : "La console n’a pas pu être actualisée. Aucune donnée indisponible n’est remplacée par un zéro.";
 
-  if (loading && !data) return <main className="admin-shell"><div className="admin-loading">{t("adminExtra.admin.loading")}</div></main>;
-  if (error || !data) return <main className="admin-shell"><div className="admin-error"><ShieldCheck size={25} /><h1>{t("adminComplete.unavailable")}</h1><p>{error || t("adminComplete.cantLoad")}</p>{error?.includes("Authentification") ? <a className="admin-link" href="/admin/login">{t("adminComplete.login")}</a> : null}</div></main>;
-
-  return <main className="admin-shell">
-    <header ref={headerRef} className="admin-header"><div className="admin-header-title"><span className="admin-kicker">{t("adminComplete.internal")}</span><h1>{t("adminComplete.console")}</h1></div><AdminHeaderNavigation active={active} onChange={setActive} /><div className="admin-header-actions"><span className="admin-role">{data.admin.role}</span><button type="button" onClick={signOut} className="admin-logout"><LogOut size={15} /> {t("adminComplete.logout")}</button></div></header>
-    <div className="admin-layout">
-      <AdminNavigation active={active} onChange={setActive} />
-      <section className="admin-content">
-        <div className="admin-toolbar"><div><span className="admin-kicker">{t("adminComplete.platform")}</span><h2>{t(`adminComplete.${({overview:"overview",users:"registrations",usage:"appUsage",notifications:"notifications",subscriptions:"subscriptions",purchases:"purchases",payouts:"payouts",integrations:"integrations",audit:"audit",feedback:"feedback"} as Record<string,string>)[active] ?? "overview"}`)}</h2></div><button type="button" className="admin-refresh" onClick={() => void load()}><RefreshCw size={15} /> {loading ? t("adminComplete.refreshing") : t("adminComplete.refresh")}</button></div>
-        {usageError && ["overview", "usage", "users"].includes(active) && <p className="admin-action-message" role="alert">{localizeSystemMessage(usageError, locale)} <button type="button" className="admin-btn admin-btn-soft" onClick={() => void loadUsage(usageDays)}>{t("adminComplete.retry")}</button></p>}
-        {usageLoading && active === "usage" && <p role="status">{t("adminComplete.statsLoading")}</p>}
-        {active === "overview" && <Overview data={data} usage={usage} />}
-        {active === "users" && <UsersSection data={data} usage={usage} />}
-        {active === "usage" && <UsageSection usage={usage} days={usageDays} onDaysChange={setUsageDays} />}
-        {active === "notifications" && <AdminNotifications totalUsers={data.metrics.users} />}
-        {active === "subscriptions" && <SubscriptionsSection data={data} />}
-        {active === "purchases" && <PurchasesSection data={data} />}
-        {active === "payouts" && <PayoutsSection data={data} onRefresh={() => void load()} />}
-        {active === "integrations" && <IntegrationsSection data={data} />}
-        {active === "audit" && <AuditSection data={data} />}
-        {active === "feedback" && <AdminFeedbackSection />}
+  return (
+    <main className="admin-shell owner-console">
+      <AdminNavigation active={active} onChange={navigate} />
+      <header className="admin-header owner-header">
+        <div className="owner-breadcrumb">
+          <ShieldCheck size={16} />
+          <span>{en ? "Administration" : "Administration"}</span>
+          <ChevronRight size={14} />
+          <strong>{adminLabel(active, locale)}</strong>
+        </div>
+        <div className="admin-header-actions">
+          <button
+            type="button"
+            className="owner-search-shortcut"
+            onClick={() => navigate("users")}
+          >
+            <Search size={16} />
+            <span>{en ? "Find an account" : "Trouver un compte"}</span>
+          </button>
+          <button
+            type="button"
+            className="admin-language"
+            aria-label={en ? "Passer en français" : "Switch to English"}
+            onClick={() => setLocale(en ? "fr" : "en")}
+          >
+            <Globe2 size={16} />
+            {locale.toUpperCase()}
+          </button>
+          <span className="owner-header-divider" />
+          <span className="owner-header-person">
+            <span className="owner-avatar">M</span>
+            <span>
+              {en ? "Owner" : "Propriétaire"}
+              <small>Super-admin</small>
+            </span>
+          </span>
+          <button
+            type="button"
+            className="admin-logout"
+            aria-label={en ? "Sign out" : "Déconnexion"}
+            title={en ? "Sign out" : "Déconnexion"}
+            disabled={logoutBusy}
+            onClick={() => void signOut()}
+          >
+            <LogOut size={17} />
+          </button>
+        </div>
+      </header>
+      <section className="admin-content owner-content">
+        <div className="admin-toolbar owner-toolbar">
+          <div>
+            <span className="admin-kicker">
+              {en
+                ? "YOUR OBSERVATION & CONTROL CENTER"
+                : "VOTRE CENTRE D’OBSERVATION ET DE CONTRÔLE"}
+            </span>
+            <h1 ref={titleRef} tabIndex={-1}>
+              {adminLabel(active, locale)}
+            </h1>
+            <p>
+              {active === "overview"
+                ? en
+                  ? "One place to understand, monitor and act on Vendeo."
+                  : "Un seul espace pour comprendre, surveiller et piloter Vendeo."
+                : en
+                  ? "All the controls you need, in your owner workspace."
+                  : "Tous les contrôles utiles, dans votre espace propriétaire."}
+            </p>
+          </div>
+          <div className="owner-refresh-group">
+            {updated && (
+              <span>
+                {en ? "Updated at " : "Actualisé à "}
+                {updated.toLocaleTimeString(en ? "en-US" : "fr-FR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            )}
+            <button
+              type="button"
+              className="admin-refresh"
+              disabled={loading}
+              onClick={() => {
+                void load();
+                void loadUsage(usageDays);
+              }}
+            >
+              <RefreshCw
+                size={15}
+                className={loading ? "owner-spinning" : ""}
+              />
+              {en ? "Refresh" : "Actualiser"}
+            </button>
+          </div>
+        </div>
+        {error && (
+          <div className="owner-notice owner-notice-error" role="alert">
+            <TriangleAlert size={18} />
+            <span>
+              {errorText}
+              {data && (
+                <strong>
+                  {" "}
+                  {en
+                    ? "Last loaded data is retained."
+                    : "Les dernières données chargées restent affichées."}
+                </strong>
+              )}
+            </span>
+            {error === "access_denied" ? (
+              <a href="/admin/login">{en ? "Sign in" : "Se connecter"}</a>
+            ) : (
+              <button type="button" onClick={() => void load()}>
+                {en ? "Retry" : "Réessayer"}
+              </button>
+            )}
+          </div>
+        )}
+        {usageError && ["overview", "usage", "users"].includes(active) && (
+          <div className="owner-notice" role="alert">
+            <TriangleAlert size={18} />
+            <span>
+              {en
+                ? "Usage statistics are unavailable. Other account data remains accessible."
+                : "Les statistiques d’usage sont indisponibles. Les autres données de compte restent accessibles."}
+            </span>
+            <button type="button" onClick={() => void loadUsage(usageDays)}>
+              {en ? "Retry" : "Réessayer"}
+            </button>
+          </div>
+        )}
+        {!data ? (
+          <div className="owner-empty-state" role="status">
+            {loading ? (
+              <>
+                <Loader2 className="owner-spinning" size={28} />
+                <h2>
+                  {en
+                    ? "Loading your control center"
+                    : "Chargement de votre centre de contrôle"}
+                </h2>
+              </>
+            ) : (
+              <>
+                <ShieldCheck size={30} />
+                <h2>{en ? "Console unavailable" : "Console indisponible"}</h2>
+                <p>
+                  {en
+                    ? "Retry or sign in with your owner session."
+                    : "Réessayez ou reconnectez votre session propriétaire."}
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            {active === "overview" && (
+              <Overview
+                data={data}
+                usage={usage}
+                days={usageDays}
+                usageLoading={usageLoading}
+                navigate={navigate}
+              />
+            )}
+            {active === "users" && (
+              <UsersSection
+                data={data}
+                usage={usage}
+                onRefresh={() => void load()}
+              />
+            )}
+            {active === "usage" && (
+              <>
+                {usageLoading && (
+                  <p role="status">
+                    {en
+                      ? "Loading statistics…"
+                      : "Chargement des statistiques…"}
+                  </p>
+                )}
+                <UsageSection
+                  usage={usage}
+                  days={usageDays}
+                  onDaysChange={setUsageDays}
+                />
+              </>
+            )}
+            {active === "integrations" && <IntegrationsSection data={data} />}
+            {active === "notifications" && (
+              <AdminNotifications totalUsers={data.metrics.users} />
+            )}
+            {active === "feedback" && <AdminFeedbackSection />}
+            {active === "subscriptions" && (
+              <SubscriptionsSection data={data} onRefresh={() => void load()} />
+            )}
+            {active === "purchases" && <PurchasesSection data={data} />}
+            {active === "payouts" && (
+              <PayoutsSection data={data} onRefresh={() => void load()} />
+            )}
+            {active === "audit" && <AuditSection data={data} />}
+          </>
+        )}
+        <footer className="owner-content-footer">
+          <ShieldCheck size={14} />
+          <span>
+            {en
+              ? "Private owner view · Account metrics only · No store content or credentials"
+              : "Vue privée propriétaire · Métriques de compte uniquement · Aucun contenu boutique ni identifiant secret"}
+          </span>
+        </footer>
       </section>
-    </div>
-  </main>;
+    </main>
+  );
 }
 
-function Overview({ data, usage }: { data: AdminData; usage: UsageStats | null }) {
-  const { t, locale } = useI18n();
-  const money = (value = 0) => `${Number(value).toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF`;
-  const signups24h = usage?.signups_24h ?? data.users.filter((user) => Date.now() - new Date(user.created_at).getTime() <= 24 * 3600 * 1000).length;
-  const topSection = usage?.sections?.[0]?.section ?? "—";
-  const cards = [[t("adminComplete.revenue"), money(data.business.total_revenue_xof), Wallet], [t("adminComplete.studioTopups"), money(data.business.credit_revenue_xof), Receipt], [t("adminComplete.subscriptionsRevenue"), money(data.business.subscription_revenue_xof), CreditCard], [t("adminComplete.usersRegistered"), data.metrics.users, Users], [t("adminComplete.signups24"), signups24h, UserPlus], [t("adminComplete.avgSession"), usage?.sessions ? formatDuration(usage.avg_session_seconds) : "—", Clock], [t("adminComplete.mostUsed"), topSection, BarChart3], [t("adminComplete.generations"), data.business.studio_generations ?? 0, Sparkles]] as const;
-  return <><div className="admin-kpi-grid">{cards.map(([label, value, Icon]) => <div className="admin-kpi" key={label}><Icon size={18} /><small>{label}</small><strong>{value}</strong></div>)}</div><div className="admin-columns"><section className="admin-card"><div className="admin-card-head"><h3>{t("adminComplete.lastUsers")}</h3><Users size={17} /></div><AdminTable headers={[t("adminComplete.name"), t("adminComplete.email"), t("adminComplete.signup")]}>{data.users.slice(0, 8).map((user) => <div className="admin-row" key={user.id}><strong>{user.full_name || t("adminComplete.noName")}</strong><span>{user.email || "—"}</span><span>{new Date(user.created_at).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</span></div>)}</AdminTable></section><section className="admin-card"><div className="admin-card-head"><h3>{t("adminComplete.lastActions")}</h3><FileText size={17} /></div>{data.audit.length ? data.audit.slice(0, 8).map((item) => <div className="admin-event" key={item.id}><strong>{item.action}</strong><span>{item.resource_type} · {new Date(item.created_at).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</span></div>) : <Empty text={t("adminComplete.noActivity")} />}</section></div></>;
-}
-
-function UsageSection({ usage, days, onDaysChange }: { usage: UsageStats | null; days: number; onDaysChange: (days: number) => void }) {
-  const { t, locale } = useI18n();
-  const rows = usage?.sections ?? [];
-  const maxSeconds = Math.max(1, ...rows.map((row) => row.seconds));
-  const totalSeconds = rows.reduce((sum, row) => sum + row.seconds, 0) || 1;
-  const periods = [[1, "24 h"], [7, t("adminComplete.days7")], [30, t("adminComplete.days30")]] as const;
-  const cards = [[t("adminComplete.avgSession"), usage?.sessions ? formatDuration(usage.avg_session_seconds) : "—", Clock], [t("adminComplete.sessions"), usage?.sessions ?? 0, Activity], [t("adminComplete.activeUsers"), usage?.active_users ?? 0, Users], [t("adminComplete.active24"), usage?.active_users_24h ?? 0, UserPlus]] as const;
-  return <>
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>{periods.map(([value, label]) => <button type="button" key={value} className={`admin-btn ${days === value ? "admin-btn-primary" : "admin-btn-soft"}`} onClick={() => onDaysChange(value)}>{label}</button>)}</div>
-    <div className="admin-kpi-grid">{cards.map(([label, value, Icon]) => <div className="admin-kpi" key={label}><Icon size={18} /><small>{label}</small><strong>{value}</strong></div>)}</div>
-    <section className="admin-card" style={{ marginBottom: 18 }}><div className="admin-card-head"><h3>{t("adminComplete.recentSignups")}</h3><UserPlus size={17} /></div>{usage?.signups_by_day?.length ? <div className="admin-signup-chart">{usage.signups_by_day.map((day) => <div key={day.day} title={`${day.day} : ${day.count} inscription(s)`}><strong>{day.count}</strong><span style={{ height: `${Math.max(4, day.count / Math.max(1, ...usage.signups_by_day.map((item) => item.count)) * 90)}px` }} /><small>{new Date(day.day).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR", { day: "2-digit", month: "2-digit" })}</small></div>)}</div> : <Empty text="Aucune inscription récente enregistrée." />}</section>
-    <section className="admin-card">
-      <div className="admin-card-head"><div><h3>{t("adminComplete.topSections")}</h3><p className="admin-help">{t("adminComplete.timeBySection")}</p></div><BarChart3 size={17} /></div>
-      {rows.length ? <AdminTable headers={[t("adminComplete.section"), t("adminComplete.timeSpent"), t("adminComplete.share"), t("adminComplete.visits"), t("adminComplete.users")]}>{rows.map((row) => <div className="admin-row" key={row.section}><strong>{row.section}</strong><span><span style={{ display: "block", height: 6, borderRadius: 4, background: "rgba(99,102,241,.18)", marginBottom: 4 }}><span style={{ display: "block", height: 6, borderRadius: 4, background: "#6366f1", width: `${Math.max(2, (row.seconds / maxSeconds) * 100)}%` }} /></span>{formatDuration(row.seconds)}</span><span>{Math.round((row.seconds / totalSeconds) * 100)} %</span><span>{Number(row.visits).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</span><span>{Number(row.users).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</span></div>)}</AdminTable> : <Empty text="Pas encore de données d'usage : le suivi démarre dès que les utilisateurs ouvrent l'app après le déploiement." />}
-    </section>
-  </>;
-}
-
-function UsersSection({ data, usage }: { data: AdminData; usage: UsageStats | null }) {
-  const { t, locale } = useI18n();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [grantUser, setGrantUser] = useState<string | null>(null);
-  const [grantCredits, setGrantCredits] = useState("500");
-  const [grantReason, setGrantReason] = useState("");
-  const [message, setMessage] = useState("");
-  const [range, setRange] = useState<"all" | "24h" | "7d" | "30d">("all");
-  const [query, setQuery] = useState("");
-  const rangeMs = { "24h": 24 * 3600 * 1000, "7d": 7 * 24 * 3600 * 1000, "30d": 30 * 24 * 3600 * 1000 } as const;
-  const ageMs = (user: { created_at: string }) => Date.now() - new Date(user.created_at).getTime();
-  const localCount = (ms: number) => data.users.filter((user) => ageMs(user) <= ms).length;
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredUsers = data.users.filter((user) => (range === "all" || ageMs(user) <= rangeMs[range]) && (!normalizedQuery || (user.email ?? "").toLowerCase().includes(normalizedQuery) || (user.full_name ?? "").toLowerCase().includes(normalizedQuery)));
-  const counters = [[t("adminComplete.totalRegistered"), usage?.signups_total ?? data.metrics.users], [t("adminComplete.latest24"), usage?.signups_24h ?? localCount(rangeMs["24h"])], [t("adminComplete.last7"), usage?.signups_7d ?? localCount(rangeMs["7d"])], [t("adminComplete.last30"), usage?.signups_30d ?? localCount(rangeMs["30d"])]] as const;
-  const filters = [["all", t("adminComplete.all")], ["24h", "24 h"], ["7d", t("adminComplete.days7")], ["30d", t("adminComplete.days30")]] as const;
-  async function activate(userId: string) {
-    setBusy(userId); setMessage("");
-    const response = await fetch("/api/admin/subscriptions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: userId, plan: "starter" }) });
-    const payload = await response.json().catch(() => ({}));
-    setMessage(response.ok ? t("adminComplete.activateSuccess") : payload.error ?? "Activation impossible.");
-    setBusy(null);
-  }
-  async function grant(user: { id: string; email: string | null }) {
-    const credits = Number(grantCredits);
-    if (!Number.isInteger(credits) || credits < 1 || credits > 100000) { setMessage(t("adminComplete.creditsRange")); return; }
-    if (!window.confirm(t("dynamicExtra.offerCredits", { credits: (credits), user: (user.email || user.id) }))) return;
-    setBusy(user.id); setMessage("");
-    const response = await fetch("/api/admin/credits", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: user.id, credits, reason: grantReason, grant_id: crypto.randomUUID() }) });
-    const payload = await response.json().catch(() => ({}));
-    setMessage(response.ok ? t("dynamicExtra.creditsAwarded", { balance: (payload.balance ?? 0) }) : payload.error ?? "Attribution impossible.");
-    if (response.ok) { setGrantUser(null); setGrantReason(""); }
-    setBusy(null);
-  }
-  return <>
-    <div className="admin-kpi-grid">{counters.map(([label, value]) => <div className="admin-kpi" key={label}><UserPlus size={18} /><small>{label}</small><strong>{Number(value).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</strong></div>)}</div>
-    <section className="admin-card"><div className="admin-card-head"><h3>{t("finalExtra.text0")}{filteredUsers.length})</h3><Users size={17} /></div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-        {filters.map(([value, label]) => <button type="button" key={value} className={`admin-btn ${range === value ? "admin-btn-primary" : "admin-btn-soft"}`} onClick={() => setRange(value)}>{label}</button>)}
-        <input style={{ flex: "1 1 180px", minWidth: 140 }} placeholder={t("sweep1.text81")} value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t("sweep2.text82")} />
+function Overview({
+  data,
+  usage,
+  days,
+  usageLoading,
+  navigate,
+}: {
+  data: AdminData;
+  usage: UsageStats | null;
+  days: number;
+  usageLoading: boolean;
+  navigate: (section: string) => void;
+}) {
+  const { locale } = useI18n();
+  const en = locale === "en";
+  const fmt = (value: number | undefined) =>
+    value === undefined
+      ? "—"
+      : Number(value).toLocaleString(en ? "en-US" : "fr-FR");
+  const connectionCount = data.metrics.stores + data.metrics.metaAccounts;
+  const flaggedStores = data.stores.filter(
+    (store) =>
+      store.is_active === false ||
+      !["connected", "active"].includes(store.connection_status),
+  );
+  const inactiveMeta = data.metaAccounts.filter(
+    (account) => account.is_active === false,
+  );
+  const unsyncedMeta = data.metaAccounts.filter(
+    (account) => account.is_active !== false && !account.last_synced_at,
+  );
+  const warnings =
+    flaggedStores.length + inactiveMeta.length + unsyncedMeta.length;
+  const sampleCount = data.stores.length + data.metaAccounts.length;
+  const cards = [
+    {
+      label: en ? "Registered accounts" : "Comptes inscrits",
+      value: fmt(data.metrics.users),
+      note: en ? "All platform accounts" : "Tous les comptes de la plateforme",
+      icon: Users,
+      color: "violet",
+    },
+    {
+      label: en ? "Active users" : "Utilisateurs actifs",
+      value: fmt(usage?.active_users),
+      note: en
+        ? `Over the last ${days} days`
+        : `Sur les ${days} derniers jours`,
+      icon: Activity,
+      color: "green",
+    },
+    {
+      label: en ? "Connected accounts" : "Comptes reliés",
+      value: fmt(connectionCount),
+      note: en
+        ? "Stores + Meta · all statuses"
+        : "Boutiques + Meta · tous états",
+      icon: Plug,
+      color: "blue",
+    },
+    {
+      label: en ? "Active subscriptions" : "Abonnements actifs",
+      value: fmt(data.business.active_subscriptions),
+      note: en
+        ? "Platform subscription metrics"
+        : "Indicateur global des abonnements",
+      icon: CreditCard,
+      color: "amber",
+    },
+  ];
+  const signupDays = usage?.signups_by_day ?? [];
+  const max = Math.max(1, ...signupDays.map((day) => day.count));
+  const signupSum = signupDays.reduce((sum, day) => sum + day.count, 0);
+  const date = (value: string) =>
+    new Date(value).toLocaleDateString(en ? "en-US" : "fr-FR", {
+      day: "numeric",
+      month: "short",
+    });
+  return (
+    <>
+      <div className="owner-overview-strip">
+        <span>
+          <span className="owner-status-dot" />
+          {en ? "Account data loaded" : "Données de compte chargées"}
+        </span>
+        <small>
+          {en
+            ? "Not a real-time infrastructure health check"
+            : "Ne constitue pas un contrôle d’infrastructure en temps réel"}
+        </small>
       </div>
-      {message ? <p className="admin-action-message">{message}</p> : null}
-      {filteredUsers.length ? <AdminTable headers={["Nom", "Email", "Inscription", "Abonnement", "Actions"]}>{filteredUsers.map((user) => <div className="admin-row admin-user-row" key={user.id}><strong>{user.full_name || t("adminComplete.noName")} {ageMs(user) <= rangeMs["24h"] ? <i className="admin-pill on">{t("adminExtra.feedback.new")}</i> : null}</strong><span>{user.email || "—"}</span><span>{new Date(user.created_at).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</span><span><i className={`admin-pill ${user.subscription?.status === "active" ? "on" : "off"}`}>{user.subscription?.status === "active" ? t("adminComplete.active") : t("optionsExtra.text1")}</i></span><span className="admin-plan-actions"><button type="button" className="admin-btn admin-btn-primary" disabled={busy === user.id} onClick={() => void activate(user.id)}><BadgeCheck size={15} />{t("finalExtra.text1")}</button><button type="button" className="admin-btn admin-btn-soft" disabled={busy === user.id} onClick={() => setGrantUser(grantUser === user.id ? null : user.id)}><Gift size={15} />{t("sweep3.text83")}</button>{grantUser === user.id ? <span className="admin-grant-form"><input type="number" min="1" max="100000" value={grantCredits} onChange={(event) => setGrantCredits(event.target.value)} aria-label={t("sweep1.text84")} /><input maxLength={200} placeholder={t("optionsExtra.text2")} value={grantReason} onChange={(event) => setGrantReason(event.target.value)} aria-label={t("sweep2.text85")} /><button type="button" className="admin-btn admin-btn-primary" disabled={busy === user.id} onClick={() => void grant(user)}>{t("finalExtra.text2")}</button></span> : null}</span></div>)}</AdminTable> : <Empty text="Aucun inscrit pour ce filtre." />}
-    </section>
-  </>;
+      <div className="admin-kpi-grid owner-kpis">
+        {cards.map(({ label, value, note, icon: Icon, color }) => (
+          <article className="admin-kpi" key={label}>
+            <div className="owner-kpi-top">
+              <span>{label}</span>
+              <span className={`owner-kpi-icon ${color}`}>
+                <Icon size={19} />
+              </span>
+            </div>
+            <strong>{value}</strong>
+            <small>{note}</small>
+          </article>
+        ))}
+      </div>
+      <div className="owner-main-grid">
+        <section className="admin-card owner-growth">
+          <div className="admin-card-head">
+            <div>
+              <h2>{en ? "Account growth" : "Évolution des inscriptions"}</h2>
+              <p>
+                {en
+                  ? "New registrations, day by day"
+                  : "Les nouveaux comptes, jour après jour"}
+              </p>
+            </div>
+            <span className="owner-period">
+              {en ? `${days} days` : `${days} jours`}
+            </span>
+          </div>
+          {signupDays.length ? (
+            <>
+              <div className="owner-chart-summary">
+                <strong>{fmt(signupSum)}</strong>
+                <span>
+                  {en
+                    ? "registrations in the returned period"
+                    : "inscriptions sur la période retournée"}
+                </span>
+              </div>
+              <div
+                className="owner-bar-chart"
+                role="img"
+                aria-label={signupDays
+                  .map((day) => `${date(day.day)} : ${day.count}`)
+                  .join(", ")}
+              >
+                {signupDays.map((day, i) => (
+                  <div className="owner-bar-column" key={day.day}>
+                    <strong>{day.count}</strong>
+                    <div className="owner-bar-track">
+                      <span
+                        className={i === signupDays.length - 1 ? "latest" : ""}
+                        style={{ height: `${(day.count / max) * 100}%` }}
+                      />
+                    </div>
+                    <small>{date(day.day)}</small>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="owner-panel-empty">
+              {usageLoading
+                ? en
+                  ? "Loading registrations…"
+                  : "Chargement des inscriptions…"
+                : usage
+                  ? en
+                    ? "No registration recorded in this period."
+                    : "Aucune inscription enregistrée sur cette période."
+                  : en
+                    ? "Registration statistics unavailable."
+                    : "Statistiques d’inscription indisponibles."}
+            </div>
+          )}
+          <button
+            type="button"
+            className="owner-text-link"
+            onClick={() => navigate("usage")}
+          >
+            {en ? "Explore usage" : "Explorer l’usage"}
+            <ArrowRight size={15} />
+          </button>
+        </section>
+        <section className="admin-card owner-watch">
+          <div className="admin-card-head">
+            <div>
+              <h2>{en ? "Watchlist" : "Points de vigilance"}</h2>
+              <p>
+                {en
+                  ? "Connection sample only"
+                  : "Échantillon de connexions uniquement"}
+              </p>
+            </div>
+            <TriangleAlert size={19} />
+          </div>
+          <div
+            className={`owner-watch-summary ${warnings ? "needs-attention" : ""}`}
+          >
+            <span>
+              {warnings ? (
+                <TriangleAlert size={19} />
+              ) : (
+                <CheckCircle2 size={19} />
+              )}
+            </span>
+            <div>
+              <strong>
+                {sampleCount
+                  ? warnings
+                    ? en
+                      ? `${warnings} items to review`
+                      : `${warnings} point${warnings > 1 ? "s" : ""} à vérifier`
+                    : en
+                      ? "No issue in the sample"
+                      : "Aucune anomalie dans l’échantillon"
+                  : en
+                    ? "No connection in the sample"
+                    : "Aucune connexion dans l’échantillon"}
+              </strong>
+              <small>
+                {en
+                  ? `${sampleCount} records inspected, up to 100 per source`
+                  : `${sampleCount} lignes examinées, 100 maximum par source`}
+              </small>
+            </div>
+          </div>
+          <div className="owner-watch-row">
+            <span>
+              {en ? "Stores to review" : "Connexions boutique à vérifier"}
+            </span>
+            <strong>{flaggedStores.length}</strong>
+          </div>
+          <div className="owner-watch-row">
+            <span>
+              {en ? "Inactive Meta accounts" : "Comptes Meta inactifs"}
+            </span>
+            <strong>{inactiveMeta.length}</strong>
+          </div>
+          <div className="owner-watch-row">
+            <span>
+              {en
+                ? "Meta sync never recorded"
+                : "Synchro Meta jamais enregistrée"}
+            </span>
+            <strong>{unsyncedMeta.length}</strong>
+          </div>
+          <button
+            type="button"
+            className="owner-text-link"
+            onClick={() => navigate("integrations")}
+          >
+            {en ? "Review connections" : "Examiner les connexions"}
+            <ArrowRight size={15} />
+          </button>
+        </section>
+      </div>
+      <section
+        className="owner-quick-actions"
+        aria-label={en ? "Quick actions" : "Actions rapides"}
+      >
+        <span>{en ? "Take action" : "Passer à l’action"}</span>
+        <button type="button" onClick={() => navigate("users")}>
+          <Users size={16} />
+          {en ? "Manage accounts" : "Gérer les comptes"}
+          <ArrowRight size={14} />
+        </button>
+        <button type="button" onClick={() => navigate("notifications")}>
+          <Bell size={16} />
+          {en ? "Send a notification" : "Envoyer une notification"}
+          <ArrowRight size={14} />
+        </button>
+        <button type="button" onClick={() => navigate("feedback")}>
+          <FileText size={16} />
+          {en ? "Read feedback" : "Lire les retours"}
+          <ArrowRight size={14} />
+        </button>
+      </section>
+      <div className="owner-bottom-grid">
+        <section className="admin-card">
+          <div className="admin-card-head">
+            <div>
+              <h2>{en ? "Latest accounts" : "Derniers comptes"}</h2>
+              <p>
+                {en
+                  ? "The latest registrations on Vendeo"
+                  : "Les inscriptions les plus récentes sur Vendeo"}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="owner-text-link"
+              onClick={() => navigate("users")}
+            >
+              {en ? "View all" : "Tout voir"}
+              <ArrowRight size={14} />
+            </button>
+          </div>
+          {data.users.length ? (
+            <div className="owner-account-list">
+              {data.users.slice(0, 4).map((user) => (
+                <div key={user.id} className="owner-account-row">
+                  <span className="owner-account-avatar">
+                    {(user.full_name || user.email || "?")
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </span>
+                  <span>
+                    <strong>
+                      {user.full_name ||
+                        (en ? "Unnamed account" : "Compte sans nom")}
+                    </strong>
+                    <small>{user.email || "—"}</small>
+                  </span>
+                  <time dateTime={user.created_at}>
+                    {date(user.created_at)}
+                  </time>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="owner-panel-empty">
+              {en ? "No account yet." : "Aucun compte pour le moment."}
+            </p>
+          )}
+        </section>
+        <section className="admin-card">
+          <div className="admin-card-head">
+            <div>
+              <h2>{en ? "Control history" : "Historique de contrôle"}</h2>
+              <p>
+                {en
+                  ? "The most recent recorded actions"
+                  : "Les dernières actions enregistrées"}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="owner-text-link"
+              onClick={() => navigate("audit")}
+            >
+              {en ? "Audit log" : "Journal"}
+              <ArrowRight size={14} />
+            </button>
+          </div>
+          {data.audit.length ? (
+            <div className="owner-audit-list">
+              {data.audit.slice(0, 4).map((item) => (
+                <div className="owner-audit-row" key={item.id}>
+                  <span className="owner-audit-dot" />
+                  <div>
+                    <strong>
+                      {localizeSystemMessage(item.action, locale)}
+                    </strong>
+                    <small>
+                      {item.resource_type} ·{" "}
+                      {new Date(item.created_at).toLocaleString(
+                        en ? "en-US" : "fr-FR",
+                        {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        },
+                      )}
+                    </small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="owner-panel-empty">
+              {en
+                ? "No recorded action yet."
+                : "Aucune action enregistrée pour le moment."}
+            </p>
+          )}
+        </section>
+      </div>
+    </>
+  );
 }
-function SubscriptionsSection({ data }: { data: AdminData }) { const { t, locale } = useI18n(); const names = new Map(data.users.map((user) => [user.id, `${user.full_name || t("adminComplete.noName")} · ${user.email || "—"}`])); return <section className="admin-card"><div className="admin-card-head"><h3>{t("sweep3.text86")}</h3><CreditCard size={17} /></div><AdminTable headers={["Utilisateur", "Plan", "Statut", "Fin de période"]}>{data.subscriptions.map((item) => <div className="admin-row" key={item.id}><strong>{names.get(item.user_id) || item.user_id}</strong><span>{item.plan}</span><span className={`admin-status ${item.status}`}>{item.status}</span><span>{item.current_period_end ? new Date(item.current_period_end).toLocaleDateString(locale === "en" ? "en-US" : "fr-FR") : "—"}</span></div>)}</AdminTable></section>; }
-function PurchasesSection({ data }: { data: AdminData }) { const { t, locale } = useI18n(); const names = new Map(data.users.map((user) => [user.id, user.full_name || user.email || user.id])); return <><section className="admin-card"><div className="admin-card-head"><h3>{t("adminComplete.studioTopups")}</h3><Wallet size={17} /></div><AdminTable headers={["Utilisateur", "Crédits", "Montant", "Date"]}>{data.creditPurchases.map((item) => <div className="admin-row" key={item.id}><strong>{names.get(item.user_id)}</strong><span>{item.credits.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} {" "}{t("studio.credits")}</span><span>{item.operation === "admin_grant" || item.metadata?.provider === "admin_grant" ? t("optionsExtra.text3") : `${Number(item.metadata?.amount_xof ?? 0).toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF`}</span><span>{new Date(item.created_at).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</span></div>)}</AdminTable></section><section className="admin-card"><div className="admin-card-head"><h3>{t("sweep1.text87")}</h3><Sparkles size={17} /></div><AdminTable headers={["Utilisateur", "Opération", "Modèle", "Crédits", "Date"]}>{data.creditTransactions.map((item) => <div className="admin-row" key={item.id}><strong>{names.get(item.user_id)}</strong><span>{item.operation || "Studio"}</span><span>{item.model || "—"}</span><span>-{item.credits}</span><span>{new Date(item.created_at).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</span></div>)}</AdminTable></section></>; }
-function PayoutsSection({ data, onRefresh }: { data: AdminData; onRefresh: () => void }) { const { t, locale } = useI18n(); const [form, setForm] = useState({ amount_xof: "", recipient_name: "", recipient_phone: "", recipient_method: "mtn_bj", recipient_country: "BJ" }); const [message, setMessage] = useState(""); const [busy, setBusy] = useState(false); async function submit(event: React.FormEvent) { event.preventDefault(); setBusy(true); setMessage(""); const response = await fetch("/api/admin/payouts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }); const result = await response.json().catch(() => ({})); setMessage(response.ok ? t("sweep2.text88") : result.error || "Décaissement impossible."); if (response.ok) { setForm({ amount_xof: "", recipient_name: "", recipient_phone: "", recipient_method: "mtn_bj", recipient_country: "BJ" }); onRefresh(); } setBusy(false); } return <><section className="admin-card"><div className="admin-card-head"><h3>{t("sweep3.text89")}</h3><Send size={17} /></div><p className="admin-help">{t("sweep1.text90")}</p><form className="admin-payout-form" onSubmit={submit}><input type="number" min="1000" placeholder={t("sweep2.text91")} value={form.amount_xof} onChange={(event) => setForm({ ...form, amount_xof: event.target.value })} required /><input placeholder={t("sweep3.text92")} value={form.recipient_name} onChange={(event) => setForm({ ...form, recipient_name: event.target.value })} required /><input placeholder={t("sweep1.text93")} value={form.recipient_phone} onChange={(event) => setForm({ ...form, recipient_phone: event.target.value })} required /><input placeholder={t("sweep2.text94")} value={form.recipient_method} onChange={(event) => setForm({ ...form, recipient_method: event.target.value })} required /><button className="btn btn-dark" disabled={busy}>{busy ? t("optionsExtra.text4") : t("sweep3.text95")}</button></form>{message ? <p className="admin-action-message">{message}</p> : null}</section><section className="admin-card"><div className="admin-card-head"><h3>{t("sweep1.text96")}</h3><Wallet size={17} /></div><AdminTable headers={["Bénéficiaire", "Montant", "Réseau", "Statut", "Date"]}>{(data.payouts ?? []).map((item) => <div className="admin-row" key={item.id}><strong>{item.recipient_name}</strong><span>{Number(item.amount_xof).toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF</span><span>{item.recipient_method}</span><span className={`admin-status ${item.status}`}>{item.status}</span><span>{new Date(item.created_at).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</span></div>)}</AdminTable></section></>; }
-function IntegrationsSection({ data }: { data: AdminData }) { const { t, locale } = useI18n(); return <><div className="admin-kpi-grid"><div className="admin-kpi"><Building2 size={18} /><small>{t("finalExtra.text3")}</small><strong>{data.stores.length}</strong></div><div className="admin-kpi"><Activity size={18} /><small>{t("finalExtra.text4")}</small><strong>{data.metaAccounts.length}</strong></div></div><section className="admin-card"><div className="admin-card-head"><h3>{t("sweep2.text97")}</h3><AlertTriangle size={17} /></div><AdminTable headers={["Service", "Nom", "Statut", "Dernière activité"]}>{data.stores.map((store) => <div className="admin-row" key={store.id}><strong>{store.platform}</strong><span>{store.store_name}</span><span className={`admin-status ${store.connection_status}`}>{store.connection_status}</span><span>{new Date().toLocaleDateString(locale === "en" ? "en-US" : "fr-FR")}</span></div>)}{data.metaAccounts.map((account) => <div className="admin-row" key={account.id}><strong>Meta Ads</strong><span>{account.name || account.meta_account_id}</span><span className="admin-status connected">{t("adminComplete.connected")}</span><span>{account.last_synced_at ? new Date(account.last_synced_at).toLocaleString(locale === "en" ? "en-US" : "fr-FR") : t("adminComplete.never")}</span></div>)}</AdminTable></section></>; }
-function AuditSection({ data }: { data: AdminData }) { const { t, locale } = useI18n(); return <section className="admin-card"><div className="admin-card-head"><h3>{t("adminComplete.sensitiveAudit")}</h3><FileText size={17} /></div><AdminTable headers={[t("adminComplete.action"), t("adminComplete.resource"), t("adminComplete.date")]}>{data.audit.map((item) => <div className="admin-row" key={item.id}><strong>{item.action}</strong><span>{item.resource_type} {item.resource_id ? `· ${item.resource_id.slice(0, 8)}…` : ""}</span><span>{new Date(item.created_at).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</span></div>)}</AdminTable></section>; }
-function AdminTable({ headers, children }: { headers: string[]; children: React.ReactNode }) { return <div className="admin-table" style={{ "--cols": headers.length } as React.CSSProperties}><div className="admin-row admin-row-head">{headers.map((header) => <span key={header}>{header}</span>)}</div>{children}</div>; }
-function Empty({ text }: { text: string }) { return <div className="admin-empty">{text}</div>; }
