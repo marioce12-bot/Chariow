@@ -1,0 +1,174 @@
+.admin-section-viz {
+  --viz-blue: #3478f6;
+  --viz-cyan: #16b8c5;
+  --viz-violet: #8764e8;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 1.5rem;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  color: #172033;
+  background: #fff;
+  border: 1px solid #e5eaf2;
+  border-radius: 16px;
+  box-shadow: 0 5px 20px rgb(26 44 78 / 5%);
+  font-family: inherit;
+}
+
+.admin-section-viz *,
+.admin-section-viz *::before,
+.admin-section-viz *::after { box-sizing: border-box; }
+
+.admin-section-viz__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-section-viz__header h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+
+.admin-section-viz__header p {
+  margin: 0.3rem 0 0;
+  color: #738097;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.admin-section-viz__legend {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding-top: 0.15rem;
+  color: #59667d;
+  font-size: 0.75rem;
+}
+
+.admin-section-viz__legend-swatch {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 3px;
+  background: var(--viz-blue);
+}
+
+.admin-section-viz__axis,
+.admin-section-viz__row {
+  display: grid;
+  grid-template-columns: minmax(5rem, 0.85fr) minmax(0, 2fr) minmax(5.4rem, auto);
+  align-items: center;
+  column-gap: 0.85rem;
+}
+
+.admin-section-viz__axis {
+  margin-bottom: 0.5rem;
+  color: #8994a7;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-section-viz__ticks {
+  display: flex;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.admin-section-viz__ticks span:last-child { text-align: right; }
+
+.admin-section-viz__list {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-section-viz__row { row-gap: 0.35rem; }
+
+.admin-section-viz__label {
+  overflow: hidden;
+  color: #344057;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-section-viz__track {
+  position: relative;
+  min-width: 0;
+  height: 0.65rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf1f7;
+}
+
+.admin-section-viz__bar {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  transition: width 240ms ease;
+}
+
+.admin-section-viz__bar--0 { background: linear-gradient(90deg, #3478f6, #56a0ff); }
+.admin-section-viz__bar--1 { background: linear-gradient(90deg, #12a9b8, #4ed4d3); }
+.admin-section-viz__bar--2 { background: linear-gradient(90deg, #7653d8, #a083f4); }
+
+.admin-section-viz__values {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  color: #66738a;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-section-viz__values strong { color: #28364e; font-size: 0.78rem; font-weight: 650; }
+
+.admin-section-viz__details {
+  display: none;
+  grid-column: 2 / 4;
+  color: #8994a7;
+  font-size: 0.69rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-section-viz__row:focus-within .admin-section-viz__details,
+.admin-section-viz__row:hover .admin-section-viz__details { display: block; }
+
+.admin-section-viz__empty {
+  margin: 0;
+  padding: 1.25rem 0;
+  color: #738097;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .admin-section-viz { padding: 1rem; border-radius: 12px; }
+  .admin-section-viz__header { flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1.2rem; }
+  .admin-section-viz__axis,
+  .admin-section-viz__row {
+    grid-template-columns: minmax(0, 0.9fr) minmax(2.5rem, 1.2fr) minmax(4.4rem, auto);
+    column-gap: 0.55rem;
+  }
+  .admin-section-viz__label { font-size: 0.75rem; }
+  .admin-section-viz__values { display: grid; justify-items: end; gap: 0.05rem; font-size: 0.68rem; }
+  .admin-section-viz__values strong { font-size: 0.72rem; }
+  .admin-section-viz__details { grid-column: 1 / 4; padding-left: 0.1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-section-viz__bar { transition: none; }
+}

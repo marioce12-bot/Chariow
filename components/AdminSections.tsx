@@ -1,6 +1,8 @@
 "use client";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { AdminSignupChart } from "./AdminSignupChart";
+import { AdminSectionChart } from "./AdminSectionChart";
 import {
   Activity,
   BarChart3,
@@ -115,24 +117,7 @@ export function UsageSection({
           <UserPlus size={17} />
         </div>
         {usage?.signups_by_day?.length ? (
-          <div className="admin-signup-chart">
-            {usage.signups_by_day.map((d) => (
-              <div key={d.day} title={`${d.day}: ${d.count}`}>
-                <strong>{d.count}</strong>
-                <span
-                  style={{
-                    height: `${(d.count / Math.max(1, ...usage.signups_by_day.map((x) => x.count))) * 90}px`,
-                  }}
-                />
-                <small>
-                  {new Date(d.day).toLocaleDateString(dateLocale(locale), {
-                    day: "2-digit",
-                    month: "2-digit",
-                  })}
-                </small>
-              </div>
-            ))}
-          </div>
+          <AdminSignupChart rows={usage.signups_by_day} locale={locale} />
         ) : (
           <Empty
             text={
@@ -156,6 +141,8 @@ export function UsageSection({
           <BarChart3 size={17} />
         </div>
         {rows.length ? (
+          <>
+          <AdminSectionChart rows={rows} locale={locale} />
           <AdminTable
             headers={[
               t("adminComplete.section"),
@@ -200,6 +187,7 @@ export function UsageSection({
               </div>
             ))}
           </AdminTable>
+          </>
         ) : (
           <Empty
             text={

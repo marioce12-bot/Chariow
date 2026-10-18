@@ -40,6 +40,7 @@ import {
 import { fetchAdminJson } from "@/lib/admin-fetch";
 import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 import "./admin-dashboard.css";
+import { AdminSignupChart } from "./AdminSignupChart";
 
 export function AdminDashboard() {
   const { locale, setLocale } = useI18n();
@@ -438,8 +439,6 @@ function Overview({
     },
   ];
   const signupDays = usage?.signups_by_day ?? [];
-  const max = Math.max(1, ...signupDays.map((day) => day.count));
-  const signupSum = signupDays.reduce((sum, day) => sum + day.count, 0);
   const date = (value: string) =>
     new Date(value).toLocaleDateString(en ? "en-US" : "fr-FR", {
       day: "numeric",
@@ -484,40 +483,11 @@ function Overview({
               </p>
             </div>
             <span className="owner-period">
-              {en ? `${days} days` : `${days} jours`}
+              {en ? "Daily · UTC" : "Par jour · UTC"}
             </span>
           </div>
           {signupDays.length ? (
-            <>
-              <div className="owner-chart-summary">
-                <strong>{fmt(signupSum)}</strong>
-                <span>
-                  {en
-                    ? "registrations in the returned period"
-                    : "inscriptions sur la période retournée"}
-                </span>
-              </div>
-              <div
-                className="owner-bar-chart"
-                role="img"
-                aria-label={signupDays
-                  .map((day) => `${date(day.day)} : ${day.count}`)
-                  .join(", ")}
-              >
-                {signupDays.map((day, i) => (
-                  <div className="owner-bar-column" key={day.day}>
-                    <strong>{day.count}</strong>
-                    <div className="owner-bar-track">
-                      <span
-                        className={i === signupDays.length - 1 ? "latest" : ""}
-                        style={{ height: `${(day.count / max) * 100}%` }}
-                      />
-                    </div>
-                    <small>{date(day.day)}</small>
-                  </div>
-                ))}
-              </div>
-            </>
+            <AdminSignupChart rows={signupDays} locale={locale} />
           ) : (
             <div className="owner-panel-empty">
               {usageLoading

@@ -1,0 +1,22 @@
+.admin-signup-viz { margin: 18px 0 14px; min-width: 0; color: #0f172a; }
+.signup-viz-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; }
+.signup-viz-total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.signup-viz-total strong { font-size: 32px; font-weight: 650; line-height: 1.15; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.signup-viz-total span { color: #64748b; font-size: 12px; }
+.signup-viz-switch { display: flex; gap: 3px; padding: 3px; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 9px; }
+.owner-console .signup-viz-switch button { padding: 7px 12px; min-height: 32px; border: 0; border-radius: 6px; background: transparent; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; }
+.owner-console .signup-viz-switch button[aria-pressed="true"] { background: white; color: #1d4ed8; box-shadow: 0 1px 4px #0f172a16; }
+.signup-viz-switch button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.signup-viz-legend { display: flex; align-items: center; gap: 7px; margin-top: 22px; color: #475569; font-size: 12px; }
+.signup-viz-legend > span:first-child { width: 8px; height: 8px; border-radius: 3px; background: #2563eb; }
+.signup-viz-legend small { margin-left: auto; color: #64748b; font-size: 10px; letter-spacing: .08em; }
+.signup-viz-canvas { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.signup-viz-canvas svg { display: block; width: 100%; min-width: 0; height: auto; }
+.signup-viz-axis { fill: #64748b; font-size: 11px; font-family: inherit; }
+.signup-viz-value { fill: #1d4ed8; font-size: 12px; font-weight: 650; font-family: inherit; }
+.signup-viz-point { cursor: pointer; outline: none; }
+.signup-viz-point:focus-visible > rect:first-of-type { stroke: #2563eb; stroke-width: 2; opacity: .35; }
+.signup-viz-detail { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; background: #eff6ff; border: 1px solid #dbeafe; border-radius: 9px; color: #475569; font-size: 12px; }
+.signup-viz-detail strong { color: #1d4ed8; font-weight: 650; font-variant-numeric: tabular-nums; }
+.signup-viz-footnote { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; margin-top: 11px; font-size: 10px; line-height: 1.5; color: #64748b; }
+@media (max-width: 600px) { .signup-viz-toolbar { align-items: flex-start; } .signup-viz-total { flex: 1 1 150px; gap: 4px; flex-direction: column; } .signup-viz-total strong { font-size: 28px; } .signup-viz-total span { font-size: 11px; } .signup-viz-detail { flex-wrap: wrap; font-size: 11px; } .owner-console .signup-viz-switch button { min-height: 40px; padding: 7px 10px; } .signup-viz-footnote { font-size: 10px; } }
