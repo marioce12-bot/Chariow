@@ -28,6 +28,9 @@ describe("refineAutopilotVerdictWithAI", () => {
       reasons: ["Valeur client fiable : coût par client sous le plafond."],
       roas: 1 / 3,
       customerValueProtection: true,
+      recommendation: "continue",
+      recommendationReason: "Données clients fiables.",
+      cpaThreshold: 500,
     };
 
     const result = await refineAutopilotVerdictWithAI(input, base, [], {

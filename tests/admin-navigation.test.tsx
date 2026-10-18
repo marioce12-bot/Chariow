@@ -19,17 +19,18 @@ describe("admin navigation", () => {
     const onChange = vi.fn();
     act(() => root.render(<AdminHeaderNavigation active="integrations" onChange={onChange} />));
     const buttons = Array.from(container.querySelectorAll("button"));
-    expect(buttons.map((button) => button.textContent)).toEqual(["Notifications", "Intégrations", "Journal d’audit"]);
+    expect(buttons.map((button) => button.textContent)).toEqual(["Notifications", "Intégrations", "Journal d’audit", "Retours & notes"]);
     expect(container.querySelector('[aria-current="page"]')?.textContent).toBe("Intégrations");
     act(() => buttons[0].click());
     expect(onChange).toHaveBeenCalledWith("notifications");
   });
 
-  it("retains all nine destinations in the mobile drawer, closes on selection and restores scrolling", () => {
+  it("retains all ten destinations including feedback in the mobile drawer, closes on selection and restores scrolling", () => {
     const onChange = vi.fn();
     act(() => root.render(<AdminNavigation active="overview" onChange={onChange} />));
-    expect(container.querySelectorAll(".admin-nav-group button")).toHaveLength(9);
-    expect(container.querySelectorAll(".admin-nav-platform button")).toHaveLength(3);
+    expect(container.querySelectorAll(".admin-nav-group button")).toHaveLength(10);
+    expect(container.querySelectorAll(".admin-nav-platform button")).toHaveLength(4);
+    expect(Array.from(container.querySelectorAll(".admin-nav-group button")).some((button) => button.textContent?.includes("Retours & notes"))).toBe(true);
     const trigger = container.querySelector<HTMLButtonElement>(".admin-nav-trigger")!;
     act(() => trigger.click());
     expect(trigger.getAttribute("aria-expanded")).toBe("true");

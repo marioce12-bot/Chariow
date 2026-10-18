@@ -857,36 +857,16 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
               hidden
               onChange={(event) => void handleAttach(event.target.files)}
             />
-            <button
-              type="button"
-              className="chat-suggest-toggle"
-              aria-label="Prendre une photo ou une vidéo avec l'appareil photo"
-              title="Prendre une photo ou une vidéo"
-              disabled={uploading || plansRequired}
-              onClick={() => cameraInputRef.current?.click()}
-            >
-              <Camera size={16} />
-            </button>
-            <button
-              type="button"
-              className="chat-suggest-toggle"
-              aria-label="Joindre des photos ou vidéos depuis la galerie (plusieurs possibles)"
-              title="Joindre des photos ou vidéos (plusieurs possibles)"
-              disabled={uploading || plansRequired}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Paperclip size={16} />
-            </button>
-            <button
-              type="button"
-              className="chat-suggest-toggle"
-              aria-label="Joindre un document (PDF, Word)"
-              title="Joindre un document (PDF, Word)"
-              disabled={uploading || plansRequired}
-              onClick={() => docInputRef.current?.click()}
-            >
-              <FileText size={16} />
-            </button>
+            <details className="chat-attach-menu">
+              <summary className="chat-suggest-toggle" aria-label="Ajouter une pièce jointe" title="Ajouter une pièce jointe" aria-disabled={uploading || plansRequired}>
+                <Plus size={18} />
+              </summary>
+              <div className="chat-attach-options">
+                <button type="button" disabled={uploading || plansRequired} onClick={() => { document.querySelector<HTMLDetailsElement>(".chat-attach-menu")?.removeAttribute("open"); cameraInputRef.current?.click(); }}><Camera size={15} /> Prendre une photo</button>
+                <button type="button" disabled={uploading || plansRequired} onClick={() => { document.querySelector<HTMLDetailsElement>(".chat-attach-menu")?.removeAttribute("open"); fileInputRef.current?.click(); }}><Paperclip size={15} /> Photos et vidéos</button>
+                <button type="button" disabled={uploading || plansRequired} onClick={() => { document.querySelector<HTMLDetailsElement>(".chat-attach-menu")?.removeAttribute("open"); docInputRef.current?.click(); }}><FileText size={15} /> Document PDF ou Word</button>
+              </div>
+            </details>
             <textarea
               disabled={plansRequired}
               value={input}

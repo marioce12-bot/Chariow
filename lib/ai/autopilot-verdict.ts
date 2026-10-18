@@ -90,7 +90,7 @@ Réponds UNIQUEMENT avec un JSON compact, sans texte autour, sans balises markdo
     const decision: AutopilotDecisionName =
       base.decision === "pause" && diagnosticAvailable && hasCriticalAttributionAnomaly(anomalies) && parsed.attribution_looks_broken ? "keep_running" : base.decision;
 
-    return { decision, reasons, roas: base.roas };
+    return { ...base, decision, reasons };
   } catch (error) {
     console.error("autopilot: Imole verdict unavailable, keeping deterministic decision", error instanceof Error ? error.message : error);
     return base;

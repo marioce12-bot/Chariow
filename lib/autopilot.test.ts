@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregateDailyAutopilotReports, computeAutopilotDecision, isAutopilotDataFresh } from "./autopilot";
+import { aggregateDailyAutopilotReports, autopilotMutationBlockReason, canExecuteAutopilotMutation, computeAutopilotDecision, isAutopilotDataFresh } from "./autopilot";
 
 const base = { grossRevenue: 0, daysSinceLaunch: 5, dailyBudget: 100, attributionReliable: true };
 
@@ -24,6 +24,30 @@ describe("computeAutopilotDecision", () => {
     expect(result.roas).toBeNull();
   });
 
+  it("leaves recommendation unknown when attribution is unreliable, despite apparently strong metrics", () => {
+    const result = computeAutopilotDecision({ ...base, attributionReliable: false, spend: 300, netRevenue: 900, completedSales: 10, historicalCustomerValue: 500 });
+    expect(result.recommendation).toBeNull();
+    expect(result.cpaThreshold).toBeNull();
+    expect(result.recommendationReason).toContain("Blocage");
+  });
+  it("derives one recommendation and CPA ceiling only from adequate historical customer data", () => {
+    const result = computeAutopilotDecision({ ...base, spend: 300, netRevenue: 900, completedSales: 10, historicalCustomerValue: 1000, storeCustomerCount: 30 });
+    expect(result.recommendation).toBe("increase");
+    expect(result.cpaThreshold).toBeGreaterThan(0);
+    expect(result.recommendationReason).toContain("CPA observé");
+  });
+  it("fails closed for unverified, stale/future sales sync, or missing explicit limits", () => {
+    const now = new Date("2026-10-18T12:00:00Z");
+    const valid = { salesSyncComplete: true, salesLastSyncedAt: "2026-10-18T11:00:00Z", explicitBudgetLimit: 500, now };
+    expect(canExecuteAutopilotMutation()).toBe(false);
+    expect(canExecuteAutopilotMutation({ ...valid, salesSyncComplete: null })).toBe(false);
+    expect(canExecuteAutopilotMutation({ ...valid, salesLastSyncedAt: "2026-10-16T11:59:59Z" })).toBe(false);
+    expect(canExecuteAutopilotMutation({ ...valid, salesLastSyncedAt: "2026-10-18T13:00:00Z" })).toBe(false);
+    expect(canExecuteAutopilotMutation({ ...valid, explicitBudgetLimit: null })).toBe(false);
+    expect(canExecuteAutopilotMutation({ ...valid, explicitBudgetLimit: 0 })).toBe(false);
+    expect(canExecuteAutopilotMutation(valid)).toBe(true);
+    expect(autopilotMutationBlockReason()).toContain("limites explicites de budget");
+  });
   it("reste en apprentissage au tout début", () => {
     const result = computeAutopilotDecision({ ...base, daysSinceLaunch: 0.5, spend: 10, netRevenue: 0, completedSales: 0 });
     expect(result.decision).toBe("learning");

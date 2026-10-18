@@ -21,6 +21,10 @@ type AutopilotReport = {
   cac: number | null;
   decision: "keep_running" | "pause" | "learning" | "insufficient_data";
   reasons: string[];
+  recommendation?: "continue" | "reduce" | "increase" | null;
+  recommendation_reason?: string;
+  cpa_threshold?: number | null;
+  mutation_block_reason?: string | null;
   metrics: { daily_budget?: number; days_since_launch?: number };
   currency?: string | null;
   created_at: string;
@@ -161,6 +165,14 @@ export function AutopilotView() {
                     <span>{report.roas === null ? "-" : `${(report.roas * 100).toFixed(1)} %`}</span>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: decision.tone, fontWeight: 700 }}>{decision.icon}{decision.label}</span>
                   </div>
+                  {report.recommendation_reason ? (
+                    <div style={{ margin: "0 0 8px", padding: "10px 12px", borderLeft: "3px solid #9CA3AF", background: "#F9FAFB", color: "#374151", fontSize: 13 }}>
+                      <strong>{report.recommendation ? `Recommandation unique : ${report.recommendation === "continue" ? "continuer" : report.recommendation === "reduce" ? "réduire" : "augmenter"}` : "Recommandation inconnue — action bloquée"}</strong>
+                      <p style={{ margin: "4px 0 0" }}>{report.recommendation_reason}</p>
+                      {report.cpa_threshold != null ? <p style={{ margin: "4px 0 0" }}>Seuil CPA fondé sur la valeur client réelle : {formatMoney(report.cpa_threshold, report.currency || "")}</p> : null}
+                      {report.mutation_block_reason ? <p style={{ margin: "4px 0 0" }}>{report.mutation_block_reason}</p> : null}
+                    </div>
+                  ) : null}
                   {report.decision === "insufficient_data" ? (
                     <div style={{ margin: "0 0 4px", padding: "10px 12px", borderLeft: "3px solid #9CA3AF", background: "#F9FAFB", color: "#374151", fontSize: 13 }}>
                       <strong>Données insuffisantes pour conclure</strong>

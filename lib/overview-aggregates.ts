@@ -9,7 +9,7 @@ function isoDate(value: Date) { return value.toISOString().slice(0, 10); }
 export function addDays(value: string, days: number) { const date = new Date(`${value}T00:00:00.000Z`); date.setUTCDate(date.getUTCDate() + days); return isoDate(date); }
 export function daysBetween(from: string, to: string) { return Math.max(1, Math.round((new Date(`${to}T00:00:00.000Z`).getTime() - new Date(`${from}T00:00:00.000Z`).getTime()) / 86400000) + 1); }
 function amountInCurrency(sale: Pick<SaleRow, "net_amount" | "currency">, targetCurrency: string) {
-  const amount = Number(sale.net_amount); const currency = sale.currency?.trim().toUpperCase();
+  const amount = sale.net_amount == null || sale.net_amount === "" ? NaN : Number(sale.net_amount); const currency = sale.currency?.trim().toUpperCase();
   if (!Number.isFinite(amount) || !currency) return null;
   return currency === targetCurrency ? amount : convertCurrency(amount, currency, targetCurrency);
 }
@@ -42,16 +42,22 @@ export function buildProductPerformance(
 
 export function buildOverviewAggregates(rows: SaleRow[], targetCurrency: string, periodFrom: string, periodTo: string) {
   const confirmed = rows.filter((sale) => isConfirmedChariowSaleStatus(sale.status));
+  const refunds = rows.filter((sale) => /refund|chargeback/i.test(sale.status ?? ""));
   const customers = aggregateCustomers(rows, targetCurrency);
-  const revenueNet = confirmed.reduce((sum, sale) => sum + (amountInCurrency(sale, targetCurrency) ?? 0), 0);
+  let complete = true;
+  let revenueTotal = 0;
+  for (const sale of confirmed) { const amount = amountInCurrency(sale, targetCurrency); if (amount === null) complete = false; else revenueTotal += amount; }
+  for (const sale of refunds) { const amount = amountInCurrency(sale, targetCurrency); if (amount === null) complete = false; else revenueTotal -= Math.abs(amount); }
+  const revenueNet = complete ? Math.round(revenueTotal * 100) / 100 : null;
   const convertedSales = confirmed.filter((sale) => amountInCurrency(sale, targetCurrency) !== null).length;
   const daily = new Map<string, number>();
-  for (const sale of confirmed) { const amount = amountInCurrency(sale, targetCurrency); const day = sale.occurred_at?.slice(0, 10) ?? ""; if (amount !== null && day) daily.set(day, (daily.get(day) ?? 0) + amount); }
-  const revenueSeries = Array.from({ length: daysBetween(periodFrom, periodTo) }, (_, index) => { const date = addDays(periodFrom, index); return { date, revenueNet: Math.round((daily.get(date) ?? 0) * 100) / 100 }; });
+  const unknownDays = new Set<string>();
+  for (const sale of [...confirmed, ...refunds]) { const amount = amountInCurrency(sale, targetCurrency); const day = sale.occurred_at?.slice(0, 10) ?? ""; if (!day) continue; if (amount === null) unknownDays.add(day); else daily.set(day, (daily.get(day) ?? 0) + (refunds.includes(sale) ? -Math.abs(amount) : amount)); }
+  const revenueSeries = Array.from({ length: daysBetween(periodFrom, periodTo) }, (_, index) => { const date = addDays(periodFrom, index); return { date, revenueNet: unknownDays.has(date) ? null : Math.round((daily.get(date) ?? 0) * 100) / 100 }; });
   const abandoned = rows.filter((sale) => sale.status?.trim().toLowerCase() === "abandoned").length;
   const failed = rows.filter((sale) => sale.status?.trim().toLowerCase() === "failed").length;
-  const value = customerValue(customers.netByCustomer);
-  return { currency: targetCurrency, revenueNet: Math.round(revenueNet * 100) / 100, revenueSeries, sales: confirmed.length, averageBasket: convertedSales ? Math.round((revenueNet / convertedSales) * 100) / 100 : null, customers: customers.customers, repeatRate: repeatRate(customers.ordersByCustomer), abandoned, abandonmentRate: abandonmentRate({ completed: confirmed.length, abandoned, failed }), customerValue: value, maxCostPerCustomer: maxCostPerCustomer(value), lowData: isLowData(customers.customers), withoutCustomer: customers.withoutCustomer, skippedSales: customers.skippedSales };
+  const value = customers.skippedSales || customers.withoutCustomer ? null : customerValue(customers.netByCustomer);
+  return { currency: targetCurrency, revenueNet, revenueSeries, sales: confirmed.length, averageBasket: revenueNet !== null && convertedSales ? Math.round((revenueNet / convertedSales) * 100) / 100 : null, customers: customers.customers, repeatRate: repeatRate(customers.ordersByCustomer), abandoned, abandonmentRate: abandonmentRate({ completed: confirmed.length, abandoned, failed }), customerValue: value, maxCostPerCustomer: maxCostPerCustomer(value), lowData: isLowData(customers.customers), withoutCustomer: customers.withoutCustomer, skippedSales: customers.skippedSales };
 }
 
 export function buildOverviewFromPages(
@@ -68,8 +74,8 @@ export function buildOverviewFromPages(
   const previousFrom = addDays(periodFrom, -daysBetween(periodFrom, periodTo));
   const previousTo = addDays(periodFrom, -1);
   const previousOverview = buildOverviewAggregates(previous.rows, targetCurrency, previousFrom, previousTo);
-  const revenueChangePct = previousOverview.revenueNet > 0
-    ? Math.round(((currentOverview.revenueNet - previousOverview.revenueNet) / previousOverview.revenueNet) * 1000) / 10
+  const revenueChangePct = previousOverview.revenueNet !== null && previousOverview.revenueNet > 0
+    ? Math.round((((currentOverview.revenueNet ?? 0) - previousOverview.revenueNet) / previousOverview.revenueNet) * 1000) / 10
     : null;
   return {
     ...currentOverview,

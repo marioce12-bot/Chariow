@@ -62,6 +62,32 @@
 .ai-page .chat-send-button { align-items:center; background:var(--vendeo-gradient); border:0; border-radius:50%; color:#fff; display:flex; flex:none; height:36px; justify-content:center; width:36px; }
 .ai-page .chat-send-button:disabled { cursor:default; opacity:.45; }
 @media (max-width:760px) { .ai-page .chat-input-form textarea { font-size:16px; } }
+/* Réponses assistant : carte claire autonome, avec ses actions et action de campagne intégrées. */
+.ai-page .chat-bubble.assistant { background:#fff; border:1px solid #e5eaf2; border-radius:16px; box-shadow:0 3px 12px rgba(20,35,70,.055); color:var(--ink); padding:14px 16px; }
+.ai-page .chat-bubble.assistant .chat-bubble-label { color:#64748b; }
+.ai-page .chat-bubble.assistant .chat-message-preview { line-height:1.65; }
+.ai-page .chat-bubble.assistant .chat-bubble-actions { align-items:center; border-top:1px solid #edf0f5; display:flex; gap:14px; margin-top:12px; padding-top:9px; }
+.ai-page .chat-bubble.assistant .chat-see-more,.ai-page .chat-bubble.assistant .chat-copy { align-items:center; background:transparent; border:0; color:#52627a; cursor:pointer; display:inline-flex; font-size:12px; font-weight:600; gap:5px; padding:3px 0; }
+.ai-page .chat-bubble.assistant .chat-launch-action { align-items:center; border-radius:9px; display:inline-flex; gap:7px; margin-top:10px; }
+/* Les métadonnées de résumé campagne sont étiquetées et espacées, le texte créatif garde ses retours. */
+.ai-page .chat-launch-summary { gap:10px; }
+.ai-page .chat-launch-row { gap:3px; }
+.ai-page .chat-launch-row span { font-size:10px; font-weight:600; letter-spacing:.035em; text-transform:uppercase; }
+.ai-page .chat-launch-message { border-top:1px solid var(--line); margin-top:2px; padding-top:9px; }
+/* Un seul bouton d'ajout dans la barre; les trois sources restent accessibles dans le menu. */
+.ai-page .chat-attach-menu { flex:none; position:relative; }
+.ai-page .chat-attach-menu > summary { cursor:pointer; list-style:none; }
+.ai-page .chat-attach-menu > summary::-webkit-details-marker { display:none; }
+.ai-page .chat-attach-menu[open] > summary { background:#edf2ff; color:var(--blue); }
+.ai-page .chat-attach-options { background:#fff; border:1px solid var(--line); border-radius:12px; bottom:calc(100% + 8px); box-shadow:0 10px 28px rgba(20,35,70,.16); display:grid; gap:2px; left:0; min-width:205px; padding:6px; position:absolute; z-index:20; }
+.ai-page .chat-attach-options button { align-items:center; background:transparent; border:0; border-radius:8px; color:var(--ink); cursor:pointer; display:flex; font:inherit; font-size:12px; gap:9px; padding:10px; text-align:left; white-space:nowrap; }
+.ai-page .chat-attach-options button:hover { background:#f2f5fb; }
+.ai-page .chat-attach-options button:disabled { cursor:default; opacity:.5; }
+@media (max-width:760px) {
+  .ai-page .chat-bubble.assistant { border-radius:15px; max-width:94%; padding:13px 14px; }
+  .ai-page .chat-composer { padding-left:10px; padding-right:10px; }
+  .ai-page .chat-input-form { gap:5px; padding-left:8px; }
+}
 
 /* Thème sombre : une seule teinte (#071129) pour toute la section IA — fond de la
    page, conteneur, en-tête, cartes et zone de saisie. Les séparations
@@ -73,7 +99,7 @@ html[data-theme="dark"] .ai-page .ai-main { background:#071129; }
 html[data-theme="dark"] .ai-page .chat-header { background:#071129; border-bottom-color:var(--line); }
 html[data-theme="dark"] .ai-page .chat-header-title strong { color:var(--ink); }
 html[data-theme="dark"] .ai-page .chat-insight,html[data-theme="dark"] .ai-page .ai-action-card,html[data-theme="dark"] .ai-page .chat-input-form { background:#071129; border-color:var(--line); }
-html[data-theme="dark"] .ai-page .chat-bubble.assistant { background:transparent; border:0; color:#eef2ff; }
+html[data-theme="dark"] .ai-page .chat-bubble.assistant { background:#fff; border-color:#e5eaf2; color:#172033; }
 html[data-theme="dark"] .ai-page .chat-chip { background:rgba(16,62,248,.18); color:#9db4ff; }
 html[data-theme="dark"] .ai-page .chat-chip:hover { background:rgba(16,62,248,.28); }
 html[data-theme="dark"] .ai-page .ai-action-card.tone-red .ai-action-icon { background:rgba(217,93,93,.14); color:#f19999; }

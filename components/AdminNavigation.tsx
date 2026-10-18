@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Activity, BarChart3, Bell, Building2, CreditCard, FileText, Menu, Receipt, Send, X, Users } from "lucide-react";
+import { Activity, BarChart3, Bell, Building2, CreditCard, FileText, Menu, Receipt, Send, X, Users, MessageSquareText } from "lucide-react";
 
 export type AdminNavigationProps = {
   active: string;
@@ -11,7 +11,7 @@ export type AdminNavigationProps = {
 export const adminNavigationGroups = [
   { label: "Pilotage", items: [["overview", "Vue générale", Activity], ["users", "Inscriptions", Users], ["usage", "Usage de l’app", BarChart3]] },
   { label: "Finance", items: [["subscriptions", "Abonnements", CreditCard], ["purchases", "Achats & recharges", Receipt], ["payouts", "Décaissements", Send]] },
-  { label: "Plateforme", items: [["notifications", "Notifications", Bell], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText]] },
+  { label: "Plateforme", items: [["notifications", "Notifications", Bell], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText], ["feedback", "Retours & notes", MessageSquareText]] },
 ] as const;
 
 export function AdminNavigation({ active, onChange }: AdminNavigationProps) {

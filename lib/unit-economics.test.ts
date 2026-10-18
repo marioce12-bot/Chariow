@@ -114,6 +114,7 @@ describe("valeur client, rachats, fiabilité", () => {
     expect(stats.skippedSales).toBe(2);
     expect(stats.customers).toBe(1);
     expect(stats.netByCustomer[0]).toBeCloseTo(6559.57 * 2, 0);
+    expect(customerValue(stats.netByCustomer)).toBeNull();
   });
 });
 

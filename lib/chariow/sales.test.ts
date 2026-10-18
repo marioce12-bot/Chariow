@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isConfirmedChariowSaleStatus } from "./sales";
 
 describe("isConfirmedChariowSaleStatus", () => {
-  it.each(["completed", "settled", "SETTLED", " Completed "])("reconnaît le statut encaissé %s", (status) => {
+  it.each(["completed", "settled", "paid", "SETTLED", " Completed "])("reconnaît le statut encaissé %s", (status) => {
     expect(isConfirmedChariowSaleStatus(status)).toBe(true);
   });
 

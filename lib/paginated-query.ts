@@ -22,8 +22,8 @@ export async function fetchAllPages<T>(
 
     const batch = data ?? [];
     rows.push(...batch);
-    if (batch.length < pageSize) break;
+    if (batch.length < pageSize) return { rows, error: null };
   }
 
-  return { rows, error: null };
+  return { rows, error: new Error("Limite de lecture atteinte : résultat potentiellement incomplet") };
 }

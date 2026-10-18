@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Bell, Building2, Clock, CreditCard, FileText, LogOut, RefreshCw, ShieldCheck, Users, UserPlus, Wallet, Receipt, Sparkles, Send, Gift, BadgeCheck } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Bell, Building2, Clock, CreditCard, FileText, LogOut, RefreshCw, ShieldCheck, Users, UserPlus, Wallet, Receipt, Sparkles, Send, Gift, BadgeCheck, MessageSquareText } from "lucide-react";
 import { AdminHeaderNavigation, AdminNavigation } from "./AdminNavigation";
 import { AdminNotifications } from "./AdminNotifications";
+import { AdminFeedbackSection } from "./FeedbackView";
 import { createClient } from "@/lib/supabase/browser";
 
 type AdminData = {
@@ -35,7 +36,7 @@ type UsageStats = {
   signups_by_day: Array<{ day: string; count: number }>;
 };
 
-const sections = [["overview", "Vue générale", Activity], ["users", "Inscriptions", UserPlus], ["usage", "Usage de l’app", BarChart3], ["notifications", "Notifications", Bell], ["subscriptions", "Abonnements", CreditCard], ["purchases", "Achats & recharges", Receipt], ["payouts", "Décaissement", Send], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText]] as const;
+const sections = [["overview", "Vue générale", Activity], ["users", "Inscriptions", UserPlus], ["usage", "Usage de l’app", BarChart3], ["notifications", "Notifications", Bell], ["subscriptions", "Abonnements", CreditCard], ["purchases", "Achats & recharges", Receipt], ["payouts", "Décaissement", Send], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText], ["feedback", "Retours & notes", MessageSquareText]] as const;
 
 function formatDuration(totalSeconds = 0) {
   const seconds = Math.round(totalSeconds);
@@ -126,6 +127,7 @@ export function AdminDashboard() {
         {active === "payouts" && <PayoutsSection data={data} onRefresh={() => void load()} />}
         {active === "integrations" && <IntegrationsSection data={data} />}
         {active === "audit" && <AuditSection data={data} />}
+        {active === "feedback" && <AdminFeedbackSection />}
       </section>
     </div>
   </main>;

@@ -1,18 +1,22 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Skeleton } from "./Skeleton";
+import CampaignProfitPanel from "./CampaignProfitPanel";
 type Product = {
   productId: string;
   productName: string | null;
   currency: string;
   units: number;
-  grossRevenue: number;
+  grossRevenue: number | null;
   netRevenue: number | null;
   chariowFees: number | null;
   estimatedNetRevenue: boolean;
   chariowFeeRate: 0.15;
   profit: number | null;
   marginPercent: number | null;
+  refunds?: number;
+  campaigns?: Array<{ id: string; name: string | null; sales: number }>;
+  provenance?: { paidSales: number; refundCount: number; campaignLinkedSales: number; reliability: "complete" | "partial" };
 };
 const money = (value: number | null, currency: string) =>
   value == null
@@ -184,10 +188,12 @@ export default function ProductProfitPanel({
                   </div>
                   <span style={badge}>{p.currency}</span>
                 </div>
+                {p.campaigns?.length ? <p style={muted}>Campagne Chariow liée : {p.campaigns.map((c) => `${c.name || c.id} (${c.sales})`).join(", ")}</p> : <p style={muted}>Aucune campagne Chariow explicitement liée à ces ventes.</p>}
                 <div className="profit-product-stats" style={stats}>
                   <span>
-                    Ventes <b>{p.units}</b>
+                    Ventes payées <b>{p.provenance?.paidSales ?? p.units}</b>
                   </span>
+                  <span>Remboursements <b>{p.provenance?.refundCount ?? p.refunds ?? 0}</b></span>
                   <span>
                     Brut <b>{money(p.grossRevenue, p.currency)}</b>
                   </span>
@@ -200,9 +206,10 @@ export default function ProductProfitPanel({
                     <b>{money(p.netRevenue, p.currency)}</b>
                   </span>
                 </div>
+                {p.provenance?.reliability === "partial" && <small role="note" style={muted}>Données financières incomplètes : certains montants ne sont pas disponibles.</small>}
                 <div className="profit-product-result" style={profitRow}>
                   <strong>
-                    Bénéfice estimé : {money(p.profit, p.currency)}
+                    {p.profit == null ? "Bénéfice réel indisponible (dépenses publicitaires non attribuées)" : `Bénéfice estimé : ${money(p.profit, p.currency)}`}
                   </strong>
                   <span>
                     Marge :{" "}
@@ -216,6 +223,7 @@ export default function ProductProfitPanel({
           })}
         </div>
       )}
+      <CampaignProfitPanel storeId={storeId} period={Number(period) as 7 | 30 | 90} />
     </section>
   );
 }

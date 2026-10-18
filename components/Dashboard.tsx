@@ -40,6 +40,7 @@ import { OverviewHome } from "./dashboard/OverviewHome";
 import { DashboardSkeleton } from "./dashboard/Skeleton";
 import ProductProfitPanel from "./dashboard/ProductProfitPanel";
 import RecoveryPanel from "./dashboard/RecoveryPanel";
+import { FeedbackView } from "./FeedbackView";
 import "@/app/dashboard-refinement.css";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
@@ -63,6 +64,7 @@ const PERSISTED_DASHBOARD_SECTIONS = new Set([
   "Abonnement",
   "Paramètres",
   "Notifications",
+  "Suggestions et notes",
 ]);
 
 function getInitialDashboardSection() {
@@ -397,6 +399,8 @@ export function Dashboard() {
             <RecoveryPanel key={activeStoreId} storeId={activeStoreId} />
           ) : active === "Rapports" ? (
             <Reports stores={stores} analytics={analytics} selectedStoreId={selectedStoreId} />
+          ) : active === "Suggestions et notes" ? (
+            <FeedbackView />
           ) : active === "Notifications" ? (
             <NotificationsView onBack={() => setActive(previousSection)} />
           ) : active === "Pilotage auto" ? (

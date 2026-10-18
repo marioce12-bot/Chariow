@@ -54,9 +54,9 @@ export function maxCostPerCustomer(avgNetPerCustomer: number | null | undefined,
 }
 
 /** Valeur client = revenu net cumulé par client / clients distincts. Reçoit un revenu net cumulé par client. */
-export function customerValue(netByCustomer: readonly number[]): number | null {
-  const values = netByCustomer.filter(isFiniteNumber);
-  if (!values.length) return null;
+export function customerValue(netByCustomer: readonly (number | null)[]): number | null {
+  if (!netByCustomer.length || netByCustomer.some((value) => !isFiniteNumber(value))) return null;
+  const values = netByCustomer as readonly number[];
   return round(values.reduce((sum, value) => sum + value, 0) / values.length, 2);
 }
 
@@ -128,7 +128,7 @@ export type CustomerSale = {
 
 export type CustomerStats = {
   customers: number;
-  netByCustomer: number[];
+  netByCustomer: Array<number | null>;
   ordersByCustomer: number[];
   /** Ventes confirmées ignorées : devise absente ou non convertible. */
   skippedSales: number;
@@ -143,33 +143,31 @@ export type CustomerStats = {
  */
 export function aggregateCustomers(sales: readonly CustomerSale[], targetCurrency: string): CustomerStats {
   const target = targetCurrency.trim().toUpperCase();
-  const byCustomer = new Map<string, { net: number; orders: number }>();
+  const byCustomer = new Map<string, { net: number | null; orders: number }>();
   let skippedSales = 0;
   let withoutCustomer = 0;
   for (const sale of sales) {
-    if (!isConfirmedChariowSaleStatus(sale.status)) continue;
+    const refunded = /refund|chargeback/i.test(sale.status ?? "");
+    if (!isConfirmedChariowSaleStatus(sale.status) && !refunded) continue;
     const customerId = typeof sale.customer_id === "string" ? sale.customer_id.trim() : "";
     if (!customerId) {
-      withoutCustomer += 1;
+      if (refunded) skippedSales += 1; else withoutCustomer += 1;
       continue;
     }
     const currency = typeof sale.currency === "string" ? sale.currency.trim().toUpperCase() : "";
-    const amount = Number(sale.net_amount ?? 0);
+    const amount = sale.net_amount == null || sale.net_amount === "" ? NaN : Number(sale.net_amount);
     const converted = currency && Number.isFinite(amount) ? (currency === target ? amount : convertCurrency(amount, currency, target)) : null;
-    if (converted === null) {
-      skippedSales += 1;
-      continue;
-    }
+    if (converted === null) { skippedSales += 1; continue; }
     const key = `${sale.store_id ?? ""}:${customerId}`;
     const entry = byCustomer.get(key) ?? { net: 0, orders: 0 };
-    entry.net += converted;
-    entry.orders += 1;
+    if (converted === null) entry.net = null; else if (entry.net !== null) entry.net += refunded ? -Math.abs(converted) : converted;
+    if (!refunded) entry.orders += 1;
     byCustomer.set(key, entry);
   }
   const entries = [...byCustomer.values()];
   return {
     customers: entries.length,
-    netByCustomer: entries.map((entry) => round(entry.net, 2)),
+    netByCustomer: [...entries.map((entry) => entry.net === null ? null : round(entry.net, 2)), ...((skippedSales || withoutCustomer) ? [null] : [])],
     ordersByCustomer: entries.map((entry) => entry.orders),
     skippedSales,
     withoutCustomer,

@@ -24,7 +24,12 @@ export class ChariowMcpClient {
   async callTool(name: string, args: Record<string, unknown> = {}) {
     const response = await this.request("tools/call", { name, arguments: args });
     if (response.error) throw new Error(response.error.message);
-    return parseToolResult(response.result as McpToolResult | undefined);
+    const result = response.result as McpToolResult | undefined;
+    if (result?.isError) throw new Error(`Chariow MCP tool ${name} failed`);
+    if (!result) throw new Error(`Chariow MCP tool ${name} returned no result`);
+    const parsed = parseToolResult(result);
+    if (parsed == null || typeof parsed === "string") throw new Error(`Chariow MCP tool ${name} returned an invalid payload`);
+    return parsed;
   }
 
   async initialize() {

@@ -14,6 +14,7 @@ import {
   Store,
   ChartNoAxesCombined,
   MessageCircle,
+  MessageSquareText,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 
@@ -64,6 +65,11 @@ export const dashboardPrimaryNavigation: readonly NavigationItem[] = [
     navKey: "nav.reports",
     label: "Rapports",
     Icon: FileText,
+  },
+  {
+    section: "Suggestions et notes",
+    label: "Suggestions et notes",
+    Icon: MessageSquareText,
   },
   {
     section: "Pilotage auto",

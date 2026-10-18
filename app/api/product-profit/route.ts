@@ -46,6 +46,8 @@ export async function GET(request: Request) {
   let from = 0;
   const sales: Array<{
     product_id: string | null;
+    chariow_campaign_id?: string | null;
+    chariow_campaign_name?: string | null;
     amount: number | string | null;
     net_amount: number | string | null;
     currency: string | null;
@@ -56,7 +58,7 @@ export async function GET(request: Request) {
   while (true) {
     const { data, error } = await supabase
       .from("chariow_sales")
-      .select("product_id, amount, net_amount, currency, status, raw_payload")
+      .select("product_id, chariow_campaign_id, chariow_campaign_name, amount, net_amount, currency, status, raw_payload")
       .eq("store_id", storeId)
       .gte("occurred_at", since)
       .lte("occurred_at", new Date().toISOString())

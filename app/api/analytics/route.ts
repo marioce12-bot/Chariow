@@ -45,15 +45,24 @@ export async function GET(request: Request) {
     // Enregistre tout de suite les ventes renvoyées par Chariow : la synchro automatique ne tourne qu'une fois
     // par nuit, donc sans cela une vente faite dans la journée n'apparaissait pas dans les chiffres du tableau
     // de bord (toujours à 0) jusqu'au lendemain. Une erreur ici ne doit jamais bloquer l'affichage.
+    let persistenceError = false;
     try {
       const freshRows = chariowSaleRows(store.id, snapshot.sales);
       if (freshRows.length) {
         // Client admin : la table n'autorise que la lecture à l'utilisateur. La boutique a déjà été vérifiée comme sienne ci-dessus.
         const { error: upsertError } = await createAdminClient().from("chariow_sales").upsert(freshRows, { onConflict: "chariow_sale_id" });
-        if (upsertError) console.error("Chariow sales upsert error", upsertError.message);
+        if (upsertError) { persistenceError = true; console.error("Chariow sales upsert error", upsertError.message); }
       }
     } catch (syncError) {
+      persistenceError = true;
       console.error("Chariow sales upsert failed", syncError instanceof Error ? syncError.message : syncError);
+    }
+    if (!from && !to) {
+      await createAdminClient().from("stores").update({
+        sales_last_synced_at: new Date().toISOString(),
+        sales_last_sync_complete: !persistenceError && snapshot.coverage?.sales.complete === true,
+        sales_sync_error: persistenceError ? "Les ventes n’ont pas pu être enregistrées." : snapshot.coverage?.sales.reason ?? null,
+      }).eq("id", store.id).eq("user_id", user.id);
     }
     const normalized = normalizeChariowSnapshot(snapshot, { from: from ?? "", to: to ?? "" });
     const now = new Date();
@@ -115,7 +124,7 @@ export async function GET(request: Request) {
     return withStatus(NextResponse.json({
       store: { name: normalized.storeName, status: store.connection_status, connectedAt: store.connected_at ?? null },
       // `sales` est enrichi avec `id` et `details` (infos brutes Chariow lisibles) pour la fenêtre « Détail ».
-      snapshot: { ...normalized, sales: mergeSaleDetails(normalized.sales, snapshot.sales), overview, productPerformance },
+      snapshot: { ...normalized, coverage: snapshot.coverage, persistenceError, sales: mergeSaleDetails(normalized.sales, snapshot.sales), overview, productPerformance },
     }), null);
   } catch (analyticsError) {
     const message = analyticsError instanceof Error ? analyticsError.message : String(analyticsError);

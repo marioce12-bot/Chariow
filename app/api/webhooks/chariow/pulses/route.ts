@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { chariowSaleRows } from "@/lib/chariow/sales-rows";
 import { verifyChariowSignature } from "@/lib/attribution-server";
 
 function record(value: unknown) { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
-function amount(value: unknown) { const row = record(value); return Number(row.value ?? value ?? 0) || 0; }
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -24,11 +24,13 @@ export async function POST(request: Request) {
   if (eventError) return NextResponse.json({ error: "Événement non enregistré" }, { status: 500 });
   const metadata = record(sale.custom_metadata ?? sale.metadata);
   const storeId = String(metadata.store_id ?? sale.store_id ?? "") || null;
-  const campaign = record(sale.campaign ?? metadata.campaign ?? metadata.marketing_campaign);
-  const campaignId = String(campaign.id ?? campaign.campaign_id ?? sale.campaign_id ?? metadata.campaign_id ?? "") || null;
-  const campaignName = String(campaign.name ?? campaign.title ?? sale.campaign_name ?? metadata.campaign_name ?? "") || null;
-  const settlement = record(sale.settlement);
-  await supabase.from("chariow_sales").upsert({ chariow_sale_id: saleId, store_id: storeId, product_id: String(metadata.product_id ?? sale.product_id ?? "") || null, chariow_campaign_id: campaignId, chariow_campaign_name: campaignName, status: String(sale.status ?? eventType), amount: amount(sale.amount), net_amount: amount(settlement.amount), currency: String(record(sale.amount).currency ?? sale.currency ?? "") || null, settlement_done: Boolean(settlement.done_at), event_type: eventType, occurred_at: String(sale.created_at ?? sale.createdAt ?? new Date().toISOString()), updated_at: new Date().toISOString(), raw_payload: event }, { onConflict: "chariow_sale_id" });
+  const row = chariowSaleRows(storeId ?? "", [sale])[0];
+  const { error: saleError } = await supabase.from("chariow_sales").upsert({ ...row, store_id: storeId, product_id: String(metadata.product_id ?? row.product_id ?? "") || null, status: String(sale.status ?? eventType), event_type: eventType, raw_payload: event }, { onConflict: "chariow_sale_id" });
+  if (saleError) {
+    // Allow the provider retry to reprocess this delivery instead of acknowledging a lost sale.
+    await supabase.from("chariow_pulse_events").delete().eq("event_id", eventId);
+    return NextResponse.json({ error: "Vente non enregistrée" }, { status: 500 });
+  }
 
   if (eventType === "successful.sale") {
     // Native Chariow campaign data is persisted with the sale. Attribution to

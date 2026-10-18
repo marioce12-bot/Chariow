@@ -25,6 +25,10 @@ export async function GET() {
 
   const enriched = (reports ?? []).map((report: Record<string, unknown>) => ({
     ...report,
+    recommendation: (report.metrics as Record<string, unknown> | null)?.recommendation ?? null,
+    recommendation_reason: (report.metrics as Record<string, unknown> | null)?.recommendation_reason ?? null,
+    cpa_threshold: (report.metrics as Record<string, unknown> | null)?.cpa_threshold ?? null,
+    mutation_block_reason: (report.metrics as Record<string, unknown> | null)?.mutation_block_reason ?? null,
     campaign_title: titles.get(String(report.campaign_id)) ?? "Campagne",
   }));
   return NextResponse.json({ reports: enriched });

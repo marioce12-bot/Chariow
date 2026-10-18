@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { convertCurrency } from "@/lib/currency";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
-import { computeAutopilotDecision, isAutopilotDataFresh } from "@/lib/autopilot";
+import { autopilotMutationBlockReason, canExecuteAutopilotMutation, computeAutopilotDecision, isAutopilotDataFresh } from "@/lib/autopilot";
 import { loadStoreCustomerValue, type CustomerHistory } from "@/lib/autopilot-customer-value";
 import { pauseMetaCampaign } from "@/lib/meta/campaigns";
 import { pauseTikTokCampaign } from "@/lib/tiktok/campaigns";
@@ -335,12 +335,12 @@ export async function GET(request: Request) {
         cac: sales.completed > 0 ? spendData.spend / sales.completed : null,
         decision: decision.decision,
         reasons: decision.reasons,
-        metrics: { daily_budget: num(campaign.daily_budget), days_since_launch: Math.round(daysSinceLaunch * 10) / 10, anomalies, insights_latest_date: spendData.latestDate ?? null, insights_fresh: campaign.platform !== "meta" || (isAutopilotDataFresh(spendData.latestDate) && spendData.syncOk), meta_sync_error: campaign.platform === "meta" ? Boolean(!spendData.syncOk) : false },
+        metrics: { daily_budget: num(campaign.daily_budget), days_since_launch: Math.round(daysSinceLaunch * 10) / 10, anomalies, insights_latest_date: spendData.latestDate ?? null, insights_fresh: campaign.platform !== "meta" || (isAutopilotDataFresh(spendData.latestDate) && spendData.syncOk), meta_sync_error: campaign.platform === "meta" ? Boolean(!spendData.syncOk) : false, recommendation: decision.recommendation, recommendation_reason: decision.recommendationReason, cpa_threshold: decision.cpaThreshold, mutation_block_reason: autopilotMutationBlockReason() },
       };
       const { error: reportError } = await supabase.from("ad_campaign_autopilot_reports").insert(report);
       if (reportError) throw new Error(`Autopilot report insert failed: ${reportError.message}`);
 
-      if (decision.decision === "pause") {
+      if (decision.decision === "pause" && canExecuteAutopilotMutation()) {
         await pauseCampaign(supabase, campaign);
         const { error: updateError } = await supabase
           .from("ad_campaigns")
@@ -378,7 +378,7 @@ export async function GET(request: Request) {
         if (notificationError) throw new Error(`Autopilot notification upsert failed after pause: ${notificationError.message}`);
       }
 
-      results.push({ campaign_id: campaign.id, platform: campaign.platform, decision: decision.decision, spend: spendData.spend, sales: sales.completed, roas: decision.roas, anomalies: anomalies.map((a) => a.stage) });
+      results.push({ campaign_id: campaign.id, platform: campaign.platform, decision: decision.decision, recommendation: decision.recommendation, recommendation_reason: decision.recommendationReason, cpa_threshold: decision.cpaThreshold, mutation_blocked: !canExecuteAutopilotMutation(), spend: spendData.spend, sales: sales.completed, roas: decision.roas, anomalies: anomalies.map((a) => a.stage) });
     } catch (campaignError) {
       console.error("autopilot: campaign evaluation failed", campaign.id, campaignError instanceof Error ? campaignError.message : campaignError);
       results.push({ campaign_id: campaign.id, error: campaignError instanceof Error ? campaignError.message : "unknown error" });

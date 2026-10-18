@@ -546,7 +546,7 @@ export function Overview({
   }));
 
   const revenueSeries = (overview?.revenueSeries ?? []).flatMap((point) => {
-    const revenueNet = toUsd(point.revenueNet, overviewCurrency);
+    const revenueNet = point.revenueNet === null ? null : toUsd(point.revenueNet, overviewCurrency);
     return revenueNet === null ? [] : [{ ...point, revenueNet }];
   });
   const campaignDailyUsd = campaignDaily.map((point) => ({
@@ -1057,8 +1057,8 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
       <div className="page-top settings-head">
         <div>
           <span className="eyebrow">{t("settings.account")}</span>
-          <h1>{t("settings.title")}</h1>
-          <p>{t("settings.subtitle")}</p>
+          <h1>{t(mobileSettingsSection === "channels" ? "settings.adChannels" : "settings.title")}</h1>
+          <p>{mobileSettingsSection === "channels" ? t("settings.connectedAccountsDescription") : mobileSettingsSection === "preferences" ? (locale === "en" ? "Customize your interface, language and account preferences." : "Personnalise ton interface, ta langue et les préférences de ton compte.") : t("settings.subtitle")}</p>
         </div>
         {onBack && <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {t("settings.back")}</button>}
       </div>
@@ -1067,6 +1067,9 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
           <span className="mobile-settings-icon">{item.icon}</span><span><strong>{item.title}</strong><small>{item.description}</small></span><ArrowRight size={16} aria-hidden="true" />
         </button>)}
       </nav>
+      <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Suggestions et notes")}>
+        <span className="mobile-settings-icon"><MessageSquare size={20} /></span><span><strong>Suggestions et notes</strong><small>Note ton expérience et partage une idée</small></span><ArrowRight size={16} aria-hidden="true" />
+      </button>
       {mobileSettingsSection !== null && <button type="button" className="mobile-settings-return" onClick={() => setMobileSettingsSection(null)} aria-label={t("settings.backToSections")}><ArrowRight size={16} aria-hidden="true" /> {t("settings.backToSettings")}</button>}
       <section className="settings-section settings-section-account" data-settings-panel="accounts" aria-label={t("settings.storesAndSubscription")}>
         <div className="mobile-settings-grid">

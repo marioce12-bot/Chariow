@@ -27,10 +27,20 @@ describe("overview server aggregates", () => {
     const result = buildOverviewAggregates(mixedCurrencySales, "XOF", "2026-10-01", "2026-10-01");
     expect(result.sales).toBe(4);
     expect(result.skippedSales).toBe(2);
-    expect(result.customerValue).toBeCloseTo(13119.14, 2);
-    expect(result.averageBasket).toBeCloseTo(6559.57, 2);
+    expect(result.customerValue).toBeNull();
+    expect(result.averageBasket).toBeNull();
   });
 
+  it("ne traite pas un net inconnu comme zéro et déduit un remboursement connu", () => {
+    const base = { status: "completed", currency: "XOF", occurred_at: "2026-10-01T12:00:00Z", customer_id: "c1" };
+    const unknown = buildOverviewAggregates([{ ...base, net_amount: null }], "XOF", "2026-10-01", "2026-10-01");
+    expect(unknown.revenueNet).toBeNull();
+    expect(unknown.averageBasket).toBeNull();
+    const refund = buildOverviewAggregates([{ ...base, net_amount: 100 }, { ...base, status: "refunded", net_amount: 40 }], "XOF", "2026-10-01", "2026-10-01");
+    expect(refund.sales).toBe(1);
+    expect(refund.revenueNet).toBe(60);
+    expect(refund.customerValue).toBe(60);
+  });
   it("retourne null si la pagination de l’une des périodes échoue", () => {
     const error = new Error("query failed");
     expect(buildOverviewFromPages(

@@ -23,6 +23,11 @@ export type AutopilotDecision = {
   roas: number | null;
   /** Prevents the AI explanation layer from replacing the deterministic LTV safeguard. */
   customerValueProtection?: boolean;
+  /** At most one actionable recommendation; null means evidence is incomplete. */
+  recommendation: "continue" | "reduce" | "increase" | null;
+  recommendationReason: string;
+  /** Data-derived maximum CPA; null when reliable customer value is unavailable. */
+  cpaThreshold: number | null;
 };
 
 export type AutopilotInput = {
@@ -69,7 +74,7 @@ const BREAKEVEN_ROAS = 1;
 /** ROAS en dessous duquel on arrête, une fois le seuil de dépense atteint. */
 const STOP_ROAS = 0.5;
 
-export function computeAutopilotDecision(input: AutopilotInput): AutopilotDecision {
+function computeBaseAutopilotDecision(input: AutopilotInput): Omit<AutopilotDecision, "recommendation" | "recommendationReason" | "cpaThreshold"> {
   const { spend, netRevenue, grossRevenue, completedSales, daysSinceLaunch, dailyBudget, attributionReliable } = input;
   const roas = roasOf(netRevenue, spend);
 
@@ -171,6 +176,41 @@ export function computeAutopilotDecision(input: AutopilotInput): AutopilotDecisi
   };
 }
 
+export function computeAutopilotDecision(input: AutopilotInput): AutopilotDecision {
+  const base = computeBaseAutopilotDecision(input);
+  const cpaThreshold = input.attributionReliable ? maxCostPerCustomer(input.historicalCustomerValue) : null;
+  if (base.decision === "insufficient_data" || base.decision === "learning") {
+    return { ...base, recommendation: null, recommendationReason: "Blocage : données fiables et suffisamment mûres indisponibles ; recommandation inconnue.", cpaThreshold };
+  }
+  if (!input.attributionReliable || cpaThreshold === null || !Number.isFinite(cpaThreshold) || cpaThreshold <= 0) {
+    return { ...base, recommendation: null, recommendationReason: "Inconnu : aucun seuil CPA fiable ne peut être calculé à partir de la valeur client réelle ; ne pas modifier la campagne.", cpaThreshold: null };
+  }
+  const observedCpa = input.completedSales > 0 ? input.spend / input.completedSales : null;
+  const recommendation = base.decision === "pause" ? "reduce" : observedCpa !== null && observedCpa <= cpaThreshold * 0.7 && base.decision === "keep_running" ? "increase" : "continue";
+  const recommendationReason = observedCpa === null
+    ? `Réduire : aucune vente confirmée après ${fmt(input.spend)} de dépense ; seuil CPA réel ${fmt(cpaThreshold)}.`
+    : `CPA observé ${fmt(observedCpa)} (${input.completedSales} ventes confirmées) comparé au seuil de ${fmt(cpaThreshold)} fondé sur la valeur client historique réelle.`;
+  return { ...base, recommendation, recommendationReason, cpaThreshold };
+}
+export type AutopilotMutationReadiness = {
+  salesSyncComplete: boolean | null | undefined;
+  salesLastSyncedAt: string | null | undefined;
+  explicitBudgetLimit: number | null | undefined;
+  now?: Date;
+};
+/** Fail closed: require a complete, fresh verified sales sync and a concrete budget ceiling. */
+export function autopilotMutationBlockReason(readiness?: AutopilotMutationReadiness): string | null {
+  if (!readiness) return "Mutation automatique bloquée : le suivi fiable des ventes et les limites explicites de budget ne sont pas tous deux configurés et vérifiés côté serveur.";
+  if (readiness.salesSyncComplete !== true) return "Mutation automatique bloquée : le dernier suivi des ventes n’est pas explicitement complet.";
+  const syncedAt = readiness.salesLastSyncedAt ? new Date(readiness.salesLastSyncedAt).getTime() : NaN;
+  const now = (readiness.now ?? new Date()).getTime();
+  if (!Number.isFinite(syncedAt) || syncedAt > now || now - syncedAt > 48 * 60 * 60 * 1000) return "Mutation automatique bloquée : synchronisation des ventes absente, future ou vieille de plus de 48 h.";
+  if (typeof readiness.explicitBudgetLimit !== "number" || !Number.isFinite(readiness.explicitBudgetLimit) || readiness.explicitBudgetLimit <= 0) return "Mutation automatique bloquée : aucune limite de budget explicite et valide n’est définie.";
+  return null;
+}
+export function canExecuteAutopilotMutation(readiness?: AutopilotMutationReadiness): boolean {
+  return autopilotMutationBlockReason(readiness) === null;
+}
 export type AutopilotReportSnapshot = {
   campaign_id: string;
   created_at: string;

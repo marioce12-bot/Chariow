@@ -23,4 +23,9 @@ describe("fetchAllPages", () => {
 
     expect(result).toEqual({ rows: [], error });
   });
+  it("signale la couverture inconnue si le plafond est rempli", async () => {
+    const result = await fetchAllPages(async () => ({ data: [1, 2], error: null }), 2, 2);
+    expect(result.rows).toHaveLength(2);
+    expect(result.error).toBeInstanceOf(Error);
+  });
 });

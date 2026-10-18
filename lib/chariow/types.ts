@@ -19,6 +19,7 @@ export type ChariowStoreSnapshot = {
   sales?: unknown;
   salesAnalytics?: unknown;
   storeAnalytics?: unknown;
+  coverage?: { products: import("./pagination").CollectionCoverage; sales: import("./pagination").CollectionCoverage };
 };
 
 export type ChariowProduct = {

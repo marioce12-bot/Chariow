@@ -46,7 +46,7 @@ describe("autopilot cron safety", () => {
   it("records failed Meta synchronization as unreliable rather than fresh", async () => {
     mocks.syncError = "Meta sync failed";
     expect((await GET(request())).status).toBe(200);
-    expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ decision: "insufficient_data", metrics: expect.objectContaining({ insights_fresh: false, meta_sync_error: true }) }));
+    expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ decision: "insufficient_data", metrics: expect.objectContaining({ recommendation: null, mutation_block_reason: expect.stringContaining("limites explicites"), insights_fresh: false, meta_sync_error: true }) }));
     expect(mocks.pauseMeta).not.toHaveBeenCalled();
   });
   it("surfaces attribution read failures without inventing zero sales", async () => {

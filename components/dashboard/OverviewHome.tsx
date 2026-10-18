@@ -8,6 +8,7 @@ import { useI18n } from "@/lib/i18n/i18n";
 import type { PlanId } from "@/lib/plans";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { AdSpendByChannel } from "./AdSpendByChannel";
+import { TrackingQualityPanel } from "./TrackingQualityPanel";
 import { Skeleton, SkeletonRows } from "./Skeleton";
 import type { AnalyticsData, ProductData, StoreData, SubscriptionData } from "./shared";
 import "@/app/dashboard-overview.css";
@@ -318,6 +319,7 @@ export function OverviewHome({
         <button type="button" onClick={() => onNavigate("Bénéfices nets")}><span className="overview-shortcut-icon"><Package size={20} /></span><span><strong>Que me rapporte chaque produit ?</strong><small>Renseigne tes coûts et découvre tes marges.</small></span><span aria-hidden="true">↗</span></button>
         <button type="button" onClick={() => onNavigate("Relances WhatsApp")}><span className="overview-shortcut-icon recovery"><Clock size={20} /></span><span><strong>Transforme les abandons en ventes</strong><small>Relance sur WhatsApp, avec consentement.</small></span><span aria-hidden="true">↗</span></button>
       </div> : null}
+      <TrackingQualityPanel key={`${storeId}-${periodDays}`} storeId={storeId ?? null} periodDays={periodDays} />
       {/* 2. Liste des campagnes publicitaires */}
       <AdCampaignsList key={campaignsVersion} storeId={storeId ?? null} plan={plan} onNewCampaign={onLaunchAd} />
 

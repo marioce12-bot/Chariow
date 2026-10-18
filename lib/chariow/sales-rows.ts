@@ -14,7 +14,10 @@ function arrayValue(value: unknown): unknown[] {
 }
 function amount(value: unknown) {
   const row = record(value);
-  return Number(row.value ?? value ?? 0) || 0;
+  const raw = row.value ?? value;
+  if (raw == null || typeof raw === "boolean" || (typeof raw === "string" && !raw.trim())) return null;
+  const parsed = typeof raw === "number" || typeof raw === "string" ? Number(raw) : NaN;
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export function chariowSaleRows(storeId: string, sales: unknown) {
@@ -35,7 +38,7 @@ export function chariowSaleRows(storeId: string, sales: unknown) {
       currency: String(record(sale.amount).currency ?? sale.currency ?? "") || null,
       settlement_done: Boolean(settlement.done_at),
       event_type: "list_sales.sync",
-      occurred_at: String(sale.created_at ?? sale.createdAt ?? new Date().toISOString()),
+      occurred_at: sale.created_at || sale.createdAt ? String(sale.created_at ?? sale.createdAt) : null,
       updated_at: new Date().toISOString(),
       raw_payload: sale,
     };

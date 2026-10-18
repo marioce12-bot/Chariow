@@ -8,7 +8,7 @@ export type ProfitabilityAggregate = {
   failedSales: number;
   grossRevenue: number | null;
   netRevenue: number | null;
-  revenueByCurrency: Array<{ currency: string; sales: number; grossRevenue: number; netRevenue: number }>;
+  revenueByCurrency: Array<{ currency: string; sales: number; grossRevenue: number | null; netRevenue: number | null }>;
   currency: string | null;
   abandonmentRate: number | null;
   failureRate: number | null;
@@ -37,19 +37,24 @@ export function calculateProfitabilityAggregate(input: {
   const confirmed = input.sales.filter((sale) => isConfirmedChariowSaleStatus(sale.status));
   const abandoned = input.sales.filter((sale) => sale.status === "abandoned" || sale.status === "abandoned.sale");
   const failed = input.sales.filter((sale) => sale.status === "failed" || sale.status === "failed.sale");
-  const byCurrency = new Map<string, { currency: string; sales: number; grossRevenue: number; netRevenue: number }>();
-  for (const sale of confirmed) {
+  const byCurrency = new Map<string, { currency: string; sales: number; grossRevenue: number; netRevenue: number; grossComplete: boolean; netComplete: boolean }>();
+  for (const sale of input.sales) {
+    const status = String(sale.status ?? "").trim().toLowerCase();
+    const refunded = status.includes("refund") || status.includes("chargeback");
+    if (!isConfirmedChariowSaleStatus(status) && !refunded) continue;
     const currency = typeof sale.currency === "string" && sale.currency.trim() ? sale.currency.trim().toUpperCase() : "UNKNOWN";
-    const bucket = byCurrency.get(currency) ?? { currency, sales: 0, grossRevenue: 0, netRevenue: 0 };
-    bucket.sales += 1;
-    bucket.grossRevenue += Number(sale.amount ?? 0);
-    bucket.netRevenue += Number(sale.net_amount ?? 0);
+    const bucket = byCurrency.get(currency) ?? { currency, sales: 0, grossRevenue: 0, netRevenue: 0, grossComplete: true, netComplete: true };
+    if (!refunded) bucket.sales += 1;
+    const gross = sale.amount == null || sale.amount === "" ? NaN : Number(sale.amount);
+    const net = sale.net_amount == null || sale.net_amount === "" ? NaN : Number(sale.net_amount);
+    if (!Number.isFinite(gross)) bucket.grossComplete = false; else bucket.grossRevenue += refunded ? -Math.abs(gross) : gross;
+    if (!Number.isFinite(net)) bucket.netComplete = false; else bucket.netRevenue += refunded ? -Math.abs(net) : net;
     byCurrency.set(currency, bucket);
   }
   const revenueByCurrency = [...byCurrency.values()].map((bucket) => ({
-    ...bucket,
-    grossRevenue: Math.round(bucket.grossRevenue * 100) / 100,
-    netRevenue: Math.round(bucket.netRevenue * 100) / 100,
+    currency: bucket.currency, sales: bucket.sales,
+    grossRevenue: bucket.grossComplete ? Math.round(bucket.grossRevenue * 100) / 100 : null,
+    netRevenue: bucket.netComplete ? Math.round(bucket.netRevenue * 100) / 100 : null,
   }));
   const singleKnownCurrency = revenueByCurrency.length === 1 && revenueByCurrency[0].currency !== "UNKNOWN";
   const currency = singleKnownCurrency ? revenueByCurrency[0].currency : null;

@@ -1,6 +1,7 @@
 import { resolveChariowProductUrl } from "./product-urls";
 import { decryptSecret } from "@/lib/crypto";
 import { ChariowMcpClient } from "./mcp-client";
+import { collectChariowPages } from "./pagination";
 import { isConfirmedChariowSaleStatus } from "./sales";
 import type { ChariowNormalizedSnapshot, ChariowProduct, ChariowStoreSnapshot } from "./types";
 
@@ -17,12 +18,12 @@ export async function getChariowSnapshot(
   const to = opts?.to ?? now.toISOString().slice(0, 10);
   const [storeInfo, products, sales, salesAnalytics, storeAnalytics] = await Promise.all([
     client.callTool("get_store"),
-    client.callTool("list_products", { per_page: 100 }),
-    client.callTool("list_sales", { per_page: 100, ...(opts?.from ? { start_date: from } : {}), ...(opts?.to ? { end_date: to } : {}) }),
+    collectChariowPages((args) => client.callTool("list_products", args)),
+    collectChariowPages((args) => client.callTool("list_sales", args), { ...(opts?.from ? { start_date: from } : {}), ...(opts?.to ? { end_date: to } : {}) }),
     client.callTool("get_sales_analytics", { from, to }),
     client.callTool("get_store_analytics", { from, to }),
   ]);
-  return { store: storeInfo, products, sales, salesAnalytics, storeAnalytics } satisfies ChariowStoreSnapshot;
+  return { store: storeInfo, products: { data: products.data }, sales: { data: sales.data }, salesAnalytics, storeAnalytics, coverage: { products: products.coverage, sales: sales.coverage } } satisfies ChariowStoreSnapshot;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
