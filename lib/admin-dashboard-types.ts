@@ -22,6 +22,7 @@ export type AdminData = {
     email: string | null;
     full_name: string | null;
     created_at: string;
+    credit_balance?: number;
     subscription?: { plan: string; status: string } | null;
   }>;
   stores: Array<{

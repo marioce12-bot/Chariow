@@ -1,0 +1,10 @@
+/* User credit availability stays visible without horizontal scrolling on phones. */
+@media (max-width: 640px) {
+  .owner-console .admin-users .admin-table { overflow-x: visible; }
+  .owner-console .admin-users .admin-row { min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .owner-console .admin-users .admin-row-head { display: none; }
+  .owner-console .admin-users .admin-row > [data-label]::before { content: attr(data-label); display: block; color: #64748b; font-size: 10px; margin-bottom: 4px; }
+  .owner-console .admin-users .admin-user-credits { font-weight: 700; }
+  .owner-console .admin-users .admin-plan-actions { flex-wrap: wrap; }
+  .owner-console .admin-users .admin-plan-actions::before { flex-basis: 100%; }
+}

@@ -28,6 +28,7 @@ function builder(table: string) {
     "order",
     "limit",
     "eq",
+    "in",
     "insert",
     "update",
     "single",

@@ -20,6 +20,7 @@ import {
 import { useI18n } from "@/lib/i18n/i18n";
 import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 export type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
+import "./admin-user-credits.css";
 
 export function formatDuration(totalSeconds = 0) {
   const seconds = Math.round(totalSeconds);
@@ -373,7 +374,7 @@ export function UsersSection({
   }
   return (
     <>
-      <section className="admin-card">
+      <section className="admin-card admin-users">
         <div className="admin-card-head">
           <h3>
             {locale === "en" ? "Users" : "Utilisateurs"} ({users.length})
@@ -413,8 +414,8 @@ export function UsersSection({
         </div>
         <p className="admin-help">
           {locale === "en"
-            ? "Search covers the latest 500 loaded accounts. Totals below cover the platform."
-            : "La recherche porte sur les 500 derniers comptes chargés. Les totaux ci-dessous concernent la plateforme."}
+            ? "Search covers the latest 500 loaded accounts. Totals below cover the platform. Available Studio credits exclude reservations for ongoing generations; — means unavailable."
+            : "La recherche porte sur les 500 derniers comptes chargés. Les totaux ci-dessous concernent la plateforme. Les crédits Studio disponibles excluent les réservations des générations en cours ; — signifie indisponible."}
         </p>
         {users.length ? (
           <AdminTable
@@ -422,12 +423,13 @@ export function UsersSection({
               locale === "en" ? "Account" : "Compte",
               t("adminComplete.date"),
               locale === "en" ? "Plan" : "Offre",
+              locale === "en" ? "Studio credits available" : "Crédits Studio disponibles",
               locale === "en" ? "Actions" : "Actions",
             ]}
           >
             {users.map((u) => (
               <div className="admin-row" key={u.id}>
-                <span>
+                <span data-label={locale === "en" ? "Account" : "Compte"}>
                   <strong>
                     {u.full_name || (locale === "en" ? "Account" : "Compte")}
                   </strong>
@@ -435,13 +437,14 @@ export function UsersSection({
                     {u.email || "—"}
                   </small>
                 </span>
-                <span>
+                <span data-label={t("adminComplete.date")}>
                   {new Date(u.created_at).toLocaleDateString(
                     dateLocale(locale),
                   )}
                 </span>
-                <span>{u.subscription?.plan ?? "—"}</span>
-                <span className="admin-plan-actions">
+                <span data-label={locale === "en" ? "Plan" : "Offre"}>{u.subscription?.plan ?? "—"}</span>
+                <span className="admin-user-credits" data-label={locale === "en" ? "Studio credits available" : "Crédits Studio disponibles"}>{u.credit_balance == null ? "—" : u.credit_balance.toLocaleString(dateLocale(locale))}</span>
+                <span className="admin-plan-actions" data-label="Actions">
                   <button
                     type="button"
                     className="admin-btn admin-btn-primary"
@@ -698,8 +701,8 @@ export function PurchasesSection({ data }: { data: AdminData }) {
         </div>
         <p className="admin-help">
           {locale === "en"
-            ? `Credit revenue: ${data.business.credit_revenue_xof == null ? "—" : money(data.business.credit_revenue_xof, locale)} · Credits sold: ${data.business.credits_sold ?? "—"}`
-            : `Revenus des crédits : ${data.business.credit_revenue_xof == null ? "—" : money(data.business.credit_revenue_xof, locale)} · Crédits vendus : ${data.business.credits_sold ?? "—"}`}
+            ? "Recent credit entries, including free grants. Verified paid revenue is shown in Overview."
+            : "Écritures de crédits récentes, y compris les attributions gratuites. Les revenus payés vérifiés figurent dans la vue d’ensemble."}
         </p>
         {data.creditPurchases.length ? (
           <AdminTable

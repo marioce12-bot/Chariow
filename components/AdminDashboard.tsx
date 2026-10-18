@@ -41,6 +41,7 @@ import { fetchAdminJson } from "@/lib/admin-fetch";
 import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 import "./admin-dashboard.css";
 import { AdminSignupChart } from "./AdminSignupChart";
+import { AdminRevenue } from "./AdminRevenue";
 
 export function AdminDashboard() {
   const { locale, setLocale } = useI18n();
@@ -309,6 +310,8 @@ export function AdminDashboard() {
         ) : (
           <>
             {active === "overview" && (
+              <>
+              <AdminRevenue refreshRevision={refreshRevision} />
               <Overview
                 data={data}
                 usage={usage}
@@ -316,6 +319,7 @@ export function AdminDashboard() {
                 usageLoading={usageLoading}
                 navigate={navigate}
               />
+              </>
             )}
             {active === "users" && (
               <UsersSection

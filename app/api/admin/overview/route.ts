@@ -155,6 +155,24 @@ export async function GET() {
         : {}),
     };
   });
+  // Match reserve_credits: spendable credits = balance - reserved, never transaction history.
+  // A missing/inaccessible account is deliberately omitted so the UI can distinguish it from zero.
+  const userIds = safeUsers.map((user) => user.id);
+  const creditBalances = userIds.length
+    ? await service
+        .from("credit_accounts")
+        .select("user_id,balance,reserved")
+        .in("user_id", userIds)
+    : { data: [], error: null };
+  const balancesByUser = new Map(
+    (creditBalances.error ? [] : creditBalances.data ?? [])
+      .filter((row) => Number.isSafeInteger(row.balance) && Number.isSafeInteger(row.reserved) && row.reserved >= 0 && row.balance >= row.reserved)
+      .map((row) => [row.user_id, row.balance - row.reserved]),
+  );
+  const usersWithBalances = safeUsers.map((user) => ({
+    ...user,
+    ...(balancesByUser.has(user.id) ? { credit_balance: balancesByUser.get(user.id) } : {}),
+  }));
   return NextResponse.json({
     admin: { role: admin.role },
     metrics: {
@@ -165,7 +183,7 @@ export async function GET() {
       metaAccounts: metaAccounts.count ?? metaAccounts.data?.length ?? 0,
     },
     business: businessMetrics.data ?? {},
-    users: safeUsers,
+    users: usersWithBalances,
     stores: (stores.data ?? []).map((row) =>
       pick(row, [
         "id",

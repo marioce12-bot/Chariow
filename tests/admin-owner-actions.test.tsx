@@ -89,6 +89,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("available Studio credits in user rows", () => {
+  it("shows actual zero, localized available credits and missing data distinctly", async () => {
+    const users = [
+      { ...data.users[0], id: "zero", credit_balance: 0 },
+      { ...data.users[0], id: "paid", credit_balance: 2175 },
+      { ...data.users[0], id: "missing" },
+    ];
+    await render(<UsersSection data={{ ...data, users }} usage={null} />);
+    expect(container.textContent).toContain("Crédits Studio disponibles");
+    const cells = [...container.querySelectorAll(".admin-user-credits")];
+    expect(cells.map(cell => cell.textContent)).toEqual(["0", (2175).toLocaleString("fr-FR"), "—"]);
+    expect(cells.every(cell => cell.getAttribute("data-label") === "Crédits Studio disponibles")).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    localeState.locale = "en";
+    await render(<UsersSection data={{ ...data, users }} usage={null} />);
+    expect(container.textContent).toContain("Studio credits available");
+    expect(container.querySelectorAll(".admin-user-credits")[1].textContent).toBe("2,175");
+  });
+});
+
 describe("actions propriétaires dans les sections admin", () => {
   it("ferme la popup crédits avec Escape et restaure le focus au déclencheur", async () => {
     await render(<UsersSection data={data} usage={usage} />);
