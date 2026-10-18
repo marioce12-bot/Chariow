@@ -28,7 +28,7 @@ export function DailyMotivationalQuote() {
   }, []);
   if (!quote) return <div className="daily-motivation-loading" aria-hidden="true" style={{ minHeight: 52 }} />;
   return <figure className="daily-motivation" style={{ margin: "14px 0 12px", maxWidth: 680 }}>
-    <blockquote className="overview-quote" style={{ margin: 0, lineHeight: 1.55 }}>« {locale === "en" ? quote.en : quote.fr} »</blockquote>
+    <blockquote className="overview-quote" style={{ margin: 0, lineHeight: 1.55, fontStyle: "italic" }}>« {locale === "en" ? quote.en : quote.fr} »</blockquote>
     <figcaption style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
       — <cite style={{ fontStyle: "normal", fontWeight: 600 }}>{quote.author}</cite>
     </figcaption>

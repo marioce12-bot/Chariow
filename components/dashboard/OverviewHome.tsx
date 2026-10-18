@@ -173,7 +173,6 @@ export function OverviewHome({
 
   // Chiffres de la période : skeleton tant que les données ou les campagnes ne sont pas là.
   const statsLoading = loading || periodLoading;
-  const summaryLoading = statsLoading || !campaignsReady;
 
   const greeting = userFirstName ? getGreeting(userFirstName, en ? "en" : "fr", now) : null;
 
@@ -264,7 +263,7 @@ export function OverviewHome({
           <span className="eyebrow">{tr("Vue d'ensemble", "Overview")}</span>
           {greeting ? (
             <>
-              <h1 style={{ margin: "4px 0 8px", fontSize: 24 }}>{greeting}</h1>
+              <h1 style={{ margin: "4px 0 8px", fontSize: 24, fontWeight: 700 }}>{greeting}</h1>
               {/* Guillemets français « » (espaces insécables), “ ” en anglais. */}
               <DailyMotivationalQuote />
             </>
@@ -273,15 +272,6 @@ export function OverviewHome({
               <Skeleton width="55%" height={26} style={{ margin: "8px 0 10px" }} />
               <Skeleton width="70%" height={16} style={{ marginBottom: 10 }} />
             </>
-          )}
-          {summaryLoading ? (
-            <Skeleton width="80%" height={12} />
-          ) : (
-            <p className="hint-line" style={{ margin: 0 }}>
-              {salesCount > 0
-                ? tr(`Sur les ${periodDays} derniers jours : ${money(overview?.revenueNet)} de revenu net.`, `Over the last ${periodDays} days: ${money(overview?.revenueNet)} net revenue.`)
-                : tr(`Pas encore de vente sur les ${periodDays} derniers jours. Lance une pub pour démarrer.`, `No sales yet over the last ${periodDays} days. Launch an ad to get started.`)}
-            </p>
           )}
           {trialLabel ? <p className="hint-line" style={{ margin: "6px 0 0" }}>{trialLabel}</p> : null}
         </div>
