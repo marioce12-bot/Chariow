@@ -1,4 +1,5 @@
 "use client";
+import { AutopilotBudgetLimit } from "./AutopilotBudgetLimit";
 
 import "./ad-campaigns-list.css";
 
@@ -105,7 +106,6 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [togglingAutopilot, setTogglingAutopilot] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -120,23 +120,6 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   useEffect(() => {
     void load();
   }, [load]);
-
-  async function toggleAutopilot(campaign: AdCampaign) {
-    setTogglingAutopilot(true);
-    try {
-      const next = !campaign.autopilot_enabled;
-      const res = await fetch(`/api/ad-campaigns/${campaign.id}/autopilot`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: next }),
-      });
-      if (!res.ok) return;
-      setSelected((current) => (current && current.id === campaign.id ? { ...current, autopilot_enabled: next } : current));
-      void load();
-    } finally {
-      setTogglingAutopilot(false);
-    }
-  }
 
   // Auto-sync : tant qu'une campagne Meta est "en revue", on revérifie son
   // statut aupres de Meta toutes les 15s (au lieu d'attendre le cron
@@ -334,18 +317,13 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                 </span>
               </div>
             ) : null}
-            {selected.external_campaign_id ? (
-              <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, border: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <div>
-                  <strong style={{ fontSize: 13 }}>{t("autopilot.eyebrow")}</strong>
-                  <p className="hint-line" style={{ margin: 0 }}>{t("sweep2.text331")}</p>
-                  {selected.autopilot_pause_reason ? (
-                    <p className="hint-line" style={{ margin: "4px 0 0", color: "#B45309" }}>{t("sweep3.text332")}{" "}{selected.autopilot_pause_reason}</p>
-                  ) : null}
-                </div>
-                <button type="button" className={selected.autopilot_enabled ? "btn btn-dark" : "btn btn-ghost"} disabled={togglingAutopilot} onClick={() => void toggleAutopilot(selected)}>
-                  {selected.autopilot_enabled ? t("sweep1.text333") : t("campaigns.activate")}
-                </button>
+            {selected.external_campaign_id && (selected.platform === "meta" || selected.platform === "tiktok") ? (
+              <div style={{ marginTop: 14 }}>
+                <AutopilotBudgetLimit campaignId={selected.id} enabled={Boolean(selected.autopilot_enabled)} onEnabledChange={(enabled) => {
+                  setSelected((current) => current?.id === selected.id ? { ...current, autopilot_enabled: enabled } : current);
+                  void load();
+                }} />
+                {selected.autopilot_pause_reason ? <p className="hint-line" style={{ color: "#B45309" }}>{t("sweep3.text332")} {selected.autopilot_pause_reason}</p> : null}
               </div>
             ) : null}
             <div className="ad-campaign-modal-actions">{!getMetaCampaignLifecycle(selected.status, selected.external_error) && selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => { setEditing(false); setDuplicating(selected); setSelected(null); }}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button>{!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? t("ads.launchButton") : t("adsExtra.resume")}</button> : null}{!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button> : null}</div>
