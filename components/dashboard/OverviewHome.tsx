@@ -102,6 +102,8 @@ export function OverviewHome({
   const periodFirstRun = useRef(true);
   const [alerts, setAlerts] = useState<PersistentAlert[]>([]);
   const [selectedSale, setSelectedSale] = useState<SaleRow | null>(null);
+  const saleTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const saleCloseRef = useRef<HTMLButtonElement | null>(null);
   // Ce composant n'est monté qu'après le premier chargement (côté navigateur) : on lit donc
   // l'heure de l'appareil tout de suite, sans décalage serveur / navigateur ni salutation provisoire.
   const [now, setNow] = useState<Date>(() => new Date());
@@ -155,12 +157,25 @@ export function OverviewHome({
     return () => { cancelled = true; };
   }, []);
 
-  // Fermer la fenêtre de détail avec la touche Échap.
+  // Garder le focus dans le flux du dialogue, fermer avec Échap et restaurer le déclencheur.
   useEffect(() => {
     if (!selectedSale) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setSelectedSale(null); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    saleCloseRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedSale(null);
+      if (event.key === "Tab") {
+        event.preventDefault();
+        saleCloseRef.current?.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      saleTriggerRef.current?.focus();
+    };
   }, [selectedSale]);
 
   const overview = data?.overview ?? null;
@@ -342,7 +357,7 @@ export function OverviewHome({
               <ul className="ov-sales">
                 {saleRows.map((row) => (
                   <li key={row.key}>
-                    <button type="button" className="ov-sale" onClick={() => setSelectedSale(row)} aria-haspopup="dialog">
+                    <button type="button" className="ov-sale" onClick={(event) => { saleTriggerRef.current = event.currentTarget; setSelectedSale(row); }} aria-haspopup="dialog">
                       <span className="ov-sale-thumb">
                         {row.image ? <img src={row.image} alt="" loading="lazy" /> : <Package size={18} />}
                         <span className="ov-sale-dot">{statusIcon(row.group, 14)}</span>
@@ -397,7 +412,7 @@ export function OverviewHome({
       {selectedSale ? (
         <div className="sale-modal-backdrop" role="presentation" onClick={() => setSelectedSale(null)}>
           <section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-modal-title" onClick={(event) => event.stopPropagation()}>
-            <button type="button" className="sale-modal-close" aria-label={tr("Fermer", "Close")} onClick={() => setSelectedSale(null)}>×</button>
+            <button ref={saleCloseRef} type="button" className="sale-modal-close" aria-label={tr("Fermer", "Close")} onClick={() => setSelectedSale(null)}>×</button>
             <span className="eyebrow">{tr("Détail de l'événement", "Event details")}</span>
             <h2 id="sale-modal-title">{selectedSale.label}</h2>
             <div className="ov-modal-product">
