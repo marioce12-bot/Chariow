@@ -207,10 +207,15 @@ export default function ProductProfitPanel({
                   </span>
                 </div>
                 {p.provenance?.reliability === "partial" && <small role="note" style={muted}>Données financières incomplètes : certains montants ne sont pas disponibles.</small>}
-                <div className="profit-product-result" style={profitRow}>
+                <div className="profit-product-result" style={p.profit == null ? { ...profitRow, background: "#f6f7f9", color: "#475569" } : profitRow}>
                   <strong>
-                    {p.profit == null ? "Bénéfice réel indisponible (dépenses publicitaires non attribuées)" : `Bénéfice estimé : ${money(p.profit, p.currency)}`}
+                    {p.profit == null
+                      ? p.netRevenue == null
+                        ? "Bénéfice après publicité non calculé : montants de vente incomplets."
+                        : "Bénéfice après publicité : dépenses non rapprochées de ce produit."
+                      : `Bénéfice estimé : ${money(p.profit, p.currency)}`}
                   </strong>
+                  {p.profit == null && p.netRevenue != null && <small>Le montant net ci-dessus est calculé après les frais Chariow, mais avant la publicité. Vendeo ne sait pas encore quelles dépenses publicitaires affecter à ce produit. Cela ne signifie pas que ton pixel est mal installé.</small>}
                   <span>
                     Marge :{" "}
                     {p.marginPercent == null
@@ -223,7 +228,7 @@ export default function ProductProfitPanel({
           })}
         </div>
       )}
-      <CampaignProfitPanel storeId={storeId} period={Number(period) as 7 | 30 | 90} />
+      <CampaignProfitPanel key={`${storeId}:${period}`} storeId={storeId} period={Number(period) as 7 | 30 | 90} />
     </section>
   );
 }

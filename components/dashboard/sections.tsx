@@ -7,6 +7,7 @@ import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, F
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { PinterestAdsPanel } from "@/components/PinterestAdsPanel";
 import { MetaHistoryOverview } from "@/components/dashboard/MetaHistoryOverview";
+import { MetaAccountSkeleton } from "@/components/dashboard/MetaAccountSkeleton";
 import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
@@ -1295,14 +1296,6 @@ function TikTokSkeleton() {
       </div>
     </div>
   );
-}
-
-function MetaAccountSkeleton() {
-  return <div className="meta-account-skeleton" role="status" aria-label="Chargement des données du compte Meta">
-    <div className="vendeo-kpi-grid meta-kpis">{[0, 1, 2, 3, 4].map((item) => <div className="vendeo-kpi" key={item}><div className="vendeo-skeleton" style={{ height: 12, width: "58%", marginBottom: 12 }} /><div className="vendeo-skeleton" style={{ height: 25, width: "44%" }} /></div>)}</div>
-    <section className="app-card" style={{ marginBottom: 18 }}><div className="vendeo-skeleton" style={{ height: 16, width: 180, marginBottom: 18 }} />{[0, 1, 2, 3].map((item) => <div className="vendeo-skeleton" key={item} style={{ height: 13, width: `${96 - item * 9}%`, marginBottom: 12 }} />)}</section>
-    <section className="app-card"><div className="vendeo-skeleton" style={{ height: 16, width: 150, marginBottom: 18 }} />{[0, 1, 2].map((item) => <div className="vendeo-skeleton" key={item} style={{ height: 38, marginBottom: 10 }} />)}</section>
-  </div>;
 }
 
 // Vue des performances publicitaires et des campagnes liées au compte sélectionné.

@@ -20,8 +20,7 @@ export function calculateCampaignProfit(input: CampaignProfitInput) {
   const sales = products.reduce((n, p) => n + p.units, 0);
   const refunds = products.reduce((n, p) => n + p.refunds, 0);
   const reasons: string[] = [];
-  if (!input.mappingReliable) reasons.push("Association Meta ↔ boutique/campagne non unique ou non vérifiée.");
-  if (!input.attributionReliable) reasons.push("Attribution des ventes insuffisante ou non fiable.");
+  if (!input.mappingReliable || !input.attributionReliable) reasons.push("Le rapprochement entre les ventes Chariow et cette campagne Meta n’est pas encore vérifié dans Vendeo. Cela ne signifie pas que le pixel est mal installé.");
   if (!input.spendComplete || input.spend == null || !Number.isFinite(input.spend)) reasons.push("Dépenses ou couverture de synchronisation Meta incomplètes.");
   if (!input.salesComplete) reasons.push("Historique des ventes incomplet ou périmé pour la période.");
   if (!rowsValid) reasons.push("Produit ou devise manquant/incompatible : aucun montant n’est supprimé silencieusement.");

@@ -13,4 +13,19 @@ describe("tracking quality", () => {
     expect(assessTrackingQuality({ ...valid, salesError: true, paidSales: 0 }).status).toBe("incomplete");
     expect(assessTrackingQuality({ ...valid, salesSyncedAt: null }).issues.some(i => i.code === "sales_stale")).toBe(true);
   });
+  it("keeps a declared pixel separate from missing campaign attribution", () => {
+    const result = assessTrackingQuality({ ...valid, unattributedSales: 2, pixelLastFiredAt: null });
+    expect(result.issues.map(i => i.code)).toContain("attribution_missing");
+    expect(result.issues.map(i => i.code)).not.toContain("pixel_unknown");
+    expect(result.issues.find(i => i.code === "pixel_events_unknown")?.message).toContain("ne remet pas en cause l’installation déclarée");
+    expect(result.status).toBe("incomplete");
+  });
+  it("does not report a missing pixel when store-account association is unavailable", () => {
+    const result = assessTrackingQuality({ ...valid, linkedAccounts: 0, pixelConfigured: null, pixelLastFiredAt: null, pixelLookupSkipped: true });
+    expect(result.issues.map(i => i.code)).toContain("account_unlinked");
+    expect(result.issues.map(i => i.code)).not.toContain("pixel_unknown");
+    expect(result.issues.map(i => i.code)).not.toContain("pixel_events_unknown");
+    expect(result.status).toBe("incomplete");
+    expect(result.automaticActionsAllowed).toBe(false);
+  });
 });

@@ -37,6 +37,19 @@ describe("ProductProfitPanel", () => {
     expect(host.querySelector("button")).toBeNull();
   });
 
+  it.each([
+    { netRevenue: 1019.15, expected: "dépenses non rapprochées de ce produit" },
+    { netRevenue: null, expected: "montants de vente incomplets" },
+  ])("explains why profit is unknown when net is $netRevenue", async ({ netRevenue, expected }) => {
+    const product = { productId: "p", productName: "Ebook", currency: "XOF", units: 1, grossRevenue: 1199, netRevenue, chariowFees: 179.85, estimatedNetRevenue: false, chariowFeeRate: 0.15, profit: null, marginPercent: null };
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => url.includes("/api/product-profit") ? { products: [product], costs: [] } : { campaigns: [], reasons: [] } })));
+    await mount("store-1");
+    await act(async () => Promise.resolve());
+    expect(host.textContent).toContain(expected);
+    expect(host.textContent).not.toContain("Bénéfice réel indisponible");
+    if (netRevenue != null) expect(host.textContent).toContain("Cela ne signifie pas que ton pixel est mal installé.");
+  });
+
   it("renders local skeletons while sales are loading", async () => {
     let resolveFetch!: (value: unknown) => void;
     vi.stubGlobal(
