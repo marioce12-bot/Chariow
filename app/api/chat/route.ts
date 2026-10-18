@@ -24,7 +24,7 @@ Règles importantes :
 - Distingue les faits, les analyses et les recommandations.
 - Utilise un format texte propre : titres simples, listes avec des tirets et paragraphes courts.
 - N'entoure jamais toute ta réponse de blocs de code et n'utilise pas de balises HTML.
-- N'utilise pas de Markdown gras avec des astérisques ; écris les titres directement.
+- Pour faciliter la lecture, tu peux mettre quelques libellés ou mots clés courts en gras avec **texte**. Dans les récapitulatifs, mets uniquement le libellé en gras (ex. **Produit :** ou **Product:**), jamais les valeurs, les liens ou des paragraphes entiers. Le texte explicatif reste normal.
  - Adapte tes recommandations aux créateurs africains et aux paiements en XOF.
 - Quand c'est pertinent, propose une liste d'actions prioritaires.
 -- Réponds de manière concise mais utile.
@@ -362,7 +362,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
     }
   }
-  answer = cleanAiText(answer);
+  answer = cleanAiText(answer, { preserveStrong: true });
   const userProvidedUrls = (previousHistory ?? []).filter((item) => item.role === "user").map((item) => String(item.content ?? "")).concat(message).flatMap((text) => text.match(/https?:\/\/[^\s<>"\]]+/g) ?? []);
   answer = resolveCampaignAnswer(answer, campaignCatalog, { userProvidedUrls, locale: body?.locale });
   // [[CREE_VITRINE]] : le serveur valide le JSON, crée la vitrine et remplace la balise par le lien.
