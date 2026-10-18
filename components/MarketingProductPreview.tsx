@@ -1,0 +1,24 @@
+export function MarketingProductPreview({ slide, locale }: { slide: 1 | 2; locale: "fr" | "en" }) {
+  const en = locale === "en";
+  const text = en
+    ? { demo: "DEMO DATA · NOT A LIVE CAMPAIGN", wizard: "New campaign", steps: ["Product", "Creative", "Audience", "Budget", "Payment"], product: "Choose a product", store: "Chariow store", selected: "Selected product", price: "$29.00", network: "Facebook & Instagram", creative: "Creative", adText: "Turn your expertise into a digital product people love.", audience: "Audience", location: "Côte d’Ivoire", age: "Age 18–45", budget: "Daily budget", days: "Duration", launch: "Continue", studio: "AI Studio", image: "Image", prompt: "Describe the image you want to create", promptText: "A premium product photo, warm natural light, clean background…", ratio: "Square · 1:1", quality: "HD quality", generate: "Generate image", history: "Your creations", note: "Example interface · no campaign or AI generation is running" }
+    : { demo: "DONNÉES DE DÉMO · CAMPAGNE NON ACTIVE", wizard: "Nouvelle campagne", steps: ["Produit", "Créa", "Audience", "Budget", "Paiement"], product: "Choisir un produit", store: "Boutique Chariow", selected: "Produit sélectionné", price: "29 000 F", network: "Facebook & Instagram", creative: "Créa", adText: "Transformez votre savoir-faire en produit numérique apprécié.", audience: "Audience", location: "Côte d’Ivoire", age: "18–45 ans", budget: "Budget quotidien", days: "Durée", launch: "Continuer", studio: "Studio IA", image: "Image", prompt: "Décrivez l’image à créer", promptText: "Photo produit premium, lumière naturelle chaude, fond épuré…", ratio: "Carré · 1:1", quality: "Qualité HD", generate: "Générer l’image", history: "Vos créations", note: "Interface illustrative · aucune campagne ni génération IA en cours" };
+  const progress = 1;
+  return <div className={`marketing-product-preview marketing-preview-${slide}`} lang={locale}>
+    <div className="mpv-appbar"><span className="mpv-mark">V</span><strong>{slide === 1 ? text.wizard : text.studio}</strong><span className="mpv-demo">{text.demo}</span></div>
+    {slide === 1 ? <>
+      <div className="mpv-steps">{text.steps.map((step, i) => <div className={`mpv-step ${i === progress ? "is-current" : i < progress ? "is-done" : ""}`} key={step}><i>{i < progress ? "✓" : i + 1}</i><span>{step}</span></div>)}</div>
+      <div className="mpv-body"><div className="mpv-heading"><div><small>{en ? "STEP 2 OF 5" : "ÉTAPE 2 SUR 5"}</small><h3>{text.selected}</h3></div><span className="mpv-badge">{text.product}</span></div>
+        <div className="mpv-columns"><section className="mpv-product"><div className="mpv-product-art"><span>✦</span><b>{en ? "MY" : "MON"}<br/>EBOOK</b></div><div><strong>{en ? "The mindful creator" : "Le créateur serein"}</strong><small>{text.price}</small></div></section>
+          <div className="mpv-fields"><label>{en ? "Ad account" : "Compte publicitaire"}<div className="mpv-input">Meta Business · {text.network}</div></label><label>{text.creative}<div className="mpv-input mpv-copy">{text.adText}</div></label><div className="mpv-inline"><div><small>{text.audience}</small><b>{text.location} · {text.age}</b></div><div><small>{text.budget}</small><b>{en ? "$12 / day · 7 days" : "7 500 F / jour · 7 jours"}</b></div></div></div>
+        </div><div className="mpv-footer"><span>{en ? "Campaign is saved as a draft; nothing is published." : "La campagne sera enregistrée en brouillon, rien n’est publié."}</span><button type="button" tabIndex={-1}>{text.launch}</button></div>
+      </div>
+    </> : <>
+      <div className="mpv-studio-nav"><b>{text.studio}</b><span>{en ? "Credits" : "Crédits"} <strong>240</strong></span></div>
+      <div className="mpv-body mpv-studio-body"><div className="mpv-heading"><div><small>{en ? "CREATE SOMETHING NEW" : "CRÉEZ QUELQUE CHOSE DE NOUVEAU"}</small><h3>{en ? "Bring your idea to life" : "Donnez vie à votre idée"}</h3></div><span className="mpv-badge">{text.image}</span></div>
+        <div className="mpv-studio-grid"><div className="mpv-fields"><div className="mpv-toggle"><span className="active">{text.image}</span><span>{en ? "Video" : "Vidéo"}</span></div><label>{text.prompt}<div className="mpv-input mpv-prompt">{text.promptText}</div></label><div className="mpv-inline"><div><small>{en ? "Format" : "Format"}</small><b>{text.ratio}</b></div><div><small>{en ? "Resolution" : "Résolution"}</small><b>{text.quality}</b></div></div><button className="mpv-generate" type="button" tabIndex={-1}>✦ &nbsp;{text.generate}</button></div><div className="mpv-output"><div className="mpv-output-art"><div className="mpv-sun"/><div className="mpv-bottle"/><span>STUDIO<br/>{en ? "CREATIVE" : "CRÉATIF"}</span></div><small>{text.history} · {en ? "example" : "exemple"}</small></div></div>
+        <div className="mpv-studio-note">{text.note}</div>
+      </div>
+    </>}
+  </div>;
+}

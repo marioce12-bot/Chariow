@@ -73,7 +73,7 @@ describe("ProductProfitPanel", () => {
   });
 
   it("shows tracking quality in net profit and reloads it for the selected period", async () => {
-    const fetcher = vi.fn(async () => ({ ok: true, json: async () => ({ products: [], quality: { status: "incomplete", issues: [] }, campaigns: [], reasons: [] }) }));
+    const fetcher = vi.fn(async (_url: string) => ({ ok: true, json: async () => ({ products: [], quality: { status: "incomplete", issues: [] }, campaigns: [], reasons: [] }) }));
     vi.stubGlobal("fetch", fetcher);
     await mount("store-1");
     await act(async () => Promise.resolve());
