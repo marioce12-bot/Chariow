@@ -17,9 +17,9 @@ describe("AutopilotView", () => {
 
   it("explains insufficient data and avoids suggesting a campaign change", () => {
     const source = require("node:fs").readFileSync(__filename.replace(/\.test\.tsx$/, ".tsx"), "utf8");
-    expect(source).toContain('t("interfaceExtra.insufficientExplanation")');
-    const explanation = translate("fr", "interfaceExtra.insufficientExplanation");
-    expect(explanation).toContain("du suivi des achats, de l’attribution des ventes ou de données trop récentes");
-    expect(explanation).toContain("Aucun changement de campagne n’est recommandé");
+    expect(source).toContain('t("autopilot.insufficientExplanation")');
+    const explanation = translate("fr", "autopilot.insufficientExplanation");
+    expect(explanation).toContain("Les ventes ne sont peut-être pas encore bien suivies ou reliées à cette campagne, ou les données sont trop récentes");
+    expect(explanation).toContain("ne suffit pas à recommander un changement de campagne");
   });
 });

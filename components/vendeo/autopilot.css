@@ -1,0 +1,53 @@
+.autopilot-view { min-width: 0; }
+.autopilot-view .page-top h1 { text-wrap: balance; }
+.autopilot-safety { display: flex; gap: 12px; padding: 16px 18px; margin-bottom: 22px; border: 1px solid #dce5f5; border-radius: 16px; background: #f1f5ff; color: #334668; }
+.autopilot-safety > svg { flex-shrink: 0; margin-top: 2px; color: #3159b8; }
+.autopilot-safety strong { display: block; font-size: 14px; color: #1e355c; }
+.autopilot-safety p { margin: 4px 0 0; font-size: 13px; line-height: 1.65; }
+.autopilot-reports .card-head { align-items: flex-start; }
+.autopilot-report-list { display: grid; gap: 18px; }
+.autopilot-campaign { min-width: 0; padding: 20px; border: 1px solid #e0e5ed; border-radius: 16px; background: #fff; }
+.autopilot-campaign-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+.autopilot-campaign-head > div { min-width: 0; }
+.autopilot-platform { display: block; color: #687488; font-size: 12px; margin-bottom: 5px; }
+.autopilot-campaign h3 { margin: 0; font-size: 15px; line-height: 1.5; font-weight: 650; color: #172234; overflow-wrap: anywhere; }
+.autopilot-decision { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 9px; background: #f1f3f7; font-size: 12px; line-height: 1.4; font-weight: 600; flex-shrink: 0; max-width: 48%; }
+.autopilot-decision svg { flex-shrink: 0; }
+.autopilot-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; padding: 14px 0; border-top: 1px solid #edf0f5; border-bottom: 1px solid #edf0f5; }
+.autopilot-metrics > div { min-width: 0; }
+.autopilot-metrics dt { font-size: 12px; line-height: 1.4; color: #687488; margin-bottom: 6px; }
+.autopilot-metrics dd { margin: 0; font-size: 15px; line-height: 1.5; font-weight: 650; color: #172234; overflow-wrap: anywhere; }
+.autopilot-metrics dd small { display: block; font-size: 12px; font-weight: 400; color: #687488; }
+.autopilot-notes { display: grid; gap: 12px; }
+.autopilot-note { padding: 14px; border-radius: 12px; background: #f7f8fb; color: #4b586d; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.autopilot-note strong { display: block; color: #2b384e; font-size: 13px; line-height: 1.5; }
+.autopilot-note p { margin: 6px 0 0; }
+.autopilot-note ul, .autopilot-reasons { margin: 8px 0 0; padding-left: 18px; }
+.autopilot-note li + li { margin-top: 5px; }
+.autopilot-note-blocked { background: #fff8ed; border: 1px solid #f4e4c9; }
+.autopilot-note-blocked strong { color: #78551b; }
+.autopilot-block-reason { padding-top: 10px; margin-top: 10px !important; border-top: 1px solid #eadfcf; }
+.autopilot-reasons { font-size: 13px; line-height: 1.65; color: #4b586d; }
+.autopilot-footer { display: flex; align-items: center; gap: 7px; font-size: 12px; line-height: 1.6; color: #687488; }
+.autopilot-footer svg { flex-shrink: 0; }
+@media (max-width: 700px) {
+  .autopilot-view .page-top { margin-bottom: 18px; }
+  .autopilot-view .page-top h1 { font-size: clamp(25px, 6.4vw, 32px); line-height: 1.18; margin: 8px 0; letter-spacing: -.035em; }
+  .autopilot-view .page-top p { font-size: 13px; line-height: 1.6; }
+  .autopilot-view .eyebrow { font-size: 10px; letter-spacing: .14em; }
+  .autopilot-safety { padding: 14px; gap: 10px; margin-bottom: 18px; border-radius: 14px; }
+  .autopilot-safety p { font-size: 12px; }
+  .autopilot-view .autopilot-reports { padding: 16px; border-radius: 18px; }
+  .autopilot-reports .card-head { margin-bottom: 18px; gap: 10px; }
+  .autopilot-reports .card-head h2 { font-size: 19px; margin: 5px 0; }
+  .autopilot-reports .card-head p { font-size: 12px; line-height: 1.5; }
+  .autopilot-campaign { padding: 14px; border-radius: 14px; }
+  .autopilot-campaign-head { flex-direction: column; gap: 10px; margin-bottom: 14px; }
+  .autopilot-decision { max-width: 100%; }
+  .autopilot-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 10px; }
+  .autopilot-metrics > div:last-child { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .autopilot-metrics > div:last-child dt { margin: 0; }
+  .autopilot-metrics dd { font-size: 14px; }
+  .autopilot-note { padding: 12px; font-size: 12px; }
+  .autopilot-note strong { font-size: 12px; }
+}

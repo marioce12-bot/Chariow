@@ -4,6 +4,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { convertCurrency } from "@/lib/currency";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
 import { autopilotMutationBlockReason, canExecuteAutopilotMutation, computeAutopilotDecision, isAutopilotDataFresh } from "@/lib/autopilot";
+import { guardPlannedDailyBudget } from "@/lib/autopilot-budget";
 import { loadStoreCustomerValue, type CustomerHistory } from "@/lib/autopilot-customer-value";
 import { pauseMetaCampaign } from "@/lib/meta/campaigns";
 import { pauseTikTokCampaign } from "@/lib/tiktok/campaigns";
@@ -262,7 +263,7 @@ export async function GET(request: Request) {
 
   const { data: campaigns, error } = await supabase
     .from("ad_campaigns")
-    .select("id,user_id,store_id,product_id,platform,status,objective,effective_objective,daily_budget,created_at,external_campaign_id,external_adset_id,external_ad_id,meta_ad_account_id,tiktok_ad_account_id,title,product_name")
+    .select("id,user_id,store_id,product_id,platform,status,objective,effective_objective,daily_budget,autopilot_budget_limit,autopilot_budget_limit_currency,created_at,external_campaign_id,external_adset_id,external_ad_id,meta_ad_account_id,tiktok_ad_account_id,title,product_name")
     .eq("autopilot_enabled", true)
     .in("status", ["active", "review"])
     .not("external_campaign_id", "is", null);
@@ -274,6 +275,9 @@ export async function GET(request: Request) {
     try {
       const currency = await campaignCurrency(supabase, campaign);
       const spendData = await campaignSpend(supabase, campaign);
+      // daily_budget is legacy campaign data (historically USD); its currency is not
+      // reliably retained, so never compare/convert it against the account cap.
+      const budgetGuard = guardPlannedDailyBudget({ plannedDailyBudget: null, plannedCurrency: null, budgetLimit: campaign.autopilot_budget_limit == null ? null : num(campaign.autopilot_budget_limit), limitCurrency: campaign.autopilot_budget_limit_currency == null ? null : String(campaign.autopilot_budget_limit_currency), campaignCurrency: currency });
       const sales = await attributedSales(supabase, campaign, currency);
       const storeId = String(campaign.store_id ?? "");
       const historyKey = `${storeId}:${currency.trim().toUpperCase()}`;
@@ -335,12 +339,12 @@ export async function GET(request: Request) {
         cac: sales.completed > 0 ? spendData.spend / sales.completed : null,
         decision: decision.decision,
         reasons: decision.reasons,
-        metrics: { daily_budget: num(campaign.daily_budget), days_since_launch: Math.round(daysSinceLaunch * 10) / 10, anomalies, insights_latest_date: spendData.latestDate ?? null, insights_fresh: campaign.platform !== "meta" || (isAutopilotDataFresh(spendData.latestDate) && spendData.syncOk), meta_sync_error: campaign.platform === "meta" ? Boolean(!spendData.syncOk) : false, recommendation: decision.recommendation, recommendation_reason: decision.recommendationReason, cpa_threshold: decision.cpaThreshold, mutation_block_reason: autopilotMutationBlockReason() },
+        metrics: { daily_budget: num(campaign.daily_budget), days_since_launch: Math.round(daysSinceLaunch * 10) / 10, anomalies, insights_latest_date: spendData.latestDate ?? null, insights_fresh: campaign.platform !== "meta" || (isAutopilotDataFresh(spendData.latestDate) && spendData.syncOk), meta_sync_error: campaign.platform === "meta" ? Boolean(!spendData.syncOk) : false, recommendation: decision.recommendation, recommendation_reason: decision.recommendationReason, cpa_threshold: decision.cpaThreshold, mutation_block_reason: autopilotMutationBlockReason(), budget_block_reason: campaign.autopilot_budget_limit == null ? "NO_BUDGET_LIMIT" : null, budget_guard_reason: budgetGuard.reason, budget_limit: campaign.autopilot_budget_limit == null ? null : num(campaign.autopilot_budget_limit), budget_limit_currency: campaign.autopilot_budget_limit_currency ?? null },
       };
       const { error: reportError } = await supabase.from("ad_campaign_autopilot_reports").insert(report);
       if (reportError) throw new Error(`Autopilot report insert failed: ${reportError.message}`);
 
-      if (decision.decision === "pause" && canExecuteAutopilotMutation()) {
+      if (decision.decision === "pause" && budgetGuard.allowed && canExecuteAutopilotMutation()) {
         await pauseCampaign(supabase, campaign);
         const { error: updateError } = await supabase
           .from("ad_campaigns")
@@ -378,7 +382,7 @@ export async function GET(request: Request) {
         if (notificationError) throw new Error(`Autopilot notification upsert failed after pause: ${notificationError.message}`);
       }
 
-      results.push({ campaign_id: campaign.id, platform: campaign.platform, decision: decision.decision, recommendation: decision.recommendation, recommendation_reason: decision.recommendationReason, cpa_threshold: decision.cpaThreshold, mutation_blocked: !canExecuteAutopilotMutation(), spend: spendData.spend, sales: sales.completed, roas: decision.roas, anomalies: anomalies.map((a) => a.stage) });
+      results.push({ campaign_id: campaign.id, platform: campaign.platform, decision: decision.decision, recommendation: decision.recommendation, recommendation_reason: decision.recommendationReason, cpa_threshold: decision.cpaThreshold, mutation_blocked: !canExecuteAutopilotMutation() || !budgetGuard.allowed, mutation_block_reason: autopilotMutationBlockReason(), budget_block_reason: campaign.autopilot_budget_limit == null ? "NO_BUDGET_LIMIT" : null, budget_guard_reason: budgetGuard.reason, spend: spendData.spend, sales: sales.completed, roas: decision.roas, anomalies: anomalies.map((a) => a.stage) });
     } catch (campaignError) {
       console.error("autopilot: campaign evaluation failed", campaign.id, campaignError instanceof Error ? campaignError.message : campaignError);
       results.push({ campaign_id: campaign.id, error: campaignError instanceof Error ? campaignError.message : "unknown error" });
