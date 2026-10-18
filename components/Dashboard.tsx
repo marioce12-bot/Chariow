@@ -36,7 +36,7 @@ import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { NotificationsView } from "@/components/NotificationsView";
 import { useUsageTracking } from "@/components/useUsageTracking";
 import { readCache, writeCache, DASHBOARD_CACHE_KEY, SESSION_STORAGE_PROMPT_KEY, ADS_CACHE_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
-import { StoreOnboarding, StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
+import { StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
 import { OverviewHome } from "./dashboard/OverviewHome";
 import { DashboardSkeleton } from "./dashboard/Skeleton";
 import ProductProfitPanel from "./dashboard/ProductProfitPanel";
@@ -45,6 +45,7 @@ import { NotificationPermissionPrompt } from "./NotificationPermissionPrompt";
 import { DashboardStoreSelector } from "./dashboard/StoreSelector";
 import "@/app/dashboard-refinement.css";
 import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
+import { StoreConnectionGate, hasConnectedChariowStore } from "./dashboard/StoreConnectionGate";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
 // Dernière boutique choisie dans le sélecteur : conservée dans localStorage (et non
@@ -231,7 +232,9 @@ export function Dashboard() {
 
   useEffect(() => {
     const s = searchParams.get("chariow");
-    if (s && ["connected", "failed", "expired", "revoked", "pending"].includes(s)) {
+    if (s === "connected") {
+      setActive(DEFAULT_DASHBOARD_SECTION);
+    } else if (s && ["failed", "expired", "revoked", "pending"].includes(s)) {
       setActive("Mes boutiques");
     }
   }, [searchParams]);
@@ -275,9 +278,9 @@ export function Dashboard() {
       setStores(nextStores);
 
       // Si la boutique mémorisée n'existe plus (supprimée, déconnectée), on se rabat sur la première.
-      const nextSelected = preferredStoreId && nextStores.some((store: StoreData) => store.id === preferredStoreId)
+      const nextSelected = preferredStoreId && nextStores.some((store: StoreData) => store.id === preferredStoreId && store.connection_status === "connected")
         ? preferredStoreId
-        : nextStores[0]?.id ?? null;
+        : nextStores.find((store: StoreData) => store.platform === "chariow" && store.connection_status === "connected")?.id ?? nextStores[0]?.id ?? null;
       setSelectedStoreId(nextSelected);
 
       setLoadingData(false);
@@ -348,10 +351,13 @@ export function Dashboard() {
   // before the effect has had a chance to set its loading flag.
   const storeDataLoading = overviewLoading || analyticsStoreId !== activeStoreId;
   const snapshotView = ["Vue d'ensemble", "Rapports", "Studio"].includes(active);
+  const needsStoreConnection = !loadingData && !hasConnectedChariowStore(stores);
 
   return (
+    <>
     <main className={`app-shell dashboard-platform${active === "Vendeo AI" ? " dashboard-assistant-active" : ""}${isOffline ? " dashboard-is-offline" : ""}`}>
-      {notificationUserId && <NotificationPermissionPrompt key={notificationUserId} userId={notificationUserId} />}
+      <div className="dashboard-workspace" inert={needsStoreConnection ? true : undefined} aria-hidden={needsStoreConnection ? true : undefined}>
+      {notificationUserId && !needsStoreConnection && !loadingData && <NotificationPermissionPrompt key={notificationUserId} userId={notificationUserId} />}
       {isOffline ? <div role="status" aria-live="polite" className="offline-notice">{w("offline")}</div> : null}
         <header className="app-header">
           <Link href="/" className="brand">
@@ -381,8 +387,6 @@ export function Dashboard() {
         <section className={active === "Vendeo AI" ? "app-main chat-page" : "app-main"}>
           {loadingData || (snapshotView && storeDataLoading) ? (
             <DashboardSkeleton />
-          ) : stores.length === 0 && !analytics && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" && active !== "Comptes publicitaires" && active !== "Suggestions et notes" ? (
-            <StoreOnboarding />
           ) : active === "Paramètres" ? (
             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus={settingsFocus} />
           ) : active === "Vendeo AI" ? (
@@ -489,6 +493,9 @@ export function Dashboard() {
             </div>
           </>
         ) : null}
+      </div>
     </main>
+    {needsStoreConnection && <StoreConnectionGate stores={stores} failed={["failed", "expired", "revoked"].includes(searchParams.get("chariow") ?? "")} onSignOut={signOut} />}
+    </>
   );
 }

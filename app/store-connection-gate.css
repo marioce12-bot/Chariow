@@ -1,0 +1,16 @@
+.store-connection-backdrop { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; padding:24px; overflow-y:auto; background:rgba(16,25,50,.32); backdrop-filter:blur(2px); }
+.store-connection-dialog { display:flex; flex-direction:column; align-items:center; width:100%; max-width:480px; max-height:calc(100dvh - 48px); overflow-y:auto; padding:36px; border:1px solid #e3e7f3; border-radius:28px; background:#fff; color:#14203b; text-align:center; box-shadow:0 24px 100px rgba(20,32,59,.2); outline:none; }
+.store-connection-icon { display:grid; place-items:center; width:64px; height:64px; flex-shrink:0; margin-bottom:22px; border-radius:20px; color:#4336ee; background:linear-gradient(140deg,#eeebff,#e8f3ff); }
+.store-connection-kicker { color:#5145cd; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+.store-connection-dialog h2 { margin:12px 0; font-size:28px; line-height:1.15; letter-spacing:-.035em; }
+.store-connection-dialog > p { margin:0 0 24px; color:#66728a; font-size:14px; line-height:1.7; }
+.store-connection-dialog .store-connection-error { width:100%; padding:12px; border-radius:12px; background:#fff0ef; color:#a52a33; font-size:13px; }
+.store-connection-dialog .store-connection-cta { width:100%; min-height:50px; justify-content:center; border:0; border-radius:14px; background:linear-gradient(110deg,#4732ef,#3265ff); color:white; font-size:14px; }
+.store-connection-cta:disabled { opacity:.65; cursor:wait; }
+.store-connection-reassurance { display:flex; align-items:center; justify-content:center; gap:6px; margin-top:16px; color:#768299; font-size:11px; }
+.store-connection-signout { margin-top:22px; padding:8px; border:0; background:none; color:#67728a; text-decoration:underline; cursor:pointer; font-size:12px; }
+.store-connection-dialog button:focus-visible { outline:3px solid #aebeff; outline-offset:4px; }
+html[data-theme="dark"] .store-connection-dialog { background:#101b34; border-color:#2b3752; color:#eff3ff; }
+html[data-theme="dark"] .store-connection-dialog > p, html[data-theme="dark"] .store-connection-signout { color:#b5c1d9; }
+html[data-theme="dark"] .store-connection-kicker { color:#b4aaff; }
+@media (max-width:480px) { .store-connection-backdrop { padding:18px; } .store-connection-dialog { padding:28px 22px; border-radius:24px; max-height:calc(100dvh - 36px); } .store-connection-dialog h2 { font-size:25px; } }
