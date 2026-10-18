@@ -8,7 +8,7 @@ vi.mock("next/image", () => ({ default: (props: any) => createElement("img", pro
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock("@/lib/supabase/browser", () => ({ createClient: () => ({ auth: { getUser: async () => ({ data: { user: { user_metadata: { name: "Test" } } } }), signOut: async () => ({}) } }) }));
 vi.mock("@/components/useUsageTracking", () => ({ useUsageTracking: () => {} }));
-vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }));
+vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string) => key }) }));
 vi.mock("@/components/ChatView", () => ({ ChatView: () => null }));
 vi.mock("@/components/NotificationCenter", () => ({ NotificationCenter: () => null }));
 vi.mock("@/components/vendeo/AutopilotView", () => ({ AutopilotView: () => null }));
@@ -17,7 +17,7 @@ vi.mock("@/components/vendeo", () => ({ ImpactFinancierCard: () => null, LaunchA
 vi.mock("@/components/vendeo/wizard", () => ({ LaunchAdWizard: () => null }));
 vi.mock("@/components/dashboard/DesktopNavigation", () => ({
   DashboardHeaderNavigation: () => null,
-  DashboardPrimaryNavigation: () => null,
+  DashboardPrimaryNavigation: ({ onChange }: any) => createElement("nav", null, ...["Vue d'ensemble", "Vendeo AI", "Studio", "Pub", "Comptes publicitaires", "Radar marché", "Mes boutiques", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Pilotage auto", "Abonnement", "Paramètres", "Notifications", "Suggestions et notes"].map(section => createElement("button", { key: section, onClick: () => onChange(section) }, section))),
 }));
 vi.mock("@/components/dashboard/sections", () => ({
   StoreOnboarding: () => null, StudioView: () => null, MarketRadarView: () => null,
@@ -59,6 +59,31 @@ afterEach(async () => {
 });
 
 describe("Dashboard store switch", () => {
+  it("keeps the header selector functional on every section and mobile selection only on overview", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/stores") return jsonResponse({ stores: [{ id: "a", store_name: "Boutique A" }, { id: "b", store_name: "Boutique B" }] });
+      if (url === "/api/subscription") return jsonResponse({ subscription: { status: "active", trial_active: false } });
+      return jsonResponse({ snapshot: { marker: "loaded" } });
+    }));
+    await mount();
+    await eventually(() => !host.querySelector('[data-testid="dashboard-skeleton"]'));
+    const links = Array.from(host.querySelectorAll<HTMLButtonElement>(".sidebar nav button"));
+    expect(links.length).toBe(15);
+    for (const link of links) {
+      await act(async () => { link.click(); });
+      const selector = host.querySelector<HTMLSelectElement>(".app-header #desktop-dashboard-store")!;
+      expect(selector, link.textContent!).not.toBeNull();
+      expect(selector.disabled).toBe(false);
+      const next = selector.value === "a" ? "b" : "a";
+      await act(async () => { selector.value = next; selector.dispatchEvent(new Event("change", { bubbles: true })); });
+      expect(localStorage.getItem("vendeo_selected_store_id")).toBe(next);
+      expect(selector.value).toBe(next);
+      const overview = link.textContent === "Vue d'ensemble";
+      expect(Boolean(host.querySelector("#mobile-dashboard-store"))).toBe(overview);
+      expect(host.textContent).not.toContain("Suivi à vérifier");
+    }
+  });
   it("shows loading on switch and never renders an abandoned store snapshot (including empty/failure responses)", async () => {
     const first = deferred();
     const second = deferred();
@@ -83,7 +108,8 @@ describe("Dashboard store switch", () => {
 
     const homePicker = host.querySelector('[data-testid="desktop-store-selector"]')!;
     expect(homePicker).not.toBeNull();
-    expect(homePicker.closest(".sidebar")).toBeNull();
+    expect(homePicker.closest(".app-header")).not.toBeNull();
+    expect(host.querySelector("#mobile-dashboard-store")).not.toBeNull();
     const select = homePicker.querySelector("select")!;
     expect(select.options.length).toBe(3);
     await act(async () => {

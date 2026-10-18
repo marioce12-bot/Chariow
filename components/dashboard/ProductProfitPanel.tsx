@@ -3,7 +3,6 @@ import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Skeleton } from "./Skeleton";
 import CampaignProfitPanel from "./CampaignProfitPanel";
-import { TrackingQualityPanel } from "./TrackingQualityPanel";
 import { useI18n } from "@/lib/i18n/i18n";
 import { dashboardCopy } from "@/lib/i18n/dashboard-copy";
 type Product = {
@@ -128,7 +127,6 @@ export default function ProductProfitPanel({
           </select>
         </label>
       </div>
-      <TrackingQualityPanel key={`${storeId}-${period}`} storeId={storeId} periodDays={Number(period)} />
       {error && (
         <p role="alert" style={alert}>
           {localizeSystemMessage(error, locale)}

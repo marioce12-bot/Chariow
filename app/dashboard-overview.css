@@ -5,7 +5,7 @@
 .dashboard-home > * { max-width: 100%; min-width: 0; }
 
 .ov-controls { align-items: end; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 14px; width: 100%; }
-.ov-controls > .dashboard-desktop-store-switcher { min-width: 0; width: 240px; max-width: 100%; }
+.ov-controls > .dashboard-overview-mobile-store { min-width: 0; width: 240px; max-width: 100%; }
 .dashboard-platform .ov-controls .store-selector, .ov-period-filter { display: grid; gap: 5px; margin: 0; min-width: 0; }
 .dashboard-platform .ov-controls .store-selector > span, .ov-period-filter > span { color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
 .dashboard-platform .ov-controls .store-selector select, .dashboard-platform .ov-controls .ov-select { box-sizing: border-box; height: 44px; min-height: 44px; margin: 0; padding: 8px 28px 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font-size: 14px; font-weight: 500; width: 100%; min-width: 0; }

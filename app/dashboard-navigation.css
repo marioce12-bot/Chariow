@@ -366,3 +366,15 @@
     transition: none;
   }
 }
+
+/* Boutique active : toujours dans la barre transversale sur ordinateur ;
+   sur téléphone, uniquement dans les contrôles de la Vue d'ensemble. */
+.dashboard-header-store { display: none; }
+@media (min-width: 761px) {
+  .dashboard-overview-mobile-store { display: none; }
+  .dashboard-platform .dashboard-header-context { display: none; }
+  .dashboard-header-store { display: block; flex: 0 1 240px; min-width: 130px; }
+  .dashboard-platform .dashboard-header-store .store-selector { display: grid; gap: 2px; margin: 0; min-width: 0; }
+  .dashboard-platform .dashboard-header-store select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 36px; height: 36px; margin: 0; padding: 6px 24px 6px 10px; text-overflow: ellipsis; }
+  .dashboard-platform .dashboard-header-store select:focus-visible { outline: 3px solid #93b4ff; outline-offset: 2px; }
+}
