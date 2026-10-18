@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock, Megaphone, Package, XCircle } from "lucide-react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
-import { getDailyQuote, getGreeting } from "@/lib/greetings";
+import { getGreeting } from "@/lib/greetings";
+import type { ReactNode } from "react";
+import { DailyMotivationalQuote } from "./DailyMotivationalQuote";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { PlanId } from "@/lib/plans";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
@@ -70,6 +72,7 @@ export function OverviewHome({
   campaignsVersion,
   loading = false,
   onNavigate,
+  storeSelector,
 }: {
   stores: StoreData[];
   subscription: SubscriptionData | null;
@@ -85,6 +88,7 @@ export function OverviewHome({
   /** Vrai tant que les données de la boutique et l'abonnement ne sont pas arrivés. */
   loading?: boolean;
   onNavigate?: (section: string) => void;
+  storeSelector?: ReactNode;
 }) {
   const { locale } = useI18n();
   const en = locale === "en";
@@ -172,7 +176,6 @@ export function OverviewHome({
   const summaryLoading = statsLoading || !campaignsReady;
 
   const greeting = userFirstName ? getGreeting(userFirstName, en ? "en" : "fr", now) : null;
-  const dailyQuote = getDailyQuote(en ? "en" : "fr", now);
 
   // Transactions Chariow : on part de la liste NON filtrée par période (le snapshot initial, sans dates),
   // puis on filtre nous-mêmes sur la période choisie (7 / 30 / 90 jours) ci-dessous. Ainsi la liste
@@ -263,9 +266,7 @@ export function OverviewHome({
             <>
               <h1 style={{ margin: "4px 0 8px", fontSize: 24 }}>{greeting}</h1>
               {/* Guillemets français « » (espaces insécables), “ ” en anglais. */}
-              <p className="hint-line" style={{ margin: "0 0 10px", fontSize: 17, lineHeight: 1.45, fontStyle: "italic" }}>
-                {en ? <>“{dailyQuote}”</> : <>«&nbsp;{dailyQuote}&nbsp;»</>}
-              </p>
+              <DailyMotivationalQuote />
             </>
           ) : (
             <>
@@ -286,11 +287,13 @@ export function OverviewHome({
         </div>
 
         <div className="ov-controls">
+          {storeSelector}
+          <label className="ov-period-filter"><span>{tr("Période", "Period")}</span>
           <select className="ov-select" aria-label={tr("Période", "Period")} value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
             <option value={7}>{tr("7 jours", "7 days")}</option>
             <option value={30}>{tr("30 jours", "30 days")}</option>
             <option value={90}>{tr("90 jours", "90 days")}</option>
-          </select>
+          </select></label>
         </div>
 
         {/* Indicateurs clés de la boutique active */}

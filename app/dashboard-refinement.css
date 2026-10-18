@@ -743,12 +743,7 @@
     font-weight: 700;
   }
   .dashboard-platform .mobile-nav .nav-btn-assistant {
-    color: #2563eb;
     transform: none;
-  }
-  .dashboard-platform .mobile-nav .nav-btn-assistant.active {
-    color: #1d4ed8;
-    background: #eff5ff;
   }
   .dashboard-platform .mobile-more-menu[role="menu"] {
     border-color: #e3e8ef;

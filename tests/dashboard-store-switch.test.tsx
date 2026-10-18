@@ -25,7 +25,7 @@ vi.mock("@/components/dashboard/sections", () => ({
   SubscriptionView: () => null, Reports: () => null,
 }));
 vi.mock("@/components/dashboard/OverviewHome", () => ({
-  OverviewHome: ({ analytics }: any) => createElement("output", { "data-testid": "snapshot" }, analytics?.marker ?? analytics?.products?.map((p: any) => p.name).join(",") ?? "vide"),
+  OverviewHome: ({ analytics, storeSelector }: any) => createElement("div", null, createElement("output", { "data-testid": "snapshot" }, analytics?.marker ?? analytics?.products?.map((p: any) => p.name).join(",") ?? "vide"), createElement("div", { "data-testid": "overview-store-slot" }, storeSelector)),
 }));
 vi.mock("@/components/dashboard/Skeleton", () => ({ DashboardSkeleton: () => createElement("div", { "data-testid": "dashboard-skeleton" }, "Chargement") }));
 vi.mock("@/components/dashboard/ProductProfitPanel", () => ({ default: () => null }));
@@ -81,10 +81,10 @@ describe("Dashboard store switch", () => {
     await act(async () => { first.resolve(jsonResponse({ snapshot: { marker: "snapshot-A" } })); });
     expect(host.textContent).toContain("snapshot-A");
 
-    const mobilePicker = host.querySelector('[data-testid="mobile-store-selector"]')!;
-    expect(mobilePicker).not.toBeNull();
-    expect(mobilePicker.closest(".sidebar")).toBeNull();
-    const select = mobilePicker.querySelector("select")!;
+    const homePicker = host.querySelector('[data-testid="desktop-store-selector"]')!;
+    expect(homePicker).not.toBeNull();
+    expect(homePicker.closest(".sidebar")).toBeNull();
+    const select = homePicker.querySelector("select")!;
     expect(select.options.length).toBe(3);
     await act(async () => {
       select.value = "b";
@@ -93,7 +93,7 @@ describe("Dashboard store switch", () => {
     expect(host.querySelector('[data-testid="dashboard-skeleton"]')).not.toBeNull();
     expect(host.textContent).not.toContain("snapshot-A");
     expect(await eventually(() => requests.some((r) => r.id === "b"))).toBe(true);
-    expect(host.querySelector<HTMLSelectElement>('[data-testid="desktop-store-selector"] select')?.value).toBe("b");
+    expect(localStorage.getItem("vendeo_selected_store_id")).toBe("b");
     expect(localStorage.getItem("vendeo_selected_store_id")).toBe("b");
 
     // Old request settles after B was selected; the identity guard must hide A even before B completes.

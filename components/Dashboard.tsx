@@ -361,11 +361,9 @@ export function Dashboard() {
             <button type="button" className="desktop-signout" onClick={signOut} aria-label="Déconnexion" title="Déconnexion"><LogOut size={15} /></button>
           </div>
         </header>
-      {active !== "Vendeo AI" && <DashboardStoreSelector mobile stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} />}
       <div className={`app-layout${active === "Vendeo AI" ? " app-layout-flush" : ""}${isOffline ? " app-layout-offline" : ""}`}>
         <aside className="sidebar">
           <div className="side-label">ESPACE DE TRAVAIL</div>
-          <DashboardStoreSelector stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} />
           <DashboardPrimaryNavigation active={active} onChange={setActive} />
           <button type="button" className="dashboard-plan-status" onClick={() => setActive("Abonnement")}>
             <span className="dashboard-plan-dot" aria-hidden="true" />
@@ -425,6 +423,7 @@ export function Dashboard() {
               campaignsVersion={campaignsVersion}
               onNavigate={setActive}
               loading={storeDataLoading}
+              storeSelector={<DashboardStoreSelector stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} />}
             />
           )}
          </section>

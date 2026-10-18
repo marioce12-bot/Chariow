@@ -4,7 +4,12 @@
 .dashboard-home { max-width: 100%; min-width: 0; }
 .dashboard-home > * { max-width: 100%; min-width: 0; }
 
-.ov-controls { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; margin-top: 14px; width: 100%; }
+.ov-controls { align-items: end; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 14px; width: 100%; }
+.ov-controls > .dashboard-desktop-store-switcher { min-width: 0; width: 240px; max-width: 100%; }
+.dashboard-platform .ov-controls .store-selector, .ov-period-filter { display: grid; gap: 5px; margin: 0; min-width: 0; }
+.dashboard-platform .ov-controls .store-selector > span, .ov-period-filter > span { color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.dashboard-platform .ov-controls .store-selector select, .dashboard-platform .ov-controls .ov-select { box-sizing: border-box; height: 44px; min-height: 44px; margin: 0; padding: 8px 28px 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font-size: 14px; font-weight: 500; width: 100%; min-width: 0; }
+html[data-theme="dark"] .dashboard-platform .ov-controls select { background: #101f45; color: #e7edfb; border-color: #31427a; color-scheme: dark; }
 
 .ov-select {
   appearance: auto;
@@ -59,3 +64,5 @@ html[data-theme="dark"] .sale-detail-grid > div { background: #0e1c3f; }
 .ov-product-info strong { display: -webkit-box; font-size: 13px; line-height: 1.25; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .ov-product-info span { color: var(--muted); font-size: 11px; }
 .ov-promote { align-items: center; display: inline-flex; flex: none; font-size: 12px; gap: 5px; padding: 7px 11px; white-space: nowrap; }
+
+@media (max-width: 760px) { .ov-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .ov-controls > * { min-width: 0; } }
