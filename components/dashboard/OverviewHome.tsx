@@ -151,9 +151,6 @@ export function OverviewHome({
     };
   }, [selectedSale]);
 
-  const refreshing = period.refreshing || campaignReading.refreshing || alertReading.refreshing;
-  function refreshOverview() { cache.invalidate(); }
-
   const overview = data?.overview ?? null;
   const products: ProductData[] = data?.products ?? analytics?.products ?? [];
   const currency = overview?.currency ?? products[0]?.currency ?? "XOF";
@@ -252,7 +249,6 @@ export function OverviewHome({
       <section className="app-card">
         <div style={{ minWidth: 0 }}>
           <span className="eyebrow">{tr(t("dashboard.overview"), "Overview")}</span>
-          <button type="button" className="btn btn-ghost" onClick={refreshOverview} disabled={refreshing} aria-busy={refreshing}>{en ? (refreshing ? "Updating…" : "Refresh") : (refreshing ? "Actualisation…" : "Actualiser")}</button>
           {greeting ? (
             <>
               <h1 style={{ margin: "4px 0 8px", fontSize: 24, fontWeight: 700 }}>{greeting}</h1>

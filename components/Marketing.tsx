@@ -26,7 +26,8 @@ export function Marketing() {
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
     if (carouselHovered || carouselFocused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(() => setActiveDemo((current) => (current + 1) % demos.length), 5000);
+    // Leave room for the 240 ms entrance animation within a 3-second image budget.
+    const timer = window.setInterval(() => setActiveDemo((current) => (current + 1) % demos.length), 2700);
     return () => window.clearInterval(timer);
   }, [carouselHovered, carouselFocused]);
   function demoKey(event: React.KeyboardEvent<HTMLDivElement>) {

@@ -64,7 +64,7 @@ afterEach(async () => {
 
 
 describe("Dashboard navigation cache", () => {
-  it.each(["fr", "en"])("returns home without refetching analytics, catalogue, campaigns and alerts; manual refresh updates them (%s)", async (locale) => {
+  it.each(["fr", "en"])("returns home without refetching analytics, catalogue, campaigns and alerts; no home refresh button is shown (%s)", async (locale) => {
     language.locale = locale;
     let revision = 1;
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
@@ -88,11 +88,7 @@ describe("Dashboard navigation cache", () => {
     expect(host.textContent).toContain("Alerte 1");
     expect(host.querySelector('[data-testid="dashboard-skeleton"]')).toBeNull();
     expect(fetcher.mock.calls.length).toBe(requests);
-    revision = 2;
-    await act(async () => { Array.from(host.querySelectorAll("button")).find((b) => /Actualiser|Refresh/.test(b.textContent ?? ""))!.click(); });
-    expect(await eventually(() => host.textContent?.includes("Catalogue 2") ?? false)).toBe(true);
-    expect(host.textContent).toContain("Alerte 2");
-    expect(host.querySelector('[data-testid="dashboard-skeleton"]')).toBeNull();
+    expect(host.querySelector(".dashboard-home")?.textContent).not.toMatch(/Actualiser|Refresh/);
   });
   it("discards the workspace cache when authentication switches to another user", async () => {
     let user = "A";
