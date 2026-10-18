@@ -8,10 +8,14 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   updateError: false,
   absentCurrency: false,
+  liveStatus: { state: "active", checked_at: new Date().toISOString(), reason: "verified" } as any,
+  liveCheck: vi.fn(),
+  filters: [] as any[],
 }));
 vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
+vi.mock("@/lib/autopilot-live-status", () => ({ checkAutopilotLiveStatus: mocks.liveCheck }));
 import { GET, PATCH } from "@/app/api/ad-campaigns/[id]/autopilot/budget-limit/route";
-import { POST } from "@/app/api/ad-campaigns/[id]/autopilot/route";
+import { GET as liveGET, POST } from "@/app/api/ad-campaigns/[id]/autopilot/route";
 
 const context = { params: Promise.resolve({ id: "c1" }) };
 const campaignDefault = () => ({
@@ -23,7 +27,7 @@ function query(table: string) {
   let updateBody: any = null;
   const q: any = {};
   q.select = (columns: string) => { selected = columns; return q; };
-  q.eq = () => q;
+  q.eq = (column: string, value: any) => { mocks.filters.push([column, value]); return q; };
   q.maybeSingle = async () => ({
     data: table === "ad_campaigns" ? mocks.campaign : table === "meta_ad_accounts" ? (mocks.absentCurrency ? null : mocks.account) : null,
     error: null,
@@ -45,6 +49,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.campaign = campaignDefault(); mocks.account = { currency: "USD" };
   mocks.updateError = false; mocks.absentCurrency = false;
+  mocks.liveStatus = { state: "active", checked_at: new Date().toISOString(), reason: "verified" }; mocks.filters = [];
+  mocks.liveCheck.mockImplementation(async (_db: any, _user: any, campaign: any) => ({ ...mocks.liveStatus, state: campaign.status === "active" ? mocks.liveStatus.state : campaign.status ? "inactive" : "unknown" }));
+  mocks.campaign.status = "active";
   mocks.requireUser.mockResolvedValue({ user: { id: "u1" }, response: null, supabase: { from: mocks.from } });
   mocks.from.mockImplementation((table: string) => query(table));
 });
@@ -81,6 +88,29 @@ describe("autopilot budget routes", () => {
     expect(response.status).toBe(200);
     expect(mocks.update).toHaveBeenCalledTimes(1);
     expect(mocks.update).toHaveBeenCalledWith({ autopilot_enabled: true, autopilot_budget_limit: 12.5, autopilot_budget_limit_currency: "USD" });
+    expect(mocks.filters).toContainEqual(["status", "active"]);
+  });
+
+  it.each([["paused", "inactive", "CAMPAIGN_NOT_ACTIVE"], ["archived", "inactive", "CAMPAIGN_NOT_ACTIVE"], ["deleted", "inactive", "CAMPAIGN_NOT_ACTIVE"], ["completed", "inactive", "CAMPAIGN_NOT_ACTIVE"], ["draft", "inactive", "CAMPAIGN_NOT_ACTIVE"], ["review", "inactive", "CAMPAIGN_NOT_ACTIVE"], ["paid", "inactive", "CAMPAIGN_NOT_ACTIVE"], ["rejected", "inactive", "CAMPAIGN_NOT_ACTIVE"], ["error", "inactive", "CAMPAIGN_NOT_ACTIVE"], ["missing", "unknown", "CAMPAIGN_STATUS_UNVERIFIED"], ["active-unknown", "unknown", "CAMPAIGN_STATUS_UNVERIFIED"]] as const)("refuses activation for status %s without fresh active proof", async (status, state, error) => {
+    mocks.campaign.status = status === "missing" ? null : status === "active-unknown" ? "active" : status;
+    mocks.liveStatus = { state, checked_at: new Date().toISOString(), reason: "not verified" };
+    const response = await POST(req({ enabled: true, budget_limit: 12, currency: "USD" }), ctx());
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error });
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("returns scoped live status with no-store for authenticated GET", async () => {
+    const response = await liveGET(req(), ctx());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ autopilot_live_status: { state: "active" } });
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(mocks.filters).toContainEqual(["user_id", "u1"]);
+    expect(mocks.liveCheck).toHaveBeenCalled();
+    mocks.requireUser.mockResolvedValue({ user: null, response: Response.json({}, { status: 401 }) });
+    mocks.filters = [];
+    expect((await liveGET(req(), ctx())).status).toBe(401);
+    expect(mocks.filters).toHaveLength(0);
   });
 
   it("refuses PATCH while disabled", async () => {

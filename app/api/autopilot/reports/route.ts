@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { currencyFractionDigits, validateBudgetLimit } from "@/lib/autopilot-budget";
+import { checkAutopilotCampaigns } from "@/lib/autopilot-live-status";
+import { selectLiveAutopilotCampaigns } from "@/lib/autopilot-eligibility";
 
 // Rapports du pilotage automatique pour l'utilisateur courant, du plus récent
 // au plus ancien. Chaque rapport relie la dépense pub aux ventes réelles et à la
@@ -17,11 +19,16 @@ export async function GET() {
     .limit(100);
   if (error) return NextResponse.json({ error: "Impossible de charger les rapports de pilotage" }, { status: 500 });
 
-  const { data: campaigns, error: campaignsError } = await supabase.from("ad_campaigns")
-    .select("id,title,product_name,platform,autopilot_enabled,autopilot_budget_limit,autopilot_budget_limit_currency,meta_ad_account_id,tiktok_ad_account_id")
+  const { data: candidates, error: campaignsError } = await supabase.from("ad_campaigns")
+    .select("id,title,product_name,platform,status,external_error,external_campaign_id,external_adset_id,external_ad_id,autopilot_enabled,autopilot_budget_limit,autopilot_budget_limit_currency,meta_ad_account_id,tiktok_ad_account_id")
     .eq("user_id", user.id).in("platform", ["meta", "tiktok"])
+    .eq("status", "active")
     .order("created_at", { ascending: false }).limit(100);
   if (campaignsError) return NextResponse.json({ error: "Impossible de charger les campagnes de pilotage" }, { status: 500 });
+  const checked = await checkAutopilotCampaigns(supabase, user.id, candidates ?? []);
+  const campaigns = selectLiveAutopilotCampaigns(checked);
+  const unverifiedCampaignCount = checked.filter((campaign: any) => campaign.autopilot_live_status.state === "unknown").length;
+  const liveIds = new Set(campaigns.map((campaign: any) => campaign.id));
   const metaIds = [...new Set((campaigns ?? []).filter((c: any) => c.platform === "meta").map((c: any) => c.meta_ad_account_id).filter(Boolean))];
   const tiktokIds = [...new Set((campaigns ?? []).filter((c: any) => c.platform === "tiktok").map((c: any) => c.tiktok_ad_account_id).filter(Boolean))];
   const [metaResult, tiktokResult] = await Promise.all([
@@ -43,8 +50,8 @@ export async function GET() {
     caps.set(campaign.id, { budget_limit: matching && amount !== null && validateBudgetLimit(amount, currency) ? amount : null, currency });
   }
   const titles = new Map((campaigns ?? []).map((campaign: any) => [campaign.id, campaign.title || campaign.product_name || "Campagne"]));
-  const listedCampaigns = (campaigns ?? []).map((campaign: any) => ({ id: campaign.id, title: campaign.title || campaign.product_name || "Campagne", platform: campaign.platform, autopilot_enabled: Boolean(campaign.autopilot_enabled), ...(caps.get(campaign.id) ?? { budget_limit: null, currency: null }) }));
-  const enriched = (reports ?? []).map((report: Record<string, unknown>) => ({
+  const listedCampaigns = (campaigns ?? []).map((campaign: any) => ({ id: campaign.id, title: campaign.title || campaign.product_name || "Campagne", platform: campaign.platform, status: campaign.status, autopilot_live_status: campaign.autopilot_live_status, autopilot_enabled: Boolean(campaign.autopilot_enabled), ...(caps.get(campaign.id) ?? { budget_limit: null, currency: null }) }));
+  const enriched = (reports ?? []).filter((report: any) => liveIds.has(report.campaign_id)).map((report: Record<string, unknown>) => ({
     ...report,
     recommendation: (report.metrics as Record<string, unknown> | null)?.recommendation ?? null,
     recommendation_reason: (report.metrics as Record<string, unknown> | null)?.recommendation_reason ?? null,
@@ -55,5 +62,5 @@ export async function GET() {
     budget_limit_currency: caps.get(String(report.campaign_id))?.currency ?? null,
     budget_block_reason: caps.get(String(report.campaign_id))?.budget_limit == null ? "NO_BUDGET_LIMIT" : null,
   }));
-  return NextResponse.json({ reports: enriched, campaigns: listedCampaigns });
+  return NextResponse.json({ reports: enriched, campaigns: listedCampaigns, unverified_campaign_count: unverifiedCampaignCount }, { headers: { "Cache-Control": "private, no-store" } });
 }

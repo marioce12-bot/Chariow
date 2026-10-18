@@ -10,6 +10,7 @@ vi.mock("@/lib/i18n/i18n", () => ({
 }));
 
 import { AutopilotReportCard, type AutopilotReport } from "@/components/vendeo/AutopilotView";
+import { AutopilotBudgetLimit } from "@/components/vendeo/AutopilotBudgetLimit";
 import { explainAutopilotMessage } from "@/lib/i18n/autopilot-messages";
 import { autopilotMutationBlockReason, computeAutopilotDecision } from "@/lib/autopilot";
 
@@ -23,6 +24,22 @@ const baseReport: AutopilotReport = {
 const render = (overrides: Partial<AutopilotReport> = {}) => renderToStaticMarkup(createElement(AutopilotReportCard, { report: { ...baseReport, ...overrides } }));
 
 beforeEach(() => { activeLocale = "fr"; });
+
+describe("AutopilotBudgetLimit proof presentation", () => {
+  it.each([["fr", "Statut plateforme à vérifier"], ["en", "Platform status needs verification"]] as const)("does not offer activation in %s without fresh proof", (locale, message) => {
+    activeLocale = locale;
+    const html = renderToStaticMarkup(createElement(AutopilotBudgetLimit, { campaignId: "c-1" }));
+    expect(html).toContain(message);
+    expect(html).not.toContain("Activer l’autopilote");
+    expect(html).not.toContain("Activate autopilot");
+  });
+
+  it.each([["fr", "Activer l’autopilote"], ["en", "Activate autopilot"]] as const)("offers activation with a fresh proof in %s", (locale, label) => {
+    activeLocale = locale;
+    const html = renderToStaticMarkup(createElement(AutopilotBudgetLimit, { campaignId: "c-1", liveStatus: { state: "active", checked_at: new Date().toISOString(), reason: "verified" } }));
+    expect(html).toContain(label);
+  });
+});
 
 describe("AutopilotReportCard static presentation", () => {
   it("renders report data, currency and zero values, and localizes unavailable ROAS in French and English", () => {

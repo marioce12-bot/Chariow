@@ -7,6 +7,8 @@ import { useI18n } from "@/lib/i18n/i18n";
 import "./autopilot.css";
 import { AutopilotBudgetLimit } from "./AutopilotBudgetLimit";
 import { explainAutopilotMessage } from "@/lib/i18n/autopilot-messages";
+import { selectLiveAutopilotCampaigns, type AutopilotLiveStatus } from "@/lib/autopilot-eligibility";
+import { autopilotBudgetCopy } from "@/lib/i18n/autopilot-budget-copy";
 
 export type AutopilotReport = {
   id: string;
@@ -35,7 +37,13 @@ export type AutopilotReport = {
   created_at: string;
 };
 
-type AutopilotCampaign = { id: string; title: string; platform: "meta" | "tiktok"; autopilot_enabled: boolean };
+export type AutopilotCampaign = { id: string; title: string; platform: "meta" | "tiktok"; status?: string; autopilot_live_status?: AutopilotLiveStatus; autopilot_enabled: boolean };
+
+export function visibleAutopilotData(campaigns: AutopilotCampaign[], reports: AutopilotReport[], now = Date.now()) {
+  const liveCampaigns = selectLiveAutopilotCampaigns(campaigns, now);
+  const liveIds = new Set(liveCampaigns.map((campaign) => campaign.id));
+  return { campaigns: liveCampaigns, reports: latestPerCampaign(reports.filter((report) => liveIds.has(report.campaign_id))) };
+}
 
 type Alert = {
   id: string;
@@ -70,13 +78,15 @@ export function AutopilotView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [unverifiedCount, setUnverifiedCount] = useState(0);
+  const statusCopy = autopilotBudgetCopy[locale === "en" ? "en" : "fr"];
 
   const loadData = useCallback(async (cancelled: () => boolean) => {
     setLoading(true);
     setError(null);
     try {
       const [reportsRes, alertsRes] = await Promise.all([
-        fetch("/api/autopilot/reports"),
+        fetch("/api/autopilot/reports", { cache: "no-store" }),
         fetch("/api/alerts"),
       ]);
       if (!reportsRes.ok) throw new Error(t("interfaceExtra.reportsUnavailable", { status: reportsRes.status }));
@@ -85,6 +95,7 @@ export function AutopilotView() {
       if (!cancelled()) {
         setReports(reportsData.reports ?? []);
         setCampaigns(reportsData.campaigns ?? []);
+        setUnverifiedCount(Number(reportsData.unverified_campaign_count) || 0);
         setAlerts((alertsData.alerts ?? []).filter((alert: Alert) => alert.status !== "resolved"));
       }
     } catch (cause) {
@@ -97,11 +108,15 @@ export function AutopilotView() {
   useEffect(() => {
     let cancelled = false;
     void loadData(() => cancelled);
-    return () => { cancelled = true; };
+    const timer = window.setInterval(() => { void loadData(() => cancelled); }, 60_000);
+    const onFocus = () => { void loadData(() => cancelled); };
+    window.addEventListener("focus", onFocus);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
   }, [loadData, reloadKey]);
 
-  const latest = latestPerCampaign(reports);
-  const withoutReports = campaigns.filter((campaign) => !latest.some((report) => report.campaign_id === campaign.id));
+  const visible = visibleAutopilotData(campaigns, reports);
+  const latest = visible.reports;
+  const withoutReports = visible.campaigns.filter((campaign) => !latest.some((report) => report.campaign_id === campaign.id));
   const updateEnabled = (id: string, enabled: boolean) => setCampaigns((current) => current.map((campaign) => campaign.id === id ? { ...campaign, autopilot_enabled: enabled } : campaign));
 
 
@@ -119,6 +134,8 @@ export function AutopilotView() {
         <ShieldCheck size={20} aria-hidden="true" />
         <div><strong>{t("autopilot.safetyTitle")}</strong><p>{t("autopilot.safetyDescription")}</p></div>
       </aside>
+
+      {unverifiedCount > 0 ? <aside className="app-card" role="status"><p>{statusCopy.statusNotice}</p><button type="button" disabled={loading} onClick={() => setReloadKey((key) => key + 1)}>{statusCopy.retryStatus}</button></aside> : null}
 
       {alerts.length > 0 ? (
         <section className="app-card" style={{ marginBottom: 18 }}>
@@ -162,8 +179,8 @@ export function AutopilotView() {
           </div>
         ) : (
           <div className="autopilot-report-list">
-            {latest.map((report) => <AutopilotReportCard key={report.id} report={report} autopilotEnabled={campaigns.find((campaign) => campaign.id === report.campaign_id)?.autopilot_enabled ?? false} onEnabledChange={(enabled) => updateEnabled(report.campaign_id, enabled)} onBudgetSaved={() => setReloadKey((key) => key + 1)} />)}
-            {withoutReports.map((campaign) => <article className="autopilot-campaign" key={campaign.id}><div className="autopilot-campaign-head"><div><span className="autopilot-platform">{campaign.platform === "meta" ? "Meta" : "TikTok"}</span><h3>{campaign.title}</h3></div></div><p className="hint-line">{t("autopilot.noReportYet")}</p><AutopilotBudgetLimit campaignId={campaign.id} enabled={campaign.autopilot_enabled} onEnabledChange={(enabled) => updateEnabled(campaign.id, enabled)} /></article>)}
+            {latest.map((report) => <AutopilotReportCard key={report.id} report={report} liveStatus={visible.campaigns.find((campaign) => campaign.id === report.campaign_id)?.autopilot_live_status} autopilotEnabled={campaigns.find((campaign) => campaign.id === report.campaign_id)?.autopilot_enabled ?? false} onEnabledChange={(enabled) => updateEnabled(report.campaign_id, enabled)} onBudgetSaved={() => setReloadKey((key) => key + 1)} />)}
+            {withoutReports.map((campaign) => <article className="autopilot-campaign" key={campaign.id}><div className="autopilot-campaign-head"><div><span className="autopilot-platform">{campaign.platform === "meta" ? "Meta" : "TikTok"}</span><h3>{campaign.title}</h3></div></div><p className="hint-line">{t("autopilot.noReportYet")}</p><AutopilotBudgetLimit campaignId={campaign.id} enabled={campaign.autopilot_enabled} liveStatus={campaign.autopilot_live_status} onEnabledChange={(enabled) => updateEnabled(campaign.id, enabled)} /></article>)}
           </div>
         )}
       </section>
@@ -174,7 +191,7 @@ export function AutopilotView() {
 }
 
 // Presentation only: all decisions, recommendations and blockers come from the report.
-export function AutopilotReportCard({ report, autopilotEnabled = false, onEnabledChange, onBudgetSaved }: { report: AutopilotReport; autopilotEnabled?: boolean; onEnabledChange?: (enabled: boolean) => void; onBudgetSaved?: () => void }) {
+export function AutopilotReportCard({ report, autopilotEnabled = false, liveStatus, onEnabledChange, onBudgetSaved }: { report: AutopilotReport; autopilotEnabled?: boolean; liveStatus?: AutopilotLiveStatus; onEnabledChange?: (enabled: boolean) => void; onBudgetSaved?: () => void }) {
   const { t, locale } = useI18n();
   const decisionMeta = (decision: AutopilotReport["decision"]) => ({
     keep_running: { label: t("autopilot.keepRunning"), icon: <TrendingUp size={14} />, tone: "#065F46" },
@@ -196,7 +213,7 @@ export function AutopilotReportCard({ report, autopilotEnabled = false, onEnable
         <div><dt>{t("autopilot.sales")}</dt><dd>{report.completed_sales} {t("analysisExtra.saleOne")}{report.completed_sales > 1 ? "s" : ""}<small>{formatMoney(report.net_revenue, report.currency ?? "XOF", locale)}</small></dd></div>
         <div><dt>{t("autopilot.profitability")}</dt><dd>{report.roas === null ? t("autopilot.notAvailable") : `${(report.roas * 100).toFixed(1)} %`}</dd></div>
       </dl>
-      <AutopilotBudgetLimit campaignId={report.campaign_id} enabled={autopilotEnabled} onEnabledChange={onEnabledChange} onBudgetSaved={onBudgetSaved} />
+      <AutopilotBudgetLimit campaignId={report.campaign_id} enabled={autopilotEnabled} liveStatus={liveStatus} onEnabledChange={onEnabledChange} onBudgetSaved={onBudgetSaved} />
       <div className="autopilot-notes">
         {report.recommendation_reason ? (
           <div className={`autopilot-note${report.mutation_block_reason || !report.recommendation ? " autopilot-note-blocked" : ""}`}>

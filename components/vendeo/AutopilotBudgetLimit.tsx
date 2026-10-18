@@ -5,6 +5,7 @@ import { useI18n } from "@/lib/i18n/i18n";
 import { autopilotBudgetCopy, type BudgetLocale } from "@/lib/i18n/autopilot-budget-copy";
 import "./autopilot-budget.css";
 import { currencyFractionDigits, validateBudgetLimit } from "@/lib/autopilot-budget";
+import { isAutopilotLive, type AutopilotLiveStatus, AUTOPILOT_STATUS_MAX_AGE_MS } from "@/lib/autopilot-eligibility";
 
 type BudgetResponse = { budget_limit: number | null; currency: string | null };
 export { currencyFractionDigits } from "@/lib/autopilot-budget";
@@ -19,7 +20,7 @@ export function validateAutopilotBudgetAmount(raw: string, currency: string): { 
   return { valid: true, value };
 }
 
-export function AutopilotBudgetLimit({ campaignId, enabled = false, onEnabledChange, onBudgetSaved }: { campaignId: string; enabled?: boolean; onEnabledChange?: (enabled: boolean) => void; onBudgetSaved?: () => void }) {
+export function AutopilotBudgetLimit({ campaignId, enabled = false, liveStatus, onEnabledChange, onBudgetSaved }: { campaignId: string; enabled?: boolean; liveStatus?: AutopilotLiveStatus; onEnabledChange?: (enabled: boolean) => void; onBudgetSaved?: () => void }) {
   const { locale } = useI18n();
   const uniqueId = useId().replace(/:/g, "");
   const titleId = `autopilot-budget-title-${uniqueId}`;
@@ -37,6 +38,32 @@ export function AutopilotBudgetLimit({ campaignId, enabled = false, onEnabledCha
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [verified, setVerified] = useState<AutopilotLiveStatus | undefined>(liveStatus);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const refreshStatus = useCallback(async () => {
+    setVerified(undefined); setActivationOpen(false); setCheckingStatus(true);
+    try {
+      const response = await fetch(base, { cache: "no-store" });
+      const result = await response.json();
+      if (response.ok) setVerified(result.autopilot_live_status);
+    } catch { /* Unavailable platform status must never enable activation. */ }
+    finally { setCheckingStatus(false); }
+  }, [base]);
+  useEffect(() => {
+    setVerified(liveStatus);
+    if (!isAutopilotLive(liveStatus)) void refreshStatus();
+    // Expire the proof even if the user leaves this screen open indefinitely.
+    const remaining = liveStatus?.checked_at ? Math.max(0, AUTOPILOT_STATUS_MAX_AGE_MS - (Date.now() - Date.parse(liveStatus.checked_at))) : AUTOPILOT_STATUS_MAX_AGE_MS;
+    const timer = window.setTimeout(() => { void refreshStatus(); }, remaining);
+    const onFocus = () => { void refreshStatus(); };
+    window.addEventListener("focus", onFocus);
+    return () => { window.clearTimeout(timer); window.removeEventListener("focus", onFocus); };
+  }, [liveStatus, refreshStatus]);
+  useEffect(() => {
+    if (!verified?.checked_at) return;
+    const timer = window.setTimeout(() => { setVerified(undefined); setActivationOpen(false); }, Math.max(0, AUTOPILOT_STATUS_MAX_AGE_MS - (Date.now() - Date.parse(verified.checked_at))));
+    return () => window.clearTimeout(timer);
+  }, [verified]);
 
   const loadCurrency = useCallback(async (blankAmount = false) => {
     setLoading(true); setError("");
@@ -73,6 +100,7 @@ export function AutopilotBudgetLimit({ campaignId, enabled = false, onEnabledCha
     if (busy) return;
     let payload: { enabled: boolean; budget_limit?: number; currency?: string } = { enabled: false };
     if (activate) {
+      if (!isAutopilotLive(verified)) { setVerified(undefined); setActivationOpen(false); return; }
       if (!data?.currency) return;
       const parsed = validateAutopilotBudgetAmount(amount, data.currency);
       if (!parsed.valid) { setError(c.invalid); return; }
@@ -82,6 +110,7 @@ export function AutopilotBudgetLimit({ campaignId, enabled = false, onEnabledCha
     try {
       const response = await fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const result = await response.json();
+      if (result.autopilot_live_status) { setVerified(result.autopilot_live_status); setActivationOpen(false); }
       if (!response.ok) throw new Error(c.errors[result?.code ?? result?.error] || c.activationError);
       if (result.campaign?.enabled !== activate) throw new Error(c.activationError);
       if (activate) {
@@ -96,6 +125,12 @@ export function AutopilotBudgetLimit({ campaignId, enabled = false, onEnabledCha
   };
 
   const currencyKnown = !!data?.currency && currencyFractionDigits(data.currency) !== null;
+  if (!isAutopilotLive(verified)) return <section className="autopilot-budget-limit" aria-live="polite">
+    <p role="status">{verified?.state === "inactive" ? c.statusInactive : c.statusUnknown}</p>
+    <button type="button" disabled={checkingStatus} onClick={() => void refreshStatus()}>{c.retryStatus}</button>
+    {active ? <button type="button" disabled={busy} onClick={() => void activationRequest(false)}>{c.deactivate}</button> : null}
+    {error ? <div role="alert">{error}</div> : null}
+  </section>;
   return <section className="autopilot-budget-limit" aria-labelledby={titleId}>
     <h3 id={titleId}>{!active && !activationOpen ? c.inactiveTitle : c.title}</h3>
     {!active ? <>

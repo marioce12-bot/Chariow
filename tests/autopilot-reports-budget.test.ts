@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => ({
   tiktokAccounts: [] as any[],
   failures: {} as Record<string, boolean>,
   queries: [] as any[],
+  checkCampaigns: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
+vi.mock("@/lib/autopilot-live-status", () => ({ checkAutopilotCampaigns: mocks.checkCampaigns }));
 import { GET } from "@/app/api/autopilot/reports/route";
 
 const report = (id: string, campaign_id: string, metrics: any = {}) => ({
@@ -21,7 +23,7 @@ const report = (id: string, campaign_id: string, metrics: any = {}) => ({
   currency: "USD", created_at: `2025-01-${id === "r1" ? "02" : "01"}T00:00:00Z`,
 });
 const campaign = (id: string, platform: "meta" | "tiktok", extra: any = {}) => ({
-  id, title: `Campagne ${id}`, product_name: null, platform, autopilot_enabled: true,
+  id, title: `Campagne ${id}`, product_name: null, platform, status: "active", autopilot_live_status: { state: "active", checked_at: new Date().toISOString(), reason: "verified" }, autopilot_enabled: true,
   autopilot_budget_limit: 50, autopilot_budget_limit_currency: "USD",
   meta_ad_account_id: platform === "meta" ? "ma1" : null,
   tiktok_ad_account_id: platform === "tiktok" ? "ta1" : null, created_at: "2025-01-01", ...extra,
@@ -47,7 +49,7 @@ function makeQuery(table: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.reports = [report("r1", "c1", { recommendation: "keep", recommendation_reason: "historical", cpa_threshold: 7, mutation_block_reason: "HISTORICAL_BLOCK" }), report("r2", "c2")];
+  mocks.reports = [report("r1", "c1", { recommendation: "keep", recommendation_reason: "historical", cpa_threshold: 7, mutation_block_reason: "HISTORICAL_BLOCK" }), report("r2", "c2"), report("orphan", "legacy-deleted")];
   mocks.campaigns = [
     campaign("c1", "meta"),
     campaign("c2", "tiktok", { autopilot_enabled: false, autopilot_budget_limit: 40 }),
@@ -57,6 +59,7 @@ beforeEach(() => {
   mocks.tiktokAccounts = [{ id: "ta1", currency: "USD" }];
   mocks.failures = {};
   mocks.queries = [];
+  mocks.checkCampaigns.mockImplementation(async (_db: any, _user: any, candidates: any[]) => candidates.map((c) => ({ ...c, autopilot_live_status: { state: "active", checked_at: new Date().toISOString(), reason: "verified" } })));
   mocks.requireUser.mockResolvedValue({ user: { id: "user-1" }, response: null, supabase: { from: mocks.from } });
   mocks.from.mockImplementation((table: string) => makeQuery(table));
 });
@@ -77,11 +80,16 @@ describe("GET /api/autopilot/reports budget enrichment", () => {
     const body = await response.json();
     expect(mocks.queries.every((query: any) => query.eq.some(([column, value]: any[]) => column === "user_id" && value === "user-1"))).toBe(true);
     expect(rows("ad_campaigns")[0].in).toContainEqual(["platform", ["meta", "tiktok"]]);
+    expect(rows("ad_campaigns")[0].eq).toContainEqual(["status", "active"]);
     expect(body.campaigns).toHaveLength(3);
+    expect(body.campaigns.every((c: any) => c.status === "active" && c.autopilot_live_status.state === "active")).toBe(true);
+    expect(mocks.checkCampaigns).toHaveBeenCalled();
     expect(body.campaigns.find((item: any) => item.id === "c2")).toMatchObject({ autopilot_enabled: false, budget_limit: 40, currency: "USD" });
     expect(body.campaigns.find((item: any) => item.id === "c3")).toMatchObject({ budget_limit: null, currency: "USD" });
     expect(body.reports[0]).toMatchObject({ budget_limit: 50, budget_limit_currency: "USD", budget_block_reason: null, campaign_title: "Campagne c1" });
     expect(body.reports[1]).toMatchObject({ budget_limit: 40, budget_limit_currency: "USD", budget_block_reason: null });
+    expect(body.reports).toHaveLength(2);
+    expect(body.reports.some((r: any) => r.campaign_id === "legacy-deleted")).toBe(false);
     expect(body.reports[0]).toMatchObject({ recommendation: "keep", recommendation_reason: "historical", cpa_threshold: 7, mutation_block_reason: "HISTORICAL_BLOCK" });
     expect(body.reports[0].budget_block_reason).not.toBe(body.reports[0].mutation_block_reason);
     expect(rows("meta_ad_accounts")).toHaveLength(1);

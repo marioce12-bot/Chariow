@@ -313,9 +313,9 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                 </span>
               </div>
             ) : null}
-            {selected.external_campaign_id && (selected.platform === "meta" || selected.platform === "tiktok") ? (
+            {selected.status === "active" && !getMetaCampaignLifecycle(selected.status, selected.external_error) && !isMetaPausedReason(selected.external_error) && selected.external_campaign_id && (selected.platform === "meta" || selected.platform === "tiktok") ? (
               <div style={{ marginTop: 14 }}>
-                <AutopilotBudgetLimit campaignId={selected.id} enabled={Boolean(selected.autopilot_enabled)} onEnabledChange={(enabled) => {
+                <AutopilotBudgetLimit key={selected.id} campaignId={selected.id} enabled={Boolean(selected.autopilot_enabled)} onEnabledChange={(enabled) => {
                   setSelected((current) => current?.id === selected.id ? { ...current, autopilot_enabled: enabled } : current);
                   void load();
                 }} />

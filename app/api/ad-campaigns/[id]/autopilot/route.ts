@@ -1,8 +1,22 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { validateBudgetLimit } from "@/lib/autopilot-budget";
+import { checkAutopilotLiveStatus } from "@/lib/autopilot-live-status";
+import { isAutopilotLive } from "@/lib/autopilot-eligibility";
 
 type Context = { params: Promise<{ id: string }> };
+
+const campaignColumns = "id,status,external_error,platform,external_campaign_id,external_adset_id,external_ad_id,meta_ad_account_id,tiktok_ad_account_id,autopilot_enabled,autopilot_budget_limit,autopilot_budget_limit_currency";
+
+export async function GET(_request: Request, context: Context) {
+  const { supabase, user, response } = await requireUser();
+  if (!user) return response;
+  const { id } = await context.params;
+  const { data: campaign, error } = await supabase.from("ad_campaigns").select(campaignColumns).eq("id", id).eq("user_id", user.id).maybeSingle();
+  if (error || !campaign) return NextResponse.json({ error: "CAMPAIGN_NOT_FOUND" }, { status: 404 });
+  const liveStatus = await checkAutopilotLiveStatus(supabase, user.id, campaign);
+  return NextResponse.json({ autopilot_live_status: liveStatus }, { headers: { "Cache-Control": "private, no-store" } });
+}
 
 // Active/désactive le pilotage automatique d'une campagne. Quand il est activé,
 // le cron /api/cron/autopilot évalue périodiquement la rentabilité de la
@@ -14,7 +28,7 @@ export async function POST(request: Request, context: Context) {
   const body = await request.json().catch(() => null);
   if (!body || typeof body.enabled !== "boolean") return NextResponse.json({ error: "INVALID_REQUEST" }, { status: 400 });
   const { data: campaign, error: readError } = await supabase.from("ad_campaigns")
-    .select("id,platform,meta_ad_account_id,tiktok_ad_account_id,autopilot_enabled,autopilot_budget_limit,autopilot_budget_limit_currency")
+    .select(campaignColumns)
     .eq("id", id).eq("user_id", user.id).maybeSingle();
   if (readError || !campaign) return NextResponse.json({ error: "CAMPAIGN_NOT_FOUND" }, { status: 404 });
   if (!body.enabled) {
@@ -43,7 +57,9 @@ export async function POST(request: Request, context: Context) {
     if (cap === null || !validateBudgetLimit(cap, currency)) return NextResponse.json({ error: "INVALID_BUDGET_LIMIT" }, { status: 400 });
     if (currency !== authoritativeCurrency) return NextResponse.json({ error: "CURRENCY_MISMATCH" }, { status: 400 });
   }
-  const { data, error } = await supabase.from("ad_campaigns").update({ autopilot_enabled: true, autopilot_budget_limit: cap, autopilot_budget_limit_currency: currency }).eq("id", id).eq("user_id", user.id)
+  const liveStatus = await checkAutopilotLiveStatus(supabase, user.id, campaign);
+  if (!isAutopilotLive(liveStatus)) return NextResponse.json({ error: liveStatus.state === "inactive" ? "CAMPAIGN_NOT_ACTIVE" : "CAMPAIGN_STATUS_UNVERIFIED", autopilot_live_status: liveStatus }, { status: 409 });
+  const { data, error } = await supabase.from("ad_campaigns").update({ autopilot_enabled: true, autopilot_budget_limit: cap, autopilot_budget_limit_currency: currency }).eq("id", id).eq("user_id", user.id).eq("status", "active")
     .select("id,autopilot_enabled,autopilot_budget_limit,autopilot_budget_limit_currency").single();
   if (error) return NextResponse.json({ error: "SAVE_FAILED" }, { status: 500 });
   return NextResponse.json({ campaign: { enabled: true, budget_limit: Number(data.autopilot_budget_limit), currency: data.autopilot_budget_limit_currency } });
