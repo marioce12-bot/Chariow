@@ -17,6 +17,7 @@ import {
   MessageSquareText,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
+import { dashboardCopy } from "@/lib/i18n/dashboard-copy";
 
 type DashboardNavigationProps = {
   active: string;
@@ -113,15 +114,16 @@ function DashboardNavigationItems({
   items: readonly NavigationItem[];
   className: string;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const copy = dashboardCopy[locale];
   const primary = className === "dashboard-primary-navigation";
   return (
     <nav
       className={className}
       aria-label={
         primary
-          ? "Navigation principale du tableau de bord"
-          : "Outils du tableau de bord"
+          ? copy["dashboardExtra.navLabel"]
+          : copy["dashboardExtra.toolsLabel"]
       }
     >
       {items.map(({ section, navKey, label, Icon }, index) => (
@@ -129,10 +131,10 @@ function DashboardNavigationItems({
           {primary && (index === 0 || index === 3 || index === 7) ? (
             <span className="dashboard-nav-group">
               {index === 0
-                ? "Mon activité"
+                ? copy["dashboardExtra.myActivity"]
                 : index === 3
-                  ? "Créer & développer"
-                  : "Analyser & piloter"}
+                  ? copy["dashboardExtra.createDevelop"]
+                  : copy["dashboardExtra.analyzeManage"]}
             </span>
           ) : null}
           <button

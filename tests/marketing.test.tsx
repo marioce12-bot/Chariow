@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { existsSync, readFileSync } from "node:fs";
+import { translate } from "@/lib/i18n/translate";
 vi.mock("@/lib/i18n/i18n", () => ({
-  useI18n: () => ({t: (key: string) => key}),
+  useI18n: () => ({locale: "fr", t: (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars)}),
 }));
 import { Marketing } from "@/components/Marketing";
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -10,7 +11,8 @@ const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.
 describe("premium product landing", () => {
   it("renders a public demo clearly labelled, with no creator testimonials", () => {
     const html = renderToStaticMarkup(<Marketing />);
-    expect(html).toContain("données de démonstration");
+    expect(html).toContain(translate("fr", "sweep1.text120"));
+    expect(translate("fr", "sweep1.text120")).toContain("données de démonstration");
     expect(html).toContain('id="apercu"');
     expect(html).toContain('role="tablist"');
     expect(html).toContain('role="tabpanel"');

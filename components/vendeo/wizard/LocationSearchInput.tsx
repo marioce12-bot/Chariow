@@ -41,12 +41,12 @@ const TYPE_ICON: Record<Suggestion["type"], typeof Globe2> = {
  * Meta Ads est connecté — sinon (ou sur TikTok) seuls les pays remontent.
  */
 export function LocationSearchInput({ value, onChange, metaAccountId, platform }: LocationSearchInputProps) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const en = locale === "en";
   const typeLabel: Record<Suggestion["type"], string> = {
-    country: en ? "Country" : "Pays",
-    region: en ? "Region" : "Région",
-    city: en ? "City" : "Ville",
+    country: t("wizardExtra.location.country"),
+    region: t("wizardExtra.location.region"),
+    city: t("wizardExtra.location.city"),
   };
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -129,7 +129,7 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform }
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder={en ? "Search for a country or city…" : "Rechercher un pays ou une ville…"}
+          placeholder={t("wizardExtra.location.search")}
           className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400"
         />
       </div>
@@ -155,7 +155,7 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform }
             );
           })}
           {loading && (
-            <p className="border-t border-gray-50 px-3 py-2 text-xs text-gray-400">{en ? "Searching for cities…" : "Recherche des villes…"}</p>
+            <p className="border-t border-gray-50 px-3 py-2 text-xs text-gray-400">{t("wizardExtra.location.searching")}</p>
           )}
         </div>
       )}
@@ -173,7 +173,7 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform }
               <button
                 type="button"
                 onClick={() => removeLocation(loc.key)}
-                aria-label={`Retirer ${loc.name}`}
+                aria-label={t("wizardExtra.location.remove", { name: loc.name })}
                 className="ml-0.5 rounded-full p-0.5 hover:bg-[#C7D2FE]"
               >
                 <X className="h-3 w-3" />
@@ -184,7 +184,7 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform }
       </div>
       {platform === "tiktok" && (
         <p className="mt-1.5 text-[11px] text-gray-400">
-          {en ? "Country targeting only on TikTok — city search is available for Meta only." : "Ciblage par pays uniquement sur TikTok — la recherche par ville est réservée à Meta."}
+          {t("wizardExtra.location.tiktokHint")}
         </p>
       )}
     </div>

@@ -2,6 +2,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ShopOk } from "@/lib/shop/data";
 import { ShopProductDetail, ShopStorefront } from "./Storefront";
+import { I18nProvider } from "@/lib/i18n/i18n";
+import { publicCopy } from "@/lib/i18n/public-copy";
+function render(node: React.ReactNode) { return renderToStaticMarkup(<I18nProvider>{node}</I18nProvider>); }
 
 const payload = "<img src=x onerror=alert(1)>";
 const view: ShopOk = {
@@ -28,14 +31,14 @@ const view: ShopOk = {
 
 describe("rendu de la vitrine", () => {
   it("échappe tout texte (aucun HTML injecté ne sort tel quel)", () => {
-    const html = renderToStaticMarkup(<ShopStorefront view={view} query="" />);
+    const html = render(<ShopStorefront view={view} query="" />);
     expect(html).not.toContain("<img src=x");
     expect(html).not.toContain("<script>alert");
     expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
   });
 
   it("le bouton Acheter passe par la route serveur et ne révèle pas le lien de paiement", () => {
-    const html = renderToStaticMarkup(<ShopStorefront view={view} query="utm_source=fb&utm_campaign=promo" />);
+    const html = render(<ShopStorefront view={view} query="utm_source=fb&utm_campaign=promo" />);
     expect(html).toContain('href="/shop/awa/buy/prd_1?utm_source=fb&amp;utm_campaign=promo"');
     expect(html).not.toContain("mychariow.com");
     expect(html).toContain("--shop-primary:#10b981");
@@ -44,19 +47,27 @@ describe("rendu de la vitrine", () => {
   });
 
   it("en aperçu (non publiée), le bouton est inactif et un bandeau est affiché", () => {
-    const html = renderToStaticMarkup(<ShopStorefront view={{ ...view, preview: true }} query="" />);
+    const html = render(<ShopStorefront view={{ ...view, preview: true }} query="" />);
     expect(html).toContain('href="#"');
     expect(html).toContain("Aperçu privé");
   });
 
   it("affiche les états vides", () => {
-    expect(renderToStaticMarkup(<ShopStorefront view={{ ...view, items: [] }} query="" />)).toContain("Aucun produit à afficher");
-    expect(renderToStaticMarkup(<ShopStorefront view={{ ...view, items: [], productsError: true }} query="" />)).toContain("momentanément indisponibles");
+    expect(render(<ShopStorefront view={{ ...view, items: [] }} query="" />)).toContain("Aucun produit à afficher");
+    expect(render(<ShopStorefront view={{ ...view, items: [], productsError: true }} query="" />)).toContain("momentanément indisponibles");
   });
 
   it("la page produit affiche le détail et le même bouton", () => {
-    const html = renderToStaticMarkup(<ShopProductDetail view={view} item={view.items[0]} query="" />);
+    const html = render(<ShopProductDetail view={view} item={view.items[0]} query="" />);
     expect(html).toContain('href="/shop/awa/buy/prd_1"');
     expect(html).toContain("Tous les produits");
+  });
+});
+
+describe("copy publique localisée", () => {
+  it("garde un libellé français fidèle et fournit sa version anglaise", () => {
+    expect(publicCopy.fr["publicExtra.shop.empty"]).toBe("Aucun produit à afficher pour le moment.");
+    expect(publicCopy.en["publicExtra.shop.empty"]).toBe("There are no products to display right now.");
+    expect(publicCopy.en["publicExtra.shop.allProducts"]).toBe("All products");
   });
 });

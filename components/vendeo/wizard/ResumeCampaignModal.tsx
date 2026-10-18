@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { Step5Payment } from "./Step5Payment";
@@ -29,7 +30,7 @@ interface ResumeCampaignModalProps {
  */
 export function ResumeCampaignModal({ campaignId, platform, initialStatus, initialError, onClose, onCorrection, onLaunched }: ResumeCampaignModalProps) {
   const [mounted, setMounted] = useState(false);
-  const { t } = useI18n();
+  const { t , locale } = useI18n();
 
   useEffect(() => {
     setMounted(true);
@@ -51,7 +52,7 @@ export function ResumeCampaignModal({ campaignId, platform, initialStatus, initi
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-          <Step5Payment state={state} initialStatus={initialStatus} initialError={initialError} onCorrection={onCorrection} onLaunched={onLaunched} />
+          <Step5Payment state={state} initialStatus={initialStatus} initialError={localizeSystemMessage(initialError, locale)} onCorrection={onCorrection} onLaunched={onLaunched} />
         </div>
       </div>
     </div>,

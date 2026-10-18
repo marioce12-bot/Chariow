@@ -2,7 +2,8 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", setLocale: vi.fn(), t: (key: string) => key }) }));
+import { translate } from "@/lib/i18n/translate";
+vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", setLocale: vi.fn(), t: (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars) }) }));
 import { MobileSettingsView } from "@/components/dashboard/sections";
 
 let container: HTMLDivElement;
@@ -18,7 +19,7 @@ describe("mobile feedback navigation", () => {
   it("exposes feedback from mobile settings opened directly in preferences", () => {
     const navigate = vi.fn();
     act(() => root.render(<MobileSettingsView onNavigate={navigate} onSignOut={() => {}} plan="starter" focus="preferences" />));
-    const link = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Suggestions et notes"));
+    const link = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes(translate("fr", "sweep3.text293")));
     expect(link).toBeTruthy();
     act(() => link!.click());
     expect(navigate).toHaveBeenCalledWith("Suggestions et notes");

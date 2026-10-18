@@ -11,7 +11,8 @@ type PaywallSubscription = { status: string } | null;
 // Elle n'est PAS fermable : ni croix, ni "Plus tard", ni clic sur le fond, ni Échap.
 // Seules issues : s'abonner (paiement) ou se déconnecter.
 export function TrialPaywallModal({ subscription }: { subscription: PaywallSubscription }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
+  const w = (key: string) => t(`workspaceExtra.${key}`);
   const en = locale === "en";
   const [subscribing, setSubscribing] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -46,11 +47,11 @@ export function TrialPaywallModal({ subscription }: { subscription: PaywallSubsc
       if (response.ok && data.payment?.url) {
         window.location.href = data.payment.url;
       } else {
-        window.alert(data.error ?? "Impossible de lancer le paiement.");
+        window.alert(data.error ?? w("paymentError"));
         setSubscribing(false);
       }
     } catch {
-      window.alert("Impossible de lancer le paiement.");
+      window.alert(w("paymentError"));
       setSubscribing(false);
     }
   }
@@ -74,17 +75,17 @@ export function TrialPaywallModal({ subscription }: { subscription: PaywallSubsc
         aria-labelledby="trial-paywall-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <span className="eyebrow">{en ? "Subscription required" : "Abonnement requis"}</span>
-        <h2 id="trial-paywall-title">{en ? "Your access has ended" : "Ton accès est terminé"}</h2>
+        <span className="eyebrow">{w("paywallEyebrow")}</span>
+        <h2 id="trial-paywall-title">{w("paywallTitle")}</h2>
         <p>
-          {en ? "Your 15-day free trial or 30-day subscription has ended. Subscribe (2,000 XOF/month) to continue using Vendeo." : "Ton essai gratuit de 15 jours ou ton abonnement de 30 jours est arrivé à son terme. Abonne-toi (2 000 XOF/mois) pour continuer à utiliser Vendeo."}
+          {w("paywallDescription")}
         </p>
         <div className="account-delete-actions">
           <button type="button" className="btn btn-ghost" onClick={() => void signOut()} disabled={subscribing || signingOut}>
-            {signingOut ? (en ? "Signing out…" : "Déconnexion…") : (en ? "Sign out" : "Se déconnecter")}
+            {signingOut ? w("signingOut") : (en ? "Sign out" : "Se déconnecter")}
           </button>
           <button type="button" className="btn btn-dark" onClick={() => void subscribe()} disabled={subscribing || signingOut}>
-            {subscribing ? (en ? "Redirecting…" : "Redirection…") : (en ? "Subscribe" : "S'abonner")}
+            {subscribing ? w("redirecting") : w("subscribe")}
           </button>
         </div>
       </section>

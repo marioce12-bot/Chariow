@@ -1,9 +1,10 @@
 import { act, createElement } from "react";
 import { createRoot, Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { translate } from "@/lib/i18n/translate";
 const { JSDOM } = require("jsdom") as { JSDOM: new (html: string, options: { url: string }) => any };
 
-vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string) => key }) }));
+vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars) }) }));
 vi.mock("@/components/TikTokAdsPanel", () => ({ TikTokAdsPanel: () => null }));
 vi.mock("@/components/PinterestAdsPanel", () => ({ PinterestAdsPanel: () => null }));
 vi.mock("@/components/dashboard/MetaHistoryOverview", () => ({ MetaHistoryOverview: () => null }));
@@ -94,8 +95,8 @@ describe("AdsView Meta account switching in the DOM", () => {
     expect(container.querySelector('[role="status"][aria-label="Chargement des données du compte Meta"]')).not.toBeNull();
     expect(container.querySelector(".meta-toolbar select")?.textContent).toContain("Compte B");
     expect(container.querySelector(".meta-toolbar")).not.toBeNull();
-    expect(container.textContent).toContain("ads.connected");
-    expect([...container.querySelectorAll("button")].some((button) => button.textContent?.includes("ads.launch"))).toBe(true);
+    expect(container.textContent).toContain(translate("fr", "ads.connected"));
+    expect([...container.querySelectorAll("button")].some((button) => button.textContent?.includes(translate("fr", "ads.launch")))).toBe(true);
     expect(container.textContent).not.toContain("Pixel A");
     expect(container.textContent).not.toContain("111");
   });
@@ -125,7 +126,7 @@ describe("AdsView Meta account switching in the DOM", () => {
     resolvePerformance("B", jsonResponse({ error: "failed" }, false));
     await settle();
     expect(container.querySelector('[role="status"][aria-label="Chargement des données du compte Meta"]')).toBeNull();
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Impossible de charger les données de ce compte Meta.");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(translate("fr", "sweep3.text299"));
     expect(container.textContent).not.toContain("Pixel A");
     expect(container.textContent).not.toContain("111");
   });

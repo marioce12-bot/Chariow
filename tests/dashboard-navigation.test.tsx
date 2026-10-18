@@ -2,21 +2,22 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
-vi.mock("@/lib/i18n/i18n", () => ({
-  useI18n: () => ({ t: (key: string) => `translated:${key}` }),
-}));
+vi.mock("@/lib/i18n/i18n", async () => {
+  const { translate } = await import("@/lib/i18n/translate");
+  return { useI18n: () => ({ locale: "fr", setLocale: () => {}, t: (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars) }) };
+});
 
 import { DashboardHeaderNavigation, DashboardPrimaryNavigation } from "@/components/dashboard/DesktopNavigation";
 
 describe("dashboard desktop navigation", () => {
   it("keeps all ten primary destinations, including feedback", () => {
-    const html = renderToStaticMarkup(<DashboardPrimaryNavigation active="Vue d'ensemble" onChange={() => {}} />);
+    const html = renderToStaticMarkup(<DashboardPrimaryNavigation active="Accueil" onChange={() => {}} />);
     expect((html.match(/<button/g) ?? []).length).toBe(10);
     expect(html).toContain("Suggestions et notes");
-    expect(html).toContain("translated:nav.overview");
+    expect(html).toContain("Accueil");
     expect(html).toContain("Bénéfices nets");
     expect(html).toContain("Relances WhatsApp");
-    expect(html).toContain("translated:nav.autopilot");
+    expect(html).toContain("Pilotage auto");
     expect(html).not.toContain("nav.stores");
     expect(html).not.toContain("nav.adAccounts");
     expect(html).not.toContain("nav.subscription");
@@ -59,7 +60,7 @@ describe("dashboard desktop navigation", () => {
     const css = readFileSync(new URL("../app/dashboard-navigation.css", import.meta.url), "utf8");
     expect(source).toContain('<DashboardHeaderNavigation active={active} onChange={setActive} />');
     expect(source).toContain('<DashboardPrimaryNavigation active={active} onChange={setActive} />');
-    expect(source).toContain('aria-label="Navigation mobile"');
+    expect(source).toContain('aria-label={w("mobileNav")}');
     expect(css).toContain('@media (min-width: 761px)');
     expect(css).toContain('.dashboard-platform .app-layout .sidebar');
     expect(css).toContain('position: fixed');

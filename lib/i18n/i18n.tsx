@@ -1,9 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { detectLocale, persistLocale, type Locale } from "./locales";
-import { translations } from "./translations";
-import { uiTranslations } from "./ui";
+import { translate } from "./translate";
 
 type I18nContextValue = {
   locale: Locale;
@@ -13,30 +12,22 @@ type I18nContextValue = {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-function getPath(dict: Record<string, unknown>, key: string): unknown {
-  // Certains dictionnaires historiques utilisent directement des clés comme
-  // "dashboard.overview" au lieu d'une structure imbriquée.
-  if (key in dict) return dict[key];
-  return key.split(".").reduce<unknown>((acc, part) => {
-    if (acc && typeof acc === "object" && part in (acc as Record<string, unknown>)) {
-      return (acc as Record<string, unknown>)[part];
-    }
-    return undefined;
-  }, dict);
-}
-
 export function I18nProvider({ children }: { children: ReactNode }) {
   // Démarre en français au premier rendu serveur/client, puis s'aligne sur la
   // langue détectée (choix persisté ou langue du navigateur) dès le montage.
   const [locale, setLocaleState] = useState<Locale>("fr");
+  const choiceRevision = useRef(0);
 
   useEffect(() => {
     let active = true;
-    setLocaleState(detectLocale());
+    const initialRevision = choiceRevision.current;
+    const detected = detectLocale();
+    setLocaleState(detected);
+    document.documentElement.lang = detected;
     fetch("/api/account/preferences", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((data: { locale?: Locale } | null) => {
-        if (active && (data?.locale === "fr" || data?.locale === "en")) {
+        if (active && choiceRevision.current === initialRevision && (data?.locale === "fr" || data?.locale === "en")) {
           setLocaleState(data.locale);
           persistLocale(data.locale);
         }
@@ -48,6 +39,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setLocale = useCallback((next: Locale) => {
+    choiceRevision.current += 1;
     setLocaleState(next);
     persistLocale(next);
     void fetch("/api/account/preferences", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locale: next }) }).catch(() => {
@@ -56,11 +48,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = useCallback(
-    (key: string, vars?: Record<string, string | number>) => {
-      const raw = (getPath(translations[locale] as Record<string, unknown>, key) ?? getPath(uiTranslations[locale] as Record<string, unknown>, key) ?? getPath(translations.fr as Record<string, unknown>, key) ?? getPath(uiTranslations.fr as Record<string, unknown>, key) ?? key) as string;
-      if (!vars) return raw;
-      return Object.entries(vars).reduce((acc, [name, value]) => acc.replaceAll(`{${name}}`, String(value)), raw);
-    },
+    (key: string, vars?: Record<string, string | number>) => translate(locale, key, vars),
     [locale],
   );
 

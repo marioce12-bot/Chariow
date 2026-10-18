@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/lib/i18n/i18n";
 import { useEffect, useState } from "react";
 
 type Campaign = {
@@ -13,6 +14,7 @@ type Campaign = {
 type Product = { id: string; name: string; url: string | null };
 
 export function AttributionPanel() {
+  const { t, locale } = useI18n();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,8 +68,8 @@ export function AttributionPanel() {
       <div className="card-head">
         <div>
           <span className="eyebrow">Attribution</span>
-          <h2>Quelle campagne fait vendre quoi ?</h2>
-          <p>{campaigns.length} campagne{campaigns.length > 1 ? "s" : ""} analysée{campaigns.length > 1 ? "s" : ""} — {resolved.length} identifiée{resolved.length > 1 ? "s" : ""}, {unresolved.length} à résoudre.</p>
+          <h2>{t("interfaceExtra.attributionTitle")}</h2>
+          <p>{t("interfaceExtra.campaignsSummary", { count: campaigns.length, plural: campaigns.length > 1 ? "s" : "", resolved: resolved.length, resolvedPlural: resolved.length > 1 ? "s" : "", unresolved: unresolved.length })}</p>
         </div>
       </div>
       {unresolved.length > 0 && (
@@ -76,18 +78,18 @@ export function AttributionPanel() {
             <div key={campaign.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: 180 }}>
                 <strong>{campaign.name}</strong>
-                <div style={{ fontSize: 12, color: "#64748b" }}>{campaign.spend_30d.toLocaleString("fr-FR")} dépensés (30j) — produit non identifié</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>{t("interfaceExtra.unattributedSpend", { amount: campaign.spend_30d.toLocaleString(locale === "en" ? "en-US" : "fr-FR") })}</div>
               </div>
               <select value={selection[campaign.id] ?? ""} onChange={(e) => setSelection((s) => ({ ...s, [campaign.id]: e.target.value }))} disabled={!products.length}>
-                <option value="">Choisir un produit</option>
+                <option value="">{t("interfaceExtra.chooseProduct")}</option>
                 {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
               </select>
               <button type="button" className="btn btn-dark" disabled={!selection[campaign.id] || saving === campaign.id} onClick={() => void link(campaign.id)} style={{ fontSize: 12, padding: "8px 12px" }}>
-                {saving === campaign.id ? "…" : "Lier"}
+                {saving === campaign.id ? "…" : t("interfaceExtra.link")}
               </button>
             </div>
           ))}
-          {!products.length && <p style={{ fontSize: 12, color: "#b91c1c", marginTop: 8 }}>Connecte ta boutique Chariow pour pouvoir lier tes campagnes à un produit.</p>}
+          {!products.length && <p style={{ fontSize: 12, color: "#b91c1c", marginTop: 8 }}>{t("interfaceExtra.connectStore")}</p>}
         </div>
       )}
       {resolved.length > 0 && (
@@ -95,7 +97,7 @@ export function AttributionPanel() {
           {resolved.map((campaign) => (
             <div key={campaign.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", fontSize: 13 }}>
               <span>🟢 <strong>{campaign.name}</strong> → {campaign.link?.product_name}</span>
-              <button type="button" className="btn btn-ghost" onClick={() => void unlink(campaign.id)} disabled={saving === campaign.id} style={{ fontSize: 11, padding: "5px 9px" }}>Délier</button>
+              <button type="button" className="btn btn-ghost" onClick={() => void unlink(campaign.id)} disabled={saving === campaign.id} style={{ fontSize: 11, padding: "5px 9px" }}>{t("interfaceExtra.unlink")}</button>
             </div>
           ))}
         </div>

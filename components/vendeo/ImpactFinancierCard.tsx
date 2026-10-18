@@ -9,17 +9,15 @@ interface ImpactFinancierCardProps {
 }
 
 export function ImpactFinancierCard({ data }: ImpactFinancierCardProps) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const en = locale === "en";
-  const help = en
-    ? "Observed spend on at-risk campaigns. This amount is not savings already realized."
-    : "Dépense observée sur les campagnes à risque. Ce montant n’est pas une économie réalisée.";
+  const help = t("analysisExtra.impact.help");
   return (
     <div className="grid grid-cols-1 gap-4">
       <div className="rounded-2xl border border-[#D1FAE5] bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-2"><p className="text-sm font-medium text-gray-500">{en ? "Observed spend" : "Dépense observée"}</p><span title={help} aria-label={help}><Info className="h-4 w-4 text-gray-500" /></span></div>
+        <div className="flex items-center gap-2"><p className="text-sm font-medium text-gray-500">{t("analysisExtra.impact.observedSpend")}</p><span title={help} aria-label={help}><Info className="h-4 w-4 text-gray-500" /></span></div>
         <p className="mt-1 text-3xl font-extrabold text-[#10B981]">{formatAdMoney(data.budgetEconomise, data.currency)}</p>
-        <span className="text-xs text-gray-500">{en ? "At-risk campaigns" : "Campagnes à risque"}</span>
+        <span className="text-xs text-gray-500">{t("analysisExtra.impact.atRisk")}</span>
       </div>
     </div>
   );

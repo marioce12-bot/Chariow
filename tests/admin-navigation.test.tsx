@@ -4,6 +4,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminHeaderNavigation, AdminNavigation } from "@/components/AdminNavigation";
 
+
+vi.mock("@/lib/i18n/i18n", async () => { const { translate } = await import("@/lib/i18n/translate"); return { useI18n: () => ({ locale: "fr", setLocale: () => {}, t: (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars) }) }; });
+
 let container: HTMLDivElement;
 let root: Root;
 beforeEach(() => {

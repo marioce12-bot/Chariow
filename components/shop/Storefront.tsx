@@ -1,3 +1,4 @@
+"use client";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { readableTextOn } from "@/lib/shop/color";
@@ -5,6 +6,9 @@ import type { ShopItem, ShopOk } from "@/lib/shop/data";
 import { BuyLink } from "./BuyLink";
 import { MetaPixel } from "./MetaPixel";
 import { ShopBeacon } from "./ShopBeacon";
+import { useI18n } from "@/lib/i18n/i18n";
+import { publicCopy } from "@/lib/i18n/public-copy";
+function publicText(t: (key: string) => string, locale: "fr" | "en", key: string) { const translated = t(key); return translated === key ? publicCopy[locale][key] ?? key : translated; }
 
 function buyHref(view: ShopOk, item: ShopItem, query: string) {
   // En aperçu (non publiée), le bouton est inactif : la redirection n'existe que pour une vitrine publiée.
@@ -18,10 +22,11 @@ function productHref(view: ShopOk, item: ShopItem, query: string) {
 
 export function ShopShell({ view, children }: { view: ShopOk; children: ReactNode }) {
   const { config } = view;
+  const { t, locale } = useI18n();
   const style = { "--shop-primary": config.primaryColor, "--shop-on-primary": readableTextOn(config.primaryColor) } as CSSProperties;
   return (
     <main className={`shop-root shop-theme-${config.theme} shop-title-${config.titleStyle}`} style={style}>
-      {view.preview ? <div className="shop-preview">Aperçu privé : cette vitrine n’est pas encore publiée.</div> : null}
+      {view.preview ? <div className="shop-preview">{publicText(t, locale, "publicExtra.shop.preview")}</div> : null}
       <div className="shop-container">{children}</div>
       {view.preview ? null : <ShopBeacon slug={view.slug} />}
       {view.pixelId ? <MetaPixel pixelId={view.pixelId} /> : null}
@@ -46,13 +51,14 @@ function Header({ view, linked }: { view: ShopOk; linked: boolean }) {
 
 export function ShopStorefront({ view, query }: { view: ShopOk; query: string }) {
   const { config, items } = view;
+  const { t, locale } = useI18n();
   return (
     <ShopShell view={view}>
       <Header view={view} linked={false} />
       {config.about ? <p className="shop-about">{config.about}</p> : null}
-      {view.productsError ? <p className="shop-empty">Les produits sont momentanément indisponibles. Réessaie dans un instant.</p> : null}
-      {!view.productsError && items.length === 0 ? <p className="shop-empty">Aucun produit à afficher pour le moment.</p> : null}
-      <section className="shop-grid" aria-label="Produits">
+      {view.productsError ? <p className="shop-empty">{publicText(t, locale, "publicExtra.shop.unavailable")}</p> : null}
+      {!view.productsError && items.length === 0 ? <p className="shop-empty">{publicText(t, locale, "publicExtra.shop.empty")}</p> : null}
+      <section className="shop-grid" aria-label={publicText(t, locale, "publicExtra.shop.products")}>
         {items.map((item) => (
           <article key={item.id} className="shop-card">
             <Link href={productHref(view, item, query)} className="shop-card-media" aria-label={item.title}>
@@ -77,10 +83,11 @@ export function ShopStorefront({ view, query }: { view: ShopOk; query: string })
 }
 
 export function ShopProductDetail({ view, item, query }: { view: ShopOk; item: ShopItem; query: string }) {
+  const { t, locale } = useI18n();
   return (
     <ShopShell view={view}>
       <Header view={view} linked />
-      <Link href={`/shop/${view.slug}${query ? `?${query}` : ""}`} className="shop-back">← Tous les produits</Link>
+      <Link href={`/shop/${view.slug}${query ? `?${query}` : ""}`} className="shop-back">← {publicText(t, locale, "publicExtra.shop.allProducts")}</Link>
       <article className="shop-detail">
         {item.image ? (
           // eslint-disable-next-line @next/next/no-img-element

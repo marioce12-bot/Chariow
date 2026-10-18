@@ -90,7 +90,8 @@ function readSavedStoreId(): string | null {
 }
 
 export function Dashboard() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const w = (key: string) => t(`workspaceExtra.${key}`);
   const [active, setActive] = useState(getInitialDashboardSection);
   // Suivi anonyme du temps passé par section (alimente l'onglet « Usage de l'app » de la console admin).
   useUsageTracking(active);
@@ -239,7 +240,7 @@ export function Dashboard() {
       const name = metadata?.full_name ?? metadata?.name ?? metadata?.first_name ?? data.user?.email?.split("@")[0];
       setUserName(name || "créateur");
     }).catch(() => {
-      if (!cancelled) setUserName("créateur");
+      if (!cancelled) setUserName(t("sweep3.text116"));
     });
 
     async function loadDashboard() {
@@ -345,29 +346,29 @@ export function Dashboard() {
   return (
     <main className={`app-shell dashboard-platform${active === "Vendeo AI" ? " dashboard-assistant-active" : ""}${isOffline ? " dashboard-is-offline" : ""}`}>
       {notificationUserId && <NotificationPermissionPrompt key={notificationUserId} userId={notificationUserId} />}
-      {isOffline ? <div role="status" aria-live="polite" className="offline-notice">Connexion internet perdue. Certaines données peuvent être obsolètes.</div> : null}
+      {isOffline ? <div role="status" aria-live="polite" className="offline-notice">{w("offline")}</div> : null}
         <header className="app-header">
           <Link href="/" className="brand">
             <Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40} unoptimized />
           </Link>
-          <div className="dashboard-header-context"><span>Espace de travail</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? "Aperçu" : active}</strong></div>
+          <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Bénéfices nets":"Net profit","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Pilotage auto":"Autopilot","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active}</strong></div>
           <DashboardHeaderNavigation active={active} onChange={setActive} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
-             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Bénéfices nets", "Relances WhatsApp", "Mes boutiques", "Abonnement", "Paramètres", "Comptes publicitaires"].includes(active) ? "active" : ""}`} aria-label="Plus d'options" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
+             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Bénéfices nets", "Relances WhatsApp", "Mes boutiques", "Abonnement", "Paramètres", "Comptes publicitaires"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
-            <button type="button" className="dashboard-profile" onClick={() => setActive("Paramètres")} aria-label="Mon profil et mes paramètres" title="Mon profil et mes paramètres"><span className="dashboard-avatar">{userFirstName?.slice(0, 2).toUpperCase() || "V"}</span></button>
-            <button type="button" className="desktop-signout" onClick={signOut} aria-label="Déconnexion" title="Déconnexion"><LogOut size={15} /></button>
+            <button type="button" className="dashboard-profile" onClick={() => setActive("Paramètres")} aria-label={w("profile")} title={w("profile")}><span className="dashboard-avatar">{userFirstName?.slice(0, 2).toUpperCase() || "V"}</span></button>
+            <button type="button" className="desktop-signout" onClick={signOut} aria-label={w("signOut")} title={w("signOut")}><LogOut size={15} /></button>
           </div>
         </header>
       <div className={`app-layout${active === "Vendeo AI" ? " app-layout-flush" : ""}${isOffline ? " app-layout-offline" : ""}`}>
         <aside className="sidebar">
-          <div className="side-label">ESPACE DE TRAVAIL</div>
+          <div className="side-label">{w("sidebar")}</div>
           <DashboardPrimaryNavigation active={active} onChange={setActive} />
           <button type="button" className="dashboard-plan-status" onClick={() => setActive("Abonnement")}>
             <span className="dashboard-plan-dot" aria-hidden="true" />
-            <span><strong>{isActivePlan ? "Abonnement actif" : subscription?.status === "past_due" ? "Abonnement expiré" : "Essai gratuit"}</strong><small>{isActivePlan ? "Gérer mon abonnement" : "Voir mon abonnement"}</small></span>
+            <span><strong>{isActivePlan ? w("planActive") : subscription?.status === "past_due" ? w("planExpired") : w("freeTrial")}</strong><small>{isActivePlan ? w("managePlan") : w("viewPlan")}</small></span>
             <CreditCard size={16} aria-hidden="true" />
           </button>
         </aside>
@@ -441,7 +442,7 @@ export function Dashboard() {
 
 
         {active !== "Paramètres" ? (
-         <nav className={`mobile-nav${active === "Mes boutiques" ? " mobile-nav-hidden-on-stores" : ""}`} aria-label="Navigation mobile">
+         <nav className={`mobile-nav${active === "Mes boutiques" ? " mobile-nav-hidden-on-stores" : ""}`} aria-label={w("mobileNav")}>
          <button type="button" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
            <LayoutDashboard size={18} />
             <span>{t("nav.overview")}</span>
@@ -466,19 +467,19 @@ export function Dashboard() {
         ) : null}
          {moreOpen ? (
           <>
-            <button type="button" className="mobile-more-backdrop" aria-label="Fermer le menu" onClick={() => setMoreOpen(false)} />
-            <div className="mobile-more-menu" role="menu" aria-label="Plus d'options">
-              <span className="mobile-more-label">Mon activité</span>
-              <button type="button" role="menuitem" className={active === "Bénéfices nets" ? "active" : ""} onClick={() => { setActive("Bénéfices nets"); setMoreOpen(false); }}><BarChart3 size={16} /> Bénéfices nets</button>
-              <button type="button" role="menuitem" className={active === "Relances WhatsApp" ? "active" : ""} onClick={() => { setActive("Relances WhatsApp"); setMoreOpen(false); }}><MessageSquare size={16} /> Relances WhatsApp</button>
-              <span className="mobile-more-label">Analyse</span>
-              <button type="button" role="menuitem" className={active === "Rapports" ? "active" : ""} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> Rapports</button>
-              <button type="button" role="menuitem" className={active === "Pilotage auto" ? "active" : ""} onClick={() => { setActive("Pilotage auto"); setMoreOpen(false); }}><Bot size={16} /> Pilotage auto</button>
-              <span className="mobile-more-label">Mon compte</span>
-              <button type="button" role="menuitem" className={active === "Abonnement" ? "active" : ""} onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> Abonnement</button>
-              <span className="mobile-more-label">Application</span>
-              <button type="button" role="menuitem" className={active === "Paramètres" ? "active" : ""} onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> Paramètres</button>
-              <button type="button" role="menuitem" className="danger" onClick={() => { setMoreOpen(false); signOut(); }}><LogOut size={16} /> Déconnexion</button>
+            <button type="button" className="mobile-more-backdrop" aria-label={w("closeMenu")} onClick={() => setMoreOpen(false)} />
+            <div className="mobile-more-menu" role="menu" aria-label={w("moreOptions")}>
+              <span className="mobile-more-label">{w("myActivity")}</span>
+              <button type="button" role="menuitem" className={active === "Bénéfices nets" ? "active" : ""} onClick={() => { setActive("Bénéfices nets"); setMoreOpen(false); }}><BarChart3 size={16} /> {w("netProfit")}</button>
+              <button type="button" role="menuitem" className={active === "Relances WhatsApp" ? "active" : ""} onClick={() => { setActive("Relances WhatsApp"); setMoreOpen(false); }}><MessageSquare size={16} /> {w("whatsapp")}</button>
+              <span className="mobile-more-label">{w("analysis")}</span>
+              <button type="button" role="menuitem" className={active === "Rapports" ? "active" : ""} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> {" "}{t("workspaceExtra.reports")}</button>
+              <button type="button" role="menuitem" className={active === "Pilotage auto" ? "active" : ""} onClick={() => { setActive("Pilotage auto"); setMoreOpen(false); }}><Bot size={16} /> {" "}{t("workspaceExtra.autopilot")}</button>
+              <span className="mobile-more-label">{w("myAccount")}</span>
+              <button type="button" role="menuitem" className={active === "Abonnement" ? "active" : ""} onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> {" "}{t("workspaceExtra.subscription")}</button>
+              <span className="mobile-more-label">{w("application")}</span>
+              <button type="button" role="menuitem" className={active === "Paramètres" ? "active" : ""} onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> {" "}{t("workspaceExtra.settings")}</button>
+              <button type="button" role="menuitem" className="danger" onClick={() => { setMoreOpen(false); signOut(); }}><LogOut size={16} /> {" "}{t("adminExtra.admin.logout")}</button>
             </div>
           </>
         ) : null}

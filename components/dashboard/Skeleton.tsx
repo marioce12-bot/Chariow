@@ -1,4 +1,6 @@
 "use client";
+import { useI18n } from "@/lib/i18n/i18n";
+import { dashboardCopy } from "@/lib/i18n/dashboard-copy";
 
 import type { CSSProperties } from "react";
 import "@/app/dashboard-skeleton.css";
@@ -11,9 +13,10 @@ export function Skeleton({ width = "100%", height = 12, radius, style }: Skeleto
 }
 
 /** Lignes de liste (vignette + deux lignes de texte + valeur à droite). */
-export function SkeletonRows({ count = 3, thumb = 40, label = "Chargement" }: { count?: number; thumb?: number; label?: string }) {
+export function SkeletonRows({ count = 3, thumb = 40, label }: { count?: number; thumb?: number; label?: string }) {
+  const { t } = useI18n();
   return (
-    <div className="sk-list" role="status" aria-busy="true" aria-label={label}>
+    <div className="sk-list" role="status" aria-busy="true" aria-label={label ?? t("interfaceExtra.loading")}>
       {Array.from({ length: count }, (_, index) => (
         <div key={index} className="sk-row">
           <Skeleton width={thumb} height={thumb} radius={10} style={{ flexShrink: 0 }} />
@@ -30,8 +33,9 @@ export function SkeletonRows({ count = 3, thumb = 40, label = "Chargement" }: { 
 
 /** Squelette de toute la page, affiché pendant le premier chargement de l'espace. */
 export function DashboardSkeleton() {
+  const { locale } = useI18n();
   return (
-    <div className="dashboard-home" style={{ display: "grid", gap: 18 }} role="status" aria-busy="true" aria-label="Chargement de ton espace">
+    <div className="dashboard-home" style={{ display: "grid", gap: 18 }} role="status" aria-busy="true" aria-label={dashboardCopy[locale]["dashboardExtra.ariaLoading"]}>
       <section className="app-card">
         <Skeleton width={90} height={10} />
         <Skeleton width="55%" height={26} style={{ margin: "10px 0 8px" }} />

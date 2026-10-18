@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import type { ChariowProductLite, WizardState } from "./types";
@@ -18,7 +19,7 @@ type ChariowStore = { id: string; store_name: string | null; platform: string; c
  * via GET /api/analytics?store_id=... (route déjà existante).
  */
 export function Step1Product({ state, patch, onNext }: StepProps) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const en = locale === "en";
   const [products, setProducts] = useState<ChariowProductLite[]>([]);
   const [stores, setStores] = useState<ChariowStore[]>([]);
@@ -34,7 +35,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
       try {
         const response = await fetch("/api/stores", { cache: "no-store" });
         const data = await response.json();
-        if (!response.ok) throw new Error(data?.error || (en ? "Unable to load stores" : "Impossible de charger les boutiques"));
+        if (!response.ok) throw new Error(data?.error || (en ? "Unable to load stores" : t("wizardExtra.error.stores")));
         const connected = (Array.isArray(data?.stores) ? data.stores : []).filter((store: ChariowStore) => store.platform === "chariow" && store.connection_status === "connected");
         if (!cancelled) {
           setStores(connected);
@@ -43,7 +44,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
           }
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Erreur inconnue");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("wizardExtra.error.unknown"));
       } finally {
         if (!cancelled) setStoresLoading(false);
       }
@@ -65,10 +66,10 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
           : "/api/analytics";
         const res = await fetch(url);
         const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || (en ? "Unable to load products" : "Impossible de charger les produits"));
+        if (!res.ok) throw new Error(data?.error || (en ? "Unable to load products" : t("wizardExtra.error.products")));
         if (!cancelled) setProducts(data?.snapshot?.products ?? []);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Erreur inconnue");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("wizardExtra.error.unknown"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -84,12 +85,12 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        {en ? "Choose the Chariow product to promote. Its image, price and description are retrieved automatically." : "Choisis le produit Chariow à promouvoir. Visuel, prix et descriptif sont récupérés automatiquement."}
+        {t("wizardExtra.product.description")}
       </p>
 
       <div>
         <label htmlFor="campaign-store" className="mb-1.5 block text-sm font-semibold text-gray-700">
-          {en ? "Chariow store" : "Boutique Chariow"}
+          {t("wizardExtra.product.store")}
         </label>
         <select
           id="campaign-store"
@@ -108,13 +109,13 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={en ? "Search for a product…" : "Rechercher un produit…"}
+          placeholder={t("wizardExtra.product.search")}
           className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm"
         />
       </div>
 
-      {loading && <p className="text-sm text-gray-400">{en ? "Loading products…" : "Chargement des produits…"}</p>}
-      {error && <p className="text-sm text-[#991B1B]">{error}</p>}
+      {loading && <p className="text-sm text-gray-400">{t("wizardExtra.product.loading")}</p>}
+      {error && <p className="text-sm text-[#991B1B]">{localizeSystemMessage(error, locale)}</p>}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {filtered.map((product) => {
@@ -133,7 +134,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
                   <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs text-gray-300">
-                    {en ? "No image" : "Pas d'image"}
+                    {t("wizardExtra.product.noImage")}
                   </div>
                 )}
               </div>
@@ -149,7 +150,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
       </div>
 
       {!loading && filtered.length === 0 && !error && (
-        <p className="text-sm text-gray-400">{en ? "No products found in this store." : "Aucun produit trouvé sur cette boutique."}</p>
+        <p className="text-sm text-gray-400">{t("wizardExtra.product.empty")}</p>
       )}
 
       <div className="sticky bottom-0 -mx-5 mt-4 flex justify-end border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -158,7 +159,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
           onClick={onNext}
           className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
-          {en ? "Continue" : "Continuer"}
+          {t("wizardExtra.product.continue")}
         </button>
       </div>
     </div>

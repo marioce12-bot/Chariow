@@ -1,4 +1,5 @@
 "use client";
+import { localizeFinancialMessage , localizeSystemMessage } from "@/lib/i18n/system-messages";
 
 import { useCallback, useEffect, useState } from "react";
 import { Activity, AlertTriangle, Bot, PauseCircle, ShieldCheck, TrendingUp } from "lucide-react";
@@ -39,8 +40,8 @@ type Alert = {
   created_at: string;
 };
 
-function formatMoney(value: number, currency: string): string {
-  return `${Math.round(value).toLocaleString("fr-FR")} ${currency}`;
+function formatMoney(value: number, currency: string, locale: "fr" | "en"): string {
+  return `${Math.round(value).toLocaleString(locale === "en" ? "en-US" : "fr-FR")} ${currency}`;
 }
 
 // Regroupe les rapports par campagne en ne gardant que le plus récent par campagne,
@@ -56,7 +57,7 @@ function latestPerCampaign(reports: AutopilotReport[]): AutopilotReport[] {
 }
 
 export function AutopilotView() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [reports, setReports] = useState<AutopilotReport[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,19 +72,19 @@ export function AutopilotView() {
         fetch("/api/autopilot/reports"),
         fetch("/api/alerts"),
       ]);
-      if (!reportsRes.ok) throw new Error(`Rapports indisponibles (HTTP ${reportsRes.status}).`);
-      if (!alertsRes.ok) throw new Error(`Notifications indisponibles (HTTP ${alertsRes.status}).`);
+      if (!reportsRes.ok) throw new Error(t("interfaceExtra.reportsUnavailable", { status: reportsRes.status }));
+      if (!alertsRes.ok) throw new Error(t("interfaceExtra.alertsUnavailable", { status: alertsRes.status }));
       const [reportsData, alertsData] = await Promise.all([reportsRes.json(), alertsRes.json()]);
       if (!cancelled()) {
         setReports(reportsData.reports ?? []);
         setAlerts((alertsData.alerts ?? []).filter((alert: Alert) => alert.status !== "resolved"));
       }
     } catch (cause) {
-      if (!cancelled()) setError(cause instanceof Error ? cause.message : "Impossible de charger les rapports.");
+      if (!cancelled()) setError(cause instanceof Error ? cause.message : t("interfaceExtra.reportsError"));
     } finally {
       if (!cancelled()) setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,12 +138,12 @@ export function AutopilotView() {
           <Bot size={18} color="#103ef8" />
         </div>
         {loading ? (
-          <p className="hint-line" role="status">Chargement des rapports et notifications…</p>
+          <p className="hint-line" role="status">{t("interfaceExtra.reportsLoading")}</p>
         ) : error ? (
           <div role="alert" style={{ padding: 14, borderRadius: 10, background: "#FEF2F2", color: "#991B1B" }}>
-            <strong>Les rapports n’ont pas pu être chargés.</strong>
-            <p style={{ margin: "4px 0 10px" }}>{error}</p>
-            <button type="button" onClick={() => setReloadKey((key) => key + 1)}>Réessayer</button>
+            <strong>{t("interfaceExtra.reportsFailed")}</strong>
+            <p style={{ margin: "4px 0 10px" }}>{localizeSystemMessage(error, locale)}</p>
+            <button type="button" onClick={() => setReloadKey((key) => key + 1)}>{t("adminExtra.admin.retry")}</button>
           </div>
         ) : latest.length === 0 ? (
           <div className="empty-state" style={{ textAlign: "left" }}>
@@ -160,28 +161,28 @@ export function AutopilotView() {
                 <div key={report.id} style={{ display: "grid", gap: 10 }}>
                   <div className="report-table-row">
                     <strong>{report.campaign_title} <span style={{ fontWeight: 400, color: "#6B7280" }}>· {report.platform === "meta" ? "Meta" : "TikTok"}</span></strong>
-                    <span>{formatMoney(report.spend, report.currency ?? "XOF")}</span>
-                    <span>{report.completed_sales} vente{report.completed_sales > 1 ? "s" : ""} ({formatMoney(report.net_revenue, report.currency ?? "XOF")})</span>
+                    <span>{formatMoney(report.spend, report.currency ?? "XOF", locale)}</span>
+                    <span>{report.completed_sales} {" "}{t("analysisExtra.saleOne")}{report.completed_sales > 1 ? "s" : ""} ({formatMoney(report.net_revenue, report.currency ?? "XOF", locale)})</span>
                     <span>{report.roas === null ? "-" : `${(report.roas * 100).toFixed(1)} %`}</span>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: decision.tone, fontWeight: 700 }}>{decision.icon}{decision.label}</span>
                   </div>
                   {report.recommendation_reason ? (
                     <div style={{ margin: "0 0 8px", padding: "10px 12px", borderLeft: "3px solid #9CA3AF", background: "#F9FAFB", color: "#374151", fontSize: 13 }}>
-                      <strong>{report.recommendation ? `Recommandation unique : ${report.recommendation === "continue" ? "continuer" : report.recommendation === "reduce" ? "réduire" : "augmenter"}` : "Recommandation inconnue — action bloquée"}</strong>
+                      <strong>{report.recommendation ? `Recommandation unique : ${report.recommendation === "continue" ? t("interfaceExtra.continue") : report.recommendation === "reduce" ? t("interfaceExtra.reduce") : t("interfaceExtra.increase")}` : t("interfaceExtra.unknownRecommendation")}</strong>
                       <p style={{ margin: "4px 0 0" }}>{report.recommendation_reason}</p>
-                      {report.cpa_threshold != null ? <p style={{ margin: "4px 0 0" }}>Seuil CPA fondé sur la valeur client réelle : {formatMoney(report.cpa_threshold, report.currency || "")}</p> : null}
+                      {report.cpa_threshold != null ? <p style={{ margin: "4px 0 0" }}>{t("interfaceExtra.cpaThreshold", { amount: formatMoney(report.cpa_threshold, report.currency || "", locale) })}</p> : null}
                       {report.mutation_block_reason ? <p style={{ margin: "4px 0 0" }}>{report.mutation_block_reason}</p> : null}
                     </div>
                   ) : null}
                   {report.decision === "insufficient_data" ? (
                     <div style={{ margin: "0 0 4px", padding: "10px 12px", borderLeft: "3px solid #9CA3AF", background: "#F9FAFB", color: "#374151", fontSize: 13 }}>
-                      <strong>Données insuffisantes pour conclure</strong>
-                      <p style={{ margin: "4px 0 0" }}>Cela peut venir du suivi des achats, de l’attribution des ventes ou de données trop récentes. Aucun changement de campagne n’est recommandé sur la base de ce seul statut.</p>
-                      {report.reasons.length > 0 ? <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{report.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul> : null}
+                      <strong>{t("interfaceExtra.insufficientData")}</strong>
+                      <p style={{ margin: "4px 0 0" }}>{t("interfaceExtra.insufficientExplanation")}</p>
+                      {report.reasons.length > 0 ? <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{report.reasons.map((reason) => <li key={reason}>{localizeFinancialMessage(reason, locale)}</li>)}</ul> : null}
                     </div>
                   ) : report.reasons.length > 0 ? (
                     <ul style={{ margin: "0 0 4px", paddingLeft: 18, fontSize: 12, color: "#6B7280", listStyle: "disc" }}>
-                      {report.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+                      {report.reasons.map((reason) => <li key={reason}>{localizeFinancialMessage(reason, locale)}</li>)}
                     </ul>
                   ) : null}
                 </div>

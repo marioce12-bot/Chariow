@@ -70,14 +70,14 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
           setPhase("tag_required");
           return;
         }
-        throw new Error(data?.error || `${platformLabel} n'a pas accepté la campagne`);
+        throw new Error(data?.error || t("dynamicExtra.platformRejected", { platform: (platformLabel) }));
       }
       setObjectiveFallback(Boolean(data.objective_fallback));
       setPixelAutoSelected(Boolean(data.pixel_auto_selected));
       setPhase("done");
       onLaunched(state.campaignId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur inconnue");
+      setError(e instanceof Error ? e.message : t("wizardExtra.error.unknown"));
       setPhase("error");
     }
   };

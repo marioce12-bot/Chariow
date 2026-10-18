@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, BarChart3, Bot, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages, ExternalLink } from "lucide-react";
@@ -46,6 +47,7 @@ function formatUsdTotal(entries: Array<{ amount: number; currency: string }>): s
 }
 
 export function StoreOnboarding() {
+  const { t , locale } = useI18n();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,7 +58,7 @@ export function StoreOnboarding() {
       // Redirection HTTP : connect va mener OAuth Chariow.
       window.location.href = "/api/integrations/chariow/connect";
     } catch {
-      setError("Connexion Chariow indisponible pour le moment.");
+      setError(t("sectionsExtra.onboarding.error"));
       setSaving(false);
     }
   }
@@ -67,12 +69,12 @@ export function StoreOnboarding() {
         <span className="onboarding-icon">
           <Store size={26} />
         </span>
-        <span className="eyebrow">Première étape</span>
-        <h1>Connecter ma boutique Chariow</h1>
-        <p className="onboarding-lead">Chariow ouvre la connexion et vous autorisez Vendeo. Aucun token à copier.</p>
-        {error && <p className="form-error">{error}</p>}
+        <span className="eyebrow">{t("sectionsExtra.onboarding.step")}</span>
+        <h1>{t("sectionsExtra.onboarding.title")}</h1>
+        <p className="onboarding-lead">{t("sectionsExtra.onboarding.description")}</p>
+        {error && <p className="form-error">{localizeSystemMessage(error, locale)}</p>}
         <button className="btn btn-dark" disabled={saving} style={{ width: "100%", marginTop: 18 }} onClick={connect}>
-          {saving ? "Connexion en cours…" : "Connecter ma boutique Chariow"} <ArrowRight size={15} />
+          {saving ? t("sectionsExtra.onboarding.loading") : t("sectionsExtra.onboarding.connect")} <ArrowRight size={15} />
         </button>
       </div>
     </div>
@@ -259,7 +261,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       lastGeneratedPromptRef.current = result.prompt;
       setPrompt(result.prompt);
     } catch (promptError) {
-      setError(promptError instanceof Error ? promptError.message : "Impossible de générer le prompt.");
+      setError(promptError instanceof Error ? promptError.message : t("sweep3.text200"));
     } finally {
       setPromptGenerating(false);
     }
@@ -268,7 +270,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   async function generate() {
     if (generatingRef.current) return;
     if (!prompt.trim()) {
-      setError(kind === "image" ? "Décris l'image que tu souhaites créer." : "Décris la vidéo que tu souhaites créer.");
+      setError(kind === "image" ? t("sweep1.text201") : t("sweep2.text202"));
       return;
     }
     generatingRef.current = true;
@@ -295,7 +297,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
       if (credits) setBalance(credits.balance ?? 0);
     } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : "La génération a échoué.");
+      setError(generationError instanceof Error ? generationError.message : t("sweep3.text203"));
     } finally {
       setLoading(false);
       generatingRef.current = false;
@@ -304,14 +306,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
   async function recharge() {
     const credits = Number(creditAmount);
-    if (!Number.isInteger(credits) || credits < 200) { setError("Le minimum de recharge est de 200 crédits."); return; }
+    if (!Number.isInteger(credits) || credits < 200) { setError(t("sweep1.text204")); return; }
     setRecharging(true);
     try {
       const response = await fetch("/api/studio/credits/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credits }) });
       const result = await response.json();
       if (!response.ok || !result.payment?.url) throw new Error(result.error || "Paiement indisponible.");
       window.location.href = result.payment.url;
-    } catch (rechargeError) { setError(rechargeError instanceof Error ? rechargeError.message : "Paiement indisponible."); setRecharging(false); }
+    } catch (rechargeError) { setError(rechargeError instanceof Error ? rechargeError.message : t("optionsExtra.text20")); setRecharging(false); }
   }
 
   const rechargeCredits = Number(creditAmount);
@@ -326,7 +328,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       if (!response.ok) throw new Error(result.error || "Modification impossible.");
       setImageUrl(result.imageUrl); setSelectedGenerationId(result.generationId); setEditInstruction(""); setEditOpen(false); setHistoryCursor(null); await loadHistory(true);
       const credits = await fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).catch(() => null); if (credits) setBalance(credits.balance ?? 0);
-    } catch (editError) { setError(editError instanceof Error ? editError.message : "Modification impossible."); } finally { setEditSubmitting(false); }
+    } catch (editError) { setError(editError instanceof Error ? editError.message : t("optionsExtra.text21")); } finally { setEditSubmitting(false); }
   }
 
   // Téléchargement direct : on récupère le fichier en blob puis on déclenche un
@@ -382,11 +384,11 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         </div>
       </div>
 
-      <div className="studio-tabs" role="tablist" aria-label="Type de média">
+      <div className="studio-tabs" role="tablist" aria-label={t("sweep2.text205")}>
         <button type="button" role="tab" aria-selected={kind === "image"} className={kind === "image" ? "active" : ""} onClick={() => setKind("image")}><ImageIcon size={17} /> {t("studio.image")}</button>
         <button type="button" role="tab" aria-selected={kind === "video"} className={kind === "video" ? "active" : ""} onClick={() => setKind("video")}><Video size={17} /> {t("studio.video")}</button>
       </div>
-      <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => setSelectedProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => setSelectedProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => setSelectedProduct(null)} aria-label="Retirer le produit">×</button>{selectedProduct.image && kind === "video" ? <em>{t("studio.coverRef")}</em> : null}</div> : null}</section>
+      <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => setSelectedProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => setSelectedProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => setSelectedProduct(null)} aria-label={t("sweep3.text206")}>×</button>{selectedProduct.image && kind === "video" ? <em>{t("studio.coverRef")}</em> : null}</div> : null}</section>
       {kind === "video" ? (
         <section className="app-card studio-coming-soon" aria-live="polite">
           <div className="studio-coming-soon-icon"><Video size={30} /></div>
@@ -408,7 +410,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           {kind === "image" ? (
             <div className="studio-options">
               {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? t("studio.insertProductInfoLoading") : t("studio.insertProductInfo")}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : null}
-              <div className="studio-field studio-references"><span>{t("studio.references")}</span><label className={`studio-upload${referenceFiles.length ? " has-files" : ""}${referenceUploading || loading ? " is-disabled" : ""}`}><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => setReferenceFiles(Array.from(event.target.files ?? []).slice(0, 3))} disabled={referenceUploading || loading} /><span className="studio-upload-icon"><ImageIcon size={20} /></span><span className="studio-upload-text"><strong>{referenceFiles.length ? `${referenceFiles.length} image${referenceFiles.length > 1 ? "s" : ""} sélectionnée${referenceFiles.length > 1 ? "s" : ""}` : "Joindre une image de référence"}</strong><small>{referenceFiles.length ? referenceFiles.map((file) => file.name).join(", ") : t("studio.referenceHint")}</small></span></label>{referenceFiles.length ? <button type="button" className="studio-upload-clear" onClick={() => setReferenceFiles([])} disabled={referenceUploading || loading}>Retirer les images</button> : null}</div>
+              <div className="studio-field studio-references"><span>{t("studio.references")}</span><label className={`studio-upload${referenceFiles.length ? " has-files" : ""}${referenceUploading || loading ? " is-disabled" : ""}`}><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => setReferenceFiles(Array.from(event.target.files ?? []).slice(0, 3))} disabled={referenceUploading || loading} /><span className="studio-upload-icon"><ImageIcon size={20} /></span><span className="studio-upload-text"><strong>{referenceFiles.length ? t("dynamicExtra.selectedImages", { count: (referenceFiles.length), plural: (referenceFiles.length > 1 ? "s" : "") }) : t("sweep1.text207")}</strong><small>{referenceFiles.length ? referenceFiles.map((file) => file.name).join(", ") : t("studio.referenceHint")}</small></span></label>{referenceFiles.length ? <button type="button" className="studio-upload-clear" onClick={() => setReferenceFiles([])} disabled={referenceUploading || loading}>{t("sweep2.text208")}</button> : null}</div>
               <StudioSelect label={t("studio.quality")} value={quality} onChange={setQuality} options={[['medium', t("studio.medium")], ['high', t("studio.high")], ['xhigh', t("studio.xhigh")], ['max', t("studio.max")]]} />
               <StudioSelect label={t("studio.resolution")} value={imageResolution} onChange={setImageResolution} options={[['hd', 'HD'], ['full_hd', 'Full HD'], ['2k', '2K'], ['4k', '4K']]} />
               <StudioSelect label={t("studio.format")} value={orientation} onChange={setOrientation} options={[['square', t("studio.square")], ['landscape', t("studio.landscape")], ['portrait', t("studio.portrait")]]} />
@@ -423,23 +425,23 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             </div>
           )}
 
-          {error ? <p className="form-error">{error}</p> : null}
+          {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
           <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading}>
             <Sparkles size={17} /> {loading || referenceUploading ? t("studio.generating") : kind === "image" ? t("studio.createImage") : t("studio.createVideo")}
           </button>
           <p className="studio-cost">{kind === "image" ? t("studio.imageCost") : t("studio.videoCost", { rate: videoResolution === "1080p" ? "38" : videoResolution === "720p" ? "25" : "15", res: videoResolution })}</p>
-          <div className="studio-balance"><div><span className="eyebrow">{t("studio.balance")}</span><strong>{balance} {t("studio.credits")}</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>{t("studio.recharge")}</button><small>{t("studio.balanceHint")}</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>{t("studio.recharge")}</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label="Fermer">×</button></div><label className="studio-field"><span>Quantité de crédits</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>Prix : <strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>Minimum 200 crédits · 1 crédit = 2,50 XOF</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? "Préparation du paiement…" : "Payer"}</button></div> : null}</div>
+          <div className="studio-balance"><div><span className="eyebrow">{t("studio.balance")}</span><strong>{balance} {t("studio.credits")}</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>{t("studio.recharge")}</button><small>{t("studio.balanceHint")}</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>{t("studio.recharge")}</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label={t("wizardExtra.close")}>×</button></div><label className="studio-field"><span>{t("sweep1.text84")}</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>{t("finalExtra.text18")}{" "}<strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>{t("sweep3.text209")}</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? t("sweep1.text210") : t("sweep2.text211")}</button></div> : null}</div>
         </section>
 
         <section className="app-card studio-result" aria-busy={loading || editSubmitting || Boolean(videoJob && !["completed", "failed", "cancelled"].includes(videoJob.status))}>
           <div className="card-head"><div><span className="eyebrow">{t("studio.result")}</span><h2>{kind === "image" ? t("studio.yourImage") : t("studio.yourVideo")}</h2></div>{kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>
-          {imageUrl ? <><div className={editSubmitting ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imageUrl} alt={t("studio.yourImage")} decoding="async" /></div><div className="studio-result-actions"><button className="btn btn-ghost" onClick={() => void downloadMedia(imageUrl, "vendeo-studio-image.png")}>{t("studio.downloadImage")}</button><button className="btn btn-ghost" onClick={() => setEditOpen(true)} disabled={editSubmitting}>{t("studio.edit")}</button></div>{editOpen ? <div className="studio-edit-box"><label><span>Décris la modification souhaitée</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} disabled={editSubmitting} /></label><small>Coût : crédits de l'image d'origine</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editSubmitting || !editInstruction.trim()}>{editSubmitting ? "Modification…" : t("studio.edit")}</button><button className="btn btn-ghost" onClick={() => { setEditOpen(false); setEditInstruction(""); }} disabled={editSubmitting}>Annuler</button></div></div> : null}</> : null}
+          {imageUrl ? <><div className={editSubmitting ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imageUrl} alt={t("studio.yourImage")} decoding="async" /></div><div className="studio-result-actions"><button className="btn btn-ghost" onClick={() => void downloadMedia(imageUrl, "vendeo-studio-image.png")}>{t("studio.downloadImage")}</button><button className="btn btn-ghost" onClick={() => setEditOpen(true)} disabled={editSubmitting}>{t("studio.edit")}</button></div>{editOpen ? <div className="studio-edit-box"><label><span>{t("sweep3.text212")}</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} disabled={editSubmitting} /></label><small>{t("sweep1.text213")}</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editSubmitting || !editInstruction.trim()}>{editSubmitting ? t("optionsExtra.text22") : t("studio.edit")}</button><button className="btn btn-ghost" onClick={() => { setEditOpen(false); setEditInstruction(""); }} disabled={editSubmitting}>{t("workspaceExtra.cancel")}</button></div></div> : null}</> : null}
           {videoReady ? <><video className="studio-media" src={videoJob.contentUrl ?? undefined} controls playsInline /><a className="btn btn-ghost" href={videoJob.contentUrl ?? undefined} download="vendeo-studio-video.mp4">{t("studio.downloadVideo")}</a></> : null}
-          {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>Génération en cours…</strong><p>{videoJob ? `Statut : ${videoJob.status}. La vidéo peut prendre quelques minutes.` : "Encore quelques secondes…"}</p></> : <><Sparkles size={32} /><strong>Prêt à créer</strong><p>Décris ton idée, ajuste les réglages puis lance la génération.</p></>}</div> : null}
+          {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>{t("chat.posterGenerating")}</strong><p>{videoJob ? t("dynamicExtra.videoStatus", { status: (videoJob.status) }) : t("optionsExtra.text23")}</p></> : <><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></>}</div> : null}
         </section>
       </div>}
-      <div className="studio-history-toolbar"><span className="eyebrow">Historique</span><div><button className={historyKind === "all" ? "active" : ""} onClick={() => setHistoryKind("all")}>Tout</button><button className={historyKind === "image" ? "active" : ""} onClick={() => setHistoryKind("image")}>Images</button><button className={historyKind === "video" ? "active" : ""} onClick={() => setHistoryKind("video")}>Vidéos</button></div></div>
-      <section className="studio-history">{history.length ? history.map((item) => <article className="studio-history-card" key={item.id} onClick={() => { setSelectedGenerationId(item.id); setKind(item.kind); if (item.kind === "image") setImageUrl(item.mediaUrl ?? null); else if (item.video_job_id) setVideoJob({ id: item.video_job_id, status: item.status, contentUrl: item.mediaUrl }); }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt="Création" loading="lazy" decoding="async" /> : item.mediaUrl && item.kind === "video" ? <video src={`${item.mediaUrl}#t=0.5`} muted playsInline preload="metadata" aria-label="Aperçu de la vidéo" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{item.kind === "image" ? "Image" : "Vidéo"}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "…" : ""}</p><small>{new Date(item.created_at).toLocaleString("fr-FR")} · {item.credits_cost} crédits · {item.status === "processing" ? "En cours" : item.status === "failed" ? "Échec" : "Terminée"}</small></div><div className="studio-history-actions"><button onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>Réutiliser</button>{item.kind === "image" ? <button onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditOpen(true); }}>Modifier</button> : null}<button onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette création ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>Supprimer</button></div></article>) : <div className="studio-history-empty">Aucune création pour l'instant</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? "Chargement…" : "Charger plus"}</button> : null}</section>
+      <div className="studio-history-toolbar"><span className="eyebrow">{t("overview.history")}</span><div><button className={historyKind === "all" ? "active" : ""} onClick={() => setHistoryKind("all")}>{t("sweep1.text216")}</button><button className={historyKind === "image" ? "active" : ""} onClick={() => setHistoryKind("image")}>Images</button><button className={historyKind === "video" ? "active" : ""} onClick={() => setHistoryKind("video")}>{t("sweep2.text217")}</button></div></div>
+      <section className="studio-history">{history.length ? history.map((item) => <article className="studio-history-card" key={item.id} onClick={() => { setSelectedGenerationId(item.id); setKind(item.kind); if (item.kind === "image") setImageUrl(item.mediaUrl ?? null); else if (item.video_job_id) setVideoJob({ id: item.video_job_id, status: item.status, contentUrl: item.mediaUrl }); }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt={t("wizardExtra.step.creation")} loading="lazy" decoding="async" /> : item.mediaUrl && item.kind === "video" ? <video src={`${item.mediaUrl}#t=0.5`} muted playsInline preload="metadata" aria-label={t("sweep3.text218")} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{item.kind === "image" ? "Image" : t("studio.video")}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "…" : ""}</p><small>{new Date(item.created_at).toLocaleString("fr-FR")} · {item.credits_cost} {" "}{t("sweep1.text219")}{" "}{item.status === "processing" ? t("optionsExtra.text24") : item.status === "failed" ? t("overview.importFailed") : t("adsExtra.status.completed")}</small></div><div className="studio-history-actions"><button onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>{t("sweep2.text220")}</button>{item.kind === "image" ? <button onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditOpen(true); }}>{t("studio.edit")}</button> : null}<button onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette création ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>{t("ads.correction.deleteCampaign")}</button></div></article>) : <div className="studio-history-empty">{t("sweep3.text221")}</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? t("adminExtra.notifications.loading") : t("optionsExtra.text25")}</button> : null}</section>
     </div>
   );
 }
@@ -637,14 +639,15 @@ export function Overview({
   );
 }
 
-function HomeKpi({ label, value, help, tone, action }: { label: string; value: string; help: string; tone: string; action?: () => void }) { return <div className={`home-kpi ${tone}`}><small>{label}</small><strong>{value}</strong><span>{help}</span>{action ? <button className="btn btn-ghost" onClick={action}>Configurer</button> : null}</div>; }
+function HomeKpi({ label, value, help, tone, action }: { label: string; value: string; help: string; tone: string; action?: () => void }) {
+  const { t } = useI18n(); return <div className={`home-kpi ${tone}`}><small>{label}</small><strong>{value}</strong><span>{help}</span>{action ? <button className="btn btn-ghost" onClick={action}>{t("finalExtra.text19")}</button> : null}</div>; }
 
 function OverviewMetricTile({ label, value, badge, help }: { label: string; value: string; badge?: string; help: string }) {
   return <div className="overview-store-tile app-card"><MetricHelp label={label} description={help} /><strong>{value}</strong>{badge ? <span className="overview-badge">{badge}</span> : null}</div>;
 }
 
 export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => void }) {
-  const { t } = useI18n();
+  const { t , locale } = useI18n();
   const [idea, setIdea] = useState("");
   const [selectedCountries, setSelectedCountries] = useState(["BJ"]);
   const [selectedAudiences, setSelectedAudiences] = useState(["entrepreneurs"]);
@@ -655,11 +658,11 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
   const [countriesOpen, setCountriesOpen] = useState(false);
   const [audiencesOpen, setAudiencesOpen] = useState(false);
   const countryOptions = [
-    ["DZ", "Algérie"], ["AO", "Angola"], ["BJ", "Bénin"], ["BW", "Botswana"], ["BF", "Burkina Faso"], ["BI", "Burundi"], ["CV", "Cap-Vert"], ["CM", "Cameroun"], ["CF", "Centrafrique"], ["TD", "Tchad"], ["KM", "Comores"], ["CG", "Congo"], ["CD", "RDC"], ["CI", "Côte d'Ivoire"], ["DJ", "Djibouti"], ["EG", "Égypte"], ["GQ", "Guinée équatoriale"], ["ER", "Érythrée"], ["SZ", "Eswatini"], ["ET", "Éthiopie"], ["GA", "Gabon"], ["GM", "Gambie"], ["GH", "Ghana"], ["GN", "Guinée"], ["GW", "Guinée-Bissau"],
-    ["KE", "Kenya"], ["LS", "Lesotho"], ["LR", "Liberia"], ["LY", "Libye"], ["MG", "Madagascar"], ["MW", "Malawi"], ["ML", "Mali"], ["MR", "Mauritanie"], ["MU", "Maurice"], ["MA", "Maroc"], ["MZ", "Mozambique"], ["NA", "Namibie"], ["NE", "Niger"], ["NG", "Nigeria"], ["RW", "Rwanda"], ["ST", "Sao Tomé-et-Principe"], ["SN", "Sénégal"], ["SC", "Seychelles"], ["SL", "Sierra Leone"], ["SO", "Somalie"], ["ZA", "Afrique du Sud"], ["SS", "Soudan du Sud"], ["SD", "Soudan"], ["TZ", "Tanzanie"], ["TG", "Togo"], ["TN", "Tunisie"], ["UG", "Ouganda"], ["ZM", "Zambie"], ["ZW", "Zimbabwe"],
+    ["DZ", t("sweep1.text222")], ["AO", "Angola"], ["BJ", t("sweep2.text223")], ["BW", "Botswana"], ["BF", "Burkina Faso"], ["BI", "Burundi"], ["CV", t("optionsExtra.text26")], ["CM", t("optionsExtra.text27")], ["CF", t("optionsExtra.text28")], ["TD", t("optionsExtra.text29")], ["KM", t("optionsExtra.text30")], ["CG", "Congo"], ["CD", t("optionsExtra.text31")], ["CI", t("sweep3.text224")], ["DJ", "Djibouti"], ["EG", t("optionsExtra.text32")], ["GQ", t("sweep1.text225")], ["ER", t("sweep2.text226")], ["SZ", "Eswatini"], ["ET", t("optionsExtra.text33")], ["GA", "Gabon"], ["GM", t("optionsExtra.text34")], ["GH", "Ghana"], ["GN", t("sweep3.text227")], ["GW", t("sweep1.text228")],
+    ["KE", "Kenya"], ["LS", "Lesotho"], ["LR", "Liberia"], ["LY", t("optionsExtra.text35")], ["MG", "Madagascar"], ["MW", "Malawi"], ["ML", "Mali"], ["MR", t("optionsExtra.text36")], ["MU", t("optionsExtra.text37")], ["MA", t("optionsExtra.text38")], ["MZ", "Mozambique"], ["NA", t("optionsExtra.text39")], ["NE", "Niger"], ["NG", "Nigeria"], ["RW", "Rwanda"], ["ST", t("sweep2.text229")], ["SN", t("sweep3.text230")], ["SC", "Seychelles"], ["SL", "Sierra Leone"], ["SO", t("optionsExtra.text40")], ["ZA", t("sweep1.text231")], ["SS", t("sweep2.text232")], ["SD", t("optionsExtra.text41")], ["TZ", t("optionsExtra.text42")], ["TG", "Togo"], ["TN", t("optionsExtra.text43")], ["UG", t("optionsExtra.text44")], ["ZM", t("optionsExtra.text45")], ["ZW", "Zimbabwe"],
   ] as const;
   const audienceOptions = [
-    ["entrepreneurs", "Entrepreneurs et indépendants"], ["jeunes actifs", "Jeunes actifs"], ["étudiants", "Étudiants"], ["femmes entrepreneures", "Femmes entrepreneures"], ["créateurs de contenu", "Créateurs de contenu"], ["vendeurs en ligne", "Vendeurs en ligne"], ["petites entreprises", "Petites entreprises"], ["freelances", "Freelances"], ["parents", "Parents"], ["salariés en reconversion", "Salariés en reconversion"], ["coachs et formateurs", "Coachs et formateurs"], ["artisans et créateurs", "Artisans et créateurs"], ["influenceurs", "Influenceurs et créateurs de contenu"], ["expatriés et diaspora", "Expatriés et diaspora"], ["retraités actifs", "Retraités actifs"],
+    ["entrepreneurs", t("sweep3.text233")], ["jeunes actifs", t("optionsExtra.text46")], ["étudiants", t("optionsExtra.text47")], ["femmes entrepreneures", t("optionsExtra.text48")], ["créateurs de contenu", t("sweep1.text234")], ["vendeurs en ligne", t("optionsExtra.text49")], ["petites entreprises", t("optionsExtra.text50")], ["freelances", t("optionsExtra.text51")], ["parents", "Parents"], ["salariés en reconversion", t("sweep2.text235")], ["coachs et formateurs", t("sweep3.text236")], ["artisans et créateurs", t("sweep1.text237")], ["influenceurs", t("sweep2.text238")], ["expatriés et diaspora", t("sweep3.text239")], ["retraités actifs", t("sweep1.text240")],
   ] as const;
   function toggleCountry(code: string) { setSelectedCountries((selected) => selected.includes(code) ? selected.filter((country) => country !== code) : [...selected, code]); }
   function toggleAudience(value: string) { setSelectedAudiences((selected) => selected.includes(value) ? selected.filter((audience) => audience !== value) : [...selected, value]); }
@@ -672,7 +675,7 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
       const data = await response.json();
       if (!response.ok) { setError(data.error ?? "Analyse impossible."); return; }
       setReport(data.report ?? null);
-    } catch { setError("Le radar marché est momentanément indisponible."); } finally { setLoading(false); }
+    } catch { setError(t("sweep2.text241")); } finally { setLoading(false); }
   }
   const dimensions = (report?.dimensions ?? {}) as Record<string, number>;
   const ideas = Array.isArray(report?.ideas) ? report.ideas as Array<Record<string, unknown>> : [];
@@ -680,28 +683,28 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
   const audienceLabels = selectedLabels(selectedAudiences, audienceOptions);
   return <div className="market-radar-page">
     <div className="page-top"><div><h1>{t("radar.eyebrow")}</h1><p>{t("radar.subtitle")}</p></div></div>
-    <section className="market-radar-hero"><div><span className="eyebrow">{t("radar.heroEyebrow")}</span><h2>{t("radar.heroTitle")}</h2><p>{t("radar.heroText")}</p><label className="market-idea-input"><span>{t("radar.ideaLabel")}</span><input value={idea} onChange={(event) => setIdea(event.target.value)} placeholder={t("radar.ideaPlaceholder")} /><small className={idea.trim().length > 0 && idea.trim().length < 8 ? "is-invalid" : ""}>{idea.trim().length < 8 ? `${idea.trim().length}/8 caractères minimum` : "Idée suffisamment détaillée"}</small></label></div><TrendingUp size={32} /></section>
+    <section className="market-radar-hero"><div><span className="eyebrow">{t("radar.heroEyebrow")}</span><h2>{t("radar.heroTitle")}</h2><p>{t("radar.heroText")}</p><label className="market-idea-input"><span>{t("radar.ideaLabel")}</span><input value={idea} onChange={(event) => setIdea(event.target.value)} placeholder={t("radar.ideaPlaceholder")} /><small className={idea.trim().length > 0 && idea.trim().length < 8 ? "is-invalid" : ""}>{idea.trim().length < 8 ? t("dynamicExtra.ideaMinimum", { count: (idea.trim().length) }) : t("sweep3.text242")}</small></label></div><TrendingUp size={32} /></section>
     <form className="app-card market-radar-form" onSubmit={analyze}>
       <div className="market-radar-fields">
         <div className="market-radar-control">
-          <span className="market-radar-control-label">Pays à analyser</span>
-          <button type="button" className="market-radar-trigger" aria-haspopup="dialog" aria-expanded={countriesOpen} onClick={() => { setCountriesOpen(true); setAudiencesOpen(false); }}><span>{countryLabels.length ? countryLabels.join(", ") : "Sélectionner des pays"}</span><small>{selectedCountries.length} sélectionné{selectedCountries.length > 1 ? "s" : ""}</small></button>
-          {countriesOpen ? <div className="market-radar-modal-backdrop" role="presentation" onMouseDown={() => setCountriesOpen(false)}><section className="market-radar-modal" role="dialog" aria-modal="true" aria-labelledby="market-country-dialog-title" onMouseDown={(event) => event.stopPropagation()}><div className="market-radar-modal-head"><div><span className="eyebrow">Radar marché</span><h2 id="market-country-dialog-title">Choisis les pays à analyser</h2></div><button type="button" className="market-radar-modal-close" onClick={() => setCountriesOpen(false)} aria-label="Fermer">×</button></div><p className="market-radar-modal-help">Tu peux sélectionner plusieurs pays pour comparer les signaux disponibles.</p><div className="market-radar-option-grid">{countryOptions.map(([code, name]) => <label key={code} className={selectedCountries.includes(code) ? "selected" : ""}><input type="checkbox" checked={selectedCountries.includes(code)} onChange={() => toggleCountry(code)} /><span>{name}</span></label>)}</div><button type="button" className="btn btn-dark market-radar-modal-confirm" onClick={() => setCountriesOpen(false)}>Valider {selectedCountries.length} pays</button></section></div> : null}
+          <span className="market-radar-control-label">{t("sweep1.text243")}</span>
+          <button type="button" className="market-radar-trigger" aria-haspopup="dialog" aria-expanded={countriesOpen} onClick={() => { setCountriesOpen(true); setAudiencesOpen(false); }}><span>{countryLabels.length ? countryLabels.join(", ") : t("sweep2.text244")}</span><small>{selectedCountries.length} {" "}{t("sweep3.text245")}{selectedCountries.length > 1 ? "s" : ""}</small></button>
+          {countriesOpen ? <div className="market-radar-modal-backdrop" role="presentation" onMouseDown={() => setCountriesOpen(false)}><section className="market-radar-modal" role="dialog" aria-modal="true" aria-labelledby="market-country-dialog-title" onMouseDown={(event) => event.stopPropagation()}><div className="market-radar-modal-head"><div><span className="eyebrow">{t("radar.eyebrow")}</span><h2 id="market-country-dialog-title">{t("sweep1.text246")}</h2></div><button type="button" className="market-radar-modal-close" onClick={() => setCountriesOpen(false)} aria-label={t("wizardExtra.close")}>×</button></div><p className="market-radar-modal-help">{t("sweep2.text247")}</p><div className="market-radar-option-grid">{countryOptions.map(([code, name]) => <label key={code} className={selectedCountries.includes(code) ? "selected" : ""}><input type="checkbox" checked={selectedCountries.includes(code)} onChange={() => toggleCountry(code)} /><span>{name}</span></label>)}</div><button type="button" className="btn btn-dark market-radar-modal-confirm" onClick={() => setCountriesOpen(false)}>{t("finalExtra.text20")}{" "}{selectedCountries.length} {" "}{t("finalExtra.text21")}</button></section></div> : null}
         </div>
         <div className="market-radar-control">
           <span className="market-radar-control-label">Audience</span>
-          <button type="button" className="market-radar-trigger" aria-haspopup="dialog" aria-expanded={audiencesOpen} onClick={() => { setAudiencesOpen(true); setCountriesOpen(false); }}><span>{audienceLabels.length ? audienceLabels.join(", ") : "Sélectionner une audience"}</span><small>{selectedAudiences.length} sélectionnée{selectedAudiences.length > 1 ? "s" : ""}</small></button>
-          {audiencesOpen ? <div className="market-radar-modal-backdrop" role="presentation" onMouseDown={() => setAudiencesOpen(false)}><section className="market-radar-modal" role="dialog" aria-modal="true" aria-labelledby="market-audience-dialog-title" onMouseDown={(event) => event.stopPropagation()}><div className="market-radar-modal-head"><div><span className="eyebrow">Radar marché</span><h2 id="market-audience-dialog-title">Choisis une ou plusieurs audiences</h2></div><button type="button" className="market-radar-modal-close" onClick={() => setAudiencesOpen(false)} aria-label="Fermer">×</button></div><p className="market-radar-modal-help">Sélectionne les profils que tu veux cibler avec ton idée.</p><div className="market-radar-option-grid">{audienceOptions.map(([value, label]) => <label key={value} className={selectedAudiences.includes(value) ? "selected" : ""}><input type="checkbox" checked={selectedAudiences.includes(value)} onChange={() => toggleAudience(value)} /><span>{label}</span></label>)}</div><button type="button" className="btn btn-dark market-radar-modal-confirm" onClick={() => setAudiencesOpen(false)}>Valider {selectedAudiences.length} audience{selectedAudiences.length > 1 ? "s" : ""}</button></section></div> : null}
+          <button type="button" className="market-radar-trigger" aria-haspopup="dialog" aria-expanded={audiencesOpen} onClick={() => { setAudiencesOpen(true); setCountriesOpen(false); }}><span>{audienceLabels.length ? audienceLabels.join(", ") : t("sweep3.text248")}</span><small>{selectedAudiences.length} {" "}{t("sweep1.text249")}{selectedAudiences.length > 1 ? "s" : ""}</small></button>
+          {audiencesOpen ? <div className="market-radar-modal-backdrop" role="presentation" onMouseDown={() => setAudiencesOpen(false)}><section className="market-radar-modal" role="dialog" aria-modal="true" aria-labelledby="market-audience-dialog-title" onMouseDown={(event) => event.stopPropagation()}><div className="market-radar-modal-head"><div><span className="eyebrow">{t("radar.eyebrow")}</span><h2 id="market-audience-dialog-title">{t("sweep2.text250")}</h2></div><button type="button" className="market-radar-modal-close" onClick={() => setAudiencesOpen(false)} aria-label={t("wizardExtra.close")}>×</button></div><p className="market-radar-modal-help">{t("sweep3.text251")}</p><div className="market-radar-option-grid">{audienceOptions.map(([value, label]) => <label key={value} className={selectedAudiences.includes(value) ? "selected" : ""}><input type="checkbox" checked={selectedAudiences.includes(value)} onChange={() => toggleAudience(value)} /><span>{label}</span></label>)}</div><button type="button" className="btn btn-dark market-radar-modal-confirm" onClick={() => setAudiencesOpen(false)}>{t("finalExtra.text20")}{" "}{selectedAudiences.length} audience{selectedAudiences.length > 1 ? "s" : ""}</button></section></div> : null}
         </div>
-        <label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}><option value="ebook">E-book</option><option value="formation">Formation</option><option value="template">Templates</option><option value="abonnement">Abonnement</option></select></label>
+        <label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}><option value="ebook">E-book</option><option value="formation">{t("finalExtra.text22")}</option><option value="template">Templates</option><option value="abonnement">{t("workspaceExtra.subscription")}</option></select></label>
       </div>
-      {error && <p className="store-error">{error}</p>}<button className="btn btn-dark" disabled={loading || idea.trim().length < 8 || selectedCountries.length === 0 || selectedAudiences.length === 0}>{loading ? "Analyse des signaux…" : "Analyser le potentiel"}</button>
+      {error && <p className="store-error">{localizeSystemMessage(error, locale)}</p>}<button className="btn btn-dark" disabled={loading || idea.trim().length < 8 || selectedCountries.length === 0 || selectedAudiences.length === 0}>{loading ? t("sweep1.text252") : t("optionsExtra.text52")}</button>
     </form>
     {report ? <>
-      <section className="market-radar-score"><div><span className="eyebrow">Potentiel estimé</span><strong>{String(report.score ?? 0)}<small>/100</small></strong><p>Confiance {String(report.confidence ?? "low")} · {Array.isArray(report.liveSources) && report.liveSources.length ? String(report.liveSources.join(", ")) : "Aucune source live configurée"}</p></div><div><div className="market-dimension-grid">{[["Demande","demand"],["Croissance","growth"],["Concurrence","competition"],["Adéquation pays","countryFit"],["Monétisation","monetization"]].map(([label,key]) => <div key={key}><small>{label}</small><strong>{dimensions[key] ?? 0}</strong><i><b style={{ width: `${dimensions[key] ?? 0}%` }} /></i></div>)}</div><div className="market-trend"><span>Signal récent</span><strong>{String((report.trend as Record<string, unknown>)?.current ?? 0)} <small>{(report.trend as Record<string, unknown>)?.direction === "up" ? "↗ en hausse" : (report.trend as Record<string, unknown>)?.direction === "down" ? "↘ en baisse" : "→ stable"}</small></strong><div>{((report.trend as Record<string, unknown>)?.points as number[] ?? []).map((point, index) => <i key={`${point}-${index}`} style={{ height: `${Math.max(8, point)}%` }} />)}</div></div></div></section>
-      <section className="market-evidence-grid"><div className="app-card"><div className="card-head"><div><span className="eyebrow">Preuves</span><h2>Pourquoi ce score ?</h2></div><Activity size={18} /></div>{(report.evidence as Array<Record<string, string>> ?? []).map((item) => <div className="market-evidence" key={`${item.label}-${item.value}`}><small>{item.label}</small><strong>{item.value}</strong></div>)}</div><div className="app-card"><div className="card-head"><div><span className="eyebrow">Décision</span><h2>Risques à connaître</h2></div><ShieldAlert size={18} /></div>{(report.risks as string[] ?? []).map((risk) => <p className="market-risk" key={risk}>{risk}</p>)}<p className="market-price">Prix de test: {String((report.recommendedPrice as Record<string, unknown>)?.min)} à {String((report.recommendedPrice as Record<string, unknown>)?.max)} XOF</p></div></section>
-      <section className="app-card market-ideas"><div className="card-head"><div><span className="eyebrow">Concepts exploitables</span><h2>Ce que tu peux lancer</h2></div><Lightbulb size={18} /></div>{ideas.map((item) => <article className="market-idea" key={String(item.title)}><div><h3>{String(item.title)}</h3><p>{String(item.promise)}</p><small>Pour: {String(item.audience)}</small></div><button className="btn btn-ghost" onClick={() => onGoToAI(`Développe le concept d'e-book « ${String(item.title)} » avec un plan détaillé, une promesse commerciale et un upsell adapté aux marchés ${selectedCountries.join(", ")}.`)}>Développer avec l’IA</button></article>)}</section>
-    </> : <div className="app-card market-empty"><Lightbulb size={24} /><strong>Entre une idée pour obtenir un score de potentialité</strong><span>Le score indique la force des signaux disponibles. Il ne garantit pas les ventes.</span></div>}
+      <section className="market-radar-score"><div><span className="eyebrow">{t("sweep2.text253")}</span><strong>{String(report.score ?? 0)}<small>/100</small></strong><p>{t("finalExtra.text23")}{" "}{String(report.confidence ?? "low")} · {Array.isArray(report.liveSources) && report.liveSources.length ? String(report.liveSources.join(", ")) : t("sweep3.text254")}</p></div><div><div className="market-dimension-grid">{[[t("optionsExtra.text63"),"demand"],[t("optionsExtra.text64"),"growth"],[t("optionsExtra.text65"),"competition"],[t("optionsExtra.text66"),"countryFit"],[t("optionsExtra.text67"),"monetization"]].map(([label,key]) => <div key={key}><small>{label}</small><strong>{dimensions[key] ?? 0}</strong><i><b style={{ width: `${dimensions[key] ?? 0}%` }} /></i></div>)}</div><div className="market-trend"><span>{t("sweep1.text255")}</span><strong>{String((report.trend as Record<string, unknown>)?.current ?? 0)} <small>{(report.trend as Record<string, unknown>)?.direction === "up" ? t("optionsExtra.text53") : (report.trend as Record<string, unknown>)?.direction === "down" ? t("optionsExtra.text54") : "→ stable"}</small></strong><div>{((report.trend as Record<string, unknown>)?.points as number[] ?? []).map((point, index) => <i key={`${point}-${index}`} style={{ height: `${Math.max(8, point)}%` }} />)}</div></div></div></section>
+      <section className="market-evidence-grid"><div className="app-card"><div className="card-head"><div><span className="eyebrow">{t("finalExtra.text24")}</span><h2>{t("finalExtra.text25")}</h2></div><Activity size={18} /></div>{(report.evidence as Array<Record<string, string>> ?? []).map((item) => <div className="market-evidence" key={`${item.label}-${item.value}`}><small>{item.label}</small><strong>{item.value}</strong></div>)}</div><div className="app-card"><div className="card-head"><div><span className="eyebrow">{t("autopilot.decision")}</span><h2>{t("sweep2.text256")}</h2></div><ShieldAlert size={18} /></div>{(report.risks as string[] ?? []).map((risk) => <p className="market-risk" key={risk}>{risk}</p>)}<p className="market-price">{t("finalExtra.text26")}{" "}{String((report.recommendedPrice as Record<string, unknown>)?.min)} {" "}{t("sweep3.text257")}{" "}{String((report.recommendedPrice as Record<string, unknown>)?.max)} XOF</p></div></section>
+      <section className="app-card market-ideas"><div className="card-head"><div><span className="eyebrow">{t("finalExtra.text27")}</span><h2>{t("finalExtra.text28")}</h2></div><Lightbulb size={18} /></div>{ideas.map((item) => <article className="market-idea" key={String(item.title)}><div><h3>{String(item.title)}</h3><p>{String(item.promise)}</p><small>{t("finalExtra.text29")}{" "}{String(item.audience)}</small></div><button className="btn btn-ghost" onClick={() => onGoToAI(t("dynamicExtra.expandIdea", { title: (String(item.title)), countries: (selectedCountries.join(", ")) }))}>{t("sweep1.text258")}</button></article>)}</section>
+    </> : <div className="app-card market-empty"><Lightbulb size={24} /><strong>{t("sweep2.text259")}</strong><span>{t("sweep3.text260")}</span></div>}
   </div>;
 }
 function EmptyState({ title, text }: { title: string; text: string }) { return <div className="home-empty"><strong>{title}</strong><span>{text}</span></div>; }
@@ -726,7 +729,7 @@ function SalesView({ stores, analytics }: { stores: StoreData[]; analytics: Anal
     const status = String((sale as Record<string, unknown>)?.status ?? (sale as Record<string, unknown>)?.state ?? "");
     return status === "completed" || status === "settled";
   }).length;
-  return <div className="sales-page"><div className="page-top"><div><span className="eyebrow">Chariow</span><h1>Ventes</h1><p>Suivi des événements et revenus remontés par ta boutique.</p></div></div><div className="sales-kpis"><HomeKpi label="Ventes confirmées (encaissées)" value={String(confirmedCount)} tone="positive" help="Paiements validés par Chariow, statuts completed et settled." /><HomeKpi label={t("overview.grossRevenueUsd")} value={revenueLabel} tone="info" help={t("overview.usdConversionNote")} /><HomeKpi label="Événements listés" value={String(sales.length)} tone="neutral" help="Événements Chariow récupérés pour cette boutique." /></div><div className="sales-toolbar"><label>Statut<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">Tous</option><option value="completed">Réussies et réglées</option><option value="awaiting_payment">En attente</option><option value="failed">Échouées</option><option value="abandoned">Abandonnées</option><option value="refunded">Remboursées</option></select></label></div><section className="app-card sales-list"><div className="card-head"><h2>Activité Chariow</h2><Activity size={18} /></div>{sales.length ? <ul className="activity">{sales.map((sale, index) => <RecentSale key={index} sale={sale} />)}</ul> : <EmptyState title="Aucun événement" text="Les événements Chariow apparaîtront après synchronisation." />}</section></div>;
+  return <div className="sales-page"><div className="page-top"><div><span className="eyebrow">Chariow</span><h1>{t("dashboard.sales")}</h1><p>{t("sweep1.text261")}</p></div></div><div className="sales-kpis"><HomeKpi label={t("sweep2.text262")} value={String(confirmedCount)} tone="positive" help="Paiements validés par Chariow, statuts completed et settled." /><HomeKpi label={t("overview.grossRevenueUsd")} value={revenueLabel} tone="info" help={t("overview.usdConversionNote")} /><HomeKpi label={t("sweep3.text263")} value={String(sales.length)} tone="neutral" help="Événements Chariow récupérés pour cette boutique." /></div><div className="sales-toolbar"><label>{t("adminComplete.status")}<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">{t("adminComplete.all")}</option><option value="completed">{t("sweep1.text264")}</option><option value="awaiting_payment">{t("adminComplete.pending")}</option><option value="failed">{t("sweep2.text265")}</option><option value="abandoned">{t("sweep3.text266")}</option><option value="refunded">{t("sweep1.text267")}</option></select></label></div><section className="app-card sales-list"><div className="card-head"><h2>{t("sweep2.text268")}</h2><Activity size={18} /></div>{sales.length ? <ul className="activity">{sales.map((sale, index) => <RecentSale key={index} sale={sale} />)}</ul> : <EmptyState title={t("sweep3.text269")} text="Les événements Chariow apparaîtront après synchronisation." />}</section></div>;
 }
 
 const STACK_DAYS = 7;
@@ -740,6 +743,7 @@ function stackSaleDay(raw: unknown): string | null { if (typeof raw !== "string"
 function stackAmount(raw: unknown): number { const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>).value : raw; const parsed = typeof source === "number" ? source : typeof source === "string" ? Number(source.replace(/[^\d.,-]/g, "").replace(",", ".")) : 0; return Number.isFinite(parsed) ? parsed : 0; }
 function stackScale(maxValue: number) { const rough = Math.max(maxValue, 1) / 4; const magnitude = 10 ** Math.floor(Math.log10(rough)); const residual = rough / magnitude; const factor = residual <= 1 ? 1 : residual <= 2 ? 2 : residual <= 5 ? 5 : 10; const step = factor * magnitude; return { step, max: Math.ceil(Math.max(maxValue, 1) / step) * step }; }
 function RealTrendChart({ sales, products, currency, revenueCurrencies = [] }: { sales: unknown[]; products: Array<{ id: string; name: string }>; currency: string; revenueCurrencies?: string[] }) {
+  const { t } = useI18n();
   const [active, setActive] = useState<number | null>(null); const rootRef = useRef<HTMLDivElement>(null);
   const observedCurrencies = new Set(sales.filter((item) => { const row = stackRecord(item); const status = row.status ?? row.state; return status === "completed" || status === "settled"; }).map((item) => { const row = stackRecord(item); const amount = stackRecord(row.amount); return String(row.currency ?? amount.currency ?? "").trim().toUpperCase(); }).filter(Boolean));
   const allCurrencySignals = revenueCurrencies.length ? new Set(revenueCurrencies.map((value) => value.toUpperCase())) : observedCurrencies;
@@ -753,9 +757,9 @@ function RealTrendChart({ sales, products, currency, revenueCurrencies = [] }: {
     const ranked = Array.from(perProduct.entries()).sort((a, b) => b[1].total - a[1].total); const top = ranked.slice(0, STACK_COLORS.length); const rest = ranked.slice(STACK_COLORS.length); const series: StackSeries[] = top.map(([key, entry], index) => ({ key, label: entry.label, color: STACK_COLORS[index] })); const matrix: number[][] = days.map((_, dayPos) => top.map(([, entry]) => entry.days[dayPos])); if (rest.length) { series.push({ key: "__others", label: "Autres", color: STACK_OTHERS_COLOR }); matrix.forEach((row, dayPos) => row.push(rest.reduce((sum, [, entry]) => sum + entry.days[dayPos], 0))); } const dayTotals = matrix.map((row) => row.reduce((sum, value) => sum + value, 0)); const grand = dayTotals.reduce((sum, value) => sum + value, 0); const scale = stackScale(Math.max(...dayTotals)); const ticks = Array.from({ length: Math.round(scale.max / scale.step) + 1 }, (_, index) => index * scale.step); return { days, series, matrix, dayTotals, grand, scale, ticks };
   }, [sales, products]);
   const money = (value: number) => `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} ${chartCurrency}`;
-  if (allCurrencySignals.size > 1 || hasUnknownCurrency) return <EmptyState title="Graphique non comparable" text="Les ventes utilisent plusieurs devises ou n’indiquent pas leur monnaie. Les montants restent séparés dans les indicateurs." />;
-  if (!chart.grand) return <EmptyState title="Aucune vente sur 7 jours" text="Les ventes confirmées des 7 derniers jours apparaîtront ici, empilées par produit." />;
-  return <div className="stack-chart" ref={rootRef} role="group" aria-label={`Chiffre d'affaires des 7 derniers jours par produit, total ${money(chart.grand)}`}><ul className="stack-legend">{chart.series.map((item) => <li key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span></li>)}</ul><div className="stack-body"><div className="stack-y" aria-hidden="true">{chart.ticks.map((tick) => <span key={tick} style={{ bottom: `${(tick / chart.scale.max) * 100}%` }}>{stackCompact.format(tick)}</span>)}</div><div className="stack-plot">{chart.ticks.map((tick) => <i key={tick} className="stack-grid" aria-hidden="true" style={{ bottom: `${(tick / chart.scale.max) * 100}%` }} />)}<div className="stack-cols">{chart.days.map((day, index) => { const total = chart.dayTotals[index]; return <button type="button" key={day.key} className={`stack-col${active === index ? " active" : ""}`} aria-label={`${day.long} : ${money(total)}`} onPointerEnter={(event) => { if (event.pointerType === "mouse") setActive(index); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") setActive(null); }} onClick={(event) => { if ((event.nativeEvent as PointerEvent).pointerType === "mouse") return; setActive((current) => current === index ? null : index); }}><span className="stack-bar" style={{ height: `${(total / chart.scale.max) * 100}%` }}>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[index][seriesIndex]; return value > 0 ? <span key={item.key} className="stack-seg" style={{ height: `${(value / total) * 100}%`, background: item.color }} /> : null; })}</span></button>; })}</div>{active !== null ? <div className="stack-tip" style={{ left: `${((active + 0.5) / STACK_DAYS) * 100}%`, transform: `translateX(${active <= 1 ? "-20%" : active >= STACK_DAYS - 2 ? "-80%" : "-50%"})` }}><strong>{chart.days[active].long}</strong>{chart.dayTotals[active] > 0 ? <>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[active][seriesIndex]; return value > 0 ? <span key={item.key}><i style={{ background: item.color }} />{item.label}<b>{money(value)}</b></span> : null; })}<em>Total {money(chart.dayTotals[active])}</em></> : <span>Aucune vente</span>}</div> : null}</div></div><div className="stack-x" aria-hidden="true">{chart.days.map((day) => <span key={day.key}><b>{day.weekday}</b><small>{day.num}</small></span>)}</div><div className="stack-foot"><span className="stack-unit">Montants en {chartCurrency}</span><span className="chart-total">Total : {money(chart.grand)}</span></div></div>;
+  if (allCurrencySignals.size > 1 || hasUnknownCurrency) return <EmptyState title={t("analysisExtra.chart.incomparable")} text="Les ventes utilisent plusieurs devises ou n’indiquent pas leur monnaie. Les montants restent séparés dans les indicateurs." />;
+  if (!chart.grand) return <EmptyState title={t("sweep1.text270")} text="Les ventes confirmées des 7 derniers jours apparaîtront ici, empilées par produit." />;
+  return <div className="stack-chart" ref={rootRef} role="group" aria-label={t("dynamicExtra.revenueChart", { total: (money(chart.grand)) })}><ul className="stack-legend">{chart.series.map((item) => <li key={item.key}><i style={{ background: item.color }} /><span>{item.label}</span></li>)}</ul><div className="stack-body"><div className="stack-y" aria-hidden="true">{chart.ticks.map((tick) => <span key={tick} style={{ bottom: `${(tick / chart.scale.max) * 100}%` }}>{stackCompact.format(tick)}</span>)}</div><div className="stack-plot">{chart.ticks.map((tick) => <i key={tick} className="stack-grid" aria-hidden="true" style={{ bottom: `${(tick / chart.scale.max) * 100}%` }} />)}<div className="stack-cols">{chart.days.map((day, index) => { const total = chart.dayTotals[index]; return <button type="button" key={day.key} className={`stack-col${active === index ? " active" : ""}`} aria-label={`${day.long} : ${money(total)}`} onPointerEnter={(event) => { if (event.pointerType === "mouse") setActive(index); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") setActive(null); }} onClick={(event) => { if ((event.nativeEvent as PointerEvent).pointerType === "mouse") return; setActive((current) => current === index ? null : index); }}><span className="stack-bar" style={{ height: `${(total / chart.scale.max) * 100}%` }}>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[index][seriesIndex]; return value > 0 ? <span key={item.key} className="stack-seg" style={{ height: `${(value / total) * 100}%`, background: item.color }} /> : null; })}</span></button>; })}</div>{active !== null ? <div className="stack-tip" style={{ left: `${((active + 0.5) / STACK_DAYS) * 100}%`, transform: `translateX(${active <= 1 ? "-20%" : active >= STACK_DAYS - 2 ? "-80%" : "-50%"})` }}><strong>{chart.days[active].long}</strong>{chart.dayTotals[active] > 0 ? <>{chart.series.map((item, seriesIndex) => { const value = chart.matrix[active][seriesIndex]; return value > 0 ? <span key={item.key}><i style={{ background: item.color }} />{item.label}<b>{money(value)}</b></span> : null; })}<em>Total {money(chart.dayTotals[active])}</em></> : <span>{t("analysisExtra.chart.noSales")}</span>}</div> : null}</div></div><div className="stack-x" aria-hidden="true">{chart.days.map((day) => <span key={day.key}><b>{day.weekday}</b><small>{day.num}</small></span>)}</div><div className="stack-foot"><span className="stack-unit">{t("finalExtra.text30")}{" "}{chartCurrency}</span><span className="chart-total">{t("finalExtra.text31")}{" "}{money(chart.grand)}</span></div></div>;
 }
 
 function displayValue(value: unknown, keys: string[] = ["name", "label", "title", "value", "text", "code"]): string | undefined {
@@ -778,7 +782,7 @@ function RecentSale({ sale }: { sale: unknown }) {
   const rec = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const row = rec(sale);
   const status = String(row.status ?? row.state ?? "unknown");
-  const labels: Record<string, string> = { completed: "Vente réussie", settled: "Vente réglée", awaiting_payment: "Paiement en attente", failed: "Paiement échoué", abandoned: "Vente abandonnée", refunded: "Remboursement" };
+  const labels: Record<string, string> = { completed: t("sweep2.text271"), settled: t("sweep3.text272"), awaiting_payment: t("optionsExtra.text55"), failed: t("sweep3.text188"), abandoned: t("sweep1.text273"), refunded: t("optionsExtra.text56") };
   const amountRecord = rec(row.amount);
   const amount = Number(amountRecord.value ?? row.amount);
   const currency = String(row.currency ?? amountRecord.currency ?? "-");
@@ -789,24 +793,25 @@ function RecentSale({ sale }: { sale: unknown }) {
   return <li><i className={`activity-dot activity-${status}`} /><span><b>{labels[status] ?? status}</b><br />{productName} · {amountLabel} · {dateLabel}</span></li>;
 }
 function BusinessSignals({ analytics, health }: { analytics: AnalyticsData; health: StoreHealth }) {
+  const { t } = useI18n();
   if (!analytics) return null;
   const { kpis, products } = analytics;
   const alerts = getBusinessAlerts(analytics);
   const recommendation = getRecommendation(analytics);
   return <div className="business-signals">
     <div className="signal-health app-card">
-      <div className="card-head"><div><span className="eyebrow">Lecture Vendeo</span><h2>Score de santé</h2></div><Activity size={18} color="#34684d" /></div>
+      <div className="card-head"><div><span className="eyebrow">{t("finalExtra.text32")}</span><h2>{t("sweep2.text274")}</h2></div><Activity size={18} color="#34684d" /></div>
       <div className="health-score"><strong>{health.score}</strong><span>/ 100</span></div>
       <p>{health.label}</p>
       <div className="health-progress"><i style={{ width: `${health.score}%` }} /></div>
       <small>{health.details}</small>
     </div>
     <div className="signal-alerts app-card">
-      <div className="card-head"><div><span className="eyebrow">À surveiller</span><h2>Signaux utiles</h2></div><AlertTriangle size={18} color="#d28b3d" /></div>
-      {alerts.length ? <div className="signal-list">{alerts.map((alert) => <div className={`signal-item ${alert.tone}`} key={alert.title}><span>{alert.icon}</span><div><strong>{alert.title}</strong><p>{alert.description}</p></div></div>)}</div> : <div className="signal-item positive"><span><TrendingUp size={15} /></span><div><strong>Tout est stable</strong><p>Aucun signal critique n'a été détecté sur cette période.</p></div></div>}
+      <div className="card-head"><div><span className="eyebrow">{t("overview.watch")}</span><h2>{t("finalExtra.text33")}</h2></div><AlertTriangle size={18} color="#d28b3d" /></div>
+      {alerts.length ? <div className="signal-list">{alerts.map((alert) => <div className={`signal-item ${alert.tone}`} key={alert.title}><span>{alert.icon}</span><div><strong>{alert.title}</strong><p>{alert.description}</p></div></div>)}</div> : <div className="signal-item positive"><span><TrendingUp size={15} /></span><div><strong>{t("sweep3.text275")}</strong><p>{t("sweep1.text276")}</p></div></div>}
       <PersistentAlerts />
     </div>
-    <div className="signal-action app-card"><div className="card-head"><div><span className="eyebrow">Prochaine action</span><h2>Ton meilleur levier</h2></div><Target size={18} color="#34684d" /></div><strong>{recommendation.title}</strong><p>{recommendation.description}</p><div className="signal-meta">{products.length} produit{products.length > 1 ? "s" : ""} · {kpis.sales} vente{kpis.sales > 1 ? "s" : ""} · {kpis.visits} visite{kpis.visits > 1 ? "s" : ""}</div></div>
+    <div className="signal-action app-card"><div className="card-head"><div><span className="eyebrow">{t("chat.qNext")}</span><h2>{t("finalExtra.text34")}</h2></div><Target size={18} color="#34684d" /></div><strong>{recommendation.title}</strong><p>{recommendation.description}</p><div className="signal-meta">{products.length} {" "}{t("sweep2.text277")}{products.length > 1 ? "s" : ""} · {kpis.sales} {" "}{t("analysisExtra.saleOne")}{kpis.sales > 1 ? "s" : ""} · {kpis.visits} {" "}{t("finalExtra.text35")}{kpis.visits > 1 ? "s" : ""}</div></div>
   </div>;
 }
 
@@ -819,8 +824,8 @@ function PersistentAlerts() {
 
 type StoreHealth = { score: number; label: string; details: string };
 
-function getStoreHealth(analytics: AnalyticsData): StoreHealth {
-  if (!analytics) return { score: 0, label: "Données indisponibles", details: "Reconnecte ta boutique pour recalculer le score." };
+function getStoreHealth(analytics: AnalyticsData, t: ReturnType<typeof useI18n>["t"]): StoreHealth {
+  if (!analytics) return { score: 0, label: t("dynamicExtra.healthUnavailable"), details: t("dynamicExtra.healthReconnect") };
   const { kpis, products } = analytics;
   let score = 35;
   if (products.length > 0) score += 20;
@@ -829,7 +834,7 @@ function getStoreHealth(analytics: AnalyticsData): StoreHealth {
   if (kpis.customers > 0) score += 5;
   if (kpis.conversionRate !== "0 %") score += 5;
   const bounded = Math.min(score, 100);
-  return { score: bounded, label: bounded >= 75 ? "Ta boutique est en bonne dynamique." : bounded >= 50 ? "Ta boutique a une base solide à développer." : "Ta priorité est de générer du trafic et des premières ventes.", details: `${products.length} produit${products.length > 1 ? "s" : ""} au catalogue, ${kpis.visits} visite${kpis.visits > 1 ? "s" : ""} et ${kpis.sales} vente${kpis.sales > 1 ? "s" : ""} sur la période.` };
+  return { score: bounded, label: bounded >= 75 ? t("dynamicExtra.healthStrong") : bounded >= 50 ? t("dynamicExtra.healthDevelop") : t("dynamicExtra.healthStart"), details: t("dynamicExtra.catalogSummary", { products: (products.length), productPlural: (products.length > 1 ? "s" : ""), visits: (kpis.visits), visitPlural: (kpis.visits > 1 ? "s" : ""), sales: (kpis.sales), salePlural: (kpis.sales > 1 ? "s" : "") }) };
 }
 
 function getBusinessAlerts(analytics: AnalyticsData) {
@@ -853,15 +858,16 @@ function getRecommendation(analytics: AnalyticsData) {
 }
 
 function ProductCatalog({ products, onPromote }: { products: ProductData[]; onPromote?: (product: ProductData) => void }) {
+  const { t } = useI18n();
   return (
     <div className="app-card" style={{ marginTop: 18 }}>
-      <div className="card-head"><div><h2>Ton catalogue</h2><p>{products.length ? "Les produits récupérés depuis ta boutique Chariow." : "Aucun produit n'a été trouvé dans ta boutique Chariow."}</p></div></div>
+      <div className="card-head"><div><h2>{t("finalExtra.text36")}</h2><p>{products.length ? t("sweep3.text278") : t("sweep1.text279")}</p></div></div>
       {products.length > 0 && <div style={{ display: "grid", gap: 10, marginTop: 15 }}>
         {products.map((product) => <div key={product.id} className="store-row">
           <div className="store-logo">{product.image ? <img src={product.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} /> : <Package size={18} />}</div>
           <div className="store-info"><strong>{product.name}</strong><span>{formatProductPrice(product)}</span></div>
            <span className="status">{product.status ?? "Statut non renseigné"}</span>
-           {onPromote ? <button className="btn btn-dark" type="button" onClick={() => onPromote(product)}>Promouvoir</button> : null}
+           {onPromote ? <button className="btn btn-dark" type="button" onClick={() => onPromote(product)}>{t("finalExtra.text37")}</button> : null}
         </div>)}
       </div>}
     </div>
@@ -869,7 +875,7 @@ function ProductCatalog({ products, onPromote }: { products: ProductData[]; onPr
 }
 
 export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreData[]; analytics: AnalyticsData; selectedStoreId: string | null }) {
-  const { t } = useI18n();
+  const { t , locale } = useI18n();
   // Date par défaut alignée sur celle du backend (lib/chariow/analytics.ts) :
   // du 1er du mois en cours jusqu'à aujourd'hui, tant que l'utilisateur n'a
   // rien choisi lui-même.
@@ -888,7 +894,7 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
   const [reportError, setReportError] = useState<string | null>(null);
 
   const kpis = reportAnalytics?.kpis;
-  const period = from && to ? `${formatReportDate(from)} – ${formatReportDate(to)}` : "Période sélectionnée";
+  const period = from && to ? `${formatReportDate(from)} – ${formatReportDate(to)}` : t("sweep2.text280");
   const currency = reportAnalytics?.products?.[0]?.currency ?? "XOF";
   const reportRevenueCurrencies = kpis?.revenueByCurrency ?? [];
   const reportRevenueLabel = (reportRevenueCurrencies.length
@@ -896,7 +902,7 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
     : formatMoneyInUSD(numericAmount(kpis?.revenue.value), currency)) ?? t("overview.usdUnavailable");
 
   async function runReport(nextFrom: string, nextTo: string) {
-    if (!selectedStoreId) { setReportError("Sélectionne une boutique pour lancer un rapport."); return; }
+    if (!selectedStoreId) { setReportError(t("sweep3.text281")); return; }
     setLoadingReport(true);
     setReportError(null);
     try {
@@ -911,7 +917,7 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
       }
       setReportAnalytics(data.snapshot ?? null);
     } catch {
-      setReportError("Impossible de contacter le serveur. Réessaie dans un instant.");
+      setReportError(t("sweep1.text282"));
     } finally {
       setLoadingReport(false);
     }
@@ -928,24 +934,24 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
   }, [selectedStoreId]);
 
   return <>
-    <div className="page-top"><div><span className="eyebrow">Pilotage business</span><h1>Rapports</h1><p>Comprends ce qui s'est passé dans ta boutique sur la période choisie.</p></div></div>
+    <div className="page-top"><div><span className="eyebrow">{t("finalExtra.text38")}</span><h1>{t("workspaceExtra.reports")}</h1><p>{t("sweep2.text283")}</p></div></div>
     <div className="app-card report-filters" style={{ marginBottom: 18 }}>
-      <div className="report-filter-title"><CalendarDays size={17} /><div><strong>Période du rapport</strong><span>Les données Chariow sont analysées au format jour.</span></div></div>
+      <div className="report-filter-title"><CalendarDays size={17} /><div><strong>{t("sweep3.text284")}</strong><span>{t("sweep1.text285")}</span></div></div>
       <div className="report-filter-fields">
-        <label>Du<input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} /></label>
-        <label>Au<input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} /></label>
-        <button type="button" className="btn btn-dark" disabled={!stores.length || !selectedStoreId || loadingReport} onClick={() => void runReport(from, to)}>{loadingReport ? "Actualisation…" : "Actualiser"}</button>
+        <label>{t("finalExtra.text39")}<input type="date" value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} /></label>
+        <label>{t("finalExtra.text40")}<input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} /></label>
+        <button type="button" className="btn btn-dark" disabled={!stores.length || !selectedStoreId || loadingReport} onClick={() => void runReport(from, to)}>{loadingReport ? t("adminExtra.admin.refreshing") : t("adminExtra.admin.refresh")}</button>
       </div>
-      {reportError ? <p className="store-error" role="alert" style={{ marginTop: 10 }}>{reportError}</p> : null}
+      {reportError ? <p className="store-error" role="alert" style={{ marginTop: 10 }}>{localizeSystemMessage(reportError, locale)}</p> : null}
     </div>
-    {!reportAnalytics || !kpis ? <div className="empty-state">{loadingReport ? "Chargement du rapport…" : "Aucune donnée pour cette période."}</div> : <>
+    {!reportAnalytics || !kpis ? <div className="empty-state">{loadingReport ? t("sweep2.text286") : t("sweep3.text287")}</div> : <>
       <div className="report-summary">
-        <div className="report-summary-main"><span className="eyebrow">Performance commerciale</span><strong>{reportRevenueLabel}</strong><p>Synthèse des résultats : {period}.</p></div>
-        <div className="report-summary-side"><ReportStat icon={<ShoppingBag size={16} />} label="Ventes" value={kpis.sales} /><ReportStat icon={<Eye size={16} />} label="Visites" value={kpis.visits} /><ReportStat icon={<Users size={16} />} label="Clients" value={kpis.customers} /><ReportStat icon={<BarChart3 size={16} />} label="Conversion" value={kpis.conversionRate} /></div>
+        <div className="report-summary-main"><span className="eyebrow">{t("finalExtra.text41")}</span><strong>{reportRevenueLabel}</strong><p>{t("sweep1.text288")}{" "}{period}.</p></div>
+        <div className="report-summary-side"><ReportStat icon={<ShoppingBag size={16} />} label={t("dashboard.sales")} value={kpis.sales} /><ReportStat icon={<Eye size={16} />} label={t("adminComplete.visits")} value={kpis.visits} /><ReportStat icon={<Users size={16} />} label={t("overview.customers")} value={kpis.customers} /><ReportStat icon={<BarChart3 size={16} />} label="Conversion" value={kpis.conversionRate} /></div>
       </div>
 
       <div className="report-columns">
-        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">Inventaire et performance</span><h2>Détail des produits</h2></div><strong>{reportAnalytics.products.length} produit{reportAnalytics.products.length > 1 ? "s" : ""}</strong></div>{reportAnalytics.products.length === 0 ? <p className="report-muted">Aucun produit trouvé dans ton catalogue.</p> : <div className="report-table"><div className="report-table-head"><span>Produit</span><span>Statut</span><span>Ventes</span></div>{reportAnalytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong title={product.name}>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseigné"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
+        <section className="app-card report-section"><div className="card-head"><div><span className="eyebrow">{t("sweep2.text289")}</span><h2>{t("sweep3.text290")}</h2></div><strong>{reportAnalytics.products.length} {" "}{t("sweep2.text277")}{reportAnalytics.products.length > 1 ? "s" : ""}</strong></div>{reportAnalytics.products.length === 0 ? <p className="report-muted">{t("sweep1.text291")}</p> : <div className="report-table"><div className="report-table-head"><span>{t("wizardExtra.step.product")}</span><span>{t("adminComplete.status")}</span><span>{t("dashboard.sales")}</span></div>{reportAnalytics.products.map((product) => <div className="report-table-row" key={product.id}><div className="report-product"><span className="report-product-icon">{product.image ? <img src={product.image} alt="" /> : <Package size={16} />}</span><span><strong title={product.name}>{product.name}</strong><small>{formatProductPrice(product)}</small></span></div><span className="report-status">{product.status ?? "Non renseigné"}</span><strong>{product.sales ?? 0}</strong></div>)}</div>}</section>
       </div>
 
     </>}
@@ -1016,14 +1022,14 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
     try {
       const response = await fetch(`/api/integrations/${platform}/disconnect`, { method: "POST" });
       if (!response.ok) {
-        setConnectionError("Impossible de déconnecter ce compte pour le moment.");
+        setConnectionError(t("sweep2.text292"));
         return;
       }
       if (platform === "meta") setMetaConnected(false);
       else if (platform === "tiktok") setTiktokConnected(false);
       else setPinterestConnected(false);
     } catch {
-      setConnectionError("Impossible de déconnecter ce compte pour le moment.");
+      setConnectionError(t("sweep2.text292"));
     } finally {
       setConnectionBusy(null);
     }
@@ -1040,7 +1046,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
       }
       window.location.href = "/?account=deleted";
     } catch {
-      setAccountMessage("Impossible de supprimer le compte.");
+      setAccountMessage(t("optionsExtra.text57"));
     } finally {
       setDeletingAccount(false);
     }
@@ -1069,7 +1075,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
         </button>)}
       </nav>
       <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Suggestions et notes")}>
-        <span className="mobile-settings-icon"><MessageSquare size={20} /></span><span><strong>Suggestions et notes</strong><small>Note ton expérience et partage une idée</small></span><ArrowRight size={16} aria-hidden="true" />
+        <span className="mobile-settings-icon"><MessageSquare size={20} /></span><span><strong>{t("sweep3.text293")}</strong><small>{t("sweep1.text294")}</small></span><ArrowRight size={16} aria-hidden="true" />
       </button>
       {mobileSettingsSection !== null && <button type="button" className="mobile-settings-return" onClick={() => setMobileSettingsSection(null)} aria-label={t("settings.backToSections")}><ArrowRight size={16} aria-hidden="true" /> {t("settings.backToSettings")}</button>}
       <section className="settings-section settings-section-account" data-settings-panel="accounts" aria-label={t("settings.storesAndSubscription")}>
@@ -1086,7 +1092,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
           </button>
         </div>
       </section>
-      <section className="settings-section settings-section-session" data-settings-panel="session" aria-label="Session et compte">
+      <section className="settings-section settings-section-session" data-settings-panel="session" aria-label={t("sweep2.text295")}>
         <div className="page-top settings-mobile-only">
           <div>
             <span className="eyebrow">{t("settings.session")}</span>
@@ -1117,7 +1123,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
           </div>
         </div>
         <div className="theme-choice-grid">
-          <div className="theme-choice selected" aria-label="Thème clair unique">
+          <div className="theme-choice selected" aria-label={t("sweep3.text296")}>
             <span className="mobile-settings-icon"><Sun size={20} /></span>
             <span><strong>{locale === "en" ? "Vendeo Light" : "Vendeo Clair"}</strong><small>{locale === "en" ? "A consistent, comfortable workspace." : "Un espace de travail unifié, clair et confortable."}</small></span>
             <CheckCircle2 size={16} />
@@ -1134,7 +1140,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
         <div className="theme-choice-grid">
           <button type="button" className={`theme-choice ${locale === "fr" ? "selected" : ""}`} onClick={() => setLocale("fr")} aria-pressed={locale === "fr"}>
             <span className="mobile-settings-icon"><Languages size={20} /></span>
-            <span><strong>{t("settings.language.french")}</strong><small>Français</small></span>
+            <span><strong>{t("settings.language.french")}</strong><small>{t("settings.language.french")}</small></span>
             {locale === "fr" ? <CheckCircle2 size={16} /> : null}
           </button>
           <button type="button" className={`theme-choice ${locale === "en" ? "selected" : ""}`} onClick={() => setLocale("en")} aria-pressed={locale === "en"}>
@@ -1178,7 +1184,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
             <p>{t("settings.connectedAccountsDescription")}</p>
           </div>
         </div>
-      {connectionError ? <p className="settings-inline-message settings-account-error" role="alert">{connectionError}</p> : null}
+      {connectionError ? <p className="settings-inline-message settings-account-error" role="alert">{localizeSystemMessage(connectionError, locale)}</p> : null}
       {CONNECTED_ACCOUNT_PLATFORMS.map((platform) => {
         const allowed = isAdPlatformAllowed(plan, platform.badge);
         const isConnected = platform.id === "meta" ? metaConnected : platform.id === "tiktok" ? tiktokConnected : pinterestConnected;
@@ -1219,7 +1225,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
         );
       })}
       </section>
-      {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label="Fermer" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>×</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">Action irréversible</span><h2 id="account-delete-title">Supprimer ton compte ?</h2><p>Ton profil, tes boutiques, tes conversations et tes connexions publicitaires seront définitivement supprimés.</p><div className="account-delete-warning">Cette action ne peut pas être annulée.</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>Annuler</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? "Suppression…" : "Oui, supprimer"}</button></div></section></div> : null}
+      {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label={t("wizardExtra.close")} onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>×</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">{t("settings.irreversible")}</span><h2 id="account-delete-title">{t("settings.deleteQuestion")}</h2><p>{t("sweep1.text297")}</p><div className="account-delete-warning">{t("settings.deleteWarning")}</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>{t("workspaceExtra.cancel")}</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? t("adminExtra.push.deleting") : t("settings.confirmDelete")}</button></div></section></div> : null}
     </div>
   );
 }
@@ -1274,8 +1280,9 @@ function AdVerdictBadge({ verdict }: { verdict: AdVerdict }) {
 
 // Skeleton affiché pendant la vérification de la connexion TikTok.
 function TikTokSkeleton() {
+  const { t } = useI18n();
   return (
-    <div aria-busy="true" aria-label="Chargement de TikTok Ads">
+    <div aria-busy="true" aria-label={t("sweep2.text298")}>
       <style>{`@keyframes vendeo-skeleton-pulse{0%,100%{opacity:.45}50%{opacity:.9}}.vendeo-skeleton{background:rgba(148,163,184,.16);border-radius:10px;animation:vendeo-skeleton-pulse 1.4s ease-in-out infinite}`}</style>
       <div className="app-card" style={{ marginBottom: 18, display: "flex", alignItems: "center" }}>
         <div className="vendeo-skeleton" style={{ height: 36, width: 190, borderRadius: 999 }} />
@@ -1434,7 +1441,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
         setMetaPerformance(null);
         setMetaResources(null);
         setMetaAccountRestricted(false);
-        setMetaLoadError("Impossible de charger les données de ce compte Meta.");
+        setMetaLoadError(t("sweep3.text299"));
       }
     } finally {
       if (requestToken === metaRequestToken.current) setMetaLoading(false);
@@ -1520,21 +1527,21 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       {channel === "overview" ? <AdCampaignsList storeId={storeId} onNewCampaign={onLaunchAd} key={campaignsVersion} /> : null}
 
       {channel === "pinterest" ? <section className="ads-accounts-panel">
-        {pinterestAccounts.length ? <div className="app-card ads-accounts"><div className="card-head"><div><span className="eyebrow">Comptes accessibles</span><h2>Comptes publicitaires Pinterest</h2></div></div>{pinterestAccounts.map((account) => <div className="ads-account-row" key={account.id}><div><strong>{account.name || account.advertiser_id}</strong><small>{account.advertiser_id}{account.currency ? ` · ${account.currency}` : ""}{account.country ? ` · ${account.country}` : ""}</small></div><span className="status-positive">Connecté</span></div>)}</div> : <div className="empty-state"><FaPinterestP size={28} style={{ color: "#E60023" }} /><strong>Aucun compte Pinterest Ads connecté</strong><span>Connecte un compte Pinterest Ads pour le sélectionner dans le flux de création de publicité.</span><button type="button" className="btn btn-dark" onClick={connectPinterest}>Connecter Pinterest Ads</button></div>}
+        {pinterestAccounts.length ? <div className="app-card ads-accounts"><div className="card-head"><div><span className="eyebrow">{t("finalExtra.text42")}</span><h2>{t("finalExtra.text43")}</h2></div></div>{pinterestAccounts.map((account) => <div className="ads-account-row" key={account.id}><div><strong>{account.name || account.advertiser_id}</strong><small>{account.advertiser_id}{account.currency ? ` · ${account.currency}` : ""}{account.country ? ` · ${account.country}` : ""}</small></div><span className="status-positive">{t("settings.connected")}</span></div>)}</div> : <div className="empty-state"><FaPinterestP size={28} style={{ color: "#E60023" }} /><strong>{t("sweep1.text300")}</strong><span>{t("sweep2.text301")}</span><button type="button" className="btn btn-dark" onClick={connectPinterest}>{t("finalExtra.text44")}</button></div>}
         {pinterestAccounts.length ? <PinterestAdsPanel accounts={pinterestAccounts} /> : null}
       </section> : null}
 
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{(metaPerformance ? formatMoneyInUSD(metaPerformance.overview.spend, metaPerformance.currency) : null) ?? t("ads.unavailable")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${(metaPerformance.overview.realRoas * 100).toFixed(1)} %`}</strong></div></div></section> : channel === "meta" ? (
         <>
           {metaConnected ? <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.connected")}</span></div> : null}
-          {!metaLoading && metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n'est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
-          {!metaLoading && metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
+          {!metaLoading && metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>{t("finalExtra.text45")}</strong><p>{t("sweep3.text302")}</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">{t("sweep1.text303")}</a></div></div> : null}
+          {!metaLoading && metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">{t("sweep2.text304")}</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noMeta")}</strong><span>{t("ads.noMetaText")}</span><button className="btn btn-dark" onClick={connectMeta}>{t("ads.connectMeta")}</button></div> : <>
-            <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><span className="hint-line">{metaLoading ? "Chargement…" : <>Dernière synchro : {metaPerformance?.lastSyncedAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(metaPerformance.lastSyncedAt)) : "Jamais"}{metaPerformance?.lastSyncError ? ` · Erreur : ${metaPerformance.lastSyncError}` : ""}</>}</span><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing || metaLoading}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
-            {metaLoading ? <MetaAccountSkeleton /> : metaLoadError ? <div className="empty-state" role="alert"><strong>{metaLoadError}</strong></div> : null}
+            <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><span className="hint-line">{metaLoading ? t("adminExtra.notifications.loading") : <>{t("sweep3.text305")}{" "}{metaPerformance?.lastSyncedAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(metaPerformance.lastSyncedAt)) : t("adminComplete.never")}{metaPerformance?.lastSyncError ? ` · Erreur : ${metaPerformance.lastSyncError}` : ""}</>}</span><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing || metaLoading}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
+            {metaLoading ? <MetaAccountSkeleton /> : metaLoadError ? <div className="empty-state" role="alert"><strong>{localizeSystemMessage(metaLoadError, locale)}</strong></div> : null}
             {!metaLoading && !metaLoadError && metaConnected && metaResources ? (
               <section className="app-card" style={{ marginBottom: 18 }}>
-                <div className="card-head"><div><span className="eyebrow">Suivi des conversions</span><h2>Pixel Meta</h2><p>Copie l'identifiant du pixel et configure-le dans ton parcours de vente Chariow (Pixel ou Conversions API). Une fois installé, marque-le « configuré ».</p></div>{metaResources.pixels.length > 0 && !metaResources.pixels.some((pixel) => pixel.configured_on_chariow) ? <a href="https://business.facebook.com/events_manager2/list" target="_blank" rel="noreferrer" className="btn btn-ghost">Créer un pixel</a> : null}</div>
+                <div className="card-head"><div><span className="eyebrow">{t("sweep1.text306")}</span><h2>{t("optionsExtra.text58")}</h2><p>{t("sweep2.text307")}</p></div>{metaResources.pixels.length > 0 && !metaResources.pixels.some((pixel) => pixel.configured_on_chariow) ? <a href="https://business.facebook.com/events_manager2/list" target="_blank" rel="noreferrer" className="btn btn-ghost">{t("sweep3.text308")}</a> : null}</div>
                 {metaResources.pixels.length > 0 ? (
                   <div style={{ display: "grid", gap: 10 }}>
                     {metaResources.pixels.map((pixel) => (
@@ -1543,22 +1550,22 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
                           <strong style={{ fontSize: 13 }}>{pixel.name}</strong>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                             <code style={{ fontSize: 12, background: "#F3F4F6", padding: "2px 6px", borderRadius: 6 }}>{pixel.id}</code>
-                            <button type="button" className="btn btn-ghost" onClick={() => void copyPixelId(pixel.id)} style={{ padding: "2px 8px", fontSize: 11 }}>{copiedPixelId === pixel.id ? "Copié !" : "Copier"}</button>
+                            <button type="button" className="btn btn-ghost" onClick={() => void copyPixelId(pixel.id)} style={{ padding: "2px 8px", fontSize: 11 }}>{copiedPixelId === pixel.id ? t("sweep1.text309") : t("chat.copy")}</button>
                           </div>
                         </div>
                         {pixel.configured_on_chariow ? (
-                          <button type="button" className="btn btn-ghost" disabled={configuringPixel === pixel.id} onClick={() => void markPixelConfigured(pixel.id, false)} style={{ color: "#065F46" }}>✓ Configuré sur Chariow</button>
+                          <button type="button" className="btn btn-ghost" disabled={configuringPixel === pixel.id} onClick={() => void markPixelConfigured(pixel.id, false)} style={{ color: "#065F46" }}>{t("sweep2.text310")}</button>
                         ) : (
-                          <button type="button" className="btn btn-dark" disabled={configuringPixel === pixel.id} onClick={() => void markPixelConfigured(pixel.id, true)}>J'ai configuré ce pixel</button>
+                          <button type="button" className="btn btn-dark" disabled={configuringPixel === pixel.id} onClick={() => void markPixelConfigured(pixel.id, true)}>{t("sweep3.text311")}</button>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="empty-state" style={{ textAlign: "left" }}>
-                    <strong>Aucun pixel Meta trouvé</strong>
-                    <span>Crée un pixel dans Meta Events Manager, puis reviens ici pour le copier et le configurer sur Chariow.</span>
-                    <a href="https://business.facebook.com/events_manager2/list" target="_blank" rel="noreferrer" className="btn btn-dark">Créer un pixel</a>
+                    <strong>{t("sweep1.text312")}</strong>
+                    <span>{t("sweep2.text313")}</span>
+                    <a href="https://business.facebook.com/events_manager2/list" target="_blank" rel="noreferrer" className="btn btn-dark">{t("sweep3.text308")}</a>
                   </div>
                 )}
               </section>
@@ -1595,7 +1602,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
                     const verdict = getCampaignVerdict(campaign);
                     return <div className={`reco-item reco-item-${verdict.tone}`} key={campaign.id}>
                       <div className="reco-body"><strong>{campaign.name}</strong><AdVerdictBadge verdict={verdict} /></div>
-                      <button type="button" className={`reco-action reco-action-${verdict.tone}`} onClick={() => openAI(`Analyse campagne: ${campaign.name}. État: ${t(verdict.labelKey)}.`)}>{t("overview.analyzeCampaign")}</button>
+                      <button type="button" className={`reco-action reco-action-${verdict.tone}`} onClick={() => openAI(t("dynamicExtra.analyzeCampaign", { name: (campaign.name), status: (t(verdict.labelKey)) }))}>{t("overview.analyzeCampaign")}</button>
                     </div>;
                   })}</div>
                 </section> : null}
@@ -1632,6 +1639,7 @@ function formatProductPrice(product: ProductData) {
 }
 
 export function StoresView({ stores, subscription, onStoresChange, onBackToSettings }: { stores: StoreData[]; subscription: SubscriptionData | null; onStoresChange: (stores: StoreData[]) => void; onBackToSettings?: () => void }) {
+  const { t , locale } = useI18n();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -1683,7 +1691,7 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
 
 
   async function deleteStore(id: string) {
-    if (!window.confirm("Supprimer cette boutique ? Ses identifiants de connexion seront supprimés de Vendeo.")) return;
+    if (!window.confirm(t("sweep3.text314"))) return;
     setError("");
     setDeletingId(id);
     try {
@@ -1703,17 +1711,17 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
     <>
       <div className="page-top">
         <div>
-          <span className="eyebrow">Connexions</span>
-          <h1>Mes boutiques</h1>
-          <p>Une source de vérité pour toutes tes ventes. <strong className="store-count">{stores.length}/{maxStores}</strong></p>
+          <span className="eyebrow">{t("finalExtra.text46")}</span>
+          <h1>{t("settings.myStores")}</h1>
+          <p>{t("sweep1.text315")}{" "}<strong className="store-count">{stores.length}/{maxStores}</strong></p>
         </div>
-        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
+        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {" "}{t("workspaceExtra.settings")}</button>}
         <button type="button" className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}>
-          <Plus size={16} /> {saving ? "Ajout en cours…" : "Ajouter une boutique"}
+          <Plus size={16} /> {saving ? t("optionsExtra.text59") : t("sweep2.text316")}
         </button>
       </div>
 
-      {error && <p className="store-error" role="alert">{error}</p>}
+      {error && <p className="store-error" role="alert">{localizeSystemMessage(error, locale)}</p>}
 
       <div className="app-card" style={{ maxWidth: 760 }}>
         {stores.map((store) => {
@@ -1726,24 +1734,23 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
               </div>
               <div className="store-info">
                 <strong>{store.store_name}</strong>
-                <span>{store.platform} · {status === "connected" ? "Connectée" : status === "failed" ? "Connexion échouée — relance l'autorisation" : status === "expired" ? "Connexion expirée" : "Connexion en attente"}</span>
+                <span>{store.platform} · {status === "connected" ? t("sweep3.text317") : status === "failed" ? t("sweep1.text318") : status === "expired" ? t("sweep2.text319") : t("sweep3.text320")}</span>
               </div>
               {canDisconnect ? (
                 <button className="btn btn-ghost" onClick={() => disconnectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
-                  Déconnecter
-                </button>
+                  {t("settings.disconnect")}</button>
               ) : (
                   <button type="button" className="btn btn-ghost" onClick={() => connectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
-                  {status === "failed" || status === "expired" ? "Reconnecter Chariow" : "Réessayer"}
+                  {status === "failed" || status === "expired" ? t("optionsExtra.text60") : t("adminExtra.admin.retry")}
                  </button>
                )}
                <button className="btn btn-danger-ghost" onClick={() => deleteStore(store.id)} disabled={saving || deletingId === store.id} style={{ fontSize: 10, padding: "7px 10px" }}>
-                 {deletingId === store.id ? "Suppression…" : "Supprimer"}
+                 {deletingId === store.id ? t("adminExtra.push.deleting") : t("ads.correction.deleteCampaign")}
                </button>
             </div>
           );
         })}
-        {stores.length === 0 && <div className="empty-state compact">Aucune boutique connectée.</div>}
+        {stores.length === 0 && <div className="empty-state compact">{t("adminComplete.noStores")}</div>}
 
       </div>
     </>
@@ -1751,6 +1758,7 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
 }
 
 export function SubscriptionView({ subscription, onBackToSettings }: { subscription: SubscriptionData | null; onBackToSettings?: () => void }) {
+  const { t, locale } = useI18n();
   const trial = subscription?.trial_active ?? true;
   const isActive = subscription?.status === "active" && !trial;
   const currentPlan: PlanId = "starter";
@@ -1770,29 +1778,29 @@ export function SubscriptionView({ subscription, onBackToSettings }: { subscript
       if (response.ok && data.payment?.url) {
         window.location.href = data.payment.url;
       } else {
-        window.alert(data.error ?? "Impossible de lancer le paiement.");
+        window.alert(data.error ?? t("sectionsExtra.subscription.paymentError"));
         setChangingPlan(null);
       }
     } catch {
-      window.alert("Impossible de lancer le paiement.");
+      window.alert(t("sectionsExtra.subscription.paymentError"));
       setChangingPlan(null);
     }
   }
 
   if (isActive) {
-    const periodStart = subscription?.current_period_start ? new Date(subscription.current_period_start).toLocaleDateString("fr-FR") : "Non disponible";
-    const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString("fr-FR") : "Non disponible";
+    const periodStart = subscription?.current_period_start ? new Date(subscription.current_period_start).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US") : t("sectionsExtra.subscription.unavailable");
+    const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US") : t("sectionsExtra.subscription.unavailable");
     return (
       <>
-        <div className="page-top"><div><span className="eyebrow">Ton abonnement</span><h1>Abonnement Vendeo actif</h1><p>Accès à toute la plateforme et jusqu'à 3 boutiques.</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}</div>
+        <div className="page-top"><div><span className="eyebrow">{t("sectionsExtra.subscription.heading")}</span><h1>{t("sectionsExtra.subscription.active")}</h1><p>{t("sectionsExtra.subscription.activeDescription")}</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {" "}{t("workspaceExtra.settings")}</button>}</div>
         <div className="app-card" style={{ maxWidth: 520 }}>
-          <span className="eyebrow">Abonnement en cours</span>
-          <h2 style={{ marginTop: 6 }}>Vendeo — 2 000 XOF / mois</h2>
+          <span className="eyebrow">{t("finalExtra.text47")}</span>
+          <h2 style={{ marginTop: 6 }}>{t("sweep1.text321")}</h2>
           <div className="sale-detail-grid" style={{ marginTop: 18 }}>
-            <div><small>Période en cours depuis</small><strong>{periodStart}</strong></div>
-            <div><small>Renouvellement</small><strong>{periodEnd}</strong></div>
-            <div><small>Boutiques incluses</small><strong>{planMaxStores(currentPlan)}</strong></div>
-            <div><small>Usage IA</small><strong>Illimité</strong></div>
+            <div><small>{t("sweep2.text322")}</small><strong>{periodStart}</strong></div>
+            <div><small>{t("finalExtra.text48")}</small><strong>{periodEnd}</strong></div>
+            <div><small>{t("finalExtra.text49")}</small><strong>{planMaxStores(currentPlan)}</strong></div>
+            <div><small>{t("finalExtra.text50")}</small><strong>{t("sweep3.text323")}</strong></div>
           </div>
         </div>
       </>
@@ -1803,25 +1811,25 @@ export function SubscriptionView({ subscription, onBackToSettings }: { subscript
     <>
       <div className="page-top">
         <div>
-          <span className="eyebrow">Ton abonnement</span>
-          <h1>Active ton abonnement.</h1>
-          <p>{trial && trialDaysLeft !== null ? `Il te reste ${trialDaysLeft} jour${trialDaysLeft > 1 ? "s" : ""} d'essai gratuit.` : "Gère ton usage IA et tes boutiques depuis un seul endroit."}</p>
+          <span className="eyebrow">{t("sectionsExtra.subscription.heading")}</span>
+          <h1>{t("finalExtra.text51")}</h1>
+          <p>{trial && trialDaysLeft !== null ? t("dynamicExtra.trialRemaining", { days: (trialDaysLeft), plural: (trialDaysLeft > 1 ? "s" : "") }) : t("sweep1.text324")}</p>
         </div>
-        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> Paramètres</button>}
+        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {" "}{t("workspaceExtra.settings")}</button>}
       </div>
       <div className="pricing-wrap" style={{ maxWidth: 820 }}>
         <article className="price-card">
-          <span className="eyebrow">{trial ? "Essai gratuit — 15 jours" : "Forfait unique"}</span>
+          <span className="eyebrow">{trial ? t("landing.pricing.pill") : t("optionsExtra.text61")}</span>
           <h3>Vendeo</h3>
-          <div className="price">2 000 XOF <small>/ mois</small></div>
+          <div className="price">2 000 XOF <small>{t("landing.pricing.perMonth")}</small></div>
           <ul>
-            <li>✓ Analyse IA de tes ventes et de tes pubs</li>
-            <li>✓ Jusqu'à 3 boutiques Chariow connectées</li>
-            <li>✓ Suivi Meta Ads et TikTok Ads</li>
-            <li>✓ Rapports détaillés</li>
+            <li>{t("sweep2.text325")}</li>
+            <li>{t("sweep3.text326")}</li>
+            <li>{t("sweep1.text327")}</li>
+            <li>{t("sweep2.text328")}</li>
           </ul>
           <button className="btn btn-ghost" onClick={() => void subscribe("starter")} disabled={changingPlan === "starter"} style={{ width: "100%" }}>
-            {changingPlan === "starter" ? "Redirection…" : "S'abonner"}
+            {changingPlan === "starter" ? t("workspaceExtra.redirecting") : t("workspaceExtra.subscribe")}
           </button>
         </article>
       </div>

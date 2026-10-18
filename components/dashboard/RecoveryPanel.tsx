@@ -1,4 +1,5 @@
 "use client";
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Check,
@@ -9,6 +10,8 @@ import {
   X,
 } from "lucide-react";
 import { Skeleton, SkeletonRows } from "./Skeleton";
+import { useI18n } from "@/lib/i18n/i18n";
+import { overviewCopy } from "@/lib/i18n/overview-copy";
 type CaseRow = {
   id: string;
   source_sale_id?: string | null;
@@ -71,6 +74,8 @@ const statuses: Record<string, string> = {
   opted_out: "Contact désabonné",
 };
 export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
+  const { locale , t } = useI18n();
+  const copy = (key: string, fallback: string) => locale === "en" ? overviewCopy.en[`overviewExtra.${key}`] || fallback : fallback;
   const [rows, setRows] = useState<CaseRow[]>([]),
     [candidates, setCandidates] = useState<Candidate[]>([]),
     [totals, setTotals] = useState<Total[]>([]);
@@ -123,7 +128,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     } catch (e) {
       if (!controller.signal.aborted && live.current)
         setError(
-          e instanceof Error ? e.message : "Connexion impossible. Réessaie.",
+          e instanceof Error ? e.message : t("sweep1.text156"),
         );
     } finally {
       if (!controller.signal.aborted && live.current) setLoading(false);
@@ -154,7 +159,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     } catch (e) {
       if (live.current)
         setError(
-          e instanceof Error ? e.message : "Connexion impossible. Réessaie.",
+          e instanceof Error ? e.message : t("sweep1.text156"),
         );
       return null;
     } finally {
@@ -177,11 +182,11 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     } else {
       setPreview(data);
     }
-    setNotice("Message préparé pour WhatsApp. Appuie sur Envoyer dans WhatsApp, puis confirme ici l’envoi réel.");
+    setNotice(t("sweep2.text157"));
   }
   async function launch(candidate: Candidate) {
     if (!consents[candidate.id]) {
-      setError("Confirme d’abord que ce client a accepté les relances WhatsApp.");
+      setError(t("sweep3.text158"));
       return;
     }
     const target = beginWhatsAppWindow();
@@ -200,7 +205,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
   async function markSent(row: CaseRow) {
     if (
       !window.confirm(
-        "As-tu réellement envoyé ce message dans WhatsApp ? L’ouverture de WhatsApp ne suffit pas.",
+        t("sweep1.text159"),
       )
     )
       return;
@@ -208,7 +213,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     if (data) {
       setPreview(null);
       setNotice(
-        "Envoi réel confirmé. Tu peux maintenant rechercher une vente payée après cette relance.",
+        t("sweep2.text160"),
       );
       await load();
     }
@@ -224,8 +229,8 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     if (live.current) {
       setNotice(
         found
-          ? `${found} vente(s) rapprochée(s). Une association ne prouve pas que la relance a causé l’achat.`
-          : "Aucune nouvelle vente admissible trouvée après les envois confirmés.",
+          ? t("dynamicExtra.reconciledSales", { count: (found) })
+          : t("sweep3.text161"),
       );
       await load();
       setReconciling(false);
@@ -234,7 +239,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
   async function optOut(row: CaseRow) {
     if (
       !window.confirm(
-        "Bloquer toute nouvelle relance pour ce téléphone dans cette boutique ?",
+        t("sweep1.text162"),
       )
     )
       return;
@@ -242,7 +247,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     if (data) {
       setPreview(null);
       setNotice(
-        "Contact désabonné : toute nouvelle préparation est bloquée pour ce téléphone.",
+        t("sweep2.text163"),
       );
       await load();
     }
@@ -251,20 +256,18 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
   if (!storeId)
     return (
       <section className="recovery">
-        <h2>Relances WhatsApp</h2>
-        <p>Sélectionne une boutique pour consulter ses paiements abandonnés.</p>
+        <h2>{copy("recoveryHeading", t("workspaceExtra.whatsapp"))}</h2>
+        <p>{locale === "en" ? "Select a store to view its abandoned payments." : "Sélectionne une boutique pour consulter ses paiements abandonnés."}</p>
       </section>
     );
   return (
-    <section className="recovery" aria-label="Relances WhatsApp">
+    <section className="recovery" aria-label={t("workspaceExtra.whatsapp")}>
       <div className="rec-page-heading">
         <div>
-          <span className="business-eyebrow">RELATION CLIENT</span>
-          <h2>Une seconde chance pour chaque panier</h2>
+          <span className="business-eyebrow">{t("finalExtra.text12")}</span>
+          <h2>{copy("recoveryTitle", t("sweep3.text164"))}</h2>
           <p>
-            Retrouve les paiements abandonnés et ouvre directement une relance polie
-            dans WhatsApp, sans formulaire à remplir.
-          </p>
+            {t("sweep1.text165")}</p>
         </div>
         <button
           type="button"
@@ -272,49 +275,44 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
           disabled={disabled}
           onClick={() => void load()}
         >
-          <RefreshCw size={15} /> Actualiser les abandons
+          <RefreshCw size={15} /> {copy("refresh", t("sweep2.text166"))}
         </button>
       </div>
       <div className="rec-safety">
         <ShieldCheck size={20} />
         <div>
-          <strong>Avec consentement, toujours.</strong>
+          <strong>{t("finalExtra.text13")}</strong>
           <p>
-            Un clic prépare le message avec les données et le lien Chariow. Tu valides
-            l’envoi dans WhatsApp. Un numéro enregistré ne vaut pas consentement.
-            Si un client répond STOP, utilise « Ne plus relancer ».
-          </p>
+            {t("sweep3.text167")}</p>
         </div>
       </div>
       {error && (
         <div role="alert" className="rec-error">
-          {error}
+          {localizeSystemMessage(error, locale)}
           <button
             className="rec-secondary"
             type="button"
             onClick={() => void load()}
           >
-            Réessayer
-          </button>
+            {t("adminExtra.admin.retry")}</button>
         </div>
       )}
       {notice && (
         <div role="status" className="rec-notice">
-          {notice}
+          {localizeSystemMessage(notice, locale)}
         </div>
       )}
       {limitNote && (
         <p className="rec-muted">
-          {limitNote} Les totaux portent sur les cas chargés.
-        </p>
+          {limitNote} {" "}{t("sweep1.text168")}</p>
       )}
       {preview && (
         <div className="rec-box rec-preview">
           <div className="rec-section-heading">
-            <h3>Ouvrir la relance</h3>
+            <h3>{copy("openFollowup", t("overviewExtra.openFollowup"))}</h3>
             <button
               className="rec-icon-button"
-              aria-label="Fermer l’aperçu du message"
+              aria-label={t("sweep2.text169")}
               onClick={() => setPreview(null)}
             >
               <X size={17} />
@@ -327,16 +325,14 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <MessageCircle size={15} /> Ouvrir WhatsApp pour envoyer
+            <MessageCircle size={15} /> {copy("openWhatsApp", t("sweep3.text170"))}
           </a>
           <p className="rec-muted">
-            L’ouverture ne marque pas le message comme envoyé. Confirme l’envoi
-            réel dans le cas enregistré.
-          </p>
+            {t("sweep1.text171")}</p>
         </div>
       )}
       {loading ? (
-        <div className="rec-box" role="status" aria-busy="true" aria-label="Chargement des abandons et des relances">
+        <div className="rec-box" role="status" aria-busy="true" aria-label={t("sweep2.text172")}>
           <div className="rec-summary-grid">
             {[0, 1, 2].map((index) => (
               <div className="rec-summary" key={index}>
@@ -346,43 +342,38 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
               </div>
             ))}
           </div>
-          <SkeletonRows count={4} label="Chargement des relances" />
+          <SkeletonRows count={4} label={t("sweep3.text173")} />
         </div>
       ) : (
         <>
           <div className="rec-summary-grid">
             <div className="rec-summary">
               <span>
-                <Clock3 size={16} /> Abandons à vérifier
-              </span>
+                <Clock3 size={16} /> {" "}{t("sweep1.text174")}</span>
               <strong>{candidates.length}</strong>
-              <small>30 derniers jours</small>
+              <small>{t("adminComplete.last30")}</small>
             </div>
             <div className="rec-summary">
               <span>
-                <MessageCircle size={16} /> Relances envoyées
-              </span>
+                <MessageCircle size={16} /> {" "}{t("sweep2.text175")}</span>
               <strong>{rows.filter((row) => row.sent_at).length}</strong>
-              <small>Envoi confirmé manuellement</small>
+              <small>{t("sweep3.text176")}</small>
             </div>
             <div className="rec-summary">
               <span>
-                <Check size={16} /> Ventes rapprochées
-              </span>
+                <Check size={16} /> {" "}{t("sweep1.text177")}</span>
               <strong>
                 {rows.filter((row) => row.status === "recovered").length}
               </strong>
-              <small>Après l’envoi, sans preuve de causalité</small>
+              <small>{t("sweep2.text178")}</small>
             </div>
           </div>
           <div className="rec-box">
             <div className="rec-section-heading">
               <div>
-                <h3>Ventes payées après relance</h3>
+                <h3>{t("sweep3.text179")}</h3>
                 <p>
-                  Références vérifiées et estimations restent séparées, devise
-                  par devise.
-                </p>
+                  {t("sweep1.text180")}</p>
               </div>
               <button
                 type="button"
@@ -396,7 +387,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                   size={14}
                   className={reconciling ? "rec-spinning" : ""}
                 />{" "}
-                {reconciling ? "Recherche…" : "Actualiser les ventes"}
+                {reconciling ? t("adminComplete.searching") : t("sweep2.text181")}
               </button>
             </div>
             {totals.length ? (
@@ -406,11 +397,11 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                     <small>{total.currency}</small>
                     <strong>{money(total.total, total.currency)}</strong>
                     <span>
-                      Référence vérifiée :{" "}
+                      {t("sweep3.text182")}{" "}
                       {money(total.reference, total.currency)}
                     </span>
                     <span>
-                      Rapprochement estimé :{" "}
+                      {t("sweep1.text183")}{" "}
                       {money(total.estimated, total.currency)}
                     </span>
                   </div>
@@ -418,26 +409,21 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
               </div>
             ) : (
               <div className="rec-empty">
-                Aucune vente rapprochée pour l’instant. Les ventes sont
-                recherchées après un envoi confirmé.
-              </div>
+                {t("sweep2.text184")}</div>
             )}
           </div>
           <div className="rec-box">
             <div className="rec-section-heading">
               <div>
-                <h3>Paiements abandonnés</h3>
+                <h3>{t("sweep3.text185")}</h3>
                 <p>
-                  Les coordonnées et le lien sont récupérés automatiquement depuis Chariow.
-                  Confirme le consentement, puis clique sur Relancer.
-                </p>
+                  {t("sweep1.text186")}</p>
               </div>
               <span className="rec-count">{candidates.length}</span>
             </div>
             {!candidates.length ? (
               <div className="rec-empty">
-                Aucun paiement abandonné récent à traiter.
-              </div>
+                {t("sweep2.text187")}</div>
             ) : (
               <div className="rec-candidates">
                 {candidates.map((candidate) => (
@@ -461,30 +447,28 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                         )}{" "}
                         ·{" "}
                         {candidate.status === "failed"
-                          ? "Paiement échoué"
-                          : "Paiement abandonné"}
+                          ? t("sweep3.text188")
+                          : t("sweep1.text189")}
                       </small>
                       {candidate.failureReason && (
                         <small>{candidate.failureReason}</small>
                       )}
                       {!candidate.phone && (
                         <small className="rec-warning">
-                          Numéro WhatsApp absent des données Chariow : relance indisponible.
-                        </small>
+                          {t("sweep2.text190")}</small>
                       )}
                     </div>
                     <div className="rec-direct-actions">
-                      {!candidate.paymentUrl && <small className="rec-warning">Lien produit indisponible dans Chariow. Publie la page puis actualise.</small>}
+                      {!candidate.paymentUrl && <small className="rec-warning">{t("sweep3.text191")}</small>}
                       {candidate.phone && candidate.paymentUrl && <label className="rec-consent">
                         <input type="checkbox" checked={!!consents[candidate.id]}
                           onChange={event => setConsents(current => ({...current,[candidate.id]:event.target.checked}))}/>
-                        <span>Ce client a accepté les relances WhatsApp ; je dispose de son consentement.</span>
+                        <span>{t("sweep1.text192")}</span>
                       </label>}
                       <button type="button" className="rec-primary"
                         disabled={disabled || !candidate.phone || !candidate.paymentUrl || !consents[candidate.id]}
                         onClick={() => void launch(candidate)}>
-                        <MessageCircle size={15}/> Relancer sur WhatsApp
-                      </button>
+                        <MessageCircle size={15}/> {" "}{t("finalExtra.text14")}</button>
                     </div>
                   </article>
                 ))}
@@ -496,12 +480,12 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
       {!loading && (
         <div className="rec-box">
           <div className="rec-section-heading">
-            <h3>Suivi de mes relances</h3>
+            <h3>{copy("followupTracking", t("optionsExtra.text18"))}</h3>
             <span className="rec-count">{rows.length}</span>
           </div>
           {!rows.length ? (
             <div className="rec-empty">
-              Aucune relance enregistrée. Lance une relance depuis un paiement abandonné.
+              {locale === "en" ? overviewCopy.en["overviewExtra.recoveryEmpty"] : "Aucune relance enregistrée. Lance une relance depuis un paiement abandonné."}
             </div>
           ) : (
             <div className="rec-cases">
@@ -513,8 +497,8 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                     </strong>
                     <span className={`rec-badge ${row.status}`}>
                       {row.opt_out_at
-                        ? "Contact désabonné"
-                        : statuses[row.status] || row.status}
+                        ? t("sweep2.text193")
+                        : statuses[row.status] ? (locale === "en" ? t(`overviewExtra.${row.status === "opted_out" ? "optedOut" : row.status}`) : statuses[row.status]) : row.status}
                     </span>
                   </div>
                   <p>
@@ -522,13 +506,13 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                     {money(row.amount, row.currency)}
                   </p>
                   <small className="rec-muted">
-                    Consentement :{" "}
+                    {t("finalExtra.text15")}{" "}
                     {new Date(row.consent_at).toLocaleString("fr-FR")} ·{" "}
                     {row.consent_source}
                   </small>
                   {row.sent_at && (
                     <p className="rec-muted">
-                      Envoi confirmé le{" "}
+                      {t("sweep3.text194")}{" "}
                       {new Date(row.sent_at).toLocaleString("fr-FR")}
                     </p>
                   )}
@@ -540,8 +524,8 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                       )}{" "}
                       ·{" "}
                       {row.attribution === "confirmed"
-                        ? "Référence vérifiée"
-                        : "Rapprochement estimé par identité"}
+                        ? t("sweep1.text195")
+                        : t("sweep2.text196")}
                     </p>
                   )}
                   <div className="rec-case-actions">
@@ -553,7 +537,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                           disabled={disabled}
                           onClick={() => void prepare(row)}
                         >
-                          {row.status === "open" ? "Relancer sur WhatsApp" : "Rouvrir WhatsApp"}
+                          {row.status === "open" ? t("finalExtra.text14") : t("optionsExtra.text19")}
                         </button>
                       )}
                     {!row.opt_out_at && row.status === "prepared" && (
@@ -563,8 +547,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                         disabled={disabled}
                         onClick={() => void markSent(row)}
                       >
-                        Confirmer l’envoi réel
-                      </button>
+                        {t("sweep3.text197")}</button>
                     )}
                     {!row.opt_out_at && row.status !== "opted_out" && (
                       <button
@@ -573,8 +556,7 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                         disabled={disabled}
                         onClick={() => void optOut(row)}
                       >
-                        Ne plus relancer
-                      </button>
+                        {t("finalExtra.text16")}</button>
                     )}
                   </div>
                 </article>
@@ -584,14 +566,11 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
         </div>
       )}
       <div className="rec-box rec-automation-info">
-        <strong>Tu gardes la main sur chaque relance</strong>
-        <p className="rec-muted">Prépare ton message ici, puis ouvre WhatsApp pour le vérifier et l’envoyer toi-même. Aucun message ne part automatiquement.</p>
+        <strong>{t("finalExtra.text17")}</strong>
+        <p className="rec-muted">{t("sweep1.text198")}</p>
       </div>
       <p className="rec-footnote">
-        Un rapprochement indique une vente payée après une relance : il ne
-        prouve pas, à lui seul, que la relance a causé cette vente. Les réponses
-        WhatsApp et les demandes STOP se traitent manuellement.
-      </p>
+        {t("sweep2.text199")}</p>
     </section>
   );
 }

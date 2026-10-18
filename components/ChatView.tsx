@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { Activity, ArrowRight, Camera, Copy, FileText, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
@@ -162,12 +163,12 @@ function parseAssistantMessage(rawContent: string): { content: string; launchPay
 // plutôt qu'à des questions génériques qui ne mèneraient nulle part.
 type QuickPrompt = { icon: React.ReactNode; label: string; prompt?: string; action?: "poster" };
 
-function formatConversationDate(value: string) {
+function formatConversationDate(value: string, locale: "fr" | "en") {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const today = new Date();
-  if (date.toDateString() === today.toDateString()) return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  if (date.toDateString() === today.toDateString()) return date.toLocaleTimeString(locale === "en" ? "en-US" : "fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleDateString(locale === "en" ? "en-US" : "fr-FR", { day: "numeric", month: "short" });
 }
 
 // Envoie un fichier et renvoie la pièce jointe prête à être jointe au message.
@@ -200,6 +201,7 @@ async function uploadChatFile(file: File): Promise<Omit<ChatAttachment, "id" | "
 // fois dans les bulles de la conversation et dans le composeur. Quand `uploading` est
 // vrai (import Cloudinary en cours), un spinner s'affiche par-dessus l'aperçu local.
 function AttachmentPreview({ attachment }: { attachment: ChatAttachment }) {
+  const { t } = useI18n();
   const spinner = attachment.uploading ? <span className="chat-attachment-spinner" aria-hidden="true" /> : null;
   if (attachment.type === "image") {
     return (
@@ -229,14 +231,14 @@ function AttachmentPreview({ attachment }: { attachment: ChatAttachment }) {
   return (
     <span className="chat-attachment-doc">
       <FileText size={14} />
-      <span>{attachment.name ?? "Document"}</span>
+      <span>{attachment.name ?? t("workspaceExtra.document")}</span>
       {spinner}
     </span>
   );
 }
 
 export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoToSubscription: () => void; onUsageChange: (patch: UsagePatch) => void; onBack?: () => void }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -402,7 +404,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     // Pas d'envoi tant qu'un fichier est en cours d'import : sinon l'aperçu local (blob:) partirait au serveur.
     if (uploading) return;
     // Photos/vidéos/documents sans texte : on envoie un message par défaut plutôt que de bloquer l'envoi.
-    const message = !rawMessage.trim() && attachments.length ? (attachments.every((a) => a.type === "document") ? "Voici mon document." : "Voici mes images.") : rawMessage;
+    const message = !rawMessage.trim() && attachments.length ? (attachments.every((a) => a.type === "document") ? t("workspaceExtra.sendDocument") : t("workspaceExtra.sendImages")) : rawMessage;
     if (!message.trim() || sending || plansRequired) return;
     const epoch = sessionEpochRef.current;
     const isCurrentSession = () => sessionEpochRef.current === epoch;
@@ -480,7 +482,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
       if (!isCurrentSession()) return;
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: timedOut ? "L'IA met trop de temps à répondre. Réessaie dans un instant." : t("chat.error") },
+        { role: "assistant", content: timedOut ? t("workspaceExtra.chatTimeout") : t("chat.error") },
       ]);
     } finally {
       window.clearTimeout(timeoutId);
@@ -503,14 +505,14 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     const selected = Array.from(files);
     const remaining = MAX_CHAT_ATTACHMENTS - attachments.length;
     if (remaining <= 0) {
-      setUploadError(`Maximum ${MAX_CHAT_ATTACHMENTS} fichiers par message.`);
+      setUploadError(t("dynamicExtra.maxAttachmentsSimple", { max: (MAX_CHAT_ATTACHMENTS) }));
       resetFileInputs();
       return;
     }
     setUploading(true);
     setUploadError(null);
     const fileList = selected.slice(0, remaining);
-    let firstError: string | null = selected.length > remaining ? `Maximum ${MAX_CHAT_ATTACHMENTS} fichiers par message : les ${remaining} premiers ont été gardés.` : null;
+    let firstError: string | null = selected.length > remaining ? t("dynamicExtra.maxAttachments", { max: (MAX_CHAT_ATTACHMENTS), kept: (remaining) }) : null;
     // Aperçu immédiat : dès que les fichiers sont choisis (galerie ou caméra), on les
     // ajoute tout de suite au composeur avec un aperçu local (blob) et `uploading: true`,
     // avant même que l'upload ne démarre. Sans ça, il y avait un blanc de
@@ -529,7 +531,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         const uploaded = await uploadChatFile(file);
         setAttachments((current) => current.map((a) => (a.id === placeholder.id ? { ...uploaded, id: placeholder.id } : a)));
       } catch (error) {
-        if (!firstError) firstError = error instanceof Error && error.message ? error.message : "Impossible d'envoyer ce fichier.";
+        if (!firstError) firstError = error instanceof Error && error.message ? error.message : t("interfaceExtra.fileUploadFailed");
         setAttachments((current) => current.filter((a) => a.id !== placeholder.id));
       } finally {
         if (placeholder.url) URL.revokeObjectURL(placeholder.url);
@@ -565,17 +567,17 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
 
   async function confirmLaunch() {
     if (!launchPayload?.name || !launchPayload.message) {
-      setLaunchError("Il manque le nom ou le texte de la créative pour lancer la campagne.");
+      setLaunchError(t("sweep3.text107"));
       return;
     }
     const linkUrl = normalizeLinkUrl(launchLink);
     if (!linkUrl) {
-      setLaunchError("Indique le lien de ta page de redirection (ex. https://ta-page-de-vente.com) avant de lancer la campagne.");
+      setLaunchError(t("sweep1.text108"));
       return;
     }
     const dailyBudget = Number(launchBudget.replace(/\s/g, "").replace(",", "."));
     if (!Number.isFinite(dailyBudget) || dailyBudget <= 0) {
-      setLaunchError("Indique un budget journalier valide (ex. 2 en dollars, ou 1000 en F CFA).");
+      setLaunchError(t("optionsExtra.text6"));
       return;
     }
     const payload = launchPayload;
@@ -583,7 +585,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     // Une vidéo est toujours envoyée seule.
     const isPinterest = payload.platform === "pinterest";
     if (!isPinterest && !launchCta) {
-      setLaunchError("Choisis le bouton d'appel à l'action de ta publicité avant de lancer la campagne.");
+      setLaunchError(t("sweep2.text109"));
       return;
     }
     const isVideo = launchMediaKind === "video";
@@ -623,14 +625,14 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         return;
       }
       const usdNote = typeof data.dailyBudgetUsd === "number" && launchCurrency !== "USD" ? ` (≈ ${data.dailyBudgetUsd} $)` : "";
-      const carouselNote = carouselUrls.length ? ` en carrousel de ${carouselUrls.length + 1} images` : isVideo ? " avec ta vidéo" : "";
+      const carouselNote = carouselUrls.length ? t("dynamicExtra.carouselNote", { count: (carouselUrls.length + 1) }) : isVideo ? t("sweep3.text110") : "";
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: `✅ Campagne « ${payload.name} » lancée sur ${isPinterest ? "Pinterest" : "Meta"}${carouselNote} avec ${dailyBudget} ${launchCurrency}/jour${usdNote}. Elle apparaît dans la page Pub.` },
+        { role: "assistant", content: t("dynamicExtra.campaignLaunched", { name: (payload.name ?? ""), platform: (isPinterest ? "Pinterest" : "Meta"), carousel: (carouselNote), budget: (dailyBudget), currency: (launchCurrency), usd: (usdNote) }) },
       ]);
       setLaunchOpen(false);
     } catch {
-      setLaunchError("Erreur de connexion au lancement.");
+      setLaunchError(t("sweep1.text111"));
     } finally {
       setLaunching(false);
     }
@@ -662,7 +664,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
       <section className="app-card chat-card ai-main">
         <div className="chat-header">
           {onBack ? (
-            <button type="button" className="chat-back-button" onClick={onBack} aria-label="Retour">
+            <button type="button" className="chat-back-button" onClick={onBack} aria-label={t("interfaceExtra.back")}>
               <ArrowRight size={16} style={{ transform: "rotate(180deg)" }} />
             </button>
           ) : null}
@@ -800,13 +802,13 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         </div>
 
         <div className="chat-composer">
-          {uploadError ? <p className="chat-upload-error">{uploadError}</p> : null}
+          {uploadError ? <p className="chat-upload-error">{localizeSystemMessage(uploadError, locale)}</p> : null}
           {attachments.length ? (
             <div className="chat-attachments">
               {attachments.map((attachment) => (
                 <span key={attachment.id ?? attachment.url} className={attachment.uploading ? "chat-attachment-chip chat-attachment-chip-uploading" : "chat-attachment-chip"}>
                   <AttachmentPreview attachment={attachment} />
-                  <button type="button" onClick={() => setAttachments((current) => current.filter((a) => a !== attachment))} aria-label="Retirer">×</button>
+                  <button type="button" onClick={() => setAttachments((current) => current.filter((a) => a !== attachment))} aria-label={t("interfaceExtra.remove")}>×</button>
                 </span>
               ))}
             </div>
@@ -858,13 +860,13 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
               onChange={(event) => void handleAttach(event.target.files)}
             />
             <details className="chat-attach-menu">
-              <summary className="chat-suggest-toggle" aria-label="Ajouter une pièce jointe" title="Ajouter une pièce jointe" aria-disabled={uploading || plansRequired}>
+              <summary className="chat-suggest-toggle" aria-label={t("interfaceExtra.attach")} title={t("interfaceExtra.attach")} aria-disabled={uploading || plansRequired}>
                 <Plus size={18} />
               </summary>
               <div className="chat-attach-options">
-                <button type="button" disabled={uploading || plansRequired} onClick={() => { document.querySelector<HTMLDetailsElement>(".chat-attach-menu")?.removeAttribute("open"); cameraInputRef.current?.click(); }}><Camera size={15} /> Prendre une photo</button>
-                <button type="button" disabled={uploading || plansRequired} onClick={() => { document.querySelector<HTMLDetailsElement>(".chat-attach-menu")?.removeAttribute("open"); fileInputRef.current?.click(); }}><Paperclip size={15} /> Photos et vidéos</button>
-                <button type="button" disabled={uploading || plansRequired} onClick={() => { document.querySelector<HTMLDetailsElement>(".chat-attach-menu")?.removeAttribute("open"); docInputRef.current?.click(); }}><FileText size={15} /> Document PDF ou Word</button>
+                <button type="button" disabled={uploading || plansRequired} onClick={() => { document.querySelector<HTMLDetailsElement>(".chat-attach-menu")?.removeAttribute("open"); cameraInputRef.current?.click(); }}><Camera size={15} /> {" "}{t("sweep2.text112")}</button>
+                <button type="button" disabled={uploading || plansRequired} onClick={() => { document.querySelector<HTMLDetailsElement>(".chat-attach-menu")?.removeAttribute("open"); fileInputRef.current?.click(); }}><Paperclip size={15} /> {" "}{t("sweep3.text113")}</button>
+                <button type="button" disabled={uploading || plansRequired} onClick={() => { document.querySelector<HTMLDetailsElement>(".chat-attach-menu")?.removeAttribute("open"); docInputRef.current?.click(); }}><FileText size={15} /> {" "}{t("finalExtra.text5")}</button>
               </div>
             </details>
             <textarea
@@ -897,7 +899,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           <div className="chat-launch-modal" onClick={(event) => event.stopPropagation()}>
             <div className="chat-launch-head">
               <strong><Rocket size={16} /> {t("chat.launchCampaign")}</strong>
-              <button type="button" onClick={() => setLaunchOpen(false)} aria-label="Fermer">×</button>
+              <button type="button" onClick={() => setLaunchOpen(false)} aria-label={t("wizardExtra.close")}>×</button>
             </div>
             <p className="chat-launch-question">{t("chat.launchConfirmQuestion")}</p>
             <div className="chat-launch-summary">
@@ -921,8 +923,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
               <div className="chat-launch-image">
                 <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 600 }}>
                   {launchIsPinterest
-                    ? `${launchImageUrls.length} images : Pinterest utilisera seulement la première.`
-                    : `Carrousel : ${launchImageUrls.length} images (la première est la carte principale).`}
+                    ? t("dynamicExtra.firstPinterestImage", { count: (launchImageUrls.length) })
+                    : t("dynamicExtra.carouselImages", { count: (launchImageUrls.length) })}
                 </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   {launchImageUrls.map((url, imageIndex) => (
@@ -931,7 +933,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                       <img src={url} alt={`${t("chat.launchCreative")} ${imageIndex + 1}`} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, display: "block" }} />
                       <button
                         type="button"
-                        aria-label="Retirer cette image"
+                        aria-label={t("sweep1.text114")}
                         disabled={launching}
                         onClick={() => setLaunchImageUrls((current) => current.filter((item) => item !== url))}
                         style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#111", color: "#fff", fontSize: 12, lineHeight: "20px", padding: 0, cursor: "pointer" }}
@@ -944,13 +946,13 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
               </div>
             ) : null}
             <label className="chat-launch-account">
-              <span>{t("chat.launchBudget")} (par jour) *</span>
+              <span>{t("chat.launchBudget")} {" "}{t("finalExtra.text6")}</span>
               <span style={{ display: "flex", gap: 8 }}>
                 <input
                   type="text"
                   inputMode="decimal"
                   autoComplete="off"
-                  placeholder="ex. 2"
+                  placeholder={t("optionsExtra.text7")}
                   value={launchBudget}
                   onChange={(event) => setLaunchBudget(event.target.value)}
                   disabled={launching}
@@ -965,12 +967,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
               </span>
             </label>
             <label className="chat-launch-account">
-              <span>Lien de la page de redirection *</span>
+              <span>{t("finalExtra.text7")}</span>
               <input
                 type="url"
                 inputMode="url"
                 autoComplete="off"
-                placeholder="https://ta-page-de-vente.com"
+                placeholder={t("optionsExtra.text8")}
                 value={launchLink}
                 onChange={(event) => setLaunchLink(event.target.value)}
                 disabled={launching}
@@ -979,9 +981,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             </label>
             {!launchIsPinterest ? (
               <label className="chat-launch-account">
-                <span>Bouton d'appel à l'action *</span>
+                <span>{t("sweep2.text115")}</span>
                 <select value={launchCta} onChange={(event) => setLaunchCta(normalizeMetaCta(event.target.value) ?? "")} disabled={launching} required>
-                  <option value="">Choisir un bouton</option>
+                  <option value="">{t("finalExtra.text8")}</option>
                   {META_CTA_TYPES.map((type) => (
                     <option key={type} value={type}>{META_CTA_LABELS[type].fr}</option>
                   ))}
@@ -1003,7 +1005,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                 )}
               </label>
             ) : null}
-            {launchError ? <p className="store-error" role="alert">{launchError}</p> : null}
+            {launchError ? <p className="store-error" role="alert">{localizeSystemMessage(launchError, locale)}</p> : null}
             <div className="chat-launch-actions">
               <button type="button" className="btn btn-ghost" disabled={launching} onClick={() => setLaunchOpen(false)}>{t("chat.cancel")}</button>
               <button type="button" className="btn btn-dark" disabled={launching || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && !launchCta)} onClick={() => void confirmLaunch()}>{launching ? t("chat.sending") : t("chat.confirmLaunch")}</button>
@@ -1017,7 +1019,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           <aside className="chat-history-drawer" onClick={(event) => event.stopPropagation()} aria-label={t("chat.history")}>
             <div className="chat-history-head">
               <strong>{t("chat.history")}</strong>
-              <button type="button" onClick={() => setHistoryOpen(false)} aria-label="Fermer">×</button>
+              <button type="button" onClick={() => setHistoryOpen(false)} aria-label={t("wizardExtra.close")}>×</button>
             </div>
             <button type="button" className="chat-history-new" onClick={startNewConversation}>
               <Plus size={15} /> {t("chat.newConversation")}
@@ -1030,7 +1032,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                   <li key={conversation.id}>
                     <button type="button" className={conversation.id === conversationId ? "active" : ""} onClick={() => void openConversation(conversation.id)}>
                       <strong>{conversation.title || t("chat.untitled")}</strong>
-                      <small>{formatConversationDate(conversation.updated_at)}</small>
+                      <small>{formatConversationDate(conversation.updated_at, locale)}</small>
                     </button>
                   </li>
                 ))}

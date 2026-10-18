@@ -1,10 +1,11 @@
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MetaAccountSkeleton } from "./MetaAccountSkeleton";
-
+import { I18nProvider } from "@/lib/i18n/i18n";
+vi.mock("@/lib/i18n/i18n", async (importOriginal) => { const actual = await importOriginal<typeof import("@/lib/i18n/i18n")>(); const { translate } = await import("@/lib/i18n/translate"); return { ...actual, useI18n: () => ({ locale: "fr", setLocale: () => {}, t: (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars) }) }; });
 const { JSDOM } = require("jsdom") as { JSDOM: new (html: string, options: { url: string }) => any };
 let dom: any;
 let root: ReturnType<typeof createRoot> | undefined;
@@ -25,7 +26,7 @@ describe("MetaAccountSkeleton", () => {
     const container = dom.window.document.getElementById("root");
     root = createRoot(container);
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    act(() => root!.render(createElement(MetaAccountSkeleton)));
+    act(() => root!.render(createElement(I18nProvider, null, createElement(MetaAccountSkeleton))));
 
     const status = container.querySelector('[role="status"]');
     expect(status?.getAttribute("aria-label")).toBe("Chargement des données du compte Meta");

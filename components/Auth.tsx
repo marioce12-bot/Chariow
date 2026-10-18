@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, ShieldCheck } from "lucide-react";
@@ -8,7 +9,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/lib/i18n/i18n";
 
 export function Auth({ mode, configurationError = false }: { mode: "login" | "register" | "forgot"; configurationError?: boolean }) {
-  const { t } = useI18n();
+  const { t , locale } = useI18n();
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -100,10 +101,10 @@ export function Auth({ mode, configurationError = false }: { mode: "login" | "re
         {submitted ? <div className="auth-success">{successMessage}</div> : (
           <form onSubmit={submit}>
             {register && <div className="form-group"><label htmlFor="fullName">{t("auth.fullName")}</label><input id="fullName" name="fullName" required placeholder="Aïcha" /></div>}
-            <div className="form-group"><label htmlFor="email">{t("auth.email")}</label><input id="email" name="email" required type="email" placeholder="toi@exemple.com" /></div>
+            <div className="form-group"><label htmlFor="email">{t("auth.email")}</label><input id="email" name="email" required type="email" placeholder={t("optionsExtra.text5")} /></div>
             {!forgot && <div className="form-group"><label htmlFor="password">{t("auth.password")}</label><input id="password" name="password" required type="password" placeholder={t("auth.passwordPlaceholder")} minLength={8} /></div>}
             {register && <label className="legal-consent"><input type="checkbox" required /><span><ShieldCheck size={14} aria-hidden="true" /> {t("auth.consent")} <Link href="/terms" target="_blank">{t("auth.terms")}</Link> {t("auth.and")} <Link href="/privacy" target="_blank">{t("auth.privacy")}</Link>.</span></label>}
-            {error && <p className="form-error">{error}</p>}
+            {error && <p className="form-error">{localizeSystemMessage(error, locale)}</p>}
             <button className="btn btn-dark" type="submit" disabled={(register || forgot) ? sendingEmail : false}>{forgot ? t("auth.sendLink") : register ? t("auth.createSpace") : t("auth.login")} <ArrowRight size={15} /></button>
           </form>
         )}

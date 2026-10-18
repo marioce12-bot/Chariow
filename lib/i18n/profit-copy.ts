@@ -1,0 +1,52 @@
+import type { Locale } from "./locales";
+
+export const profitCopy: Record<Locale, Record<string, string>> = {
+  "fr": {
+    "tracking.sales_unavailable": "Les ventes n’ont pas pu être vérifiées. Les chiffres peuvent être incomplets.",
+    "tracking.coverage_unknown": "La couverture complète des ventes Chariow n’est pas confirmée.",
+    "tracking.sales_stale": "Une synchronisation complète récente des ventes est nécessaire.",
+    "tracking.products_unknown": "Le lien vente → produit n’a pas pu être vérifié.",
+    "tracking.products_missing": "{count} vente(s) payée(s) sans produit identifié.",
+    "tracking.amounts_unknown": "Les montants et devises des ventes ne sont pas vérifiés.",
+    "tracking.amounts_missing": "{count} vente(s) payée(s) avec montant ou devise inconnu.",
+    "tracking.accounts_unknown": "Les comptes publicitaires n’ont pas pu être vérifiés.",
+    "tracking.account_unlinked": "L’association d’un compte Meta à cette boutique n’est pas identifiée dans Vendeo.",
+    "tracking.attribution_unknown": "L’attribution vente → campagne n’a pas pu être vérifiée.",
+    "tracking.attribution_missing": "{count} vente(s) payée(s) sans campagne publicitaire attribuée. Ces ventes peuvent être organiques ; ne pas leur attribuer de campagne sans preuve fiable.",
+    "tracking.pixel_unknown": "Aucun pixel n’est déclaré comme installé sur Chariow pour ce compte.",
+    "tracking.pixel_events_unknown": "Les événements d’achat ne sont pas vérifiables dans Vendeo ; cela ne remet pas en cause l’installation déclarée du pixel.",
+    "tracking.no_paid_sales": "Aucune vente payée dans cette période : le suivi d’un achat réel reste à valider.",
+    "Le rapprochement entre les ventes Chariow et cette campagne Meta n’est pas encore vérifié dans Vendeo. Cela ne signifie pas que le pixel est mal installé.": "Le rapprochement entre les ventes Chariow et cette campagne Meta n’est pas encore vérifié dans Vendeo. Cela ne signifie pas que le pixel est mal installé.",
+    "Dépenses ou couverture de synchronisation Meta incomplètes.": "Dépenses ou couverture de synchronisation Meta incomplètes.",
+    "Historique des ventes incomplet ou périmé pour la période.": "Historique des ventes incomplet ou périmé pour la période.",
+    "Produit ou devise manquant/incompatible : aucun montant n’est supprimé silencieusement.": "Produit ou devise manquant/incompatible : aucun montant n’est supprimé silencieusement.",
+    "Net encaissé/frais réels incomplets.": "Net encaissé/frais réels incomplets.",
+    "Net estimé à partir des frais Chariow de 15 %, pas un règlement net confirmé.": "Net estimé à partir des frais Chariow de 15 %, pas un règlement net confirmé.",
+    "Données incomplètes : vérifier le suivi avant de modifier le budget.": "Données incomplètes : vérifier le suivi avant de modifier le budget.",
+    "tracking.pixel_unverified": "L’installation du pixel Chariow n’a pas pu être vérifiée."
+  },
+  "en": {
+    "tracking.sales_unavailable": "Sales could not be verified. Figures may be incomplete.",
+    "tracking.coverage_unknown": "Complete Chariow sales coverage is not confirmed.",
+    "tracking.sales_stale": "A recent complete sales sync is required.",
+    "tracking.products_unknown": "The sale-to-product link could not be verified.",
+    "tracking.products_missing": "{count} paid sale(s) have no identified product.",
+    "tracking.amounts_unknown": "Sales amounts and currencies are not verified.",
+    "tracking.amounts_missing": "{count} paid sale(s) have an unknown amount or currency.",
+    "tracking.accounts_unknown": "Ad accounts could not be verified.",
+    "tracking.account_unlinked": "No Meta account linked to this store is identified in Vendeo.",
+    "tracking.attribution_unknown": "Sale-to-campaign attribution could not be verified.",
+    "tracking.attribution_missing": "{count} paid sale(s) have no attributed ad campaign. These may be organic sales; do not assign a campaign without reliable evidence.",
+    "tracking.pixel_unknown": "No pixel is declared as installed on Chariow for this account.",
+    "tracking.pixel_events_unknown": "Purchase events cannot be verified in Vendeo; this does not invalidate the declared pixel installation.",
+    "tracking.no_paid_sales": "No paid sales in this period; real purchase tracking still needs validation.",
+    "Le rapprochement entre les ventes Chariow et cette campagne Meta n’est pas encore vérifié dans Vendeo. Cela ne signifie pas que le pixel est mal installé.": "Matching between Chariow sales and this Meta campaign has not yet been verified in Vendeo. This does not mean the pixel is installed incorrectly.",
+    "Dépenses ou couverture de synchronisation Meta incomplètes.": "Meta spend or sync coverage is incomplete.",
+    "Historique des ventes incomplet ou périmé pour la période.": "Sales history is incomplete or out of date for this period.",
+    "Produit ou devise manquant/incompatible : aucun montant n’est supprimé silencieusement.": "Product or currency is missing/incompatible: no amount is silently discarded.",
+    "Net encaissé/frais réels incomplets.": "Actual net receipts/fees are incomplete.",
+    "Net estimé à partir des frais Chariow de 15 %, pas un règlement net confirmé.": "Net amount estimated from Chariow's 15% fees, not a confirmed net payout.",
+    "Données incomplètes : vérifier le suivi avant de modifier le budget.": "Incomplete data: verify tracking before changing the budget.",
+    "tracking.pixel_unverified": "The Chariow pixel installation could not be verified."
+  }
+};

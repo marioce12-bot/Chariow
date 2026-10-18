@@ -3,16 +3,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import ProductProfitPanel from "@/components/dashboard/ProductProfitPanel";
+import { I18nProvider } from "@/lib/i18n/i18n";
 
 let host: HTMLDivElement;
 let root: Root;
 
 async function mount(storeId: string | null) {
+  Object.defineProperty(navigator, "language", { configurable: true, value: "fr" });
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
   await act(async () => {
-    root.render(createElement(ProductProfitPanel, { storeId }));
+    root.render(createElement(I18nProvider, null, createElement(ProductProfitPanel, { storeId })));
   });
 }
 
@@ -20,6 +22,7 @@ afterEach(async () => {
   if (root) await act(async () => root.unmount());
   host?.remove();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("ProductProfitPanel", () => {

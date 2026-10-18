@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useCallback, useEffect, useState } from "react";
 import { Activity, BarChart3, Eye, Info, PauseCircle } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -18,11 +19,11 @@ const PERIODS = [
   { days: 30, label: "30 jours" },
 ] as const;
 
-function money(value: number, currency: string) {
+function money(value: number, currency: string, locale: "fr" | "en") {
   try {
-    return new Intl.NumberFormat("fr-FR", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+    return new Intl.NumberFormat((locale === "en" ? "en-US" : "fr-FR"), { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
   } catch {
-    return `${Math.round(value).toLocaleString("fr-FR")} ${currency}`;
+    return `${Math.round(value).toLocaleString((locale === "en" ? "en-US" : "fr-FR"))} ${currency}`;
   }
 }
 
@@ -39,7 +40,7 @@ function verdict(campaign: TikTokPerformance["performances"][number]) {
 }
 
 export function TikTokAdsPanel({ accounts }: { accounts: TikTokAccount[] }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const en = locale === "en";
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [days, setDays] = useState<number>(30);
@@ -61,17 +62,17 @@ export function TikTokAdsPanel({ accounts }: { accounts: TikTokAccount[] }) {
       const json = await response.json().catch(() => ({}));
       if (!response.ok) {
         setData(null);
-        setError(json.error ?? "Impossible de charger les stats TikTok Ads.");
+        setError(json.error ?? t("interfaceExtra.statsUnavailable", { platform: "TikTok" }));
       } else {
         setData(json as TikTokPerformance);
       }
     } catch {
       setData(null);
-      setError("Impossible de contacter TikTok Ads pour le moment.");
+      setError(t("interfaceExtra.platformUnavailable", { platform: "TikTok" }));
     } finally {
       setLoading(false);
     }
-  }, [accountId, days]);
+  }, [accountId, days, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -87,17 +88,17 @@ export function TikTokAdsPanel({ accounts }: { accounts: TikTokAccount[] }) {
         <button type="button" className="btn btn-ghost" onClick={() => void load()} disabled={loading}>{loading ? (en ? "Refreshing…" : "Actualisation…") : (en ? "Refresh" : "Actualiser")}</button>
       </div>
 
-      {error ? <p className="store-error" role="alert">{error}</p> : null}
+      {error ? <p className="store-error" role="alert">{localizeSystemMessage(error, locale)}</p> : null}
 
       {loading && !data ? <div className="empty-state">{en ? "Loading TikTok Ads stats…" : "Chargement des stats TikTok Ads…"}</div> : null}
 
       {data ? (
         <>
           <div className="vendeo-kpi-grid meta-kpis">
-            <div className="vendeo-kpi"><span className="metric-label">{en ? "Spend" : "Dépenses"}</span><strong>{money(data.overview.spend, currency)}</strong></div>
-            <div className="vendeo-kpi"><span className="metric-label">{en ? "Clicks" : "Clics"}</span><strong>{data.overview.clicks.toLocaleString("fr-FR")}</strong></div>
-            <div className="vendeo-kpi"><span className="metric-label">Conversions</span><strong>{data.overview.conversions.toLocaleString("fr-FR")}</strong></div>
-            <div className="vendeo-kpi"><span className="metric-label">Impressions</span><strong>{data.overview.impressions.toLocaleString("fr-FR")}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">{en ? "Spend" : "Dépenses"}</span><strong>{money(data.overview.spend, currency, locale)}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">{en ? "Clicks" : "Clics"}</span><strong>{data.overview.clicks.toLocaleString((locale === "en" ? "en-US" : "fr-FR"))}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">Conversions</span><strong>{data.overview.conversions.toLocaleString((locale === "en" ? "en-US" : "fr-FR"))}</strong></div>
+            <div className="vendeo-kpi"><span className="metric-label">Impressions</span><strong>{data.overview.impressions.toLocaleString((locale === "en" ? "en-US" : "fr-FR"))}</strong></div>
             <div className="vendeo-kpi"><span className="metric-label">{en ? "Click-through rate" : "Taux de clic"}</span><strong>{data.overview.ctr === null ? "-" : `${data.overview.ctr.toFixed(2)} %`}</strong></div>
           </div>
 
@@ -111,9 +112,9 @@ export function TikTokAdsPanel({ accounts }: { accounts: TikTokAccount[] }) {
                   return (
                     <div className="meta-table-row" key={campaign.id}>
                       <strong>{campaign.name}</strong>
-                      <span>{money(campaign.spend, currency)}</span>
-                      <span>{campaign.conversions.toLocaleString(en ? "en-US" : "fr-FR")}</span>
-                      <span>{campaign.clicks.toLocaleString("fr-FR")}</span>
+                      <span>{money(campaign.spend, currency, locale)}</span>
+                      <span>{campaign.conversions.toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</span>
+                      <span>{campaign.clicks.toLocaleString((locale === "en" ? "en-US" : "fr-FR"))}</span>
                       <span className={v.className}>{v.kind === "cut" ? <PauseCircle size={14} /> : v.kind === "watch" ? <Eye size={14} /> : <Activity size={14} />}{v.kind === "cut" ? (en ? "Cut" : "À couper") : v.kind === "watch" ? (en ? "Watch" : "À surveiller") : (en ? "No spend" : "Aucune dépense")}</span>
                     </div>
                   );

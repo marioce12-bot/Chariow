@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { translate } from "@/lib/i18n/translate";
 
 const source = readFileSync(fileURLToPath(new URL("./sections.tsx", import.meta.url)), "utf8");
 
@@ -19,7 +20,8 @@ describe("Meta account switching regression", () => {
     expect(source).toContain("setMetaResources(null);");
     expect(source).toContain("setMetaAccountRestricted(false);");
     expect(source).toContain("requestToken !== metaRequestToken.current");
-    expect(source).toContain("setMetaLoadError(\"Impossible de charger les données de ce compte Meta.\")");
+    expect(source).toContain('setMetaLoadError(t("sweep3.text299"))');
+    expect(translate("fr", "sweep3.text299")).toBe("Impossible de charger les données de ce compte Meta.");
 
     const a = deferred<string>();
     const b = deferred<string>();
@@ -50,7 +52,8 @@ describe("Meta account switching regression", () => {
     expect(metaToolbar).toBeGreaterThan(-1);
     expect(skeleton).toBeGreaterThan(metaToolbar);
     expect(pixelPanel).toBeGreaterThan(skeleton);
-    expect(source).toContain("Dernière synchro :");
+    expect(source).toContain('t("sweep3.text305")');
+    expect(translate("fr", "sweep3.text305")).toBe("Dernière synchro :");
     expect(source).toContain("!metaLoading && !metaLoadError && metaPerformance");
   });
 

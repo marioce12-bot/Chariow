@@ -79,10 +79,7 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
  */
 export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { storeId: string | null; plan?: PlanId; onNewCampaign: () => void }) {
   const { locale, t } = useI18n();
-  const statusLabels: Record<string, string> = locale === "en" ? {
-    draft: "Draft", account_required: "Account required", submitting: "Creating…", paused: "Paused", meta_paused: "Paused by Meta", autopilot_paused: "Paused by autopilot",
-    paid: "Ready to launch", review: "Under review", active: "Active", rejected: "Rejected", error: "Error", completed: "Completed", archived: "Archived", deleted: "Deleted on Meta", unavailable: "Status to verify",
-  } : Object.fromEntries(Object.entries(STATUS_META).map(([key, value]) => [key, value.label]));
+  const statusLabels: Record<string, string> = Object.fromEntries(Object.keys(STATUS_META).map((key) => [key, t(`adsExtra.status.${key}`)]));
   // Le plan sert au wizard de modification (ex. placement WhatsApp) : repris de la
   // prop si le parent le fournit, sinon lu une fois depuis /api/subscription.
   const [fetchedPlan, setFetchedPlan] = useState<PlanId>("starter");
@@ -228,7 +225,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
                    <span style={{ fontSize: 13, textAlign: "left", fontWeight: 700 }}>{c.title || c.product_name || c.product_id}</span>
                   <span className="hint-line">
-                    {c.platform === "meta" ? "Meta" : c.platform === "pinterest" ? "Pinterest" : "TikTok"}{c.objective === "sales" && c.effective_objective === "traffic" ? " · Trafic (sans pixel)" : ""} · {Number(c.daily_budget).toLocaleString("fr-FR")} $/j · {c.duration_days} j
+                    {c.platform === "meta" ? "Meta" : c.platform === "pinterest" ? "Pinterest" : "TikTok"}{c.objective === "sales" && c.effective_objective === "traffic" ? ` · ${t("adsExtra.traffic_without_pixel")}` : ""} · {Number(c.daily_budget).toLocaleString(locale)} $/{locale === "en" ? "day" : "j"} · {c.duration_days} {locale === "en" ? "days" : "j"}
                   </span>
                   {/* /launch garde le statut "paid" (jamais "error") apres un refus Meta/TikTok
                       pour permettre un nouvel essai sans repayer : le motif doit donc s'afficher
@@ -240,7 +237,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                   ) : null}
                 </div>
                 <div className="ad-campaign-actions">
-                  {c.media_url ? <img className="ad-campaign-thumb" src={c.media_url} alt="Affiche de la campagne" style={{ width: 42, height: 42, borderRadius: 7, objectFit: "cover", border: "1px solid var(--line)" }} /> : null}
+                  {c.media_url ? <img className="ad-campaign-thumb" src={c.media_url} alt={t("adsExtra.poster_alt")} style={{ width: 42, height: 42, borderRadius: 7, objectFit: "cover", border: "1px solid var(--line)" }} /> : null}
                   <span
                     style={{
                       fontSize: 11,
@@ -254,12 +251,12 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                   >
                     {statusLabels[statusKey] ?? meta.label}
                   </span>
-                  <button type="button" className="btn btn-ghost ad-campaign-duplicate" title="Dupliquer" aria-label="Dupliquer" onClick={(event) => { event.stopPropagation(); setDuplicating(c); }}>
-                    <CopyPlus size={14} /> <span>Dupliquer</span>
+                  <button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={(event) => { event.stopPropagation(); setDuplicating(c); }}>
+                    <CopyPlus size={14} /> <span>{t("adsExtra.duplicate")}</span>
                   </button>
                   {canResume ? (
                     <button type="button" className="btn btn-dark" onClick={(event) => { event.stopPropagation(); setResuming(c); }}>
-                      <PlayCircle size={14} /> {c.status === "paused" || c.status === "autopilot_paused" ? "Reprendre" : t("campaigns.launch")}
+                      <PlayCircle size={14} /> {c.status === "paused" || c.status === "autopilot_paused" ? t("adsExtra.resume") : t("campaigns.launch")}
                     </button>
                    ) : null}
                 </div>
@@ -269,7 +266,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
           {currentCampaigns.length > 3 ? <button type="button" className="btn btn-ghost" onClick={() => setShowAll((value) => !value)}>{showAll ? t("campaigns.reduce") : t("campaigns.more", { count: currentCampaigns.length - 3 })}</button> : null}
         </div>
       )}
-      {historicalCampaigns.length > 0 ? <details className="ad-campaign-history"><summary>Historique des campagnes ({historicalCampaigns.length})</summary><div className="ad-campaign-history-list">{historicalCampaigns.map((campaign) => { const lifecycle = getMetaCampaignLifecycle(campaign.status, campaign.external_error)!; const meta = STATUS_META[lifecycle]; return <div className="ad-campaign-row" key={campaign.id}><div className="ad-campaign-title">{campaign.title || campaign.product_name || campaign.product_id}</div><span className="ad-campaign-badge" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span><button type="button" className="btn btn-ghost ad-campaign-duplicate" title="Dupliquer" aria-label="Dupliquer" onClick={() => setDuplicating(campaign)}><CopyPlus size={14} /><span>Dupliquer</span></button></div>; })}</div></details> : null}
+      {historicalCampaigns.length > 0 ? <details className="ad-campaign-history"><summary>{t("adsExtra.history", { count: historicalCampaigns.length })}</summary><div className="ad-campaign-history-list">{historicalCampaigns.map((campaign) => { const lifecycle = getMetaCampaignLifecycle(campaign.status, campaign.external_error)!; const meta = STATUS_META[lifecycle]; return <div className="ad-campaign-row" key={campaign.id}><div className="ad-campaign-title">{campaign.title || campaign.product_name || campaign.product_id}</div><span className="ad-campaign-badge" style={{ background: meta.bg, color: meta.fg }}>{statusLabels[lifecycle]}</span><button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => setDuplicating(campaign)}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button></div>; })}</div></details> : null}
 
       {resuming ? (
         <ResumeCampaignModal
@@ -327,7 +324,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
           <div className="app-card" style={{ maxWidth: 620, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onClick={(event) => event.stopPropagation()}>
             <div className="card-head campaign-modal-head"><div><span className="eyebrow">{t("campaigns.detail")}</span><h2>{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="compact-icon-button" onClick={() => setSelected(null)} aria-label={t("campaigns.close")}><X size={16} /></button></div>
             {selected.media_url ? <img src={selected.media_url} alt={t("campaigns.preview")} style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} /> : null}
-            {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>Texte :</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>Réseau :</strong> {selected.platform === "meta" ? "Facebook / Instagram" : selected.platform === "pinterest" ? "Pinterest" : "TikTok"}</div><div><strong>Objectif :</strong> {selected.objective}</div><div><strong>Audience :</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} ans</div><div><strong>Budget :</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} $/jour · {selected.duration_days} jours</div>{selected.destination_url ? <div><strong>Lien :</strong> {selected.destination_url}</div> : null}</div>}
+            {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>{t("campaigns.text")}</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>{t("campaigns.network")}</strong> {selected.platform === "meta" ? "Facebook / Instagram" : selected.platform === "pinterest" ? "Pinterest" : "TikTok"}</div><div><strong>{t("campaigns.objective")}</strong> {selected.objective}</div><div><strong>{t("campaigns.audience")}</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} {" "}{t("finalExtra.text68")}</div><div><strong>{t("campaigns.budget")}</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} {" "}{t("finalExtra.text69")}{" "}{selected.duration_days} {" "}{t("sweep1.text330")}</div>{selected.destination_url ? <div><strong>{t("campaigns.link")}</strong> {selected.destination_url}</div> : null}</div>}
             {selected.external_error ? (
               <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: isMetaPausedReason(selected.external_error) ? "#FFFBEB" : "#FEE2E2", color: isMetaPausedReason(selected.external_error) ? "#92400E" : "#991B1B", fontSize: 13 }}>
                 <strong>{isMetaPausedReason(selected.external_error) ? (locale === "en" ? "Paused by Meta:" : "En pause chez Meta :") : t("ads.errors.reason")}</strong> {getMetaPausedReason(selected.external_error) ?? campaignErrorMessage(selected.external_error, locale, t, selected.platform)}
@@ -340,18 +337,18 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
             {selected.external_campaign_id ? (
               <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, border: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                 <div>
-                  <strong style={{ fontSize: 13 }}>Pilotage automatique</strong>
-                  <p className="hint-line" style={{ margin: 0 }}>Vendeo surveille la rentabilité (dépense pub vs ventes) et met la campagne en pause automatiquement si elle brûle le budget.</p>
+                  <strong style={{ fontSize: 13 }}>{t("autopilot.eyebrow")}</strong>
+                  <p className="hint-line" style={{ margin: 0 }}>{t("sweep2.text331")}</p>
                   {selected.autopilot_pause_reason ? (
-                    <p className="hint-line" style={{ margin: "4px 0 0", color: "#B45309" }}>Dernier arrêt : {selected.autopilot_pause_reason}</p>
+                    <p className="hint-line" style={{ margin: "4px 0 0", color: "#B45309" }}>{t("sweep3.text332")}{" "}{selected.autopilot_pause_reason}</p>
                   ) : null}
                 </div>
                 <button type="button" className={selected.autopilot_enabled ? "btn btn-dark" : "btn btn-ghost"} disabled={togglingAutopilot} onClick={() => void toggleAutopilot(selected)}>
-                  {selected.autopilot_enabled ? "Activé" : "Activer"}
+                  {selected.autopilot_enabled ? t("sweep1.text333") : t("campaigns.activate")}
                 </button>
               </div>
             ) : null}
-            <div className="ad-campaign-modal-actions">{!getMetaCampaignLifecycle(selected.status, selected.external_error) && selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost ad-campaign-duplicate" title="Dupliquer" aria-label="Dupliquer" onClick={() => { setEditing(false); setDuplicating(selected); setSelected(null); }}><CopyPlus size={14} /><span>Dupliquer</span></button>{!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? "Lancer la campagne" : "Reprendre"}</button> : null}{!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button> : null}</div>
+            <div className="ad-campaign-modal-actions">{!getMetaCampaignLifecycle(selected.status, selected.external_error) && selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => { setEditing(false); setDuplicating(selected); setSelected(null); }}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button>{!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? t("ads.launchButton") : t("adsExtra.resume")}</button> : null}{!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button> : null}</div>
           </div>
         </div>
       ) : null}
@@ -361,8 +358,9 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
 }
 
 function EditCampaignForm({ campaign, saving, onCancel, onSave }: { campaign: AdCampaign; saving: boolean; onCancel: () => void; onSave: (updates: Record<string, unknown>) => Promise<void> }) {
+  const { t } = useI18n();
   const [text, setText] = useState(campaign.ad_text || "");
   const [title, setTitle] = useState(campaign.title || "");
   const [link, setLink] = useState(campaign.destination_url || "");
-  return <form style={{ display: "grid", gap: 10 }} onSubmit={(event) => { event.preventDefault(); void onSave({ title, ad_text: text, destination_url: link }); }}><label className="hint-line">Titre<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label className="hint-line">Texte de la publicité<textarea value={text} onChange={(event) => setText(event.target.value)} rows={4} required /></label><label className="hint-line">Lien de destination<input value={link} onChange={(event) => setLink(event.target.value)} required /></label><div style={{ display: "flex", gap: 8 }}><button type="button" className="btn btn-ghost" onClick={onCancel}>Annuler</button><button type="submit" className="btn btn-dark" disabled={saving}>{saving ? "Enregistrement…" : "Enregistrer"}</button></div></form>;
+  return <form style={{ display: "grid", gap: 10 }} onSubmit={(event) => { event.preventDefault(); void onSave({ title, ad_text: text, destination_url: link }); }}><label className="hint-line">{t("adminComplete.title")}<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label className="hint-line">{t("ads.correction.adText")}<textarea value={text} onChange={(event) => setText(event.target.value)} rows={4} required /></label><label className="hint-line">{t("ads.correction.destination")}<input value={link} onChange={(event) => setLink(event.target.value)} required /></label><div style={{ display: "flex", gap: 8 }}><button type="button" className="btn btn-ghost" onClick={onCancel}>{t("workspaceExtra.cancel")}</button><button type="submit" className="btn btn-dark" disabled={saving}>{saving ? t("ads.correction.saving") : t("optionsExtra.text62")}</button></div></form>;
 }

@@ -90,7 +90,7 @@ export function OverviewHome({
   onNavigate?: (section: string) => void;
   storeSelector?: ReactNode;
 }) {
-  const { locale } = useI18n();
+  const { locale , t } = useI18n();
   const en = locale === "en";
   const tr = (fr: string, english: string) => (en ? english : fr);
 
@@ -259,7 +259,7 @@ export function OverviewHome({
 
   const countBy = (group: SaleGroup) => saleRows.filter((row) => row.group === group).length;
 
-  const trialLabel = loading ? null : subscription?.status === "active" && subscription?.trial_active === false ? null : subscription?.trial_active ? tr("Essai gratuit en cours", "Free trial in progress") : null;
+  const trialLabel = loading ? null : subscription?.status === "active" && subscription?.trial_active === false ? null : subscription?.trial_active ? tr(t("optionsExtra.text13"), "Free trial in progress") : null;
 
   function productPrice(product: ProductData) {
     const value = Number(product.price);
@@ -275,7 +275,7 @@ export function OverviewHome({
       {/* 1. Accueil + bilan */}
       <section className="app-card">
         <div style={{ minWidth: 0 }}>
-          <span className="eyebrow">{tr("Vue d'ensemble", "Overview")}</span>
+          <span className="eyebrow">{tr(t("dashboard.overview"), "Overview")}</span>
           {greeting ? (
             <>
               <h1 style={{ margin: "4px 0 8px", fontSize: 24, fontWeight: 700 }}>{greeting}</h1>
@@ -293,39 +293,39 @@ export function OverviewHome({
 
         <div className="ov-controls">
           {storeSelector}
-          <label className="ov-period-filter"><span>{tr("Période", "Period")}</span>
-          <select className="ov-select" aria-label={tr("Période", "Period")} value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
-            <option value={7}>{tr("7 jours", "7 days")}</option>
-            <option value={30}>{tr("30 jours", "30 days")}</option>
-            <option value={90}>{tr("90 jours", "90 days")}</option>
+          <label className="ov-period-filter"><span>{tr(t("overview.period"), "Period")}</span>
+          <select className="ov-select" aria-label={tr(t("overview.period"), "Period")} value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
+            <option value={7}>{tr(t("adminComplete.days7"), "7 days")}</option>
+            <option value={30}>{tr(t("adminComplete.days30"), "30 days")}</option>
+            <option value={90}>{tr(t("overview.last90"), "90 days")}</option>
           </select></label>
         </div>
 
         {/* Indicateurs clés de la boutique active */}
         <div className="ov-kpi-grid" aria-busy={statsLoading || !campaignsReady}>
           <div className="ov-kpi">
-            <span className="hint-line">{tr("Revenu net", "Net revenue")}</span>
+            <span className="hint-line">{tr(t("overview.netRevenue"), "Net revenue")}</span>
             {statsLoading ? <Skeleton width="50%" height={24} style={{ marginTop: 6 }} /> : <strong>{money(overview?.revenueNet)}</strong>}
             {!statsLoading && overview?.revenueChangePct !== null && overview?.revenueChangePct !== undefined ? <small className="hint-line">{overview.revenueChangePct >= 0 ? "+" : ""}{overview.revenueChangePct.toFixed(1)} %</small> : null}
           </div>
           <div className="ov-kpi">
-            <span className="hint-line">{tr("Ventes", "Sales")}</span>
+            <span className="hint-line">{tr(t("dashboard.sales"), "Sales")}</span>
             {statsLoading ? <Skeleton width="30%" height={24} style={{ marginTop: 6 }} /> : <strong>{salesCount}</strong>}
           </div>
           <div className="ov-kpi">
-            <span className="hint-line">{tr("Panier moyen", "Average basket")}</span>
+            <span className="hint-line">{tr(t("overview.averageBasket"), "Average basket")}</span>
             {statsLoading ? <Skeleton width="40%" height={24} style={{ marginTop: 6 }} /> : <strong>{money(overview?.averageBasket)}</strong>}
           </div>
           <div className="ov-kpi">
-            <span className="hint-line">{tr("Campagnes en cours", "Running campaigns")}</span>
+            <span className="hint-line">{tr(t("optionsExtra.text14"), "Running campaigns")}</span>
             {!campaignsReady ? <Skeleton width="25%" height={24} style={{ marginTop: 6 }} /> : <strong>{activeCampaigns.length}</strong>}
           </div>
         </div>
       </section>
 
-      {onNavigate ? <div className="overview-business-shortcuts" aria-label="Outils pour développer vos bénéfices">
-        <button type="button" onClick={() => onNavigate("Bénéfices nets")}><span className="overview-shortcut-icon"><Package size={20} /></span><span><strong>Que me rapporte chaque produit ?</strong><small>Renseigne tes coûts et découvre tes marges.</small></span><span aria-hidden="true">↗</span></button>
-        <button type="button" onClick={() => onNavigate("Relances WhatsApp")}><span className="overview-shortcut-icon recovery"><Clock size={20} /></span><span><strong>Transforme les abandons en ventes</strong><small>Relance sur WhatsApp, avec consentement.</small></span><span aria-hidden="true">↗</span></button>
+      {onNavigate ? <div className="overview-business-shortcuts" aria-label={t("sweep3.text143")}>
+        <button type="button" onClick={() => onNavigate("Bénéfices nets")}><span className="overview-shortcut-icon"><Package size={20} /></span><span><strong>{t("sweep1.text144")}</strong><small>{t("sweep2.text145")}</small></span><span aria-hidden="true">↗</span></button>
+        <button type="button" onClick={() => onNavigate("Relances WhatsApp")}><span className="overview-shortcut-icon recovery"><Clock size={20} /></span><span><strong>{t("sweep3.text146")}</strong><small>{t("sweep1.text147")}</small></span><span aria-hidden="true">↗</span></button>
       </div> : null}
       <TrackingQualityPanel key={`${storeId}-${periodDays}`} storeId={storeId ?? null} periodDays={periodDays} />
       {/* 2. Liste des campagnes publicitaires */}
@@ -336,7 +336,7 @@ export function OverviewHome({
 
       {/* 4. Derniers événements Chariow de la période (réussis / en attente / échoués) */}
       <section className="app-card">
-        <div className="card-head"><div><h2>{tr("Derniers achats", "Latest purchases")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr(`Les 10 derniers événements des ${periodDays} derniers jours sur ta boutique Chariow, le plus récent en haut. Clique sur une ligne pour voir le détail.`, `The 10 latest events over the last ${periodDays} days on your Chariow store, most recent first. Click a row to see details.`)}</p></div></div>
+        <div className="card-head"><div><h2>{tr(t("optionsExtra.text15"), "Latest purchases")}</h2><p className="hint-line" style={{ margin: 0 }}>{tr(t("dynamicExtra.latestEvents", { days: (periodDays) }), `The 10 latest events over the last ${periodDays} days on your Chariow store, most recent first. Click a row to see details.`)}</p></div></div>
         {loading ? (
           <>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
@@ -344,14 +344,14 @@ export function OverviewHome({
               <Skeleton width={100} height={24} radius={999} />
               <Skeleton width={150} height={24} radius={999} />
             </div>
-            <SkeletonRows count={4} label={tr("Chargement des achats", "Loading purchases")} />
+            <SkeletonRows count={4} label={tr(t("sweep2.text148"), "Loading purchases")} />
           </>
         ) : (
           <>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#D1FAE5", color: "#065F46" }}>{tr("Réussis", "Successful")} · {countBy("success")}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#FEF3C7", color: "#92400E" }}>{tr("En attente", "Pending")} · {countBy("pending")}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#FEE2E2", color: "#991B1B" }}>{tr("Échoués / abandonnés", "Failed / abandoned")} · {countBy("failed")}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#D1FAE5", color: "#065F46" }}>{tr(t("sweep3.text149"), "Successful")} · {countBy("success")}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#FEF3C7", color: "#92400E" }}>{tr(t("adminComplete.pending"), "Pending")} · {countBy("pending")}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, background: "#FEE2E2", color: "#991B1B" }}>{tr(t("sweep1.text150"), "Failed / abandoned")} · {countBy("failed")}</span>
             </div>
             {saleRows.length ? (
               <ul className="ov-sales">
@@ -371,23 +371,23 @@ export function OverviewHome({
                   </li>
                 ))}
               </ul>
-            ) : <p className="hint-line" style={{ marginTop: 12 }}>{tr(`Aucun événement sur les ${periodDays} derniers jours.`, `No event over the last ${periodDays} days.`)}</p>}
+            ) : <p className="hint-line" style={{ marginTop: 12 }}>{tr(t("dynamicExtra.noEvents", { days: (periodDays) }), `No event over the last ${periodDays} days.`)}</p>}
           </>
         )}
       </section>
 
       {/* 5. Catalogue */}
       <section className="app-card">
-        <div className="card-head ov-catalogue-head"><div><h2>{tr("Mon catalogue", "My catalogue")}</h2>{loading ? <Skeleton width={170} height={11} style={{ marginTop: 6 }} /> : <p className="hint-line" style={{ margin: 0 }}>{products.length ? tr(`${products.length} produit${products.length > 1 ? "s" : ""} dans ${store?.store_name ?? "ta boutique"}.`, `${products.length} product${products.length > 1 ? "s" : ""} in ${store?.store_name ?? "your store"}.`) : tr("Aucun produit trouvé dans ta boutique.", "No product found in your store.")}</p>}</div></div>
+        <div className="card-head ov-catalogue-head"><div><h2>{tr(t("sweep2.text151"), "My catalogue")}</h2>{loading ? <Skeleton width={170} height={11} style={{ marginTop: 6 }} /> : <p className="hint-line" style={{ margin: 0 }}>{products.length ? tr(t("dynamicExtra.productCount", { count: (products.length), plural: (products.length > 1 ? "s" : ""), store: (store?.store_name ?? "ta boutique") }), `${products.length} product${products.length > 1 ? "s" : ""} in ${store?.store_name ?? "your store"}.`) : tr(t("sweep3.text152"), "No product found in your store.")}</p>}</div></div>
         {loading ? (
-          <SkeletonRows count={3} thumb={44} label={tr("Chargement du catalogue", "Loading catalogue")} />
+          <SkeletonRows count={3} thumb={44} label={tr(t("sweep1.text153"), "Loading catalogue")} />
         ) : products.length ? (
           <div className="ov-catalogue">
             {products.slice(0, 6).map((product) => (
               <div key={product.id} className="ov-product">
                 <div className="ov-product-thumb">{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}</div>
-                <div className="ov-product-info"><strong>{product.name}</strong><span>{productPrice(product)}{product.sales ? ` · ${product.sales} ${tr("vente(s)", "sale(s)")}` : ""}</span></div>
-                <button type="button" className="btn btn-ghost ov-promote" onClick={() => (onPromoteProduct ? onPromoteProduct(product) : onLaunchAd())}><Megaphone size={14} /> {tr("Promouvoir", "Promote")}</button>
+                <div className="ov-product-info"><strong>{product.name}</strong><span>{productPrice(product)}{product.sales ? ` · ${product.sales} ${tr(t("optionsExtra.text16"), "sale(s)")}` : ""}</span></div>
+                <button type="button" className="btn btn-ghost ov-promote" onClick={() => (onPromoteProduct ? onPromoteProduct(product) : onLaunchAd())}><Megaphone size={14} /> {tr(t("finalExtra.text37"), "Promote")}</button>
               </div>
             ))}
           </div>
@@ -412,8 +412,8 @@ export function OverviewHome({
       {selectedSale ? (
         <div className="sale-modal-backdrop" role="presentation" onClick={() => setSelectedSale(null)}>
           <section className="sale-modal sale-modal-wide" role="dialog" aria-modal="true" aria-labelledby="sale-modal-title" onClick={(event) => event.stopPropagation()}>
-            <button ref={saleCloseRef} type="button" className="sale-modal-close" aria-label={tr("Fermer", "Close")} onClick={() => setSelectedSale(null)}>×</button>
-            <span className="eyebrow">{tr("Détail de l'événement", "Event details")}</span>
+            <button ref={saleCloseRef} type="button" className="sale-modal-close" aria-label={tr(t("wizardExtra.close"), "Close")} onClick={() => setSelectedSale(null)}>×</button>
+            <span className="eyebrow">{tr(t("sweep2.text154"), "Event details")}</span>
             <h2 id="sale-modal-title">{selectedSale.label}</h2>
             <div className="ov-modal-product">
               <span className="ov-sale-thumb">{selectedSale.image ? <img src={selectedSale.image} alt="" /> : <Package size={22} />}</span>
@@ -423,13 +423,13 @@ export function OverviewHome({
             <div className="sale-detail-grid">
               <div><small>{tr("Client", "Customer")}</small><strong>{selectedSale.contact.name ?? "—"}</strong></div>
               <div><small>{tr("E-mail", "Email")}</small><strong>{selectedSale.contact.email ?? "—"}</strong></div>
-              <div><small>{tr("Téléphone", "Phone")}</small><strong>{selectedSale.contact.phone ?? "—"}</strong></div>
-              <div><small>{tr("Pays", "Country")}</small><strong>{selectedSale.contact.country ?? "—"}</strong></div>
+              <div><small>{tr(t("adminComplete.phone"), "Phone")}</small><strong>{selectedSale.contact.phone ?? "—"}</strong></div>
+              <div><small>{tr(t("wizardExtra.location.country"), "Country")}</small><strong>{selectedSale.contact.country ?? "—"}</strong></div>
               {selectedSale.group === "failed" ? (
-                <div><small>{tr("Raison de l'échec", "Failure reason")}</small><strong>{selectedSale.contact.failureReason ?? "—"}</strong></div>
+                <div><small>{tr(t("sweep3.text155"), "Failure reason")}</small><strong>{selectedSale.contact.failureReason ?? "—"}</strong></div>
               ) : null}
               <div><small>{tr("Date", "Date")}</small><strong>{selectedSale.date}</strong></div>
-              <div><small>{tr("Heure", "Time")}</small><strong>{selectedSale.clock}</strong></div>
+              <div><small>{tr(t("optionsExtra.text17"), "Time")}</small><strong>{selectedSale.clock}</strong></div>
             </div>
           </section>
         </div>

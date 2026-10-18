@@ -31,7 +31,8 @@ function readStatus(): Status | null {
 // Bandeau affiché quand /api/analytics ou /connect signale (via cookie) que Chariow est en
 // panne ou que la connexion a expiré. Avant, l'accueil restait simplement vide.
 export default function ChariowStatusNotice() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
+  const w = (key: string) => t(`workspaceExtra.${key}`);
   const en = locale === "en";
   const [status, setStatus] = useState<Status | null>(null);
   const [dismissed, setDismissed] = useState<Status | null>(null);
@@ -132,7 +133,7 @@ export default function ChariowStatusNotice() {
           onClick={() => setDismissed(status)}
           style={{ background: "transparent", color: "#7c2d12", border: "1px solid #fdba74", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer" }}
         >
-          {en ? "Close" : "Fermer"}
+          {en ? w("close") : "Fermer"}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { LocationSearchInput } from "./LocationSearchInput";
@@ -111,7 +112,7 @@ export function CampaignCorrectionModal({ campaign, onClose, onSaved }: Campaign
               <p className="mt-1.5 text-xs text-gray-500">{t("ads.correction.countriesHint")}</p>
             </div>
           ) : null}
-          {error ? <p role="alert" className="text-sm text-[#991B1B]">{error}</p> : null}
+          {error ? <p role="alert" className="text-sm text-[#991B1B]">{localizeSystemMessage(error, locale)}</p> : null}
         </div>
         <div className="flex shrink-0 justify-between gap-3 border-t border-gray-100 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button type="button" onClick={onClose} disabled={saving} className="text-sm font-medium text-gray-500 disabled:opacity-50">{t("ads.correction.cancel")}</button>

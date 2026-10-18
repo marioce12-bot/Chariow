@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
@@ -66,9 +67,9 @@ const META_PREVIEW_CACHE_MS = 10 * 60 * 1000;
  * propre pied de page interne (sticky bottom-0 dans leur zone de scroll).
  */
 export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProduct, editCampaign, editNotice, onEdited, duplicateCampaign }: LaunchAdWizardProps) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const en = locale === "en";
-  const stepLabels = en ? ["Product", "Ad set & creative", "Audience", "Budget", "Creation"] : ["Produit", "Ensemble & publicité", "Audience", "Budget", "Création"];
+  const stepLabels = [t("wizardExtra.step.product"), t("wizardExtra.step.creative"), t("wizardExtra.step.audience"), t("wizardExtra.step.budget"), t("wizardExtra.step.creation")];
   // Produit déjà choisi (bouton « Promouvoir » du catalogue) : on démarre directement à l'étape 2.
   // Le bouton « Retour » de l'étape 2 permet quand même de revenir choisir un autre produit.
   // Duplication : le produit est déjà celui de la campagne copiée, on démarre aussi à l'étape 2.
@@ -148,7 +149,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
       })
       .catch((error) => {
         if (!isCancelled()) {
-          const message = error instanceof Error ? error.message : "Aperçu Meta indisponible";
+          const message = error instanceof Error ? error.message : t("sweep3.text335");
           setMetaPreviewErrors((current) => ({ ...current, [formatId]: message }));
         }
       })
@@ -230,9 +231,9 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
       <div className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[85vh] sm:max-w-2xl sm:rounded-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-base font-bold text-gray-900">{editCampaign ? (en ? "Edit the campaign" : "Modifier la campagne") : duplicateCampaign ? (en ? "Duplicate the campaign" : "Dupliquer la campagne") : (en ? "Launch an ad" : "Lancer une pub")}</h2>
+          <h2 className="text-base font-bold text-gray-900">{editCampaign ? t("wizardExtra.edit") : duplicateCampaign ? t("wizardExtra.duplicate") : t("wizardExtra.launch")}</h2>
           <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">
-            {en ? "Close" : "Fermer"}
+            {t("wizardExtra.close")}
           </button>
         </div>
 
@@ -263,7 +264,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
           })}
         </div>
         <p className="shrink-0 px-5 pb-2 text-xs font-medium text-gray-400">
-          {en ? "Step" : "Étape"} {step}/5 — {stepLabels[step - 1]}
+          {t("wizardExtra.step")} {step}/5 — {stepLabels[step - 1]}
         </p>
 
         {/* Body */}
@@ -271,7 +272,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
           {editCampaign && editNotice ? (
             <div className="mb-4 rounded-xl bg-[#FFFBEB] p-3 text-sm text-[#92400E]">
               <strong className="block">{en ? "To fix" : "À corriger"}</strong>
-              <span>{editNotice}</span>
+              <span>{localizeSystemMessage(editNotice, locale)}</span>
             </div>
           ) : null}
           {duplicateCampaign && step < 5 ? (
@@ -326,7 +327,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
                       )}
                       {activeError && !activePreview && !activeLoading && (
                         <div className="mt-2 space-y-2 rounded-xl bg-[#FEF2F2] p-3">
-                          <p className="text-sm text-[#991B1B]">{activeError}</p>
+                          <p className="text-sm text-[#991B1B]">{localizeSystemMessage(activeError, locale)}</p>
                           <button type="button" onClick={() => void fetchMetaPreview(activeMetaPreview)} className="rounded-lg border border-[#FCA5A5] px-3 py-1.5 text-xs font-semibold text-[#991B1B]">
                             {en ? "Retry" : "Réessayer"}
                           </button>

@@ -105,7 +105,7 @@ function mergeMeta(readings: MetaAccountReading[], vendeoCampaigns: VendeoCampai
 }
 
 export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { plan: PlanId; storeId: string | null; periodDays: number; refreshKey: number }) {
-  const { locale } = useI18n();
+  const { locale , t } = useI18n();
   const en = locale === "en";
   const tr = (fr: string, english: string) => (en ? english : fr);
   const [stats, setStats] = useState<ChannelStat[]>(CHANNELS.map(emptyStat));
@@ -238,14 +238,14 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
     <section className="app-card" style={{ minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
       <div className="card-head">
         <div>
-          <h2>{tr("Dépenses publicitaires", "Ad spend")}</h2>
-          <p className="hint-line" style={{ margin: 0 }}>{tr(`Tous canaux, ${periodDays} derniers jours, convertis en USD.`, `All channels, last ${periodDays} days, converted to USD.`)}{metaSyncing ? ` ${tr("Mise à jour de Meta…", "Updating Meta…")}` : ""}</p>
+          <h2>{tr(t("sweep3.text134"), "Ad spend")}</h2>
+          <p className="hint-line" style={{ margin: 0 }}>{tr(t("dynamicExtra.spendPeriod", { days: (periodDays) }), `All channels, last ${periodDays} days, converted to USD.`)}{metaSyncing ? ` ${tr(t("sweep1.text135"), "Updating Meta…")}` : ""}</p>
         </div>
         <BarChart3 size={18} />
       </div>
 
       {loading && !connected.length ? (
-        <div style={{ marginTop: 12, display: "grid", gap: 12 }} role="status" aria-busy="true" aria-label={tr("Chargement des dépenses", "Loading spend")}>
+        <div style={{ marginTop: 12, display: "grid", gap: 12 }} role="status" aria-busy="true" aria-label={tr(t("sweep2.text136"), "Loading spend")}>
           <div style={{ display: "grid", gap: 6 }}>
             <Skeleton width={110} height={11} />
             <Skeleton width={150} height={24} />
@@ -261,11 +261,11 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
           ))}
         </div>
       ) : !connected.length ? (
-        <p className="hint-line" style={{ marginTop: 12 }}>{tr("Aucun canal publicitaire connecté. Connecte Meta, TikTok ou Pinterest dans « Comptes publicitaires ».", "No ad channel connected. Connect Meta, TikTok or Pinterest in “Ad accounts”.")}</p>
+        <p className="hint-line" style={{ marginTop: 12 }}>{tr(t("sweep3.text137"), "No ad channel connected. Connect Meta, TikTok or Pinterest in “Ad accounts”.")}</p>
       ) : (
         <>
           <div style={{ marginTop: 12 }}>
-            <span className="hint-line">{tr("Total dépensé", "Total spent")}</span>
+            <span className="hint-line">{tr(t("sweep1.text138"), "Total spent")}</span>
             <div style={{ fontSize: 22, fontWeight: 800 }}>{usd(totalUsd, numberLocale)}</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 12, marginTop: 14 }}>
@@ -276,17 +276,17 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
                     <ChannelBadge id={stat.badge} />
                     <strong style={{ fontSize: 14 }}>{stat.label}</strong>
                   </span>
-                  <strong style={{ fontSize: 14, whiteSpace: "nowrap" }}>{stat.connected ? usd(stat.spendUsd, numberLocale) : tr("Non connecté", "Not connected")}</strong>
+                  <strong style={{ fontSize: 14, whiteSpace: "nowrap" }}>{stat.connected ? usd(stat.spendUsd, numberLocale) : tr(t("sweep2.text139"), "Not connected")}</strong>
                 </div>
                 <div style={{ height: 8, borderRadius: 999, background: "#EEF2F7", overflow: "hidden" }} role="img" aria-label={`${stat.label}: ${usd(stat.spendUsd, numberLocale)}`}>
                   <div style={{ width: `${stat.connected ? Math.max(stat.spendUsd > 0 ? 3 : 0, (stat.spendUsd / maxUsd) * 100) : 0}%`, height: "100%", background: stat.color, borderRadius: 999 }} />
                 </div>
                 <span className="hint-line">
                   {!stat.connected
-                    ? tr("Connecte ce canal dans « Comptes publicitaires ».", "Connect this channel in “Ad accounts”.")
+                    ? tr(t("sweep3.text140"), "Connect this channel in “Ad accounts”.")
                     : stat.failed
-                      ? tr("Données indisponibles pour le moment.", "Data unavailable right now.")
-                      : `${stat.clicks.toLocaleString(numberLocale)} ${tr("clics", "clicks")} · ${stat.conversions.toLocaleString(numberLocale)} conversions`}
+                      ? tr(t("sweep1.text141"), "Data unavailable right now.")
+                      : `${stat.clicks.toLocaleString(numberLocale)} ${tr(t("optionsExtra.text12"), "clicks")} · ${stat.conversions.toLocaleString(numberLocale)} conversions`}
                 </span>
               </div>
             ))}
@@ -302,7 +302,7 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
                     <strong style={{ fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}>{usd(campaign.spendUsd, numberLocale)}</strong>
                   </div>
                   <span className="hint-line">
-                    {campaign.clicks.toLocaleString(numberLocale)} {tr("clics", "clicks")} · {campaign.impressions.toLocaleString(numberLocale)} {tr("impressions", "impressions")} · {campaign.conversions.toLocaleString(numberLocale)} conversions
+                    {campaign.clicks.toLocaleString(numberLocale)} {tr(t("optionsExtra.text12"), "clicks")} · {campaign.impressions.toLocaleString(numberLocale)} {tr("impressions", "impressions")} · {campaign.conversions.toLocaleString(numberLocale)} conversions
                   </span>
                 </div>
               ))}

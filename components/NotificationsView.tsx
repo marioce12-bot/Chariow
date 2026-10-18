@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
 import { ArrowRight, Bell, CheckCheck, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -24,7 +25,7 @@ export function NotificationsView({ onBack }: { onBack: () => void }) {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "notifications_load_failed");
       setItems(data.notifications ?? []);
-    } catch { setError(locale === "fr" ? "Impossible de charger tes notifications." : "Unable to load your notifications."); }
+    } catch { setError(t("adminExtra.notifications.loadError")); }
     finally { setLoading(false); }
   }, [locale]);
   useEffect(() => { void load(); }, [load]);
@@ -41,12 +42,12 @@ export function NotificationsView({ onBack }: { onBack: () => void }) {
   return <div className="notifications-page">
     <style>{`.mobile-nav{display:none !important}`}</style>
     <div className="page-top notifications-page-head">
-      <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {t("notifications.back")}</button>
+      <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {t("adminExtra.notifications.back")}</button>
     </div>
     <section className="app-card notifications-card">
-      {unread ? <div className="card-head"><div><h2>{`${unread} ${locale === "fr" ? "non lue(s)" : "unread"}`}</h2></div><button type="button" className="notifications-mark-all" onClick={() => void markAllRead()}><CheckCheck size={15} /> {t("notifications.markAll")}</button></div> : null}
-      {loading ? <p className="hint-line">{t("notifications.loading")}</p> : error ? <p className="settings-inline-message settings-account-error">{error}</p> : !items.length ? <div className="notifications-empty"><Bell size={28} /><strong>{t("notifications.empty")}</strong></div> : <div className="notifications-page-list" aria-label={locale === "fr" ? "Liste des notifications" : "Notification list"}>{items.map((item) => {
-        const content = <><div className="notifications-page-item-head"><strong>{item.title}</strong><span className="notifications-read-state">{item.read_at ? (locale === "fr" ? "Lue" : "Read") : (locale === "fr" ? "Non lue" : "Unread")}</span></div><time className="notifications-item-date" dateTime={item.created_at}>{formatDate(item.created_at, locale)}</time><p>{item.body}</p>{item.action_url ? <span className="notification-action"><ExternalLink size={13} /> {t("notifications.open")}</span> : null}</>;
+      {unread ? <div className="card-head"><div><h2>{`${unread} ${t("adminExtra.notifications.unreadCount")}`}</h2></div><button type="button" className="notifications-mark-all" onClick={() => void markAllRead()}><CheckCheck size={15} /> {t("adminExtra.notifications.markAll")}</button></div> : null}
+      {loading ? <p className="hint-line">{t("adminExtra.notifications.loading")}</p> : error ? <p className="settings-inline-message settings-account-error">{localizeSystemMessage(error, locale)}</p> : !items.length ? <div className="notifications-empty"><Bell size={28} /><strong>{t("adminExtra.notifications.empty")}</strong></div> : <div className="notifications-page-list" aria-label={t("adminExtra.notifications.list")}>{items.map((item) => {
+        const content = <><div className="notifications-page-item-head"><strong>{item.title}</strong><span className="notifications-read-state">{item.read_at ? (t("adminExtra.notifications.read")) : (t("adminExtra.notifications.unread"))}</span></div><time className="notifications-item-date" dateTime={item.created_at}>{formatDate(item.created_at, locale)}</time><p>{item.body}</p>{item.action_url ? <span className="notification-action"><ExternalLink size={13} /> {t("notifications.open")}</span> : null}</>;
         return item.action_url ? <Link href={item.action_url} key={item.id} className={`notifications-page-item ${item.read_at ? "read" : "unread"}`} onClick={() => void markRead(item.id)}>{content}</Link> : <button type="button" key={item.id} className={`notifications-page-item ${item.read_at ? "read" : "unread"}`} onClick={() => void markRead(item.id)}>{content}</button>;
       })}</div>}
     </section>

@@ -1,3 +1,5 @@
+"use client";
+import { useI18n } from "@/lib/i18n/i18n";
 import "@/app/styles/meta-account-skeleton.css";
 
 const activityRows = [0, 1, 2];
@@ -6,8 +8,9 @@ const kpis = [0, 1, 2, 3, 4];
 
 /** Placeholder for account data only; the account selector and its toolbar remain outside this component. */
 export function MetaAccountSkeleton() {
+  const { t } = useI18n();
   return (
-    <div className="meta-account-skeleton" role="status" aria-busy="true" aria-label="Chargement des données du compte Meta">
+    <div className="meta-account-skeleton" role="status" aria-busy="true" aria-label={t("interfaceExtra.metaLoading")}>
       <div className="mas-kpis" aria-hidden="true">
         {kpis.map((item) => (
           <div className="mas-card mas-kpi" key={item}>

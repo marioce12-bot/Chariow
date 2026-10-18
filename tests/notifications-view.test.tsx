@@ -11,6 +11,15 @@ vi.mock("@/lib/i18n/i18n", () => ({
   useI18n: () => ({
     locale: "fr",
     t: (key: string) => ({
+      "adminExtra.notifications.back": "Retour",
+      "adminExtra.notifications.list": "Liste des notifications",
+      "adminExtra.notifications.read": "Lue",
+      "adminExtra.notifications.unread": "Non lue",
+      "adminExtra.notifications.unreadCount": "non lue(s)",
+      "adminExtra.notifications.loadError": "Impossible de charger tes notifications.",
+      "adminExtra.notifications.markAll": "Tout marquer comme lu",
+      "adminExtra.notifications.loading": "Chargement…",
+      "adminExtra.notifications.empty": "Aucune notification",
       "notifications.back": "Retour",
       "notifications.markAll": "Tout marquer comme lu",
       "notifications.loading": "Chargement…",

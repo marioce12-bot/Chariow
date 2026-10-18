@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n/i18n";
 import { FaFacebookF, FaInstagram, FaLinkedinIn, FaPinterestP, FaTiktok, FaWhatsapp } from "react-icons/fa6";
 import type { AdPlatform } from "@/lib/plans";
 
@@ -48,9 +49,10 @@ function GoogleLogo() {
 
 // Badges avec les vrais logos officiels de chaque canal publicitaire (react-icons/fa6 + marque Google).
 export function ChannelBadge({ id }: { id: AdPlatform }) {
+  const { t } = useI18n();
   if (id === "facebook") {
     return (
-      <span className="channel-badge channel-badge-duo" aria-label="Facebook et Instagram">
+      <span className="channel-badge channel-badge-duo" aria-label={t("sweep3.text329")}>
         <span className="channel-badge facebook"><FaFacebookF size={16} /></span>
         <span className="channel-badge instagram"><FaInstagram size={15} /></span>
       </span>

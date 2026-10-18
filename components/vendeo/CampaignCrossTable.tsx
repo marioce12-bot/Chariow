@@ -2,25 +2,27 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { useI18n } from "@/lib/i18n/i18n";
 import { formatAdMoney, type CampaignRow, type CampaignVerdictBadge } from "./types";
 
 interface CampaignCrossTableProps {
   rows: CampaignRow[];
 }
 
-const VERDICT_STYLES: Record<CampaignVerdictBadge, { label: string; bg: string; text: string }> = {
-  stop: { label: "🛑 STOP", bg: "bg-[#FEF2F2]", text: "text-[#991B1B]" },
-  scale: { label: "✅ SCALE", bg: "bg-[#ECFDF5]", text: "text-[#065F46]" },
-  test: { label: "⏳ EN TEST", bg: "bg-[#FFFBEB]", text: "text-[#92400E]" },
+const VERDICT_STYLES: Record<CampaignVerdictBadge, { bg: string; text: string }> = {
+  stop: { bg: "bg-[#FEF2F2]", text: "text-[#991B1B]" },
+  scale: { bg: "bg-[#ECFDF5]", text: "text-[#065F46]" },
+  test: { bg: "bg-[#FFFBEB]", text: "text-[#92400E]" },
 };
 
 function VerdictBadge({ verdict }: { verdict: CampaignVerdictBadge }) {
+  const { t } = useI18n();
   const style = VERDICT_STYLES[verdict];
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${style.bg} ${style.text}`}
     >
-      {style.label}
+      {t(`analysisExtra.verdict.${verdict}`)}
     </span>
   );
 }
@@ -30,10 +32,13 @@ function VerdictBadge({ verdict }: { verdict: CampaignVerdictBadge }) {
  * Sur desktop : tableau classique. Sur mobile : cartes accordéon.
  */
 export function CampaignCrossTable({ rows }: CampaignCrossTableProps) {
+  const { t, locale } = useI18n();
+  const en = locale === "en";
+  const countSales = (count: number) => `${count.toLocaleString(en ? "en-US" : "fr-FR")} ${t(count === 1 ? "analysisExtra.saleOne" : "analysisExtra.saleMany")}`;
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <h3 className="text-base font-bold text-gray-900">
-        Performances croisées & verdicts par campagne
+        {t("analysisExtra.crossTitle")}
       </h3>
 
       {/* Desktop */}
@@ -41,12 +46,12 @@ export function CampaignCrossTable({ rows }: CampaignCrossTableProps) {
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
-              <th className="py-2 pr-4 font-medium">Campagne & produit</th>
-              <th className="py-2 pr-4 font-medium">Audience ciblée</th>
-              <th className="py-2 pr-4 font-medium">Dépense pub</th>
-              <th className="py-2 pr-4 font-medium">Ventes Chariow attribuées</th>
+              <th className="py-2 pr-4 font-medium">{t("analysisExtra.campaignProduct")}</th>
+              <th className="py-2 pr-4 font-medium">{t("analysisExtra.targetAudience")}</th>
+              <th className="py-2 pr-4 font-medium">{t("analysisExtra.adSpend")}</th>
+              <th className="py-2 pr-4 font-medium">{t("analysisExtra.attributedSales")}</th>
               <th className="py-2 pr-4 font-medium">Verdict</th>
-              <th className="py-2 pr-4 font-medium">Action recommandée</th>
+              <th className="py-2 pr-4 font-medium">{t("analysisExtra.recommendedAction")}</th>
             </tr>
           </thead>
           <tbody>
@@ -70,8 +75,8 @@ export function CampaignCrossTable({ rows }: CampaignCrossTableProps) {
                 </td>
                 <td className="py-3 pr-4 font-medium text-gray-900">{formatAdMoney(row.spend, row.currency)}</td>
                 <td className="py-3 pr-4">
-                  <p className="font-medium text-gray-900">{row.realSales === null ? "Attribution indisponible" : `${row.realSales} vente${row.realSales > 1 ? "s" : ""}`}</p>
-                  <p className="text-xs text-gray-400">{row.realRevenue === null ? "Revenu non calculable" : formatAdMoney(row.realRevenue, row.currency)}</p>
+                  <p className="font-medium text-gray-900">{row.realSales === null ? t("analysisExtra.attributionUnavailable") : countSales(row.realSales)}</p>
+                  <p className="text-xs text-gray-400">{row.realRevenue === null ? t("analysisExtra.revenueUnavailable") : formatAdMoney(row.realRevenue, row.currency)}</p>
                 </td>
                 <td className="py-3 pr-4">
                   <VerdictBadge verdict={row.verdict} />
@@ -94,11 +99,14 @@ export function CampaignCrossTable({ rows }: CampaignCrossTableProps) {
 }
 
 function CampaignAccordionCard({ row }: { row: CampaignRow }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
 
   return (
     <div className="rounded-xl border border-gray-100">
       <button
+        aria-expanded={open}
+        aria-label={t(open ? "analysisExtra.collapseCampaign" : "analysisExtra.expandCampaign", { campaign: row.campaignName })}
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between gap-3 p-3 text-left"
       >
@@ -124,13 +132,13 @@ function CampaignAccordionCard({ row }: { row: CampaignRow }) {
             ))}
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-400">Dépense pub</span>
+            <span className="text-gray-400">{t("analysisExtra.adSpend")}</span>
             <span className="font-medium text-gray-900">{formatAdMoney(row.spend, row.currency)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-400">Ventes Chariow attribuées</span>
+            <span className="text-gray-400">{t("analysisExtra.attributedSales")}</span>
             <span className="font-medium text-gray-900">
-              {row.realSales === null ? "Attribution indisponible" : `${row.realSales} (${row.realRevenue === null ? "revenu inconnu" : formatAdMoney(row.realRevenue, row.currency)})`}
+              {row.realSales === null ? t("analysisExtra.attributionUnavailable") : `${row.realSales} (${row.realRevenue === null ? t("analysisExtra.revenueUnknown") : formatAdMoney(row.realRevenue, row.currency)})`}
             </span>
           </div>
           <div className="rounded-lg bg-gray-50 p-2 text-gray-700">{row.recommendedAction}</div>

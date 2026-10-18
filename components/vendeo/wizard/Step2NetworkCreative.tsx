@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, ImagePlus, Loader2, Pencil, Sparkles, X } from "lucide-react";
 import type { Placement, Platform, WizardState } from "./types";
@@ -64,7 +65,7 @@ type PinterestAccountOption = { id: string; name: string | null };
  *   pas modifiable ici ?").
  */
 export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToStep1, onAdvanceToStep3, plan }: StepProps) {
-  const { locale } = useI18n();
+  const { locale , t } = useI18n();
   const en = locale === "en";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -102,11 +103,11 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     if (!state.product) return;
     const patchIfEmpty: Partial<WizardState> = {};
     if (!state.adSetName) patchIfEmpty.adSetName = `Ensemble pub — ${state.product.name}`;
-    if (!state.adName) patchIfEmpty.adName = `Publicité — ${state.product.name}`;
+    if (!state.adName) patchIfEmpty.adName = t("dynamicExtra.defaultAdTitle", { product: (state.product.name) });
     if (!state.adText) {
       patchIfEmpty.adText = state.product.description
         ? stripHtml(state.product.description).slice(0, 200)
-        : `Découvre ${state.product.name} 🔥`;
+        : t("dynamicExtra.defaultAdText", { product: (state.product.name) });
     }
     if (!state.title) patchIfEmpty.title = state.product.name;
     if (!state.destinationUrl && state.product.url) patchIfEmpty.destinationUrl = state.product.url;
@@ -245,11 +246,11 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
       const data = await uploadCampaignMedia(file, setUploadProgress);
 
       const url: string | null = typeof data?.secure_url === "string" ? data.secure_url : null;
-      if (!url) throw new Error("Le fichier a été envoyé mais aucune URL n'a été renvoyée");
+      if (!url) throw new Error(t("sweep1.text336"));
 
       patch({ mediaUrl: url });
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Erreur d'envoi inconnue");
+      setUploadError(err instanceof Error ? err.message : t("sweep2.text337"));
     } finally {
       setUploading(false);
     }
@@ -277,12 +278,12 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
       for (const file of files.slice(0, slots)) {
         const data = await uploadCampaignMedia(file, () => {});
         const url: string | null = typeof data?.secure_url === "string" ? data.secure_url : null;
-        if (!url) throw new Error("Le fichier a été envoyé mais aucune URL n'a été renvoyée");
+        if (!url) throw new Error(t("sweep1.text336"));
         next = [...next, url];
         patch({ carouselUrls: next });
       }
     } catch (err) {
-      setCarouselError(err instanceof Error ? err.message : "Erreur d'envoi inconnue");
+      setCarouselError(err instanceof Error ? err.message : t("sweep2.text337"));
     } finally {
       setCarouselUploading(false);
     }
@@ -571,7 +572,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
         ) : null}
         {accountsError && (
           <div className="mt-2 rounded-lg bg-[#FEF2F2] p-3 text-xs text-[#991B1B]">
-            <p>{accountsError}</p>
+            <p>{localizeSystemMessage(accountsError, locale)}</p>
             <a href={connectUrl} className="mt-1 block font-semibold underline underline-offset-2">
               {isMeta ? (en ? "Connect a Meta Ads account" : "Connecter un compte Meta Ads") : isTikTok ? (en ? "Connect a TikTok Ads account" : "Connecter un compte TikTok Ads") : (en ? "Connect a Pinterest Ads account" : "Connecter un compte Pinterest Ads")}
             </a>
@@ -649,7 +650,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
               <video src={previewUrl ?? undefined} className="h-40 w-full object-cover" muted />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl ?? state.mediaUrl} alt="Aperçu du visuel" className="h-40 w-full object-cover" />
+              <img src={previewUrl ?? state.mediaUrl} alt={t("sweep3.text338")} className="h-40 w-full object-cover" />
             )}
             <button
               type="button"
@@ -670,7 +671,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           </div>
         )}
         {uploadError ? (
-          <p className="mt-1 text-xs text-[#991B1B]">{uploadError}</p>
+          <p className="mt-1 text-xs text-[#991B1B]">{localizeSystemMessage(uploadError, locale)}</p>
         ) : (
           <p className="mt-1 text-xs text-gray-400">{en ? "JPG, PNG or short video. Upload starts automatically after selection." : "JPG, PNG ou courte vidéo. L'envoi démarre automatiquement dès la sélection."}</p>
         )}
@@ -696,7 +697,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
                 </button>
               )}
             </div>
-            {carouselError ? <p className="mt-1 text-xs text-[#991B1B]">{carouselError}</p> : state.carouselUrls.length > 0 ? <p className="mt-1 text-xs text-gray-400">{en ? `Carousel of ${state.carouselUrls.length + 1} images.` : `Carrousel de ${state.carouselUrls.length + 1} images.`}</p> : null}
+            {carouselError ? <p className="mt-1 text-xs text-[#991B1B]">{localizeSystemMessage(carouselError, locale)}</p> : state.carouselUrls.length > 0 ? <p className="mt-1 text-xs text-gray-400">{en ? `Carousel of ${state.carouselUrls.length + 1} images.` : `Carrousel de ${state.carouselUrls.length + 1} images.`}</p> : null}
           </div>
         )}
         {state.platform === "meta" && (
@@ -773,7 +774,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
           />
           <p className="mt-1 text-xs text-gray-400">{locale === "en" ? "Creates a hook, benefits and a clear call to action from your product." : "Crée un hook, des bénéfices et un appel à l'action à partir de ton produit."}</p>
-          {copyError ? <p className="mt-1 text-xs text-[#991B1B]">{copyError}</p> : null}
+          {copyError ? <p className="mt-1 text-xs text-[#991B1B]">{localizeSystemMessage(copyError, locale)}</p> : null}
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-semibold text-gray-700">{en ? "Destination link" : "Lien de destination"}</label>
@@ -797,8 +798,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           <>
             {loadingMetaPages ? (
               <p className="flex items-center gap-2 text-xs text-gray-500">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement de tes pages Facebook…
-              </p>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> {" "}{t("sweep1.text339")}</p>
             ) : metaPages.length > 1 ? (
               <select
                 value={state.metaPageId ?? ""}
@@ -815,7 +815,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
             ) : metaPages.length === 1 ? (
               <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">{metaPages[0].name}</p>
             ) : null}
-            {metaPagesError && <p className="mt-1 text-xs text-[#991B1B]">{metaPagesError}</p>}
+            {metaPagesError && <p className="mt-1 text-xs text-[#991B1B]">{localizeSystemMessage(metaPagesError, locale)}</p>}
           </>
         ) : (
           <p className="text-sm text-gray-500">{en ? "TikTok identity (creator/business account) is configured automatically at launch." : "L'identité TikTok (compte créateur/entreprise) est configurée automatiquement lors du lancement."}</p>

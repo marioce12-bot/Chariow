@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useState } from "react";
 import { buildGeoTargeting } from "./types";
 import type { WizardState } from "./types";
@@ -166,7 +167,7 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
           : (editing ? "Tes modifications seront enregistrées sur cette campagne. Rien n'est lancé à cette étape." : "La campagne sera enregistrée comme brouillon. Aucune publicité n'est lancée et aucune performance n'est simulée à cette étape.")}
       </p>
 
-      {error && <p className="text-sm text-[#991B1B]">{error}</p>}
+      {error && <p className="text-sm text-[#991B1B]">{localizeSystemMessage(error, locale)}</p>}
 
       <div className="sticky bottom-0 -mx-5 mt-4 flex justify-between border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button onClick={onBack} className="text-sm font-medium text-gray-500">

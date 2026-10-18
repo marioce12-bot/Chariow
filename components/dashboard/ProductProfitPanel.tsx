@@ -1,7 +1,10 @@
 "use client";
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Skeleton } from "./Skeleton";
 import CampaignProfitPanel from "./CampaignProfitPanel";
+import { useI18n } from "@/lib/i18n/i18n";
+import { dashboardCopy } from "@/lib/i18n/dashboard-copy";
 type Product = {
   productId: string;
   productName: string | null;
@@ -18,10 +21,10 @@ type Product = {
   campaigns?: Array<{ id: string; name: string | null; sales: number }>;
   provenance?: { paidSales: number; refundCount: number; campaignLinkedSales: number; reliability: "complete" | "partial" };
 };
-const money = (value: number | null, currency: string) =>
+const money = (value: number | null, currency: string, locale: string) =>
   value == null
     ? "—"
-    : new Intl.NumberFormat("fr-FR", {
+    : new Intl.NumberFormat(locale, {
         style: "currency",
         currency,
         maximumFractionDigits: 2,
@@ -31,6 +34,9 @@ export default function ProductProfitPanel({
 }: {
   storeId: string | null;
 }) {
+  const { locale , t } = useI18n();
+  const en = locale === "en";
+  const copy = dashboardCopy[locale];
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(Boolean(storeId));
   const [error, setError] = useState("");
@@ -51,7 +57,7 @@ export default function ProductProfitPanel({
         }
       } catch (e) {
         if (!signal?.aborted)
-          setError(e instanceof Error ? e.message : "Erreur");
+          setError(e instanceof Error ? e.message : t("adsExtra.status.error"));
       }
     },
     [storeId, period],
@@ -92,42 +98,42 @@ export default function ProductProfitPanel({
   if (!storeId)
     return (
       <section style={box}>
-        <h2 style={title}>Bénéfice estimé par produit</h2>
-        <p>Sélectionnez une boutique pour consulter ses ventes.</p>
+        <h2 style={title}>{copy["dashboardExtra.productProfit"]}</h2>
+        <p>{copy["dashboardExtra.selectStore"]}</p>
       </section>
     );
   return (
     <section
       className="profit-panel"
-      aria-label="Bénéfices estimés par produit"
+      aria-label={copy["dashboardExtra.productProfit"]}
       style={box}
     >
       <div style={head}>
         <div style={{ flex: 1, minWidth: 240 }}>
-          <span className="business-eyebrow">RENTABILITÉ</span>
-          <h2 style={title}>Bénéfice estimé par produit</h2>
+          <span className="business-eyebrow">{copy["dashboardExtra.profitability"]}</span>
+          <h2 style={title}>{copy["dashboardExtra.productProfit"]}</h2>
           <p style={muted}>
-            Les frais Chariow sont de 15 %. Si le montant net est fourni, il est
+            {en ? "Chariow fees are 15%. Provided net revenue is used as-is, without deducting fees again; otherwise, net revenue is estimated at 85% of gross revenue." : `Les frais Chariow sont de 15 %. Si le montant net est fourni, il est
             utilisé tel quel sans nouvelle déduction des frais. À défaut, le net
-            est estimé à 85 % du brut.
+            est estimé à 85 % du brut.`}
           </p>
         </div>
         <label style={periodLabel}>
-          Période{" "}
+          {en ? "Period" : "Période"}{" "}
           <select value={period} onChange={(e) => setPeriod(e.target.value)}>
-            <option value="7">7 jours</option>
-            <option value="30">30 jours</option>
-            <option value="90">90 jours</option>
+            <option value="7">{en ? "7 days" : "7 jours"}</option>
+            <option value="30">{en ? "30 days" : "30 jours"}</option>
+            <option value="90">{en ? "90 days" : "90 jours"}</option>
           </select>
         </label>
       </div>
       {error && (
         <p role="alert" style={alert}>
-          {error}
+          {localizeSystemMessage(error, locale)}
         </p>
       )}
       {loading ? (
-        <div role="status" aria-busy="true" aria-label="Chargement des ventes" style={grid}>
+        <div role="status" aria-busy="true" aria-label={en ? "Loading sales" : "Chargement des ventes"} style={grid}>
           {[0, 1, 2].map((item) => (
             <article key={item} style={card}>
               <Skeleton width="55%" height={18} />
@@ -140,8 +146,8 @@ export default function ProductProfitPanel({
         </div>
       ) : products.length === 0 && !error ? (
         <p>
-          Aucune vente confirmée avec produit et devise identifiables sur cette
-          période.
+          {en ? "No confirmed sales with an identifiable product and currency for this period." : `Aucune vente confirmée avec produit et devise identifiables sur cette
+          période.`}
         </p>
       ) : null}
       {!loading && totals.length > 0 && (
@@ -153,19 +159,19 @@ export default function ProductProfitPanel({
               style={totalCard}
             >
               <b>
-                Résumé de la période <span>{currency}</span>
+                {en ? "Period summary" : "Résumé de la période"} <span>{currency}</span>
               </b>
               <div className="profit-summary-metrics">
                 <div>
-                  <small>Montant net après frais</small>
+                  <small>{en ? "Net after fees" : "Montant net après frais"}</small>
                   <strong>
-                    {t.missing ? "Données incomplètes" : money(t.net, currency)}
+                    {t.missing ? (en ? "Incomplete data" : "Données incomplètes") : money(t.net, currency, locale)}
                   </strong>
                 </div>
                 <div className="profit-summary-result">
-                  <small>Bénéfice estimé</small>
+                  <small>{en ? "Estimated profit" : "Bénéfice estimé"}</small>
                   <strong>
-                    {t.missing ? "À compléter" : money(t.profit, currency)}
+                    {t.missing ? (en ? "Needs completion" : "À compléter") : money(t.profit, currency, locale)}
                   </strong>
                 </div>
               </div>
@@ -183,41 +189,41 @@ export default function ProductProfitPanel({
                   <div>
                     <h3 style={productTitle}>{p.productName || p.productId}</h3>
                     {p.productName && (
-                      <small style={muted}>ID : {p.productId}</small>
+                      <small style={muted}>{en ? "ID:" : "ID :"} {p.productId}</small>
                     )}
                   </div>
                   <span style={badge}>{p.currency}</span>
                 </div>
-                {p.campaigns?.length ? <p style={muted}>Campagne Chariow liée : {p.campaigns.map((c) => `${c.name || c.id} (${c.sales})`).join(", ")}</p> : <p style={muted}>Aucune campagne Chariow explicitement liée à ces ventes.</p>}
+                {p.campaigns?.length ? <p style={muted}>{en ? "Linked Chariow campaign: " : "Campagne Chariow liée :"} {p.campaigns.map((c) => `${c.name || c.id} (${c.sales})`).join(", ")}</p> : <p style={muted}>{en ? "No Chariow campaign is explicitly linked to these sales." : "Aucune campagne Chariow explicitement liée à ces ventes."}</p>}
                 <div className="profit-product-stats" style={stats}>
                   <span>
-                    Ventes payées <b>{p.provenance?.paidSales ?? p.units}</b>
+                    {en ? "Paid sales" : "Ventes payées"} <b>{p.provenance?.paidSales ?? p.units}</b>
                   </span>
-                  <span>Remboursements <b>{p.provenance?.refundCount ?? p.refunds ?? 0}</b></span>
+                  <span>{en ? "Refunds" : "Remboursements"} <b>{p.provenance?.refundCount ?? p.refunds ?? 0}</b></span>
                   <span>
-                    Brut <b>{money(p.grossRevenue, p.currency)}</b>
-                  </span>
-                  <span>
-                    Frais Chariow ({(p.chariowFeeRate * 100).toFixed(0)} %)
-                    <b>{money(p.chariowFees, p.currency)}</b>
+                    {t("finalExtra.text11")}{" "}<b>{money(p.grossRevenue, p.currency, locale)}</b>
                   </span>
                   <span>
-                    {p.estimatedNetRevenue ? "Montant net estimé" : "Montant net reçu"}
-                    <b>{money(p.netRevenue, p.currency)}</b>
+                    {en ? "Chariow fees (" : "Frais Chariow ("}{(p.chariowFeeRate * 100).toFixed(0)} %)
+                    <b>{money(p.chariowFees, p.currency, locale)}</b>
+                  </span>
+                  <span>
+                    {p.estimatedNetRevenue ? (en ? "Estimated net amount" : "Montant net estimé") : (en ? "Received net amount" : "Montant net reçu")}
+                    <b>{money(p.netRevenue, p.currency, locale)}</b>
                   </span>
                 </div>
-                {p.provenance?.reliability === "partial" && <small role="note" style={muted}>Données financières incomplètes : certains montants ne sont pas disponibles.</small>}
+                {p.provenance?.reliability === "partial" && <small role="note" style={muted}>{en ? "Incomplete financial data: some amounts are unavailable." : "Données financières incomplètes : certains montants ne sont pas disponibles."}</small>}
                 <div className="profit-product-result" style={p.profit == null ? { ...profitRow, background: "#f6f7f9", color: "#475569" } : profitRow}>
                   <strong>
                     {p.profit == null
                       ? p.netRevenue == null
-                        ? "Bénéfice après publicité non calculé : montants de vente incomplets."
-                        : "Bénéfice après publicité : dépenses non rapprochées de ce produit."
-                      : `Bénéfice estimé : ${money(p.profit, p.currency)}`}
+                        ? en ? "Profit after advertising not calculated: sales amounts are incomplete." : "Bénéfice après publicité non calculé : montants de vente incomplets."
+                        : en ? "Profit after advertising: spend is not matched to this product." : "Bénéfice après publicité : dépenses non rapprochées de ce produit."
+                      : `${en ? "Estimated profit" : "Bénéfice estimé"}: ${money(p.profit, p.currency, locale)}`}
                   </strong>
-                  {p.profit == null && p.netRevenue != null && <small>Le montant net ci-dessus est calculé après les frais Chariow, mais avant la publicité. Vendeo ne sait pas encore quelles dépenses publicitaires affecter à ce produit. Cela ne signifie pas que ton pixel est mal installé.</small>}
+                  {p.profit == null && p.netRevenue != null && <small>{en ? "The net amount above is after Chariow fees, but before advertising. Vendeo cannot yet determine which ad spend belongs to this product. This does not mean your pixel is installed incorrectly." : "Le montant net ci-dessus est calculé après les frais Chariow, mais avant la publicité. Vendeo ne sait pas encore quelles dépenses publicitaires affecter à ce produit. Cela ne signifie pas que ton pixel est mal installé."}</small>}
                   <span>
-                    Marge :{" "}
+                    {en ? "Margin:" : "Marge :"}{" "}
                     {p.marginPercent == null
                       ? "—"
                       : `${p.marginPercent.toFixed(1)} %`}

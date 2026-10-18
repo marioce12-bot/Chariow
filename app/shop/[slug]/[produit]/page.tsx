@@ -1,3 +1,4 @@
+import { useI18n } from "@/lib/i18n/i18n";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ShopMessage, ShopProductDetail } from "@/components/shop/Storefront";
@@ -16,9 +17,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ShopProductPage({ params, searchParams }: Props) {
+  const { t } = useI18n();
   const { slug, produit } = await params;
   const view = await loadShop(slug);
-  if (view.state === "limited") return <ShopMessage title="Trop de visites" text="Merci de réessayer dans une minute." />;
+  if (view.state === "limited") return <ShopMessage title={t("optionsExtra.text0")} text="Merci de réessayer dans une minute." />;
   if (view.state !== "ok") notFound();
   const item = view.items.find((candidate) => candidate.id === produit);
   if (!item) notFound();

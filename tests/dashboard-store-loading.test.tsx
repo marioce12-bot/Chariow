@@ -1,13 +1,15 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { I18nProvider } from "@/lib/i18n/i18n";
+import { translate } from "@/lib/i18n/translate";
 import { DashboardSkeleton, SkeletonRows } from "@/components/dashboard/Skeleton";
 
 const dashboard = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
 
 describe("store loading skeletons", () => {
   it("renders accessible placeholders instead of fake numbers", () => {
-    const html = renderToStaticMarkup(<DashboardSkeleton />);
+    const html = renderToStaticMarkup(<I18nProvider><DashboardSkeleton /></I18nProvider>);
     expect(html).toContain('aria-busy="true"');
     expect(html).toContain('role="status"');
     expect(html).toContain('class="sk"');
@@ -15,8 +17,8 @@ describe("store loading skeletons", () => {
   });
 
   it("lets lists describe what is loading", () => {
-    const html = renderToStaticMarkup(<SkeletonRows count={4} label="Chargement des relances" />);
-    expect(html).toContain('aria-label="Chargement des relances"');
+    const html = renderToStaticMarkup(<I18nProvider><SkeletonRows count={4} label={translate("fr", "sweep3.text173")} /></I18nProvider>);
+    expect(html).toContain(`aria-label="${translate("fr", "sweep3.text173")}"`);
     expect(html.match(/class="sk-row"/g)).toHaveLength(4);
   });
 
@@ -40,6 +42,7 @@ describe("store loading skeletons", () => {
     const page = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
     const recovery = readFileSync(new URL("../components/dashboard/RecoveryPanel.tsx", import.meta.url), "utf8");
     expect(page).toContain("fallback={<DashboardSkeleton />}");
-    expect(recovery).toContain('<SkeletonRows count={4} label="Chargement des relances" />');
+    expect(recovery).toContain('<SkeletonRows count={4} label={t("sweep3.text173")} />');
+    expect(translate("fr", "sweep3.text173")).toBe("Chargement des relances");
   });
 });
