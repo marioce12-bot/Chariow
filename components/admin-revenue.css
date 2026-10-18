@@ -3,4 +3,25 @@
 .admin-revenue-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 16px 0; }
 .admin-revenue-grid .admin-kpi { min-width: 0; }
 .admin-revenue-grid strong { font-size: clamp(1.3rem, 2.4vw, 2rem); overflow-wrap: anywhere; }
-@media (max-width: 640px) { .admin-revenue-grid { grid-template-columns: 1fr; gap: 10px; } }
+.admin-revenue-period { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.admin-revenue-period label { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: .85rem; }
+.admin-revenue-period select, .admin-revenue-period input { min-height: 44px; max-width: 100%; min-width: 0; padding: 9px 12px; border: 1px solid var(--border, #ddd); border-radius: 8px; background: var(--bg-card, white); color: inherit; font: inherit; color-scheme: light; }
+.admin-revenue-period button { min-height: 44px; }
+.admin-revenue :is(select, input, button, summary, [tabindex]):focus-visible { outline: 3px solid #8b5cf6; outline-offset: 3px; }
+.admin-revenue-period-error { flex-basis: 100%; color: #b91c1c; margin: 0; }
+.admin-revenue-trend { min-width: 0; margin-top: 22px; }
+.admin-revenue-trend h3 { font-size: 1rem; margin-bottom: 12px; }
+.admin-revenue-trend svg { display: block; width: 100%; height: 160px; color: #7c3aed; }
+.admin-revenue-chart-scale { display: flex; justify-content: space-between; font-size: .75rem; opacity: .75; }
+.admin-revenue-chart-dates { display: flex; justify-content: space-between; gap: 12px; font-size: .75rem; }
+.admin-revenue-trend details { margin-top: 16px; }
+.admin-revenue-trend summary { cursor: pointer; padding: 10px 0; font-size: .85rem; }
+.admin-revenue-table-scroll { overflow: auto; max-height: 360px; }
+.admin-revenue-table-scroll table { width: 100%; font-size: .8rem; border-collapse: collapse; }
+.admin-revenue-table-scroll th, .admin-revenue-table-scroll td { text-align: start; padding: 10px; white-space: nowrap; border-bottom: 1px solid var(--border, #ddd); }
+@media (max-width: 640px) {
+  .admin-revenue-grid { grid-template-columns: 1fr; gap: 10px; }
+  .admin-revenue-period { align-items: stretch; }
+  .admin-revenue-period label { flex: 1 1 100%; }
+  .admin-revenue-period button { width: 100%; justify-content: center; }
+}

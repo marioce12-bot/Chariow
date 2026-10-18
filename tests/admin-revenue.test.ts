@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { readRevenue, summarizeRevenue, type RevenueRow } from "@/lib/admin-revenue";
+import { resolveRevenuePeriod } from "@/lib/admin-revenue-period";
 const asOf = "2026-10-18T20:00:00.000Z";
 const payment = (overrides: Partial<RevenueRow> = {}): RevenueRow => ({ id: "p", provider: "saspay", transaction_id: "tx1", plan: "starter", status: "approved", metadata: { amount_xof: 2000 }, created_at: "2026-10-01T00:00:00Z", ...overrides });
 const credit = (overrides: Partial<RevenueRow> = {}): RevenueRow => ({ id: "c", kind: "purchase", operation: "credit_purchase", external_id: "tx2", status: "completed", metadata: { provider: "saspay", amount_xof: 500 }, created_at: "2026-10-07T20:45:16Z", ...overrides });
 describe("recorded SaaS revenue", () => {
+  it("validates custom civil dates and resolves inclusive timezone-aware DST bounds", () => {
+    const p = resolveRevenuePeriod(new URLSearchParams("period=custom&start=2026-03-08&end=2026-03-08&timeZone=America%2FNew_York"), new Date("2026-03-09T12:00:00Z"));
+    expect(p?.startAt).toBe("2026-03-08T05:00:00.000Z");
+    expect(p?.endAt).toBe("2026-03-09T03:59:59.999Z");
+    expect(resolveRevenuePeriod(new URLSearchParams("period=custom&start=2026-02-30&end=2026-03-01"), new Date(asOf))).toBeNull();
+    expect(resolveRevenuePeriod(new URLSearchParams("period=custom&start=2026-03-02&end=2026-03-01"), new Date(asOf))).toBeNull();
+    expect(resolveRevenuePeriod(new URLSearchParams("period=7d"), new Date("2026-10-18T20:00:00Z"))?.start).toBe("2026-10-12");
+  });
   it("adds only verified successful subscriptions and paid topups", () => {
     const summary = summarizeRevenue([payment(), payment({ status: "pending" }), payment({ status: "failed" })], [credit(), credit({ operation: "admin_grant", metadata: { amount_xof: 99999, provider: "admin_grant" } }), credit({ operation: "welcome_credits", metadata: { source: "signup" } }), credit({ kind: "debit", status: "refunded" }), credit({ status: "pending" })], asOf);
     expect(summary).toMatchObject({ subscriptions: 2000, studio: 500, total: 2500, currency: "XOF", complete: true, subscriptionPayments: 1, studioPayments: 1, firstRecordedAt: "2026-10-01T00:00:00Z" });
