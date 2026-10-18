@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useNavigationCache } from "./NavigationDataCache";
 import { BarChart3 } from "lucide-react";
 import { toUsd } from "@/lib/currency";
 import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
@@ -108,10 +109,15 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
   const { locale , t } = useI18n();
   const en = locale === "en";
   const tr = (fr: string, english: string) => (en ? english : fr);
-  const [stats, setStats] = useState<ChannelStat[]>(CHANNELS.map(emptyStat));
-  const [metaCampaigns, setMetaCampaigns] = useState<CampaignStat[]>([]);
+  const cache = useNavigationCache();
+  // Identity includes store, period and plan; mutations refresh the same usable reading.
+  const cacheKey = useMemo(() => `/__computed/ad-spend/${JSON.stringify([storeId, periodDays, plan])}`, [storeId, periodDays, plan]);
+  const cached = useSyncExternalStore(cache.subscribe, () => cache.snapshot(cacheKey), () => cache.snapshot(null)) as { data?: { stats: ChannelStat[]; campaigns: CampaignStat[]; readings: MetaAccountReading[] }; loading: boolean; refreshing: boolean; error: boolean };
   const [metaSyncing, setMetaSyncing] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const stats = cached.data?.stats ?? CHANNELS.map(emptyStat);
+  const metaCampaigns = cached.data?.campaigns ?? [];
+  const loading = cached.data === undefined && cached.loading;
+  const loaderRef = useRef<() => Promise<any>>(async () => ({}));
 
   useEffect(() => {
     let cancelled = false;
@@ -197,36 +203,41 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
       };
     }
 
-    setLoading(true);
-    void Promise.all([
+    loaderRef.current = async () => {
+      const [meta, tiktok, pinterest] = await Promise.all([
       loadMeta(),
       isAdPlatformAllowed(plan, "tiktok") ? loadSimple(1, "/api/integrations/tiktok/accounts", "/api/tiktok/performance") : Promise.resolve(emptyStat(CHANNELS[1])),
       loadSimple(2, "/api/integrations/pinterest/accounts", "/api/pinterest/performance"),
-    ]).then(async ([meta, tiktok, pinterest]) => {
+      ]);
+      return { stats: [meta.stat, tiktok, pinterest] as ChannelStat[], campaigns: meta.campaigns as CampaignStat[], readings: meta.readings as MetaAccountReading[] };
+    };
+    void cache.loadComputed(cacheKey, () => loaderRef.current(), refreshKey).then(async () => {
       if (cancelled) return;
-      setStats([meta.stat, tiktok, pinterest]);
-      setMetaCampaigns(meta.campaigns);
-      setLoading(false);
+      const current = cache.snapshot(cacheKey).data as { stats: ChannelStat[]; campaigns: CampaignStat[]; readings: MetaAccountReading[] } | undefined;
+      if (!current) return;
 
       // Comptes Meta dont les données sont anciennes (ou jamais synchronisées) : on resynchronise en
       // arrière-plan, puis on relit les chiffres. Les données déjà affichées restent en place.
-      const staleIds = meta.readings.filter((reading) => reading.ok && reading.stale).map((reading) => reading.accountId)
+      const staleIds = current.readings.filter((reading) => reading.ok && reading.stale).map((reading) => reading.accountId)
         .filter((accountId) => Date.now() - (lastAutoSync.get(accountId) ?? 0) >= AUTO_SYNC_COOLDOWN_MS);
       if (!staleIds.length) return;
       for (const accountId of staleIds) lastAutoSync.set(accountId, Date.now());
       setMetaSyncing(true);
       const outcomes = await Promise.all(staleIds.map((accountId) => syncMeta(accountId)));
       if (outcomes.some(Boolean) && !cancelled) {
-        const fresh = await loadMeta();
-        if (!cancelled) {
-          setStats((current) => [fresh.stat, current[1], current[2]]);
-          setMetaCampaigns(fresh.campaigns);
-        }
+        if (!cancelled) void cache.loadComputed(cacheKey, loaderRef.current, refreshKey, true);
       }
       if (!cancelled) setMetaSyncing(false);
-    }).catch(() => { if (!cancelled) { setLoading(false); setMetaSyncing(false); } });
+    });
     return () => { cancelled = true; };
-  }, [plan, storeId, periodDays, refreshKey]);
+  }, [cache, cacheKey, plan, storeId, periodDays, refreshKey]);
+  useEffect(() => { void cache.loadComputed(cacheKey, () => loaderRef.current(), refreshKey); }, [cache, cacheKey, cached, refreshKey]);
+  useEffect(() => {
+    const refreshStale = () => { if (document.visibilityState !== "hidden") void cache.loadComputed(cacheKey, () => loaderRef.current(), refreshKey); };
+    const timer = window.setInterval(refreshStale, 60_000);
+    window.addEventListener("focus", refreshStale);
+    return () => { clearInterval(timer); window.removeEventListener("focus", refreshStale); };
+  }, [cache, cacheKey, refreshKey]);
 
   const connected = stats.filter((stat) => stat.connected);
   const totalUsd = stats.reduce((total, stat) => total + stat.spendUsd, 0);

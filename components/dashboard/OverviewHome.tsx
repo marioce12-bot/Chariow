@@ -13,6 +13,7 @@ import { AdSpendByChannel } from "./AdSpendByChannel";
 import { Skeleton, SkeletonRows } from "./Skeleton";
 import type { AnalyticsData, ProductData, StoreData, SubscriptionData } from "./shared";
 import "@/app/dashboard-overview.css";
+import { useNavigationData, useNavigationCache } from "./NavigationDataCache";
 
 /**
  * Nouvelle "Vue d'ensemble" : simple, accueillante et multi-canaux.
@@ -72,6 +73,8 @@ export function OverviewHome({
   loading = false,
   onNavigate,
   storeSelector,
+  selectedPeriodDays,
+  onPeriodDaysChange,
 }: {
   stores: StoreData[];
   subscription: SubscriptionData | null;
@@ -88,18 +91,28 @@ export function OverviewHome({
   loading?: boolean;
   onNavigate?: (section: string) => void;
   storeSelector?: ReactNode;
+  selectedPeriodDays?: number;
+  onPeriodDaysChange?: (days: number) => void;
 }) {
   const { locale , t } = useI18n();
   const en = locale === "en";
   const tr = (fr: string, english: string) => (en ? english : fr);
 
-  const [periodDays, setPeriodDays] = useState(30);
-  const [data, setData] = useState<AnalyticsData>(analytics);
-  const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
-  const [campaignsReady, setCampaignsReady] = useState(false);
-  const [periodLoading, setPeriodLoading] = useState(false);
-  const periodFirstRun = useRef(true);
-  const [alerts, setAlerts] = useState<PersistentAlert[]>([]);
+  const [localPeriodDays, setLocalPeriodDays] = useState(30);
+  const periodDays = selectedPeriodDays ?? localPeriodDays;
+  const setPeriodDays = onPeriodDaysChange ?? setLocalPeriodDays;
+  const cache = useNavigationCache();
+  const toDay = new Date().toISOString().slice(0, 10);
+  const from = new Date();
+  from.setDate(from.getDate() - periodDays + 1);
+  const period = useNavigationData<{ snapshot: AnalyticsData }>(selectedStoreId ? `/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}&from=${from.toISOString().slice(0, 10)}&to=${toDay}` : null);
+  const campaignReading = useNavigationData<{ campaigns: CampaignSummary[] }>("/api/ad-campaigns", { version: campaignsVersion });
+  const alertReading = useNavigationData<{ alerts: PersistentAlert[] }>("/api/alerts");
+  const data = period.data?.snapshot ?? analytics;
+  const campaigns = campaignReading.data?.campaigns ?? [];
+  const campaignsReady = !campaignReading.loading;
+  const periodLoading = period.loading && periodDays !== 30;
+  const alerts = alertReading.data?.alerts ?? [];
   const [selectedSale, setSelectedSale] = useState<SaleRow | null>(null);
   const saleTriggerRef = useRef<HTMLButtonElement | null>(null);
   const saleCloseRef = useRef<HTMLButtonElement | null>(null);
@@ -110,50 +123,11 @@ export function OverviewHome({
   const store = stores.find((item) => item.id === selectedStoreId) ?? stores[0];
   const storeId = store?.id ?? selectedStoreId;
 
-  useEffect(() => { setData(analytics); }, [analytics]);
 
   // Salutation : on met l'heure à jour toutes les 10 minutes (matin → après-midi → soirée).
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 10 * 60 * 1000);
     return () => clearInterval(timer);
-  }, []);
-
-  // Période : on recharge les chiffres de la boutique pour 7 / 30 / 90 jours.
-  useEffect(() => {
-    if (!selectedStoreId) return;
-    // Premier passage = même données que celles déjà affichées : pas de skeleton. Ensuite (changement
-    // de période ou de boutique), les chiffres affichés ne sont plus bons : skeleton jusqu'à la réponse.
-    if (periodFirstRun.current) periodFirstRun.current = false;
-    else setPeriodLoading(true);
-    const to = new Date();
-    const from = new Date(to);
-    from.setDate(to.getDate() - periodDays + 1);
-    let cancelled = false;
-    void fetch(`/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}&from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((result) => { if (!cancelled && result?.snapshot) setData(result.snapshot as AnalyticsData); })
-      .catch(() => undefined)
-      .finally(() => { if (!cancelled) setPeriodLoading(false); });
-    return () => { cancelled = true; };
-  }, [periodDays, selectedStoreId]);
-
-  // Campagnes de tous les canaux (Meta, TikTok, Pinterest…).
-  useEffect(() => {
-    let cancelled = false;
-    void fetch("/api/ad-campaigns")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((result) => { if (!cancelled) { setCampaigns(Array.isArray(result?.campaigns) ? result.campaigns : []); setCampaignsReady(true); } })
-      .catch(() => { if (!cancelled) { setCampaigns([]); setCampaignsReady(true); } });
-    return () => { cancelled = true; };
-  }, [campaignsVersion]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetch("/api/alerts")
-      .then((res) => (res.ok ? res.json() : { alerts: [] }))
-      .then((result) => { if (!cancelled) setAlerts(Array.isArray(result?.alerts) ? result.alerts : []); })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
   }, []);
 
   // Garder le focus dans le flux du dialogue, fermer avec Échap et restaurer le déclencheur.
@@ -176,6 +150,9 @@ export function OverviewHome({
       saleTriggerRef.current?.focus();
     };
   }, [selectedSale]);
+
+  const refreshing = period.refreshing || campaignReading.refreshing || alertReading.refreshing;
+  function refreshOverview() { cache.invalidate(); }
 
   const overview = data?.overview ?? null;
   const products: ProductData[] = data?.products ?? analytics?.products ?? [];
@@ -275,6 +252,7 @@ export function OverviewHome({
       <section className="app-card">
         <div style={{ minWidth: 0 }}>
           <span className="eyebrow">{tr(t("dashboard.overview"), "Overview")}</span>
+          <button type="button" className="btn btn-ghost" onClick={refreshOverview} disabled={refreshing} aria-busy={refreshing}>{en ? (refreshing ? "Updating…" : "Refresh") : (refreshing ? "Actualisation…" : "Actualiser")}</button>
           {greeting ? (
             <>
               <h1 style={{ margin: "4px 0 8px", fontSize: 24, fontWeight: 700 }}>{greeting}</h1>

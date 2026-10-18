@@ -13,6 +13,7 @@ import { useI18n } from "@/lib/i18n/i18n";
 import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
 import type { PlanId } from "@/lib/plans";
 import { getMetaCampaignLifecycle, getMetaPausedReason, isMetaPausedReason } from "@/lib/meta/status";
+import { useNavigationCache, useNavigationData } from "@/components/dashboard/NavigationDataCache";
 
 type AdCampaign = {
   id: string;
@@ -93,10 +94,15 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [planProp]);
-  const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
+  // Fragment scopes the in-memory key by storeId but is never sent to the API;
+  // GET /api/ad-campaigns remains user-authorized and unchanged.
+  const campaignsUrl = storeId ? `/api/ad-campaigns#store=${encodeURIComponent(storeId)}` : null;
+  const campaignsQuery = useNavigationData<{ campaigns?: AdCampaign[] }>(campaignsUrl);
+  const navigationCache = useNavigationCache();
+  const campaigns = Array.isArray(campaignsQuery.data?.campaigns) ? campaignsQuery.data.campaigns : [];
   const currentCampaigns = campaigns.filter((campaign) => !["archived", "deleted"].includes(getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? ""));
   const historicalCampaigns = campaigns.filter((campaign) => ["archived", "deleted"].includes(getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? ""));
-  const [loading, setLoading] = useState(true);
+  const loading = campaignsQuery.loading;
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
   const [correcting, setCorrecting] = useState<AdCampaign | null>(null);
   // Duplication : wizard pré-rempli avec cette campagne, qui crée un nouveau brouillon.
@@ -107,19 +113,8 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/ad-campaigns");
-      const data = await res.json().catch(() => null);
-      setCampaigns(res.ok && Array.isArray(data?.campaigns) ? data.campaigns : []);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+    if (campaignsUrl) await navigationCache.load(campaignsUrl, 0, true);
+  }, [campaignsUrl, navigationCache]);
 
   // Auto-sync : tant qu'une campagne Meta est "en revue", on revérifie son
   // statut aupres de Meta toutes les 15s (au lieu d'attendre le cron
@@ -266,6 +261,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
           }}
           onLaunched={() => {
             setResuming(null);
+            navigationCache.invalidate();
             void load();
           }}
         />
@@ -277,7 +273,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
           plan={plan}
           duplicateCampaign={duplicating}
           onClose={() => setDuplicating(null)}
-          onLaunched={() => { void load(); }}
+          onLaunched={() => { navigationCache.invalidate(); void load(); }}
         />
       ) : null}
       {correcting && storeId ? (
@@ -307,7 +303,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
           <div className="app-card" style={{ maxWidth: 620, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onClick={(event) => event.stopPropagation()}>
             <div className="card-head campaign-modal-head"><div><span className="eyebrow">{t("campaigns.detail")}</span><h2>{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="compact-icon-button" onClick={() => setSelected(null)} aria-label={t("campaigns.close")}><X size={16} /></button></div>
             {selected.media_url ? <img src={selected.media_url} alt={t("campaigns.preview")} style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} /> : null}
-            {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>{t("campaigns.text")}</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>{t("campaigns.network")}</strong> {selected.platform === "meta" ? "Facebook / Instagram" : selected.platform === "pinterest" ? "Pinterest" : "TikTok"}</div><div><strong>{t("campaigns.objective")}</strong> {selected.objective}</div><div><strong>{t("campaigns.audience")}</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} {" "}{t("finalExtra.text68")}</div><div><strong>{t("campaigns.budget")}</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} {" "}{t("finalExtra.text69")}{" "}{selected.duration_days} {" "}{t("sweep1.text330")}</div>{selected.destination_url ? <div><strong>{t("campaigns.link")}</strong> {selected.destination_url}</div> : null}</div>}
+            {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; navigationCache.invalidate(); setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>{t("campaigns.text")}</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>{t("campaigns.network")}</strong> {selected.platform === "meta" ? "Facebook / Instagram" : selected.platform === "pinterest" ? "Pinterest" : "TikTok"}</div><div><strong>{t("campaigns.objective")}</strong> {selected.objective}</div><div><strong>{t("campaigns.audience")}</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} {" "}{t("finalExtra.text68")}</div><div><strong>{t("campaigns.budget")}</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} {" "}{t("finalExtra.text69")}{" "}{selected.duration_days} {" "}{t("sweep1.text330")}</div>{selected.destination_url ? <div><strong>{t("campaigns.link")}</strong> {selected.destination_url}</div> : null}</div>}
             {selected.external_error ? (
               <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: isMetaPausedReason(selected.external_error) ? "#FFFBEB" : "#FEE2E2", color: isMetaPausedReason(selected.external_error) ? "#92400E" : "#991B1B", fontSize: 13 }}>
                 <strong>{isMetaPausedReason(selected.external_error) ? (locale === "en" ? "Paused by Meta:" : "En pause chez Meta :") : t("ads.errors.reason")}</strong> {getMetaPausedReason(selected.external_error) ?? campaignErrorMessage(selected.external_error, locale, t, selected.platform)}
@@ -326,7 +322,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                 {selected.autopilot_pause_reason ? <p className="hint-line" style={{ color: "#B45309" }}>{t("sweep3.text332")} {selected.autopilot_pause_reason}</p> : null}
               </div>
             ) : null}
-            <div className="ad-campaign-modal-actions">{!getMetaCampaignLifecycle(selected.status, selected.external_error) && selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => { setEditing(false); setDuplicating(selected); setSelected(null); }}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button>{!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? t("ads.launchButton") : t("adsExtra.resume")}</button> : null}{!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button> : null}</div>
+            <div className="ad-campaign-modal-actions">{!getMetaCampaignLifecycle(selected.status, selected.external_error) && selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => { setEditing(false); setDuplicating(selected); setSelected(null); }}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button>{!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? t("ads.launchButton") : t("adsExtra.resume")}</button> : null}{!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { navigationCache.invalidate(); setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button> : null}</div>
           </div>
         </div>
       ) : null}

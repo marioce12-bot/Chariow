@@ -36,7 +36,7 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { NotificationsView } from "@/components/NotificationsView";
 import { useUsageTracking } from "@/components/useUsageTracking";
-import { readCache, writeCache, DASHBOARD_CACHE_KEY, SESSION_STORAGE_PROMPT_KEY, ADS_CACHE_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
+import { SESSION_STORAGE_PROMPT_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
 import { StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
 import { OverviewHome } from "./dashboard/OverviewHome";
 import { DashboardSkeleton } from "./dashboard/Skeleton";
@@ -47,6 +47,8 @@ import { DashboardStoreSelector } from "./dashboard/StoreSelector";
 import "@/app/dashboard-refinement.css";
 import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
 import { StoreConnectionGate, hasConnectedChariowStore } from "./dashboard/StoreConnectionGate";
+
+import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
 // Dernière boutique choisie dans le sélecteur : conservée dans localStorage (et non
@@ -92,6 +94,22 @@ function readSavedStoreId(): string | null {
 }
 
 export function Dashboard() {
+  const [identity, setIdentity] = useState("current-session");
+  useEffect(() => {
+    const auth = createClient().auth;
+    let knownUser: string | null | undefined;
+    const result = auth.onAuthStateChange?.((_event, session) => {
+      const nextUser = session?.user?.id ?? null;
+      if (knownUser !== undefined && knownUser !== nextUser) setIdentity(nextUser ?? "signed-out");
+      knownUser = nextUser;
+    });
+    return () => result?.data.subscription.unsubscribe();
+  }, []);
+  return <NavigationDataProvider key={identity}><DashboardWorkspace /></NavigationDataProvider>;
+}
+
+function DashboardWorkspace() {
+  const navigationCache = useNavigationCache();
   const { t, locale } = useI18n();
   const w = (key: string) => t(`workspaceExtra.${key}`);
   const [active, setActive] = useState(getInitialDashboardSection);
@@ -206,6 +224,7 @@ export function Dashboard() {
   // Produit choisi via le bouton « Promouvoir » du catalogue : le formulaire de pub saute alors l'étape « Produit ».
   const [wizardProduct, setWizardProduct] = useState<ProductData | null>(null);
   const [campaignsVersion, setCampaignsVersion] = useState(0);
+  const [overviewPeriodDays, setOverviewPeriodDays] = useState(30);
   // Le formulaire de création de pub (LaunchAdWizard) vit ici, au niveau de l'appli,
   // pour que le bouton "Lancer une pub" de l'accueil ET celui de l'onglet "Pub"
   // ouvrent directement le même formulaire, au lieu que celui de "Pub" se contente
@@ -275,24 +294,7 @@ export function Dashboard() {
     });
 
     async function loadDashboard() {
-      const cached = readCache<{ stores: StoreData[]; selectedStoreId: string | null; subscription: SubscriptionData | null; analytics: AnalyticsData }>(DASHBOARD_CACHE_KEY);
-      // Boutique à afficher en priorité : le dernier choix de l'utilisateur, sinon celle du cache.
-      // (Avant, on comparait à l'état React `selectedStoreId`, toujours vide à ce stade car cet effet
-      // ne s'exécute qu'une fois : on retombait donc systématiquement sur la première boutique connectée.)
-      const preferredStoreId = readSavedStoreId() ?? cached?.selectedStoreId ?? null;
-      if (cached && !cancelled) {
-        // On affiche tout de suite les dernières données connues : plus d'écran
-        // "Chargement de ton espace…" à chaque ouverture, la mise à jour se fait en silence.
-        setStores(cached.stores);
-        if (preferredStoreId && cached.stores.some((store: StoreData) => store.id === preferredStoreId)) setSelectedStoreId(preferredStoreId);
-        else if (cached.selectedStoreId) setSelectedStoreId(cached.selectedStoreId);
-        setSubscription(cached.subscription);
-        setAnalytics(cached.analytics);
-        setAnalyticsStoreId(cached.selectedStoreId);
-        setLoadingData(false);
-        setOverviewLoading(false);
-      }
-
+      const preferredStoreId = readSavedStoreId();
       const storeResponse = await fetch("/api/stores");
       const storeResult = storeResponse.ok ? await storeResponse.json() : { stores: [] };
       if (cancelled) return;
@@ -312,10 +314,7 @@ export function Dashboard() {
       if (cancelled) return;
       const nextSubscription = subscriptionResult.subscription ?? null;
       setSubscription(nextSubscription);
-      // Analytics belong to the selected-store effect below. Never overwrite a newer
-      // selection with an initial-load response or cache a snapshot under another store.
-      const latest = readCache<{ selectedStoreId: string | null; analytics: AnalyticsData }>(DASHBOARD_CACHE_KEY);
-      writeCache(DASHBOARD_CACHE_KEY, { stores: nextStores, selectedStoreId: latest?.selectedStoreId ?? nextSelected, subscription: nextSubscription, analytics: latest?.analytics ?? null });
+
     }
 
     loadDashboard().catch(() => {
@@ -337,37 +336,23 @@ export function Dashboard() {
     }
   }, [selectedStoreId]);
 
+  const analyticsReading = useNavigationData<{ snapshot: AnalyticsData }>(activeStoreId ? `/api/analytics?store_id=${encodeURIComponent(activeStoreId)}` : null);
   useEffect(() => {
-    const controller = new AbortController();
     if (!activeStoreId) {
       setAnalytics(null);
       setAnalyticsStoreId(null);
       setOverviewLoading(false);
-      return () => controller.abort();
+      return;
     }
-    setOverviewLoading(true);
-    setAnalytics(null);
-    void (async () => {
-      try {
-        const res = await fetch(`/api/analytics?store_id=${encodeURIComponent(activeStoreId)}`, { signal: controller.signal });
-        const data = res.ok ? await res.json() : null;
-        if (controller.signal.aborted) return;
-        const nextAnalytics = data?.snapshot ?? null;
-        setAnalytics(nextAnalytics);
-        const cached = readCache<{ stores: StoreData[]; subscription: SubscriptionData | null }>(DASHBOARD_CACHE_KEY);
-        writeCache(DASHBOARD_CACHE_KEY, { stores: cached?.stores ?? stores, selectedStoreId: activeStoreId, subscription: cached?.subscription ?? subscription, analytics: nextAnalytics });
-      } catch {
-        if (controller.signal.aborted) return;
-        setAnalytics(null);
-      } finally {
-        if (!controller.signal.aborted) {
-          setAnalyticsStoreId(activeStoreId);
-          setOverviewLoading(false);
-        }
-      }
-    })();
-    return () => controller.abort();
-  }, [activeStoreId]);
+    if (analyticsReading.loading) {
+      setOverviewLoading(true);
+      return;
+    }
+    const nextAnalytics = analyticsReading.data?.snapshot ?? null;
+    setAnalytics(nextAnalytics);
+    setAnalyticsStoreId(activeStoreId);
+    setOverviewLoading(false);
+  }, [activeStoreId, analyticsReading.data, analyticsReading.loading]);
 
   // The identity check hides previous-store figures in the very first render,
   // before the effect has had a chance to set its loading flag.
@@ -425,7 +410,7 @@ export function Dashboard() {
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Pub" ? (
-             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
+             <AdsView key={activeStoreId} plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" />
           ) : active === "Radar marché" ? (
@@ -448,6 +433,7 @@ export function Dashboard() {
             <AutopilotView />
           ) : (
             <OverviewHome
+              key={activeStoreId}
               stores={stores}
               subscription={subscription}
               analytics={analytics}
@@ -457,6 +443,8 @@ export function Dashboard() {
               onLaunchAd={launchAd}
               onPromoteProduct={promoteProduct}
               campaignsVersion={campaignsVersion}
+              selectedPeriodDays={overviewPeriodDays}
+              onPeriodDaysChange={setOverviewPeriodDays}
               onNavigate={setActive}
               loading={storeDataLoading}
               storeSelector={<DashboardStoreSelector stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} />}
@@ -470,7 +458,7 @@ export function Dashboard() {
              initialProduct={wizardProduct}
              plan={(subscription?.plan ?? "starter") as PlanId}
              onClose={() => { setWizardOpen(false); setWizardProduct(null); }}
-             onLaunched={() => setCampaignsVersion((v) => v + 1)}
+             onLaunched={() => { navigationCache.invalidate(); setCampaignsVersion((v) => v + 1); }}
            />
          ) : null}
       </div>

@@ -22,12 +22,12 @@ describe("store loading skeletons", () => {
     expect(html.match(/class="sk-row"/g)).toHaveLength(4);
   });
 
-  it("hides the previous snapshot immediately and aborts obsolete requests", () => {
+  it("hides the previous snapshot immediately and isolates cached store identities", () => {
     expect(dashboard).toContain("analyticsStoreId !== activeStoreId");
     expect(dashboard).toContain("snapshotView && storeDataLoading");
-    expect(dashboard).toContain("signal: controller.signal");
-    expect(dashboard).toContain("if (controller.signal.aborted) return;");
-    expect(dashboard).toContain("return () => controller.abort()");
+    expect(dashboard).toContain("useNavigationData<{ snapshot: AnalyticsData }>");
+    expect(dashboard).toContain("encodeURIComponent(activeStoreId)");
+    expect(dashboard).not.toContain("readCache<");
     expect(dashboard).toContain("setAnalytics(nextAnalytics)");
     expect(dashboard).not.toContain("nextAnalytics ?? cached?.analytics ?? analytics");
   });

@@ -11,7 +11,7 @@ import { PinterestAdsPanel } from "@/components/PinterestAdsPanel";
 import { MetaHistoryOverview } from "@/components/dashboard/MetaHistoryOverview";
 import { MetaAccountSkeleton } from "@/components/dashboard/MetaAccountSkeleton";
 import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
 import { toUsd } from "@/lib/currency";
 import { isAdPlatformAllowed, planMaxStores, type AdPlatform, type PlanId } from "@/lib/plans";
@@ -23,7 +23,8 @@ import { LaunchAdWizard } from "@/components/vendeo/wizard";
 import { CREDIT_PRICE_XOF } from "@/lib/studio/credits";
 import { VIDEO_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/studio/creative-workflows";
 import { useI18n } from "@/lib/i18n/i18n";
-import { readCache, writeCache, MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY, ADS_CACHE_KEY } from "./shared";
+import { MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY } from "./shared";
+import { useNavigationCache } from "./NavigationDataCache";
 import type { StoreData, SubscriptionData, ProductData, AnalyticsData } from "./shared";
 
 function sumInUSD(entries: Array<{ amount: number; currency: string }>): number | null {
@@ -968,6 +969,7 @@ const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; 
 type SettingsTab = "accounts" | "channels" | "appearance" | "language" | "feedback" | "about" | "session";
 
 export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: SettingsTab | "preferences" }) {
+  const connectionCache = useNavigationCache();
   const { locale, setLocale, t } = useI18n();
   const [mobileSettingsSection, setMobileSettingsSection] = useState<SettingsTab>(focus === "preferences" ? "appearance" : focus ?? "appearance");
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -1027,6 +1029,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
         setConnectionError(t("sweep2.text292"));
         return;
       }
+      connectionCache.clear();
       if (platform === "meta") setMetaConnected(false);
       else if (platform === "tiktok") setTiktokConnected(false);
       else setPinterestConnected(false);
@@ -1270,6 +1273,7 @@ type MetaPerformance = {
 type MetaPixelOption = { id: string; name: string; configured_on_chariow?: boolean };
 
 type AdsCache = {
+  pinterestAccounts?: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; country: string | null }>;
   metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>;
   selectedMetaAccount: string;
   metaPerformance: MetaPerformance | null;
@@ -1334,7 +1338,10 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const { t, locale } = useI18n();
   const en = locale === "en";
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
-  const [cachedOnce] = useState(() => readCache<AdsCache>(ADS_CACHE_KEY));
+  const navigationCache = useNavigationCache();
+  const adsCacheKey = `ads:${storeId ?? "none"}:${plan}`;
+  const adsSnapshot = useSyncExternalStore(navigationCache.subscribe, () => navigationCache.snapshot(adsCacheKey), () => navigationCache.snapshot(null));
+  const cachedOnce = adsSnapshot.data as AdsCache | undefined;
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok" | "pinterest">("overview");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -1351,7 +1358,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const [configuringPixel, setConfiguringPixel] = useState<string | null>(null);
 
   const [tiktokAccounts, setTiktokAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; status: string | null }>>(cachedOnce?.tiktokAccounts ?? []);
-  const [pinterestAccounts, setPinterestAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; country: string | null }>>([]);
+  const [pinterestAccounts, setPinterestAccounts] = useState<Array<{ id: string; advertiser_id: string; name: string | null; currency: string; country: string | null }>>(cachedOnce?.pinterestAccounts ?? []);
   // Tant que le statut TikTok n'est pas connu (pas de cache), on affiche des skeletons
   // au lieu du bouton « Connecter TikTok » pour éviter le flash d'interface.
   const [tiktokLoading, setTiktokLoading] = useState(!cachedOnce);
@@ -1400,13 +1407,14 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
           .catch(() => [] as TiktokAccount[])
       : Promise.resolve([] as TiktokAccount[]);
     void tiktokPromise.then((accounts) => {
+      if (requestToken !== metaRequestToken.current) return;
       if (tiktokAllowedNow) setTiktokAccounts(accounts);
       setTiktokLoading(false);
     });
-    void fetch("/api/integrations/pinterest/accounts")
+    const pinterestPromise = fetch("/api/integrations/pinterest/accounts")
       .then((response) => (response.ok ? response.json() : { accounts: [] }))
-      .then((data) => setPinterestAccounts((data.accounts ?? []) as Array<{ id: string; advertiser_id: string; name: string | null; currency: string; country: string | null }>))
-      .catch(() => setPinterestAccounts([]));
+      .then((data) => { const accounts = data.accounts ?? []; if (requestToken === metaRequestToken.current) setPinterestAccounts(accounts); return accounts; })
+      .catch(() => []);
 
     const metaResponse = await fetch("/api/integrations/meta/accounts");
     const metaData = metaResponse.ok ? await metaResponse.json() : { accounts: [] };
@@ -1428,6 +1436,12 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     let nextMetaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null = null;
     let nextMetaAccountRestricted = false;
     if (chosenAccount) {
+      if (chosenAccount.id !== selectedMetaAccount) {
+        setMetaLoading(true);
+        setMetaPerformance(null);
+        setMetaResources(null);
+        setMetaAccountRestricted(false);
+      }
       nextSelectedMetaAccount = chosenAccount.id;
       setSelectedMetaAccount(nextSelectedMetaAccount);
       const loaded = await loadMetaAccountData(chosenAccount.id, chosenAccount.last_synced_at, requestToken);
@@ -1438,7 +1452,9 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
     const nextTiktokAccounts = await tiktokPromise;
     if (requestToken !== metaRequestToken.current) return;
-    writeCache(ADS_CACHE_KEY, { metaAccounts: nextMetaAccounts, selectedMetaAccount: nextSelectedMetaAccount, metaPerformance: nextMetaPerformance, metaResources: nextMetaResources, metaAccountRestricted: nextMetaAccountRestricted, tiktokAccounts: nextTiktokAccounts });
+    setMetaLoading(false);
+    if (!chosenAccount) { setSelectedMetaAccount(""); setMetaPerformance(null); setMetaResources(null); setMetaAccountRestricted(false); }
+    return { metaAccounts: nextMetaAccounts, selectedMetaAccount: nextSelectedMetaAccount, metaPerformance: nextMetaPerformance, metaResources: nextMetaResources, metaAccountRestricted: nextMetaAccountRestricted, tiktokAccounts: nextTiktokAccounts, pinterestAccounts: await pinterestPromise };
   }
 
   // Changement de compte dans le sélecteur : recharge les performances et le statut
@@ -1459,7 +1475,9 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     try {
       const loaded = await loadMetaAccountData(accountId, metaAccounts.find((account) => account.id === accountId)?.last_synced_at, requestToken);
       if (requestToken !== metaRequestToken.current) return;
-      writeCache(ADS_CACHE_KEY, { metaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts });
+      await navigationCache.loadComputed(`${adsCacheKey}:account:${accountId}`, async () => ({ perf: loaded.perf, resources: loaded.resources, restricted: loaded.restricted }), campaignsVersion, true);
+      navigationCache.invalidate();
+      void navigationCache.loadComputed(adsCacheKey, async () => ({ metaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts }), campaignsVersion, true);
     } catch {
       if (requestToken === metaRequestToken.current) {
         setMetaPerformance(null);
@@ -1472,7 +1490,31 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     }
   }
 
-  useEffect(() => { void load(); return () => { metaRequestToken.current += 1; }; }, []);
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  useEffect(() => {
+    void navigationCache.loadComputed(adsCacheKey, () => loadRef.current(), campaignsVersion);
+  }, [navigationCache, adsCacheKey, campaignsVersion, adsSnapshot]);
+  useEffect(() => {
+    if (adsSnapshot.error) { setMetaLoading(false); if (!cachedOnce) setMetaLoadError(t("sweep3.text299")); }
+  }, [adsSnapshot.error, cachedOnce]);
+  useEffect(() => {
+    if (!cachedOnce) return;
+    setMetaAccounts(cachedOnce.metaAccounts);
+    setSelectedMetaAccount(cachedOnce.selectedMetaAccount);
+    setMetaPerformance(cachedOnce.metaPerformance);
+    setMetaResources(cachedOnce.metaResources);
+    setMetaAccountRestricted(cachedOnce.metaAccountRestricted);
+    setTiktokAccounts(cachedOnce.tiktokAccounts);
+    setPinterestAccounts(cachedOnce.pinterestAccounts ?? []);
+    setTiktokLoading(false);
+  }, [cachedOnce]);
+  useEffect(() => {
+    const refreshStale = () => { if (document.visibilityState !== "hidden") void navigationCache.loadComputed(adsCacheKey, () => loadRef.current(), campaignsVersion); };
+    window.addEventListener("focus", refreshStale);
+    const timer = window.setInterval(refreshStale, 60_000);
+    return () => { clearInterval(timer); window.removeEventListener("focus", refreshStale); metaRequestToken.current += 1; };
+  }, [navigationCache, adsCacheKey, campaignsVersion]);
 
   const connectMeta = () => { window.location.href = "/api/integrations/meta/connect"; };
   const connectTiktok = () => { window.location.href = "/api/integrations/tiktok/connect"; };
@@ -1492,6 +1534,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       if (!response.ok) setMessage(data.error ?? t("ads.syncError"));
       else {
         setMessage(t("ads.synced"));
+        navigationCache.invalidate();
         const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}`);
         if (metrics.ok) {
           const performance = await metrics.json();
@@ -1523,6 +1566,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
         body: JSON.stringify({ account_id: accountId, pixel_id: pixelId, configured }),
       });
       if (response.ok && requestToken === metaRequestToken.current) {
+        navigationCache.invalidate();
         setMetaResources((current) =>
           current
             ? { ...current, pixels: current.pixels.map((pixel) => (pixel.id === pixelId ? { ...pixel, configured_on_chariow: configured } : pixel)) }
