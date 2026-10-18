@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { getMetaAdReviewStatus, mapMetaEffectiveStatus } from "@/lib/meta/campaigns";
-import { isMetaPausedReason, markMetaPausedReason } from "@/lib/meta/status";
+import { getMetaCampaignLifecycle, isMetaPausedReason, markMetaPausedReason } from "@/lib/meta/status";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -19,6 +19,11 @@ export async function GET(_request: Request, context: Context) {
     .maybeSingle();
   if (campaignError) return NextResponse.json({ error: "Impossible de charger la campagne" }, { status: 500 });
   if (!campaign) return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
+
+  const lifecycle = getMetaCampaignLifecycle(campaign.status, campaign.external_error);
+  if (lifecycle === "archived" || lifecycle === "deleted") {
+    return NextResponse.json({ status: lifecycle, external_error: campaign.external_error });
+  }
 
   const shouldCheckMeta = campaign.platform === "meta"
     && Boolean(campaign.external_ad_id)

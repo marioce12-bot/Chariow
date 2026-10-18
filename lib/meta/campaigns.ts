@@ -501,7 +501,7 @@ export function mapMetaEffectiveStatus(
   effectiveStatus: string,
   feedback: Record<string, unknown> | null,
   accountStatus?: number | null,
-): { status: "active" | "review" | "rejected" | "paused"; error: string | null } | null {
+): { status: "active" | "review" | "rejected" | "paused" | "archived" | "deleted"; error: string | null } | null {
   if (effectiveStatus === "DISAPPROVED" || effectiveStatus === "WITH_ISSUES") {
     // La forme exacte de ad_review_feedback varie selon le type de refus (global vs par ligne).
     // On prend le texte tel quel pour l'afficher à l'utilisateur, tronqué par sécurité.
@@ -513,6 +513,12 @@ export function mapMetaEffectiveStatus(
       // garde le message par défaut
     }
     return { status: "rejected", error: reason };
+  }
+  if (["ARCHIVED", "CAMPAIGN_ARCHIVED", "ADSET_ARCHIVED", "AD_ARCHIVED"].includes(effectiveStatus)) {
+    return { status: "archived", error: `META_ARCHIVED:Meta indique que la publicité ou son ensemble/campagne est archived. L’historique est conservé.` };
+  }
+  if (["DELETED", "CAMPAIGN_DELETED", "ADSET_DELETED", "AD_DELETED"].includes(effectiveStatus)) {
+    return { status: "deleted", error: `META_DELETED:Meta indique que la publicité ou son ensemble/campagne est deleted. L’historique est conservé.` };
   }
   const accountBlocked = isMetaAccountStatusBlocking(accountStatus);
   const accountReason = accountBlocked && accountStatus != null
@@ -531,12 +537,6 @@ export function mapMetaEffectiveStatus(
   }
   if (["PENDING_REVIEW", "IN_PROCESS", "PREAPPROVED", "PENDING_PROCESS"].includes(effectiveStatus)) {
     return { status: "review", error: null };
-  }
-  // Meta exposes archive/delete as effective states (often inherited by the ad
-  // from its campaign/ad set). Keep the local row and its reporting history;
-  // never translate these states into a database deletion.
-  if (["ARCHIVED", "DELETED", "CAMPAIGN_ARCHIVED", "CAMPAIGN_DELETED", "ADSET_ARCHIVED", "ADSET_DELETED", "AD_ARCHIVED", "AD_DELETED"].includes(effectiveStatus)) {
-    return { status: "paused", error: `Meta indique que la publicité ou son ensemble/campagne est ${effectiveStatus.toLowerCase().replaceAll("_", " ")}. L'historique est conservé.` };
   }
   return null;
 }

@@ -1297,6 +1297,14 @@ function TikTokSkeleton() {
   );
 }
 
+function MetaAccountSkeleton() {
+  return <div className="meta-account-skeleton" role="status" aria-label="Chargement des données du compte Meta">
+    <div className="vendeo-kpi-grid meta-kpis">{[0, 1, 2, 3, 4].map((item) => <div className="vendeo-kpi" key={item}><div className="vendeo-skeleton" style={{ height: 12, width: "58%", marginBottom: 12 }} /><div className="vendeo-skeleton" style={{ height: 25, width: "44%" }} /></div>)}</div>
+    <section className="app-card" style={{ marginBottom: 18 }}><div className="vendeo-skeleton" style={{ height: 16, width: 180, marginBottom: 18 }} />{[0, 1, 2, 3].map((item) => <div className="vendeo-skeleton" key={item} style={{ height: 13, width: `${96 - item * 9}%`, marginBottom: 12 }} />)}</section>
+    <section className="app-card"><div className="vendeo-skeleton" style={{ height: 16, width: 150, marginBottom: 18 }} />{[0, 1, 2].map((item) => <div className="vendeo-skeleton" key={item} style={{ height: 38, marginBottom: 10 }} />)}</section>
+  </div>;
+}
+
 // Vue des performances publicitaires et des campagnes liées au compte sélectionné.
 export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaignsVersion }: { plan: PlanId; onGoToAI: () => void; onGoToAccounts: () => void; onLaunchAd: () => void; storeId: string | null; campaignsVersion: number }) {
   const { t, locale } = useI18n();
@@ -1312,6 +1320,9 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const [metaResources, setMetaResources] = useState<{ pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null>(cachedOnce?.metaResources ?? null);
   const [metaAccountRestricted, setMetaAccountRestricted] = useState(cachedOnce?.metaAccountRestricted ?? false);
   const [metaSyncing, setMetaSyncing] = useState(false);
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [metaLoadError, setMetaLoadError] = useState<string | null>(null);
+  const metaRequestToken = useRef(0);
   const [copiedPixelId, setCopiedPixelId] = useState<string | null>(null);
   const [configuringPixel, setConfiguringPixel] = useState<string | null>(null);
 
@@ -1322,7 +1333,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const [tiktokLoading, setTiktokLoading] = useState(!cachedOnce);
 
   // Charge performances, pages/pixels et statut de restriction pour UN compte donné.
-  async function loadMetaAccountData(accountId: string, lastSyncedAt?: string | null) {
+  async function loadMetaAccountData(accountId: string, lastSyncedAt?: string | null, requestToken = ++metaRequestToken.current) {
     let perf: MetaPerformance | null = null;
     let resources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null = null;
     let restricted = false;
@@ -1331,21 +1342,22 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       setMetaSyncing(true);
       try {
         const syncResponse = await fetch("/api/meta/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: accountId }) });
-        if (!syncResponse.ok) setMessage(t("ads.syncError"));
+        if (!syncResponse.ok && requestToken === metaRequestToken.current) setMessage(t("ads.syncError"));
       } catch {
-        setMessage(t("ads.syncError"));
+        if (requestToken === metaRequestToken.current) setMessage(t("ads.syncError"));
       } finally {
-        setMetaSyncing(false);
+        if (requestToken === metaRequestToken.current) setMetaSyncing(false);
       }
     }
     const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}`);
-    if (metrics.ok) perf = await metrics.json();
+    if (!metrics.ok) throw new Error("Meta performance request failed");
+    perf = await metrics.json();
     const resourceResponse = await fetch(`/api/integrations/meta/resources?account_id=${encodeURIComponent(accountId)}`);
-    if (resourceResponse.ok) {
-      const resourceData = await resourceResponse.json();
-      resources = resourceData;
-      restricted = Boolean(resourceData.account?.restricted);
-    }
+    if (!resourceResponse.ok) throw new Error("Meta resources request failed");
+    const resourceData = await resourceResponse.json();
+    resources = resourceData;
+    restricted = Boolean(resourceData.account?.restricted);
+    if (requestToken !== metaRequestToken.current) return { perf: null, resources: null, restricted: false };
     setMetaPerformance(perf);
     setMetaResources(resources);
     setMetaAccountRestricted(restricted);
@@ -1353,6 +1365,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   }
 
   async function load() {
+    const requestToken = ++metaRequestToken.current;
     type TiktokAccount = { id: string; advertiser_id: string; name: string | null; currency: string; status: string | null };
     // Requête TikTok lancée en parallèle de Meta (avant, elle attendait la fin des appels Meta).
     const tiktokAllowedNow = isAdPlatformAllowed(plan, "tiktok");
@@ -1373,6 +1386,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
     const metaResponse = await fetch("/api/integrations/meta/accounts");
     const metaData = metaResponse.ok ? await metaResponse.json() : { accounts: [] };
+    if (requestToken !== metaRequestToken.current) return;
     const nextMetaAccounts = (metaData.accounts ?? []) as Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>;
     setMetaAccounts(nextMetaAccounts);
 
@@ -1392,13 +1406,14 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     if (chosenAccount) {
       nextSelectedMetaAccount = chosenAccount.id;
       setSelectedMetaAccount(nextSelectedMetaAccount);
-      const loaded = await loadMetaAccountData(chosenAccount.id, chosenAccount.last_synced_at);
+      const loaded = await loadMetaAccountData(chosenAccount.id, chosenAccount.last_synced_at, requestToken);
       nextMetaPerformance = loaded.perf;
       nextMetaResources = loaded.resources;
       nextMetaAccountRestricted = loaded.restricted;
     }
 
     const nextTiktokAccounts = await tiktokPromise;
+    if (requestToken !== metaRequestToken.current) return;
     writeCache(ADS_CACHE_KEY, { metaAccounts: nextMetaAccounts, selectedMetaAccount: nextSelectedMetaAccount, metaPerformance: nextMetaPerformance, metaResources: nextMetaResources, metaAccountRestricted: nextMetaAccountRestricted, tiktokAccounts: nextTiktokAccounts });
   }
 
@@ -1406,12 +1421,34 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   // de restriction pour CE compte. Avant, on gardait les données de l'ancien compte,
   // d'où le message de restriction du mauvais compte affiché sur le nouveau.
   async function selectMetaAccount(accountId: string) {
+    const requestToken = ++metaRequestToken.current;
     setSelectedMetaAccount(accountId);
-    const loaded = await loadMetaAccountData(accountId, metaAccounts.find((account) => account.id === accountId)?.last_synced_at);
-    writeCache(ADS_CACHE_KEY, { metaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts });
+    setMetaLoading(true);
+    setMetaLoadError(null);
+    setMetaPerformance(null);
+    setMetaResources(null);
+    setMetaAccountRestricted(false);
+    setMessage(null);
+    setMetaSyncing(false);
+    setConfiguringPixel(null);
+    setCopiedPixelId(null);
+    try {
+      const loaded = await loadMetaAccountData(accountId, metaAccounts.find((account) => account.id === accountId)?.last_synced_at, requestToken);
+      if (requestToken !== metaRequestToken.current) return;
+      writeCache(ADS_CACHE_KEY, { metaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts });
+    } catch {
+      if (requestToken === metaRequestToken.current) {
+        setMetaPerformance(null);
+        setMetaResources(null);
+        setMetaAccountRestricted(false);
+        setMetaLoadError("Impossible de charger les données de ce compte Meta.");
+      }
+    } finally {
+      if (requestToken === metaRequestToken.current) setMetaLoading(false);
+    }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); return () => { metaRequestToken.current += 1; }; }, []);
 
   const connectMeta = () => { window.location.href = "/api/integrations/meta/connect"; };
   const connectTiktok = () => { window.location.href = "/api/integrations/tiktok/connect"; };
@@ -1420,14 +1457,24 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
   async function syncMeta() {
     if (!selectedMetaAccount) return;
+    const accountId = selectedMetaAccount;
+    const requestToken = metaRequestToken.current;
     setMetaSyncing(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/meta/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: selectedMetaAccount }) });
+      const response = await fetch("/api/meta/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: accountId }) });
       const data = await response.json();
+      if (requestToken !== metaRequestToken.current) return;
       if (!response.ok) setMessage(data.error ?? t("ads.syncError"));
-      else { setMessage(t("ads.synced")); const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(selectedMetaAccount)}`); if (metrics.ok) setMetaPerformance(await metrics.json()); }
-    } finally { setMetaSyncing(false); }
+      else {
+        setMessage(t("ads.synced"));
+        const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}`);
+        if (metrics.ok) {
+          const performance = await metrics.json();
+          if (requestToken === metaRequestToken.current) setMetaPerformance(performance);
+        }
+      }
+    } finally { if (requestToken === metaRequestToken.current) setMetaSyncing(false); }
   }
 
   async function copyPixelId(pixelId: string) {
@@ -1442,14 +1489,16 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
   async function markPixelConfigured(pixelId: string, configured: boolean) {
     if (!selectedMetaAccount) return;
+    const accountId = selectedMetaAccount;
+    const requestToken = metaRequestToken.current;
     setConfiguringPixel(pixelId);
     try {
       const response = await fetch("/api/integrations/meta/pixels/configure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ account_id: selectedMetaAccount, pixel_id: pixelId, configured }),
+        body: JSON.stringify({ account_id: accountId, pixel_id: pixelId, configured }),
       });
-      if (response.ok) {
+      if (response.ok && requestToken === metaRequestToken.current) {
         setMetaResources((current) =>
           current
             ? { ...current, pixels: current.pixels.map((pixel) => (pixel.id === pixelId ? { ...pixel, configured_on_chariow: configured } : pixel)) }
@@ -1457,7 +1506,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
         );
       }
     } finally {
-      setConfiguringPixel(null);
+      if (requestToken === metaRequestToken.current) setConfiguringPixel(null);
     }
   }
 
@@ -1485,11 +1534,12 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{(metaPerformance ? formatMoneyInUSD(metaPerformance.overview.spend, metaPerformance.currency) : null) ?? t("ads.unavailable")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${(metaPerformance.overview.realRoas * 100).toFixed(1)} %`}</strong></div></div></section> : channel === "meta" ? (
         <>
           {metaConnected ? <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.connected")}</span></div> : null}
-          {metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n'est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
-          {metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
+          {!metaLoading && metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>Ton compte publicitaire Meta est restreint</strong><p>Meta a restreint ce compte ; la synchronisation peut être incomplète tant que la restriction n'est pas levée.</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">Vérifier dans Meta</a></div></div> : null}
+          {!metaLoading && metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">Aucune page Facebook trouvée sur ce Business Manager.</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noMeta")}</strong><span>{t("ads.noMetaText")}</span><button className="btn btn-dark" onClick={connectMeta}>{t("ads.connectMeta")}</button></div> : <>
-            <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><span className="hint-line">Dernière synchro : {metaPerformance?.lastSyncedAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(metaPerformance.lastSyncedAt)) : "Jamais"}{metaPerformance?.lastSyncError ? ` · Erreur : ${metaPerformance.lastSyncError}` : ""}</span><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
-            {metaConnected && metaResources ? (
+            <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><span className="hint-line">{metaLoading ? "Chargement…" : <>Dernière synchro : {metaPerformance?.lastSyncedAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(metaPerformance.lastSyncedAt)) : "Jamais"}{metaPerformance?.lastSyncError ? ` · Erreur : ${metaPerformance.lastSyncError}` : ""}</>}</span><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing || metaLoading}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
+            {metaLoading ? <MetaAccountSkeleton /> : metaLoadError ? <div className="empty-state" role="alert"><strong>{metaLoadError}</strong></div> : null}
+            {!metaLoading && !metaLoadError && metaConnected && metaResources ? (
               <section className="app-card" style={{ marginBottom: 18 }}>
                 <div className="card-head"><div><span className="eyebrow">Suivi des conversions</span><h2>Pixel Meta</h2><p>Copie l'identifiant du pixel et configure-le dans ton parcours de vente Chariow (Pixel ou Conversions API). Une fois installé, marque-le « configuré ».</p></div>{metaResources.pixels.length > 0 && !metaResources.pixels.some((pixel) => pixel.configured_on_chariow) ? <a href="https://business.facebook.com/events_manager2/list" target="_blank" rel="noreferrer" className="btn btn-ghost">Créer un pixel</a> : null}</div>
                 {metaResources.pixels.length > 0 ? (
@@ -1520,7 +1570,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
                 )}
               </section>
             ) : null}
-            {metaPerformance ? (
+            {!metaLoading && !metaLoadError && metaPerformance ? (
               <>
                 <div className="vendeo-kpi-grid meta-kpis">
                   <div className="vendeo-kpi"><MetricHelp label={t("ads.spend")} description={en ? "Spend synced from Meta Insights." : "Dépenses synchronisées depuis Meta Insights."} /><strong>{formatMoneyInUSD(metaPerformance.overview.spend, metaPerformance.currency) ?? t("overview.metricUnavailable")}</strong><small className="source-meta">{t("overview.metaDeclared")}</small></div>
@@ -1557,7 +1607,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
                   })}</div>
                 </section> : null}
               </>
-            ) : <div className="empty-state"><span className="meta-status">{t("overview.soon")}</span></div>}
+            ) : !metaLoading && !metaLoadError ? <div className="empty-state"><span className="meta-status">{t("overview.soon")}</span></div> : null}
           </>}
         </>
       ) : channel === "tiktok" ? (

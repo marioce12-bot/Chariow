@@ -1,6 +1,6 @@
 import { fetchMetaAccountStatus } from "@/lib/meta/api";
 import { getMetaAdReviewStatus, mapMetaEffectiveStatus } from "@/lib/meta/campaigns";
-import { markMetaPausedReason } from "@/lib/meta/status";
+import { getMetaCampaignLifecycle, markMetaPausedReason } from "@/lib/meta/status";
 import { fetchMetaCampaignList } from "@/lib/meta/campaign-list";
 
 type CampaignRow = {
@@ -87,11 +87,29 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   }
   const inventoryById = new Map(inventory.map((campaign) => [campaign.id, campaign]));
 
+  // Normalize positive legacy archive/delete sentences before interpreting an
+  // inventory omission or attempting an ad-level status lookup.
+  for (const campaign of campaigns) {
+    const lifecycle = getMetaCampaignLifecycle(campaign.status, campaign.external_error);
+    if (lifecycle !== "archived" && lifecycle !== "deleted") continue;
+    const status = lifecycle;
+    const marker = lifecycle === "archived"
+      ? "META_ARCHIVED:Meta indique que la publicité ou son ensemble/campagne est archived. L’historique est conservé."
+      : "META_DELETED:Meta indique que la publicité ou son ensemble/campagne est deleted. L’historique est conservé.";
+    if (campaign.status === status && campaign.external_error === marker) continue;
+    let update = input.supabase.from("ad_campaigns").update({ status, external_error: marker }).eq("id", campaign.id);
+    if (input.userId) update = update.eq("user_id", input.userId);
+    const { error } = await update;
+    if (error) result.errors += 1; else result.updated += 1;
+  }
+
   // Une campagne active absente d'un inventaire intégral n'est plus active chez Meta.
   // On conserve la ligne et l'historique, sans affirmer qu'elle a été supprimée.
   for (const campaign of campaigns) {
-    if (!["active", "review"].includes(campaign.status) || !campaign.external_campaign_id || inventoryById.has(campaign.external_campaign_id)) continue;
-    const reason = markMetaPausedReason("Campagne absente de l’inventaire complet Meta; statut mis en pause, historique conservé.");
+    if (!["active", "review"].includes(campaign.status) || getMetaCampaignLifecycle(campaign.status, campaign.external_error) || !campaign.external_campaign_id || inventoryById.has(campaign.external_campaign_id)) continue;
+    // Absence is ambiguous (#100 can be permissions, and inventory has no proof
+    // of deletion). Prevent relaunch while retaining the existing audit row.
+    const reason = "META_UNAVAILABLE:Campagne absente de l’inventaire Meta; état externe indisponible, historique conservé.";
     let update = input.supabase.from("ad_campaigns").update({ status: "paused", external_error: reason }).eq("id", campaign.id);
     if (input.userId) update = update.eq("user_id", input.userId);
     const { error } = await update;
@@ -107,23 +125,33 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   await Promise.all(Array.from({ length: workerCount }, async () => {
     while (nextIndex < candidates.length) {
       const campaign = candidates[nextIndex++];
+      if (getMetaCampaignLifecycle(campaign.status, campaign.external_error) === "archived" || getMetaCampaignLifecycle(campaign.status, campaign.external_error) === "deleted") continue;
       if (campaign.external_campaign_id && !inventoryById.has(campaign.external_campaign_id)) continue;
       result.checked += 1;
       try {
         const { effectiveStatus, feedback } = await getMetaAdReviewStatus({ adId: campaign.external_ad_id, accessToken: input.accessToken });
         let mapped = mapMetaEffectiveStatus(effectiveStatus, feedback, result.accountStatus);
-        // #100 peut également signifier permissions insuffisantes: ne jamais conclure
-        // sur cette erreur seule. Si l'inventaire complet confirme la campagne parent,
-        // son état parent peut toutefois fournir une réconciliation utile.
-        if (!mapped && campaign.external_campaign_id) {
-          const parent = inventoryById.get(campaign.external_campaign_id);
-          if (parent?.effectiveStatus) mapped = mapMetaEffectiveStatus(parent.effectiveStatus, null, result.accountStatus);
+        // A positively archived/deleted parent is terminal evidence, and takes
+        // precedence over a stale ACTIVE ad result or an inconclusive ad lookup.
+        const parent = campaign.external_campaign_id ? inventoryById.get(campaign.external_campaign_id) : undefined;
+        const parentLifecycle = parent?.effectiveStatus ? getMetaCampaignLifecycle(parent.effectiveStatus, null) : null;
+        if (parentLifecycle === "archived" || parentLifecycle === "deleted") {
+          mapped = parentLifecycle === "archived"
+            ? { status: "archived", error: "META_ARCHIVED:Meta indique que la publicité ou son ensemble/campagne est archived. L’historique est conservé." }
+            : { status: "deleted", error: "META_DELETED:Meta indique que la publicité ou son ensemble/campagne est deleted. L’historique est conservé." };
+        } else if (!mapped && parent?.effectiveStatus) {
+          // #100 peut également signifier permissions insuffisantes: ne jamais conclure
+          // sur cette erreur seule. Si l'inventaire complet confirme la campagne parent,
+          // son état non terminal peut toutefois fournir une réconciliation utile.
+          mapped = mapMetaEffectiveStatus(parent.effectiveStatus, null, result.accountStatus);
         }
         if (!mapped) {
           // État Meta non reconnu : on laisse le statut tel quel, mais on le trace pour pouvoir l'ajouter au mapping.
           console.warn("Meta campaign status sync: effective_status non reconnu", campaign.id, effectiveStatus || "(vide)");
           continue;
         }
+        const priorLifecycle = getMetaCampaignLifecycle(campaign.status, campaign.external_error);
+        if (priorLifecycle === "archived" || priorLifecycle === "deleted") continue;
         const externalError = mapped.status === "paused"
           ? markMetaPausedReason(mapped.error ?? "Meta signale que la publicité est en pause.")
           : mapped.error;

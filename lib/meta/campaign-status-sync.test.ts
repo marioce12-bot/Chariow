@@ -63,7 +63,7 @@ describe("Meta inventory reconciliation", () => {
     fetchMetaCampaignList.mockResolvedValue([]);
     getMetaAdReviewStatus.mockRejectedValue(new Error("(#100) Unsupported get request"));
     const result = await syncMetaCampaignStatuses({ supabase, accountId: "a", metaAccountId: "1", accessToken: "t" });
-    expect(updates).toContainEqual(expect.objectContaining({ status: "paused", external_error: expect.stringContaining("inventaire complet") }));
+    expect(updates).toContainEqual(expect.objectContaining({ status: "paused", external_error: expect.stringContaining("META_UNAVAILABLE:") }));
     expect(result.errors).toBe(0);
   });
 
@@ -73,5 +73,20 @@ describe("Meta inventory reconciliation", () => {
     const result = await syncMetaCampaignStatuses({ supabase, accountId: "a", metaAccountId: "1", accessToken: "t" });
     expect(updates).not.toContainEqual(expect.objectContaining({ status: "paused" }));
     expect(result.errors).toBe(1);
+  });
+});
+
+
+describe("terminal parent precedence", () => {
+  it("keeps an archived parent terminal despite an active ad lookup", async () => {
+    const updates: any[] = [];
+    const row = { id: "x", external_ad_id: "ad-x", external_campaign_id: "parent-x", status: "active", external_error: null };
+    const query: any = { select: () => query, eq: () => query, in: () => query, order: () => query, not: () => query, range: async () => ({ data: [row], error: null }), update: (values: any) => { updates.push(values); return { eq: async () => ({ error: null }) }; } };
+    const supabase = { from: () => query };
+    fetchMetaCampaignList.mockResolvedValue([{ id: "parent-x", name: null, effectiveStatus: "ARCHIVED" }]);
+    getMetaAdReviewStatus.mockResolvedValue({ effectiveStatus: "ACTIVE", feedback: null });
+    await syncMetaCampaignStatuses({ supabase, accountId: "a", metaAccountId: "1", accessToken: "t" });
+    expect(updates).toContainEqual(expect.objectContaining({ status: "archived", external_error: expect.stringContaining("META_ARCHIVED:") }));
+    expect(updates).not.toContainEqual(expect.objectContaining({ status: "active" }));
   });
 });

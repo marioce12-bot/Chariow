@@ -584,8 +584,8 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
         </div>
       )}
       <div className="rec-box rec-automation-info">
-        <strong>Envoi automatique : non connecté</strong>
-        <p className="rec-muted">Pour envoyer sans ouvrir WhatsApp, connecte un numéro WhatsApp Business à l’API officielle, avec un modèle de message approuvé et le consentement client. Aucun envoi automatique n’est actif actuellement.</p>
+        <strong>Tu gardes la main sur chaque relance</strong>
+        <p className="rec-muted">Prépare ton message ici, puis ouvre WhatsApp pour le vérifier et l’envoyer toi-même. Aucun message ne part automatiquement.</p>
       </div>
       <p className="rec-footnote">
         Un rapprochement indique une vente payée après une relance : il ne

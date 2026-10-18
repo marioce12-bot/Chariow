@@ -7,6 +7,7 @@ import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 import { createMetaVideoCreative, isVideoMediaUrl, prepareMetaCreativeVideo } from "@/lib/meta/ad-video";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
+import { getMetaCampaignLifecycle } from "@/lib/meta/status";
 import { launchTikTok } from "@/lib/tiktok/launch";
 import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
 import { launchPinterest } from "@/lib/pinterest/api";
@@ -75,12 +76,22 @@ export async function POST(request: Request, context: Context) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const { data: campaign, error: campaignError } = await supabase
     .from("ad_campaigns")
-    .select("id,store_id,title,product_name,platform,objective,effective_objective,daily_budget,duration_days,countries,geo_targeting,min_age,max_age,destination_url,ad_text,media_url,carousel_urls,call_to_action,advantage_creative,advantage_audience,status,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,pinterest_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
+    .select("id,store_id,title,product_name,platform,objective,effective_objective,daily_budget,duration_days,countries,geo_targeting,min_age,max_age,destination_url,ad_text,media_url,carousel_urls,call_to_action,advantage_creative,advantage_audience,status,external_error,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,pinterest_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
   if (campaignError) return NextResponse.json({ error: "Impossible de charger la campagne" }, { status: 500 });
   if (!campaign) return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
+
+  // Never reactivate the same Meta object after positive terminal evidence or
+  // an inconclusive inventory result. This also catches legacy unmarked archived
+  // errors already persisted before lifecycle markers existed.
+  if (campaign.platform === "meta") {
+    const lifecycle = getMetaCampaignLifecycle(campaign.status, campaign.external_error);
+    if (lifecycle) return NextResponse.json({ error: lifecycle === "unavailable"
+      ? "L’état de cette campagne est indisponible chez Meta. Elle ne peut pas être relancée."
+      : "Cette campagne est archivée ou supprimée chez Meta. Crée une nouvelle campagne pour relancer." }, { status: 409 });
+  }
 
   // Aucun paiement ni contrôle de solde : le lancement crée la campagne
   // directement chez Meta (le compte Meta de l'utilisateur est facturé par Meta).
