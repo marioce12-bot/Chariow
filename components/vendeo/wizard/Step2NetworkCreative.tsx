@@ -25,6 +25,7 @@ interface StepProps {
   onBackToStep1: () => void;
   onAdvanceToStep3: () => void;
   plan: PlanId;
+  previewMode?: boolean;
 }
 
 type FieldId = "adSetName" | "network" | "account" | "placement" | "adName" | "media" | "content" | "identity";
@@ -64,7 +65,7 @@ type PinterestAccountOption = { id: string; name: string | null };
  *   n'apportait rien et créait de la confusion ("pourquoi c'est affiché mais
  *   pas modifiable ici ?").
  */
-export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToStep1, onAdvanceToStep3, plan }: StepProps) {
+export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToStep1, onAdvanceToStep3, plan, previewMode = false }: StepProps) {
   const { locale , t } = useI18n();
   const en = locale === "en";
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,7 +80,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   const [generatingCopy, setGeneratingCopy] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
 
-  const [subStep, setSubStep] = useState<"adset" | "ad">("adset");
+  const [subStep, setSubStep] = useState<"adset" | "ad">(previewMode ? "ad" : "adset");
   const [editingField, setEditingField] = useState<FieldId | null>(null);
 
   // Compte publicitaire Meta (Ensemble de publicités) et page Facebook
@@ -100,7 +101,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   // Pré-remplissage depuis le produit choisi à l'Étape 1 (nom d'ensemble,
   // nom de pub, texte d'annonce, titre, lien de destination).
   useEffect(() => {
-    if (!state.product) return;
+    if (previewMode || !state.product) return;
     const patchIfEmpty: Partial<WizardState> = {};
     if (!state.adSetName) patchIfEmpty.adSetName = `Ensemble pub — ${state.product.name}`;
     if (!state.adName) patchIfEmpty.adName = t("dynamicExtra.defaultAdTitle", { product: (state.product.name) });
@@ -116,7 +117,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   }, [state.product]);
 
   useEffect(() => {
-    if (state.platform !== "meta" || metaAccounts.length > 0 || loadingMetaAccounts) return;
+    if (previewMode || state.platform !== "meta" || metaAccounts.length > 0 || loadingMetaAccounts) return;
     setLoadingMetaAccounts(true);
     setMetaAccountsError(null);
     fetch("/api/integrations/meta/accounts")
@@ -133,7 +134,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   }, [state.platform]);
 
   useEffect(() => {
-    if (state.platform !== "meta" || !state.metaAdAccountId) return;
+    if (previewMode || state.platform !== "meta" || !state.metaAdAccountId) return;
     setLoadingMetaPages(true);
     setMetaPagesError(null);
     setMetaPages([]);
@@ -155,7 +156,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   }, [state.platform, state.metaAdAccountId]);
 
   useEffect(() => {
-    if (state.platform !== "tiktok" || tiktokAccounts.length > 0 || loadingTikTokAccounts) return;
+    if (previewMode || state.platform !== "tiktok" || tiktokAccounts.length > 0 || loadingTikTokAccounts) return;
     setLoadingTikTokAccounts(true);
     setTikTokAccountsError(null);
     fetch("/api/integrations/tiktok/accounts")
@@ -172,7 +173,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   }, [state.platform]);
 
   useEffect(() => {
-    if (state.platform !== "pinterest" || pinterestAccounts.length > 0 || loadingPinterestAccounts) return;
+    if (previewMode || state.platform !== "pinterest" || pinterestAccounts.length > 0 || loadingPinterestAccounts) return;
     setLoadingPinterestAccounts(true);
     setPinterestAccountsError(null);
     fetch("/api/integrations/pinterest/accounts")
@@ -200,6 +201,7 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
   // zone qui défile, pour ne jamais être masqué par le clavier mobile —
   // important ici pour l'éditeur "Contenu publicitaire", qui a des champs texte).
   useEffect(() => {
+    if (previewMode) return;
     if (editingField) {
       onFooterChange({
         backLabel: en ? "Cancel" : "Annuler",

@@ -7,8 +7,10 @@ import { ArrowLeft, ArrowRight, Check, Layers, Rocket, Wand2, Menu, Pause, Play,
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
 import { MarketingProductPreview } from "@/components/MarketingProductPreview";
+import { HeroPhonePreview } from "@/components/HeroPhonePreview";
 import "@/app/marketing-fixes.css";
 import "@/app/landing-premium.css";
+import "@/app/hero-phone.css";
 
 const demos = [
   { fr: "Accueil", en: "Home", frAlt: "Aperçu de démonstration de l’accueil Vendeo", enAlt: "Vendeo home demonstration preview" },
@@ -72,7 +74,8 @@ export function Marketing() {
           <p className="hero-tagline">{t("sweep1.text117")}</p><p className="landing-intro">{t("landing.hero.paragraph")}</p>
           <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{t("landing.hero.cta")} <ArrowRight size={17}/></Link><a className="landing-text-link" href="#apercu">{t("sweep2.text118")}{" "}<span>↓</span></a></div>
         </div>
-          <div className="landing-showcase" id="apercu" onMouseEnter={() => setCarouselHovered(true)} onMouseLeave={() => setCarouselHovered(false)} onFocusCapture={() => setCarouselFocused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCarouselFocused(false); }}>
+          <div className="landing-hero-phone-slot"><HeroPhonePreview /></div>
+        <div className="landing-showcase" id="apercu" onMouseEnter={() => setCarouselHovered(true)} onMouseLeave={() => setCarouselHovered(false)} onFocusCapture={() => setCarouselFocused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCarouselFocused(false); }}>
           <div className="showcase-topline"><span className="showcase-dots"><i/><i/><i/></span><span>Vendeo <b>•</b> {" "}{t("workspaceExtra.workspace")}</span><span className="showcase-live"><i/> Interface</span></div>
           <div className="showcase-tabs" role="tablist" onKeyDown={demoKey} aria-label={isEnglish ? "Product preview" : "Aperçu du produit"}>
             {demoLabels.map((label, i) => <button role="tab" tabIndex={activeDemo === i ? 0 : -1} type="button" id={`demo-tab-${i}`} aria-selected={activeDemo === i} aria-controls="demo-panel" key={label} onClick={() => setActiveDemo(i)}>{label}</button>)}
