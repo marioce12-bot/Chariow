@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { LaunchProgress } from "@/components/chat/LaunchProgress";
 import { LinkifiedText } from "@/components/LinkifiedText";
+import { AssistantMessageText } from "@/components/AssistantMessageText";
 import { normalizeCurrency, type SupportedCurrency } from "@/lib/currency";
 import { META_CTA_TYPES, META_CTA_LABELS, normalizeMetaCta, type MetaCtaType } from "@/lib/meta/cta";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -143,7 +144,7 @@ function collectLaunchMedia(previous: ChatMessageItem[]): LaunchMedia {
 function parseAssistantMessage(rawContent: string): { content: string; launchPayload: LaunchPayload | null } {
   const tagIndex = rawContent.indexOf(LAUNCH_TAG);
   if (tagIndex === -1) {
-    return { content: cleanAiText(rawContent), launchPayload: null };
+    return { content: cleanAiText(rawContent, { preserveStrong: true }), launchPayload: null };
   }
   const before = rawContent.slice(0, tagIndex);
   const after = rawContent.slice(tagIndex + LAUNCH_TAG.length).trim();
@@ -158,7 +159,7 @@ function parseAssistantMessage(rawContent: string): { content: string; launchPay
       launchPayload = null;
     }
   }
-  return { content: cleanAiText(before.trim()), launchPayload };
+  return { content: cleanAiText(before.trim(), { preserveStrong: true }), launchPayload };
 }
 
 // Suggestions de démarrage : chacune correspond à une capacité réellement disponible
@@ -767,7 +768,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                 ) : null}
                 {content ? (
                   <div className={!expanded && isLong ? "chat-message-preview" : undefined}>
-                    <LinkifiedText text={expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}…`} />
+                    {isAssistant ? (
+                      <AssistantMessageText text={expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}…`} />
+                    ) : (
+                      <LinkifiedText text={expanded || !isLong ? content : `${content.slice(0, 520).trimEnd()}…`} />
+                    )}
                   </div>
                 ) : null}
                 {hasLaunchAction ? (
