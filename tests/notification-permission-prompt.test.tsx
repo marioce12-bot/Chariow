@@ -2,6 +2,8 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const { ensurePushSubscription } = vi.hoisted(() => ({ ensurePushSubscription: vi.fn() }));
+vi.mock("@/lib/push/browser", () => ({ ensurePushSubscription }));
 import { NotificationPermissionPrompt } from "@/components/NotificationPermissionPrompt";
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr" }) }));
 import { getNotificationPromptKey, shouldShowNotificationPrompt } from "@/lib/notification-permission";
@@ -15,6 +17,8 @@ function installNotification(permission: NotificationPermission = "default", req
   Object.defineProperty(window, "Notification", { configurable: true, value: MockNotification });
   Object.defineProperty(globalThis, "Notification", { configurable: true, value: MockNotification });
   Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+  Object.defineProperty(navigator, "serviceWorker", { configurable: true, value: {} });
+  Object.defineProperty(window, "PushManager", { configurable: true, value: class {} });
   Object.defineProperty(navigator, "standalone", { configurable: true, value: false });
   return request;
 }
@@ -31,6 +35,7 @@ describe("notification permission prompt", () => {
 
   beforeEach(() => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    ensurePushSubscription.mockReset().mockResolvedValue(undefined);
     localStorage.clear();
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -85,6 +90,21 @@ describe("notification permission prompt", () => {
     await mount(`permission-${permission}`);
     expect(container.textContent).not.toContain("Activer");
     expect(container.textContent).not.toContain("Plus tard");
+    if (permission === "denied") expect(ensurePushSubscription).not.toHaveBeenCalled();
+    else {
+      expect(ensurePushSubscription).toHaveBeenCalledTimes(1);
+      expect(container.textContent).toBe("");
+    }
+  });
+
+  it("reports a registration failure honestly and offers retry without asking permission again", async () => {
+    installNotification("granted");
+    ensurePushSubscription.mockRejectedValueOnce(new Error("network"));
+    await mount("registration-failure");
+    expect(container.textContent).toContain("l’inscription aux notifications a échoué");
+    expect(container.textContent).not.toContain("Notifications activées sur cet appareil");
+    expect([...container.querySelectorAll("button")].some(button => button.textContent === "Réessayer")).toBe(true);
+    expect(window.Notification.requestPermission).not.toHaveBeenCalled();
   });
 
   it("persists the requested choice before invoking the browser prompt", async () => {

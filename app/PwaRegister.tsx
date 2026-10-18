@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
-const CACHE_NAME = "vendeo-shell-v4";
+const CACHE_NAME = "vendeo-shell-v5";
 
 async function cacheDashboardShell() {
   if (!navigator.onLine || !("caches" in window)) return;

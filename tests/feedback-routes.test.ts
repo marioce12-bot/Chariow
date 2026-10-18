@@ -1,50 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-  getUser: vi.fn(), insert: vi.fn(), requireAdmin: vi.fn(), select: vi.fn(), order: vi.fn(), limit: vi.fn(),
-}));
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({ auth: { getUser: mocks.getUser }, from: () => ({ insert: mocks.insert }) })) }));
-vi.mock("@/lib/admin", () => ({ requireAdmin: mocks.requireAdmin }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => ({ from: () => ({ select: mocks.select }) })) }));
-
-import { POST } from "@/app/api/feedback/route";
-import { GET } from "@/app/api/admin/feedback/route";
-
-beforeEach(() => { vi.clearAllMocks(); });
-
-describe("feedback routes", () => {
-  it("rejects unauthenticated submissions and never inserts them", async () => {
-    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
-    const response = await POST(new Request("http://localhost/api/feedback", { method: "POST", body: JSON.stringify({ rating: 5, message: "Great" }) }));
-    expect(response.status).toBe(401);
-    expect(mocks.insert).not.toHaveBeenCalled();
-  });
-
-  it("stores a validated rating and message for the authenticated user", async () => {
-    mocks.getUser.mockResolvedValue({ data: { user: { id: "user-123" } }, error: null });
-    mocks.insert.mockResolvedValue({ error: null });
-    const response = await POST(new Request("http://localhost/api/feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rating: 4, message: "  Une idée utile  " }) }));
-    expect(response.status).toBe(201);
-    expect(mocks.insert).toHaveBeenCalledWith({ user_id: "user-123", rating: 4, message: "Une idée utile" });
-  });
-
-  it("blocks non-admin access to feedback administration", async () => {
-    mocks.requireAdmin.mockResolvedValue({ admin: null, response: Response.json({ error: "Accès administrateur requis" }, { status: 403 }) });
-    const response = await GET();
-    expect(response.status).toBe(403);
-    expect(mocks.select).not.toHaveBeenCalled();
-  });
-
-  it("returns feedback to an authorized administrator", async () => {
-    const rows = [{ id: "feedback-1", rating: 5, message: "Bravo" }];
-    mocks.requireAdmin.mockResolvedValue({ admin: { id: "admin-1" }, response: null });
-    mocks.select.mockReturnValue({ order: mocks.order });
-    mocks.order.mockReturnValue({ limit: mocks.limit });
-    mocks.limit.mockResolvedValue({ data: rows, error: null });
-    const response = await GET();
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ feedback: rows });
-    expect(mocks.select).toHaveBeenCalledWith("id,user_id,rating,message,status,created_at,processed_at");
-    expect(mocks.limit).toHaveBeenCalledWith(500);
-  });
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+const m=vi.hoisted(()=>({getUser:vi.fn(),insert:vi.fn(),requireAdmin:vi.fn(),select:vi.fn(),order:vi.fn(),limit:vi.fn(),in:vi.fn(),profileLimit:vi.fn(),eq:vi.fn(),update:vi.fn(),maybeSingle:vi.fn()}));
+vi.mock('@/lib/supabase/server',()=>({createClient:vi.fn(async()=>({auth:{getUser:m.getUser},from:()=>({insert:m.insert,select:()=>({eq:m.eq})})}))}));
+vi.mock('@/lib/admin',()=>({requireAdmin:m.requireAdmin}));
+vi.mock('@/lib/supabase/admin',()=>({createAdminClient:vi.fn(()=>({from:()=>({select:m.select,update:m.update})}))}));
+import {GET as userGET,POST} from '@/app/api/feedback/route';import {GET as adminGET,PATCH} from '@/app/api/admin/feedback/route';
+beforeEach(()=>{vi.clearAllMocks();m.select.mockReturnValue({order:m.order,in:(...args:any[])=>{m.in(...args);return {limit:m.profileLimit}}});m.order.mockReturnValue({limit:m.limit});m.update.mockReturnValue({eq:m.eq});m.eq.mockReturnValue({select:()=>({maybeSingle:m.maybeSingle})});});
+describe('feedback routes',()=>{
+ it('rejects unauthenticated submissions',async()=>{m.getUser.mockResolvedValue({data:{user:null},error:null});const r=await POST(new Request('http://local',{method:'POST',body:JSON.stringify({rating:5})}));expect(r.status).toBe(401);expect(m.insert).not.toHaveBeenCalled()});
+ it('saves a validated submission for authenticated owner',async()=>{m.getUser.mockResolvedValue({data:{user:{id:'user-123'}},error:null});m.insert.mockResolvedValue({error:null});const r=await POST(new Request('http://local',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({rating:4,message:' idée '})}));expect(r.status).toBe(201);expect(m.insert).toHaveBeenCalledWith({user_id:'user-123',rating:4,message:'idée'})});
+ it('returns only owner-scoped feedback history',async()=>{m.getUser.mockResolvedValue({data:{user:{id:'owner-id'}},error:null});m.eq.mockReturnValue({order:m.order});m.order.mockReturnValue({limit:m.limit});m.limit.mockResolvedValue({data:[{id:'f'}],error:null});const r=await userGET();expect(r.status).toBe(200);expect(m.eq).toHaveBeenCalledWith('user_id','owner-id');expect(m.select).not.toHaveBeenCalled()});
+ it('rejects non-admin access without querying service role',async()=>{m.requireAdmin.mockResolvedValue({admin:null,response:Response.json({}, {status:403})});expect((await adminGET()).status).toBe(403);expect(m.select).not.toHaveBeenCalled()});
+	 it('looks up profiles by feedback author user_id and attributes the author',async()=>{m.requireAdmin.mockResolvedValue({admin:{id:'admin'},response:null});m.limit.mockResolvedValue({data:[{id:'1',user_id:'u1'},{id:'2',user_id:'u2'},{id:'3',user_id:'u3'}],error:null});m.profileLimit.mockResolvedValue({data:[{id:'u1',full_name:' Nom ',email:'x@y'},{id:'u2',full_name:' ',email:'x@y'}],error:null});const r=await adminGET();expect((await r.json()).feedback.map((x:any)=>x.author_name)).toEqual(['Nom','x@y','Utilisateur inconnu']);expect(m.select).toHaveBeenCalledWith('id,user_id,rating,message,status,created_at,processed_at,reply,replied_at,replied_by');expect(m.select).toHaveBeenCalledWith('id,full_name,email');expect(m.in).toHaveBeenCalledWith('id',['u1','u2','u3']);expect(m.profileLimit).toHaveBeenCalledWith(500)});
+	 it('returns 500 if author profiles cannot be loaded',async()=>{m.requireAdmin.mockResolvedValue({admin:{id:'admin'},response:null});m.limit.mockResolvedValue({data:[{id:'1',user_id:'u1'}],error:null});m.profileLimit.mockResolvedValue({data:null,error:{code:'profile-failure'}});expect((await adminGET()).status).toBe(500)});
+ it('rejects unauthenticated admin and oversized/empty replies',async()=>{m.requireAdmin.mockResolvedValue({admin:null,response:Response.json({}, {status:403})});expect((await PATCH(new Request('http://local',{method:'PATCH',body:'{}'}))).status).toBe(403);m.requireAdmin.mockResolvedValue({admin:{id:'admin'},response:null});for(const reply of ['', 'x'.repeat(2001)])expect((await PATCH(new Request('http://local',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({id:'00000000-0000-0000-0000-000000000001',reply})}))).status).toBe(400);expect(m.update).not.toHaveBeenCalled()});
+	 it('stores trimmed reply with authenticated profile UUID',async()=>{m.requireAdmin.mockResolvedValue({admin:{id:'admin-id'},user:{id:'user-uuid'},response:null});m.maybeSingle.mockResolvedValue({data:{id:'f'},error:null});const r=await PATCH(new Request('http://local',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({id:'00000000-0000-0000-0000-000000000001',reply:' réponse '})}));expect(r.status).toBe(200);expect(m.requireAdmin).toHaveBeenCalledWith(['super_admin','support']);expect(m.update).toHaveBeenCalledWith(expect.objectContaining({reply:'réponse',replied_by:'user-uuid',status:'processed',replied_at:expect.any(String)}))});
+	 it('stores null responder for password-admin session',async()=>{m.requireAdmin.mockResolvedValue({admin:{id:'password-admin',role:'super_admin'},user:null,response:null});m.maybeSingle.mockResolvedValue({data:{id:'f'},error:null});const r=await PATCH(new Request('http://local',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({id:'00000000-0000-0000-0000-000000000001',reply:' réponse '})}));expect(r.status).toBe(200);expect(m.update).toHaveBeenCalledWith(expect.objectContaining({replied_by:null}))});
 });

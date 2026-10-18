@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireAdmin, writeAdminAudit } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendPushToUsers } from "@/lib/push/server";
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const MAX_RECIPIENTS = 5000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -59,7 +62,17 @@ export async function POST(request: Request) {
   const { error } = await service.from("user_notifications").insert(rows);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (admin.id !== "password-admin") await writeAdminAudit(supabase, admin.id, "notification_sent", "user_notifications", null, { audience, recipient_count: recipients.length, title, broadcast_id: broadcastId });
-  return NextResponse.json({ sent: recipients.length });
+  let push: { attempted: number; accepted: number; failed: number; expired: number; unsubscribedUsers: number; error?: string };
+  try {
+    const pushPayload = { title, body: message.slice(0, 2000), url: actionUrl || "/dashboard", tag: broadcastId };
+    // Push services cap encrypted payloads around 4 KB, measured in bytes, not characters.
+    while (Buffer.byteLength(JSON.stringify(pushPayload), "utf8") > 3500 && pushPayload.body.length) pushPayload.body = pushPayload.body.slice(0, Math.max(0, pushPayload.body.length - 100));
+    push = await sendPushToUsers(recipients, pushPayload);
+  } catch {
+    // The in-app notification is already saved; do not encourage a blind resend.
+    push = { attempted: 0, accepted: 0, failed: 0, expired: 0, unsubscribedUsers: 0, error: "Le message est enregistré dans Vendeo, mais le transport push n’a pas pu être vérifié." };
+  }
+  return NextResponse.json({ sent: recipients.length, push });
 }
 
 export async function DELETE(request: Request) {

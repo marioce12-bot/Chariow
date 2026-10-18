@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   requireAdmin: vi.fn(), createAdminClient: vi.fn(), writeAdminAudit: vi.fn(),
+  sendPushToUsers: vi.fn(),
   results: {} as Record<string, any>, calls: [] as Array<{ table: string; method: string; args: unknown[] }>,
 }));
 vi.mock("@/lib/admin", () => ({ requireAdmin: mocks.requireAdmin, writeAdminAudit: mocks.writeAdminAudit }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 
+vi.mock("@/lib/push/server", () => ({ sendPushToUsers: mocks.sendPushToUsers }));
 import { GET as getNotifications, POST, DELETE } from "@/app/api/admin/notifications/route";
 import { GET as getUsers } from "@/app/api/admin/users/route";
 
@@ -29,7 +31,7 @@ const req = (path: string, body?: unknown) => new Request(`http://localhost${pat
 const call = (table: string, method: string) => mocks.calls.filter((c) => c.table === table && c.method === method);
 
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.calls.length = 0; mocks.results = {};
+  vi.clearAllMocks(); mocks.sendPushToUsers.mockResolvedValue({attempted:1,accepted:1,failed:0,expired:0,unsubscribedUsers:0}); mocks.calls.length = 0; mocks.results = {};
   mocks.requireAdmin.mockResolvedValue({ admin: { id: "admin-1" }, supabase: {}, response: null });
   mocks.writeAdminAudit.mockResolvedValue(undefined); setupDb();
 });

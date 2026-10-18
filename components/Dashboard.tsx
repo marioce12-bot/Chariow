@@ -9,6 +9,7 @@ import { ChatView } from "@/components/ChatView";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
+import { disablePushSubscription } from "@/lib/push/browser";
 
 import "@/app/settings-mobile.css";
 import "@/app/dashboard-navigation.css";
@@ -211,6 +212,11 @@ export function Dashboard() {
       await cache.delete("/dashboard");
     } catch {
       // Le cache hors ligne peut être indisponible dans certains navigateurs.
+    }
+    try {
+      await disablePushSubscription();
+    } catch {
+      console.warn("Push subscription cleanup failed during sign out.");
     }
     await createClient().auth.signOut();
     window.location.href = "/";

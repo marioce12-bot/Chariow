@@ -62,13 +62,15 @@ export function AdminNotifications({ totalUsers }: { totalUsers: number }) {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const count = audience === "all" ? totalUsers : selected.length;
-    if (!count || !window.confirm(`Envoyer « ${title.trim()} » à ${count} utilisateur(s) ?`)) return;
+    if (!count || !window.confirm(`Envoyer « ${title.trim()} » à ${count} utilisateur(s) dans Vendeo et par notification système sur leurs appareils abonnés ?`)) return;
     setBusy(true); setMessage("");
     try {
       const response = await fetch("/api/admin/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, message: body, action_url: actionUrl, audience, user_ids: selected.map((user) => user.id) }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Envoi impossible.");
-      setMessage(`${result.sent} notification(s) envoyée(s).`); setTitle(""); setBody(""); setActionUrl(""); setSelected([]);
+      const push = result.push;
+      const pushSummary = push?.error ? push.error : push ? `${push.accepted} push accepté(s) par le service du navigateur, ${push.failed} échec(s), ${push.expired} abonnement(s) expiré(s). ${push.unsubscribedUsers} utilisateur(s) sans appareil abonné. Un push accepté ne garantit pas son affichage ou sa sonnerie sur le téléphone.` : "Résultat push indisponible.";
+      setMessage(`${result.sent} message(s) enregistré(s) dans Vendeo. ${pushSummary}`); setTitle(""); setBody(""); setActionUrl(""); setSelected([]);
       await loadHistory();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Envoi impossible. Ne réessaie pas sans vérifier l’historique."); }
     finally { setBusy(false); }
