@@ -77,6 +77,8 @@ type LaunchPayload = {
   message?: string | null;
   headline?: string | null;
   linkUrl?: string | null;
+  storeId?: string | null;
+  productId?: string | null;
   durationDays?: number | null;
   platform?: "meta" | "pinterest" | "tiktok" | null;
   callToAction?: string | null;
@@ -430,7 +432,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, attachments: pendingAttachments, conversationId }),
+        body: JSON.stringify({ message, attachments: pendingAttachments, conversationId, locale }),
         signal: controller.signal,
       });
       // Corps lu en texte puis parsé à la main : si le serveur coupe la requête (timeout de la
@@ -550,8 +552,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     setLaunchCta(normalizeMetaCta(payload?.callToAction) ?? "");
     setLaunchImageUrls(fallbackMedia?.urls ?? []);
     setLaunchMediaKind(fallbackMedia?.kind ?? "image");
-    // Lien de redirection : celui donné par l'utilisateur dans la conversation, sinon
-    // vide — il devra le saisir ici (aucun lien par défaut n'est jamais injecté).
+    // URL du produit résolue par le serveur depuis le catalogue connecté ;
+    // le champ reste modifiable dans la confirmation.
     setLaunchLink(payload?.linkUrl ?? "");
     // Budget + devise : montant tel que donné par l'utilisateur, devise reconnue depuis le
     // JSON de l'IA, à défaut depuis les messages de l'utilisateur, à défaut XOF. Les deux
@@ -609,6 +611,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           message: payload.message,
           headline: payload.headline,
           linkUrl,
+          storeId: payload.storeId ?? undefined,
+          productId: payload.productId ?? undefined,
+          locale,
           // `imageUrl` porte le média principal, image ou vidéo : `mediaType` dit lequel des deux.
           imageUrl: launchImageUrls[0] ?? undefined,
           mediaType: launchMediaKind,

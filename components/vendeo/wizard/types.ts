@@ -145,6 +145,15 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   campaignId: null,
 };
 
+/** Select a catalog product without carrying a previous product's destination link forward. */
+export function wizardStateForProductSelection(state: WizardState, product: ChariowProductLite): WizardState {
+  return {
+    ...state,
+    product,
+    destinationUrl: state.product?.id === product.id ? state.destinationUrl : product.url ?? "",
+  };
+}
+
 /** Liste des pays proposés par le widget de recherche d'audience (voir lib/geo/countries.ts). */
 export const COUNTRY_OPTIONS = WORLD_COUNTRIES.map((c) => ({ code: c.code, label: c.label }));
 

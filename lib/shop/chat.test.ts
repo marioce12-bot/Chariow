@@ -3,12 +3,12 @@ import { cleanAiText } from "@/lib/ai/format";
 import { buildConfigFromAi, extractVitrineTag, matchProduct, VITRINE_PROMPT, VITRINE_TAG, wantsVitrine } from "./chat";
 import { validateShopConfig } from "./config";
 
-const catalog = [
-  { id: "prd_1", name: "Formation Facebook Ads" },
-  { id: "prd_2", name: "Ebook Marketing Digital" },
-  { id: "prd_3", name: "Ebook Marketing Mobile" },
-];
 const url = "https://awa.mychariow.com/formation";
+const catalog = [
+  { id: "prd_1", name: "Formation Facebook Ads", url },
+  { id: "prd_2", name: "Ebook Marketing Digital", url },
+  { id: "prd_3", name: "Ebook Marketing Mobile", url },
+];
 
 describe("extractVitrineTag", () => {
   it("sépare le texte et le JSON", () => {
@@ -67,8 +67,9 @@ describe("buildConfigFromAi", () => {
     }
   });
 
-  it("refuse un produit sans lien d'achat, un produit inconnu et une liste vide", () => {
-    expect(buildConfigFromAi({ shopName: "A", products: [{ name: "Formation Facebook Ads" }] }, { catalog, logoUrl: null }).ok).toBe(false);
+  it("résout automatiquement un lien de catalogue, et refuse les URL manquantes/produits inconnus", () => {
+    const auto = buildConfigFromAi({ shopName: "A", products: [{ name: "Formation Facebook Ads" }] }, { catalog, logoUrl: null });
+    expect(auto.ok && (auto.config.products as Array<{ buyUrl: string }>)[0].buyUrl).toBe(url);
     expect(buildConfigFromAi({ shopName: "A", products: [{ name: "Inconnu", buyUrl: url }] }, { catalog, logoUrl: null }).ok).toBe(false);
     expect(buildConfigFromAi({ shopName: "A", products: [] }, { catalog, logoUrl: null }).ok).toBe(false);
     expect(buildConfigFromAi("n'importe quoi", { catalog, logoUrl: null }).ok).toBe(false);

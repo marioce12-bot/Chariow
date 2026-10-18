@@ -12,9 +12,9 @@ export const VITRINE_TAG = "[[CREE_VITRINE]]";
 export const VITRINE_PROMPT = `Création de vitrine (quand l'utilisateur veut une vitrine, un mini-site public pour vendre ses produits) :
 - Une vitrine est une page publique (vendeo-studio.site/shop/...) qui affiche les produits choisis ; le bouton Acheter mène au lien de paiement Chariow du produit.
 - À réunir sans jamais redemander ce qui a déjà été dit : la boutique concernée (s'il en a plusieurs), le nom affiché, le logo (l'utilisateur joint une image dans le chat, sinon pas de logo), les produits à afficher dans l'ordre voulu, ses goûts (couleur principale, thème clair ou sombre, style de titre : bold, elegant ou minimal, phrase d'accroche).
-- Lien d'achat (OBLIGATOIRE) : pour CHAQUE produit affiché, demande le lien de sa page produit Chariow (https, sur mychariow.shop, par exemple https://maboutique.mychariow.shop/prd_xxxxx). Ne le devine jamais, ne le déduis pas des données de boutique, n'en invente pas. S'il n'est pas sur mychariow.shop (ou mychariow.com pour un ancien lien), demande-le à nouveau.
+- Lien d'achat : ne demande pas les URL des pages produit du catalogue. Le serveur ajoute automatiquement l'URL du catalogue. Demande le nom du produit ou de la boutique seulement si le choix est ambigu. Un buyUrl explicitement fourni/modifié par l'utilisateur est conservé.
 - Une fois tout réuni, résume la vitrine en un seul message et demande une validation explicite avant de la créer.
-- Après validation explicite, termine TON message par la balise exacte [[CREE_VITRINE]] suivie IMMÉDIATEMENT d'un JSON compact et valide, sans aucun autre texte après : {"storeName": string|null, "shopName": string, "tagline": string|null, "about": string|null, "theme": "light"|"dark", "primaryColor": "#RRGGBB", "titleStyle": "bold"|"elegant"|"minimal", "buttonLabel": string|null, "useAttachedImageAsLogo": boolean, "products": [{"name": string (nom du produit tel qu'il apparaît dans les données de boutique), "buyUrl": string (lien donné par l'utilisateur, recopié EXACTEMENT)}]}. N'écris ni HTML, ni code, ni script. Le serveur vérifie et crée la page : ne promets pas de lien avant.`;
+- Après validation explicite, termine TON message par la balise exacte [[CREE_VITRINE]] suivie IMMÉDIATEMENT d'un JSON compact et valide, sans aucun autre texte après : {"storeName": string|null, "shopName": string, "tagline": string|null, "about": string|null, "theme": "light"|"dark", "primaryColor": "#RRGGBB", "titleStyle": "bold"|"elegant"|"minimal", "buttonLabel": string|null, "useAttachedImageAsLogo": boolean, "products": [{"name": string (nom du produit tel qu'il apparaît dans les données de boutique), "buyUrl": string|null (lien explicite de l'utilisateur ou null pour résolution catalogue)}]}. N'écris ni HTML, ni code, ni script. Le serveur vérifie et crée la page : ne promets pas de lien avant.`;
 
 export function wantsVitrine(texts: string[]): boolean {
   return texts.some((text) => /vitrine|storefront|showcase|mini[- ]?site/i.test(text));
@@ -43,7 +43,7 @@ export function normalizeName(value: string): string {
 }
 
 // L'IA ne connaît que les noms des produits (pas leurs identifiants) : on retrouve le produit par son nom.
-export function matchProduct(name: string, catalog: Pick<ShopProduct, "id" | "name">[]): { id: string } | { error: string } {
+export function matchProduct(name: string, catalog: Pick<ShopProduct, "id" | "name" | "url">[]): { id: string } | { error: string } {
   const needle = normalizeName(name);
   if (!needle) return { error: "nom de produit vide" };
   const exact = catalog.filter((product) => normalizeName(product.name) === needle);
@@ -71,7 +71,7 @@ function aiText(value: unknown, max: number, multiline = false): string | undefi
 // la configuration résultante est ensuite validée strictement par validateShopConfig (dans saveStorefront).
 export function buildConfigFromAi(
   payload: unknown,
-  options: { catalog: Pick<ShopProduct, "id" | "name">[]; logoUrl: string | null },
+  options: { catalog: Pick<ShopProduct, "id" | "name" | "url">[]; logoUrl: string | null },
 ): { ok: true; config: Record<string, unknown>; notes: string[]; storeName: string | null } | { ok: false; error: string } {
   if (!isObject(payload)) return { ok: false, error: "les informations de la vitrine sont illisibles" };
   if (!Array.isArray(payload.products) || payload.products.length === 0) return { ok: false, error: "aucun produit à afficher" };
@@ -81,18 +81,21 @@ export function buildConfigFromAi(
   for (const item of payload.products) {
     if (!isObject(item)) return { ok: false, error: "un produit est mal renseigné" };
     const label = typeof item.name === "string" ? item.name : typeof item.productId === "string" ? item.productId : "produit";
-    if (typeof item.buyUrl !== "string" || !item.buyUrl.trim()) return { ok: false, error: `il manque le lien d'achat de « ${clip(label, 40)} »` };
+
     let productId: string;
     if (typeof item.name === "string" && item.name.trim()) {
       const match = matchProduct(item.name, options.catalog);
       if (("error" in match)) return { ok: false, error: match.error };
       productId = match.id;
-    } else if (isProductId(item.productId)) {
+    } else if (isProductId(item.productId) && options.catalog.some((product) => product.id === item.productId)) {
       productId = item.productId;
     } else {
       return { ok: false, error: "un produit n'a ni nom ni identifiant" };
     }
-    products.push({ productId, buyUrl: item.buyUrl.trim(), visible: true });
+    const catalogProduct = options.catalog.find((product) => product.id === productId);
+    const buyUrl = typeof item.buyUrl === "string" && item.buyUrl.trim() ? item.buyUrl.trim() : catalogProduct?.url;
+    if (!buyUrl) return { ok: false, error: `lien d'achat indisponible pour « ${clip(label, 40)} »` };
+    products.push({ productId, buyUrl, visible: true });
   }
   const config: Record<string, unknown> = { version: 1, shopName: aiText(payload.shopName, SHOP_LIMITS.shopName), products };
   const tagline = aiText(payload.tagline, SHOP_LIMITS.tagline);

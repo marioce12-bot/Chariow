@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { ChariowMcpClient } from "@/lib/chariow/mcp-client";
 import { normalizeChariowSnapshot } from "@/lib/chariow/analytics";
+import { collectChariowPages } from "@/lib/chariow/pagination";
 import { isProductId } from "./config";
 import { clip, safeHttpsUrl, sanitizePlainText } from "./text";
 
@@ -15,6 +16,7 @@ export type ShopProduct = {
   price: number | string | null;
   currency: string | null;
   image: string | null;
+  url: string | null;
 };
 
 // Lecture légère du catalogue Chariow (get_store + list_products seulement, contrairement à getChariowSnapshot
@@ -30,9 +32,10 @@ export async function fetchStoreProducts(storeId: string): Promise<ShopProduct[]
   const accessToken = store.access_token_encrypted ? decryptSecret(store.access_token_encrypted) : undefined;
   const client = new ChariowMcpClient({ endpoint: store.mcp_url, accessToken });
   await client.initialize();
-  const [storeInfo, products] = await Promise.all([client.callTool("get_store"), client.callTool("list_products", { per_page: 100 })]);
+  const [storeInfo, products] = await Promise.all([client.callTool("get_store"), collectChariowPages((args) => client.callTool("list_products", args))]);
+  if (!products.coverage.complete) throw new Error(products.coverage.reason ?? "Catalogue Chariow incomplet");
   const day = new Date().toISOString().slice(0, 10);
-  const normalized = normalizeChariowSnapshot({ store: storeInfo, products }, { from: day, to: day });
+  const normalized = normalizeChariowSnapshot({ store: storeInfo, products: { data: products.data } }, { from: day, to: day });
   const result: ShopProduct[] = [];
   for (const product of normalized.products) {
     if (!isProductId(product.id)) continue;
@@ -47,6 +50,7 @@ export async function fetchStoreProducts(storeId: string): Promise<ShopProduct[]
       price,
       currency: product.currency ? product.currency.slice(0, 8) : null,
       image: safeHttpsUrl(product.image),
+      url: product.urlIsFallback ? null : safeHttpsUrl(product.url),
     });
   }
   return result;

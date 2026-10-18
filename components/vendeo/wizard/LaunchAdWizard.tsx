@@ -79,7 +79,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
       ? wizardStateFromCampaign(editCampaign, storeId)
       : duplicateCampaign
         ? wizardStateForDuplicate(duplicateCampaign, storeId)
-        : { ...DEFAULT_WIZARD_STATE, storeId, product: initialProduct ?? null }
+        : { ...DEFAULT_WIZARD_STATE, storeId, product: initialProduct ?? null, destinationUrl: initialProduct?.url ?? "" }
   ));
   const [step2Footer, setStep2Footer] = useState<Step2FooterState | null>(null);
   const [mounted, setMounted] = useState(false);

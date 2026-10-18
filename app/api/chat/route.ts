@@ -9,6 +9,7 @@ import { buildDiagnosticReports } from "@/lib/meta/diagnostic-server";
 import { decryptSecret } from "@/lib/crypto";
 import { fetchMetaAccounts } from "@/lib/meta/api";
 import { VITRINE_PROMPT, processVitrineAnswer, wantsVitrine } from "@/lib/shop/chat";
+import { resolveCampaignAnswer, type ChatCatalogProduct } from "@/lib/chariow/chat-product";
 
 const VENDEO_SYSTEM_PROMPT = `Tu es l'analyste business de Vendeo pour les créateurs de produits digitaux francophones et anglophones.
 
@@ -37,16 +38,16 @@ Diagnostic publicitaire (quand le contexte contient un "Rapport de diagnostic pu
 Création de campagne publicitaire (quand l'utilisateur demande de lancer ou créer une pub) :
 - Parle comme un humain qui aide, pas comme un formulaire : ne pose pas mécaniquement une question isolée par message. Regroupe naturellement les informations proches quand ça a du sens dans la conversation (par exemple audience + tranche d'âge dans la même relance, ou budget + durée ensemble).
 - Relis l'historique de la conversation avant de poser une question : si l'utilisateur a déjà donné une information (même formulée autrement, même dans un message précédent), ne la redemande jamais.
-- Informations à réunir avant de résumer : le produit/l'offre à promouvoir, la créative (texte + image/vidéo en pièce jointe), le lien de la page de redirection, l'audience cible, la tranche d'âge, le budget journalier (avec sa devise), la durée en jours, la plateforme (Meta, Pinterest ou TikTok), le bouton d'appel à l'action (Meta uniquement).
-- Bouton d'appel à l'action (Meta uniquement, OBLIGATOIRE) : demande-le TOUJOURS à l'utilisateur, ne le devine jamais. Propose : Acheter (SHOP_NOW), Acheter maintenant (BUY_NOW), Commander (ORDER_NOW), En savoir plus (LEARN_MORE), Obtenir l'offre (GET_OFFER), Nous contacter (CONTACT_US). Regroupe cette question avec une autre (ex. avec le lien de redirection). Pour un produit digital à vendre, conseille Acheter. Ne l'exige pas pour Pinterest.
-- Lien de la page de redirection (OBLIGATOIRE) : c'est l'URL vers laquelle la pub envoie les clics (la page de vente / page produit de l'utilisateur). Chaque utilisateur a la sienne : demande-la TOUJOURS explicitement (ex. « Quel est le lien de ta page de vente vers lequel la pub doit rediriger ? ») tant qu'il ne l'a pas donnée dans la conversation. Ne la devine jamais, ne la déduis pas des données de boutique, et n'utilise jamais un lien d'exemple, par défaut ou celui de Vendeo. Elle doit commencer par http:// ou https:// ; sinon demande-lui de la corriger.
+- Informations à réunir avant de résumer : le produit/l'offre à promouvoir (demande le nom du produit ou de la boutique uniquement si nécessaire pour lever une ambiguïté), la créative (texte + image/vidéo en pièce jointe), l'audience cible, la tranche d'âge, le budget journalier (avec sa devise), la durée en jours, la plateforme (Meta, Pinterest ou TikTok), le bouton d'appel à l'action (Meta uniquement).
+- Bouton d'appel à l'action (Meta uniquement, OBLIGATOIRE) : demande-le TOUJOURS à l'utilisateur, ne le devine jamais. Propose : Acheter (SHOP_NOW), Acheter maintenant (BUY_NOW), Commander (ORDER_NOW), En savoir plus (LEARN_MORE), Obtenir l'offre (GET_OFFER), Nous contacter (CONTACT_US). Regroupe cette question avec une autre (ex. avec la créative). Pour un produit digital à vendre, conseille Acheter. Ne l'exige pas pour Pinterest.
+- Lien de redirection : ne demande JAMAIS de lien de page produit pour un produit du catalogue Chariow. Le serveur le résout à partir du produit exact. Si le produit/boutique est ambigu ou hors catalogue, demande de préciser. Conserve tout lien explicitement fourni ou modifié par l'utilisateur sans le remplacer.
 - La cible géographique (pays) doit TOUJOURS être renseignée en "countries" au format code pays ISO 3166-1 alpha-2 : Bénin → "BJ", Côte d'Ivoire → "CI", Sénégal → "SN", Togo → "TG", Burkina Faso → "BF", Mali → "ML", Cameroun → "CM", Gabon → "GA", Niger → "NE", Guinée → "GN", RD Congo → "CD". Si l'utilisateur a donné un ou plusieurs pays (même écrits en toutes lettres ou en abrégé), convertis-les en ces codes et mets-les dans "countries" ; ne laisse jamais "countries" à null quand un pays a été précisé.
 - Budget journalier : l'utilisateur peut l'annoncer dans sa propre devise (« 1000 XOF », « 15 000 FCFA », « 20 € », « 10 dollars »). Recopie le montant EXACTEMENT tel qu'il l'a donné, sans jamais le convertir toi-même, et renseigne sa devise en code ISO dans "currency" : FCFA ou CFA → "XOF", euro → "EUR", dollar → "USD". Vendeo convertit lui-même le budget en dollars US au taux du jour au moment du lancement, car les campagnes sont facturées en dollars. Les devises prises en charge sont XOF, EUR et USD : si l'utilisateur en utilise une autre, demande-lui de donner son budget dans l'une d'elles. S'il donne un montant sans préciser la devise, demande-lui laquelle avant de résumer. Dans le résumé, écris le budget avec sa devise d'origine et précise qu'il sera converti en dollars au taux du jour ; n'invente aucun montant converti.
 - Si l'utilisateur ne fournit pas de texte publicitaire, propose-lui toi-même un texte et des bénéfices à partir de sa fiche produit.
 - Plateforme : le lancement automatique depuis ce chat fonctionne pour Meta (Facebook / Instagram) et Pinterest. Si l'utilisateur veut TikTok, dis-lui clairement que le lancement TikTok se fait depuis l'onglet Pub → Lancer une pub → TikTok, et n'utilise PAS la balise [[LANCE_CAMPAGNE]]. N'affirme jamais qu'une campagne a été lancée : seul Vendeo le confirme à l'utilisateur après son clic sur le bouton Lancer.
-- Une fois toutes les informations réunies (lien de redirection compris), résume la campagne complète en un seul message (produit, créative, lien de redirection, audience, âge, budget, durée, plateforme et bouton d'appel à l'action pour Meta) et demande une validation explicite avant de lancer. Sans le lien de redirection, ne résume pas encore et ne propose pas de lancer : demande-le d'abord.
+- Une fois toutes les informations réunies (produit identifié (le serveur ajoute le lien du catalogue)), résume la campagne complète en un seul message (produit, créative, lien de redirection, audience, âge, budget, durée, plateforme et bouton d'appel à l'action pour Meta) et demande une validation explicite avant de lancer. Si le produit exact n'est pas identifié sans ambiguïté, demande lequel avant de résumer.
 - Ne lance jamais une campagne sans validation explicite de l'utilisateur (par exemple « oui, lance »).
-- Quand l'utilisateur valide explicitement le lancement, termine TON message par la balise exacte [[LANCE_CAMPAGNE]] suivie IMMÉDIATEMENT, sur la même ligne et sans aucun autre texte autour, d'un objet JSON compact et valide reprenant exactement les informations validées avec ces clés : {"name": string, "objective": "OUTCOME_SALES" | "OUTCOME_TRAFFIC" | "OUTCOME_ENGAGEMENT" | "OUTCOME_LEADS" | "OUTCOME_AWARENESS", "dailyBudget": number (le montant tel que l'utilisateur l'a donné, juste le nombre, sans conversion), "currency": string (code ISO de la devise du budget : "XOF", "EUR" ou "USD"), "countries": string[] (codes pays ISO à 2 lettres), "ageMin": number, "ageMax": number, "message": string (texte final de la créative), "headline": string, "linkUrl": string (le lien de redirection recopié EXACTEMENT tel que l'utilisateur l'a donné), "durationDays": number, "platform": "meta" | "pinterest", "callToAction": "SHOP_NOW" | "BUY_NOW" | "ORDER_NOW" | "LEARN_MORE" | "GET_OFFER" | "CONTACT_US" | null}. Si une information n'a pas été donnée par l'utilisateur, mets sa valeur à null : n'invente jamais de chiffre, de texte ou de lien à sa place. N'écris rien après ce JSON.`;
+- Quand l'utilisateur valide explicitement le lancement, termine TON message par la balise exacte [[LANCE_CAMPAGNE]] suivie IMMÉDIATEMENT, sur la même ligne et sans aucun autre texte autour, d'un objet JSON compact et valide reprenant exactement les informations validées avec ces clés : {"name": string, "objective": "OUTCOME_SALES" | "OUTCOME_TRAFFIC" | "OUTCOME_ENGAGEMENT" | "OUTCOME_LEADS" | "OUTCOME_AWARENESS", "dailyBudget": number (le montant tel que l'utilisateur l'a donné, juste le nombre, sans conversion), "currency": string (code ISO de la devise du budget : "XOF", "EUR" ou "USD"), "countries": string[] (codes pays ISO à 2 lettres), "ageMin": number, "ageMax": number, "message": string (texte final de la créative), "headline": string, "linkUrl": string|null (URL exacte du catalogue pour le produit identifié, ou lien personnalisé explicitement fourni par l'utilisateur), "durationDays": number, "platform": "meta" | "pinterest", "callToAction": "SHOP_NOW" | "BUY_NOW" | "ORDER_NOW" | "LEARN_MORE" | "GET_OFFER" | "CONTACT_US" | null, "storeId": string|null, "productId": string|null, "productName": string|null, "storeName": string|null}. Reprends storeId/productId/productName/storeName depuis le catalogue exact, même si l'utilisateur n'a donné que le nom du produit. Pour les autres informations absentes, mets null ; n'invente jamais de chiffre ni de lien. N'écris rien après ce JSON.`;
 
 export async function GET() {
   const { supabase, user, response } = await requireUser();
@@ -159,6 +160,8 @@ export async function POST(request: Request) {
   // 3e boutique était coupée (l'assistant ne pouvait pas lire son catalogue).
   const MAX_CONTEXT_CHARS = 9_000;
   let context = "Aucune boutique n'est encore connectée.";
+  let campaignCatalogContext = "";
+  const campaignCatalog: ChatCatalogProduct[] = [];
 
   if (stores && stores.length > 0) {
     try {
@@ -174,6 +177,9 @@ export async function POST(request: Request) {
           const clip = (text: string) => (text.length > perStoreBudget ? `${text.slice(0, perStoreBudget)}\n[... données de cette boutique tronquées ...]` : text);
           try {
             const snapshot = await getChariowSnapshot(store);
+            const normalized = (await import("@/lib/chariow/analytics")).normalizeChariowSnapshot(snapshot, { from: "", to: "" });
+            const products = normalized.products.filter((p) => p.id && p.name).map((p) => ({ id: p.id, name: p.name, storeId: store.id, storeName: store.store_name, url: p.urlIsFallback ? null : p.url }));
+            campaignCatalog.push(...products);
             return clip(`--- Boutique : ${store.store_name} ---\n${serializeChariowContext(snapshot)}`);
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -192,6 +198,7 @@ export async function POST(request: Request) {
       );
 
       context = `${diagnosticContext ? `${diagnosticContext}\n\n` : ""}${header}\n${snapshots.join("\n\n")}`;
+      campaignCatalogContext = `\nCatalogue complet de toutes les boutiques actives (référence produits : id/storeId/storeName/url; ne pas omettre) : ${JSON.stringify(campaignCatalog)}`;
     } catch {
       context = "Données Chariow momentanément indisponibles pour l'une ou plusieurs boutiques. Ne fabrique aucun chiffre.";
     }
@@ -309,7 +316,9 @@ export async function POST(request: Request) {
   const rawSystemContent = `${systemPrompt}\n\nContexte actuel :\n${safeContext}${documentsContext}`;
   const baseSystemCap = includeVitrine ? MAX_SYSTEM_CONTENT_CHARS + VITRINE_PROMPT.length + 2 : MAX_SYSTEM_CONTENT_CHARS;
   const systemCap = documentAttachments.length ? baseSystemCap + MAX_DOCUMENT_CONTEXT_CHARS : baseSystemCap;
-  const systemContent = rawSystemContent.length > systemCap ? `${rawSystemContent.slice(0, systemCap)}[...system tronqué...]` : rawSystemContent;
+  const boundedSystemContent = rawSystemContent.length > systemCap ? `${rawSystemContent.slice(0, systemCap)}[...system tronqué...]` : rawSystemContent;
+  // Les identités et URL produits ne sont jamais tronquées avec les analytics.
+  const systemContent = `${boundedSystemContent}${campaignCatalogContext}`;
 
   // L'historique de la conversation en cours est toujours transmis : c'est la mémoire
   // du tunnel de création de campagne. On ne le supprime plus jamais pour économiser
@@ -354,6 +363,8 @@ export async function POST(request: Request) {
     }
   }
   answer = cleanAiText(answer);
+  const userProvidedUrls = (previousHistory ?? []).filter((item) => item.role === "user").map((item) => String(item.content ?? "")).concat(message).flatMap((text) => text.match(/https?:\/\/[^\s<>"\]]+/g) ?? []);
+  answer = resolveCampaignAnswer(answer, campaignCatalog, { userProvidedUrls, locale: body?.locale });
   // [[CREE_VITRINE]] : le serveur valide le JSON, crée la vitrine et remplace la balise par le lien.
   // Images jointes (la plus récente d'abord) : le logo est repris depuis là, jamais depuis une URL donnée par l'IA.
   const vitrineImageUrls = [

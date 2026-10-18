@@ -3,7 +3,7 @@
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
-import type { ChariowProductLite, WizardState } from "./types";
+import { wizardStateForProductSelection, type ChariowProductLite, type WizardState } from "./types";
 import { useI18n } from "@/lib/i18n/i18n";
 
 interface StepProps {
@@ -22,6 +22,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
   const { locale, t } = useI18n();
   const en = locale === "en";
   const [products, setProducts] = useState<ChariowProductLite[]>([]);
+  const [productsStoreId, setProductsStoreId] = useState<string | null>(null);
   const [stores, setStores] = useState<ChariowStore[]>([]);
   const [storesLoading, setStoresLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
         if (!cancelled) {
           setStores(connected);
           if (!connected.some((store: ChariowStore) => store.id === state.storeId)) {
-            patch({ storeId: connected[0]?.id ?? null, product: null });
+            patch({ storeId: connected[0]?.id ?? null, product: null, destinationUrl: "" });
           }
         }
       } catch (e) {
@@ -67,7 +68,10 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
         const res = await fetch(url);
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || (en ? "Unable to load products" : t("wizardExtra.error.products")));
-        if (!cancelled) setProducts(data?.snapshot?.products ?? []);
+        if (!cancelled) {
+          setProducts(data?.snapshot?.products ?? []);
+          setProductsStoreId(state.storeId);
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : t("wizardExtra.error.unknown"));
       } finally {
@@ -80,7 +84,8 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
     };
   }, [state.storeId]);
 
-  const filtered = products.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()));
+  const catalogReady = productsStoreId === state.storeId;
+  const filtered = (catalogReady ? products : []).filter((p) => p.name.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div className="space-y-4">
@@ -96,7 +101,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
           id="campaign-store"
           value={state.storeId ?? ""}
           disabled={storesLoading || stores.length === 0}
-          onChange={(event) => patch({ storeId: event.target.value, product: null })}
+          onChange={(event) => patch({ storeId: event.target.value, product: null, destinationUrl: "" })}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 disabled:opacity-60"
         >
           {stores.length === 0 && <option value="">{storesLoading ? (en ? "Loading stores…" : "Chargement des boutiques…") : (en ? "No connected store" : "Aucune boutique connectée")}</option>}
@@ -123,7 +128,11 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
           return (
             <button
               key={product.id}
-              onClick={() => patch({ product })}
+              disabled={!catalogReady || loading}
+              onClick={() => {
+                const next = wizardStateForProductSelection(state, product);
+                patch({ product: next.product, destinationUrl: next.destinationUrl });
+              }}
               className={`rounded-xl border p-2 text-left transition ${
                 selected ? "border-[#6366F1] ring-2 ring-[#6366F1]/30" : "border-gray-100"
               }`}

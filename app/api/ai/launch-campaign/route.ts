@@ -14,6 +14,7 @@ import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
 import { launchPinterest } from "@/lib/pinterest/api";
 import { PINTEREST_TAG_REQUIRED_CODE, isPinterestConversionTagError, pinterestTagChatMessage } from "@/lib/pinterest/tag-help";
 import { TIKTOK_FROM_CHAT_MESSAGE } from "@/lib/launch-platform";
+import { resolveChatCampaignStore } from "@/lib/chariow/campaign-store";
 
 // Lance une campagne Meta complète via l'API Marketing directe (même chemin que
 // /api/ad-campaigns/[id]/launch), à partir d'un brief validé par l'utilisateur
@@ -32,6 +33,9 @@ type LaunchBody = {
   headline?: string;
   linkUrl?: string; // lien de la page de redirection (page de vente de l'utilisateur) — OBLIGATOIRE
   callToAction?: string; // bouton d'appel à l'action Meta (SHOP_NOW, LEARN_MORE…) — OBLIGATOIRE pour Meta, choisi par l'utilisateur
+  storeId?: string; // boutique du produit résolu dans le chat, revérifiée côté serveur
+  productId?: string;
+  locale?: string;
   imageUrl?: string; // média principal : image OU vidéo (voir mediaType)
   mediaType?: string; // "image" | "video" — "video" si imageUrl est une vidéo (sinon détecté via l'URL)
   carouselUrls?: string[]; // images supplémentaires après imageUrl (Meta : carrousel de 2 à 10 cartes)
@@ -49,8 +53,8 @@ type LaunchBody = {
 // avec une campagne qui dépense réellement mais qu'on ne peut pas enregistrer.
 const MIN_DAILY_BUDGET_USD = 1;
 
-// Chaque utilisateur a sa propre page de vente : il n'existe AUCUN lien par défaut.
-// On n'accepte qu'une URL http(s) valide, fournie par l'utilisateur.
+// URL du catalogue résolue par Vendeo, ou ajustement manuel dans la confirmation.
+// Aucun lien générique par défaut n'est utilisé.
 function normalizeLinkUrl(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -124,8 +128,16 @@ export async function POST(request: Request) {
     );
   }
 
+  const selectedStore = await resolveChatCampaignStore(supabase, user.id, typeof body.storeId === "string" ? body.storeId : undefined);
+  if (!selectedStore.ok) {
+    const en = body.locale === "en";
+    return NextResponse.json({ error: selectedStore.code === "STORE_SELECTION_REQUIRED"
+      ? (en ? "Choose the product and its store in the chat before launching the campaign." : "Choisis le produit et sa boutique dans le chat avant de lancer la campagne.")
+      : (en ? "The selected store was not found or is disconnected." : "La boutique sélectionnée est introuvable ou déconnectée."), code: selectedStore.code }, { status: 400 });
+  }
+  const store = selectedStore.store;
   if (typeof body.platform === "string" && /pinterest/i.test(body.platform)) {
-    return launchPinterestFromChat({ supabase, userId: user.id, body, dailyBudget, linkUrl });
+    return launchPinterestFromChat({ supabase, userId: user.id, body, dailyBudget, linkUrl, store });
   }
 
   // Bouton d'appel à l'action (Meta) : choisi par l'utilisateur, jamais deviné. Vérifié AVANT tout appel Meta.
@@ -138,22 +150,6 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-
-  // La campagne doit être rattachée à une boutique Chariow connectée pour
-  // apparaître dans "Mes campagnes" (même exigence que /api/ad-campaigns,
-  // utilisée par le wizard "Lancer une pub") — sans ça, l'insertion plus bas
-  // échoue (store_id est "not null" en base) et la campagne, déjà créée et
-  // active chez Meta à ce moment-là, resterait invisible côté Vendeo.
-  const { data: store, error: storeError } = await supabase
-    .from("stores")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("connection_status", "connected")
-    .limit(1)
-    .maybeSingle();
-  if (storeError || !store) {
-    return NextResponse.json({ error: "Connecte d'abord une boutique Chariow." }, { status: 400 });
-  }
 
   // Récupère les comptes Meta actifs, puis choisit celui à utiliser :
   // 1. le compte explicitement demandé (metaAdAccountId = id de la ligne en base),
@@ -427,9 +423,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function launchPinterestFromChat({ supabase, userId, body, dailyBudget, linkUrl }: { supabase: any; userId: string; body: LaunchBody; dailyBudget: number; linkUrl: string }) {
-  const { data: store, error: storeError } = await supabase.from("stores").select("id").eq("user_id", userId).eq("connection_status", "connected").limit(1).maybeSingle();
-  if (storeError || !store) return NextResponse.json({ error: "Connecte d'abord une boutique Chariow." }, { status: 400 });
+async function launchPinterestFromChat({ supabase, userId, body, dailyBudget, linkUrl, store }: { supabase: any; userId: string; body: LaunchBody; dailyBudget: number; linkUrl: string; store: { id: string } }) {
   const { data: accounts, error: accountError } = await supabase.from("pinterest_ad_accounts").select("id,pinterest_ad_account_id,pinterest_integration_id,is_active").eq("user_id", userId).eq("is_active", true);
   if (accountError || !accounts?.length) return NextResponse.json({ error: "Connecte d'abord un compte Pinterest Ads." }, { status: 400 });
   const account = (body.pinterestAdAccountId ? accounts.find((item: any) => item.id === body.pinterestAdAccountId) : undefined) ?? accounts[0];
