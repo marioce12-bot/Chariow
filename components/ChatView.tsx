@@ -4,6 +4,7 @@ import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { Activity, ArrowRight, Camera, Copy, FileText, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
+import { LaunchProgress } from "@/components/chat/LaunchProgress";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { normalizeCurrency, type SupportedCurrency } from "@/lib/currency";
 import { META_CTA_TYPES, META_CTA_LABELS, normalizeMetaCta, type MetaCtaType } from "@/lib/meta/cta";
@@ -269,6 +270,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const [launchBudget, setLaunchBudget] = useState("");
   const [launchCurrency, setLaunchCurrency] = useState<SupportedCurrency>("XOF");
   const [launching, setLaunching] = useState(false);
+  const [launchComplete, setLaunchComplete] = useState(false);
+  const launchInFlightRef = useRef(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [metaAccounts, setMetaAccounts] = useState<MetaAdAccount[]>([]);
   const [pinterestAccounts, setPinterestAccounts] = useState<PinterestAdAccount[]>([]);
@@ -568,6 +571,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   }
 
   async function confirmLaunch() {
+    // A ref also blocks a second click before React has rendered the disabled button.
+    if (launchInFlightRef.current) return;
     if (!launchPayload?.name || !launchPayload.message) {
       setLaunchError(t("sweep3.text107"));
       return;
@@ -592,6 +597,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     }
     const isVideo = launchMediaKind === "video";
     const carouselUrls = isPinterest || isVideo ? [] : launchImageUrls.slice(1);
+    launchInFlightRef.current = true;
+    setLaunchComplete(false);
     setLaunching(true);
     setLaunchError(null);
     try {
@@ -629,6 +636,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
         setLaunchError(data.error ?? "Impossible de lancer la campagne.");
         return;
       }
+      setLaunchComplete(true);
+      // Briefly show confirmed 100%, never before the server accepts the request.
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 500));
       const usdNote = typeof data.dailyBudgetUsd === "number" && launchCurrency !== "USD" ? ` (≈ ${data.dailyBudgetUsd} $)` : "";
       const carouselNote = carouselUrls.length ? t("dynamicExtra.carouselNote", { count: (carouselUrls.length + 1) }) : isVideo ? t("sweep3.text110") : "";
       setMessages((current) => [
@@ -639,7 +649,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
     } catch {
       setLaunchError(t("sweep1.text111"));
     } finally {
+      launchInFlightRef.current = false;
       setLaunching(false);
+      setLaunchComplete(false);
     }
   }
 
@@ -901,10 +913,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
 
       {launchOpen ? (
         <div className="chat-launch-modal-backdrop" onClick={() => !launching && setLaunchOpen(false)}>
-          <div className="chat-launch-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="chat-launch-modal" role="dialog" aria-modal="true" aria-labelledby="chat-launch-title" aria-busy={launching} onClick={(event) => event.stopPropagation()}>
             <div className="chat-launch-head">
-              <strong><Rocket size={16} /> {t("chat.launchCampaign")}</strong>
-              <button type="button" onClick={() => setLaunchOpen(false)} aria-label={t("wizardExtra.close")}>×</button>
+              <strong id="chat-launch-title"><Rocket size={16} /> {t("chat.launchCampaign")}</strong>
+              <button type="button" disabled={launching} onClick={() => setLaunchOpen(false)} aria-label={t("wizardExtra.close")}>×</button>
             </div>
             <p className="chat-launch-question">{t("chat.launchConfirmQuestion")}</p>
             <div className="chat-launch-summary">
@@ -999,7 +1011,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
               <label className="chat-launch-account">
                 <span>{t("chat.launchAccount")}</span>
                 {launchAccounts.length > 1 ? (
-                  <select value={launchAccountId ?? ""} onChange={(event) => setLaunchAccountId(event.target.value || null)}>
+                  <select value={launchAccountId ?? ""} disabled={launching} onChange={(event) => setLaunchAccountId(event.target.value || null)}>
                     <option value="">{t("chat.launchAccountChoose")}</option>
                     {launchAccounts.map((account) => (
                       <option key={account.id} value={account.id}>{account.name ?? account.id}</option>
@@ -1010,10 +1022,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                 )}
               </label>
             ) : null}
+            {launching ? <LaunchProgress complete={launchComplete} /> : null}
             {launchError ? <p className="store-error" role="alert">{localizeSystemMessage(launchError, locale)}</p> : null}
             <div className="chat-launch-actions">
               <button type="button" className="btn btn-ghost" disabled={launching} onClick={() => setLaunchOpen(false)}>{t("chat.cancel")}</button>
-              <button type="button" className="btn btn-dark" disabled={launching || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && !launchCta)} onClick={() => void confirmLaunch()}>{launching ? t("chat.sending") : t("chat.confirmLaunch")}</button>
+              <button type="button" className="btn btn-dark" disabled={launching || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && !launchCta)} onClick={() => void confirmLaunch()}>{launching ? t(launchComplete ? "chat.launchSent" : "chat.launchSubmitting") : t("chat.confirmLaunch")}</button>
             </div>
           </div>
         </div>

@@ -8,3 +8,20 @@
 .mobile-nav .nav-btn-assistant.active,
 html[data-theme="dark"] .mobile-nav .nav-btn-assistant,
 html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { background:transparent; }
+
+@media (max-width: 760px) {
+  .dashboard-platform .mobile-nav {
+    transition: transform 220ms ease, opacity 180ms ease;
+    will-change: transform;
+  }
+  .dashboard-platform .mobile-nav.mobile-nav-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(calc(100% + env(safe-area-inset-bottom)));
+  }
+  .dashboard-platform .mobile-nav.mobile-nav-visible { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-platform .mobile-nav { transition: none !important; }
+}

@@ -44,6 +44,7 @@ import RecoveryPanel from "./dashboard/RecoveryPanel";
 import { NotificationPermissionPrompt } from "./NotificationPermissionPrompt";
 import { DashboardStoreSelector } from "./dashboard/StoreSelector";
 import "@/app/dashboard-refinement.css";
+import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
 // Dernière boutique choisie dans le sélecteur : conservée dans localStorage (et non
@@ -92,6 +93,7 @@ export function Dashboard() {
   const { t, locale } = useI18n();
   const w = (key: string) => t(`workspaceExtra.${key}`);
   const [active, setActive] = useState(getInitialDashboardSection);
+  const mobileNavVisible = useMobileNavVisibility(active);
   // Suivi anonyme du temps passé par section (alimente l'onglet « Usage de l'app » de la console admin).
   useUsageTracking(active);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -446,7 +448,7 @@ export function Dashboard() {
 
 
         {active !== "Paramètres" ? (
-         <nav className={`mobile-nav${active === "Mes boutiques" ? " mobile-nav-hidden-on-stores" : ""}`} aria-label={w("mobileNav")}>
+         <nav className={`mobile-nav${active === "Mes boutiques" ? " mobile-nav-hidden-on-stores" : ""}${mobileNavVisible ? " mobile-nav-visible" : " mobile-nav-hidden"}`} aria-label={w("mobileNav")}>
          <button type="button" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
            <LayoutDashboard size={18} />
             <span>{t("nav.overview")}</span>
