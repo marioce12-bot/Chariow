@@ -116,7 +116,7 @@ export function AdminNotifications({ totalUsers, refreshRevision = 0 }: { totalU
             </div>
             <div className="admin-recipient-pagination"><button type="button" className="admin-btn admin-btn-soft" disabled={page === 0 || searching} onClick={() => setPage(page - 1)}>{t("adminComplete.previous")}</button><small>{total} {" "}{t("sweep2.text100")}{" "}{page + 1}</small><button type="button" className="admin-btn admin-btn-soft" disabled={!hasMore || searching} onClick={() => setPage(page + 1)}>{t("adminComplete.next")}</button></div>
           </fieldset>}
-          <button className="btn btn-dark" disabled={busy || !title.trim() || !body.trim() || (audience === "selected" ? !selected.length : !totalUsers)}>{busy ? t("adminExtra.push.sending") : t("dynamicExtra.sendTo", { count: (audience === "selected" ? selected.length : totalUsers) })}</button>
+          <button className="admin-btn admin-btn-primary" disabled={busy || !title.trim() || !body.trim() || (audience === "selected" ? !selected.length : !totalUsers)}>{busy ? t("adminExtra.push.sending") : t("dynamicExtra.sendTo", { count: (audience === "selected" ? selected.length : totalUsers) })}</button>
         </form>
       </section>
       <section className="admin-card"><div className="admin-card-head"><div><h3>{t("adminComplete.recentAdminMessages")}</h3><p className="admin-help">{t("adminComplete.historyDesc")}</p></div><FileText size={17} /></div>
