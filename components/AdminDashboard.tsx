@@ -37,6 +37,7 @@ import {
   IntegrationsSection,
   AuditSection,
 } from "./AdminSections";
+import { fetchAdminJson } from "@/lib/admin-fetch";
 import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 import "./admin-dashboard.css";
 
@@ -51,6 +52,7 @@ export function AdminDashboard() {
   const [usageLoading, setUsageLoading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const [updated, setUpdated] = useState<Date | null>(null);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const usageRequest = useRef(0);
@@ -62,11 +64,8 @@ export function AdminDashboard() {
     setUsageLoading(true);
     setUsageError("");
     try {
-      const response = await fetch(`/api/admin/usage?days=${days}`, {
-        cache: "no-store",
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload.usage) throw new Error("usage_unavailable");
+      const payload = await fetchAdminJson(`/api/admin/usage?days=${days}`);
+      if (!payload.usage) throw new Error("usage_unavailable");
       if (request === usageRequest.current) setUsage(payload.usage);
     } catch {
       if (request === usageRequest.current) {
@@ -82,16 +81,7 @@ export function AdminDashboard() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/overview", {
-        cache: "no-store",
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok)
-        throw new Error(
-          response.status === 401 || response.status === 403
-            ? "access_denied"
-            : "overview_unavailable",
-        );
+      const payload = await fetchAdminJson("/api/admin/overview");
       if (!payload.metrics || !Array.isArray(payload.users))
         throw new Error("overview_unavailable");
       if (request === overviewRequest.current) {
@@ -101,7 +91,7 @@ export function AdminDashboard() {
     } catch (cause) {
       if (request === overviewRequest.current)
         setError(
-          cause instanceof Error ? cause.message : "overview_unavailable",
+          cause instanceof Error && cause.message === "admin_read_session" ? "access_denied" : "overview_unavailable",
         );
     } finally {
       if (request === overviewRequest.current) setLoading(false);
@@ -243,6 +233,7 @@ export function AdminDashboard() {
               className="admin-refresh"
               disabled={loading}
               onClick={() => {
+                setRefreshRevision((value) => value + 1);
                 void load();
                 void loadUsage(usageDays);
               }}
@@ -350,9 +341,9 @@ export function AdminDashboard() {
             )}
             {active === "integrations" && <IntegrationsSection data={data} />}
             {active === "notifications" && (
-              <AdminNotifications totalUsers={data.metrics.users} />
+              <AdminNotifications totalUsers={data.metrics.users} refreshRevision={refreshRevision} />
             )}
-            {active === "feedback" && <AdminFeedbackSection />}
+            {active === "feedback" && <AdminFeedbackSection refreshRevision={refreshRevision} />}
             {active === "subscriptions" && (
               <SubscriptionsSection data={data} onRefresh={() => void load()} />
             )}
