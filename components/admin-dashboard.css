@@ -1297,3 +1297,30 @@
 .admin-grant-modal .admin-btn-primary { background:#103ef8; color:#fff; border:1px solid #103ef8; box-shadow:none; }
 .admin-grant-modal .admin-btn-soft { background:#fff; color:#000c2e; border:1px solid #dce4f3; }
 .admin-grant-modal [role="alert"] { color:#b91c1c; }
+
+/* Subscriptions: keep each account and its action together on narrow screens. */
+.owner-console .admin-subscriptions .admin-row { min-width: 610px; }
+.owner-console .admin-subscriptions .admin-row > * { min-width: 0; overflow-wrap: anywhere; }
+.owner-console .admin-subscriptions .admin-subscription-state { display: inline-block; max-width: 100%; border-radius: 6px; background: #f1f5f9; padding: 5px 8px; line-height: 1.35; text-transform: none; }
+.owner-console .admin-subscriptions .admin-subscription-state.active { background: #eaf7ee; }
+.owner-console .admin-subscriptions .admin-subscription-state.trialing { background: #eef2ff; color: #3730a3; }
+.owner-console .admin-subscriptions .admin-subscription-state.past_due,
+.owner-console .admin-subscriptions .admin-subscription-state.unpaid { background: #fff1f2; }
+@media (max-width: 700px) {
+  .owner-console .admin-subscriptions { padding: 14px; }
+  .owner-console .admin-subscriptions .admin-table { overflow: visible; display: grid; gap: 12px; }
+  .owner-console .admin-subscriptions .admin-row-head { display: none; }
+  .owner-console .admin-subscriptions .admin-table .admin-row:not(.admin-row-head) {
+    min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start; gap: 12px; padding: 14px;
+    border: 1px solid #e3e8f2; border-radius: 10px; font-size: 13px;
+  }
+  .owner-console .admin-subscriptions .admin-row > [data-label] { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; line-height: 1.45; }
+  .owner-console .admin-subscriptions .admin-row > [data-label]::before { content: attr(data-label); color: #687793; font-size: 10px; font-weight: 600; line-height: 1.4; }
+  .owner-console .admin-subscriptions .admin-subscription-account { grid-column: 1 / -1; }
+  .owner-console .admin-subscriptions .admin-subscription-state { font-size: 12px; }
+  .owner-console .admin-subscriptions .admin-row > .admin-subscription-actions { align-items: stretch; align-self: end; }
+  .owner-console .admin-subscriptions .admin-subscription-actions:empty { display: none; }
+  .owner-console .admin-subscriptions .admin-subscription-actions::before { display: none; }
+  .owner-console .admin-subscriptions .admin-btn { min-height: 44px; white-space: normal; line-height: 1.4; }
+}

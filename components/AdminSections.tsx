@@ -624,7 +624,7 @@ export function SubscriptionsSection({
     }
   }
   return (
-    <section className="admin-card">
+    <section className="admin-card admin-subscriptions">
       <div className="admin-card-head">
         <h3>{locale === "en" ? "Subscriptions" : "Abonnements"}</h3>
         <CreditCard size={17} />
@@ -641,23 +641,37 @@ export function SubscriptionsSection({
         >
           {data.subscriptions.map((s) => (
             <div className="admin-row" key={s.id}>
-              <strong>
+              <strong className="admin-subscription-account" data-label={locale === "en" ? "Account" : "Compte"}>
                 {names.get(s.user_id) || t("adminComplete.noName")}
               </strong>
-              <span>{s.plan}</span>
-              <span className={`admin-status ${s.status}`}>{s.status}</span>
-              <span>
+              <span className="admin-subscription-plan" data-label={locale === "en" ? "Plan" : "Offre"}>{s.plan}</span>
+              <span className="admin-subscription-status" data-label={t("adminComplete.status")}>
+                <span className={`admin-status admin-subscription-state ${s.status}`}>
+                  {({
+                    active: locale === "en" ? "Active" : "Actif",
+                    trialing: locale === "en" ? "Trial" : "En essai",
+                    canceled: locale === "en" ? "Canceled" : "Annulé",
+                    past_due: locale === "en" ? "Past due" : "En retard",
+                    incomplete: locale === "en" ? "Incomplete" : "Incomplet",
+                    incomplete_expired: locale === "en" ? "Expired" : "Expiré",
+                    unpaid: locale === "en" ? "Unpaid" : "Impayé",
+                    paused: locale === "en" ? "Paused" : "En pause",
+                  } as Record<string, string>)[s.status] ?? s.status}
+                </span>
+              </span>
+              <span className="admin-subscription-date" data-label={locale === "en" ? "Period ends" : "Fin de période"}>
                 {s.current_period_end
                   ? new Date(s.current_period_end).toLocaleDateString(
                       dateLocale(locale),
                     )
                   : "—"}
               </span>
-              <span>
+              <span className="admin-subscription-actions" data-label={locale === "en" ? "Actions" : "Actions"}>
                 {s.status !== "active" && (
                   <button
                     type="button"
                     className="admin-btn admin-btn-soft"
+                    aria-label={`${locale === "en" ? "Activate" : "Activer"} — ${names.get(s.user_id) || t("adminComplete.noName")}`}
                     disabled={busy === s.id}
                     onClick={() => void activate(s)}
                   >
