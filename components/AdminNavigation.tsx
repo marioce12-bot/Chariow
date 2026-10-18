@@ -2,80 +2,221 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
-import { Activity, BarChart3, Bell, Building2, CreditCard, FileText, Menu, Receipt, Send, X, Users, MessageSquareText } from "lucide-react";
+import {
+  LayoutDashboard,
+  BarChart3,
+  Bell,
+  Plug,
+  CreditCard,
+  FileText,
+  Menu,
+  Receipt,
+  ArrowUpRight,
+  X,
+  Users,
+  MessageSquareText,
+  ShieldCheck,
+} from "lucide-react";
 
 export type AdminNavigationProps = {
   active: string;
   onChange: (section: string) => void;
 };
-
 export const adminNavigationGroups = [
-  { label: "Pilotage", items: [["overview", "Vue générale", Activity], ["users", "Inscriptions", Users], ["usage", "Usage de l’app", BarChart3]] },
-  { label: "Finance", items: [["subscriptions", "Abonnements", CreditCard], ["purchases", "Achats & recharges", Receipt], ["payouts", "Décaissements", Send]] },
-  { label: "Plateforme", items: [["notifications", "Notifications", Bell], ["integrations", "Intégrations", Building2], ["audit", "Journal d’audit", FileText], ["feedback", "Retours & notes", MessageSquareText]] },
+  {
+    key: "observe",
+    items: [
+      ["overview", LayoutDashboard],
+      ["users", Users],
+      ["usage", BarChart3],
+    ],
+  },
+  {
+    key: "control",
+    items: [
+      ["integrations", Plug],
+      ["notifications", Bell],
+      ["feedback", MessageSquareText],
+    ],
+  },
+  {
+    key: "manage",
+    items: [
+      ["subscriptions", CreditCard],
+      ["purchases", Receipt],
+      ["payouts", ArrowUpRight],
+      ["audit", FileText],
+    ],
+  },
 ] as const;
+const copy = {
+  observe: ["Observation", "Observation"],
+  control: ["Contrôle", "Control"],
+  manage: ["Gestion", "Management"],
+  overview: ["Vue d’ensemble", "Overview"],
+  users: ["Comptes utilisateurs", "User accounts"],
+  usage: ["Usage de Vendeo", "Vendeo usage"],
+  integrations: ["Connexions & synchros", "Connections & sync"],
+  notifications: ["Notifications", "Notifications"],
+  feedback: ["Suggestions & avis", "Suggestions & feedback"],
+  subscriptions: ["Abonnements", "Subscriptions"],
+  purchases: ["Achats & crédits", "Purchases & credits"],
+  payouts: ["Décaissements", "Payouts"],
+  audit: ["Journal d’audit", "Audit log"],
+};
+export function adminLabel(key: string, locale: string) {
+  return copy[key as keyof typeof copy]?.[locale === "en" ? 1 : 0] ?? key;
+}
+export const adminSectionKeys = adminNavigationGroups.flatMap((group) =>
+  group.items.map(([key]) => key),
+);
 
 export function AdminNavigation({ active, onChange }: AdminNavigationProps) {
-  const { t } = useI18n();
+  const { locale } = useI18n();
+  const en = locale === "en";
   const [open, setOpen] = useState(false);
-  const titleId = useId();
-  const drawerRef = useRef<HTMLElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
+  const id = useId();
+  const nav = useRef<HTMLElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
+    const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    drawerRef.current?.querySelector<HTMLElement>("button")?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
+    nav.current?.querySelector<HTMLElement>("button")?.focus();
+    const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         setOpen(false);
-        return;
       }
-      if (event.key !== "Tab" || !drawerRef.current) return;
-      const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('button:not([disabled])'));
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      if (event.key !== "Tab" || !nav.current) return;
+      const targets = [
+        ...nav.current.querySelectorAll<HTMLButtonElement>(
+          "button:not([disabled])",
+        ),
+      ].filter((target) => target.getClientRects().length > 0);
+      const first = targets[0],
+        last = targets[targets.length - 1];
+      if (!first) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKey);
+    const media = window.matchMedia("(min-width: 901px)");
+    const onResize = () => {
+      if (media.matches) setOpen(false);
+    };
+    media.addEventListener("change", onResize);
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", onKeyDown);
-      triggerRef.current?.focus();
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", onKey);
+      media.removeEventListener("change", onResize);
+      trigger.current?.focus();
     };
   }, [open]);
-
   const choose = (section: string) => {
     onChange(section);
     setOpen(false);
   };
-
-  return <>
-    <button ref={triggerRef} type="button" className="admin-nav-trigger" aria-label={t("adminExtra.nav.open")} aria-controls={titleId} aria-expanded={open} onClick={() => setOpen(true)}>
-      <Menu size={19} aria-hidden="true" /><span>{t("adminExtra.nav.menu")}</span>
-    </button>
-    {open && <button type="button" className="admin-nav-overlay" aria-label={t("adminExtra.nav.close")} onClick={() => setOpen(false)} />}
-    <nav ref={drawerRef} id={titleId} className={`admin-sidebar admin-navigation${open ? " is-open" : ""}`} role={open ? "dialog" : undefined} aria-label={t("adminExtra.nav.title")} aria-modal={open ? "true" : undefined}>
-      <div className="admin-nav-mobile-head"><strong>{t("adminExtra.nav.title")}</strong><button type="button" className="admin-nav-close" aria-label={t("adminExtra.nav.close")} onClick={() => setOpen(false)}><X size={20} /></button></div>
-      {adminNavigationGroups.map((group) => <div className={`admin-nav-group${group.label === "Plateforme" ? " admin-nav-platform" : ""}`} key={group.label}>
-        <span className="admin-nav-group-label">{t(`adminExtra.nav.group.${group.label === "Pilotage" ? "control" : group.label === "Finance" ? "finance" : "platform"}`)}</span>
-        {group.items.map(([key, label, Icon]) => <button type="button" key={key} className={active === key ? "active" : ""} aria-current={active === key ? "page" : undefined} onClick={() => choose(key)}><Icon size={17} aria-hidden="true" /><span>{t(`adminExtra.nav.${key}`)}</span></button>)}
-      </div>)}
-    </nav>
-  </>;
+  return (
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        className="admin-nav-trigger"
+        aria-label={en ? "Open navigation" : "Ouvrir la navigation"}
+        aria-controls={id}
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        <Menu size={20} />
+      </button>
+      {open && (
+        <button
+          type="button"
+          className="admin-nav-overlay"
+          aria-label={en ? "Close navigation" : "Fermer la navigation"}
+          onClick={() => setOpen(false)}
+        />
+      )}
+      <nav
+        ref={nav}
+        id={id}
+        className={`admin-navigation${open ? " is-open" : ""}`}
+        aria-label={en ? "Owner navigation" : "Navigation propriétaire"}
+        role={open ? "dialog" : undefined}
+        aria-modal={open || undefined}
+      >
+        <div className="owner-brand">
+          <span className="owner-brand-mark">
+            v<span />
+          </span>
+          <span>
+            vendeo
+            <span className="owner-brand-caption">
+              {en ? "CONTROL CENTER" : "CENTRE DE CONTRÔLE"}
+            </span>
+          </span>
+          <button
+            type="button"
+            className="admin-nav-close"
+            aria-label={en ? "Close navigation" : "Fermer la navigation"}
+            onClick={() => setOpen(false)}
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <div className="owner-workspace">
+          <span className="owner-avatar">M</span>
+          <div>
+            <strong>{en ? "Owner workspace" : "Espace propriétaire"}</strong>
+            <small>
+              {en ? "Full platform access" : "Contrôle de la plateforme"}
+            </small>
+          </div>
+          <ShieldCheck size={15} />
+        </div>
+        {adminNavigationGroups.map((group) => (
+          <div className="admin-nav-group" key={group.key}>
+            <span className="admin-nav-group-label">
+              {adminLabel(group.key, locale)}
+            </span>
+            {group.items.map(([key, Icon]) => (
+              <button
+                type="button"
+                key={key}
+                aria-current={active === key ? "page" : undefined}
+                className={active === key ? "active" : ""}
+                onClick={() => choose(key)}
+              >
+                <Icon size={18} aria-hidden="true" />
+                <span>{adminLabel(key, locale)}</span>
+                {active === key && <span className="owner-active-dot" />}
+              </button>
+            ))}
+          </div>
+        ))}
+        <div className="owner-nav-footer">
+          <ShieldCheck size={17} />
+          <div>
+            <strong>
+              {en ? "Private administration" : "Administration privée"}
+            </strong>
+            <small>
+              {en ? "Owner · Super-admin" : "Propriétaire · Super-admin"}
+            </small>
+          </div>
+        </div>
+      </nav>
+    </>
+  );
 }
 
-/** Platform tools live in the desktop header; mobile keeps the complete drawer. */
-export function AdminHeaderNavigation({ active, onChange }: AdminNavigationProps) {
-  const { t } = useI18n();
-  return <nav className="admin-header-navigation" aria-label={t("interfaceExtra.platformTools")}>
-    {adminNavigationGroups[2].items.map(([key, label, Icon]) => <button
-      type="button" key={key} className={active === key ? "active" : ""}
-      aria-current={active === key ? "page" : undefined} onClick={() => onChange(key)}
-    ><Icon size={16} aria-hidden="true" /><span>{t(`adminExtra.nav.${key}`)}</span></button>)}
-  </nav>;
+/** Kept as a compatibility export: all destinations now live in one sidebar. */
+export function AdminHeaderNavigation(_: AdminNavigationProps) {
+  return null;
 }
