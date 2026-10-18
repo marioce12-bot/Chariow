@@ -156,6 +156,7 @@ export function Dashboard() {
   // Vrai tant que l'abonnement et les données de la boutique (analytics) n'ont pas fini de charger :
   // la Vue d'ensemble affiche alors des skeletons au lieu de zéros / textes provisoires.
   const [overviewLoading, setOverviewLoading] = useState(true);
+  const [analyticsStoreId, setAnalyticsStoreId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
   // null tant que le nom n'est pas connu : la salutation reste en skeleton (pas de « Bonjour créateur » provisoire).
@@ -238,6 +239,7 @@ export function Dashboard() {
         else if (cached.selectedStoreId) setSelectedStoreId(cached.selectedStoreId);
         setSubscription(cached.subscription);
         setAnalytics(cached.analytics);
+        setAnalyticsStoreId(cached.selectedStoreId);
         setLoadingData(false);
         setOverviewLoading(false);
       }
@@ -256,19 +258,15 @@ export function Dashboard() {
 
       setLoadingData(false);
 
-      const subscriptionPromise = fetch("/api/subscription").then((r) => (r.ok ? r.json() : { subscription: null }));
-      const analyticsPromise = nextSelected
-        ? fetch(`/api/analytics?store_id=${encodeURIComponent(nextSelected)}`).then((r) => (r.ok ? r.json() : null))
-        : Promise.resolve(null);
-
-      const [subscriptionResult, analyticsResult] = await Promise.all([subscriptionPromise, analyticsPromise]);
+      const subscriptionResponse = await fetch("/api/subscription");
+      const subscriptionResult = subscriptionResponse.ok ? await subscriptionResponse.json() : { subscription: null };
       if (cancelled) return;
       const nextSubscription = subscriptionResult.subscription ?? null;
-      const nextAnalytics = analyticsResult?.snapshot ?? analytics ?? null;
       setSubscription(nextSubscription);
-      if (analyticsResult?.snapshot) setAnalytics(analyticsResult.snapshot);
-      setOverviewLoading(false);
-      writeCache(DASHBOARD_CACHE_KEY, { stores: nextStores, selectedStoreId: nextSelected, subscription: nextSubscription, analytics: nextAnalytics });
+      // Analytics belong to the selected-store effect below. Never overwrite a newer
+      // selection with an initial-load response or cache a snapshot under another store.
+      const latest = readCache<{ selectedStoreId: string | null; analytics: AnalyticsData }>(DASHBOARD_CACHE_KEY);
+      writeCache(DASHBOARD_CACHE_KEY, { stores: nextStores, selectedStoreId: latest?.selectedStoreId ?? nextSelected, subscription: nextSubscription, analytics: latest?.analytics ?? null });
     }
 
     loadDashboard().catch(() => {
@@ -291,16 +289,41 @@ export function Dashboard() {
   }, [selectedStoreId]);
 
   useEffect(() => {
-    if (!selectedStoreId) return;
+    const controller = new AbortController();
+    if (!activeStoreId) {
+      setAnalytics(null);
+      setAnalyticsStoreId(null);
+      setOverviewLoading(false);
+      return () => controller.abort();
+    }
+    setOverviewLoading(true);
+    setAnalytics(null);
     void (async () => {
-      const res = await fetch(`/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}`);
-      const data = res.ok ? await res.json() : null;
-       const nextAnalytics = data?.snapshot ?? null;
-       if (nextAnalytics) setAnalytics(nextAnalytics);
-       const cached = readCache<{ stores: StoreData[]; selectedStoreId: string | null; subscription: SubscriptionData | null; analytics: AnalyticsData }>(DASHBOARD_CACHE_KEY);
-       writeCache(DASHBOARD_CACHE_KEY, { stores: cached?.stores ?? stores, selectedStoreId, subscription: cached?.subscription ?? subscription, analytics: nextAnalytics ?? cached?.analytics ?? analytics });
+      try {
+        const res = await fetch(`/api/analytics?store_id=${encodeURIComponent(activeStoreId)}`, { signal: controller.signal });
+        const data = res.ok ? await res.json() : null;
+        if (controller.signal.aborted) return;
+        const nextAnalytics = data?.snapshot ?? null;
+        setAnalytics(nextAnalytics);
+        const cached = readCache<{ stores: StoreData[]; subscription: SubscriptionData | null }>(DASHBOARD_CACHE_KEY);
+        writeCache(DASHBOARD_CACHE_KEY, { stores: cached?.stores ?? stores, selectedStoreId: activeStoreId, subscription: cached?.subscription ?? subscription, analytics: nextAnalytics });
+      } catch {
+        if (controller.signal.aborted) return;
+        setAnalytics(null);
+      } finally {
+        if (!controller.signal.aborted) {
+          setAnalyticsStoreId(activeStoreId);
+          setOverviewLoading(false);
+        }
+      }
     })();
-  }, [selectedStoreId]);
+    return () => controller.abort();
+  }, [activeStoreId]);
+
+  // The identity check hides previous-store figures in the very first render,
+  // before the effect has had a chance to set its loading flag.
+  const storeDataLoading = overviewLoading || analyticsStoreId !== activeStoreId;
+  const snapshotView = ["Vue d'ensemble", "Rapports", "Studio"].includes(active);
 
   return (
     <main className={`app-shell dashboard-platform${active === "Vendeo AI" ? " dashboard-assistant-active" : ""}${isOffline ? " dashboard-is-offline" : ""}`}>
@@ -342,7 +365,7 @@ export function Dashboard() {
           </button>
         </aside>
         <section className={active === "Vendeo AI" ? "app-main chat-page" : "app-main"}>
-          {loadingData ? (
+          {loadingData || (snapshotView && storeDataLoading) ? (
             <DashboardSkeleton />
           ) : stores.length === 0 && !analytics && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
             <StoreOnboarding />
@@ -390,7 +413,7 @@ export function Dashboard() {
               onPromoteProduct={promoteProduct}
               campaignsVersion={campaignsVersion}
               onNavigate={setActive}
-              loading={overviewLoading}
+              loading={storeDataLoading}
             />
           )}
          </section>
