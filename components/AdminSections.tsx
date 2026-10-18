@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Activity,
   BarChart3,
@@ -20,6 +21,7 @@ export type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 
 export function formatDuration(totalSeconds = 0) {
   const seconds = Math.round(totalSeconds);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "0 s";
   if (seconds < 60) return `${seconds} s`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60)
@@ -228,8 +230,45 @@ export function UsersSection({
   const [grantCredits, setGrantCredits] = useState("500");
   const [grantReason, setGrantReason] = useState("");
   const [message, setMessage] = useState("");
+  const modalId = useId();
+  const modalRef = useRef<HTMLElement>(null);
+  const grantTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const busyRef = useRef<string | null>(null);
+  busyRef.current = busy;
   const [range, setRange] = useState<"all" | "24h" | "7d" | "30d">("all");
   const [query, setQuery] = useState("");
+  useEffect(() => {
+    if (!grantUser) return;
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = "hidden";
+    const focusFirst = () => modalRef.current?.querySelector<HTMLElement>(
+      "input:not([disabled]), button:not([disabled])",
+    )?.focus();
+    const frame = window.requestAnimationFrame(focusFirst);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && busyRef.current === null) {
+        event.preventDefault();
+        setGrantUser(null);
+        return;
+      }
+      if (event.key !== "Tab" || !modalRef.current) return;
+      const targets = [...modalRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )].filter((el) => el.getClientRects().length > 0);
+      const first = targets[0], last = targets[targets.length - 1];
+      if (!first) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      (grantTriggerRef.current?.isConnected ? grantTriggerRef.current : previouslyFocused)?.focus?.();
+    };
+  }, [grantUser]);
   const rangeMs = {
     "24h": 86400000,
     "7d": 604800000,
@@ -427,9 +466,10 @@ export function UsersSection({
                     type="button"
                     className="admin-btn admin-btn-soft"
                     disabled={busy !== null}
-                    onClick={() => {
+                    onClick={(event) => {
+                      grantTriggerRef.current = event.currentTarget;
                       setGrantUser(u.id);
-                      setGrantId(crypto.randomUUID());
+                      setGrantId(globalThis.crypto?.randomUUID?.() ?? `${u.id}-${Date.now()}`);
                       setMessage("");
                     }}
                   >
@@ -451,13 +491,18 @@ export function UsersSection({
           />
         )}
       </section>
-      {grantUser && (
-        <section className="admin-card">
-          <h3>{locale === "en" ? "Grant credits" : "Attribuer des crédits"}</h3>
+      {grantUser && typeof document !== "undefined" && createPortal(
+        <div className="admin-grant-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget && busy === null) setGrantUser(null);
+        }}>
+          <section ref={modalRef} className="admin-grant-modal" id={modalId} role="dialog" aria-modal="true" aria-labelledby={`${modalId}-title`} aria-describedby={`${modalId}-description`}>
+          <h3 id={`${modalId}-title`}>{locale === "en" ? "Grant credits" : "Attribuer des crédits"}</h3>
+          <p id={`${modalId}-description`}>{locale === "en" ? "Recipient: " : "Destinataire : "}<strong>{data.users.find((user) => user.id === grantUser)?.email || data.users.find((user) => user.id === grantUser)?.full_name || grantUser}</strong></p>
+          {message && <p role="alert">{message}</p>}
           <form onSubmit={grant}>
             <label>
               {locale === "en" ? "Credits" : "Crédits"}
-              <input
+              <input aria-label={locale === "en" ? "Credits" : "Crédits"}
                 type="number"
                 min="1"
                 max="100000"
@@ -469,7 +514,7 @@ export function UsersSection({
             </label>
             <label>
               {locale === "en" ? "Reason" : "Motif"}
-              <input
+              <input aria-label={locale === "en" ? "Reason" : "Motif"}
                 maxLength={200}
                 value={grantReason}
                 onChange={(e) => setGrantReason(e.target.value)}
@@ -477,6 +522,7 @@ export function UsersSection({
             </label>
             <button
               className="admin-btn admin-btn-primary"
+              type="submit"
               disabled={busy !== null}
             >
               {busy
@@ -490,14 +536,16 @@ export function UsersSection({
             <button
               type="button"
               className="admin-btn admin-btn-soft"
+              disabled={busy !== null}
               onClick={() => setGrantUser(null)}
             >
               {locale === "en" ? "Cancel" : "Annuler"}
             </button>
           </form>
-        </section>
+          </section>
+        </div>, document.body,
       )}
-      {message && (
+      {message && !grantUser && (
         <p className="admin-action-message" role="status">
           {message}
         </p>

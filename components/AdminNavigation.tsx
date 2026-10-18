@@ -152,15 +152,7 @@ export function AdminNavigation({ active, onChange }: AdminNavigationProps) {
         aria-modal={open || undefined}
       >
         <div className="owner-brand">
-          <span className="owner-brand-mark">
-            v<span />
-          </span>
-          <span>
-            vendeo
-            <span className="owner-brand-caption">
-              {en ? "CONTROL CENTER" : "CENTRE DE CONTRÔLE"}
-            </span>
-          </span>
+          <img className="owner-brand-logo" src="/vendeo-logo-light.svg" alt="Vendeo" />
           <button
             type="button"
             className="admin-nav-close"

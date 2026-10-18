@@ -51,7 +51,7 @@ function button(label: string) {
   return result;
 }
 function input(label: string) {
-  const result = [...container.querySelectorAll("label")].find((item) => item.textContent?.includes(label))?.querySelector("input");
+  const result = [...document.querySelectorAll("label")].find((item) => item.textContent?.includes(label))?.querySelector("input");
   if (!result) throw new Error(`Champ introuvable: ${label}`);
   return result;
 }
@@ -67,7 +67,7 @@ async function change(element: HTMLInputElement, value: string) {
   });
 }
 async function submitForm() {
-  const form = container.querySelector("form");
+  const form = document.querySelector(".admin-grant-modal form") ?? container.querySelector("form");
   if (!form) throw new Error("Formulaire absent");
   await act(async () => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
 }
@@ -90,6 +90,18 @@ afterEach(() => {
 });
 
 describe("actions propriétaires dans les sections admin", () => {
+  it("ferme la popup crédits avec Escape et restaure le focus au déclencheur", async () => {
+    await render(<UsersSection data={data} usage={usage} />);
+    const trigger = button("Attribuer des crédits");
+    await click(trigger);
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))); });
+    expect(document.activeElement).toBe(input("Crédits"));
+    await act(async () => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(document.body.style.overflow).toBe("");
+  });
+
   it("active un abonnement après confirmation avec le payload starter attendu et annule sans POST", async () => {
     await render(<SubscriptionsSection data={data} />);
     confirmMock.mockReturnValueOnce(false);
@@ -104,10 +116,10 @@ describe("actions propriétaires dans les sections admin", () => {
   it("ouvre le formulaire de crédits, valide le plafond, annule la confirmation sans POST puis attribue le UUID", async () => {
     await render(<UsersSection data={data} usage={usage} />);
     await click(button("Attribuer des crédits"));
-    expect(container.textContent).toContain("Attribuer des crédits");
+    expect(document.querySelector('[role="dialog"][aria-modal="true"]')?.textContent).toContain("Attribuer des crédits");
     await change(input("Crédits"), "100001");
     await submitForm();
-    expect(container.textContent).toContain("Choisissez entre 1 et 100 000 crédits.");
+    expect(document.body.textContent).toContain("Choisissez entre 1 et 100 000 crédits.");
     expect(fetchMock).not.toHaveBeenCalled();
     await change(input("Crédits"), "100000");
     await change(input("Motif"), "Ajustement approuvé");

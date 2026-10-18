@@ -1,9 +1,9 @@
 /* Owner workspace only: these rules never skin the public app or admin login. */
 .owner-console.admin-shell {
-  --owner-ink: #241c3d;
-  --owner-muted: #767284;
-  --owner-line: #e9e7ef;
-  --owner-accent: #7255d5;
+  --owner-ink: #000c2e;
+  --owner-muted: #64748b;
+  --owner-line: #dce4f3;
+  --owner-accent: #103ef8;
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   grid-template-rows: 78px 1fr;
@@ -39,7 +39,7 @@
 .owner-console input:focus-visible,
 .owner-console textarea:focus-visible,
 .owner-console select:focus-visible {
-  outline: 3px solid #9c85ec;
+  outline: 3px solid #029bfc;
   outline-offset: 3px;
 }
 .owner-console h1,
@@ -62,7 +62,7 @@
   gap: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  background: #211b31;
+  background: #000c2e;
   border: 0;
   border-radius: 0;
   padding: 28px 16px 20px;
@@ -82,7 +82,7 @@
 }
 .owner-brand-caption {
   display: block;
-  color: #b9afce;
+  color: #bfdbfe;
   font-size: 8px;
   letter-spacing: 1.65px;
   font-weight: 500;
@@ -92,7 +92,7 @@
   position: relative;
   display: grid;
   place-items: center;
-  background: #8765e7;
+  background: #103ef8;
   border-radius: 12px;
   width: 37px;
   height: 39px;
@@ -108,7 +108,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #cbb8ff;
+  background: #93c5fd;
 }
 .owner-workspace {
   display: flex;
@@ -119,7 +119,7 @@
   border: 1px solid #ffffff0d;
   border-radius: 10px;
   margin-bottom: 26px;
-  color: #ddd5ed;
+  color: #dbeafe;
 }
 .owner-workspace > div {
   flex: 1;
@@ -133,7 +133,7 @@
 .owner-workspace small {
   display: block;
   font-size: 9px;
-  color: #b6abc8;
+  color: #bfdbfe;
   margin-top: 3px;
 }
 .owner-avatar {
@@ -143,14 +143,14 @@
   display: inline-grid;
   place-items: center;
   border-radius: 9px;
-  background: #e9e2fa;
-  color: #6243a8;
+  background: #dbeafe;
+  color: #103ef8;
   font-weight: 700;
   font-size: 13px;
 }
 .owner-workspace .owner-avatar {
-  background: #463558;
-  color: #e5d7ff;
+  background: #12306b;
+  color: #dbeafe;
 }
 .owner-console .admin-nav-group {
   display: flex;
@@ -159,7 +159,7 @@
   margin-bottom: 23px;
 }
 .owner-console .admin-nav-group-label {
-  color: #b1a5c2;
+  color: #bfdbfe;
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 1.6px;
@@ -176,7 +176,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #c5bbd6;
+  color: #bfdbfe;
   font-size: 11px;
   font-weight: 500;
   text-align: left;
@@ -189,7 +189,7 @@
   color: white;
 }
 .owner-console .admin-navigation .admin-nav-group button.active {
-  background: #7654d0;
+  background: #103ef8;
   color: #fff;
   box-shadow: 0 5px 14px #100b2020;
 }
@@ -197,14 +197,14 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #dfd3ff;
+  background: #93c5fd;
   margin-left: auto;
 }
 .owner-nav-footer {
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #a99abd;
+  color: #93a4c4;
   border-top: 1px solid #ffffff10;
   padding: 18px 9px 0;
   margin-top: auto;
@@ -213,7 +213,7 @@
   display: block;
   font-size: 10px;
   font-weight: 500;
-  color: #cfc3e0;
+  color: #dbeafe;
 }
 .owner-nav-footer small {
   display: block;
@@ -253,7 +253,7 @@
   min-width: 0;
 }
 .owner-breadcrumb strong {
-  color: #51485f;
+  color: #334155;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -271,7 +271,7 @@
   gap: 7px;
   border: 0;
   background: transparent;
-  color: #6c627d;
+  color: #475569;
   border-radius: 8px;
   min-height: 40px;
   padding: 8px;
@@ -279,7 +279,7 @@
   margin: 0;
 }
 .owner-console .admin-header-actions button:hover {
-  background: #f2eef9;
+  background: #eff6ff;
 }
 .owner-search-shortcut {
   margin-right: 8px;
@@ -294,12 +294,12 @@
   align-items: center;
   gap: 9px;
   font-size: 10px;
-  color: #51465e;
+  color: #334155;
   font-weight: 600;
 }
 .owner-header-person small {
   display: block;
-  color: #8b8295;
+  color: #64748b;
   font-size: 9px;
   font-weight: 400;
   margin-top: 2px;
@@ -325,7 +325,7 @@
   font-size: 8px;
   font-weight: 600;
   letter-spacing: 1.45px;
-  color: #897aa0;
+  color: #48608a;
 }
 .owner-toolbar h1 {
   margin: 6px 0 5px;
@@ -429,8 +429,8 @@
   width: 33px;
   height: 33px;
   border-radius: 9px;
-  background: #f0eafa;
-  color: #825cc4;
+  background: #eff6ff;
+  color: #103ef8;
   flex-shrink: 0;
 }
 .owner-kpi-icon.green {
@@ -481,7 +481,7 @@
   margin: 4px 0 0;
 }
 .owner-console .admin-card-head > svg {
-  color: #9b86bd;
+  color: #64748b;
 }
 .owner-main-grid {
   display: grid;
@@ -489,9 +489,9 @@
   gap: 20px;
 }
 .owner-period {
-  background: #f8f6fc;
-  color: #7c6b92;
-  border: 1px solid #ece7f3;
+  background: #f1f5ff;
+  color: #475569;
+  border: 1px solid #dce4f3;
   padding: 5px 10px;
   border-radius: 6px;
   font-size: 9px;
@@ -537,7 +537,7 @@
 .owner-bar-column > strong {
   font-size: 9px;
   font-weight: 500;
-  color: #93859e;
+  color: #64748b;
 }
 .owner-bar-track {
   height: 105px;
@@ -549,11 +549,11 @@
 .owner-bar-track > span {
   display: block;
   width: 100%;
-  background: #ded3f3;
+  background: #dbeafe;
   border-radius: 5px 5px 0 0;
 }
 .owner-bar-track > span.latest {
-  background: #8762ce;
+  background: #103ef8;
 }
 .owner-bar-column small {
   font-size: 8px;
@@ -569,11 +569,11 @@
   background: transparent;
   border: 0;
   font-size: 10px;
-  color: #7957ba;
+  color: #103ef8;
   font-weight: 600;
 }
 .owner-console .owner-text-link:hover {
-  color: #493178;
+  color: #12306b;
 }
 .owner-watch-summary {
   display: flex;
@@ -643,8 +643,8 @@
   font-size: 9px;
 }
 .owner-quick-actions button:hover {
-  border-color: #c4b1e0;
-  background: #fcfaff;
+  border-color: #93c5fd;
+  background: #f8faff;
 }
 .owner-bottom-grid {
   display: grid;
@@ -664,9 +664,9 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: #f0ecf8;
+  background: #eff6ff;
   font-size: 11px;
-  color: #8b72a8;
+  color: #48608a;
   flex-shrink: 0;
 }
 .owner-account-row > span:nth-child(2) {
@@ -679,12 +679,12 @@
 }
 .owner-account-row small {
   display: block;
-  color: #9a8ea5;
+  color: #64748b;
   font-size: 9px;
 }
 .owner-account-row time {
   margin-left: auto;
-  color: #9688a0;
+  color: #64748b;
   font-size: 9px;
   white-space: nowrap;
 }
@@ -697,7 +697,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #bda6de;
+  background: #93c5fd;
   margin-top: 5px;
   flex-shrink: 0;
 }
@@ -721,7 +721,7 @@
   margin: 24px 0 0;
   padding-top: 16px;
   border-top: 1px solid #ece8f1;
-  color: #a096aa;
+  color: #64748b;
   font-size: 8px;
 }
 .owner-console .owner-notice {
@@ -761,11 +761,11 @@
   flex-direction: column;
   min-height: 380px;
   gap: 16px;
-  color: #8e76b3;
+  color: #48608a;
 }
 .owner-empty-state h2 {
   font-size: 18px;
-  color: #554169;
+  color: #334155;
 }
 .owner-empty-state p {
   font-size: 12px;
@@ -775,7 +775,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #8e829b;
+  color: #64748b;
   font-size: 11px;
 }
 .owner-console .admin-columns {
@@ -803,7 +803,7 @@
 }
 .owner-console .admin-row-head {
   font-size: 9px;
-  color: #95859f;
+  color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   border: 0;
@@ -819,7 +819,7 @@
   font-size: 11px;
 }
 .owner-console .admin-empty {
-  color: #908199;
+  color: #64748b;
   min-height: 150px;
   font-size: 12px;
 }
@@ -831,17 +831,17 @@
   min-height: 36px;
   padding: 7px 11px;
   border-radius: 7px;
-  border: 1px solid #e5dded;
+  border: 1px solid #dce4f3;
   font-size: 11px;
 }
 .owner-console .admin-btn-primary {
-  background: #7654c9;
-  border-color: #7654c9;
+  background: #103ef8;
+  border-color: #103ef8;
   color: white;
 }
 .owner-console .admin-btn-soft {
-  background: #f5f1fa;
-  color: #795d98;
+  background: #eff6ff;
+  color: #48608a;
 }
 .owner-console input,
 .owner-console select,
@@ -849,15 +849,15 @@
   max-width: 100%;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #e2dbea;
+  border: 1px solid #dce4f3;
   border-radius: 8px;
   background: #fff;
-  color: #5b476c;
+  color: #334155;
   font-size: 12px;
 }
 .owner-console input::placeholder,
 .owner-console textarea::placeholder {
-  color: #a598ae;
+  color: #64748b;
 }
 .owner-console .admin-status {
   font-size: 10px;
@@ -872,10 +872,10 @@
 }
 .owner-console .admin-event {
   padding: 13px 0;
-  border-top: 1px solid #f0ebf5;
+  border-top: 1px solid #dce4f3;
 }
 .owner-console .admin-event span {
-  color: #9989a5;
+  color: #64748b;
   font-size: 10px;
 }
 .owner-console .admin-plan-actions {
@@ -898,9 +898,9 @@
 .owner-console .admin-action-message {
   padding: 12px;
   border-radius: 8px;
-  background: #f3eefb;
+  background: #eff6ff;
   font-size: 12px;
-  color: #775b99;
+  color: #48608a;
 }
 .owner-console .admin-card + .admin-card {
   margin-top: 20px;
@@ -1008,7 +1008,7 @@
     place-items: center;
     background: transparent;
     border: 0;
-    color: #d2c3e8;
+    color: #bfdbfe;
     padding: 8px;
     margin-left: auto;
   }
@@ -1023,9 +1023,9 @@
     min-height: 40px;
     margin: 0;
     padding: 0;
-    border: 1px solid #e8e1f0;
+    border: 1px solid #dce4f3;
     background: white;
-    color: #69537f;
+    color: #334155;
     box-shadow: none;
     border-radius: 8px;
     z-index: 42;
@@ -1035,7 +1035,7 @@
     position: fixed;
     inset: 0;
     border: 0;
-    background: #1e142965;
+    background: #000c2e65;
     z-index: 60;
   }
   .owner-console .owner-header {
@@ -1268,3 +1268,32 @@
     transition: none !important;
   }
 }
+
+/* Vendeo brand accents and the credit-grant dialog (rendered in document.body). */
+.owner-console.admin-shell { --owner-accent: #103ef8; }
+.owner-console button:focus-visible,
+.owner-console a:focus-visible,
+.owner-console input:focus-visible,
+.owner-console textarea:focus-visible,
+.owner-console select:focus-visible { outline-color: #029bfc; }
+.owner-brand-logo { display: block; width: 138px; max-width: 100%; height: 38px; object-fit: contain; object-position: left center; }
+.owner-brand-wordmark { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.owner-brand-mark { display:none; }
+.owner-console .admin-navigation .admin-nav-group button.active { background: #103ef8; }
+.admin-grant-backdrop { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(0,12,46,.58); overscroll-behavior:contain; }
+.admin-grant-modal { width:min(100%, 480px); max-height:min(90dvh, 720px); overflow-y:auto; overscroll-behavior:contain; padding:24px; border:1px solid #dce4f3; border-radius:16px; background:#fff; color:#000c2e; box-shadow:0 24px 80px rgba(0,12,46,.28); }
+.admin-grant-modal h3 { margin:0 0 5px; font-size:20px; }
+.admin-grant-modal > p { margin:0 0 20px; color:#64748b; font-size:14px; }
+.admin-grant-modal form { display:grid; gap:14px; }
+.admin-grant-modal form label { display:grid; gap:6px; font-weight:600; }
+.admin-grant-modal input { width:100%; min-height:44px; padding:9px 11px; border:1px solid #dce4f3; border-radius:8px; background:#fff; color:#000c2e; }
+.admin-grant-modal form > button { min-height:44px; }
+@media (max-width:600px) { .admin-grant-backdrop { align-items:center; padding:12px; } .admin-grant-modal { width:100%; max-height:calc(100dvh - 24px); padding:20px; border-radius:14px; } }
+.admin-grant-modal button:focus-visible,
+.admin-grant-modal input:focus-visible { outline:3px solid #029bfc; outline-offset:3px; }
+.admin-grant-modal, .admin-grant-modal * { box-sizing:border-box; }
+.admin-grant-modal { font:14px/1.5 system-ui,sans-serif; }
+.admin-grant-modal strong { overflow-wrap:anywhere; }
+.admin-grant-modal .admin-btn-primary { background:#103ef8; color:#fff; border:1px solid #103ef8; box-shadow:none; }
+.admin-grant-modal .admin-btn-soft { background:#fff; color:#000c2e; border:1px solid #dce4f3; }
+.admin-grant-modal [role="alert"] { color:#b91c1c; }
