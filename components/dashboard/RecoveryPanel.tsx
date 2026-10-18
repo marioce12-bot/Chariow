@@ -85,7 +85,6 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     [notice, setNotice] = useState(""),
     [error, setError] = useState(""),
     [limitNote, setLimitNote] = useState("");
-  const [consents, setConsents] = useState<Record<string, boolean>>({});
   const [preview, setPreview] = useState<{
     id: string;
     url: string;
@@ -139,7 +138,6 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     setCandidates([]);
     setTotals([]);
     setPreview(null);
-    setConsents({});
     void load();
     return () => loadController.current?.abort();
   }, [load]);
@@ -170,30 +168,27 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
     const target = window.open("about:blank", "_blank");
     if (target) {
       target.opener = null;
-      target.document.title = "Préparation de la relance";
-      target.document.body.textContent = "Préparation de votre message WhatsApp…";
+      target.document.title = locale === "en" ? "Preparing follow-up" : "Préparation de la relance";
+      target.document.body.textContent = locale === "en" ? "Preparing your WhatsApp message…" : "Préparation de votre message WhatsApp…";
     }
     return target;
   }
-  function showWhatsApp(data: {id: string; url: string; message: string}, target: Window | null) {
+  function showWhatsApp(data: {id: string; url: string; message: string}, target: Window | null, recorded = true) {
     if (target && !target.closed) {
       target.location.replace(data.url);
       setPreview(null);
     } else {
       setPreview(data);
     }
-    setNotice(t("sweep2.text157"));
+    setNotice(recorded ? t("sweep2.text157") : (locale === "en"
+      ? "Message prepared for WhatsApp. Review it and send it yourself in WhatsApp. No consent or message delivery has been recorded."
+      : "Message préparé pour WhatsApp. Vérifie-le et envoie-le toi-même dans WhatsApp. Aucun consentement ni envoi de message n’a été enregistré."));
   }
   async function launch(candidate: Candidate) {
-    if (!consents[candidate.id]) {
-      setError(t("sweep3.text158"));
-      return;
-    }
     const target = beginWhatsAppWindow();
-    const data = await post({sourceSaleId:candidate.id,consent:true}, "/api/recovery/launch");
+    const data = await post({sourceSaleId:candidate.id}, "/api/recovery/launch");
     if (!data) { target?.close(); return; }
-    showWhatsApp({id:data.id,url:data.url,message:data.message},target);
-    await load();
+    showWhatsApp({id:data.id,url:data.url,message:data.message},target,false);
   }
   async function prepare(row: CaseRow) {
     const target = beginWhatsAppWindow();
@@ -460,13 +455,8 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
                     </div>
                     <div className="rec-direct-actions">
                       {!candidate.paymentUrl && <small className="rec-warning">{t("sweep3.text191")}</small>}
-                      {candidate.phone && candidate.paymentUrl && <label className="rec-consent">
-                        <input type="checkbox" checked={!!consents[candidate.id]}
-                          onChange={event => setConsents(current => ({...current,[candidate.id]:event.target.checked}))}/>
-                        <span>{t("sweep1.text192")}</span>
-                      </label>}
                       <button type="button" className="rec-primary"
-                        disabled={disabled || !candidate.phone || !candidate.paymentUrl || !consents[candidate.id]}
+                        disabled={disabled || !candidate.phone || !candidate.paymentUrl}
                         onClick={() => void launch(candidate)}>
                         <MessageCircle size={15}/> {" "}{t("finalExtra.text14")}</button>
                     </div>

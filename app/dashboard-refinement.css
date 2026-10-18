@@ -1175,10 +1175,8 @@
   }
 }
 
-/* Direct recovery: no data-entry form, only a compact consent attestation. */
+/* Direct recovery: open the prepared WhatsApp message without a checkbox. */
 .rec-direct-actions{display:grid;justify-items:end;gap:10px;max-width:315px;flex:0 1 315px;}
-.rec-direct-actions .rec-consent{margin:0;font-size:11px;line-height:1.5;}
-.rec-direct-actions .rec-consent input{flex:none;}
 .rec-direct-actions .rec-warning{color:#a66b15;font-size:11px;line-height:1.5;}
 .rec-automation-info{margin-top:20px;}
 .rec-automation-info strong{font-size:12px;color:#526581;}

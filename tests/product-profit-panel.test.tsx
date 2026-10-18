@@ -37,7 +37,7 @@ describe("ProductProfitPanel", () => {
     expect(host.textContent).toContain("sans nouvelle déduction des frais");
     expect(host.textContent).not.toMatch(/coût de fabrication|frais supplémentaires/i);
     expect(host.querySelector("input")).toBeNull();
-    expect(host.querySelector("button")).toBeNull();
+    expect(host.textContent).toContain("Vérifier le suivi");
   });
 
   it.each([
@@ -70,5 +70,21 @@ describe("ProductProfitPanel", () => {
     await act(async () => {
       resolveFetch({ ok: true, json: async () => ({ products: [], costs: [] }) });
     });
+  });
+
+  it("shows tracking quality in net profit and reloads it for the selected period", async () => {
+    const fetcher = vi.fn(async () => ({ ok: true, json: async () => ({ products: [], quality: { status: "incomplete", issues: [] }, campaigns: [], reasons: [] }) }));
+    vi.stubGlobal("fetch", fetcher);
+    await mount("store-1");
+    await act(async () => Promise.resolve());
+    expect(host.textContent).toContain("Suivi à vérifier");
+    expect(fetcher.mock.calls.some(([url]) => String(url).includes("/api/tracking-quality?store_id=store-1"))).toBe(true);
+    const periodSelect = host.querySelector("select")!;
+    await act(async () => {
+      periodSelect.value = "7";
+      periodSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => Promise.resolve());
+    expect(fetcher.mock.calls.filter(([url]) => String(url).includes("/api/tracking-quality?")).length).toBeGreaterThanOrEqual(2);
   });
 });
