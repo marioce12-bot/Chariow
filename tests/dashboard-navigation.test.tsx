@@ -58,6 +58,7 @@ describe("dashboard desktop navigation", () => {
   it("integrates both navigation regions and scopes desktop layout away from admin and mobile", () => {
     const source = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
     const css = readFileSync(new URL("../app/dashboard-navigation.css", import.meta.url), "utf8");
+    const mobileCss = readFileSync(new URL("../app/dashboard-autopilot-header.css", import.meta.url), "utf8");
     expect(source).toContain('<DashboardHeaderNavigation active={active} onChange={setActive} />');
     expect(source).toContain('<DashboardPrimaryNavigation active={active} onChange={setActive} />');
     expect(source).toContain('aria-label={w("mobileNav")}');
@@ -66,5 +67,21 @@ describe("dashboard desktop navigation", () => {
     expect(css).toContain('position: fixed');
     expect(css).toMatch(/\.dashboard-platform\.dashboard-assistant-active\s*>\s*\.app-header\s*\{\s*display:\s*none;\s*\}/);
     expect(css).not.toContain('.admin-');
+  });
+
+  it("provides a mobile autopilot header shortcut and keeps other overflow items", () => {
+    const source = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
+    const menu = source.slice(source.indexOf('<div className="mobile-more-menu"'), source.indexOf("</div>", source.indexOf('<div className="mobile-more-menu"')));
+    const shortcut = source.slice(source.indexOf('className="mobile-autopilot-trigger"'), source.indexOf('</button>', source.indexOf('className="mobile-autopilot-trigger"')));
+    const css = readFileSync(new URL("../app/dashboard-autopilot-header.css", import.meta.url), "utf8");
+    expect(source).toContain('aria-label={t("workspaceExtra.autopilot")} title={t("workspaceExtra.autopilot")}');
+    expect(shortcut).toContain('aria-current={active === "Pilotage auto" ? "page" : undefined}');
+    expect(shortcut).toContain('setActive("Pilotage auto"); setMoreOpen(false)');
+    expect(menu).not.toContain('workspaceExtra.autopilot');
+    for (const item of ['w("netProfit")', 'w("whatsapp")', 'workspaceExtra.reports', 'workspaceExtra.subscription', 'workspaceExtra.settings']) expect(menu).toContain(item);
+    expect(css).toContain("@media (max-width: 760px)");
+    expect(css).toContain("focus-visible");
+    expect(css).toContain('aria-current="page"');
+    expect(css).toContain("width: 36px");
   });
 });

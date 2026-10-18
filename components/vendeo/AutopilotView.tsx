@@ -1,11 +1,14 @@
 "use client";
-import { localizeFinancialMessage , localizeSystemMessage } from "@/lib/i18n/system-messages";
+import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 
 import { useCallback, useEffect, useState } from "react";
 import { Activity, AlertTriangle, Bot, PauseCircle, ShieldCheck, TrendingUp } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
+import "./autopilot.css";
+import { AutopilotBudgetLimit } from "./AutopilotBudgetLimit";
+import { explainAutopilotMessage } from "@/lib/i18n/autopilot-messages";
 
-type AutopilotReport = {
+export type AutopilotReport = {
   id: string;
   campaign_id: string;
   campaign_title: string;
@@ -26,10 +29,13 @@ type AutopilotReport = {
   recommendation_reason?: string;
   cpa_threshold?: number | null;
   mutation_block_reason?: string | null;
+  budget_block_reason?: string | null;
   metrics: { daily_budget?: number; days_since_launch?: number };
   currency?: string | null;
   created_at: string;
 };
+
+type AutopilotCampaign = { id: string; title: string; platform: "meta" | "tiktok"; autopilot_enabled: boolean };
 
 type Alert = {
   id: string;
@@ -60,6 +66,7 @@ export function AutopilotView() {
   const { t, locale } = useI18n();
   const [reports, setReports] = useState<AutopilotReport[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [campaigns, setCampaigns] = useState<AutopilotCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -77,6 +84,7 @@ export function AutopilotView() {
       const [reportsData, alertsData] = await Promise.all([reportsRes.json(), alertsRes.json()]);
       if (!cancelled()) {
         setReports(reportsData.reports ?? []);
+        setCampaigns(reportsData.campaigns ?? []);
         setAlerts((alertsData.alerts ?? []).filter((alert: Alert) => alert.status !== "resolved"));
       }
     } catch (cause) {
@@ -93,15 +101,12 @@ export function AutopilotView() {
   }, [loadData, reloadKey]);
 
   const latest = latestPerCampaign(reports);
-  const decisionMeta = (decision: AutopilotReport["decision"]) => ({
-    keep_running: { label: t("autopilot.keepRunning"), icon: <TrendingUp size={14} />, tone: "#065F46" },
-    pause: { label: t("autopilot.pause"), icon: <PauseCircle size={14} />, tone: "#B45309" },
-    learning: { label: t("autopilot.learning"), icon: <Activity size={14} />, tone: "#3730A3" },
-    insufficient_data: { label: t("autopilot.insufficient"), icon: <Activity size={14} />, tone: "#6B7280" },
-  }[decision]);
+  const withoutReports = campaigns.filter((campaign) => !latest.some((report) => report.campaign_id === campaign.id));
+  const updateEnabled = (id: string, enabled: boolean) => setCampaigns((current) => current.map((campaign) => campaign.id === id ? { ...campaign, autopilot_enabled: enabled } : campaign));
+
 
   return (
-    <>
+    <div className="autopilot-view">
       <div className="page-top">
         <div>
           <span className="eyebrow">{t("autopilot.eyebrow")}</span>
@@ -109,6 +114,11 @@ export function AutopilotView() {
           <p>{t("autopilot.description")}</p>
         </div>
       </div>
+
+      <aside className="autopilot-safety" aria-label={t("autopilot.safetyTitle")}>
+        <ShieldCheck size={20} aria-hidden="true" />
+        <div><strong>{t("autopilot.safetyTitle")}</strong><p>{t("autopilot.safetyDescription")}</p></div>
+      </aside>
 
       {alerts.length > 0 ? (
         <section className="app-card" style={{ marginBottom: 18 }}>
@@ -132,7 +142,7 @@ export function AutopilotView() {
         </section>
       ) : null}
 
-      <section className="app-card" style={{ marginBottom: 18 }}>
+      <section className="app-card autopilot-reports" style={{ marginBottom: 18 }}>
         <div className="card-head">
           <div><span className="eyebrow">{t("autopilot.reports")}</span><h2>{t("autopilot.tableTitle")}</h2><p>{t("autopilot.tableDescription")}</p></div>
           <Bot size={18} color="#103ef8" />
@@ -145,54 +155,67 @@ export function AutopilotView() {
             <p style={{ margin: "4px 0 10px" }}>{localizeSystemMessage(error, locale)}</p>
             <button type="button" onClick={() => setReloadKey((key) => key + 1)}>{t("adminExtra.admin.retry")}</button>
           </div>
-        ) : latest.length === 0 ? (
+        ) : latest.length === 0 && withoutReports.length === 0 ? (
           <div className="empty-state" style={{ textAlign: "left" }}>
             <strong>{t("autopilot.emptyTitle")}</strong>
             <span>{t("autopilot.emptyDescription")}</span>
           </div>
         ) : (
-          <div className="report-table">
-            <div className="report-table-head">
-              <span>{t("autopilot.campaign")}</span><span>{t("autopilot.spend")}</span><span>{t("autopilot.sales")}</span><span>{t("autopilot.profitability")}</span><span>{t("autopilot.decision")}</span>
-            </div>
-            {latest.map((report) => {
-              const decision = decisionMeta(report.decision);
-              return (
-                <div key={report.id} style={{ display: "grid", gap: 10 }}>
-                  <div className="report-table-row">
-                    <strong>{report.campaign_title} <span style={{ fontWeight: 400, color: "#6B7280" }}>· {report.platform === "meta" ? "Meta" : "TikTok"}</span></strong>
-                    <span>{formatMoney(report.spend, report.currency ?? "XOF", locale)}</span>
-                    <span>{report.completed_sales} {" "}{t("analysisExtra.saleOne")}{report.completed_sales > 1 ? "s" : ""} ({formatMoney(report.net_revenue, report.currency ?? "XOF", locale)})</span>
-                    <span>{report.roas === null ? "-" : `${(report.roas * 100).toFixed(1)} %`}</span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: decision.tone, fontWeight: 700 }}>{decision.icon}{decision.label}</span>
-                  </div>
-                  {report.recommendation_reason ? (
-                    <div style={{ margin: "0 0 8px", padding: "10px 12px", borderLeft: "3px solid #9CA3AF", background: "#F9FAFB", color: "#374151", fontSize: 13 }}>
-                      <strong>{report.recommendation ? `Recommandation unique : ${report.recommendation === "continue" ? t("interfaceExtra.continue") : report.recommendation === "reduce" ? t("interfaceExtra.reduce") : t("interfaceExtra.increase")}` : t("interfaceExtra.unknownRecommendation")}</strong>
-                      <p style={{ margin: "4px 0 0" }}>{report.recommendation_reason}</p>
-                      {report.cpa_threshold != null ? <p style={{ margin: "4px 0 0" }}>{t("interfaceExtra.cpaThreshold", { amount: formatMoney(report.cpa_threshold, report.currency || "", locale) })}</p> : null}
-                      {report.mutation_block_reason ? <p style={{ margin: "4px 0 0" }}>{report.mutation_block_reason}</p> : null}
-                    </div>
-                  ) : null}
-                  {report.decision === "insufficient_data" ? (
-                    <div style={{ margin: "0 0 4px", padding: "10px 12px", borderLeft: "3px solid #9CA3AF", background: "#F9FAFB", color: "#374151", fontSize: 13 }}>
-                      <strong>{t("interfaceExtra.insufficientData")}</strong>
-                      <p style={{ margin: "4px 0 0" }}>{t("interfaceExtra.insufficientExplanation")}</p>
-                      {report.reasons.length > 0 ? <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>{report.reasons.map((reason) => <li key={reason}>{localizeFinancialMessage(reason, locale)}</li>)}</ul> : null}
-                    </div>
-                  ) : report.reasons.length > 0 ? (
-                    <ul style={{ margin: "0 0 4px", paddingLeft: 18, fontSize: 12, color: "#6B7280", listStyle: "disc" }}>
-                      {report.reasons.map((reason) => <li key={reason}>{localizeFinancialMessage(reason, locale)}</li>)}
-                    </ul>
-                  ) : null}
-                </div>
-              );
-            })}
+          <div className="autopilot-report-list">
+            {latest.map((report) => <AutopilotReportCard key={report.id} report={report} autopilotEnabled={campaigns.find((campaign) => campaign.id === report.campaign_id)?.autopilot_enabled ?? false} onEnabledChange={(enabled) => updateEnabled(report.campaign_id, enabled)} onBudgetSaved={() => setReloadKey((key) => key + 1)} />)}
+            {withoutReports.map((campaign) => <article className="autopilot-campaign" key={campaign.id}><div className="autopilot-campaign-head"><div><span className="autopilot-platform">{campaign.platform === "meta" ? "Meta" : "TikTok"}</span><h3>{campaign.title}</h3></div></div><p className="hint-line">{t("autopilot.noReportYet")}</p><AutopilotBudgetLimit campaignId={campaign.id} enabled={campaign.autopilot_enabled} onEnabledChange={(enabled) => updateEnabled(campaign.id, enabled)} /></article>)}
           </div>
         )}
       </section>
 
-      <p className="hint-line">{t("autopilot.footer")}</p>
-    </>
+      <p className="autopilot-footer"><ShieldCheck size={14} aria-hidden="true" />{t("autopilot.footer")}</p>
+    </div>
+  );
+}
+
+// Presentation only: all decisions, recommendations and blockers come from the report.
+export function AutopilotReportCard({ report, autopilotEnabled = false, onEnabledChange, onBudgetSaved }: { report: AutopilotReport; autopilotEnabled?: boolean; onEnabledChange?: (enabled: boolean) => void; onBudgetSaved?: () => void }) {
+  const { t, locale } = useI18n();
+  const decisionMeta = (decision: AutopilotReport["decision"]) => ({
+    keep_running: { label: t("autopilot.keepRunning"), icon: <TrendingUp size={14} />, tone: "#065F46" },
+    pause: { label: t("autopilot.pause"), icon: <PauseCircle size={14} />, tone: "#B45309" },
+    learning: { label: t("autopilot.learning"), icon: <Activity size={14} />, tone: "#3730A3" },
+    insufficient_data: { label: t("autopilot.insufficient"), icon: <Activity size={14} />, tone: "#6B7280" },
+  }[decision]);
+  const decision = decisionMeta(report.decision);
+  const budgetCodes = ["NO_BUDGET_LIMIT", "CURRENCY_UNAVAILABLE", "CURRENCY_MISMATCH", "BUDGET_EXCEEDED"];
+  const visibleBlockReason = budgetCodes.includes(report.mutation_block_reason ?? "") ? (autopilotEnabled ? report.budget_block_reason : null) : report.mutation_block_reason;
+  return (
+    <article className="autopilot-campaign" aria-labelledby={`autopilot-campaign-${report.id}`}>
+      <div className="autopilot-campaign-head">
+        <div><span className="autopilot-platform">{report.platform === "meta" ? "Meta" : "TikTok"}</span><h3 id={`autopilot-campaign-${report.id}`}>{report.campaign_title}</h3></div>
+        <span className="autopilot-decision" style={{ color: decision.tone }}>{decision.icon}{decision.label}</span>
+      </div>
+      <dl className="autopilot-metrics">
+        <div><dt>{t("autopilot.spend")}</dt><dd>{formatMoney(report.spend, report.currency ?? "XOF", locale)}</dd></div>
+        <div><dt>{t("autopilot.sales")}</dt><dd>{report.completed_sales} {t("analysisExtra.saleOne")}{report.completed_sales > 1 ? "s" : ""}<small>{formatMoney(report.net_revenue, report.currency ?? "XOF", locale)}</small></dd></div>
+        <div><dt>{t("autopilot.profitability")}</dt><dd>{report.roas === null ? t("autopilot.notAvailable") : `${(report.roas * 100).toFixed(1)} %`}</dd></div>
+      </dl>
+      <AutopilotBudgetLimit campaignId={report.campaign_id} enabled={autopilotEnabled} onEnabledChange={onEnabledChange} onBudgetSaved={onBudgetSaved} />
+      <div className="autopilot-notes">
+        {report.recommendation_reason ? (
+          <div className={`autopilot-note${report.mutation_block_reason || !report.recommendation ? " autopilot-note-blocked" : ""}`}>
+            <strong>{report.recommendation ? t("autopilot.recommendation", { action: report.recommendation === "continue" ? t("interfaceExtra.continue") : report.recommendation === "reduce" ? t("interfaceExtra.reduce") : t("interfaceExtra.increase") }) : t("autopilot.unknownRecommendation")}</strong>
+            <p>{explainAutopilotMessage(report.recommendation_reason, locale)}</p>
+            {report.cpa_threshold != null ? <p>{t("autopilot.cpaThreshold", { amount: formatMoney(report.cpa_threshold, report.currency || "", locale) })}</p> : null}
+          </div>
+        ) : null}
+        {visibleBlockReason ? <div className="autopilot-note autopilot-note-blocked"><strong>{t("autopilot.actionBlocked")}</strong><p>{explainAutopilotMessage(visibleBlockReason, locale)}</p></div> : null}
+        {report.decision === "insufficient_data" ? (
+          <div className="autopilot-note">
+            <strong>{t("autopilot.insufficientData")}</strong>
+            <p>{t("autopilot.insufficientExplanation")}</p>
+            {report.reasons.length > 0 ? <ul>{report.reasons.map((reason) => <li key={reason}>{explainAutopilotMessage(reason, locale)}</li>)}</ul> : null}
+          </div>
+        ) : report.reasons.length > 0 ? (
+          <ul className="autopilot-reasons">{report.reasons.map((reason) => <li key={reason}>{explainAutopilotMessage(reason, locale)}</li>)}</ul>
+        ) : null}
+      </div>
+    </article>
   );
 }

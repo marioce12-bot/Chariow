@@ -13,6 +13,7 @@ import { disablePushSubscription } from "@/lib/push/browser";
 
 import "@/app/settings-mobile.css";
 import "@/app/dashboard-navigation.css";
+import "@/app/dashboard-autopilot-header.css";
 import { DashboardHeaderNavigation, DashboardPrimaryNavigation } from "./dashboard/DesktopNavigation";
 import { type PlanId } from "@/lib/plans";
 import {
@@ -98,6 +99,27 @@ export function Dashboard() {
   // Suivi anonyme du temps passé par section (alimente l'onglet « Usage de l'app » de la console admin).
   useUsageTracking(active);
   const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const menu = document.querySelector<HTMLElement>(".mobile-more-menu");
+    const items = Array.from(menu?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
+    items[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMoreOpen(false);
+        document.querySelector<HTMLButtonElement>(".mobile-more-trigger")?.focus();
+        return;
+      }
+      if (!menu?.contains(document.activeElement) || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const index = items.indexOf(document.activeElement as HTMLButtonElement);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      items[next]?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [moreOpen]);
   const [settingsFocus, setSettingsFocus] = useState<"appearance" | "accounts">("appearance");
   function backToAccountSettings() {
     setSettingsFocus("accounts");
@@ -367,6 +389,9 @@ export function Dashboard() {
           <DashboardHeaderNavigation active={active} onChange={setActive} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
+            <button type="button" className="mobile-autopilot-trigger" aria-label={t("workspaceExtra.autopilot")} title={t("workspaceExtra.autopilot")} aria-current={active === "Pilotage auto" ? "page" : undefined} onClick={() => { setActive("Pilotage auto"); setMoreOpen(false); }}>
+              <Bot size={18} aria-hidden="true" />
+            </button>
              <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Bénéfices nets", "Relances WhatsApp", "Mes boutiques", "Abonnement", "Paramètres", "Comptes publicitaires"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
@@ -484,7 +509,6 @@ export function Dashboard() {
               <button type="button" role="menuitem" className={active === "Relances WhatsApp" ? "active" : ""} onClick={() => { setActive("Relances WhatsApp"); setMoreOpen(false); }}><MessageSquare size={16} /> {w("whatsapp")}</button>
               <span className="mobile-more-label">{w("analysis")}</span>
               <button type="button" role="menuitem" className={active === "Rapports" ? "active" : ""} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> {" "}{t("workspaceExtra.reports")}</button>
-              <button type="button" role="menuitem" className={active === "Pilotage auto" ? "active" : ""} onClick={() => { setActive("Pilotage auto"); setMoreOpen(false); }}><Bot size={16} /> {" "}{t("workspaceExtra.autopilot")}</button>
               <span className="mobile-more-label">{w("myAccount")}</span>
               <button type="button" role="menuitem" className={active === "Abonnement" ? "active" : ""} onClick={() => { setActive("Abonnement"); setMoreOpen(false); }}><CreditCard size={16} /> {" "}{t("workspaceExtra.subscription")}</button>
               <span className="mobile-more-label">{w("application")}</span>
