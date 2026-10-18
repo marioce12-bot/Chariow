@@ -6,6 +6,7 @@ import Image from "next/image";
 import { ArrowRight, BarChart3, Bot, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages, ExternalLink } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
+import { FeedbackView } from "@/components/FeedbackView";
 import { PinterestAdsPanel } from "@/components/PinterestAdsPanel";
 import { MetaHistoryOverview } from "@/components/dashboard/MetaHistoryOverview";
 import { MetaAccountSkeleton } from "@/components/dashboard/MetaAccountSkeleton";
@@ -964,9 +965,11 @@ const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; 
   { id: "pinterest", label: "Pinterest", description: "Diffuse tes campagnes sur Pinterest Ads.", badge: "pinterest", live: true },
 ];
 
-export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: "channels" | "preferences"; onBack?: () => void }) {
+type SettingsTab = "accounts" | "channels" | "appearance" | "language" | "feedback" | "about" | "session";
+
+export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: SettingsTab | "preferences" }) {
   const { locale, setLocale, t } = useI18n();
-  const [mobileSettingsSection, setMobileSettingsSection] = useState<string | null>(focus ?? null);
+  const [mobileSettingsSection, setMobileSettingsSection] = useState<SettingsTab>(focus === "preferences" ? "appearance" : focus ?? "appearance");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
@@ -976,19 +979,16 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
   const [pinterestConnected, setPinterestConnected] = useState(false);
   const [connectionBusy, setConnectionBusy] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const channelsRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    setMobileSettingsSection(focus ?? null);
-  }, [focus]);
-
-  useEffect(() => {
-    if (focus === "channels") channelsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setMobileSettingsSection(focus === "preferences" ? "appearance" : focus ?? "appearance");
   }, [focus]);
 
   useEffect(() => {
     let active = true;
     async function loadConnections() {
+      setLoadingAccounts(true);
+      setConnectionError(null);
       try {
         const [metaResponse, tiktokResponse, pinterestResponse] = await Promise.all([
           fetch("/api/integrations/meta/accounts"),
@@ -1002,15 +1002,17 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
         setMetaConnected((metaData.accounts ?? []).length > 0);
         setTiktokConnected((tiktokData.accounts ?? []).length > 0);
         setPinterestConnected((pinterestData.accounts ?? []).length > 0);
+      } catch {
+        if (active) setConnectionError(t("sweep2.text292"));
       } finally {
         if (active) setLoadingAccounts(false);
       }
     }
-    void loadConnections();
+    if (mobileSettingsSection === "channels") void loadConnections();
     return () => {
       active = false;
     };
-  }, []);
+  }, [mobileSettingsSection]);
 
   function connectAccount(platform: "meta" | "tiktok" | "pinterest") {
     window.location.href = `/api/integrations/${platform}/connect`;
@@ -1052,33 +1054,51 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
     }
   }
 
-  const mobileSections = [
-    { id: "accounts", title: t("settings.storesAndSubscription"), description: t("settings.manageStoresAndPlan"), icon: <Store size={20} /> },
-    { id: "channels", title: t("settings.connectedAccounts"), description: t("settings.connectedAccountsDescription"), icon: <ExternalLink size={20} /> },
-    { id: "appearance", title: t("settings.appearance"), description: locale === "en" ? "Light workspace and language" : "Espace clair et langue", icon: <Sun size={20} /> },
-    { id: "about", title: t("settings.aboutLegal"), description: t("settings.aboutDescription"), icon: <Lightbulb size={20} /> },
-    { id: "session", title: t("settings.session"), description: t("settings.leaveOrDelete"), icon: <LogOut size={20} /> },
+  const tabs: Array<{ id: SettingsTab; title: string; icon: React.ReactNode }> = [
+    { id: "appearance", title: t("settings.appearance"), icon: <Sun size={18} /> },
+    { id: "language", title: t("settings.language.title"), icon: <Languages size={18} /> },
+    { id: "accounts", title: t("settings.storesPlanTab"), icon: <Store size={18} /> },
+    { id: "channels", title: t("settings.connectedAccounts"), icon: <ExternalLink size={18} /> },
+    { id: "feedback", title: t("sweep3.text293"), icon: <MessageSquare size={18} /> },
+    { id: "about", title: t("settings.aboutLegal"), icon: <Lightbulb size={18} /> },
+    { id: "session", title: t("settings.session"), icon: <LogOut size={18} /> },
   ];
+
   return (
-    <div className="settings-page" data-mobile-settings-section={mobileSettingsSection ?? "list"}>
+    <div className="settings-page" data-mobile-settings-section={mobileSettingsSection}>
       <div className="page-top settings-head">
         <div>
           <span className="eyebrow">{t("settings.account")}</span>
-          <h1>{t(mobileSettingsSection === "channels" ? "settings.adChannels" : "settings.title")}</h1>
-          <p>{mobileSettingsSection === "channels" ? t("settings.connectedAccountsDescription") : mobileSettingsSection === "preferences" ? (locale === "en" ? "Customize your interface, language and account preferences." : "Personnalise ton interface, ta langue et les préférences de ton compte.") : t("settings.subtitle")}</p>
+          <h1>{t("settings.title")}</h1>
+          <p>{t("settings.preferencesSubtitle")}</p>
         </div>
-        {onBack && <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {t("settings.back")}</button>}
       </div>
-      <nav className="mobile-settings-index" aria-label={t("settings.sectionsLabel")} hidden={mobileSettingsSection !== null}>
-        {mobileSections.map((item) => <button type="button" className="mobile-settings-card" key={item.id} onClick={() => setMobileSettingsSection(item.id)}>
-          <span className="mobile-settings-icon">{item.icon}</span><span><strong>{item.title}</strong><small>{item.description}</small></span><ArrowRight size={16} aria-hidden="true" />
-        </button>)}
-      </nav>
-      <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Suggestions et notes")}>
-        <span className="mobile-settings-icon"><MessageSquare size={20} /></span><span><strong>{t("sweep3.text293")}</strong><small>{t("sweep1.text294")}</small></span><ArrowRight size={16} aria-hidden="true" />
-      </button>
-      {mobileSettingsSection !== null && <button type="button" className="mobile-settings-return" onClick={() => setMobileSettingsSection(null)} aria-label={t("settings.backToSections")}><ArrowRight size={16} aria-hidden="true" /> {t("settings.backToSettings")}</button>}
-      <section className="settings-section settings-section-account" data-settings-panel="accounts" aria-label={t("settings.storesAndSubscription")}>
+      <div className="settings-tabs" role="tablist" aria-label={t("settings.sectionsLabel")}>
+        {tabs.map((tab, index) => <button
+          key={tab.id}
+          id={`settings-tab-${tab.id}`}
+          type="button"
+          role="tab"
+          className="settings-tab"
+          aria-selected={mobileSettingsSection === tab.id}
+          aria-controls={`settings-panel-${tab.id}`}
+          tabIndex={mobileSettingsSection === tab.id ? 0 : -1}
+          onClick={() => setMobileSettingsSection(tab.id)}
+          onKeyDown={(event) => {
+            let nextIndex: number;
+            if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+            else if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+            else if (event.key === "Home") nextIndex = 0;
+            else if (event.key === "End") nextIndex = tabs.length - 1;
+            else return;
+            event.preventDefault();
+            setMobileSettingsSection(tabs[nextIndex].id);
+            document.getElementById(`settings-tab-${tabs[nextIndex].id}`)?.focus();
+          }}
+        ><span aria-hidden="true">{tab.icon}</span><span>{tab.title}</span></button>)}
+      </div>
+      <div className="settings-tab-panel" role="tabpanel" id={`settings-panel-${mobileSettingsSection}`} aria-labelledby={`settings-tab-${mobileSettingsSection}`} tabIndex={0}>
+      {mobileSettingsSection === "accounts" && <section className="settings-section settings-section-account" data-settings-panel="accounts" aria-label={t("settings.storesAndSubscription")}>
         <div className="mobile-settings-grid">
           <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
             <span className="mobile-settings-icon"><Store size={20} /></span>
@@ -1091,8 +1111,8 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
             <ArrowRight size={16} />
           </button>
         </div>
-      </section>
-      <section className="settings-section settings-section-session" data-settings-panel="session" aria-label={t("sweep2.text295")}>
+      </section>}
+      {mobileSettingsSection === "session" && <section className="settings-section settings-section-session" data-settings-panel="session" aria-label={t("sweep2.text295")}>
         <div className="page-top settings-mobile-only">
           <div>
             <span className="eyebrow">{t("settings.session")}</span>
@@ -1113,8 +1133,8 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
             <ArrowRight size={16} />
           </button>
         </div>
-      </section>
-      <section className="settings-section settings-section-theme settings-section-language" data-settings-panel="appearance" aria-label={t("settings.appearance")}>
+      </section>}
+      {mobileSettingsSection === "appearance" && <section className="settings-section settings-section-theme settings-section-language" data-settings-panel="appearance" aria-label={t("settings.appearance")}>
         <div className="page-top settings-section-head">
           <div>
             <span className="eyebrow">{t("settings.appearance")}</span>
@@ -1129,8 +1149,8 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
             <CheckCircle2 size={16} />
           </div>
         </div>
-      </section>
-      <section className="settings-section settings-language-extra" data-settings-panel="appearance" aria-label={t("settings.language.title")}>
+      </section>}
+      {mobileSettingsSection === "language" && <section className="settings-section settings-language-extra" data-settings-panel="language" aria-label={t("settings.language.title")}>
         <div className="page-top settings-section-head">
           <div>
             <h2>{t("settings.language.title")}</h2>
@@ -1149,8 +1169,8 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
             {locale === "en" ? <CheckCircle2 size={16} /> : null}
           </button>
         </div>
-      </section>
-      <section className="settings-section settings-section-legal" data-settings-panel="about" aria-label={t("settings.aboutLegal")}>
+      </section>}
+      {mobileSettingsSection === "about" && <section className="settings-section settings-section-legal" data-settings-panel="about" aria-label={t("settings.aboutLegal")}>
         <div className="page-top settings-section-head">
           <div>
             <span className="eyebrow">{t("settings.aboutLegal")}</span>
@@ -1175,8 +1195,8 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
             <ArrowRight size={16} />
           </a>
         </div>
-      </section>
-      <section className="settings-section settings-section-channels" data-settings-panel="channels" ref={channelsRef} aria-label={t("settings.adChannels")}>
+      </section>}
+      {mobileSettingsSection === "channels" && <section className="settings-section settings-section-channels" data-settings-panel="channels" aria-label={t("settings.adChannels")}>
         <div className="page-top settings-section-head">
           <div>
             <span className="eyebrow">{t("settings.adChannels")}</span>
@@ -1204,6 +1224,8 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
                     ? t("settings.checking")
                     : isConnected
                     ? t("settings.connected")
+                    : locale === "en"
+                    ? ({ meta: "Run campaigns on Facebook and Instagram.", tiktok: "Run campaigns on TikTok Ads.", pinterest: "Run campaigns on Pinterest Ads." }[platform.id])
                     : platform.description}
                 </small>
               </div>
@@ -1224,7 +1246,9 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus, onBack 
           </div>
         );
       })}
-      </section>
+      </section>}
+      {mobileSettingsSection === "feedback" && <section className="settings-section settings-section-feedback" data-settings-panel="feedback"><FeedbackView /></section>}
+      </div>
       {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label={t("wizardExtra.close")} onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>×</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">{t("settings.irreversible")}</span><h2 id="account-delete-title">{t("settings.deleteQuestion")}</h2><p>{t("sweep1.text297")}</p><div className="account-delete-warning">{t("settings.deleteWarning")}</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>{t("workspaceExtra.cancel")}</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? t("adminExtra.push.deleting") : t("settings.confirmDelete")}</button></div></section></div> : null}
     </div>
   );
@@ -1613,7 +1637,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       ) : channel === "tiktok" ? (
         tiktokLoading ? <TikTokSkeleton /> : <>
           {tiktokConnected ? <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.tiktokConnected")}</span></div> : null}
-          {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noTiktok")}</strong><span>{t("ads.noTiktokText")}</span><button className="btn btn-dark" 
+          {!tiktokConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noTiktok")}</strong><span>{t("ads.noTiktokText")}</span><button className="btn btn-dark"
 onClick={connectTiktok}>{t("ads.connectTiktok")}</button></div> : <TikTokAdsPanel accounts={tiktokAccounts} />}        </>
       ) : null}
     </>
@@ -1709,13 +1733,14 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
 
   return (
     <>
+      {onBackToSettings && <button type="button" className="mobile-back-button settings-detail-back" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} aria-hidden="true" /> {t("settings.backToSettings")}</button>}
       <div className="page-top">
         <div>
           <span className="eyebrow">{t("finalExtra.text46")}</span>
           <h1>{t("settings.myStores")}</h1>
           <p>{t("sweep1.text315")}{" "}<strong className="store-count">{stores.length}/{maxStores}</strong></p>
         </div>
-        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {" "}{t("workspaceExtra.settings")}</button>}
+
         <button type="button" className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}>
           <Plus size={16} /> {saving ? t("optionsExtra.text59") : t("sweep2.text316")}
         </button>
@@ -1792,7 +1817,8 @@ export function SubscriptionView({ subscription, onBackToSettings }: { subscript
     const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US") : t("sectionsExtra.subscription.unavailable");
     return (
       <>
-        <div className="page-top"><div><span className="eyebrow">{t("sectionsExtra.subscription.heading")}</span><h1>{t("sectionsExtra.subscription.active")}</h1><p>{t("sectionsExtra.subscription.activeDescription")}</p></div>{onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {" "}{t("workspaceExtra.settings")}</button>}</div>
+        {onBackToSettings && <button type="button" className="mobile-back-button settings-detail-back" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} aria-hidden="true" /> {t("settings.backToSettings")}</button>}
+      <div className="page-top"><div><span className="eyebrow">{t("sectionsExtra.subscription.heading")}</span><h1>{t("sectionsExtra.subscription.active")}</h1><p>{t("sectionsExtra.subscription.activeDescription")}</p></div></div>
         <div className="app-card" style={{ maxWidth: 520 }}>
           <span className="eyebrow">{t("finalExtra.text47")}</span>
           <h2 style={{ marginTop: 6 }}>{t("sweep1.text321")}</h2>
@@ -1809,13 +1835,14 @@ export function SubscriptionView({ subscription, onBackToSettings }: { subscript
 
   return (
     <>
+      {onBackToSettings && <button type="button" className="mobile-back-button settings-detail-back" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} aria-hidden="true" /> {t("settings.backToSettings")}</button>}
       <div className="page-top">
         <div>
           <span className="eyebrow">{t("sectionsExtra.subscription.heading")}</span>
           <h1>{t("finalExtra.text51")}</h1>
           <p>{trial && trialDaysLeft !== null ? t("dynamicExtra.trialRemaining", { days: (trialDaysLeft), plural: (trialDaysLeft > 1 ? "s" : "") }) : t("sweep1.text324")}</p>
         </div>
-        {onBackToSettings && <button type="button" className="mobile-back-button" onClick={onBackToSettings}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {" "}{t("workspaceExtra.settings")}</button>}
+
       </div>
       <div className="pricing-wrap" style={{ maxWidth: 820 }}>
         <article className="price-card">

@@ -1,33 +1,81 @@
-/* Paramètres : groupes visuels sur PC, ordre vertical adapté au mobile. */
-
-/* ---------- Base (PC) ---------- */
-.settings-page { display: grid; gap: 22px; margin: 0 auto; max-width: 1120px; width: 100%; }
-.settings-section { border-top: 1px solid var(--line); display: block; margin: 0; min-width: 0; padding-top: 20px; }
-.settings-section-account { border-top: 0; padding-top: 0; }
-.settings-page .settings-mobile-only { display: flex; }
+/* Paramètres : onglets persistants, panneau sélectionné par le composant. */
+.settings-page {
+  display: grid;
+  gap: 18px;
+  margin: 0 auto;
+  max-width: 1120px;
+  min-width: 0;
+  width: 100%;
+}
+.settings-page .settings-head { margin: 0; min-width: 0; }
+.settings-page .settings-tabs {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  min-width: 0;
+}
+.settings-page .settings-tab {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 12px;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 8px;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 0;
+  overflow-wrap: normal;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 8px 12px;
+  text-align: center;
+}
+.settings-page .settings-tab[aria-selected="true"] {
+  background: linear-gradient(135deg, #ede9fe, #dbeafe);
+  border-color: transparent;
+  color: #103ef8;
+  font-weight: 700;
+}
+.settings-page .settings-tab-panel { min-width: 0; width: 100%; }
+.settings-page .settings-tab > span:first-child { display: inline-flex; flex: none; }
+.settings-page .settings-tab > span:last-child { min-width: 0; }
+.settings-page .settings-tab-panel:focus-visible { outline: 3px solid #356cf6; outline-offset: 3px; }
+.settings-page .settings-section {
+  border-top: 1px solid var(--line);
+  display: block;
+  margin: 0;
+  min-width: 0;
+  padding-top: 20px;
+  scroll-margin-top: 76px;
+}
+.settings-page .settings-section-account { border-top: 0; padding-top: 0; }
 .settings-page .settings-section-head,
 .settings-page .settings-mobile-only { margin: 0 0 14px; }
-.settings-page .settings-session-grid { margin-top: 0; }
+.settings-page .settings-section-head h2,
+.settings-page .settings-mobile-only h2 { margin: 5px 0 4px; }
+.settings-page .settings-session-grid,
 .settings-page .mobile-settings-grid,
 .settings-page .theme-choice-grid { margin-top: 0; }
 .settings-page .settings-integration-card { margin-bottom: 0; min-height: 78px; padding: 16px; }
-.settings-section-channels { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.settings-section-channels > .page-top,
-.settings-section-channels > .settings-inline-message { grid-column: 1 / -1; }
-@media (min-width: 761px) and (max-width: 1120px) {
-  .settings-section-channels { grid-template-columns: 1fr; }
-}
+.settings-page .settings-section-channels { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.settings-page .settings-section-channels > .page-top,
+.settings-page .settings-section-channels > .settings-inline-message { grid-column: 1 / -1; }
+.settings-page .settings-section-feedback .admin-card { margin: 0 !important; padding: 24px; width: 100%; }
+.settings-page :is(button, a):focus-visible { outline: 3px solid #356cf6; outline-offset: 3px; }
+
+.settings-detail-back.mobile-back-button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 16px; }
 
 .mobile-more-backdrop { display: none; }
-
 @media (min-width: 761px) {
   .mobile-more-menu[role="menu"] { display: none; }
 }
 
-/* ---------- Mobile ---------- */
+/* Menu mobile « Plus » et règles propres aux petits écrans. */
 @media (max-width: 760px) {
   .mobile-nav-hidden-on-stores { display: none !important; }
-  /* Menu « Plus » */
   .mobile-more-backdrop {
     background: transparent;
     border: 0;
@@ -47,10 +95,7 @@
     top: 68px;
     width: min(260px, calc(100vw - 20px));
   }
-  .mobile-more-menu[role="menu"] > button {
-    font-size: 13px;
-    width: 100%;
-  }
+  .mobile-more-menu[role="menu"] > button { font-size: 13px; width: 100%; }
   .mobile-more-menu[role="menu"] > button.active {
     background: linear-gradient(135deg, #ede9fe, #dbeafe);
     color: #103ef8;
@@ -69,57 +114,21 @@
     border-top: 1px solid var(--line);
     margin-top: 4px;
   }
-
-  /* Page Paramètres : ordre = Comptes → Canaux pub → Thème → Légal → Session */
-  .settings-page {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    width: 100%;
-  }
-  .settings-section-channels { display: block; }
-  .settings-page .settings-head { margin-bottom: 18px; order: 0; }
-  .settings-page[data-mobile-settings-section]:not([data-mobile-settings-section="list"]) .settings-head .mobile-back-button { display: none; }
-  .settings-page .settings-section {
-    display: block;
-    margin: 0 0 26px;
-    min-width: 0;
-    scroll-margin-top: 76px;
-  }
-  .settings-page .settings-section-account { order: 1; }
-  .settings-page .settings-section-channels { order: 2; }
-  .settings-page .settings-section-theme { order: 3; }
-  .settings-page .settings-language-extra { order: 4; }
-  .settings-page .settings-section-legal { order: 5; }
-  .settings-page .settings-section-session {
-    border-top: 1px solid var(--line);
-    margin-bottom: 0;
-    order: 6;
-    padding-top: 22px;
-  }
+  .settings-page { gap: 14px; }
+  .settings-page .settings-tabs { gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-page .settings-tab { justify-content: flex-start; padding: 8px 10px; text-align: left; }
+  .settings-page .settings-section-channels { display: block; }
+  .settings-page .settings-section { margin: 0; }
   .settings-page .settings-section-head,
   .settings-page .settings-mobile-only { margin: 0 0 12px; }
-  .settings-page .settings-mobile-only { display: flex; }
   .settings-page .settings-section-head h2,
-  .settings-page .settings-mobile-only h2 {
-    font-size: 18px;
-    letter-spacing: -.03em;
-    line-height: 1.2;
-    margin: 5px 0 4px;
-  }
+  .settings-page .settings-mobile-only h2 { font-size: 18px; letter-spacing: -.03em; line-height: 1.2; }
   .settings-page .settings-section-head p,
   .settings-page .settings-mobile-only p { font-size: 12px; line-height: 1.5; }
-  .settings-page .mobile-settings-grid,
-  .settings-page .theme-choice-grid { margin-top: 0; }
-  .settings-page .settings-session-grid { margin-top: 0; }
   .settings-page .mobile-settings-card,
   .settings-page .theme-choice { padding: 14px; }
   .settings-page .settings-section-theme,
   .settings-page .settings-language-extra { margin-bottom: 14px; padding-top: 14px; }
-  .settings-page[data-mobile-settings-section="appearance"] { gap: 12px; }
-  .settings-page[data-mobile-settings-section="appearance"] .settings-head,
-  .settings-page[data-mobile-settings-section="appearance"] > button.mobile-settings-return,
-  .settings-page[data-mobile-settings-section="appearance"] > .settings-section { margin-bottom: 0; }
   .settings-page .settings-section-theme .settings-section-head,
   .settings-page .settings-language-extra .settings-section-head { margin-bottom: 8px; }
   .settings-page .settings-section-theme .theme-choice-grid,
@@ -127,50 +136,27 @@
   .settings-page .settings-section-theme .theme-choice,
   .settings-page .settings-language-extra .theme-choice { gap: 8px; min-height: 0; padding: 10px 12px; }
   .settings-page .settings-integration-card { gap: 10px; }
-  .settings-page .settings-integration-card > div:first-child { flex: 1; min-width: 0; }
+  .settings-page .settings-integration-card > div:first-child,
   .settings-page .settings-integration-card > div:first-child > div { min-width: 0; }
+  .settings-page .settings-integration-card > div:first-child { flex: 1; }
   .settings-page .settings-integration-card button { flex: none; }
+  .settings-page .settings-section-feedback .admin-card { margin: 0 !important; padding: 16px !important; }
+}
+@media (min-width: 761px) and (max-width: 1120px) {
+  .settings-page .settings-section-channels { grid-template-columns: 1fr; }
 }
 
-/* ---------- Thème sombre ---------- */
+/* Thème sombre */
 html[data-theme="dark"] .mobile-more-menu[role="menu"] > button.active {
   background: rgba(16, 62, 248, .22);
   color: #7da2ff;
 }
 html[data-theme="dark"] .mobile-more-menu[role="menu"] > button.danger { color: #f19999; }
 
-/* ---------- Onglets de la page Pub : logos Meta et TikTok en couleur ----------
-   Les boutons portent aria-label="Meta" / "TikTok" (Dashboard.tsx, AdsView) et
-   dessinent l'icône avec currentColor, donc elle prenait la couleur du texte.
-   - Meta : bleu officiel (#0866FF) ; blanc quand l'onglet est actif, car son
-     fond est un dégradé bleu-violet où le bleu ne se verrait pas.
-   - TikTok : note dans la couleur du texte, avec le décalage cyan (#25F4EE) et
-     rouge (#FE2C55) caractéristique du logo. */
+/* Logos Meta et TikTok des onglets de la page Pub. */
 .app-card button.btn[aria-label="Meta"] svg { color: #0866ff; }
 .app-card button.btn.btn-dark[aria-label="Meta"] svg { color: #fff; }
 .app-card button.btn[aria-label="TikTok"] svg {
   filter: drop-shadow(-1.3px -1px 0 #25f4ee) drop-shadow(1.3px 1px 0 #fe2c55);
   overflow: visible;
-}
-
-/* Navigation des paramètres : index compact sur mobile, un panneau à la fois. */
-.mobile-settings-index, .mobile-settings-return { display: none; }
-@media (min-width: 761px) {
-  .settings-page[data-mobile-settings-section="channels"] > .settings-section:not([data-settings-panel="channels"]) { display: none !important; }
-  .settings-page[data-mobile-settings-section="preferences"] > .settings-section:is([data-settings-panel="accounts"], [data-settings-panel="channels"]) { display: none !important; }
-}
-@media (max-width: 760px) {
-  .settings-page[data-mobile-settings-section="list"] > .settings-section,
-  .settings-page[data-mobile-settings-section="preferences"] > .settings-section:is([data-settings-panel="accounts"], [data-settings-panel="channels"]),
-  .settings-page[data-mobile-settings-section="accounts"] > .settings-section:not([data-settings-panel="accounts"]),
-  .settings-page[data-mobile-settings-section="channels"] > .settings-section:not([data-settings-panel="channels"]),
-  .settings-page[data-mobile-settings-section="appearance"] > .settings-section:not([data-settings-panel="appearance"]):not(.settings-language-extra),
-  .settings-page[data-mobile-settings-section="about"] > .settings-section:not([data-settings-panel="about"]),
-  .settings-page[data-mobile-settings-section="session"] > .settings-section:not([data-settings-panel="session"]) { display: none !important; }
-  .settings-page[data-mobile-settings-section="appearance"] > .settings-language-extra { display: block; }
-  .settings-page[data-mobile-settings-section="list"] .mobile-settings-index { display: grid; gap: 10px; }
-  .settings-page:not([data-mobile-settings-section="list"]) .mobile-settings-return { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--border, #e5e7eb); border-radius: 12px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-  .settings-page:not([data-mobile-settings-section="list"]) .mobile-settings-return svg { transform: rotate(180deg); }
-  .settings-page .mobile-settings-index .mobile-settings-card { width: 100%; text-align: left; }
-  .settings-page :is(button, a):focus-visible { outline: 3px solid #356cf6; outline-offset: 3px; }
 }

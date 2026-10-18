@@ -41,7 +41,6 @@ import { OverviewHome } from "./dashboard/OverviewHome";
 import { DashboardSkeleton } from "./dashboard/Skeleton";
 import ProductProfitPanel from "./dashboard/ProductProfitPanel";
 import RecoveryPanel from "./dashboard/RecoveryPanel";
-import { FeedbackView } from "./FeedbackView";
 import { NotificationPermissionPrompt } from "./NotificationPermissionPrompt";
 import { DashboardStoreSelector } from "./dashboard/StoreSelector";
 import "@/app/dashboard-refinement.css";
@@ -96,6 +95,11 @@ export function Dashboard() {
   // Suivi anonyme du temps passé par section (alimente l'onglet « Usage de l'app » de la console admin).
   useUsageTracking(active);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [settingsFocus, setSettingsFocus] = useState<"appearance" | "accounts">("appearance");
+  function backToAccountSettings() {
+    setSettingsFocus("accounts");
+    setActive("Paramètres");
+  }
   // Se souvient de la section affichée juste avant d'ouvrir "Vendeo AI", pour que
   // le bouton retour de la section IA ramène exactement là d'où l'utilisateur vient
   // (au lieu de toujours revenir à la Vue d'ensemble).
@@ -375,10 +379,10 @@ export function Dashboard() {
         <section className={active === "Vendeo AI" ? "app-main chat-page" : "app-main"}>
           {loadingData || (snapshotView && storeDataLoading) ? (
             <DashboardSkeleton />
-          ) : stores.length === 0 && !analytics && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" ? (
+          ) : stores.length === 0 && !analytics && active !== "Mes boutiques" && active !== "Paramètres" && active !== "Abonnement" && active !== "Comptes publicitaires" && active !== "Suggestions et notes" ? (
             <StoreOnboarding />
           ) : active === "Paramètres" ? (
-            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="preferences" onBack={() => setActive(previousSection)} />
+            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus={settingsFocus} />
           ) : active === "Vendeo AI" ? (
             <ChatView
               onGoToSubscription={() => setActive("Abonnement")}
@@ -390,15 +394,15 @@ export function Dashboard() {
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Pub" ? (
-             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Paramètres")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
+             <AdsView plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
-            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" onBack={() => setActive(previousSection)} />
+            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" />
           ) : active === "Radar marché" ? (
              <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); setActive("Vendeo AI"); }} />
            ) : active === "Mes boutiques" ? (
-            <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={() => setActive("Paramètres")} />
+            <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={backToAccountSettings} />
           ) : active === "Abonnement" ? (
-            <SubscriptionView subscription={subscription} onBackToSettings={() => setActive("Paramètres")} />
+            <SubscriptionView subscription={subscription} onBackToSettings={backToAccountSettings} />
           ) : active === "Bénéfices nets" ? (
             <ProductProfitPanel key={activeStoreId} storeId={activeStoreId} />
           ) : active === "Relances WhatsApp" ? (
@@ -406,7 +410,7 @@ export function Dashboard() {
           ) : active === "Rapports" ? (
             <Reports stores={stores} analytics={analytics} selectedStoreId={selectedStoreId} />
           ) : active === "Suggestions et notes" ? (
-            <FeedbackView />
+            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="feedback" />
           ) : active === "Notifications" ? (
             <NotificationsView onBack={() => setActive(previousSection)} />
           ) : active === "Pilotage auto" ? (
