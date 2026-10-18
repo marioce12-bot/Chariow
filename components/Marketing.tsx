@@ -3,36 +3,32 @@
 import Link from "next/link";
 import Image from "next/image";
 import { AnimatedHeroTitle } from "@/components/AnimatedHeroTitle";
-import { ArrowLeft, ArrowRight, Check, Layers, Rocket, Wand2, Menu, Pause, Play, X } from "lucide-react";
+import { ArrowRight, Check, Layers, Rocket, Wand2, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
-import { MarketingProductPreview } from "@/components/MarketingProductPreview";
-import { HeroPhonePreview } from "@/components/HeroPhonePreview";
 import "@/app/marketing-fixes.css";
 import "@/app/landing-premium.css";
-import "@/app/hero-phone.css";
+import "@/app/landing-preview-layout.css";
 
 const demos = [
-  { fr: "Accueil", en: "Home", frAlt: "Aperçu de démonstration de l’accueil Vendeo", enAlt: "Vendeo home demonstration preview" },
-  { fr: "Lancement de publicités", en: "Launch ads", frAlt: "Aperçu de démonstration du parcours de lancement de publicités", enAlt: "Demonstration preview of the ad launch flow" },
-  { fr: "Studio IA", en: "AI Studio", frAlt: "Aperçu de démonstration du Studio IA", enAlt: "AI Studio demonstration preview" },
+  { fr: "Accueil", en: "Home", frAlt: "Capture réelle de l’accueil Vendeo : tableau de bord avec les indicateurs et les raccourcis de gestion.", enAlt: "Authentic screenshot of the Vendeo home dashboard, showing its metrics and management shortcuts." },
+  { fr: "Lancement de publicités", en: "Launch ads", frAlt: "Capture réelle de l’écran de lancement de publicités Vendeo, avec les options de configuration de campagne.", enAlt: "Authentic screenshot of the Vendeo ad launch screen, showing campaign setup options." },
+  { fr: "Studio IA", en: "AI Studio", frAlt: "Capture réelle du Studio IA Vendeo, avec les outils de création de contenu publicitaire.", enAlt: "Authentic screenshot of Vendeo AI Studio, showing its advertising content creation tools." },
 ];
 
 export function Marketing() {
   const { t, locale } = useI18n();
   const isEnglish = locale === "en";
-  const demoLabels = demos.map((demo) => isEnglish ? demo.en : demo.fr);
   const [open, setOpen] = useState<number | null>(null);
   const [activeDemo, setActiveDemo] = useState(0);
-  const [carouselPaused, setCarouselPaused] = useState(false);
   const [carouselHovered, setCarouselHovered] = useState(false);
   const [carouselFocused, setCarouselFocused] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
-    if (carouselPaused || carouselHovered || carouselFocused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (carouselHovered || carouselFocused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setInterval(() => setActiveDemo((current) => (current + 1) % demos.length), 5000);
     return () => window.clearInterval(timer);
-  }, [carouselPaused, carouselHovered, carouselFocused]);
+  }, [carouselHovered, carouselFocused]);
   function demoKey(event: React.KeyboardEvent<HTMLDivElement>) {
     const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
     if (!keys.includes(event.key)) return;
@@ -40,7 +36,6 @@ export function Marketing() {
     const next = event.key === "Home" ? 0 : event.key === "End" ? demos.length - 1
       : (activeDemo + (event.key === "ArrowRight" ? 1 : -1) + demos.length) % demos.length;
     setActiveDemo(next);
-    event.currentTarget.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
   }
   useEffect(() => {
     const root = document.querySelector(".landing-premium");
@@ -67,32 +62,21 @@ export function Marketing() {
     </nav></div></header>
 
     <section className="hero landing-hero">
-      <div className="landing-orb landing-orb-one" aria-hidden="true"/><div className="landing-orb landing-orb-two" aria-hidden="true"/>
+
       <div className="container landing-hero-inner">
         <div className="landing-hero-copy"><span className="landing-kicker"><i/> {t("landing.hero.stat")}</span>
           <AnimatedHeroTitle first={t("landing.hero.title1")} second={t("landing.hero.title2")} last={t("landing.hero.title3")} />
           <p className="hero-tagline">{t("sweep1.text117")}</p><p className="landing-intro">{t("landing.hero.paragraph")}</p>
           <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{t("landing.hero.cta")} <ArrowRight size={17}/></Link><a className="landing-text-link" href="#apercu">{t("sweep2.text118")}{" "}<span>↓</span></a></div>
         </div>
-          <div className="landing-hero-phone-slot"><HeroPhonePreview /></div>
-        <div className="landing-showcase" id="apercu" onMouseEnter={() => setCarouselHovered(true)} onMouseLeave={() => setCarouselHovered(false)} onFocusCapture={() => setCarouselFocused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCarouselFocused(false); }}>
-          <div className="showcase-topline"><span className="showcase-dots"><i/><i/><i/></span><span>Vendeo <b>•</b> {" "}{t("workspaceExtra.workspace")}</span><span className="showcase-live"><i/> Interface</span></div>
-          <div className="showcase-tabs" role="tablist" onKeyDown={demoKey} aria-label={isEnglish ? "Product preview" : "Aperçu du produit"}>
-            {demoLabels.map((label, i) => <button role="tab" tabIndex={activeDemo === i ? 0 : -1} type="button" id={`demo-tab-${i}`} aria-selected={activeDemo === i} aria-controls="demo-panel" key={label} onClick={() => setActiveDemo(i)}>{label}</button>)}
-          </div>
-          <div className="showcase-screen" id="demo-panel" role="tabpanel" aria-roledescription={isEnglish ? "slide" : "diapositive"} aria-label={`${demoLabels[activeDemo]} (${activeDemo + 1}/${demos.length})`} aria-labelledby={`demo-tab-${activeDemo}`}>
-            <div key={activeDemo} className="showcase-transition" aria-label={isEnglish ? demos[activeDemo].enAlt : demos[activeDemo].frAlt}>
-              {activeDemo === 0
-                ? <Image src="/landing/dashboard-demo.webp" alt={isEnglish ? demos[0].enAlt : demos[0].frAlt} width={1265} height={649} sizes="(max-width: 850px) 95vw, 650px" priority className="showcase-image" />
-                : <MarketingProductPreview slide={activeDemo === 1 ? 1 : 2} locale={isEnglish ? "en" : "fr"} />}
+        <div className="landing-showcase" id="apercu" tabIndex={0} role="region" aria-roledescription={isEnglish ? "carousel" : "carrousel"} aria-label={isEnglish ? "Vendeo product screenshots" : "Captures d’écran du produit Vendeo"} onKeyDown={demoKey} onMouseEnter={() => setCarouselHovered(true)} onMouseLeave={() => setCarouselHovered(false)} onFocusCapture={() => setCarouselFocused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCarouselFocused(false); }} onTouchStart={(event) => { (event.currentTarget as HTMLDivElement).dataset.touchX = String(event.touches[0]?.clientX ?? 0); setCarouselFocused(true); }} onTouchEnd={(event) => { const start = Number((event.currentTarget as HTMLDivElement).dataset.touchX ?? 0); const delta = (event.changedTouches[0]?.clientX ?? start) - start; if (Math.abs(delta) > 45) setActiveDemo((current) => (current + (delta < 0 ? 1 : demos.length - 1)) % demos.length); }}>
+          <p className="sr-only">{isEnglish ? "Use Left and Right Arrow keys to change screenshots, Home for the first, and End for the last. Automatic rotation pauses while this area has focus or the pointer is over it. Swipe to change screenshots; touching pauses automatic rotation." : "Utilisez les flèches gauche et droite pour changer de capture, Début pour la première et Fin pour la dernière. Le défilement automatique est suspendu lorsque cette zone reçoit le focus ou est survolée. Balayez pour changer de capture ; le toucher suspend le défilement automatique."}</p>
+          <div className="showcase-topline"><span className="showcase-dots" aria-hidden="true"><i/><i/><i/></span><span>Vendeo <b>•</b> {" "}{t("workspaceExtra.workspace")}</span><span className="showcase-live"><i/> Interface</span></div>
+          <div className="showcase-screen" aria-live={carouselFocused || carouselHovered ? "polite" : "off"} aria-atomic="true" aria-roledescription={isEnglish ? "slide" : "diapositive"} aria-label={isEnglish ? demos[activeDemo].en : demos[activeDemo].fr}>
+            <div key={activeDemo} className="showcase-transition">
+              <Image src={`/landing/actual-${["home", "ads", "studio"][activeDemo]}-${isEnglish ? "en" : "fr"}.webp`} alt={isEnglish ? demos[activeDemo].enAlt : demos[activeDemo].frAlt} width={1265} height={800} sizes="(max-width: 850px) 95vw, 650px" priority={activeDemo === 0} className="showcase-image" />
             </div>
             <div className="showcase-caption">{t("sweep1.text120")}</div>
-          </div>
-          <div className="carousel-controls" aria-label={isEnglish ? "Carousel controls" : "Commandes du carrousel"}>
-            <button type="button" aria-label={isEnglish ? "Previous slide" : "Diapositive précédente"} onClick={() => setActiveDemo((activeDemo + demos.length - 1) % demos.length)}><ArrowLeft size={16}/></button>
-            <span aria-live="polite" aria-atomic="true">{activeDemo + 1} / {demos.length}</span>
-            <button type="button" aria-label={isEnglish ? "Next slide" : "Diapositive suivante"} onClick={() => setActiveDemo((activeDemo + 1) % demos.length)}><ArrowRight size={16}/></button>
-            <button type="button" aria-pressed={carouselPaused} onClick={() => setCarouselPaused(!carouselPaused)} aria-label={carouselPaused ? (isEnglish ? "Resume automatic carousel" : "Reprendre le carrousel automatique") : (isEnglish ? "Pause automatic carousel" : "Mettre en pause le carrousel automatique")}>{carouselPaused ? <Play size={15}/> : <Pause size={15}/>}<span>{carouselPaused ? (isEnglish ? "Play" : "Lire") : (isEnglish ? "Pause" : "Pause")}</span></button>
           </div>
           <div className="showcase-foot"><span>{t("sweep2.text121")}</span><span>Chariow <b>↗</b></span></div>
         </div>
