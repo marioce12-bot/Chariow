@@ -81,7 +81,11 @@ describe("Dashboard store switch", () => {
     await act(async () => { first.resolve(jsonResponse({ snapshot: { marker: "snapshot-A" } })); });
     expect(host.textContent).toContain("snapshot-A");
 
-    const select = host.querySelector("select")!;
+    const mobilePicker = host.querySelector('[data-testid="mobile-store-selector"]')!;
+    expect(mobilePicker).not.toBeNull();
+    expect(mobilePicker.closest(".sidebar")).toBeNull();
+    const select = mobilePicker.querySelector("select")!;
+    expect(select.options.length).toBe(3);
     await act(async () => {
       select.value = "b";
       select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -89,6 +93,8 @@ describe("Dashboard store switch", () => {
     expect(host.querySelector('[data-testid="dashboard-skeleton"]')).not.toBeNull();
     expect(host.textContent).not.toContain("snapshot-A");
     expect(await eventually(() => requests.some((r) => r.id === "b"))).toBe(true);
+    expect(host.querySelector<HTMLSelectElement>('[data-testid="desktop-store-selector"] select')?.value).toBe("b");
+    expect(localStorage.getItem("vendeo_selected_store_id")).toBe("b");
 
     // Old request settles after B was selected; the identity guard must hide A even before B completes.
     await act(async () => { first.resolve(jsonResponse({ snapshot: { marker: "snapshot-A-late" } })); });

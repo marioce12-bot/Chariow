@@ -42,6 +42,7 @@ import ProductProfitPanel from "./dashboard/ProductProfitPanel";
 import RecoveryPanel from "./dashboard/RecoveryPanel";
 import { FeedbackView } from "./FeedbackView";
 import { NotificationPermissionPrompt } from "./NotificationPermissionPrompt";
+import { DashboardStoreSelector } from "./dashboard/StoreSelector";
 import "@/app/dashboard-refinement.css";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
@@ -178,6 +179,11 @@ export function Dashboard() {
   // pour que le bouton "Lancer une pub" de l'accueil ET celui de l'onglet "Pub"
   // ouvrent directement le même formulaire, au lieu que celui de "Pub" se contente
   // de changer d'onglet en laissant l'utilisateur cliquer une seconde fois.
+  function changeStore(id: string | null) {
+    setWizardOpen(false);
+    setWizardProduct(null);
+    setSelectedStoreId(id);
+  }
   function launchAd() {
     if (!activeStoreId) {
       setActive("Mes boutiques");
@@ -349,20 +355,11 @@ export function Dashboard() {
             <button type="button" className="desktop-signout" onClick={signOut} aria-label="Déconnexion" title="Déconnexion"><LogOut size={15} /></button>
           </div>
         </header>
+      {active !== "Vendeo AI" && <DashboardStoreSelector mobile stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} />}
       <div className={`app-layout${active === "Vendeo AI" ? " app-layout-flush" : ""}${isOffline ? " app-layout-offline" : ""}`}>
         <aside className="sidebar">
           <div className="side-label">ESPACE DE TRAVAIL</div>
-          <label className="store-selector">
-            <span>Boutique affichée</span>
-            <select
-              value={selectedStoreId ?? ""}
-              disabled={!stores.length}
-              onChange={(e) => setSelectedStoreId(e.target.value || null)}
-            >
-              {!stores.length && <option value="">Aucune boutique</option>}
-              {stores.map((s) => <option key={s.id} value={s.id}>{s.store_name}</option>)}
-            </select>
-          </label>
+          <DashboardStoreSelector stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} />
           <DashboardPrimaryNavigation active={active} onChange={setActive} />
           <button type="button" className="dashboard-plan-status" onClick={() => setActive("Abonnement")}>
             <span className="dashboard-plan-dot" aria-hidden="true" />

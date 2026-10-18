@@ -1,0 +1,34 @@
+.tracking-quality-panel {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1px solid #f4d394;
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--ink, #172033);
+}
+.tracking-quality-panel.is-verified { border-color: #b5dec9; }
+.tracking-quality-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+.tracking-quality-heading { display: flex; align-items: center; gap: 8px; }
+.tracking-quality-heading h2 { margin: 0; font-size: 15px; line-height: 1.3; }
+.tracking-quality-panel.is-incomplete .tracking-quality-heading svg { color: #a45b00; flex: none; }
+.tracking-quality-panel.is-verified .tracking-quality-heading svg { color: #18794e; flex: none; }
+.tracking-quality-one-line { margin: 0; color: var(--muted, #637083); font-size: 12px; line-height: 1.4; }
+.tracking-quality-warning { display: flex; gap: 5px; align-items: baseline; flex-wrap: wrap; margin: 7px 0 0; color: #814800; font-size: 12px; line-height: 1.35; }
+.tracking-quality-warning strong { font-weight: 700; }
+.tracking-quality-error { margin: 6px 0 0; color: #a32626; font-size: 12px; }
+.tracking-quality-loading { margin: 6px 0 0; color: var(--muted, #637083); font-size: 11px; }
+.tracking-quality-details { margin-top: 7px; font-size: 12px; }
+.tracking-quality-details summary { width: fit-content; cursor: pointer; color: var(--ink, #172033); font-weight: 650; }
+.tracking-quality-details ul { margin: 8px 0; padding-left: 20px; line-height: 1.5; }
+.tracking-quality-details li + li { margin-top: 4px; }
+.tracking-quality-details > p { margin: 8px 0; }
+.tracking-quality-limits { color: var(--muted, #637083); font-size: 11px; line-height: 1.45; }
+.tracking-quality-check { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 6px 10px; font-size: 12px; }
+@media (max-width: 600px) {
+  .tracking-quality-panel { padding: 10px 12px; }
+  .tracking-quality-summary { display: block; }
+  .tracking-quality-one-line { margin-top: 3px; }
+  .tracking-quality-warning { margin-top: 5px; }
+  .tracking-quality-check { margin-top: 4px; }
+}
