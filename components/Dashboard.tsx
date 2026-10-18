@@ -41,6 +41,7 @@ import { DashboardSkeleton } from "./dashboard/Skeleton";
 import ProductProfitPanel from "./dashboard/ProductProfitPanel";
 import RecoveryPanel from "./dashboard/RecoveryPanel";
 import { FeedbackView } from "./FeedbackView";
+import { NotificationPermissionPrompt } from "./NotificationPermissionPrompt";
 import "@/app/dashboard-refinement.css";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
@@ -163,6 +164,7 @@ export function Dashboard() {
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
   // null tant que le nom n'est pas connu : la salutation reste en skeleton (pas de « Bonjour créateur » provisoire).
   const [userName, setUserName] = useState<string | null>(null);
+  const [notificationUserId, setNotificationUserId] = useState<string | null>(null);
 
   const userFirstName = userName ? (userName.trim().split(/\s+/)[0] || "créateur") : null;
   // Plus de quota de messages IA : l'accès est illimité tant que l'essai de
@@ -220,6 +222,7 @@ export function Dashboard() {
     const client = createClient();
     client.auth.getUser().then(({ data }) => {
       if (cancelled) return;
+      setNotificationUserId(data.user?.id ?? null);
       const metadata = data.user?.user_metadata as { full_name?: string; name?: string; first_name?: string } | undefined;
       const name = metadata?.full_name ?? metadata?.name ?? metadata?.first_name ?? data.user?.email?.split("@")[0];
       setUserName(name || "créateur");
@@ -329,6 +332,7 @@ export function Dashboard() {
 
   return (
     <main className={`app-shell dashboard-platform${active === "Vendeo AI" ? " dashboard-assistant-active" : ""}${isOffline ? " dashboard-is-offline" : ""}`}>
+      {notificationUserId && <NotificationPermissionPrompt key={notificationUserId} userId={notificationUserId} />}
       {isOffline ? <div role="status" aria-live="polite" className="offline-notice">Connexion internet perdue. Certaines données peuvent être obsolètes.</div> : null}
         <header className="app-header">
           <Link href="/" className="brand">

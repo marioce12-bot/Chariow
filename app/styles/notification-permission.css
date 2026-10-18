@@ -1,0 +1,14 @@
+.notification-permission-prompt{position:fixed;z-index:450;right:24px;bottom:24px;width:min(430px,calc(100vw - 32px));display:flex;gap:13px;padding:20px;background:#fff;color:#192434;border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 14px 50px rgba(24,35,52,.16);font-family:inherit;text-align:left;box-sizing:border-box}
+.notification-permission-icon{display:grid;place-items:center;flex-shrink:0;width:42px;height:42px;border-radius:13px;background:#ede9fe;color:#6d28d9}
+.notification-permission-content{min-width:0;flex:1}
+.notification-permission-content h2{margin:0 0 7px;font-size:16px;line-height:1.35;color:#192434}
+.notification-permission-content p{margin:0;font-size:13px;line-height:1.6;color:#536174}
+.notification-permission-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:15px}
+.notification-permission-prompt button{font:inherit;font-size:13px;min-height:42px;padding:9px 17px;border-radius:10px;cursor:pointer}
+.notification-permission-enable{border:1px solid #6d28d9;background:#6d28d9;color:#fff;font-weight:650}
+.notification-permission-later{border:1px solid #dce2ea;background:#fff;color:#536174}
+.notification-permission-prompt button:disabled{opacity:.6;cursor:wait}
+.notification-permission-prompt button:focus-visible{outline:3px solid #a78bfa;outline-offset:3px}
+.notification-permission-content small{display:block;margin-top:11px;color:#718096;font-size:11px;line-height:1.5}
+.notification-permission-content>button{margin-top:12px}
+@media(max-width:720px){.notification-permission-prompt{right:16px;bottom:calc(88px + env(safe-area-inset-bottom,0px));padding:16px;gap:10px;max-height:calc(100dvh - 130px);overflow:auto}.notification-permission-icon{width:35px;height:35px}.notification-permission-content h2{font-size:15px}}
