@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import { Skeleton, SkeletonRows } from "./Skeleton";
 type CaseRow = {
   id: string;
   source_sale_id?: string | null;
@@ -335,9 +336,17 @@ export default function RecoveryPanel({ storeId }: { storeId: string | null }) {
         </div>
       )}
       {loading ? (
-        <div className="rec-box rec-loading" role="status">
-          <RefreshCw size={19} className="rec-spinning" /> Chargement des
-          abandons et des relances…
+        <div className="rec-box" role="status" aria-busy="true" aria-label="Chargement des abandons et des relances">
+          <div className="rec-summary-grid">
+            {[0, 1, 2].map((index) => (
+              <div className="rec-summary" key={index}>
+                <Skeleton width="65%" height={12} />
+                <Skeleton width="35%" height={28} style={{ margin: "12px 0" }} />
+                <Skeleton width="50%" height={10} />
+              </div>
+            ))}
+          </div>
+          <SkeletonRows count={4} label="Chargement des relances" />
         </div>
       ) : (
         <>

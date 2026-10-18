@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Skeleton } from "./Skeleton";
 type Product = {
   productId: string;
   productName: string | null;
@@ -10,16 +11,8 @@ type Product = {
   chariowFees: number | null;
   estimatedNetRevenue: boolean;
   chariowFeeRate: 0.15;
-  totalCosts: number | null;
   profit: number | null;
   marginPercent: number | null;
-  costStatus: "complete" | "incomplete";
-};
-type Cost = {
-  product_id: string;
-  currency: string;
-  unit_cost: number;
-  fee_per_sale: number;
 };
 const money = (value: number | null, currency: string) =>
   value == null
@@ -35,15 +28,9 @@ export default function ProductProfitPanel({
   storeId: string | null;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
-  const [costs, setCosts] = useState<Cost[]>([]);
   const [loading, setLoading] = useState(Boolean(storeId));
-  const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState("");
   const [period, setPeriod] = useState("30");
-  const [draft, setDraft] = useState<
-    Record<string, { unitCost: string; feePerSale: string }>
-  >({});
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
       if (!storeId) return;
@@ -57,7 +44,6 @@ export default function ProductProfitPanel({
         if (!res.ok) throw new Error(json.error || "Chargement impossible");
         if (!signal?.aborted) {
           setProducts(json.products);
-          setCosts(json.costs);
         }
       } catch (e) {
         if (!signal?.aborted)
@@ -69,10 +55,7 @@ export default function ProductProfitPanel({
   useEffect(() => {
     const controller = new AbortController();
     setProducts([]);
-    setCosts([]);
-    setDraft({});
     setError("");
-    setSaved("");
     if (!storeId) {
       setLoading(false);
       return () => controller.abort();
@@ -86,75 +69,22 @@ export default function ProductProfitPanel({
   const totals = useMemo(() => {
     const buckets = new Map<
       string,
-      { net: number; costs: number; profit: number; missing: boolean }
+      { net: number; profit: number; missing: boolean }
     >();
     products.forEach((p) => {
       const b = buckets.get(p.currency) ?? {
         net: 0,
-        costs: 0,
         profit: 0,
         missing: false,
       };
       if (p.netRevenue == null) b.missing = true;
       else b.net += p.netRevenue;
-      if (p.totalCosts != null) b.costs += p.totalCosts;
-      else b.missing = true;
       if (p.profit != null) b.profit += p.profit;
       else b.missing = true;
       buckets.set(p.currency, b);
     });
     return [...buckets.entries()];
   }, [products]);
-  async function save(
-    product: Product,
-    key: string,
-    values: { unitCost: string; feePerSale: string },
-  ) {
-    const parsed = [values.unitCost, values.feePerSale].map((v) =>
-      v.trim() === "" ? NaN : Number(v),
-    );
-    if (
-      parsed.some(
-        (v) =>
-          !Number.isFinite(v) ||
-          v < 0 ||
-          v > 999999999999.99 ||
-          Math.abs(Math.round(v * 100) - v * 100) >
-            Math.max(1e-7, Number.EPSILON * Math.abs(v * 100) * 2),
-      )
-    ) {
-      setError(
-        "Saisissez les deux coûts, entre 0 et 999999999999,99, avec au plus deux décimales. 0 est accepté explicitement.",
-      );
-      return;
-    }
-    setSaving(key);
-    setSaved("");
-    setError("");
-    try {
-      const res = await fetch("/api/product-profit", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          storeId,
-          productId: product.productId,
-          currency: product.currency,
-          unitCost: parsed[0],
-          feePerSale: parsed[1],
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Enregistrement impossible");
-      setSaved(
-        `${product.productName || product.productId} · ${product.currency} : coûts enregistrés.`,
-      );
-      await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    } finally {
-      setSaving(null);
-    }
-  }
   if (!storeId)
     return (
       <section style={box}>
@@ -173,11 +103,9 @@ export default function ProductProfitPanel({
           <span className="business-eyebrow">RENTABILITÉ</span>
           <h2 style={title}>Bénéfice estimé par produit</h2>
           <p style={muted}>
-            Le net inclut les frais Chariow (15 %) automatiquement : ceux-ci ne
-            sont jamais déduits une seconde fois. Si le net réel est indisponible,
-            il est estimé à 85 % du brut. Le coût de fabrication est distinct du
-            prix de vente; saisissez vos coûts réels, hors frais Chariow.
-            Estimation avant dépenses publicitaires non ventilées.
+            Les frais Chariow sont de 15 %. Si le montant net est fourni, il est
+            utilisé tel quel sans nouvelle déduction des frais. À défaut, le net
+            est estimé à 85 % du brut.
           </p>
         </div>
         <label style={periodLabel}>
@@ -194,13 +122,18 @@ export default function ProductProfitPanel({
           {error}
         </p>
       )}
-      {saved && (
-        <p role="status" style={success}>
-          {saved}
-        </p>
-      )}
       {loading ? (
-        <p aria-live="polite">Chargement des ventes…</p>
+        <div role="status" aria-busy="true" aria-label="Chargement des ventes" style={grid}>
+          {[0, 1, 2].map((item) => (
+            <article key={item} style={card}>
+              <Skeleton width="55%" height={18} />
+              <Skeleton width="80%" height={12} style={{ marginTop: 16 }} />
+              <Skeleton width="70%" height={12} style={{ marginTop: 8 }} />
+              <Skeleton width="90%" height={12} style={{ marginTop: 8 }} />
+              <Skeleton width="60%" height={20} style={{ marginTop: 16 }} />
+            </article>
+          ))}
+        </div>
       ) : products.length === 0 && !error ? (
         <p>
           Aucune vente confirmée avec produit et devise identifiables sur cette
@@ -225,10 +158,6 @@ export default function ProductProfitPanel({
                     {t.missing ? "Données incomplètes" : money(t.net, currency)}
                   </strong>
                 </div>
-                <div>
-                  <small>Fabrication et autres frais</small>
-                  <strong>{money(t.costs, currency)}</strong>
-                </div>
                 <div className="profit-summary-result">
                   <small>Bénéfice estimé</small>
                   <strong>
@@ -243,15 +172,7 @@ export default function ProductProfitPanel({
       {!loading && (
         <div style={grid}>
           {products.map((p) => {
-            const key = `${p.productId}|${p.currency}`,
-              cost = costs.find(
-                (c) =>
-                  c.product_id === p.productId && c.currency === p.currency,
-              );
-            const val = draft[key] ?? {
-              unitCost: cost ? String(cost.unit_cost) : "0",
-              feePerSale: cost ? String(cost.fee_per_sale) : "0",
-            };
+            const key = `${p.productId}|${p.currency}`;
             return (
               <article className="profit-product" key={key} style={card}>
                 <div style={cardHead}>
@@ -278,9 +199,6 @@ export default function ProductProfitPanel({
                     {p.estimatedNetRevenue ? "Montant net estimé" : "Montant net reçu"}
                     <b>{money(p.netRevenue, p.currency)}</b>
                   </span>
-                  <span>
-                    Fabrication et autres frais <b>{money(p.totalCosts, p.currency)}</b>
-                  </span>
                 </div>
                 <div className="profit-product-result" style={profitRow}>
                   <strong>
@@ -293,58 +211,6 @@ export default function ProductProfitPanel({
                       : `${p.marginPercent.toFixed(1)} %`}
                   </span>
                 </div>
-                <div style={editGrid}>
-                  <label>
-                    Coût de fabrication unitaire
-                    <input
-                      aria-label={`Coût unitaire ${p.productName || p.productId} ${p.currency}`}
-                      type="number"
-                      min="0"
-                      max="999999999999.99"
-                      step="0.01"
-                      placeholder="0 par défaut"
-                      value={val.unitCost}
-                      onChange={(e) =>
-                        setDraft((d) => ({
-                          ...d,
-                          [key]: { ...val, unitCost: e.target.value },
-                        }))
-                      }
-                      style={input}
-                    />
-                  </label>
-                  <label>
-                    Frais supplémentaires / vente
-                    <input
-                      aria-label={`Frais par vente ${p.productName || p.productId} ${p.currency}`}
-                      type="number"
-                      min="0"
-                      max="999999999999.99"
-                      step="0.01"
-                      placeholder="0 par défaut"
-                      value={val.feePerSale}
-                      onChange={(e) =>
-                        setDraft((d) => ({
-                          ...d,
-                          [key]: { ...val, feePerSale: e.target.value },
-                        }))
-                      }
-                      style={input}
-                    />
-                  </label>
-                </div>
-                <p style={note}>
-                  Le coût de fabrication n’est pas le prix de vente. Ces champs
-                  sont facultatifs (0 par défaut) et concernent uniquement vos
-                  coûts hors frais Chariow, déjà inclus dans le net ci-dessus.
-                </p>
-                <button
-                  disabled={saving !== null}
-                  onClick={() => void save(p, key, val)}
-                  style={button}
-                >
-                  {saving === key ? "Enregistrement…" : "Enregistrer les coûts"}
-                </button>
               </article>
             );
           })}
@@ -384,7 +250,6 @@ const periodLabel: React.CSSProperties = {
   fontSize: 12,
 };
 const alert: React.CSSProperties = { color: "#b42318" };
-const success: React.CSSProperties = { color: "#067647" };
 const totalsGrid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))",
@@ -445,32 +310,4 @@ const profitRow: React.CSSProperties = {
   padding: 10,
   borderRadius: 8,
   background: "#f0fdf4",
-};
-const editGrid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))",
-  gap: 10,
-  marginTop: 14,
-};
-const input: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  boxSizing: "border-box",
-  padding: 8,
-  marginTop: 4,
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-};
-const note: React.CSSProperties = {
-  color: "#64748b",
-  fontSize: 12,
-  lineHeight: 1.45,
-};
-const button: React.CSSProperties = {
-  border: 0,
-  borderRadius: 7,
-  padding: "9px 12px",
-  background: "#2563eb",
-  color: "white",
-  cursor: "pointer",
 };
