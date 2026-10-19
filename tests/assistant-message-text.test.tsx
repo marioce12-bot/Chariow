@@ -66,8 +66,46 @@ describe("assistant message emphasis", () => {
     expect(render(text)).not.toContain("<strong>");
   });
 
-  it.each(["**inachevé…", "__unfinished…", "****", "____", "** **", "**a\nb**"])("keeps unsupported or truncated text literal: %s", (text) => {
+  it.each(["**inachevé…", "__unfinished…", "**a\nb**"])("keeps unsupported or truncated text literal: %s", (text) => {
     expect(plain(text)).toBe(text);
+  });
+
+  it.each([
+    ["### Proposition pour le texte publicitaire\n- **Titre (Headline)** : Build Your Own SaaS\n*En savoir plus* / `LEARN_MORE`\n---\n### Ciblage proposé pour l’Afrique anglophone\n- **Pays** : Nigeria, Ghana", "Proposition pour le texte publicitaire", "Pays"],
+    ["### Proposed ad copy\n- **Headline**: Build Your Own SaaS\n*Learn more* / `LEARN_MORE`\n---\n### Proposed targeting\n- **Countries**: Nigeria, Ghana", "Proposed ad copy", "Countries"],
+  ])("renders screenshot-style responses without raw Markdown: %s", (text, heading, keyword) => {
+    const html = render(text);
+    expect(html).not.toMatch(/###|\*|`|---/);
+    expect(html).toContain(`<strong>${heading}</strong>`);
+    expect(html).toContain(`<strong>${keyword}</strong>`);
+    expect(html).toContain("LEARN_MORE");
+    expect(html).toContain("Nigeria, Ghana");
+  });
+  it.each(["#", "##", "###", "####", "#####", "######"])("renders heading %s as visible emphasis", (marker) => {
+    expect(render(`${marker} Un **titre** ###`)).not.toContain("#");
+    expect(plain(`${marker} Un **titre** ###`)).toBe("Un titre");
+    expect(render(`${marker} Titre`)).toContain("<strong>Titre</strong>");
+  });
+  it.each(["---", "- - -", "***", "****", "* * *", "____", "** **"])("hides separator %s", (text) => {
+    expect(plain(text)).toBe("");
+  });
+  it("renders star bullets and nested emphasis without losing words", () => {
+    expect(plain("* **Produit** : Livre\n* *Conseil* : _utile_\n***Important*** et **très *utile***")).toBe("• Produit : Livre\n• Conseil : utile\nImportant et très utile");
+    expect(render("* **Produit** : Livre")).toContain("• <strong>Produit :</strong> Livre");
+    expect(render("**A** et *Z*")).toContain("<strong>A</strong> et Z");
+  });
+  it("unwraps code fences and inline code without interpreting their content", () => {
+    expect(plain("```json\n{\"cta\": \"SHOP_NOW\"}\n```\n`ORDER_NOW` et ``LEARN_MORE``")).toBe('\n{"cta": "SHOP_NOW"}\n\nORDER_NOW et LEARN_MORE');
+    expect(plain("~~~text\n# literal *code*\n~~~")).toBe("\n# literal *code*\n");
+    expect(plain("`**literal code**`")).toBe("**literal code**");
+  });
+  it.each(["``a`", "`a``", "``a` ``"])("keeps malformed code delimiters intact: %s", (text) => {
+    expect(plain(text)).toBe(text);
+  });
+  it("preserves meaningful hashes, stars, identifiers and URL characters", () => {
+    const text = "#Vendeo C# 2 * 3 = 6 SHOP_NOW ORDER_NOW primary_color_hex\nhttps://example.com/a*b*c?q=__value__#section";
+    expect(plain(text)).toBe(text);
+    expect(render(text)).toContain('href="https://example.com/a*b*c?q=__value__#section"');
   });
 
   it("keeps user text on the unformatted renderer and all existing actions outside the text", () => {

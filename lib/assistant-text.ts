@@ -2,8 +2,8 @@ import { splitLinks } from "@/lib/linkify";
 
 export type AssistantTextPart = { value: string; strong: boolean };
 
-// Deliberately not a Markdown/HTML renderer: only inline strong and known summary labels.
-// Keep the original strings (accents, punctuation, values and whitespace) intact.
+// Render a small, safe subset of chat Markdown as React text (never raw HTML).
+// Keep URLs, accents, values and meaningful punctuation intact.
 const LABELS = [
   "Produit", "Lien de destination", "Plateforme", "Cible géographique", "Tranche d['’]âge",
   "Budget journalier", "Durée", "Bouton d['’]appel à l['’]action", "Appel à l['’]action",
@@ -14,20 +14,25 @@ const LABEL = new RegExp(`^(\\s*(?:(?:[-*•]|\\d+[.)])\\s+)?)(${LABELS.join("|"
 
 function inlineParts(text: string): AssistantTextPart[] {
   const parts: AssistantTextPart[] = [];
-  // Do not interpret underscores or asterisks inside a bare URL as formatting.
+  // URLs are opaque: underscores, hashes and asterisks in them are not markup.
   let offset = 0;
   const links = splitLinks(text).flatMap((part) => {
     const start = offset;
     offset += part.value.length;
     return part.type === "link" ? [{ start, end: offset }] : [];
   });
-  const pattern = /(\*\*|__)(?=\S)([^\r\n]*?\S)\1/g;
+  const pattern = /(?<!`)(`+)(?!`)([^`\r\n]+?)\1(?!`)|(\*\*\*|___|\*\*|__|\*|_)(\S(?:[^\r\n]*?\S)?)\3(?![*_])/g;
   let cursor = 0;
   for (const match of text.matchAll(pattern)) {
     const start = match.index!;
     if (links.some((link) => start >= link.start && start < link.end)) continue;
+    // In-word underscores are identifiers, not emphasis (e.g. SHOP_NOW).
+    if (match[3]?.startsWith("_") && (/[\p{L}\p{N}]/u.test(text[start - 1] ?? "") || /[\p{L}\p{N}]/u.test(text[start + match[0].length] ?? ""))) continue;
     if (start > cursor) parts.push({ value: text.slice(cursor, start), strong: false });
-    parts.push({ value: match[2], strong: true });
+    const strong = !!match[3] && match[3].length >= 2;
+    // Process nested emphasis, but inline code stays literal.
+    const inner = match[1] ? [{ value: match[2], strong: false }] : inlineParts(match[4]);
+    parts.push(...inner.map((part) => ({ ...part, strong: strong || part.strong })));
     cursor = start + match[0].length;
   }
   if (cursor < text.length) parts.push({ value: text.slice(cursor), strong: false });
@@ -35,8 +40,20 @@ function inlineParts(text: string): AssistantTextPart[] {
 }
 
 export function splitAssistantText(text: string): AssistantTextPart[] {
-  return text.split(/(\r\n|\n|\r)/).flatMap((line) => {
-    const parts = inlineParts(line);
+  let fence: string | null = null;
+  return text.split(/(\r\n|\n|\r)/).flatMap((line): AssistantTextPart[] => {
+    if (/^(?:\r\n|\n|\r)$/.test(line)) return [{ value: line, strong: false }];
+    const fenceMarker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (fenceMarker && (!fence || (fenceMarker[1][0] === fence[0] && fenceMarker[1].length >= fence.length && !fenceMarker[2].trim()))) {
+      fence = fence ? null : fenceMarker[1];
+      return [];
+    }
+    if (fence) return [{ value: line, strong: false }];
+    if (/^\s*(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/.test(line)) return [];
+    const heading = line.match(/^ {0,3}#{1,6}\s+(.+?)(?:\s+#+)?\s*$/);
+    const visibleLine = (heading ? heading[1] : line).replace(/^(\s*)\*\s+/, "$1• ");
+    const parts = inlineParts(visibleLine);
+    if (heading) return parts.map((part) => ({ ...part, strong: true }));
     const visible = parts.map((part) => part.value).join("");
     const label = visible.match(LABEL);
     if (!label) return parts;
