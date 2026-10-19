@@ -39,9 +39,34 @@
   min-width: 0;
   margin-top: 16px;
 }
-.ad-campaign-modal-actions > .btn {
+.ad-campaign-modal-actions > button.btn {
+  min-width: max-content;
+  min-height: 44px;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.ad-campaign-modal-actions > button.btn svg {
+  flex-shrink: 0;
+}
+.ad-campaign-detail {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .ad-campaign-modal-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ad-campaign-modal-actions > button.btn {
+    min-width: 0;
+    width: 100%;
+    padding: 12px 8px;
+    font-size: 13px;
+    line-height: 20px;
+    gap: 6px;
+    justify-content: center;
+  }
 }
 .ad-campaign-history {
   margin-top: 14px;
