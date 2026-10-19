@@ -340,7 +340,6 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
                   })()}
                 </div>
               )}
-              <p className="text-sm text-gray-500">{en ? "Payment will only be requested when you click “Launch campaign” from the Ads page." : "Le paiement sera demandé uniquement lorsque tu cliqueras sur « Lancer la campagne » depuis la page Pub."}</p>
               <button type="button" onClick={() => { if (editCampaign && onEdited) { onEdited(state.campaignId!); return; } onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">{editCampaign ? (en ? "Save and go back to launch" : "Enregistrer et revenir au lancement") : (en ? "View my campaign in Ads" : "Voir ma campagne dans Pub")}</button>
             </div>
           )}
