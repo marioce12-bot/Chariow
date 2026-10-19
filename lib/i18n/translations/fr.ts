@@ -4,8 +4,8 @@ export const fr: Dict = {
     landing: {
       nav: { how: "Comment ça marche", features: "Fonctionnalités", pricing: "Tarifs", faq: "FAQ", login: "Se connecter", start: "Commencer" },
       hero: {
-        title1: "Vends, analyse et",
-        title2: "lance tes publicités.",
+        title1: "Crée, lance et",
+        title2: "analyse tes publicités.",
         title3: "Sans changer d'outil.",
         tagline: "Ta boutique, tes campagnes, ton studio créatif.",
         paragraph: "Vendeo réunit ta boutique, tes comptes publicitaires et un studio de création IA au même endroit — pour comprendre ce qui marche, créer tes visuels et lancer tes campagnes sans jongler entre cinq outils.",
@@ -59,7 +59,7 @@ export const fr: Dict = {
         q5: "Est-ce que mes données sont en sécurité ?", a5: "Tes tokens sont chiffrés et tes données servent uniquement à produire les analyses demandées dans ton espace.",
         q6: "Puis-je annuler mon abonnement ?", a6: "Oui, tu peux annuler depuis ton espace, sans frais cachés.",
       },
-      cta: { eyebrow: "Ton prochain bon choix", title1: "Une seule plateforme pour", title2: "vendre, créer et lancer.", paragraph: "Connecte ta boutique et tes comptes publicitaires pour centraliser tes données, créer tes visuels et lancer tes campagnes en confiance.", button: "Créer mon espace" },
+      cta: { eyebrow: "Ton prochain bon choix", title1: "Une seule plateforme pour", title2: "créer, lancer et analyser.", paragraph: "Connecte ta boutique et tes comptes publicitaires pour centraliser tes données, créer tes visuels et lancer tes campagnes en confiance.", button: "Créer mon espace" },
       footer: { about: "À propos", privacy: "Confidentialité", terms: "Conditions", contact: "Contact" },
     },
     settings: {
