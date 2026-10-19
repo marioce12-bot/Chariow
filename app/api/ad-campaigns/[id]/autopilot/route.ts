@@ -6,7 +6,7 @@ import { isAutopilotLive } from "@/lib/autopilot-eligibility";
 
 type Context = { params: Promise<{ id: string }> };
 
-const campaignColumns = "id,status,external_error,platform,external_campaign_id,external_adset_id,external_ad_id,meta_ad_account_id,tiktok_ad_account_id,autopilot_enabled,autopilot_budget_limit,autopilot_budget_limit_currency";
+const campaignColumns = "id,status,external_error,platform,external_campaign_id,external_adset_id,external_ad_id,meta_delivery_observation,meta_ad_account_id,tiktok_ad_account_id,autopilot_enabled,autopilot_budget_limit,autopilot_budget_limit_currency";
 
 export async function GET(_request: Request, context: Context) {
   const { supabase, user, response } = await requireUser();

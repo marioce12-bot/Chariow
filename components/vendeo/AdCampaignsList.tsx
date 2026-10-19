@@ -61,6 +61,8 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
   autopilot_paused: { label: "Mise en pause par le pilote", bg: "#FEF3C7", fg: "#92400E" },
   paid: { label: "Prête à lancer", bg: "#E0E7FF", fg: "#3730A3" },
   review: { label: "En cours d'examen", bg: "#FEF3C7", fg: "#92400E" },
+  preparing: { label: "Préparation en cours", bg: "#DBEAFE", fg: "#1E40AF" },
+  unknown: { label: "Statut à vérifier", bg: "#FEF3C7", fg: "#92400E" },
   active: { label: "Active", bg: "#D1FAE5", fg: "#065F46" },
   rejected: { label: "Rejetée", bg: "#FEE2E2", fg: "#991B1B" },
   error: { label: "Erreur", bg: "#FEE2E2", fg: "#991B1B" },
@@ -112,40 +114,41 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!selected) return;
+    const latest = campaigns.find((campaign) => campaign.id === selected.id);
+    if (latest && (latest.status !== selected.status || latest.external_error !== selected.external_error)) {
+      setSelected((current) => current?.id === selected.id ? { ...current, status: latest.status, external_error: latest.external_error } : current);
+    }
+  }, [campaigns, selected]);
   const load = useCallback(async () => {
     if (campaignsUrl) await navigationCache.load(campaignsUrl, 0, true);
   }, [campaignsUrl, navigationCache]);
 
-  // Auto-sync : tant qu'une campagne Meta est "en revue", on revérifie son
-  // statut aupres de Meta toutes les 15s (au lieu d'attendre le cron
-  // quotidien ou une synchro manuelle). S'arrete des que plus aucune
-  // campagne n'est en revue.
+  // Poll transitional and active Meta rows; never leave an expired Active
+  // assertion on screen after an unavailable platform read. IDs are stable so
+  // list cache refreshes do not continuously restart polling.
+  const monitoredIds = campaigns.filter((campaign) => campaign.platform === "meta" && ["review", "preparing", "unknown", "active"].includes(campaign.status)).map((campaign) => campaign.id).sort().join(",");
   useEffect(() => {
-    const reviewingIds = campaigns.filter((c) => c.platform === "meta" && c.status === "review").map((c) => c.id);
-    if (reviewingIds.length === 0) return;
-    const interval = setInterval(() => {
-      void Promise.all(reviewingIds.map((id) => fetch(`/api/ad-campaigns/${id}/status`).catch(() => null))).then(() => load());
-    }, 15_000);
-    return () => clearInterval(interval);
-  }, [campaigns, load]);
+    if (!monitoredIds) return;
+    let disposed = false;
+    let inFlight = false;
+    const refresh = async () => {
+      if (disposed || inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
+      try {
+        await Promise.all(monitoredIds.split(",").map((id) => fetch(`/api/ad-campaigns/${id}/status`, { cache: "no-store" }).catch(() => null)));
+        if (!disposed) await load();
+      } finally { inFlight = false; }
+    };
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 15_000);
+    const onReturn = () => void refresh();
+    document.addEventListener("visibilitychange", onReturn);
+    window.addEventListener("focus", onReturn);
+    return () => { disposed = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", onReturn); window.removeEventListener("focus", onReturn); };
+  }, [monitoredIds, load]);
 
-  // Sur téléphone, le navigateur met en veille les pages en arrière-plan et le
-  // minuteur ci-dessus s'arrête : le statut affiché reste alors périmé. Quand
-  // l'utilisateur revient sur la page ou l'onglet, on revérifie tout de suite
-  // les campagnes Meta en revue, puis on recharge la liste.
-  useEffect(() => {
-    const refreshOnReturn = () => {
-      if (document.visibilityState !== "visible") return;
-      const reviewingIds = campaigns.filter((c) => c.platform === "meta" && c.status === "review").map((c) => c.id);
-      void Promise.all(reviewingIds.map((id) => fetch(`/api/ad-campaigns/${id}/status`).catch(() => null))).then(() => load());
-    };
-    document.addEventListener("visibilitychange", refreshOnReturn);
-    window.addEventListener("focus", refreshOnReturn);
-    return () => {
-      document.removeEventListener("visibilitychange", refreshOnReturn);
-      window.removeEventListener("focus", refreshOnReturn);
-    };
-  }, [campaigns, load]);
 
   if (!storeId) return null;
 
@@ -322,7 +325,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                 {selected.autopilot_pause_reason ? <p className="hint-line" style={{ color: "#B45309" }}>{t("sweep3.text332")} {selected.autopilot_pause_reason}</p> : null}
               </div>
             ) : null}
-            <div className="ad-campaign-modal-actions">{!getMetaCampaignLifecycle(selected.status, selected.external_error) && selected.status !== "review" && selected.status !== "active" ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => { setEditing(false); setDuplicating(selected); setSelected(null); }}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button>{!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? t("ads.launchButton") : t("adsExtra.resume")}</button> : null}{!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { navigationCache.invalidate(); setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button> : null}</div>
+            <div className="ad-campaign-modal-actions">{!getMetaCampaignLifecycle(selected.status, selected.external_error) && !["review", "preparing", "unknown", "active"].includes(selected.status) ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => { setEditing(false); setDuplicating(selected); setSelected(null); }}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button>{!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? t("ads.launchButton") : t("adsExtra.resume")}</button> : null}{!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { navigationCache.invalidate(); setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button> : null}</div>
           </div>
         </div>
       ) : null}

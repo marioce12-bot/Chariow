@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
 import { autopilotBudgetCopy, type BudgetLocale } from "@/lib/i18n/autopilot-budget-copy";
 import "./autopilot-budget.css";
@@ -40,31 +40,48 @@ export function AutopilotBudgetLimit({ campaignId, enabled = false, liveStatus, 
   const [feedback, setFeedback] = useState("");
   const [verified, setVerified] = useState<AutopilotLiveStatus | undefined>(liveStatus);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const requestRef = useRef<AbortController | null>(null);
+  const generationRef = useRef(0);
   const refreshStatus = useCallback(async () => {
-    setVerified(undefined); setActivationOpen(false); setCheckingStatus(true);
+    if (document.visibilityState !== "visible" || requestRef.current) return;
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const generation = generationRef.current;
+    setCheckingStatus(true);
     try {
-      const response = await fetch(base, { cache: "no-store" });
+      const response = await fetch(base, { cache: "no-store", signal: controller.signal });
       const result = await response.json();
-      if (response.ok) setVerified(result.autopilot_live_status);
-    } catch { /* Unavailable platform status must never enable activation. */ }
-    finally { setCheckingStatus(false); }
-  }, [base]);
+      if (controller.signal.aborted || generation !== generationRef.current) return;
+      const proof = result.autopilot_live_status;
+      if (response.ok && isAutopilotLive(proof)) { setVerified(proof); setError(""); }
+      else {
+        setVerified(response.ok && proof?.state === "inactive" ? proof : undefined);
+        setActivationOpen(false);
+        setError(proof?.reasonCode === "TOKEN_EXPIRED" ? c.tokenExpired : "");
+      }
+    } catch {
+      if (!controller.signal.aborted && generation === generationRef.current) { setVerified(undefined); setActivationOpen(false); }
+    } finally {
+      if (requestRef.current === controller) { requestRef.current = null; setCheckingStatus(false); }
+    }
+  }, [base, c]);
   useEffect(() => {
+    generationRef.current++;
+    requestRef.current?.abort(); requestRef.current = null;
     setVerified(liveStatus);
     if (!isAutopilotLive(liveStatus)) void refreshStatus();
-    // Expire the proof even if the user leaves this screen open indefinitely.
-    const remaining = liveStatus?.checked_at ? Math.max(0, AUTOPILOT_STATUS_MAX_AGE_MS - (Date.now() - Date.parse(liveStatus.checked_at))) : AUTOPILOT_STATUS_MAX_AGE_MS;
-    const timer = window.setTimeout(() => { void refreshStatus(); }, remaining);
-    const onFocus = () => { void refreshStatus(); };
+    const poll = window.setInterval(() => { if (document.visibilityState === "visible") void refreshStatus(); }, 30_000);
+    const onVisibility = () => { if (document.visibilityState === "visible") void refreshStatus(); };
+    const onFocus = () => void refreshStatus();
+    document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", onFocus);
-    return () => { window.clearTimeout(timer); window.removeEventListener("focus", onFocus); };
-  }, [liveStatus, refreshStatus]);
+    return () => { window.clearInterval(poll); document.removeEventListener("visibilitychange", onVisibility); window.removeEventListener("focus", onFocus); requestRef.current?.abort(); requestRef.current = null; generationRef.current++; };
+  }, [campaignId, liveStatus, refreshStatus]);
   useEffect(() => {
     if (!verified?.checked_at) return;
-    const timer = window.setTimeout(() => { setVerified(undefined); setActivationOpen(false); }, Math.max(0, AUTOPILOT_STATUS_MAX_AGE_MS - (Date.now() - Date.parse(verified.checked_at))));
+    const timer = window.setTimeout(() => { setVerified((current) => isAutopilotLive(current) ? current : undefined); setActivationOpen(false); }, Math.max(0, AUTOPILOT_STATUS_MAX_AGE_MS - (Date.now() - Date.parse(verified.checked_at))));
     return () => window.clearTimeout(timer);
   }, [verified]);
-
   const loadCurrency = useCallback(async (blankAmount = false) => {
     setLoading(true); setError("");
     try {
@@ -126,8 +143,8 @@ export function AutopilotBudgetLimit({ campaignId, enabled = false, liveStatus, 
 
   const currencyKnown = !!data?.currency && currencyFractionDigits(data.currency) !== null;
   if (!isAutopilotLive(verified)) return <section className="autopilot-budget-limit" aria-live="polite">
-    <p role="status">{verified?.state === "inactive" ? c.statusInactive : c.statusUnknown}</p>
-    <button type="button" disabled={checkingStatus} onClick={() => void refreshStatus()}>{c.retryStatus}</button>
+    <p role="status">{checkingStatus ? c.verifyingStatus : verified?.state === "inactive" ? c.statusInactive : c.statusUnknown}</p>
+    {!checkingStatus ? <button type="button" onClick={() => void refreshStatus()}>{c.retryStatus}</button> : null}
     {active ? <button type="button" disabled={busy} onClick={() => void activationRequest(false)}>{c.deactivate}</button> : null}
     {error ? <div role="alert">{error}</div> : null}
   </section>;

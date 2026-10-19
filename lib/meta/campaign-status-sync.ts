@@ -1,3 +1,4 @@
+import { evaluateMetaDelivery } from "@/lib/meta/delivery";
 import { fetchMetaAccountStatus } from "@/lib/meta/api";
 import { getMetaAdReviewStatus, mapMetaEffectiveStatus } from "@/lib/meta/campaigns";
 import { getMetaCampaignLifecycle, markMetaPausedReason } from "@/lib/meta/status";
@@ -9,6 +10,7 @@ type CampaignRow = {
   external_campaign_id: string | null;
   status: string;
   external_error: string | null;
+  meta_delivery_observation?: unknown;
 };
 
 type SyncInput = {
@@ -53,10 +55,10 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   while (true) {
     let query = input.supabase
       .from("ad_campaigns")
-      .select("id,external_ad_id,external_campaign_id,status,external_error")
+      .select("id,external_ad_id,external_campaign_id,status,external_error,meta_delivery_observation")
       .eq("platform", "meta")
       .eq("meta_ad_account_id", input.accountId)
-      .in("status", ["active", "review", "paused"])
+      .in("status", ["active", "review", "preparing", "unknown", "paused"])
       .order("id", { ascending: true })
       .not("external_ad_id", "is", null);
     if (input.userId) query = query.eq("user_id", input.userId);
@@ -83,6 +85,12 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   } catch (error) {
     result.errors += 1;
     console.error("Meta campaign inventory incomplete; skipping reconciliation", error instanceof Error ? error.message : "unknown error");
+    for (const campaign of campaigns.filter((row) => row.status === "active")) {
+      let update = input.supabase.from("ad_campaigns").update({ status: "unknown", external_error: null }).eq("id", campaign.id);
+      if (input.userId) update = update.eq("user_id", input.userId);
+      const { error: updateError } = await update;
+      if (updateError) result.errors += 1; else result.updated += 1;
+    }
     return result;
   }
   const inventoryById = new Map(inventory.map((campaign) => [campaign.id, campaign]));
@@ -106,7 +114,7 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   // Une campagne active absente d'un inventaire intégral n'est plus active chez Meta.
   // On conserve la ligne et l'historique, sans affirmer qu'elle a été supprimée.
   for (const campaign of campaigns) {
-    if (!["active", "review"].includes(campaign.status) || getMetaCampaignLifecycle(campaign.status, campaign.external_error) || !campaign.external_campaign_id || inventoryById.has(campaign.external_campaign_id)) continue;
+    if (!["active", "review", "preparing"].includes(campaign.status) || getMetaCampaignLifecycle(campaign.status, campaign.external_error) || !campaign.external_campaign_id || inventoryById.has(campaign.external_campaign_id)) continue;
     // Absence is ambiguous (#100 can be permissions, and inventory has no proof
     // of deletion). Prevent relaunch while retaining the existing audit row.
     const reason = "META_UNAVAILABLE:Campagne absente de l’inventaire Meta; état externe indisponible, historique conservé.";
@@ -129,8 +137,11 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
       if (campaign.external_campaign_id && !inventoryById.has(campaign.external_campaign_id)) continue;
       result.checked += 1;
       try {
-        const { effectiveStatus, feedback } = await getMetaAdReviewStatus({ adId: campaign.external_ad_id, accessToken: input.accessToken });
-        let mapped = mapMetaEffectiveStatus(effectiveStatus, feedback, result.accountStatus);
+        const snapshot = await getMetaAdReviewStatus({ adId: campaign.external_ad_id, accessToken: input.accessToken });
+        const { effectiveStatus, feedback, impressions } = snapshot;
+        const delivery = evaluateMetaDelivery(campaign.external_ad_id, snapshot, campaign.meta_delivery_observation);
+        let mapped = mapMetaEffectiveStatus(effectiveStatus, feedback, result.accountStatus, impressions);
+        if (effectiveStatus === "ACTIVE" && mapped?.status === "active") mapped.status = delivery.state;
         // A positively archived/deleted parent is terminal evidence, and takes
         // precedence over a stale ACTIVE ad result or an inconclusive ad lookup.
         const parent = campaign.external_campaign_id ? inventoryById.get(campaign.external_campaign_id) : undefined;
@@ -155,11 +166,12 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
         const externalError = mapped.status === "paused"
           ? markMetaPausedReason(mapped.error ?? "Meta signale que la publicité est en pause.")
           : mapped.error;
-        if (campaign.status === mapped.status && campaign.external_error === externalError) continue;
+        const observation = ["active", "preparing"].includes(mapped.status) ? delivery.observation : null;
+        if (campaign.status === mapped.status && campaign.external_error === externalError && JSON.stringify(observation) === JSON.stringify(campaign.meta_delivery_observation ?? null)) continue;
 
         let update = input.supabase
           .from("ad_campaigns")
-          .update({ status: mapped.status, external_error: externalError })
+          .update({ status: mapped.status, external_error: externalError, meta_delivery_observation: observation })
           .eq("id", campaign.id);
         if (input.userId) update = update.eq("user_id", input.userId);
         const { error: updateError } = await update;
@@ -170,6 +182,14 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
         // inconclusive lookup (including network/permission failures) is not a
         // deletion signal: keep the row and its existing status untouched.
         result.errors += 1;
+        // If an ACTIVE record could not be verified, do not leave a stale active
+        // assertion behind. The row remains and is retried on the next sync.
+        if (campaign.status === "active") {
+          let update = input.supabase.from("ad_campaigns").update({ status: "unknown", external_error: null }).eq("id", campaign.id);
+          if (input.userId) update = update.eq("user_id", input.userId);
+          const { error: unknownError } = await update;
+          if (!unknownError) result.updated += 1;
+        }
         console.error("Meta campaign status sync failed", error instanceof Error ? error.message : "unknown error");
       }
     }

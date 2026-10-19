@@ -1,3 +1,4 @@
+import { evaluateMetaDelivery } from "@/lib/meta/delivery";
 import { decryptSecret } from "@/lib/crypto";
 import { META_GRAPH_BASE_URL } from "@/lib/meta/api";
 import { TIKTOK_API_BASE_URL } from "@/lib/tiktok/api";
@@ -16,7 +17,7 @@ export function classifyMetaLiveStatus(entity: Record<string, unknown> | null | 
   if (!entity) return "unknown";
   const effective = typeof entity.effective_status === "string" ? entity.effective_status.toUpperCase() : "";
   const lifecycle = [effective, typeof entity.status === "string" ? entity.status.toUpperCase() : ""];
-  if (lifecycle.some((v) => ["PAUSED", "ARCHIVED", "DELETED", "COMPLETED", "CAMPAIGN_PAUSED", "ADSET_PAUSED", "IN_PROCESS", "WITH_ISSUES", "PENDING_REVIEW", "DISAPPROVED", "PREAPPROVED", "PENDING_BILLING_INFO"].includes(v))) return "inactive";
+  if (lifecycle.some((v) => ["PAUSED", "ARCHIVED", "DELETED", "COMPLETED", "CAMPAIGN_PAUSED", "ADSET_PAUSED", "IN_PROCESS", "WITH_ISSUES", "PENDING_REVIEW", "PREPARING", "PROCESSING", "PENDING_PROCESS", "DISAPPROVED", "PREAPPROVED", "PENDING_BILLING_INFO"].includes(v))) return "inactive";
   if (effective === "ACTIVE") return "active";
   return "unknown";
 }
@@ -37,15 +38,23 @@ export function classifyCampaignLocalStatus(status: unknown): "active" | "inacti
   if (typeof status !== "string" || !status.trim()) return "unknown";
   const value = status;
   if (value === "active") return "active";
-  if (["paused", "autopilot_paused", "archived", "deleted", "completed", "complete", "draft", "account_required", "pending_payment", "submitting", "review", "rejected", "error"].includes(value)) return "inactive";
+  if (["paused", "autopilot_paused", "archived", "deleted", "completed", "complete", "draft", "account_required", "pending_payment", "submitting", "review", "preparing", "rejected", "error"].includes(value)) return "inactive";
   return "unknown";
+}
+
+class PlatformVerificationError extends Error {
+  constructor(readonly reasonCode: "TOKEN_EXPIRED" | "VERIFICATION_FAILED", readonly httpStatus: number, readonly providerCode?: number) {
+    super("Platform verification failed");
+  }
 }
 
 async function getJson(url: URL, headers?: Record<string, string>): Promise<Record<string, any>> {
   const response = await fetch(url, { method: "GET", headers, cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
   const json = await response.json().catch(() => ({})) as Record<string, any>;
-  if (!response.ok) throw new Error("Platform verification request failed");
-  if (json.error || (typeof json.code === "number" && json.code !== 0)) throw new Error("Platform verification rejected");
+  if (!response.ok || json.error || (typeof json.code === "number" && json.code !== 0)) {
+    const providerCode = typeof json.error?.code === "number" ? json.error.code : typeof json.code === "number" ? json.code : undefined;
+    throw new PlatformVerificationError(providerCode === 190 ? "TOKEN_EXPIRED" : "VERIFICATION_FAILED", response.status, providerCode);
+  }
   return json;
 }
 function metaUrl(id: string, fields: string, token: string) {
@@ -96,7 +105,7 @@ async function verifyMeta(supabase: any, userId: string, campaign: any, checkedA
       getJson(metaUrl(account.meta_account_id.startsWith("act_") ? account.meta_account_id : `act_${account.meta_account_id}`, "account_status", token)),
       getJson(metaUrl(String(campaign.external_campaign_id), "effective_status,status,start_time,stop_time", token)),
       getJson(metaUrl(String(campaign.external_adset_id), "effective_status,status,start_time,end_time", token)),
-      getJson(metaUrl(String(campaign.external_ad_id), "effective_status,status", token)),
+      getJson(metaUrl(String(campaign.external_ad_id), "effective_status,status,created_time,updated_time", token)),
     ]);
     if (String(accountJson.id ?? "") !== (account.meta_account_id.startsWith("act_") ? account.meta_account_id : `act_${account.meta_account_id}`)) return result("unknown", "Identité du compte Meta inattendue", checkedAt);
     const accountStatus = Number(accountJson.account_status);
@@ -113,9 +122,23 @@ async function verifyMeta(supabase: any, userId: string, campaign: any, checkedA
     const adsetSchedule = scheduledState(getData(adsetJson), checkedAt);
     if (adsetSchedule) return result(adsetSchedule, "Calendrier de l’ensemble Meta hors période", checkedAt);
     if (schedule) return result(schedule, schedule === "inactive" ? "Campagne Meta terminée" : "Début de campagne Meta à venir", checkedAt);
-    return result("active", "Vérification Meta fraîche : compte, campagne, ensemble et publicité actifs", checkedAt);
-  } catch {
-    return result("unknown", "Vérification Meta impossible", checkedAt);
+    const insightsUrl = metaUrl(String(campaign.external_ad_id), "impressions", token);
+    insightsUrl.pathname += "/insights";
+    insightsUrl.searchParams.set("date_preset", "maximum");
+    const insights = await getJson(insightsUrl);
+    if (!Array.isArray(insights.data) || insights.paging?.next) return result("unknown", "Preuve de diffusion Meta incomplète", checkedAt);
+    const impressions = insights.data.length === 0 ? 0 : insights.data.length === 1 && insights.data[0]?.impressions != null ? Number(insights.data[0].impressions) : NaN;
+    const delivery = evaluateMetaDelivery(String(campaign.external_ad_id), { effectiveStatus: String(metaAd.effective_status ?? ""), impressions, createdTime: metaAd.created_time, updatedTime: metaAd.updated_time }, campaign.meta_delivery_observation);
+    if (delivery.state !== "active") return result(delivery.state === "preparing" ? "inactive" : "unknown", delivery.state === "preparing" ? "Préparation Meta : diffusion pas encore confirmée pour cette version de la publicité" : "Preuve de diffusion Meta inconnue", checkedAt);
+    return result("active", "Vérification Meta fraîche : compte, campagne, ensemble et publicité actifs, diffusion confirmée", checkedAt);
+  } catch (error) {
+    const reasonCode = error instanceof PlatformVerificationError ? error.reasonCode : "VERIFICATION_FAILED";
+    // Never log provider messages, URLs, tokens or encrypted credentials.
+    console.warn("Autopilot Meta verification failed", {
+      campaignId: campaign.id, reasonCode,
+      ...(error instanceof PlatformVerificationError ? { httpStatus: error.httpStatus, providerCode: error.providerCode } : {}),
+    });
+    return { ...result("unknown", reasonCode === "TOKEN_EXPIRED" ? "Connexion Meta expirée ou révoquée" : "Vérification Meta impossible", checkedAt), reasonCode };
   }
 }
 

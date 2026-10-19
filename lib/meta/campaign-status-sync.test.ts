@@ -6,11 +6,14 @@ const { fetchMetaAccountStatus, getMetaAdReviewStatus, fetchMetaCampaignList } =
   fetchMetaCampaignList: vi.fn(),
 }));
 vi.mock("@/lib/meta/campaign-list", () => ({ fetchMetaCampaignList }));
-vi.mock("@/lib/meta/api", () => ({ fetchMetaAccountStatus }));
-vi.mock("@/lib/meta/campaigns", () => ({
-  getMetaAdReviewStatus,
-  mapMetaEffectiveStatus: (status: string) => status === "ACTIVE" ? { status: "active", error: null } : null,
-}));
+vi.mock("@/lib/meta/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/meta/api")>();
+  return { ...actual, fetchMetaAccountStatus };
+});
+vi.mock("@/lib/meta/campaigns", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/meta/campaigns")>();
+  return { ...actual, getMetaAdReviewStatus };
+});
 
 import { syncMetaCampaignStatuses } from "./campaign-status-sync";
 
@@ -19,7 +22,7 @@ describe("syncMetaCampaignStatuses", () => {
     vi.clearAllMocks();
     fetchMetaAccountStatus.mockResolvedValue(1);
     fetchMetaCampaignList.mockResolvedValue([{ id: "campaign-parent", name: null, effectiveStatus: "ACTIVE" }]);
-    getMetaAdReviewStatus.mockResolvedValue({ effectiveStatus: "ACTIVE", feedback: null });
+    getMetaAdReviewStatus.mockResolvedValue({ effectiveStatus: "ACTIVE", feedback: null, impressions: 1, createdTime: "2026-01-01T00:00:00.000Z", updatedTime: "2026-01-01T00:00:00.000Z" });
   });
 
   it("uses stable ID-ordered pages and refreshes locally paused campaigns", async () => {
@@ -39,7 +42,7 @@ describe("syncMetaCampaignStatuses", () => {
     expect(calls).toContain("order:id:true");
     expect(calls).toContain("range:0:499");
     expect(getMetaAdReviewStatus).toHaveBeenCalledWith({ adId: "ad-1", accessToken: "token" });
-    expect(calls).toContain('update:{"status":"active","external_error":null}');
+    expect(calls.some((call) => call.startsWith("update:") && call.includes("\"status\":\"active\"") && call.includes("\"meta_delivery_observation\"") && call.includes("\"baseline_impressions\":1"))).toBe(true);
     expect(result.checked).toBe(1);
     expect(result.updated).toBe(1);
   });
@@ -84,7 +87,7 @@ describe("terminal parent precedence", () => {
     const query: any = { select: () => query, eq: () => query, in: () => query, order: () => query, not: () => query, range: async () => ({ data: [row], error: null }), update: (values: any) => { updates.push(values); return { eq: async () => ({ error: null }) }; } };
     const supabase = { from: () => query };
     fetchMetaCampaignList.mockResolvedValue([{ id: "parent-x", name: null, effectiveStatus: "ARCHIVED" }]);
-    getMetaAdReviewStatus.mockResolvedValue({ effectiveStatus: "ACTIVE", feedback: null });
+    getMetaAdReviewStatus.mockResolvedValue({ effectiveStatus: "ACTIVE", feedback: null, impressions: 1, createdTime: "2026-01-01T00:00:00.000Z", updatedTime: "2026-01-01T00:00:00.000Z" });
     await syncMetaCampaignStatuses({ supabase, accountId: "a", metaAccountId: "1", accessToken: "t" });
     expect(updates).toContainEqual(expect.objectContaining({ status: "archived", external_error: expect.stringContaining("META_ARCHIVED:") }));
     expect(updates).not.toContainEqual(expect.objectContaining({ status: "active" }));

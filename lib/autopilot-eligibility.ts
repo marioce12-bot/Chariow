@@ -3,6 +3,7 @@ export type AutopilotLiveStatus = {
   state: "active" | "inactive" | "unknown";
   checked_at: string | null;
   reason: string;
+  reasonCode?: "TOKEN_EXPIRED" | "VERIFICATION_FAILED";
 };
 export const AUTOPILOT_STATUS_MAX_AGE_MS = 60_000;
 export function isAutopilotLive(status?: AutopilotLiveStatus | null, now = Date.now()): boolean {

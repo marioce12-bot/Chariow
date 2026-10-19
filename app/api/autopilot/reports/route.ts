@@ -20,7 +20,7 @@ export async function GET() {
   if (error) return NextResponse.json({ error: "Impossible de charger les rapports de pilotage" }, { status: 500 });
 
   const { data: candidates, error: campaignsError } = await supabase.from("ad_campaigns")
-    .select("id,title,product_name,platform,status,external_error,external_campaign_id,external_adset_id,external_ad_id,autopilot_enabled,autopilot_budget_limit,autopilot_budget_limit_currency,meta_ad_account_id,tiktok_ad_account_id")
+    .select("id,title,product_name,platform,status,external_error,external_campaign_id,external_adset_id,external_ad_id,meta_delivery_observation,autopilot_enabled,autopilot_budget_limit,autopilot_budget_limit_currency,meta_ad_account_id,tiktok_ad_account_id")
     .eq("user_id", user.id).in("platform", ["meta", "tiktok"])
     .eq("status", "active")
     .order("created_at", { ascending: false }).limit(100);

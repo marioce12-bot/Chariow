@@ -2,75 +2,51 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { getMetaAdReviewStatus, mapMetaEffectiveStatus } from "@/lib/meta/campaigns";
+import { evaluateMetaDelivery } from "@/lib/meta/delivery";
 import { getMetaCampaignLifecycle, isMetaPausedReason, markMetaPausedReason } from "@/lib/meta/status";
 
 type Context = { params: Promise<{ id: string }> };
-
 export async function GET(_request: Request, context: Context) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
   const { id } = await context.params;
-
-  const { data: campaign, error: campaignError } = await supabase
-    .from("ad_campaigns")
-    .select("id,platform,status,external_ad_id,meta_ad_account_id,external_error")
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { data: campaign, error: campaignError } = await supabase.from("ad_campaigns")
+    .select("id,platform,status,external_ad_id,meta_ad_account_id,external_error,meta_delivery_observation")
+    .eq("id", id).eq("user_id", user.id).maybeSingle();
   if (campaignError) return NextResponse.json({ error: "Impossible de charger la campagne" }, { status: 500 });
   if (!campaign) return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
-
   const lifecycle = getMetaCampaignLifecycle(campaign.status, campaign.external_error);
-  if (lifecycle === "archived" || lifecycle === "deleted") {
-    return NextResponse.json({ status: lifecycle, external_error: campaign.external_error });
-  }
-
-  const shouldCheckMeta = campaign.platform === "meta"
-    && Boolean(campaign.external_ad_id)
-    && (campaign.status === "review" || campaign.status === "active" || (campaign.status === "paused" && isMetaPausedReason(campaign.external_error)));
+  if (lifecycle === "archived" || lifecycle === "deleted") return NextResponse.json({ status: lifecycle, external_error: campaign.external_error });
+  const shouldCheckMeta = campaign.platform === "meta" && (["review", "preparing", "unknown", "active"].includes(campaign.status) || (campaign.status === "paused" && isMetaPausedReason(campaign.external_error)));
   if (!shouldCheckMeta) return NextResponse.json({ status: campaign.status });
-
-  const { data: account, error: accountError } = await supabase
-    .from("meta_ad_accounts")
-    .select("access_token_encrypted,account_status")
-    .eq("id", campaign.meta_ad_account_id)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (accountError || !account) {
-    console.error("Meta status check: compte publicitaire introuvable", campaign.id, accountError?.message ?? "no account");
-    return NextResponse.json({ status: campaign.status });
-  }
-
+  const unavailable = async () => {
+    // Keep the record/history but never present a cached Active assertion as fresh.
+    await supabase.from("ad_campaigns").update({ status: "unknown", external_error: null }).eq("id", id).eq("user_id", user.id);
+    return NextResponse.json({ status: "unknown", status_verified: false }, { headers: { "Cache-Control": "private, no-store" } });
+  };
+  if (!campaign.external_ad_id) return unavailable();
+  const { data: account, error: accountError } = await supabase.from("meta_ad_accounts")
+    .select("access_token_encrypted,account_status").eq("id", campaign.meta_ad_account_id).eq("user_id", user.id).maybeSingle();
+  if (accountError || !account?.access_token_encrypted) return unavailable();
   try {
-    const accessToken = decryptSecret(account.access_token_encrypted);
-    const { effectiveStatus, feedback } = await getMetaAdReviewStatus({ adId: campaign.external_ad_id, accessToken });
+    const snapshot = await getMetaAdReviewStatus({ adId: campaign.external_ad_id, accessToken: decryptSecret(account.access_token_encrypted) });
     const accountStatus = typeof account.account_status === "number" ? account.account_status : null;
-    const mapped = mapMetaEffectiveStatus(effectiveStatus, feedback, accountStatus);
-    if (!mapped) {
-      // État Meta non reconnu : la campagne reste dans son statut actuel. On le trace pour
-      // pouvoir l'ajouter à mapMetaEffectiveStatus (sinon elle peut rester "en examen").
-      console.warn("Meta status check: effective_status non reconnu", campaign.id, effectiveStatus || "(vide)");
-      return NextResponse.json({ status: campaign.status, meta_effective_status: effectiveStatus });
-    }
-
-    const externalError = mapped.status === "paused"
-      ? markMetaPausedReason(mapped.error ?? "Meta signale que la publicité est en pause.")
-      : mapped.error;
-    if (mapped.status !== campaign.status || externalError !== campaign.external_error) {
-      const { error: updateError } = await supabase
-        .from("ad_campaigns")
-        .update({ status: mapped.status, external_error: externalError })
-        .eq("id", campaign.id)
-        .eq("user_id", user.id);
-      if (updateError) {
-        console.error("Meta status check: mise à jour du statut impossible", campaign.id, updateError.message);
-        return NextResponse.json({ status: campaign.status, meta_effective_status: effectiveStatus });
+    const mapped = mapMetaEffectiveStatus(snapshot.effectiveStatus, snapshot.feedback, accountStatus, snapshot.impressions);
+    if (!mapped) return unavailable();
+    const delivery = evaluateMetaDelivery(campaign.external_ad_id, snapshot, campaign.meta_delivery_observation);
+    if (snapshot.effectiveStatus === "ACTIVE" && mapped.status === "active") mapped.status = delivery.state;
+    const externalError = mapped.status === "paused" ? markMetaPausedReason(mapped.error ?? "Meta signale que la publicité est en pause.") : mapped.error;
+    const observation = ["active", "preparing"].includes(mapped.status) ? delivery.observation : null;
+    if (mapped.status !== campaign.status || externalError !== campaign.external_error || JSON.stringify(observation) !== JSON.stringify(campaign.meta_delivery_observation ?? null)) {
+      const { error } = await supabase.from("ad_campaigns").update({ status: mapped.status, external_error: externalError, meta_delivery_observation: observation }).eq("id", id).eq("user_id", user.id);
+      if (error) {
+        console.warn("Meta status persistence failed", { campaignId: id });
+        return NextResponse.json({ status: "unknown", status_verified: false }, { status: 503 });
       }
     }
-    return NextResponse.json({ status: mapped.status, external_error: externalError, meta_effective_status: effectiveStatus, account_status: accountStatus });
-  } catch (error) {
-    // Si Meta est indisponible, on conserve le statut enregistré (et on trace la cause).
-    console.error("Meta status check failed", campaign.id, error instanceof Error ? error.message : "unknown error");
-    return NextResponse.json({ status: campaign.status });
+    return NextResponse.json({ status: mapped.status, external_error: externalError, meta_effective_status: snapshot.effectiveStatus, account_status: accountStatus, status_verified: mapped.status !== "unknown" }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    console.warn("Meta campaign status verification failed", { campaignId: id });
+    return unavailable();
   }
 }

@@ -3,8 +3,10 @@ import { mapMetaEffectiveStatus } from "./campaigns";
 import { getMetaCampaignLifecycle, getMetaPausedReason, isMetaPausedReason, markMetaPausedReason } from "./status";
 
 describe("Meta campaign status mapping", () => {
-  it("keeps an active campaign active when the account is active", () => {
-    expect(mapMetaEffectiveStatus("ACTIVE", null, 1)).toEqual({ status: "active", error: null });
+  it("requires positive verified impressions before declaring an ACTIVE ad active", () => {
+    expect(mapMetaEffectiveStatus("ACTIVE", null, 1)?.status).toBe("unknown");
+    expect(mapMetaEffectiveStatus("ACTIVE", null, 1, 0)).toEqual({ status: "preparing", error: null });
+    expect(mapMetaEffectiveStatus("ACTIVE", null, 1, 1)).toEqual({ status: "active", error: null });
   });
 
   it("marks an active ad as paused when the account is in a blocking state", () => {
@@ -14,10 +16,10 @@ describe("Meta campaign status mapping", () => {
   });
 
   it("does not infer a delivery block from pending settlement or grace period alone", () => {
-    expect(mapMetaEffectiveStatus("ACTIVE", null, 8)?.status).toBe("active");
-    expect(mapMetaEffectiveStatus("ACTIVE", null, 9)?.status).toBe("active");
-    expect(mapMetaEffectiveStatus("ACTIVE", null, 201)?.status).toBe("active");
-    expect(mapMetaEffectiveStatus("ACTIVE", null, 202)?.status).toBe("paused");
+    expect(mapMetaEffectiveStatus("ACTIVE", null, 8, 1)?.status).toBe("active");
+    expect(mapMetaEffectiveStatus("ACTIVE", null, 9, 1)?.status).toBe("active");
+    expect(mapMetaEffectiveStatus("ACTIVE", null, 201, 1)?.status).toBe("active");
+    expect(mapMetaEffectiveStatus("ACTIVE", null, 202, 1)?.status).toBe("paused");
   });
 
   it("preserves a concrete Meta pause and includes the account context", () => {
@@ -29,6 +31,10 @@ describe("Meta campaign status mapping", () => {
 
   it("returns review and rejection states separately", () => {
     expect(mapMetaEffectiveStatus("PENDING_REVIEW", null)?.status).toBe("review");
+    expect(mapMetaEffectiveStatus("PREPARING", null)?.status).toBe("preparing");
+    expect(mapMetaEffectiveStatus("IN_PROCESS", null)?.status).toBe("preparing");
+    expect(mapMetaEffectiveStatus("PENDING_PROCESS", null)?.status).toBe("preparing");
+    expect(mapMetaEffectiveStatus("PREAPPROVED", null)?.status).toBe("preparing");
     expect(mapMetaEffectiveStatus("DISAPPROVED", { reason: "policy" })?.status).toBe("rejected");
   });
 
@@ -39,7 +45,7 @@ describe("Meta campaign status mapping", () => {
   });
 
   it("does not infer deletion from an unknown state", () => {
-    expect(mapMetaEffectiveStatus("UNKNOWN", null)).toBeNull();
+    expect(mapMetaEffectiveStatus("UNKNOWN", null)?.status).toBe("unknown");
   });
 });
 

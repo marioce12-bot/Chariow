@@ -489,10 +489,43 @@ export async function updateMetaAdCreative(input: { adId: string; accessToken: s
 
 /** Interroge Meta pour l'état effectif d'une annonce, qu'elle soit en revue ou déjà active. */
 export async function getMetaAdReviewStatus(input: { adId: string; accessToken: string }) {
-  const json = await graphGet(input.adId, input.accessToken, "effective_status,ad_review_feedback");
+  const json = await graphGet(input.adId, input.accessToken, "effective_status,ad_review_feedback,created_time,updated_time");
+  const effectiveStatus = String(json.effective_status ?? "");
+  // Meta can report effective_status=ACTIVE before the first impression.
+  // Return lifetime impressions plus ad revision timestamps; callers can use
+  // the revision-aware delivery observation logic (not stale prior impressions).
+  let impressions: number | null = null;
+  if (effectiveStatus === "ACTIVE") {
+    try {
+      const insightsUrl = new URL(`${META_GRAPH_BASE_URL}/${input.adId}/insights`);
+      insightsUrl.searchParams.set("fields", "impressions");
+      insightsUrl.searchParams.set("date_preset", "maximum");
+      insightsUrl.searchParams.set("limit", "100");
+      insightsUrl.searchParams.set("access_token", input.accessToken);
+      const response = await fetch(insightsUrl, { cache: "no-store" });
+      const insights = await response.json().catch(() => ({}));
+      if (response.ok && !insights.error && !insights.paging?.next && Array.isArray(insights.data)) {
+        let total = 0;
+        let valid = true;
+        for (const row of insights.data as Array<Record<string, unknown>>) {
+          const value = Number(row.impressions);
+          if (!Number.isSafeInteger(value) || value < 0) { valid = false; break; }
+          total += value;
+        }
+        if (valid) impressions = total;
+      }
+    } catch {
+      // Inconclusive insights must not be treated as delivery.
+    }
+  }
+  const createdTime = typeof json.created_time === "string" ? json.created_time : null;
+  const updatedTime = typeof json.updated_time === "string" ? json.updated_time : null;
   return {
-    effectiveStatus: String(json.effective_status ?? ""),
+    effectiveStatus,
     feedback: (json.ad_review_feedback as Record<string, unknown> | null) ?? null,
+    impressions,
+    createdTime,
+    updatedTime,
   };
 }
 
@@ -501,7 +534,8 @@ export function mapMetaEffectiveStatus(
   effectiveStatus: string,
   feedback: Record<string, unknown> | null,
   accountStatus?: number | null,
-): { status: "active" | "review" | "rejected" | "paused" | "archived" | "deleted"; error: string | null } | null {
+  impressions?: number | null,
+): { status: "active" | "review" | "preparing" | "unknown" | "rejected" | "paused" | "archived" | "deleted"; error: string | null } | null {
   if (effectiveStatus === "DISAPPROVED" || effectiveStatus === "WITH_ISSUES") {
     // La forme exacte de ad_review_feedback varie selon le type de refus (global vs par ligne).
     // On prend le texte tel quel pour l'afficher à l'utilisateur, tronqué par sécurité.
@@ -525,7 +559,9 @@ export function mapMetaEffectiveStatus(
     ? `Meta indique que le compte publicitaire est ${describeMetaAccountStatus(accountStatus)}. Vérifie sa facturation et son état dans Meta Ads Manager.`
     : null;
   if (effectiveStatus === "ACTIVE") {
-    return accountReason ? { status: "paused", error: accountReason } : { status: "active", error: null };
+    if (accountReason) return { status: "paused", error: accountReason };
+    if (typeof impressions !== "number" || !Number.isSafeInteger(impressions) || impressions < 0) return { status: "unknown", error: null };
+    return impressions > 0 ? { status: "active", error: null } : { status: "preparing", error: null };
   }
   if (accountReason) return { status: "paused", error: accountReason };
   if (["PAUSED", "CAMPAIGN_PAUSED", "ADSET_PAUSED", "AD_PAUSED", "DISABLED", "CREDIT_CARD_NEEDED", "PENDING_BILLING_INFO"].includes(effectiveStatus)) {
@@ -535,8 +571,9 @@ export function mapMetaEffectiveStatus(
       : `Meta signale la publicité en pause (état ${effectiveStatus})`;
     return { status: "paused", error: `${reason}${accountDetail}. Vérifie le compte, la campagne, l’ensemble de publicités et la facturation dans Meta Ads Manager.` };
   }
-  if (["PENDING_REVIEW", "IN_PROCESS", "PREAPPROVED", "PENDING_PROCESS"].includes(effectiveStatus)) {
-    return { status: "review", error: null };
+  if (effectiveStatus === "PENDING_REVIEW") return { status: "review", error: null };
+  if (["PREPARING", "PROCESSING", "IN_PROCESS", "PENDING_PROCESS", "PREAPPROVED"].includes(effectiveStatus)) {
+    return { status: "preparing", error: null };
   }
-  return null;
+  return { status: "unknown", error: null };
 }
