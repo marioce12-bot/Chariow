@@ -3,5 +3,5 @@
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.vendeo-studio.site").replace(/\/$/, "");
 
 export const SITE_NAME = "Vendeo";
-export const SITE_TITLE = "Vendeo | Vends, analyse et lance tes pubs Meta, Pinterest & TikTok";
+export const SITE_TITLE = "Vendeo | Crée, lance et analyse tes pubs Meta, Pinterest & TikTok";
 export const SITE_DESCRIPTION = "Connecte ta boutique Chariow, suis ton ROAS réel, crée tes visuels avec le Studio IA et lance tes pubs Meta, Pinterest et TikTok. 15 jours d'essai gratuit.";
