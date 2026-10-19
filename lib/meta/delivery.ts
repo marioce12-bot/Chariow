@@ -33,5 +33,7 @@ export function evaluateMetaDelivery(adId: string, snapshot: MetaDeliverySnapsho
   const confirmed = sameRevision
     ? prior!.confirmed === true || impressions > prior!.baseline_impressions!
     : created === updated && impressions > 0;
-  return { state: confirmed ? "active" : "preparing", observation: { ...observation, confirmed } };
+  // No new impression is absence of proof, not proof of Meta Preparing.
+  // The caller must still fail closed for Autopilot unless this is active.
+  return { state: confirmed ? "active" : "unknown", observation: { ...observation, confirmed } };
 }

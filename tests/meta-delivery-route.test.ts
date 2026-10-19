@@ -20,20 +20,22 @@ beforeEach(() => {
   requireUser.mockResolvedValue({ supabase, user: { id: "u" }, response: null });
 });
 describe("Meta campaign status route delivery evidence", () => {
-  it.each([["PENDING_REVIEW", null, "review"], ["PREPARING", null, "preparing"], ["ACTIVE", 0, "preparing"], ["ACTIVE", 1, "active"], ["ACTIVE", null, "unknown"]])("maps fresh %s / %s impressions to %s", async (status, impressions, expected) => {
+  it.each([["PENDING_REVIEW", null, "review"], ["PREPARING", null, "preparing"], ["ACTIVE", 0, "active"], ["ACTIVE", 1, "active"], ["ACTIVE", null, "active"]])("maps fresh %s / %s impressions to %s", async (status, impressions, expected) => {
     getMetaAdReviewStatus.mockResolvedValue(snapshot(status as string, impressions as number | null));
     const result = await get(); expect(result.status).toBe(200); expect(result.body.status).toBe(expected);
     expect(result.body.status_verified).toBe(expected !== "unknown");
   });
-  it("persists the edited-ad baseline and waits for a later impression", async () => {
-    row.status = "active";
-    getMetaAdReviewStatus.mockResolvedValue(snapshot("ACTIVE", 100, true));
-    expect((await get()).body.status).toBe("preparing");
-    expect(writes[0].meta_delivery_observation).toMatchObject({ baseline_impressions: 100, confirmed: false });
-    expect((await get()).body.status).toBe("preparing");
-    getMetaAdReviewStatus.mockResolvedValue(snapshot("ACTIVE", 101, true));
+  it("corrects the LinkedIn-named Meta row without confusing unchanged impressions with Preparing", async () => {
+    row.status = "preparing";
+    row.meta_delivery_observation = { ad_id: "a", revision: "2026-01-01T00:10:00.000Z", baseline_impressions: 2, confirmed: false };
+    getMetaAdReviewStatus.mockResolvedValue(snapshot("ACTIVE", 2, true));
+    expect((await get()).body).toMatchObject({ status: "active", meta_effective_status: "ACTIVE", delivery_evidence: "unknown", status_verified: true });
+    expect(writes[0].meta_delivery_observation).toMatchObject({ baseline_impressions: 2, confirmed: false });
+    expect((await get()).body.delivery_evidence).toBe("unknown");
+    getMetaAdReviewStatus.mockResolvedValue(snapshot("ACTIVE", 3, true));
     expect((await get()).body.status).toBe("active");
     expect(row.meta_delivery_observation.confirmed).toBe(true);
+    expect(writes.every((write) => !Object.keys(write).some((key) => key.includes("budget") || key.includes("autopilot")))).toBe(true);
   });
   it("invalidates an Active cache when the account/token is missing", async () => {
     row.status = "active"; account = null;

@@ -34,7 +34,8 @@ export async function GET(_request: Request, context: Context) {
     const mapped = mapMetaEffectiveStatus(snapshot.effectiveStatus, snapshot.feedback, accountStatus, snapshot.impressions);
     if (!mapped) return unavailable();
     const delivery = evaluateMetaDelivery(campaign.external_ad_id, snapshot, campaign.meta_delivery_observation);
-    if (snapshot.effectiveStatus === "ACTIVE" && mapped.status === "active") mapped.status = delivery.state;
+    // Keep the API status separate from stricter Autopilot delivery evidence.
+    // An unconfirmed revision is not a Meta Preparing status.
     const externalError = mapped.status === "paused" ? markMetaPausedReason(mapped.error ?? "Meta signale que la publicité est en pause.") : mapped.error;
     const observation = ["active", "preparing"].includes(mapped.status) ? delivery.observation : null;
     if (mapped.status !== campaign.status || externalError !== campaign.external_error || JSON.stringify(observation) !== JSON.stringify(campaign.meta_delivery_observation ?? null)) {
@@ -44,7 +45,7 @@ export async function GET(_request: Request, context: Context) {
         return NextResponse.json({ status: "unknown", status_verified: false }, { status: 503 });
       }
     }
-    return NextResponse.json({ status: mapped.status, external_error: externalError, meta_effective_status: snapshot.effectiveStatus, account_status: accountStatus, status_verified: mapped.status !== "unknown" }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ status: mapped.status, external_error: externalError, meta_effective_status: snapshot.effectiveStatus, delivery_evidence: delivery.state, account_status: accountStatus, status_verified: mapped.status !== "unknown" }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     console.warn("Meta campaign status verification failed", { campaignId: id });
     return unavailable();

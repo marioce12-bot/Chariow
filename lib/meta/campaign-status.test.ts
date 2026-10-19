@@ -3,10 +3,11 @@ import { mapMetaEffectiveStatus } from "./campaigns";
 import { getMetaCampaignLifecycle, getMetaPausedReason, isMetaPausedReason, markMetaPausedReason } from "./status";
 
 describe("Meta campaign status mapping", () => {
-  it("requires positive verified impressions before declaring an ACTIVE ad active", () => {
-    expect(mapMetaEffectiveStatus("ACTIVE", null, 1)?.status).toBe("unknown");
-    expect(mapMetaEffectiveStatus("ACTIVE", null, 1, 0)).toEqual({ status: "preparing", error: null });
+  it("reflects the effective ACTIVE status without inventing Preparing from missing delivery proof", () => {
+    expect(mapMetaEffectiveStatus("ACTIVE", null, 1)?.status).toBe("active");
+    expect(mapMetaEffectiveStatus("ACTIVE", null, 1, 0)).toEqual({ status: "active", error: null });
     expect(mapMetaEffectiveStatus("ACTIVE", null, 1, 1)).toEqual({ status: "active", error: null });
+    expect(mapMetaEffectiveStatus("ACTIVE", null, 1, 2)).toEqual({ status: "active", error: null });
   });
 
   it("marks an active ad as paused when the account is in a blocking state", () => {

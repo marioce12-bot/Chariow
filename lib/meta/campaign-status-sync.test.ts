@@ -61,6 +61,32 @@ describe("Meta inventory reconciliation", () => {
     return { supabase: { from: () => query }, updates };
   }
 
+  it("corrects an ACTIVE two-impression ad without granting revision proof or mutating controls", async () => {
+    const observation = { ad_id: "ad-x", revision: "2026-01-01T00:10:00.000Z", baseline_impressions: 2, confirmed: false };
+    const { supabase, updates } = db({ id: "x", external_ad_id: "ad-x", external_campaign_id: "parent-x", status: "preparing", external_error: null, meta_delivery_observation: observation });
+    fetchMetaCampaignList.mockResolvedValue([{ id: "parent-x", effectiveStatus: "ACTIVE" }]);
+    getMetaAdReviewStatus.mockResolvedValue({ effectiveStatus: "ACTIVE", feedback: null, impressions: 2, createdTime: "2026-01-01T00:00:00Z", updatedTime: "2026-01-01T00:10:00Z" });
+    await syncMetaCampaignStatuses({ supabase, accountId: "a", metaAccountId: "1", accessToken: "t" });
+    expect(updates).toContainEqual({ status: "active", external_error: null, meta_delivery_observation: observation });
+    expect(updates.every((update) => !Object.keys(update).some((key) => key.includes("budget") || key.includes("autopilot")))).toBe(true);
+  });
+
+  it.each(["active", "preparing", "review"])("marks cached %s unknown when inventory authentication fails", async (status) => {
+    const { supabase, updates } = db({ id: "x", external_ad_id: "ad-x", external_campaign_id: "parent-x", status, external_error: null });
+    fetchMetaCampaignList.mockRejectedValue(new Error("OAuth revoked"));
+    await syncMetaCampaignStatuses({ supabase, accountId: "a", metaAccountId: "1", accessToken: "t" });
+    expect(updates).toContainEqual({ status: "unknown", external_error: null });
+    expect(updates).not.toContainEqual(expect.objectContaining({ status: "active" }));
+  });
+
+  it("marks cached preparation unknown when the ad lookup fails", async () => {
+    const { supabase, updates } = db({ id: "x", external_ad_id: "ad-x", external_campaign_id: "parent-x", status: "preparing", external_error: null });
+    fetchMetaCampaignList.mockResolvedValue([{ id: "parent-x", effectiveStatus: "ACTIVE" }]);
+    getMetaAdReviewStatus.mockRejectedValue(new Error("OAuth revoked"));
+    await syncMetaCampaignStatuses({ supabase, accountId: "a", metaAccountId: "1", accessToken: "t" });
+    expect(updates).toContainEqual({ status: "unknown", external_error: null });
+  });
+
   it("pauses (does not delete) an active row absent from a complete inventory, even when ad lookup returns #100", async () => {
     const { supabase, updates } = db({ id: "x", external_ad_id: "ad-x", external_campaign_id: "parent-x", status: "active", external_error: null });
     fetchMetaCampaignList.mockResolvedValue([]);

@@ -29,12 +29,20 @@ describe("fresh Meta proof", () => {
   it("does not unlock on ACTIVE approval before the first impression", async () => {
     platform({ insights: { data: [] } });
     const proof = await checkAutopilotLiveStatus(database(), "u", campaign);
-    expect(proof.state).toBe("inactive"); expect(isAutopilotLive(proof)).toBe(false);
-    expect(proof.reason).toContain("Préparation");
+    expect(proof.state).toBe("unknown"); expect(isAutopilotLive(proof)).toBe(false);
+    expect(proof.reason).not.toContain("Préparation");
   });
   it("does not reuse old impressions after a same-day edit", async () => {
     platform({ a: { id: "a", effective_status: "ACTIVE", created_time: "2026-01-01T00:00:00Z", updated_time: "2026-01-01T00:10:00Z" }, insights: { data: [{ impressions: "100" }] } });
     expect(isAutopilotLive(await checkAutopilotLiveStatus(database(), "u", campaign))).toBe(false);
+  });
+  it("keeps the two-impression regression ineligible until fresh growth on the same revision", async () => {
+    const row = { ...campaign, meta_delivery_observation: { ad_id: "a", revision: "2026-01-01T00:10:00.000Z", baseline_impressions: 2, confirmed: false } };
+    const a = { id: "a", effective_status: "ACTIVE", created_time: "2026-01-01T00:00:00Z", updated_time: "2026-01-01T00:10:00Z" };
+    platform({ a, insights: { data: [{ impressions: "2" }] } });
+    expect(isAutopilotLive(await checkAutopilotLiveStatus(database(), "u", row))).toBe(false);
+    platform({ a, insights: { data: [{ impressions: "3" }] } });
+    expect(isAutopilotLive(await checkAutopilotLiveStatus(database(), "u", row))).toBe(true);
   });
   it.each(["c", "s", "a"])("rejects inactive %s even if local campaign says active", async (id) => {
     platform({ [id]: { id, status: "ACTIVE", effective_status: "PAUSED" } });

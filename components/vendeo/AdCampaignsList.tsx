@@ -64,6 +64,7 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
   preparing: { label: "Préparation en cours", bg: "#DBEAFE", fg: "#1E40AF" },
   unknown: { label: "Statut à vérifier", bg: "#FEF3C7", fg: "#92400E" },
   active: { label: "Active", bg: "#D1FAE5", fg: "#065F46" },
+  meta_active: { label: "Active chez Meta", bg: "#D1FAE5", fg: "#065F46" },
   rejected: { label: "Rejetée", bg: "#FEE2E2", fg: "#991B1B" },
   error: { label: "Erreur", bg: "#FEE2E2", fg: "#991B1B" },
   completed: { label: "Terminée", bg: "#F3F4F6", fg: "#374151" },
@@ -175,7 +176,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
           {currentCampaigns.slice(0, showAll ? currentCampaigns.length : 3).map((c) => {
             const metaPausedMessage = getMetaPausedReason(c.external_error);
             const lifecycle = getMetaCampaignLifecycle(c.status, c.external_error);
-            const statusKey = lifecycle ?? (metaPausedMessage ? "meta_paused" : c.status);
+            const statusKey = lifecycle ?? (metaPausedMessage ? "meta_paused" : c.platform === "meta" && c.status === "active" ? "meta_active" : c.status);
             const meta = STATUS_META[statusKey] ?? { label: c.status, bg: "#F3F4F6", fg: "#374151" };
             const canResume = !lifecycle && (c.status === "draft" || c.status === "paused" || c.status === "autopilot_paused" || c.status === "paid");
             return (

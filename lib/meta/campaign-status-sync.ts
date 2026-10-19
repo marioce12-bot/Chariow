@@ -85,7 +85,7 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   } catch (error) {
     result.errors += 1;
     console.error("Meta campaign inventory incomplete; skipping reconciliation", error instanceof Error ? error.message : "unknown error");
-    for (const campaign of campaigns.filter((row) => row.status === "active")) {
+    for (const campaign of campaigns.filter((row) => ["active", "review", "preparing"].includes(row.status))) {
       let update = input.supabase.from("ad_campaigns").update({ status: "unknown", external_error: null }).eq("id", campaign.id);
       if (input.userId) update = update.eq("user_id", input.userId);
       const { error: updateError } = await update;
@@ -141,7 +141,8 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
         const { effectiveStatus, feedback, impressions } = snapshot;
         const delivery = evaluateMetaDelivery(campaign.external_ad_id, snapshot, campaign.meta_delivery_observation);
         let mapped = mapMetaEffectiveStatus(effectiveStatus, feedback, result.accountStatus, impressions);
-        if (effectiveStatus === "ACTIVE" && mapped?.status === "active") mapped.status = delivery.state;
+        // Display Meta's status, not the stricter Autopilot proof decision.
+        // Unchanged historical impressions do not establish Preparing.
         // A positively archived/deleted parent is terminal evidence, and takes
         // precedence over a stale ACTIVE ad result or an inconclusive ad lookup.
         const parent = campaign.external_campaign_id ? inventoryById.get(campaign.external_campaign_id) : undefined;
@@ -184,7 +185,7 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
         result.errors += 1;
         // If an ACTIVE record could not be verified, do not leave a stale active
         // assertion behind. The row remains and is retried on the next sync.
-        if (campaign.status === "active") {
+        if (["active", "review", "preparing"].includes(campaign.status)) {
           let update = input.supabase.from("ad_campaigns").update({ status: "unknown", external_error: null }).eq("id", campaign.id);
           if (input.userId) update = update.eq("user_id", input.userId);
           const { error: unknownError } = await update;

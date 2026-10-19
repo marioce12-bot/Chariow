@@ -560,8 +560,10 @@ export function mapMetaEffectiveStatus(
     : null;
   if (effectiveStatus === "ACTIVE") {
     if (accountReason) return { status: "paused", error: accountReason };
-    if (typeof impressions !== "number" || !Number.isSafeInteger(impressions) || impressions < 0) return { status: "unknown", error: null };
-    return impressions > 0 ? { status: "active", error: null } : { status: "preparing", error: null };
+    // This is Meta's effective switch, not a claim of fresh delivery. Missing
+    // or unchanged insights cannot prove Preparing. Autopilot independently
+    // requires fresh revision-aware delivery evidence before any activation.
+    return { status: "active", error: null };
   }
   if (accountReason) return { status: "paused", error: accountReason };
   if (["PAUSED", "CAMPAIGN_PAUSED", "ADSET_PAUSED", "AD_PAUSED", "DISABLED", "CREDIT_CARD_NEEDED", "PENDING_BILLING_INFO"].includes(effectiveStatus)) {
