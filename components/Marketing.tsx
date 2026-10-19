@@ -3,12 +3,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import { AnimatedHeroTitle } from "@/components/AnimatedHeroTitle";
+import { PlatformRotator } from "@/components/PlatformRotator";
 import { ArrowRight, Check, Layers, Rocket, Wand2, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
 import "@/app/marketing-fixes.css";
 import "@/app/landing-premium.css";
 import "@/app/landing-preview-layout.css";
+import "@/app/landing-side-reveal.css";
 
 const demos = [
   { fr: "Accueil", en: "Home", frAlt: "Capture réelle de l’accueil Vendeo : tableau de bord avec les indicateurs et les raccourcis de gestion.", enAlt: "Authentic screenshot of the Vendeo home dashboard, showing its metrics and management shortcuts." },
@@ -67,7 +69,7 @@ export function Marketing() {
       <div className="container landing-hero-inner">
         <div className="landing-hero-copy"><span className="landing-kicker"><i/> {t("landing.hero.stat")}</span>
           <AnimatedHeroTitle first={t("landing.hero.title1")} second={t("landing.hero.title2")} last={t("landing.hero.title3")} />
-          <p className="hero-tagline">{t("sweep1.text117")}</p><p className="landing-intro">{t("landing.hero.paragraph")}</p>
+          <PlatformRotator prefix={isEnglish ? "Launch your campaigns on" : "Lancez vos campagnes sur"} fullText={t("sweep1.text117")} /><p className="landing-intro">{t("landing.hero.paragraph")}</p>
           <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{t("landing.hero.cta")} <ArrowRight size={17}/></Link><a className="landing-text-link" href="#apercu">{t("sweep2.text118")}{" "}<span>↓</span></a></div>
         </div>
         <div className="landing-showcase" id="apercu" tabIndex={0} role="region" aria-roledescription={isEnglish ? "carousel" : "carrousel"} aria-label={isEnglish ? "Vendeo product screenshots" : "Captures d’écran du produit Vendeo"} onKeyDown={demoKey} onMouseEnter={() => setCarouselHovered(true)} onMouseLeave={() => setCarouselHovered(false)} onFocusCapture={() => setCarouselFocused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCarouselFocused(false); }} onTouchStart={(event) => { (event.currentTarget as HTMLDivElement).dataset.touchX = String(event.touches[0]?.clientX ?? 0); setCarouselFocused(true); }} onTouchEnd={(event) => { const start = Number((event.currentTarget as HTMLDivElement).dataset.touchX ?? 0); const delta = (event.changedTouches[0]?.clientX ?? start) - start; if (Math.abs(delta) > 45) setActiveDemo((current) => (current + (delta < 0 ? 1 : demos.length - 1)) % demos.length); }}>

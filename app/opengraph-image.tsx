@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
-export const alt = "Vendeo | Vends, analyse et lance tes pubs Meta & TikTok";
+export const alt = "Vendeo | Crée, lance et analyse tes pubs Meta & TikTok";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -32,7 +32,7 @@ export default async function OpengraphImage() {
           <div style={{ display: "flex", marginLeft: 28, fontSize: 64, fontWeight: 800, letterSpacing: -1, color: "#c8f23c" }}>Vendeo</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", marginTop: 40, fontSize: 76, fontWeight: 800, lineHeight: 1.05 }}>
-          <div style={{ display: "flex" }}>Vends, analyse et lance</div>
+          <div style={{ display: "flex" }}>Crée, lance et analyse</div>
           <div style={{ display: "flex" }}>tes pubs Meta &amp; TikTok.</div>
         </div>
         <div style={{ display: "flex", marginTop: 36, fontSize: 34, color: "#cfd8f6" }}>Boutique · Publicités · Studio IA</div>
