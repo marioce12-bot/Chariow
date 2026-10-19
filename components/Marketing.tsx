@@ -10,6 +10,7 @@ import { useI18n } from "@/lib/i18n/i18n";
 import "@/app/marketing-fixes.css";
 import "@/app/landing-premium.css";
 import "@/app/landing-preview-layout.css";
+import "@/app/landing-side-reveal.css";
 
 const demos = [
   { fr: "Accueil", en: "Home", frAlt: "Capture réelle de l’accueil Vendeo : tableau de bord avec les indicateurs et les raccourcis de gestion.", enAlt: "Authentic screenshot of the Vendeo home dashboard, showing its metrics and management shortcuts." },
