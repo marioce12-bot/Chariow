@@ -24,15 +24,14 @@ export function Marketing() {
   const isEnglish = locale === "en";
   const [open, setOpen] = useState<number | null>(null);
   const [activeDemo, setActiveDemo] = useState(0);
-  const [carouselHovered, setCarouselHovered] = useState(false);
-  const [carouselFocused, setCarouselFocused] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
-    if (carouselHovered || carouselFocused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // Leave room for the 240 ms entrance animation within a 3-second image budget.
-    const timer = window.setInterval(() => setActiveDemo((current) => (current + 1) % demos.length), 2700);
-    return () => window.clearInterval(timer);
-  }, [carouselHovered, carouselFocused]);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // Continuous loop: never paused by hover, focus or touch. The timer restarts after each change
+    // (auto or manual swipe/keyboard) so a manual change always keeps its full display time.
+    const timer = window.setTimeout(() => setActiveDemo((current) => (current + 1) % demos.length), 2700);
+    return () => window.clearTimeout(timer);
+  }, [activeDemo]);
   function demoKey(event: React.KeyboardEvent<HTMLDivElement>) {
     const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
     if (!keys.includes(event.key)) return;
@@ -73,10 +72,10 @@ export function Marketing() {
           <PlatformRotator prefix={isEnglish ? "Launch your campaigns on" : "Lancez vos campagnes sur"} fullText={t("sweep1.text117")} /><p className="landing-intro">{t("landing.hero.paragraph")}</p>
           <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{t("landing.hero.cta")} <ArrowRight size={17}/></Link><a className="landing-text-link" href="#apercu">{t("sweep2.text118")}{" "}<span>↓</span></a></div>
         </div>
-        <div className="landing-showcase" id="apercu" tabIndex={0} role="region" aria-roledescription={isEnglish ? "carousel" : "carrousel"} aria-label={isEnglish ? "Vendeo product screenshots" : "Captures d’écran du produit Vendeo"} onKeyDown={demoKey} onMouseEnter={() => setCarouselHovered(true)} onMouseLeave={() => setCarouselHovered(false)} onFocusCapture={() => setCarouselFocused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCarouselFocused(false); }} onTouchStart={(event) => { (event.currentTarget as HTMLDivElement).dataset.touchX = String(event.touches[0]?.clientX ?? 0); setCarouselFocused(true); }} onTouchEnd={(event) => { const start = Number((event.currentTarget as HTMLDivElement).dataset.touchX ?? 0); const delta = (event.changedTouches[0]?.clientX ?? start) - start; if (Math.abs(delta) > 45) setActiveDemo((current) => (current + (delta < 0 ? 1 : demos.length - 1)) % demos.length); }}>
-          <p className="sr-only">{isEnglish ? "Use Left and Right Arrow keys to change screenshots, Home for the first, and End for the last. Automatic rotation pauses while this area has focus or the pointer is over it. Swipe to change screenshots; touching pauses automatic rotation." : "Utilisez les flèches gauche et droite pour changer de capture, Début pour la première et Fin pour la dernière. Le défilement automatique est suspendu lorsque cette zone reçoit le focus ou est survolée. Balayez pour changer de capture ; le toucher suspend le défilement automatique."}</p>
+        <div className="landing-showcase" id="apercu" tabIndex={0} role="region" aria-roledescription={isEnglish ? "carousel" : "carrousel"} aria-label={isEnglish ? "Vendeo product screenshots" : "Captures d’écran du produit Vendeo"} onKeyDown={demoKey} onTouchStart={(event) => { (event.currentTarget as HTMLDivElement).dataset.touchX = String(event.touches[0]?.clientX ?? 0); }} onTouchEnd={(event) => { const start = Number((event.currentTarget as HTMLDivElement).dataset.touchX ?? 0); const delta = (event.changedTouches[0]?.clientX ?? start) - start; if (Math.abs(delta) > 45) setActiveDemo((current) => (current + (delta < 0 ? 1 : demos.length - 1)) % demos.length); }}>
+          <p className="sr-only">{isEnglish ? "Screenshots rotate automatically in a loop. Use Left and Right Arrow keys to change screenshots, Home for the first, and End for the last. Swipe to change screenshots." : "Les captures défilent automatiquement en boucle. Utilisez les flèches gauche et droite pour changer de capture, Début pour la première et Fin pour la dernière. Balayez pour changer de capture."}</p>
           <div className="showcase-topline"><span className="showcase-dots" aria-hidden="true"><i/><i/><i/></span><span>Vendeo <b>•</b> {" "}{t("workspaceExtra.workspace")}</span><span className="showcase-live"><i/> Interface</span></div>
-          <div className="showcase-screen" aria-live={carouselFocused || carouselHovered ? "polite" : "off"} aria-atomic="true" aria-roledescription={isEnglish ? "slide" : "diapositive"} aria-label={isEnglish ? demos[activeDemo].en : demos[activeDemo].fr}>
+          <div className="showcase-screen" aria-live="off" aria-atomic="true" aria-roledescription={isEnglish ? "slide" : "diapositive"} aria-label={isEnglish ? demos[activeDemo].en : demos[activeDemo].fr}>
             <div key={activeDemo} className="showcase-transition">
               <Image src={`/landing/actual-${["home", "ads", "studio"][activeDemo]}-${isEnglish ? "en" : "fr"}.webp`} alt={isEnglish ? demos[activeDemo].enAlt : demos[activeDemo].frAlt} width={1265} height={800} sizes="(max-width: 850px) 95vw, 650px" priority={activeDemo === 0} className="showcase-image" />
             </div>
