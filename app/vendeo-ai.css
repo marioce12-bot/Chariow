@@ -196,22 +196,3 @@ html[data-theme="dark"] .ai-page .chat-history-list button.active { background:r
   .ai-page .chat-bubble.user { max-width: min(68ch, 88%); }
   .ai-page .chat-composer { margin-left: auto; margin-right: auto; max-width: 980px; width: 100%; }
 }
-
-/* Campaign submission: estimated until the server confirms completion. */
-.ai-page .chat-launch-progress { display:flex; align-items:center; gap:14px; padding:14px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
-.ai-page .chat-launch-progress-ring { position:relative; flex:0 0 68px; width:68px; height:68px; color:var(--blue); }
-.ai-page .chat-launch-progress-ring svg { width:100%; height:100%; transform:rotate(-90deg); }
-.ai-page .chat-launch-progress-ring circle { fill:none; stroke-width:4; }
-.ai-page .chat-launch-progress-track { stroke:currentColor; opacity:.14; }
-.ai-page .chat-launch-progress-value { stroke:currentColor; stroke-linecap:round; transition:stroke-dasharray .3s ease; }
-.ai-page .chat-launch-progress-ring::after { content:""; position:absolute; inset:-3px; border:2px solid transparent; border-top-color:currentColor; border-radius:50%; animation:chat-launch-orbit 1.2s linear infinite; }
-.ai-page .chat-launch-progress-ring.is-complete::after { animation:none; border-color:currentColor; opacity:.25; }
-.ai-page .chat-launch-progress-ring strong { position:absolute; inset:0; display:grid; place-items:center; font-size:14px; font-variant-numeric:tabular-nums; }
-.ai-page .chat-launch-progress-copy { display:grid; gap:5px; min-width:0; }
-.ai-page .chat-launch-progress-copy strong { font-size:13px; color:var(--ink); }
-.ai-page .chat-launch-progress-copy small { font-size:11px; line-height:1.45; color:var(--muted); }
-@keyframes chat-launch-orbit { to { transform:rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) {
-  .ai-page .chat-launch-progress-ring::after { animation:none; }
-  .ai-page .chat-launch-progress-value { transition:none; }
-}

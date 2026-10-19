@@ -2,7 +2,7 @@
 
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { createPortal } from "react-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Step5Payment } from "./Step5Payment";
 import { DEFAULT_WIZARD_STATE, type Platform, type WizardState } from "./types";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -30,6 +30,12 @@ interface ResumeCampaignModalProps {
  */
 export function ResumeCampaignModal({ campaignId, platform, initialStatus, initialError, onClose, onCorrection, onLaunched }: ResumeCampaignModalProps) {
   const [mounted, setMounted] = useState(false);
+  const [launching, setLaunching] = useState(false);
+  const launchingRef = useRef(false);
+  const onLaunchingChange = (value: boolean) => {
+    launchingRef.current = value;
+    setLaunching(value);
+  };
   const { t , locale } = useI18n();
 
   useEffect(() => {
@@ -42,17 +48,17 @@ export function ResumeCampaignModal({ campaignId, platform, initialStatus, initi
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex flex-col bg-black/40 sm:items-center sm:justify-center">
-      <div className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[85vh] sm:max-w-md sm:rounded-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="wizard-launch-title" aria-busy={launching} className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[85vh] sm:max-w-md sm:rounded-2xl">
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-base font-bold text-gray-900">
+          <h2 id="wizard-launch-title" className="text-base font-bold text-gray-900">
             {t("ads.launchButton")}
           </h2>
-          <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">
+          <button disabled={launching} onClick={() => { if (!launchingRef.current) onClose(); }} className="text-sm text-gray-400 hover:text-gray-600 disabled:opacity-40">
             {t("ads.correction.close")}
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-          <Step5Payment state={state} initialStatus={initialStatus} initialError={localizeSystemMessage(initialError, locale)} onCorrection={onCorrection} onLaunched={onLaunched} />
+          <Step5Payment state={state} initialStatus={initialStatus} initialError={localizeSystemMessage(initialError, locale)} onCorrection={onCorrection} onLaunched={onLaunched} onLaunchingChange={onLaunchingChange} />
         </div>
       </div>
     </div>,

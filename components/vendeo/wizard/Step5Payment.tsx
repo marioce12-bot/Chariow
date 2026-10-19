@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
+import { LaunchProgress } from "@/components/chat/LaunchProgress";
 import type { WizardState } from "./types";
 import { useI18n } from "@/lib/i18n/i18n";
 import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
@@ -12,6 +13,7 @@ interface StepProps {
   onBack?: () => void;
   onLaunched: (campaignId: string) => void;
   onCorrection?: (message: string | null) => void;
+  onLaunchingChange?: (launching: boolean) => void;
   initialStatus?: "draft" | "paused" | "autopilot_paused" | "paid";
   initialError?: string | null;
 }
@@ -26,11 +28,12 @@ type Phase = "ready" | "launching" | "done" | "error" | "tag_required";
  * comment la récupérer et l'installer sur Chariow, et on ne lance en Trafic QUE si l'utilisateur
  * le confirme explicitement (confirm_traffic_fallback).
  */
-export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialStatus, initialError }: StepProps) {
+export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunchingChange, initialStatus, initialError }: StepProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [error, setError] = useState<string | null>(null);
   const [objectiveFallback, setObjectiveFallback] = useState(false);
   const [pixelAutoSelected, setPixelAutoSelected] = useState(false);
+  const launchInFlightRef = useRef(false);
   const { locale, t } = useI18n();
   const platformLabel = state.platform === "meta" ? "Meta" : state.platform === "pinterest" ? "Pinterest" : "TikTok";
   const tagCopy = pinterestTagCopy(locale);
@@ -49,8 +52,10 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
   }, []);
 
   const launchCampaign = async (options?: { confirmTraffic?: boolean }) => {
-    if (!state.campaignId) return;
+    if (!state.campaignId || launchInFlightRef.current) return;
+    launchInFlightRef.current = true;
     setPhase("launching");
+    onLaunchingChange?.(true);
     setError(null);
     try {
       const body =
@@ -79,13 +84,16 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
     } catch (e) {
       setError(e instanceof Error ? e.message : t("wizardExtra.error.unknown"));
       setPhase("error");
+    } finally {
+      launchInFlightRef.current = false;
+      onLaunchingChange?.(false);
     }
   };
 
   const whiteButtonStyle = { backgroundColor: "#FFFFFF", color: "#3730A3", borderColor: "#6366F1" } as const;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" aria-busy={phase === "launching"}>
       {phase === "ready" && (
         <div className="space-y-3">
           <div className="flex items-center gap-2 rounded-xl bg-[#EEF2FF] p-4 text-sm text-[#3730A3]">
@@ -113,9 +121,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
       )}
 
       {phase === "launching" && (
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Loader2 className="h-4 w-4 animate-spin" /> {t("ads.launching", { platform: platformLabel })}
-        </div>
+        <LaunchProgress indeterminate label={t("ads.launching", { platform: platformLabel })} />
       )}
 
       {phase === "done" && (
@@ -196,7 +202,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, initialS
 
       {onBack && phase !== "done" && (
         <div className="sticky bottom-0 -mx-5 mt-4 flex justify-between border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <button onClick={onBack} className="text-sm font-medium text-gray-500">
+          <button onClick={onBack} disabled={phase === "launching"} className="text-sm font-medium text-gray-500 disabled:opacity-40">
             {t("ads.back")}
           </button>
         </div>
