@@ -32,19 +32,20 @@ describe("premium product landing", () => {
     expect(marketing).toContain("Authentic screenshot of Vendeo AI Studio");
     expect(marketing).not.toContain("dashboard-demo.webp");
   });
-  it("supports mobile login, a localized accessible carousel, auto-rotation pause, and reduced-motion", () => {
+  it("supports mobile login, a localized accessible carousel that loops without pausing, and reduced-motion", () => {
     const src = source("components/Marketing.tsx");
     expect(src).toContain('aria-controls="landing-navigation"');
     expect(src).toContain('"ArrowLeft", "ArrowRight", "Home", "End"');
     expect(src).toContain('fr: "Accueil", en: "Home"');
     expect(src).toContain('fr: "Lancement de publicités", en: "Launch ads"');
     expect(src).toContain('fr: "Studio IA", en: "AI Studio"');
-    expect(src).toContain("window.setInterval");
-    expect(src).toContain("onMouseEnter={() => setCarouselHovered(true)}");
+    expect(src).toContain("window.setTimeout");
+    expect(src).toContain("}, [activeDemo]);");
+    expect(src).not.toContain("setCarouselHovered");
+    expect(src).not.toContain("setCarouselFocused");
     expect(src).toContain("onTouchStart=");
     expect(src).toContain("onTouchEnd=");
     expect(src).toContain("tabIndex={0}");
-    expect(src).toContain("onFocusCapture={() => setCarouselFocused(true)}");
     expect(src).not.toContain("aria-pressed");
     expect(src).not.toContain("carousel-controls");
     expect(src).toContain('className="marketing-actions"');
@@ -54,5 +55,13 @@ describe("premium product landing", () => {
     expect(css).toContain("animation:none!important");
     expect(css).toContain(".landing-reveal{opacity:1;transform:none}");
     expect(css).toContain("@keyframes lpSlideIn");
+  });
+  it("keeps the platform marquee scrolling without a pause control or pause-on-touch", () => {
+    const marquee = source("components/PlatformMarquee.tsx");
+    const css = source("app/platform-marquee.css");
+    expect(marquee).not.toContain("platform-marquee-toggle");
+    expect(marquee).not.toContain("setPaused");
+    expect(css).not.toContain("animation-play-state: paused");
+    expect(css).toContain("22s linear infinite");
   });
 });
