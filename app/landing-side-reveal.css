@@ -1,0 +1,102 @@
+/* Apparition latérale au scroll.
+   S'appuie sur le système existant : Marketing.tsx ajoute `.revealed` à chaque
+   `.landing-reveal` quand la section entre dans l'écran. Ici, on fait entrer les
+   titres par la gauche, les paragraphes par la droite, et les cartes depuis les deux côtés.
+   Actif uniquement si `.reveal-enabled` est présent (donc jamais avec prefers-reduced-motion). */
+
+.landing-premium { --lp-dist: 72px; }
+@media (max-width: 560px) { .landing-premium { --lp-dist: 40px; } }
+
+@keyframes lpSideIn {
+  from { opacity: 0; transform: translate3d(var(--lp-x, 0px), var(--lp-y, 0px), 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* --- Animation commune (fill-mode "backwards" : le :hover des cartes reste utilisable ensuite) --- */
+  .landing-premium.reveal-enabled .landing-reveal.revealed .section-head .eyebrow,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .section-head h2,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .section-head > p,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .problem-grid > *,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .campaign-channel,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .how-grid > article,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .feature-grid > *,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .price-card,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .faq-item,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta .eyebrow,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta h2,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta p,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta .btn {
+    animation: lpSideIn .9s cubic-bezier(.2, .75, .2, 1) backwards;
+  }
+
+  /* --- Depuis la GAUCHE : eyebrows, titres, 1re carte, étapes/FAQ impaires --- */
+  .landing-premium.reveal-enabled .landing-reveal.revealed .section-head .eyebrow,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .section-head h2,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .problem-grid > :nth-child(1),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .campaign-channel:nth-child(1),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .how-grid > article:nth-of-type(odd),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .feature-grid > :nth-child(1),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .faq-item:nth-child(odd),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta .eyebrow,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta h2 {
+    --lp-x: calc(var(--lp-dist) * -1);
+    --lp-y: 0px;
+  }
+
+  /* --- Depuis la DROITE : paragraphes, 3e carte, étapes/FAQ paires, prix --- */
+  .landing-premium.reveal-enabled .landing-reveal.revealed .section-head > p,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .problem-grid > :nth-child(3),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .campaign-channel:nth-child(3),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .how-grid > article:nth-of-type(even),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .feature-grid > :nth-child(3),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .faq-item:nth-child(even),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .price-card,
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta p {
+    --lp-x: var(--lp-dist);
+    --lp-y: 0px;
+  }
+
+  /* --- Depuis le BAS : carte du milieu et bouton --- */
+  .landing-premium.reveal-enabled .landing-reveal.revealed .problem-grid > :nth-child(2),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .campaign-channel:nth-child(2),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .feature-grid > :nth-child(2),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta .btn {
+    --lp-x: 0px;
+    --lp-y: 44px;
+  }
+
+  /* --- Décalages (cascade) --- */
+  .landing-premium.reveal-enabled .landing-reveal.revealed .section-head .eyebrow { animation-delay: 0s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .section-head h2       { animation-delay: .08s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .section-head > p      { animation-delay: .18s; }
+
+  .landing-premium.reveal-enabled .landing-reveal.revealed .problem-grid > :nth-child(1),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .campaign-channel:nth-child(1),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .feature-grid > :nth-child(1),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .how-grid > article:nth-of-type(1) { animation-delay: .12s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .problem-grid > :nth-child(2),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .campaign-channel:nth-child(2),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .feature-grid > :nth-child(2),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .how-grid > article:nth-of-type(2) { animation-delay: .22s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .problem-grid > :nth-child(3),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .campaign-channel:nth-child(3),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .feature-grid > :nth-child(3),
+  .landing-premium.reveal-enabled .landing-reveal.revealed .how-grid > article:nth-of-type(3) { animation-delay: .32s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .how-grid > article:nth-of-type(4) { animation-delay: .42s; }
+
+  .landing-premium.reveal-enabled .landing-reveal.revealed .price-card { animation-delay: .15s; }
+
+  .landing-premium.reveal-enabled .landing-reveal.revealed .faq-item:nth-child(1) { animation-delay: .06s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .faq-item:nth-child(2) { animation-delay: .12s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .faq-item:nth-child(3) { animation-delay: .18s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .faq-item:nth-child(4) { animation-delay: .24s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .faq-item:nth-child(5) { animation-delay: .30s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .faq-item:nth-child(6) { animation-delay: .36s; }
+
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta .eyebrow { animation-delay: 0s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta h2       { animation-delay: .1s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta p        { animation-delay: .2s; }
+  .landing-premium.reveal-enabled .landing-reveal.revealed .cta .btn     { animation-delay: .32s; }
+}
