@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { AnimatedHeroTitle } from "@/components/AnimatedHeroTitle";
 import { PlatformRotator } from "@/components/PlatformRotator";
+import { PlatformMarquee } from "@/components/PlatformMarquee";
 import { ArrowRight, Check, Layers, Rocket, Wand2, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -83,7 +84,7 @@ export function Marketing() {
           </div>
           <div className="showcase-foot"><span>{t("sweep2.text121")}</span><span>Chariow <b>↗</b></span></div>
         </div>
-        <div className="landing-platforms"><span>{t("sweep3.text122")}</span><div className="logos"><span className="platform-logo"><Image src="/logos/chariow.svg" alt="Chariow" width={112} height={28}/></span><span className="platform-logo"><Image src="/logos/selar.png" alt="Selar" width={88} height={28}/><small>({t("landing.hero.soon")})</small></span><span className="platform-logo"><Image src="/logos/gumroad.svg" alt="Gumroad" width={105} height={28}/><small>({t("landing.hero.soon")})</small></span></div></div>
+        <PlatformMarquee />
       </div>
     </section>
 
