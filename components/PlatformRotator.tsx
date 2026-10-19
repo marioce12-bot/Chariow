@@ -1,4 +1,7 @@
+"use client";
+
 import type { CSSProperties, ReactNode } from "react";
+import { useI18n } from "@/lib/i18n/i18n";
 import "@/app/platform-rotator.css";
 
 const PLATFORMS: Array<{ name: string; icon: ReactNode }> = [
@@ -29,15 +32,22 @@ const PLATFORMS: Array<{ name: string; icon: ReactNode }> = [
 ];
 
 /**
- * « Lancez vos campagnes sur » + une plateforme qui défile (Meta → Pinterest → TikTok → Meta…).
+ * « Lancez vos campagnes sur » + une plateforme qui défile (Meta → Pinterest → TikTok → Meta…)
+ * + « en 1 minute ».
  * - `prefix` : début de phrase affiché au-dessus de la plateforme
- * - `fullText` : phrase complète, lue par les lecteurs d'écran et affichée si l'utilisateur
- *   a demandé moins d'animations (prefers-reduced-motion).
+ * - `fullText` : phrase de base, complétée par « en 1 minute » pour les lecteurs d'écran et
+ *   affichée telle quelle si l'utilisateur a demandé moins d'animations (prefers-reduced-motion).
  */
 export function PlatformRotator({ prefix, fullText }: { prefix: string; fullText: string }) {
+  const { locale } = useI18n();
+  const isEnglish = locale === "en";
+  const before = isEnglish ? "in" : "en";
+  const duration = isEnglish ? "1 minute" : "1 minute";
+  const fullSentence = `${fullText.replace(/\.\s*$/, "")} ${before} ${duration}.`;
+
   return (
     <p className="hero-tagline platform-tagline">
-      <span className="platform-static">{fullText}</span>
+      <span className="platform-static">{fullSentence}</span>
       <span className="platform-animated" aria-hidden="true">
         <span className="platform-prefix">{prefix}</span>
         <span className="platform-line">
@@ -50,6 +60,7 @@ export function PlatformRotator({ prefix, fullText }: { prefix: string; fullText
             ))}
           </span>
         </span>
+        <span className="platform-prefix">{before} <strong>{duration}</strong></span>
       </span>
     </p>
   );
