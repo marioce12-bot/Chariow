@@ -1,0 +1,71 @@
+/* Rotation Meta → Pinterest → TikTok dans la phrase du hero.
+   Cycle de 9 s : chaque plateforme reste ~2,4 s, sort vers le haut
+   pendant que la suivante monte depuis le bas. */
+
+.platform-tagline { display: block; }
+
+.platform-animated { display: block; }
+
+.platform-prefix { display: block; }
+
+.platform-line { display: block; margin-top: .1em; }
+
+.platform-slot {
+  display: inline-grid;
+  overflow: hidden;
+  padding: .08em .25em;
+  line-height: 1.15;
+  vertical-align: top;
+}
+
+.platform-item {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4em;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(100%);
+  animation: platform-cycle 9s cubic-bezier(.65, 0, .35, 1) infinite;
+  /* 0 s, -6 s, -12 s (= -3 s) : décale chaque élément d'un tiers de cycle */
+  animation-delay: calc(var(--i) * -6s);
+  will-change: transform, opacity;
+}
+
+.platform-item svg {
+  width: 1em;
+  height: 1em;
+  flex: none;
+}
+
+@keyframes platform-cycle {
+  0%, 27%      { opacity: 1; transform: translateY(0); }
+  33%          { opacity: 0; transform: translateY(-100%); }
+  33.01%, 94%  { opacity: 0; transform: translateY(100%); }
+  100%         { opacity: 1; transform: translateY(0); }
+}
+
+/* Texte lu par les lecteurs d'écran (phrase complète) */
+.platform-static {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Sans animation : on affiche la phrase d'origine */
+@media (prefers-reduced-motion: reduce) {
+  .platform-animated { display: none; }
+  .platform-static {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}
