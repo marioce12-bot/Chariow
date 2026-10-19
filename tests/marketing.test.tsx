@@ -1,14 +1,38 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
+import { JSDOM } from "jsdom";
 import { translate } from "@/lib/i18n/translate";
+const language = vi.hoisted(() => ({ locale: "fr" as "fr" | "en" }));
 vi.mock("@/lib/i18n/i18n", () => ({
-  useI18n: () => ({locale: "fr", t: (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars)}),
+  useI18n: () => ({locale: language.locale, t: (key: string, vars?: Record<string, string | number>) => translate(language.locale, key, vars)}),
 }));
 import { Marketing } from "@/components/Marketing";
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 describe("premium product landing", () => {
+  it.each(["fr", "en"] as const)("removes only the campaign connection card in %s without a placeholder", (locale) => {
+    language.locale = locale;
+    try {
+      const container = new JSDOM(renderToStaticMarkup(<Marketing />)).window.document.body;
+      expect(container.querySelector(".campaign-channels")).toBeNull();
+      expect(container.textContent).not.toContain(translate(locale, "sweep1.text123"));
+      expect(container.textContent).not.toContain(translate(locale, "sweep1.text126"));
+      const heading = container.querySelector(".problem-section-head")!;
+      expect(heading.textContent).toContain(translate(locale, "landing.problem.paragraph"));
+      expect(heading.nextElementSibling?.className).toBe("problem-grid");
+      const cards = container.querySelectorAll(".problem-grid .problem-item");
+      expect(cards).toHaveLength(3);
+      cards.forEach((card, index) => {
+        expect(card.textContent).toContain(translate(locale, `landing.problem.p${index + 1}Title`));
+        expect(card.textContent).toContain(translate(locale, `landing.problem.p${index + 1}`));
+      });
+      expect(container.querySelector(".platform-marquee-track")).not.toBeNull();
+      expect(container.querySelector("#comment")).not.toBeNull();
+    } finally {
+      language.locale = "fr";
+    }
+  });
   it("renders a public demo clearly labelled, with no creator testimonials", () => {
     const html = renderToStaticMarkup(<Marketing />);
     expect(html).toContain(translate("fr", "sweep1.text120"));
