@@ -47,6 +47,7 @@ import { DashboardStoreSelector } from "./dashboard/StoreSelector";
 import "@/app/dashboard-refinement.css";
 import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
 import { StoreConnectionGate, hasConnectedChariowStore } from "./dashboard/StoreConnectionGate";
+import { SaleCelebration } from "./dashboard/SaleCelebration";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
 
@@ -362,6 +363,7 @@ function DashboardWorkspace() {
 
   return (
     <>
+    {notificationUserId && !needsStoreConnection && !loadingData && <SaleCelebration key={notificationUserId} userId={notificationUserId} />}
     <main className={`app-shell dashboard-platform${active === "Vendeo AI" ? " dashboard-assistant-active" : ""}${isOffline ? " dashboard-is-offline" : ""}`}>
       <div className="dashboard-workspace" inert={needsStoreConnection ? true : undefined} aria-hidden={needsStoreConnection ? true : undefined}>
       {notificationUserId && !needsStoreConnection && !loadingData && <NotificationPermissionPrompt key={notificationUserId} userId={notificationUserId} />}
