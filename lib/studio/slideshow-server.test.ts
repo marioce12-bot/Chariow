@@ -7,10 +7,12 @@ describe("slideshow backend safety", () => {
   const prior = process.env.VERCEL_ENV;
   afterEach(() => { if (prior === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = prior; });
 
-  it("enables the feature only on Vercel preview deployments", () => {
+  it("enables the released slideshow on Vercel Preview and Production only", () => {
     process.env.VERCEL_ENV = "preview";
     expect(isPreviewEnabled()).toBe(true);
     process.env.VERCEL_ENV = "production";
+    expect(isPreviewEnabled()).toBe(true);
+    process.env.VERCEL_ENV = "development";
     expect(isPreviewEnabled()).toBe(false);
     delete process.env.VERCEL_ENV;
     expect(isPreviewEnabled()).toBe(false);

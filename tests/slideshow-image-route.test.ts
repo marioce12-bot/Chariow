@@ -81,11 +81,21 @@ describe("POST /api/studio/image slideshow validation", () => {
     expectNoPaidOrExternalWork();
   });
 
-  it("rejects slideshow requests outside Preview before subscription or paid/external work", async () => {
-    vi.stubEnv("VERCEL_ENV", "production");
+  it("rejects slideshow requests outside released environments before subscription or paid/external work", async () => {
+    vi.stubEnv("VERCEL_ENV", "development");
     const response = await POST(request(validStoryboard()));
     expect(response.status).toBe(400);
     expectNoPaidOrExternalWork();
+  });
+
+  it("accepts the released five-image storyboard on Production without bypassing subscription", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    const response = await POST(request(validStoryboard()));
+    expect(response.status).toBe(402);
+    expect(mocks.requireActiveSubscription).toHaveBeenCalledWith("user-1");
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+    expect(mocks.generateFalImage).not.toHaveBeenCalled();
+    expect(mocks.generateFalImageWithReferences).not.toHaveBeenCalled();
   });
 
   it("accepts a valid five-image plan, rebuilds the selected server prompt, then stops at subscription", async () => {

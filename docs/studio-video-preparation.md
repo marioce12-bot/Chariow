@@ -1,4 +1,11 @@
-# Préparation vidéo — branche Preview uniquement
+# Diaporama Studio — publication Production
+
+## Publication autorisée
+Le diaporama validé est désormais disponible sur Vercel Preview et Production pour les utilisateurs authentifiés. Le contrôle d’abonnement/crédits des nouvelles images, les cinq visuels obligatoires, les contrôles de propriété et les limites de requêtes restent inchangés. Le montage et le remplacement audio réutilisent les images existantes. La génération vidéo par fournisseur et les scènes de personnages restent verrouillées. Aucune génération réelle n’est déclenchée pour ce déploiement.
+
+Les sections suivantes conservent l’historique de préparation ; leurs mentions « Preview uniquement » ne décrivent plus le verrou d’environnement du diaporama publié.
+
+# Historique de préparation vidéo
 
 ## État actuel de la préversion — cinq visuels et musique audible
 

@@ -16,7 +16,8 @@ export const MAX_VIDEO_BYTES = 120 * 1024 * 1024;
 export const SLIDESHOW_PROMPT = "Preview slideshow assembled from existing images.";
 export type SlideResult = { generationId: string; videoUrl: string; attribution: string; creditsCost: 0; imageGenerationIds: string[]; duration: number; musicId: string };
 export const publicTracks = () => LICENSED_MUSIC.map(({ fileName: _fileName, localPath: _localPath, downloadUrl: _downloadUrl, ...track }) => track);
-export function isPreviewEnabled() { return process.env.VERCEL_ENV === "preview"; }
+/** Authenticated slideshow is released on Preview and Production; character video stays locked. */
+export function isPreviewEnabled() { return process.env.VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "production"; }
 export function resolveTrackPath(trackId: string) {
   if (!/^[a-zA-Z0-9_-]{1,80}$/.test(trackId)) throw new Error("Invalid music id");
   return `_licensed-music/${trackId}.mp3`;

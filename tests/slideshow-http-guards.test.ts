@@ -41,7 +41,7 @@ describe("slideshow HTTP guards (all implementation dependencies mocked)", () =>
     expect(remixSlideshow).not.toHaveBeenCalled();
   });
 
-  it("locks render and remix outside Vercel Preview (including Production)", async () => {
+  it("locks render and remix when the slideshow environment is disabled", async () => {
     isPreviewEnabled.mockReturnValue(false);
     for (const response of [
       await render(request({ generationIds: fiveIds, duration: 5, musicId: "" })),

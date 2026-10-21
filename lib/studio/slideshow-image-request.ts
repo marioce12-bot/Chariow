@@ -2,7 +2,7 @@ import { assertSlideshowPlan, buildSlideshowPlan, MAX_SLIDESHOW_IMAGES, MIN_SLID
 
 /** Recompile instead of trusting the client prompt, count, or slide index. No I/O. */
 export function validateSlideshowImageRequest(value: unknown, environment: string | undefined) {
-  if (environment !== "preview") throw new Error("Le diaporama est disponible en Preview uniquement.");
+  if (environment !== "preview" && environment !== "production") throw new Error("Le diaporama est indisponible dans cet environnement.");
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Storyboard requis.");
   const request = value as Record<string, unknown>;
   if (!Number.isInteger(request.imageCount) || (request.imageCount as number) < MIN_SLIDESHOW_IMAGES || (request.imageCount as number) > MAX_SLIDESHOW_IMAGES) throw new Error("Le diaporama doit contenir exactement 5 images.");

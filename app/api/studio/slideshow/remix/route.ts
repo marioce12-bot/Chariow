@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 export async function POST(request: Request) {
  const { user, response } = await requireUser(); if (!user) return response;
- if (!isPreviewEnabled()) return NextResponse.json({ error: "Disponible uniquement en prévisualisation." }, { status: 404 });
+ if (!isPreviewEnabled()) return NextResponse.json({ error: "Diaporama indisponible dans cet environnement." }, { status: 404 });
  if (rateLimit(`slideshow-remix:${user.id}`, 10)) return NextResponse.json({ error: "Trop de demandes. Patiente une minute." }, { status: 429 });
  let body: any; try { body = await request.json(); } catch { return NextResponse.json({ error: "JSON invalide." }, { status: 400 }); }
  if (!body || typeof body.generationId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.generationId) || typeof body.musicId !== "string" || (body.musicId !== "" && !/^[a-zA-Z0-9_-]{1,80}$/.test(body.musicId))) return NextResponse.json({ error: "Paramètres de remix invalides." }, { status: 400 });

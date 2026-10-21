@@ -60,6 +60,8 @@ describe("Evidence-first advertising slideshow, no real generation", () => {
     expect(result.prompt).toContain("Achète ce produit");
     expect(result.referenceUrls).toEqual([request.product.image]);
     for(const patch of [{imageCount:6},{imageCount:4},{slideIndex:5},{slideIndex:-1},{slideIndex:1.5}]) expect(() => validateSlideshowImageRequest({...request,...patch},"preview")).toThrow();
-    expect(() => validateSlideshowImageRequest(request,"production")).toThrow("Preview");
+    expect(validateSlideshowImageRequest(request,"production")).toEqual(result);
+    for(const patch of [{imageCount:6},{imageCount:4},{slideIndex:5},{slideIndex:-1},{slideIndex:1.5}]) expect(() => validateSlideshowImageRequest({...request,...patch},"production")).toThrow();
+    expect(() => validateSlideshowImageRequest(request,"development")).toThrow("indisponible");
   });
 });
