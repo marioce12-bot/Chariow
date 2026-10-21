@@ -61,7 +61,7 @@ export function VideoPreparation({ locale, mode, onModeChange, musicId, onMusicC
         <legend className="mb-2 text-sm font-medium">{t.mode}</legend>
         <div className="grid gap-2 sm:grid-cols-2">
           {(["slideshow", "characters"] as const).map((value) => (
-            <button key={value} type="button" aria-pressed={mode === value} onClick={() => onModeChange(value)} className={`rounded-xl border px-4 py-3 text-left text-sm transition ${mode === value ? "border-violet-400 bg-violet-500/15" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
+            <button key={value} type="button" disabled={value === "characters"} aria-disabled={value === "characters"} aria-pressed={mode === value} onClick={() => onModeChange(value)} className={`rounded-xl border px-4 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-40 ${mode === value ? "border-violet-400 bg-violet-500/15" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
               {value === "slideshow" ? t.slideshow : t.characters}
             </button>
           ))}

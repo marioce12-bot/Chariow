@@ -1,6 +1,6 @@
 # Préparation vidéo — branche Preview uniquement
 
-La génération vidéo reste verrouillée : onglet désactivé, garde interface et `POST /api/studio/video` renvoyant 423 après authentification. Aucun fournisseur image/vidéo n'a été appelé pour développer ou tester ces changements. Aucun changement sur main ou en Production n'est autorisé dans cette livraison.
+La génération vidéo reste verrouillée : onglet désactivé, garde interface et `POST /api/studio/video` renvoyant 423 après authentification. Aucun fournisseur image/vidéo n'a été appelé pour développer ou tester ces changements. Aucun changement sur main ou en Production n'est autorisé dans cette livraison. Le choix « Scènes avec personnages » est lui-même désactivé.
 
 ## Deux formats
 
@@ -20,7 +20,7 @@ L'identifiant musical choisi est conservé dans le plan diaporama. Avant toute i
 
 ## Tests réellement effectués
 
-Les tests unitaires et routes utilisent uniquement des réponses simulées. Les tests d'assemblage utilisent ffmpeg/ffprobe localement : quatre clips de couleurs de 15 s, contrôle de l'ordre et durée finale d'environ 60 s; quatre images synthétiques avec un vrai fondu vérifié par échantillon de pixel, musique synthétique et durée finale d'environ 60 s. Aucune image ou vidéo IA ni musique commerciale n'a été générée pour ces tests.
+Les tests unitaires et routes utilisent uniquement des réponses simulées. Les tests d'assemblage utilisent ffmpeg/ffprobe localement : quatre clips de couleurs de 15 s, contrôle de l'ordre et durée finale d'environ 60 s; quatre images synthétiques avec un vrai fondu vérifié par échantillon de pixel, musique synthétique et durée finale d'environ 60 s. Aucune image ou vidéo IA ni musique commerciale n'a été générée pour ces tests. Après autorisation spécifique, un seul rendu représentatif supplémentaire a assemblé deux affiches préexistantes du « Pack spécial Promo » : 5,000 s, 720 × 900, fondu de 0,5 s, sans musique. Temps local : 9,131 s. Consommation nouvelle : zéro image, zéro appel fournisseur et zéro seconde vidéo IA. Ce test valide le montage avec des visuels produit existants, pas le générateur d’images ni un rendu de personnages.
 
 Les tests historiques de fidélité image et de progression Studio sont inclus dans la validation. La suite globale comporte dix échecs préexistants dans `marketing-carousel.test.tsx` et `platform-marquee.test.tsx`, reproduits sur le commit main d'origine `130582d`. Ils ne sont pas corrigés par cette branche.
 

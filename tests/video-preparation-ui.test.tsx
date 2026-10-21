@@ -15,6 +15,7 @@ describe("Video preparation UI keeps generation locked", () => {
       const video = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(b => b.textContent?.includes("studio.video"))!;
       expect(video.disabled).toBe(true);
       expect(container.textContent).toContain("Diaporama animé"); expect(container.textContent).toContain("Scènes avec personnages");
+      expect([...container.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent === "Scènes avec personnages")?.disabled).toBe(true);
       expect(container.textContent?.toLowerCase()).not.toContain("carrousel");
       expect(container.querySelector("audio")).toBeNull();
       await act(async () => container.querySelectorAll<HTMLButtonElement>(".studio-product-list button")[1].click());
