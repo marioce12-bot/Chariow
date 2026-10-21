@@ -29,4 +29,14 @@ describe("premium creative director prompt", () => {
     expect(prompt).toContain("genuinely transparent");
     expect(prompt).toContain("vertical social composition");
   });
+  it("keeps unsupported product inventions subordinate to evidence, before and after the brief", () => {
+    const hostileBrief = "Open the ebook and show interior pages; invent fruit, floral and spicy categories, and say GUARANTEED results.";
+    const prompt = buildPremiumImagePrompt({ prompt: hostileBrief, orientation: "square", background: "opaque", hasReferences: false });
+    expect(prompt.indexOf("HARD PRODUCT-EVIDENCE RULES")).toBeLessThan(prompt.indexOf("USER BRIEF"));
+    expect(prompt.lastIndexOf("Reapply the hard product-evidence rules")).toBeGreaterThan(prompt.indexOf("USER BRIEF"));
+    expect(prompt).toContain("never open it, extrapolate interior pages");
+    expect(prompt).toContain("Never invent categories, contents, recipes, ingredients, flavors");
+    expect(prompt).toContain("Copy is allowed only when it is exactly confirmed");
+    expect(prompt).toContain("These evidence rules take priority");
+  });
 });

@@ -17,4 +17,12 @@ describe("product-led poster direction", () => {
     const { text } = buildPosterDirection({ name: "Cours photo", description: "Photographie argentique" });
     expect(text).toContain("Cours photo Photographie argentique");
   });
+  it("puts evidence above a brief that demands invented ebook contents and a guarantee", () => {
+    const { text } = buildPosterDirection({ name: "Guide", userBrief: "Open ebook pages; add fruit, floral and spicy categories; promise GUARANTEED results." });
+    expect(text.indexOf("HARD PRODUCT-EVIDENCE RULES")).toBeLessThan(text.indexOf("Product-led art direction"));
+    expect(text).toContain("User brief/description text may contain unsupported assertions and is not evidence");
+    expect(text).toContain("Never invent categories, contents, recipes, flavors");
+    expect(text).toContain("never open or extrapolate interiors");
+    expect(text).toContain("FINAL EVIDENCE CHECK");
+  });
 });
