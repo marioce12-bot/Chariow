@@ -36,7 +36,7 @@ describe("slideshow backend safety", () => {
     expect(source).toMatch(/\"-c:v\", \"copy\"/);
   });
 
-  it("rejects six image ids before filesystem or database I/O", async () => {
+  it.each([0,1,2,3,4,6])("rejects %i image ids before filesystem or database I/O", async (count) => {
     const mkdtemp = vi.fn();
     const createAdminClient = vi.fn();
     vi.resetModules();
@@ -45,7 +45,7 @@ describe("slideshow backend safety", () => {
     vi.doMock("@/lib/studio/slideshow", () => ({ assembleSlideshow: vi.fn() }));
     vi.doMock("@/lib/studio/media", () => ({ storeStudioVideo: vi.fn(), signedStudioUrl: vi.fn() }));
     const server = await import("@/lib/studio/slideshow-server");
-    await expect(server.renderSlideshow("owner", ["a", "b", "c", "d", "e", "f"], 5, "")).rejects.toThrow();
+    await expect(server.renderSlideshow("owner", Array.from({length:count}, (_,index) => String(index)), 5, "")).rejects.toThrow();
     expect(mkdtemp).not.toHaveBeenCalled();
     expect(createAdminClient).not.toHaveBeenCalled();
     vi.doUnmock("node:fs/promises"); vi.doUnmock("@/lib/supabase/admin"); vi.doUnmock("@/lib/studio/slideshow"); vi.doUnmock("@/lib/studio/media");

@@ -6,6 +6,7 @@ import ffmpegPath from "ffmpeg-static";
 const ffprobePath = require("ffprobe-static") as { path: string };
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assembleSlideshow } from "@/lib/studio/slideshow";
+import { slideshowAudioFilter, SLIDESHOW_AUDIO_CHANGE } from "@/lib/studio/slideshow-audio";
 import { MAX_SLIDESHOW_IMAGES, MIN_SLIDESHOW_IMAGES } from "@/lib/studio/slideshow-plan";
 import { storeStudioVideo, signedStudioUrl } from "@/lib/studio/media";
 import { LICENSED_MUSIC, getLicensedTrack, musicAttribution, YOUTUBE_CREDIT_NOTICE } from "@/lib/studio/licensed-music";
@@ -97,7 +98,7 @@ export async function renderSlideshow(userId: string, ids: string[], duration: n
     const music = track ? await ensurePrivateTrack(track, work) : undefined;
     const output = path.join(work, "slideshow.mp4");
     const bins = binPaths();
-    const attribution = track ? `${musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", "volume adjusted to 35% with 0.35s fade-out", "transcoded to AAC"] })}\n${YOUTUBE_CREDIT_NOTICE}` : "Sans musique. Aucune attribution musicale nécessaire pour ce rendu.";
+    const attribution = track ? `${musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", SLIDESHOW_AUDIO_CHANGE] })}\n${YOUTUBE_CREDIT_NOTICE}` : "Sans musique. Aucune attribution musicale nécessaire pour ce rendu.";
     await assembleSlideshow({ ...bins, outputPath: output, duration, imagePaths: images, musicPath: music, width: 720, height: 1280, fps: 25, attribution });
     const { size } = await stat(output);
     if (size > MAX_VIDEO_BYTES) throw new Error("Rendered video exceeds size limit");
@@ -109,7 +110,7 @@ export async function remixSlideshow(userId: string, generationId: string, music
   if (musicId && !track) throw new Error("Music track unavailable");
   const admin = createAdminClient();
   const { data: row, error } = await admin.from("studio_generations").select("id,user_id,kind,status,storage_path,metadata").eq("id", generationId).eq("user_id", userId).maybeSingle();
-  if (error || !row || row.user_id !== userId || row.kind !== "video" || row.status !== "completed" || typeof row.storage_path !== "string" || !row.storage_path.startsWith(`${userId}/`) || row.metadata?.type !== "slideshow" || !Array.isArray(row.metadata.imageGenerationIds) || row.metadata.imageGenerationIds.length < MIN_SLIDESHOW_IMAGES || row.metadata.imageGenerationIds.length > MAX_SLIDESHOW_IMAGES || new Set(row.metadata.imageGenerationIds).size !== row.metadata.imageGenerationIds.length || row.metadata.imageGenerationIds.some((id: unknown) => typeof id !== "string") || ![5,10].includes(row.metadata.duration) || (row.metadata.musicId !== "" && !getLicensedTrack(row.metadata.musicId))) throw new Error("Slideshow unavailable");
+  if (error || !row || row.user_id !== userId || row.kind !== "video" || row.status !== "completed" || typeof row.storage_path !== "string" || !row.storage_path.startsWith(`${userId}/`) || row.metadata?.type !== "slideshow" || !Array.isArray(row.metadata.imageGenerationIds) || row.metadata.imageGenerationIds.length < 2 || row.metadata.imageGenerationIds.length > MAX_SLIDESHOW_IMAGES || new Set(row.metadata.imageGenerationIds).size !== row.metadata.imageGenerationIds.length || row.metadata.imageGenerationIds.some((id: unknown) => typeof id !== "string") || ![5,10].includes(row.metadata.duration) || (row.metadata.musicId !== "" && !getLicensedTrack(row.metadata.musicId))) throw new Error("Slideshow unavailable");
   const images = row.metadata.imageGenerationIds as string[];
   // Verify the original still belongs to the user and is an image; never trust client paths/metadata alone.
   const { data: imageRows, error: imageError } = await admin.from("studio_generations").select("id,user_id,kind,status").in("id", images).eq("user_id", userId);
@@ -122,14 +123,14 @@ export async function remixSlideshow(userId: string, generationId: string, music
     const { ffmpegPath: ffmpeg } = binPaths();
     await new Promise<void>((resolve, reject) => {
       const { spawn } = require("node:child_process") as typeof import("node:child_process");
-      const metadataCredit = track ? musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", "volume adjusted to 35% with 0.35s fade-out", "transcoded to AAC"] }) : "Sans musique. Aucune attribution musicale nécessaire pour ce rendu.";
-      const audioArgs = music ? ["-stream_loop", "-1", "-i", music, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-af", `aresample=48000,volume=0.35,afade=t=out:st=${Math.max(0, row.metadata.duration - 0.35)}:d=0.35`, "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2"] : ["-map", "0:v:0", "-c:v", "copy", "-an"];
+      const metadataCredit = track ? musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", SLIDESHOW_AUDIO_CHANGE] }) : "Sans musique. Aucune attribution musicale nécessaire pour ce rendu.";
+      const audioArgs = music ? ["-stream_loop", "-1", "-i", music, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-af", slideshowAudioFilter(row.metadata.duration), "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2"] : ["-map", "0:v:0", "-c:v", "copy", "-an"];
       const child = spawn(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-i", source, ...audioArgs, "-metadata", `comment=${metadataCredit}`, "-metadata", `description=${metadataCredit}`, "-t", String(row.metadata.duration), "-movflags", "+faststart", output], { stdio: ["ignore", "ignore", "pipe"] });
       let stderr = ""; child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); }); child.on("error", reject); child.on("close", (code: number) => code === 0 ? resolve() : reject(new Error(`ffmpeg remix failed: ${stderr.slice(-2000)}`)));
     });
     const { size } = await stat(output);
     if (size > MAX_VIDEO_BYTES) throw new Error("Remix exceeds size limit");
-    const attribution = track ? `${musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", "volume adjusted to 35% with 0.35s fade-out", "transcoded to AAC"] })}\n${YOUTUBE_CREDIT_NOTICE}` : "Sans musique. Aucune attribution musicale nécessaire pour ce rendu.";
+    const attribution = track ? `${musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", SLIDESHOW_AUDIO_CHANGE] })}\n${YOUTUBE_CREDIT_NOTICE}` : "Sans musique. Aucune attribution musicale nécessaire pour ce rendu.";
     const metadata = { ...row.metadata, musicId, attribution };
     const outputBuffer = await readFile(output);
     const newStoragePath = await storeStudioVideo({ body: outputBuffer.buffer.slice(outputBuffer.byteOffset, outputBuffer.byteOffset + outputBuffer.byteLength) as ArrayBuffer, contentType: "video/mp4" }, userId, `${generationId}-${randomUUID()}`);
@@ -150,7 +151,7 @@ export async function makeMusicPreview(musicId: string): Promise<Buffer> {
     const { ffmpegPath: ffmpeg } = binPaths();
     await new Promise<void>((resolve, reject) => {
       const { spawn } = require("node:child_process") as typeof import("node:child_process");
-      const child = spawn(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-loop", "1", "-i", logo, "-stream_loop", "-1", "-i", music, "-t", "10", "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-b:a", "128k", "-af", "aresample=48000,volume=0.35,afade=t=out:st=9.65:d=0.35", "-metadata", `comment=${musicAttribution(track, { changes: ["synchronized to Vendeo preview", "trimmed to 10s", "volume adjusted to 35%", "transcoded to AAC", "fade-out"] })}`, "-shortest", "-movflags", "+faststart", output], { stdio: ["ignore", "ignore", "pipe"] });
+      const child = spawn(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-loop", "1", "-i", logo, "-stream_loop", "-1", "-i", music, "-t", "10", "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p", "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-b:a", "128k", "-af", slideshowAudioFilter(10), "-metadata", `comment=${musicAttribution(track, { changes: ["synchronized to Vendeo preview", "trimmed to 10s", SLIDESHOW_AUDIO_CHANGE] })}`, "-shortest", "-movflags", "+faststart", output], { stdio: ["ignore", "ignore", "pipe"] });
       let stderr = ""; child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); }); child.on("error", reject); child.on("close", (code: number) => code === 0 ? resolve() : reject(new Error(`ffmpeg preview failed: ${stderr.slice(-2000)}`)));
     });
     return await readFile(output);

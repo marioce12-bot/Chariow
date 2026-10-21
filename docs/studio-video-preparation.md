@@ -1,5 +1,18 @@
 # Préparation vidéo — branche Preview uniquement
 
+## État actuel de la préversion — cinq visuels et musique audible
+
+Cette section remplace les anciennes limites de nombre de visuels et de mixage décrites plus bas, qui sont conservées comme historique.
+
+Chaque nouveau diaporama comporte **exactement cinq images**, jamais deux à quatre : une accroche avec une invitation à poursuivre, trois visuels promotionnels issus des informations réelles du produit et un CTA adapté à l’objectif. Le nombre ne dépend pas de la durée. S’il manque trois faits distincts, le storyboard reprend uniquement les faits disponibles ou l’identité du produit avec des compositions différentes et affiche un avertissement ; il n’invente ni fonctionnalités ni bénéfices. Love-pic reste une référence de hiérarchie visuelle, pas un modèle à copier.
+
+L’interface privilégie 10 secondes pour la lisibilité ; 5 secondes reste disponible avec avertissement de rythme rapide. Le serveur recompile les prompts et refuse tout compte différent de cinq avant les opérations payantes. Le montage et le remplacement audio ne génèrent aucune image. Le remix reste compatible avec les anciens rendus de deux à cinq images et conserve le flux vidéo sans le réencoder.
+
+La musique n’est plus atténuée à 35 %. Un traitement commun au rendu, au remix et à l’aperçu vise **-16 LUFS**, avec un plafond true-peak de **-2 dBTP**, un limiteur de sécurité et un fondu de sortie de 0,35 s. Les crédits musicaux, sources et licences restent disponibles et la transformation est mentionnée dans l’attribution. Une vidéo déjà exportée n’est pas modifiée automatiquement : son audio doit être remplacé pour bénéficier du nouveau mixage.
+
+La validation de cette correction n’appelle aucun modèle image ou vidéo et ne consomme aucun crédit Studio : storyboard et parcours UI simulés, refus HTTP de 0 à 4 et plus de 5 images, montage FFmpeg local à cinq images avec les binaires embarqués, mesure de niveau sur source synthétique faible, contrôle des crêtes après AAC et identité du flux vidéo après remix. Un nouveau test réel de génération de cinq images nécessite une autorisation distincte. Le mode personnages et la génération vidéo par modèle restent verrouillés ; aucun changement de Production ni lancement publicitaire.
+
+
 La génération vidéo reste verrouillée : onglet désactivé, garde interface et `POST /api/studio/video` renvoyant 423 après authentification. Aucun fournisseur image/vidéo n'a été appelé pour développer ou tester ces changements. Aucun changement sur main ou en Production n'est autorisé dans cette livraison. Le choix « Scènes avec personnages » est lui-même désactivé.
 
 ## Deux formats

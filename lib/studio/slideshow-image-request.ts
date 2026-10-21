@@ -5,7 +5,7 @@ export function validateSlideshowImageRequest(value: unknown, environment: strin
   if (environment !== "preview") throw new Error("Le diaporama est disponible en Preview uniquement.");
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Storyboard requis.");
   const request = value as Record<string, unknown>;
-  if (!Number.isInteger(request.imageCount) || (request.imageCount as number) < MIN_SLIDESHOW_IMAGES || (request.imageCount as number) > MAX_SLIDESHOW_IMAGES) throw new Error("Le diaporama doit contenir 2 à 5 images maximum.");
+  if (!Number.isInteger(request.imageCount) || (request.imageCount as number) < MIN_SLIDESHOW_IMAGES || (request.imageCount as number) > MAX_SLIDESHOW_IMAGES) throw new Error("Le diaporama doit contenir exactement 5 images.");
   const product = request.product as Record<string, unknown> | null;
   if (!product || typeof product.name !== "string" || !product.name.trim()) throw new Error("Produit requis.");
   const referenceUrl = typeof product.image === "string" && /^https:\/\//i.test(product.image) ? product.image.slice(0, 2000) : "";

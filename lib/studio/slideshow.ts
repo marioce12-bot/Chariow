@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { slideshowAudioFilter } from "./slideshow-audio";
 
 export type SlideshowOptions = {
   ffmpegPath: string;
@@ -72,7 +73,7 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
       previous = next;
     }
     args.push("-filter_complex", filters.join(";"), "-map", `[${previous}]`);
-    if (options.musicPath) args.push("-map", `${imagePaths.length}:a:0`, "-af", `aresample=48000,volume=0.35,afade=t=out:st=${Math.max(0, total - 0.35)}:d=0.35`, "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2");
+    if (options.musicPath) args.push("-map", `${imagePaths.length}:a:0`, "-af", slideshowAudioFilter(total), "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2");
     if (options.attribution) args.push("-metadata", `comment=${options.attribution}`, "-metadata", `description=${options.attribution}`);
     args.push("-t", String(total), "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-r", String(fps), "-pix_fmt", "yuv420p", "-movflags", "+faststart", outputPath);
     await run(ffmpegPath, args);

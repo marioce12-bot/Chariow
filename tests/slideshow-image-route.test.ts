@@ -70,6 +70,8 @@ describe("POST /api/studio/image slideshow validation", () => {
   it.each([
     ["imageCount 6", { imageCount: 6 }],
     ["imageCount 1", { imageCount: 1 }],
+    ["imageCount 2", { imageCount: 2 }],
+    ["imageCount 3", { imageCount: 3 }],
     ["negative slide index", { slideIndex: -1 }],
     ["out-of-range slide index", { slideIndex: 5 }],
     ["mismatched slide count", { imageCount: 4 }],

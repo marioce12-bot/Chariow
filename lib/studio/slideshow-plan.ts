@@ -1,8 +1,9 @@
 import { sourceCopyCandidates } from "@/lib/studio/faithful-prompt";
 import { VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
 
-export const MIN_SLIDESHOW_IMAGES = 2;
+export const MIN_SLIDESHOW_IMAGES = 5;
 export const MAX_SLIDESHOW_IMAGES = 5;
+export const PRODUCT_SLIDES = 3;
 export const CAMPAIGN_GOALS = ["discover", "buy", "learn", "contact"] as const;
 export type CampaignGoal = typeof CAMPAIGN_GOALS[number];
 export function campaignGoal(value: unknown): CampaignGoal {
@@ -32,7 +33,7 @@ const LAYOUTS = [
   "Conversion end-card: centered real product identity, bold high-contrast action panel and one unmistakable CTA button treatment; resolved visual flow, no continuation arrow. Finished campaign closing advertisement, not a quiet product photo.",
 ];
 
-/** Only explicit, non-redundant source facts earn an extra slide. Never pad to the duration. */
+/** Select up to three explicit facts. Missing facts never authorize invented claims. */
 export function slideshowEvidence(description: string, name: string): string[] {
   const normalize = (text: string) => text.toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
   const title = normalize(name);
@@ -48,7 +49,7 @@ export function slideshowEvidence(description: string, name: string): string[] {
       return normalize(other) === normalize(line) || overlap / Math.min(words.size, old.size) >= 0.75;
     })) continue;
     accepted.push(line);
-    if (accepted.length === MAX_SLIDESHOW_IMAGES - MIN_SLIDESHOW_IMAGES) break;
+    if (accepted.length === PRODUCT_SLIDES) break;
   }
   return accepted;
 }
@@ -62,16 +63,17 @@ export function buildSlideshowPlan(input: VideoAdInput & { campaignGoal?: unknow
   const en = input.locale === "en";
   const goal = campaignGoal(input.campaignGoal);
   const facts = slideshowEvidence(input.description, name);
-  const count = MIN_SLIDESHOW_IMAGES + facts.length;
+  const count = MAX_SLIDESHOW_IMAGES;
   const transitionSeconds = 0.5;
   const displaySeconds = (input.duration + (count - 1) * transitionSeconds) / count;
   const hook = en ? "Take a closer look." : "Regarde de plus près.";
   const continuation = en ? "See what follows →" : "Découvre la suite →";
   const cta = (en ? { discover: "Discover this product", buy: "Buy this product", learn: "Learn more", contact: "Contact us" } : { discover: "Découvre ce produit", buy: "Achète ce produit", learn: "En savoir plus", contact: "Contacte-nous" })[goal];
   const countReason = en
-    ? `${count} images: opening hook + ${facts.length} distinct confirmed product detail(s) + final CTA. No filler and no count based on duration.`
-    : `${count} images : accroche + ${facts.length} information(s) produit distincte(s) confirmée(s) + CTA final. Aucun remplissage et aucun nombre imposé par la durée.`;
+    ? "Exactly 5 images: opening hook + 3 product-grounded promotional slides + final CTA, regardless of duration."
+    : "Exactement 5 images : une accroche + 3 visuels promotionnels ancrés dans le produit + un CTA final, quelle que soit la durée.";
   const warnings: string[] = [];
+  if (facts.length < PRODUCT_SLIDES) warnings.push(en ? "Fewer than three distinct confirmed details: reuse supplied facts or product identity with different compositions; never invent benefits to fill five slides." : "Moins de trois informations distinctes confirmées : les faits fournis ou l’identité du produit sont repris dans des compositions différentes, sans inventer de bénéfices pour compléter les cinq visuels.");
   if (!facts.length) warnings.push(en ? "Insufficient detail: title/reference only. No inferred category, use, benefit or proof." : "Informations insuffisantes : titre/référence uniquement. Aucune catégorie, utilisation, promesse ni preuve déduite.");
   if (!input.hasReference) warnings.push(en ? "No product image: abstract editorial campaign; no invented packaging or interface." : "Sans image produit : campagne éditoriale abstraite, aucun emballage ni interface inventé.");
   if (displaySeconds - transitionSeconds < 2) warnings.push(en ? "Fast reading pace: prefer 10 seconds for this storyboard." : "Lecture rapide : préfère 10 secondes pour ce storyboard.");
@@ -79,7 +81,12 @@ export function buildSlideshowPlan(input: VideoAdInput & { campaignGoal?: unknow
   // Freeze narrative first; prompts are derived only from these constrained fields.
   const narrative: Omit<SlideshowSlide, "prompt" | "displaySeconds">[] = [
     { index: 0, role: "hook", headline: hook, supportingCopy: [name, continuation], layout: LAYOUTS[0] },
-    ...facts.map((excerpt, index) => ({ index: index + 1, role: "evidence" as const, headline: excerpt, supportingCopy: [name], source: { field: "description" as const, excerpt }, layout: LAYOUTS[index + 1] })),
+    ...Array.from({ length: PRODUCT_SLIDES }, (_, index) => {
+      const excerpt = facts.length ? facts[index % facts.length] : undefined;
+      return { index: index + 1, role: "evidence" as const, headline: excerpt ?? name,
+        supportingCopy: excerpt ? [name] : [en ? ["Discover the product", "Take a closer look", "Keep exploring"][index] : ["Découvre le produit", "Regarde de plus près", "Poursuis la découverte"][index]],
+        ...(excerpt ? { source: { field: "description" as const, excerpt } } : {}), layout: LAYOUTS[index + 1] };
+    }),
     { index: count - 1, role: "cta", headline: cta, supportingCopy: [name], layout: LAYOUTS[4] },
   ];
   const slides = narrative.map(slide => ({ ...slide, displaySeconds, prompt:
@@ -95,8 +102,8 @@ export function buildSlideshowPlan(input: VideoAdInput & { campaignGoal?: unknow
 }
 
 export function assertSlideshowPlan(plan: SlideshowPlan) {
-  if (!Array.isArray(plan.slides) || plan.slides.length < MIN_SLIDESHOW_IMAGES || plan.slides.length > MAX_SLIDESHOW_IMAGES) throw new Error("Le diaporama doit contenir 2 à 5 images maximum.");
-  if (plan.slides[0].role !== "hook" || plan.slides.at(-1)?.role !== "cta") throw new Error("Accroche première et CTA final requis.");
+  if (!Array.isArray(plan.slides) || plan.slides.length !== MAX_SLIDESHOW_IMAGES) throw new Error("Le diaporama doit contenir exactement 5 images.");
+  if (plan.slides[0].role !== "hook" || plan.slides.at(-1)?.role !== "cta" || plan.slides.slice(1, 4).some(slide => slide.role !== "evidence")) throw new Error("Une accroche, trois visuels produit et un CTA final sont requis.");
   if (plan.slides.some((slide, index) => slide.index !== index || !slide.prompt || slide.prompt.length > 4000 || !Number.isFinite(slide.displaySeconds) || slide.displaySeconds <= 0)) throw new Error("Storyboard invalide.");
 }
 export async function prepareSlideshowImages(plan: SlideshowPlan, jobId: string, generate: (input: { prompt: string; index: number; idempotencyKey: string }) => Promise<{ path: string }>) {

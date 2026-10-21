@@ -10,13 +10,14 @@ const { requireUser, rateLimit, isPreviewEnabled, renderSlideshow, remixSlidesho
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit }));
 vi.mock("@/lib/studio/slideshow-server", () => ({ isPreviewEnabled, renderSlideshow, remixSlideshow }));
-vi.mock("@/lib/studio/slideshow-plan", () => ({ MIN_SLIDESHOW_IMAGES: 2, MAX_SLIDESHOW_IMAGES: 5 }));
+vi.mock("@/lib/studio/slideshow-plan", () => ({ MIN_SLIDESHOW_IMAGES: 5, MAX_SLIDESHOW_IMAGES: 5 }));
 
 import { POST as render } from "@/app/api/studio/slideshow/render/route";
 import { POST as remix } from "@/app/api/studio/slideshow/remix/route";
 
 const uid1 = "11111111-1111-4111-8111-111111111111";
 const uid2 = "22222222-2222-4222-8222-222222222222";
+const fiveIds = [uid1, uid2, "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444", "55555555-5555-4555-8555-555555555555"];
 const request = (body: unknown) => new Request("https://preview.example/api/studio/slideshow", {
   method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
 });
@@ -33,7 +34,7 @@ beforeEach(() => {
 describe("slideshow HTTP guards (all implementation dependencies mocked)", () => {
   it("requires an authenticated user before either operation", async () => {
     requireUser.mockResolvedValue({ user: null, response: new Response("unauthorized", { status: 401 }) });
-    expect((await render(request({ generationIds: [uid1, uid2], duration: 5, musicId: "" }))).status).toBe(401);
+    expect((await render(request({ generationIds: fiveIds, duration: 5, musicId: "" }))).status).toBe(401);
     expect((await remix(request({ generationId: uid1, musicId: "" }))).status).toBe(401);
     expect(isPreviewEnabled).not.toHaveBeenCalled();
     expect(renderSlideshow).not.toHaveBeenCalled();
@@ -43,7 +44,7 @@ describe("slideshow HTTP guards (all implementation dependencies mocked)", () =>
   it("locks render and remix outside Vercel Preview (including Production)", async () => {
     isPreviewEnabled.mockReturnValue(false);
     for (const response of [
-      await render(request({ generationIds: [uid1, uid2], duration: 5, musicId: "" })),
+      await render(request({ generationIds: fiveIds, duration: 5, musicId: "" })),
       await remix(request({ generationId: uid1, musicId: "" })),
     ]) expect(response.status).toBe(404);
     expect(renderSlideshow).not.toHaveBeenCalled();
@@ -51,9 +52,9 @@ describe("slideshow HTTP guards (all implementation dependencies mocked)", () =>
   });
 
   it("accepts no-music rendering and passes only the authenticated owner id", async () => {
-    const response = await render(request({ generationIds: [uid1, uid2], duration: 5, musicId: "" }));
+    const response = await render(request({ generationIds: fiveIds, duration: 5, musicId: "" }));
     expect(response.status).toBe(200);
-    expect(renderSlideshow).toHaveBeenCalledWith("user-A", [uid1, uid2], 5, "");
+    expect(renderSlideshow).toHaveBeenCalledWith("user-A", fiveIds, 5, "");
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
@@ -76,8 +77,8 @@ describe("slideshow HTTP guards (all implementation dependencies mocked)", () =>
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("rejects invalid payloads before invoking implementation", async () => {
-    expect((await render(request({ generationIds: [uid1], duration: 5, musicId: "" }))).status).toBe(400);
+  it.each([0,1,2,3,4,6])("rejects %i images before invoking implementation", async (count) => {
+    expect((await render(request({ generationIds: Array.from({length:count}, (_,i) => `${i+1}`.repeat(8)+"-1111-4111-8111-111111111111"), duration: 5, musicId: "" }))).status).toBe(400);
     expect((await remix(request({ generationId: "../other-user", musicId: "" }))).status).toBe(400);
     expect(renderSlideshow).not.toHaveBeenCalled();
     expect(remixSlideshow).not.toHaveBeenCalled();

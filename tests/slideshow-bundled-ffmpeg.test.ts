@@ -8,11 +8,11 @@ import ffmpeg from "ffmpeg-static";
 import { assembleSlideshow } from "@/lib/studio/slideshow";
 const ffprobe = require("ffprobe-static").path as string;
 const exec = promisify(execFile);
-it("renders a synthetic vertical MP4 with the packaged Vercel binaries and embedded attribution", async () => {
+it("renders an exactly five-image synthetic vertical MP4 with the packaged Vercel binaries and embedded attribution", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "vendeo-bundled-test-"));
   try {
     const images = [];
-    for (const color of ["red", "blue"]) {
+    for (const color of ["red", "green", "blue", "yellow", "purple"]) {
       const file = path.join(directory, `${color}.png`); images.push(file);
       await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", `color=c=${color}:s=90x160:d=0.1`, "-frames:v", "1", file]);
     }
