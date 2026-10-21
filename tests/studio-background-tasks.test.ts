@@ -21,7 +21,7 @@ const id = "123e4567-e89b-42d3-a456-426614174000";
 const user = { id: "user-1" };
 const rowFor = (metadata: any, status = "processing") => ({ id, user_id: user.id, status, metadata, created_at: "2026-01-01" });
 function metadata(kind: "image" | "slideshow" = "image", extra: any = {}) {
-  return { type: TASK_TYPE, taskKind: kind, input: kind === "image" ? { prompt: "un paysage" } : { product: { name: "Produit", description: "" }, duration: 25, musicId: "", locale: "fr", campaignGoal: "discover" }, revision: 0, phase: "queued", progress: 1, message: "queued", updatedAt: new Date().toISOString(), images: [], ...extra };
+  return { type: TASK_TYPE, taskKind: kind, input: kind === "image" ? { prompt: "un paysage" } : { product: { name: "Produit", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion." }, duration: 25, musicId: "", locale: "fr", campaignGoal: "discover" }, revision: 0, phase: "queued", progress: 1, message: "queued", updatedAt: new Date().toISOString(), images: [], ...extra };
 }
 function configureDb(row: any, claimWon = true) {
   const updates: any[] = [];
@@ -107,6 +107,15 @@ describe("runTaskStep", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(mocks.generate).toHaveBeenCalledTimes(1);
     expect(updates.at(-1)).not.toMatchObject({ status: "failed", metadata: { phase: "failed" } });
+  });
+  it("bloque un récit répétitif avant préflight, images et dispatch", async () => {
+    const meta = metadata("slideshow");
+    meta.input.product.description = "Le pack réunit trois guides pratiques. Le pack rassemble 3 ouvrages pratiques.";
+    const updates = configureDb(rowFor(meta));
+    await runTaskStep(id, 0);
+    expect(updates.at(-1)).toMatchObject({ status: "failed", metadata: { phase: "failed" } });
+    expect(mocks.preflight).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.render).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
   });
   it("fait le préflight puis les cinq images puis le rendu aux phases correspondantes", async () => {
     const slideshowInput = metadata("slideshow").input;

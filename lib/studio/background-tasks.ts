@@ -196,6 +196,14 @@ export async function runTaskStep(id: string, revision: number) {
       if (!response.ok)
         throw new Error(result.error || "Génération impossible.");
     } else if (revision === 0) {
+      // Reject insufficient/repeated copy and scenes before any external preflight or image.
+      const { product, duration, campaignGoal, locale } = meta.input;
+      buildSlideshowPlan({
+        name: product.name,
+        description: typeof product.description === "string" ? product.description : "",
+        hasReference: Boolean(product.image), duration, aspectRatio: "9:16",
+        character: "with", locale, campaignGoal,
+      });
       await preflightSlideshow(meta.input.musicId);
     } else if (images.length < 5) {
       const { product, duration, campaignGoal, locale } = meta.input;

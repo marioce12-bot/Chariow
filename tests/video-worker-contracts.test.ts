@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildSlideshowPlan, runPreparedSlideshow } from "@/lib/studio/slideshow-plan";
 import { runVideoPipeline } from "@/lib/studio/video-pipeline";
-const input = { name: "Ebook", description: "Guide numérique complet.", hasReference: true, duration: 25, aspectRatio: "9:16", character: "auto" as const };
+const input = { name: "Ebook", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion.", hasReference: true, duration: 25, aspectRatio: "9:16", character: "auto" as const };
 describe("Prepared worker contracts", () => {
   it("passes the selected licensed music into slideshow assembly and preserves attribution", async () => {
     const plan = buildSlideshowPlan(input, "123");

@@ -5,7 +5,7 @@ vi.mock("@/lib/ai/text", () => ({ askText }));
 import { POST as prompt } from "@/app/api/studio/prompt/route";
 import { POST as generate } from "@/app/api/studio/video/route";
 const request = (body: unknown) => new Request("https://preview.example/api/studio/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-const product = { name: "Ebook guide", description: "Un guide numérique disponible en PDF.", image: "https://example.test/cover.png" };
+const product = { name: "Ebook guide", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion.", image: "https://example.test/cover.png" };
 beforeEach(() => { vi.clearAllMocks(); requireUser.mockResolvedValue({ user: { id: "test" } }); askText.mockResolvedValue('{"direction":"conversation","copyIndices":[0]}'); });
 describe("Locked studio video preparation routes", () => {
   it("blocks actual video creation before credit or provider access", async () => {
@@ -24,6 +24,12 @@ describe("Locked studio video preparation routes", () => {
     const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 25, product }));
     const data = await response.json();
     expect(response.status).toBe(200); expect(data.slideshow.slides).toHaveLength(5); expect(data.locked).toBe(true);
+    expect(askText).not.toHaveBeenCalled();
+  });
+  it("rejects insufficient and repeated facts with HTTP 400 before any model call", async () => {
+    const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 25, product: { ...product, description: "Le pack réunit trois guides pratiques. Le pack rassemble 3 ouvrages pratiques." } }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("insuffisantes");
     expect(askText).not.toHaveBeenCalled();
   });
   it.each([5,10,15,20,60])("rejects %ss slideshow before any model call", async duration => {

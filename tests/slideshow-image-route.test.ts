@@ -81,6 +81,13 @@ describe("POST /api/studio/image slideshow validation", () => {
     expectNoPaidOrExternalWork();
   });
 
+  it("rejects repeated product claims before subscription, reference fetch, credits or provider", async () => {
+    const response = await POST(request(validStoryboard({ product: { ...product, description: "Le pack réunit trois guides pratiques. Le pack rassemble 3 ouvrages pratiques." } })));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain("insuffisantes");
+    expectNoPaidOrExternalWork();
+  });
+
   it("rejects slideshow requests outside released environments before subscription or paid/external work", async () => {
     vi.stubEnv("VERCEL_ENV", "development");
     const response = await POST(request(validStoryboard()));
