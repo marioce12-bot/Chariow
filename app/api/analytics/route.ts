@@ -8,6 +8,7 @@ import { mergeSaleDetails } from "@/lib/chariow/sale-details";
 import { addDays, buildOverviewFromPages, buildProductPerformance, daysBetween, type SaleRow } from "@/lib/overview-aggregates";
 import { fetchAllPages } from "@/lib/paginated-query";
 import { DEFAULT_TARGET_MARGIN } from "@/lib/unit-economics";
+import { notifyChariowSales } from "@/lib/chariow/sale-notifications";
 
 type AnalyticsSaleRow = SaleRow & { amount: number | string | null; product_id: string | null };
 
@@ -52,6 +53,13 @@ export async function GET(request: Request) {
         // Client admin : la table n'autorise que la lecture à l'utilisateur. La boutique a déjà été vérifiée comme sienne ci-dessus.
         const { error: upsertError } = await createAdminClient().from("chariow_sales").upsert(freshRows, { onConflict: "chariow_sale_id" });
         if (upsertError) { persistenceError = true; console.error("Chariow sales upsert error", upsertError.message); }
+        else {
+          try {
+            await notifyChariowSales({ ...store, user_id: user.id }, snapshot.sales);
+          } catch (notificationError) {
+            console.error("analytics: sale notification failed", store.id, notificationError instanceof Error ? notificationError.message : "unknown");
+          }
+        }
       }
     } catch (syncError) {
       persistenceError = true;

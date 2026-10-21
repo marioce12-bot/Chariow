@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getChariowSnapshot } from "@/lib/chariow/analytics";
 import { chariowSaleRows } from "@/lib/chariow/sales-rows";
 import { autoMapChariowCampaigns } from "@/lib/attribution/auto-map";
+import { notifyChariowSales } from "@/lib/chariow/sale-notifications";
 
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -12,7 +13,7 @@ function authorized(request: Request) {
 export async function POST(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   const supabase = createAdminClient();
-  const { data: stores, error } = await supabase.from("stores").select("id,user_id,mcp_url,access_token_encrypted,store_name").eq("platform", "chariow").eq("is_active", true);
+  const { data: stores, error } = await supabase.from("stores").select("id,user_id,mcp_url,access_token_encrypted,store_name,connected_at").eq("platform", "chariow").eq("is_active", true);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const results = [];
   for (const store of stores ?? []) {
@@ -22,6 +23,11 @@ export async function POST(request: Request) {
       if (rows.length) {
         const { error: upsertError } = await supabase.from("chariow_sales").upsert(rows, { onConflict: "chariow_sale_id" });
         if (upsertError) throw upsertError;
+      }
+      try {
+        await notifyChariowSales(store, snapshot.sales);
+      } catch (notificationError) {
+        console.error("chariow sync: sale notification failed", store.id, notificationError instanceof Error ? notificationError.message : "unknown");
       }
       // Rattachement automatique (conservateur) des campagnes Chariow aux campagnes
       // pub ; une erreur ici ne doit jamais faire échouer la synchro des ventes.
