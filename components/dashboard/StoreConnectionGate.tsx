@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Globe, ShieldCheck, Store } from "lucide-react";
+import { ArrowLeft, ArrowRight, Globe, Lock, ShieldCheck, Store } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { StoreData } from "./shared";
-import { CustomStoreSetupGuide } from "./CustomStoreSetupGuide";
 import "@/app/store-connection-gate.css";
 
 export function hasConnectedChariowStore(stores: StoreData[]) {
@@ -20,7 +19,7 @@ export function StoreConnectionGate({ stores, failed, onSignOut }: { stores: Sto
   const { locale } = useI18n();
   const en = locale === "en";
   const dialog = useRef<HTMLDivElement>(null);
-  const [screen, setScreen] = useState<"intro" | "choose" | "custom">("intro");
+  const [screen, setScreen] = useState<"intro" | "choose">("intro");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -71,27 +70,25 @@ export function StoreConnectionGate({ stores, failed, onSignOut }: { stores: Sto
     }}>
       <span className="store-connection-icon"><Store size={28} aria-hidden="true" /></span>
       <span className="store-connection-kicker">{en ? "Your Vendeo workspace is ready" : "Ton espace Vendeo est prêt"}</span>
-      {screen === "custom" ? <CustomStoreSetupGuide en={en} onChangeType={() => changeScreen("choose")} /> : <>
-        <h2 id="store-connect-title">{screen === "intro" ? (en ? "Connect your store" : "Connecte ta boutique") : (en ? "Which type of store?" : "Quel type de boutique ?")}</h2>
-        <p id="store-connect-description">{screen === "intro"
-          ? (en ? "Link your store to Vendeo to access your products and track sales once the connection has been verified." : "Relie ta boutique à Vendeo pour retrouver tes produits et suivre tes ventes une fois la connexion vérifiée.")
-          : (en ? "Choose your store type. We will guide you through the right connection steps." : "Choisis ton type de boutique. Nous te guiderons dans les étapes adaptées.")}</p>
-        {(error || failed) && <p className="store-connection-error" role="alert">{error || (en ? "The connection was not completed. You can safely try again." : "La connexion n’a pas abouti. Tu peux réessayer en toute sécurité.")}</p>}
-        {screen === "intro" ? <button className="btn btn-dark store-connection-cta" type="button" onClick={() => changeScreen("choose")}>
-          {en ? "Connect my store" : "Connecter ma boutique"}<ArrowRight size={18} aria-hidden="true" />
-        </button> : <>
-          <div className="store-type-options">
-            <button className="store-type-option" type="button" aria-label="Chariow" disabled={busy} onClick={connect}>
-              <Store size={23} aria-hidden="true" /><span><strong>Chariow</strong><span>{busy ? (en ? "Connecting…" : "Connexion…") : (en ? "Connect securely using the existing Chariow flow." : "Connexion sécurisée avec le parcours Chariow existant.")}</span></span><ArrowRight size={18} aria-hidden="true" />
-            </button>
-            <button className="store-type-option" type="button" aria-label={en ? "Custom store" : "Boutique personnalisée"} disabled={busy} onClick={() => changeScreen("custom")}>
-              <Globe size={23} aria-hidden="true" /><span><strong>{en ? "Custom store" : "Boutique personnalisée"}</strong><span>{en ? "Prepare your setup step by step: catalog, webhooks and checks." : "Prépare ton installation pas à pas : catalogue, webhooks et vérification."}</span></span><ArrowRight size={18} aria-hidden="true" />
-            </button>
-          </div>
-          <button className="store-connection-back" type="button" disabled={busy} onClick={() => changeScreen("intro")}><ArrowLeft size={15} aria-hidden="true" />{en ? "Back" : "Retour"}</button>
-        </>}
-        <span className="store-connection-reassurance"><ShieldCheck size={15} aria-hidden="true" />{en ? "Secure connection, with your permission" : "Connexion sécurisée, avec ton autorisation"}</span>
+      <h2 id="store-connect-title">{screen === "intro" ? (en ? "Connect your store" : "Connecte ta boutique") : (en ? "Which type of store?" : "Quel type de boutique ?")}</h2>
+      <p id="store-connect-description">{screen === "intro"
+        ? (en ? "Link your store to Vendeo to access your products and track sales once the connection has been verified." : "Relie ta boutique à Vendeo pour retrouver tes produits et suivre tes ventes une fois la connexion vérifiée.")
+        : (en ? "Choose your store type. We will guide you through the right connection steps." : "Choisis ton type de boutique. Nous te guiderons dans les étapes adaptées.")}</p>
+      {(error || failed) && <p className="store-connection-error" role="alert">{error || (en ? "The connection was not completed. You can safely try again." : "La connexion n’a pas abouti. Tu peux réessayer en toute sécurité.")}</p>}
+      {screen === "intro" ? <button className="btn btn-dark store-connection-cta" type="button" onClick={() => changeScreen("choose")}>
+        {en ? "Connect my store" : "Connecter ma boutique"}<ArrowRight size={18} aria-hidden="true" />
+      </button> : <>
+        <div className="store-type-options">
+          <button className="store-type-option" type="button" aria-label="Chariow" disabled={busy} onClick={connect}>
+            <Store size={23} aria-hidden="true" /><span><strong>Chariow</strong><span>{busy ? (en ? "Connecting…" : "Connexion…") : (en ? "Connect securely using the existing Chariow flow." : "Connexion sécurisée avec le parcours Chariow existant.")}</span></span><ArrowRight size={18} aria-hidden="true" />
+          </button>
+          <button className="store-type-option store-type-option-disabled" type="button" aria-label={en ? "Custom store" : "Boutique personnalisée"} aria-describedby="custom-store-unavailable" disabled>
+            <Globe size={23} aria-hidden="true" /><span><strong>{en ? "Custom store" : "Boutique personnalisée"}</strong><span id="custom-store-unavailable">{en ? "Not available yet. Initial tests will be preview-only, before production approval." : "Indisponible pour le moment. Premiers tests en prévisualisation, avant validation pour la Production."}</span></span><Lock size={18} aria-hidden="true" />
+          </button>
+        </div>
+        <button className="store-connection-back" type="button" disabled={busy} onClick={() => changeScreen("intro")}><ArrowLeft size={15} aria-hidden="true" />{en ? "Back" : "Retour"}</button>
       </>}
+      <span className="store-connection-reassurance"><ShieldCheck size={15} aria-hidden="true" />{en ? "Secure connection, with your permission" : "Connexion sécurisée, avec ton autorisation"}</span>
       <button className="store-connection-signout" type="button" onClick={onSignOut}>{en ? "Sign out" : "Se déconnecter"}</button>
     </div>
   </div>;

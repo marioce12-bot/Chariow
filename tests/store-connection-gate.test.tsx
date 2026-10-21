@@ -41,24 +41,37 @@ describe("store connection gate", () => {
     expect(getChariowConnectTarget([store("failed")])).toBe("/api/integrations/chariow/connect?store_id=shop%2F1");
     expect(getChariowConnectTarget([store("connected")])).toBe("/api/integrations/chariow/connect");
   });
-  it("shows neutral French intro without Chariow, then opens selector and returns", async () => {
+  it("shows neutral French intro, then selector with a natively disabled custom store", async () => {
     setup(); await render();
     const initial = document.querySelector('[role="dialog"]')!.textContent!;
     expect(initial).toContain("Connecte ta boutique"); expect(initial).toContain("Connecter ma boutique");
     expect(initial).not.toContain("Chariow");
     await click("Connecter ma boutique");
-    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Quel type de boutique ?");
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain("Quel type de boutique ?");
+    const custom = document.querySelector('[aria-label="Boutique personnalisée"]') as HTMLButtonElement;
+    expect(custom).toBeTruthy(); expect(custom.disabled).toBe(true);
+    expect(dialog.textContent).toMatch(/prévisualisation|bientôt|aperçu|future|preview/i);
+    const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
+    const before = dialog.textContent;
+    await act(async () => custom.click());
+    custom.focus();
+    await act(async () => custom.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+    await act(async () => custom.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true })));
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')!.textContent).toBe(before);
     expect(document.querySelector('[aria-label="Chariow"]')).toBeTruthy();
-    expect(document.querySelector('[aria-label="Boutique personnalisée"]')).toBeTruthy();
-    await click("Retour"); expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Connecte ta boutique");
+    expect(document.querySelector("[role='radio'], input[type='radio']")).toBeNull();
   });
-  it("renders English labels for intro and selector", async () => {
+  it("renders English labels with a disabled custom store preview", async () => {
     language.locale = "en"; setup(); await render();
     expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Connect your store");
     expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("Chariow");
     await click("Connect my store");
     expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Which type of store?");
-    expect(document.querySelector('[aria-label="Custom store"]')).toBeTruthy();
+    const custom = document.querySelector('[aria-label="Custom store"]') as HTMLButtonElement;
+    expect(custom).toBeTruthy(); expect(custom.disabled).toBe(true);
+    expect(document.querySelector('[role="dialog"]')!.textContent).toMatch(/coming soon|preview/i);
     expect(document.querySelector("button[aria-label='Chariow']")).toBeTruthy();
   });
   it("runs the existing Chariow preflight and shows the same failure without navigating", async () => {
@@ -74,19 +87,18 @@ describe("store connection gate", () => {
     await render([store("failed")]); await click("Connecter ma boutique"); await click("Chariow");
     expect(fetcher).not.toHaveBeenCalled(); expect(document.querySelector('[role="alert"]')).toBeNull();
   });
-  it("focus-traps radio and step-heading focus back to sign-out inside the gate", async () => {
+  it("focus-traps selector focus back to sign-out without guide radios", async () => {
     setup(); await render();
     expect(document.activeElement?.getAttribute("role")).toBe("dialog");
     const dialog = document.querySelector('[role="dialog"]')!;
-    await click("Connecter ma boutique"); await click("Boutique personnalisée");
+    await click("Connecter ma boutique");
     const signOut = [...dialog.querySelectorAll("button")].find(button => button.textContent?.includes("Se déconnecter"))!;
-    const csv = dialog.querySelector('input[type="radio"][value="csv"]') as HTMLInputElement;
-    await act(async () => csv.click());
+    const custom = dialog.querySelector('[aria-label="Boutique personnalisée"]') as HTMLButtonElement;
+    expect(custom.disabled).toBe(true);
+    expect(dialog.querySelector('input[type="radio"]')).toBeNull();
     const event = () => new dom.window.KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true });
-    csv.focus(); act(() => dialog.dispatchEvent(event()));
+    custom.focus(); act(() => dialog.dispatchEvent(event()));
     expect(document.activeElement).toBe(signOut);
-    await click("Étape suivante");
-    expect(document.activeElement?.textContent).toBe("Préparer les événements de commande");
     act(() => dialog.dispatchEvent(event())); expect(document.activeElement).toBe(signOut);
     expect(document.querySelector('[role="dialog"]')?.getAttribute("aria-modal")).toBe("true");
   });
