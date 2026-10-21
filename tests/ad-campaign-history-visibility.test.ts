@@ -58,7 +58,7 @@ describe("campaign history is hidden without deleting campaign records", () => {
     const css = readFileSync("components/vendeo/ad-campaigns-list.css", "utf8");
     expect(component).not.toContain('t("adsExtra.history"');
     expect(component).not.toContain('className="ad-campaign-history"');
-    expect(css).toMatch(/\.ad-campaign-history\s*\{[^}]*display:\s*none\s*!important/s);
+    expect(css).toMatch(/\.ad-campaign-history\s*\{[^}]*display:\s*none\s*!important/);
   });
   it("uses the same new shell cache in the page and worker and purges only old Vendeo shell caches", async () => {
     const worker = readFileSync("public/sw.js", "utf8");

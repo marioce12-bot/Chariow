@@ -1,149 +1,24 @@
-import { inferProductType, type ProductType } from "./creative-workflows";
 import type { CharacterChoice } from "./poster-layouts";
 
-// Direction artistique d'une affiche, DÉDUITE du produit (nom, description, type) et non tirée au hasard :
-// - le thème (business, tech, beauté, sport, cuisine…) fixe le décor, le style et les tenues ;
-// - le public visé fixe le genre et l'âge de la personne (si le public est mixte, on alterne avec la
-//   génération précédente pour ne pas retomber sur la même personne) ;
-// - le type de produit (ebook, formation, logiciel…) fixe la façon de le mettre en scène ;
-// - la PALETTE n'est pas suggérée ici : l'IA la choisit elle-même d'après le nom et la description du produit.
-// PERSONNE PAR DÉFAUT : toute affiche comporte une personne, sauf choix explicite « sans personnage ».
-// L'IA décide du profil, de la tenue, de la posture et de ce que fait la personne avec le produit.
-// Le hasard n'intervient que pour choisir PARMI des options déjà adaptées au produit.
-
-type Audience = "femme" | "homme" | "mixte";
-type Theme = {
-  id: string;
-  keywords: RegExp;
-  audience: Audience;
-  palettes: string[];
-  style: string;
-  setting: string;
-  outfitMan: string[];
-  outfitWoman: string[];
-};
-
-const THEMES: Theme[] = [
-  { id: "beauté et mode", keywords: /(beauté|beaute|coiffure|tresse|maquillage|cheveux|perruque|peau|soin|parfum|couture|wax|mode|vêtement|robe|bijou)/i, audience: "femme",
-    palettes: ["rose poudré et or", "violet profond et rose clair", "corail et crème", "bordeaux et or"], style: "photo de studio élégante, lumière douce et flatteuse, esprit magazine de mode",
-    setting: "salon lumineux, miroir, tissus et accessoires", outfitMan: ["chemise wax élégante", "ensemble sobre bien coupé"], outfitWoman: ["robe wax moderne", "tenue élégante colorée", "ensemble en lin"] },
-  { id: "sport et bien-être", keywords: /(santé|sante|fitness|sport|musculation|yoga|nutrition|régime|minceur|bien-être|bien-etre|méditation|perte de poids|marathon|football)/i, audience: "mixte",
-    palettes: ["vert frais et blanc", "orange énergique et noir", "bleu électrique et blanc"], style: "photo dynamique en lumière naturelle, énergie et mouvement",
-    setting: "extérieur, salle de sport ou cuisine saine", outfitMan: ["tenue de sport propre", "t-shirt technique et short"], outfitWoman: ["tenue de sport colorée", "brassière et legging propres"] },
-  { id: "cuisine", keywords: /(recette|cuisine|pâtisserie|patisserie|gâteau|gateau|restaurant|traiteur|boulangerie|plat\b)/i, audience: "mixte",
-    palettes: ["rouge vif et jaune chaud", "vert basilic et crème", "orange épicé et bois clair"], style: "photo culinaire gourmande, lumière chaude naturelle",
-    setting: "cuisine lumineuse ou table dressée", outfitMan: ["tablier et chemise retroussée"], outfitWoman: ["tablier et foulard en wax"] },
-  { id: "finance et investissement", keywords: /(épargne|epargne|finance|crypto|bourse|trading|immobilier|comptab|budget|investi|actionnaire|dividende|patrimoine)/i, audience: "mixte",
-    palettes: ["vert foncé et or", "bleu marine et blanc", "noir élégant avec un accent doré"], style: "photo publicitaire sobre et premium, contraste net",
-    setting: "bureau élégant ou salon moderne avec graphiques en arrière-plan flou", outfitMan: ["costume sans cravate", "chemise blanche remontée aux manches"], outfitWoman: ["blazer sur chemisier clair", "tailleur moderne"] },
-  { id: "business et entrepreneuriat", keywords: /(saas|startup|entrepreneu|business|marketing|freelance|vente|vendre|client|prospect|linkedin|réseau|reseau|boutique|e-?commerce|revenu|argent|mlm)/i, audience: "mixte",
-    palettes: ["bleu roi profond et jaune soleil", "noir élégant avec un accent jaune doré", "vert émeraude et blanc", "orange brûlé et bleu nuit"], style: "photo publicitaire de studio sur fond uni coloré, ombres douces",
-    setting: "bureau moderne, coworking ou café avec ordinateur portable", outfitMan: ["chemise blanche remontée aux manches", "polo sobre et veste légère", "t-shirt uni et blazer"], outfitWoman: ["blazer coloré sur t-shirt blanc", "chemisier clair et pantalon taille haute"] },
-  { id: "tech et création numérique", keywords: /(code|codage|programm|développ|developp|web\b|site\b|application|appli\b|\bia\b|intelligence artificielle|no-?code|notion|excel|template|design|figma|canva|logiciel)/i, audience: "mixte",
-    palettes: ["violet électrique et bleu clair", "bleu ciel et blanc très lumineux", "noir profond et cyan vif"], style: "composition moderne et nette, éclairage doux, touches de lumière colorée",
-    setting: "poste de travail avec écran montrant une interface propre", outfitMan: ["sweat à capuche décontracté", "t-shirt uni et chemise ouverte"], outfitWoman: ["t-shirt uni décontracté", "sweat coloré"] },
-  { id: "éducation et développement personnel", keywords: /(formation|cours|apprendre|masterclass|coaching|atelier|certification|étudiant|etudiant|examen|concours|langue|anglais|confiance|motivation|productivité|productivite|carrière|carriere|emploi|cv\b)/i, audience: "mixte",
-    palettes: ["vert émeraude et crème", "bleu ciel et jaune doux", "violet électrique et rose clair", "orange brûlé et bleu nuit"], style: "photo lumineuse et inspirante, lumière du jour",
-    setting: "bibliothèque, salle de classe moderne ou salon studieux", outfitMan: ["chemise en pagne wax moderne", "polo sobre"], outfitWoman: ["robe wax moderne", "chemisier clair"] },
-  { id: "spiritualité et famille", keywords: /(spirituel|prière|priere|foi\b|bible|parent|enfant|bébé|bebe|grossesse|maman|famille|mariage|couple)/i, audience: "mixte",
-    palettes: ["bleu ciel et blanc très lumineux", "vert menthe et corail", "jaune doux et crème"], style: "photo chaleureuse et authentique, lumière douce du quotidien",
-    setting: "salon chaleureux ou jardin", outfitMan: ["chemise claire sobre"], outfitWoman: ["robe simple et colorée"] },
-];
-
-const DEFAULT_THEME: Theme = {
-  id: "général", keywords: /$^/, audience: "mixte",
-  palettes: ["bleu roi profond et jaune soleil", "vert émeraude et crème", "violet électrique et rose clair", "orange brûlé et bleu nuit"],
-  style: "photo publicitaire propre, lumière flatteuse", setting: "décor simple en rapport avec le thème du produit",
-  outfitMan: ["t-shirt uni et veste légère", "chemise en pagne wax moderne"], outfitWoman: ["t-shirt uni décontracté", "robe wax moderne"],
-};
-
-// Les options qui parlent de « la personne » ou de « en main » sont écartées quand l'affiche est sans personnage.
-const PLACEMENTS: Record<ProductType, string[]> = {
-  ebook: [
-    "tenu en main à hauteur de poitrine, couverture entièrement lisible, la personne regarde l'objectif",
-    "la personne le désigne du doigt ou le présente de la main ouverte, l'ebook en grand au premier plan",
-    "posé debout sur une table ou un bureau, légèrement de trois quarts",
-    "l'ebook en grand à côté de la personne, qui le présente avec un sourire confiant",
-    "plusieurs exemplaires empilés ou en éventail au premier plan",
-    "posé sur un canapé ou un comptoir, dans le décor du thème",
-  ],
-  formation: ["affiché en grand sur l'écran d'un ordinateur portable posé sur un bureau, vignette du cours lisible", "affiché sur une tablette posée ou tenue, vignette du cours lisible"],
-  saas: ["interface affichée en grand sur un écran d'ordinateur, propre et lisible", "interface affichée sur un téléphone au premier plan"],
-  mode: ["porté par la personne, bien visible de la tête aux pieds ou en plan taille", "présenté en gros plan au premier plan"],
-  food: ["plat ou produit en gros plan au premier plan, appétissant", "posé sur une table dressée dans le décor"],
-  physique: ["posé en gros plan au premier plan, bien éclairé", "utilisé ou montré par la personne"],
-  service: ["la personne en pleine action de service, résultat visible"],
-  evenement: ["ambiance de l'événement, scène ou public, sans montrer de produit en main"],
-  autre: ["posé sur une table ou un meuble du décor, bien visible au premier plan", "tenu en main par la personne", "présenté debout, légèrement de trois quarts"],
-};
-
-const HAIR_MAN = ["crâne rasé et barbe courte taillée", "coupe courte dégradée (fade) sans barbe", "petites locks courtes", "afro court naturel avec une fine moustache", "cheveux ras et barbe de trois jours", "twists courts sur le dessus"];
-const HAIR_WOMAN = ["tresses africaines longues (box braids)", "cheveux crépus naturels coupés très court", "foulard ou headwrap en wax coloré", "chignon haut avec quelques mèches", "locks mi-longues attachées", "cheveux lissés au carré", "afro volumineux naturel"];
-const ATTITUDES = ["rire franc et spontané", "concentré et sérieux", "sourire confiant, bras croisés", "enthousiaste et surpris", "regard caméra calme et assuré", "pris sur le vif, en mouvement", "penché vers l'avant, complice"];
-
-export const USER_DESCRIBES_PERSON = /(homme|femme|man\b|woman|men\b|women|garçon|fille|mère|père|couple|groupe|enfant|étudiant|étudiante|personnage|sans personne|no person)/i;
-
-function hash(text: string) {
-  let value = 0;
-  for (const char of text) value = (value * 31 + char.charCodeAt(0)) >>> 0;
-  return value;
-}
-function pick<T>(list: T[], random: () => number): T { return list[Math.floor(random() * list.length)]; }
-function pickMany<T>(list: T[], count: number, random: () => number): T[] {
-  const pool = [...list];
-  const out: T[] = [];
-  while (out.length < count && pool.length) out.push(pool.splice(Math.floor(random() * pool.length), 1)[0]);
-  return out;
-}
-
-export function detectTheme(text: string): Theme {
-  return THEMES.find((theme) => theme.keywords.test(text)) ?? DEFAULT_THEME;
-}
-
-export function detectAudience(text: string, theme: Theme, name: string, previousPrompt: string): "homme" | "femme" {
-  if (/(femmes?\b|mamans?|mères|dames?|entrepreneuses?|filles)/i.test(text)) return "femme";
-  if (/(hommes?\b|papas?|pères|messieurs|garçons)/i.test(text)) return "homme";
-  if (theme.audience !== "mixte") return theme.audience;
-  // Public mixte : on alterne avec la génération précédente ; sinon le genre est stable pour un produit donné.
-  if (/(une femme|a woman|femme de)/i.test(previousPrompt)) return "homme";
-  if (/(un homme|a man|homme de)/i.test(previousPrompt)) return "femme";
-  return hash(name) % 2 === 0 ? "femme" : "homme";
-}
-
-export function detectAge(text: string) {
-  if (/(étudiant|etudiant|lycée|lycee|jeune|débutant|debutant|concours|examen)/i.test(text)) return "environ 22 ans";
-  if (/(senior|retraite|retraité|grand-parent)/i.test(text)) return "environ 55 ans";
-  if (/(entrepreneu|business|manager|freelance|professionnel|carrière|carriere|investi)/i.test(text)) return "environ 35 ans";
-  return "environ 30 ans";
-}
-
-export function buildPosterDirection(input: { name: string; description?: string; userBrief?: string; previousPrompt?: string; character?: CharacterChoice }, random: () => number = Math.random) {
-  const userBrief = input.userBrief ?? "";
-  const text = `${input.name} ${input.description ?? ""}`;
-  const theme = detectTheme(text);
-  const type = inferProductType(input.name, input.description);
-  const character = input.character ?? "auto";
-  const userDescribesPerson = USER_DESCRIBES_PERSON.test(userBrief);
-  // Personne par défaut : seul le choix « sans personnage » l'enlève.
-  const withoutPerson = character === "without";
-
-  // Ce ne sont que des PISTES de départ : l'IA analyse elle-même le produit et reste libre de les suivre, de les mélanger ou de proposer mieux.
-  // La palette n'en fait pas partie : l'IA la choisit seule d'après le nom et la description du produit.
-  const placements = PLACEMENTS[type].filter((option) => !withoutPerson || !/(personne|en main)/.test(option));
-  const placementOptions = pickMany(placements.length ? placements : ["posé bien en vue au premier plan, dans le décor"], 2, random);
-
-  const parts = [
-    `thème probable : ${theme.id}`,
-    `décor possible : ${theme.setting}`,
-    `ambiance possible : ${theme.style}`,
-    `mise en place possible du produit (${type}) : ${placementOptions.join(" ou ")}`,
-  ];
-  if (type === "ebook") parts.push("l'ebook est le héros : grand (au moins un tiers de la hauteur de l'image), net, bien éclairé, avec son titre lisible sur la couverture ; montre aussi 3 ou 4 détails concrets de son contenu tirés de la description (thèmes, étapes, outils, modèles, checklists, bonus)");
-  if (withoutPerson) parts.push("aucune personne sur l'affiche (choix de l'utilisateur) : le produit est le héros de l'image");
-  else if (!userDescribesPerson) {
-    const gender = detectAudience(text, theme, input.name, input.previousPrompt ?? "");
-    const man = gender === "homme" ? "un homme" : "une femme";
-    parts.push(`personne à inclure (c'est toi qui décides de son profil, de sa tenue, de sa posture et de ce qu'elle fait avec le produit : elle le tient ou non, le désigne, le présente) ; piste de départ d'après le public : ${man} ${detectAge(text)}, à varier d'une génération à l'autre (ne reprends pas la dernière personne), avec un visage distinctif et une tenue qui colle au produit`);
-  }
-  return { withoutPerson, themeId: theme.id, text: `Pistes déduites du produit et de son public (simples suggestions : analyse toi-même le produit, tu restes libre de les suivre, de les mélanger ou de faire mieux) : ${parts.join(" ; ")}.` };
+/** Product-led suggestions only; no palette, persona, or mockup is prescribed. */
+export function buildPosterDirection(input: {
+  name: string;
+  description?: string;
+  userBrief?: string;
+  previousPrompt?: string;
+  character?: CharacterChoice;
+}) {
+  const brief = [input.name, input.description, input.userBrief].filter(Boolean).join(" ");
+  const userAskedNoPerson = /sans personne|sans personnage|pas de personne|pas de personnage|aucune personne|no person|without (a )?(person|people|character)/i.test(input.userBrief ?? "");
+  const withoutPerson = input.character === "without" || input.character === "auto" && userAskedNoPerson;
+  const person = input.character === "with"
+    ? "Include a person, consistent with any user-provided identity details."
+    : withoutPerson
+      ? "Do not include any person or character."
+      : "Person presence is optional; include one only if it genuinely serves the product and brief.";
+  const prior = input.previousPrompt ? "Make the visual approach clearly distinct from the previous prompt." : "";
+  return {
+    withoutPerson,
+    text: `Product-led art direction: infer visual language and palette from the actual product details (${brief || "no details supplied"}) and any supplied visual references. No preset palette, person, outfit, layout, mockup or decorative object. ${person} Depict only known product attributes; for unknown form/interface use abstract editorial graphics, never invent a screen or package. Preserve bundle structure as a bundle. ${prior}`,
+  };
 }

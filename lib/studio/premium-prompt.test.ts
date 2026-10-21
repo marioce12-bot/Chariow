@@ -12,7 +12,7 @@ describe("premium creative director prompt", () => {
 
     expect(prompt).toContain('"LANCER SES PUBLICITÉS"');
     expect(prompt).toContain("deliberate visual hierarchy");
-    expect(prompt).toContain("anatomically correct hands and gestures");
+    expect(prompt).toContain("do not require a person when absent from the brief");
     expect(prompt).toContain("finished campaign asset");
   });
 
@@ -24,7 +24,8 @@ describe("premium creative director prompt", () => {
       hasReferences: true,
     });
 
-    expect(prompt).toContain("approved visual references");
+    expect(prompt).toContain("actual product identity, branding and palette only");
+    expect(prompt).toContain("If the user explicitly requests a reference's composition or style, honor that request.");
     expect(prompt).toContain("genuinely transparent");
     expect(prompt).toContain("vertical social composition");
   });

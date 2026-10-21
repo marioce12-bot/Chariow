@@ -80,6 +80,11 @@ html[data-theme="dark"] .studio-product-picker { background:#0b1734; border-colo
 .studio-empty { align-items:center; background:linear-gradient(145deg,#f6f9f4,#edf3e9); border:1px dashed #cbd9cd; border-radius:10px; color:#62806d; display:flex; flex:1; flex-direction:column; justify-content:center; min-height:300px; padding:28px; text-align:center; }
 .studio-empty strong { color:var(--green); margin-top:13px; }
 .studio-empty p { color:#74847a; font-size:13px; line-height:1.5; margin:8px 0 0; max-width:280px; }
+.studio-generation-progress { display:grid; gap:8px; margin-top:18px; max-width:340px; width:100%; }
+.studio-generation-progress > span { color:#52645a; font-size:12px; font-weight:700; }
+.studio-generation-progress [role="progressbar"] { background:#dce7dc; border-radius:999px; height:9px; overflow:hidden; width:100%; }
+.studio-generation-progress [role="progressbar"] > div { background:var(--green); border-radius:inherit; height:100%; transition:width .45s ease; }
+.studio-generation-progress small { color:#74847a; font-size:11px; line-height:1.45; }
 .studio-coming-soon { align-items:center; display:flex; flex-direction:column; justify-content:center; min-height:300px; padding:34px; text-align:center; }
 .studio-coming-soon-icon { align-items:center; background:#e5f0df; border-radius:14px; color:var(--green); display:flex; height:62px; justify-content:center; margin-bottom:16px; width:62px; }
 .studio-coming-soon h2 { color:var(--ink); font-size:22px; margin:10px 0 0; }

@@ -212,7 +212,7 @@ export const fr: Dict = {
       background: "Fond", auto: "Auto", opaque: "Opaque", transparent: "Transparent PNG",
       duration: "Durée", seconds: "secondes", landscape16: "16:9 paysage", vertical9: "9:16 vertical",
       coverStart: "La couverture du produit servira de point de départ (première image de la vidéo).",
-      generating: "Création en cours…", createImage: "Créer l'image", createVideo: "Créer la vidéo", videoComingSoonTitle: "La création vidéo sera disponible plus tard", videoComingSoonText: "Cette fonctionnalité est en préparation. Tu pourras bientôt créer des vidéos depuis le Studio.",
+      generating: "Création en cours…", estimatedProgress: "Progression estimée", imageReferenceNote: "La couverture du produit est ajoutée comme référence d’identité produit pour les images ; pour les vidéos, elle sert d’image de départ.", imageLoadError: "L’image reçue n’a pas pu être chargée.", createImage: "Créer l'image", createVideo: "Créer la vidéo", videoComingSoonTitle: "La création vidéo sera disponible plus tard", videoComingSoonText: "Cette fonctionnalité est en préparation. Tu pourras bientôt créer des vidéos depuis le Studio.",
       imageCost: "Image : coût selon la qualité et la résolution choisies.", videoCost: "Vidéo : {rate} crédits par seconde ({res}).",
       balance: "Solde Studio", credits: "crédits", recharge: "Recharger",
       balanceHint: "Les crédits servent à générer et modifier tes médias.",
