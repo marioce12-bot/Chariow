@@ -11,8 +11,8 @@ import { PinterestAdsPanel } from "@/components/PinterestAdsPanel";
 import { MetaHistoryOverview } from "@/components/dashboard/MetaHistoryOverview";
 import { MetaAccountSkeleton } from "@/components/dashboard/MetaAccountSkeleton";
 import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
-import { VideoPreparation } from "@/components/studio/VideoPreparation";
-import { STUDIO_VIDEO_LOCKED, VIDEO_AD_DURATIONS } from "@/lib/studio/video-plan";
+import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
+import { STUDIO_VIDEO_LOCKED } from "@/lib/studio/video-plan";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
 import { toUsd } from "@/lib/currency";
@@ -111,11 +111,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [promptGenerating, setPromptGenerating] = useState(false);
   const [kind, setKind] = useState<"image" | "video">("image");
   const [prompt, setPrompt] = useState("");
-  const [videoMode, setVideoMode] = useState<"slideshow" | "characters">("slideshow");
-  const [musicId, setMusicId] = useState("");
-  const [preparationDuration, setPreparationDuration] = useState(60);
-  const [storyboard, setStoryboard] = useState("");
-  const [preparingStoryboard, setPreparingStoryboard] = useState(false);
+  const videoMode = "slideshow";
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
   const [referenceUploading, setReferenceUploading] = useState(false);
   const [quality, setQuality] = useState("medium");
@@ -286,19 +282,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     }
   }
 
-  async function prepareStoryboard() {
-    if (!selectedProduct || preparingStoryboard) return;
-    setPreparingStoryboard(true);
-    setStoryboard("");
-    try {
-      const result = await fetch("/api/studio/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mediaType: "video", videoMode, musicId, duration: preparationDuration, aspectRatio, locale, product: { ...selectedProduct, description: selectedProduct.description ? htmlDescriptionToText(selectedProduct.description) : "" } }) });
-      const data = await result.json();
-      if (!result.ok) throw new Error(data.error || "Préparation indisponible");
-      setStoryboard(data.prompt);
-    } catch (error) { setStoryboard(error instanceof Error ? error.message : "Préparation indisponible"); }
-    finally { setPreparingStoryboard(false); }
-  }
-
   async function generate() {
     if (generatingRef.current) return;
     if (kind === "video" && STUDIO_VIDEO_LOCKED) {
@@ -444,15 +427,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         <button type="button" role="tab" aria-selected={kind === "image"} className={kind === "image" ? "active" : ""} onClick={() => setKind("image")}><ImageIcon size={17} /> {t("studio.image")}</button>
         <button type="button" role="tab" aria-selected={false} disabled aria-disabled="true" style={{ opacity: 0.45, cursor: "not-allowed" }} title={locale === "en" ? "Coming later — generation locked" : "À venir — génération verrouillée"}><Video size={17} /> {t("studio.video")}</button>
       </div>
-      <details style={{ marginBottom: 20, padding: 16, border: "1px solid var(--border, #ddd)", borderRadius: 12 }}>
-        <summary>{locale === "en" ? "Video preparation — generation locked" : "Préparation vidéo — génération verrouillée"}</summary>
-        <VideoPreparation locale={locale} mode={videoMode} onModeChange={setVideoMode} musicId={musicId} onMusicChange={setMusicId} />
-        <label className="studio-field"><span>{locale === "en" ? "Planned duration" : "Durée prévue"}</span><select value={preparationDuration} onChange={event => setPreparationDuration(Number(event.target.value))}>{VIDEO_AD_DURATIONS.map(seconds => <option key={seconds} value={seconds}>{seconds}s</option>)}</select></label>
-        <p><small>{locale === "en" ? "Select a product below to prepare a storyboard only. No images or videos are generated; video generation stays locked." : "Choisis un produit ci-dessous pour préparer uniquement le storyboard. Aucune image ni vidéo n’est générée ; la génération vidéo reste verrouillée."}</small></p>
-        <button type="button" className="btn btn-ghost" disabled={!selectedProduct || preparingStoryboard} onClick={() => void prepareStoryboard()}>{preparingStoryboard ? (locale === "en" ? "Preparing…" : "Préparation…") : (locale === "en" ? "Prepare storyboard" : "Préparer le storyboard")}</button>
-        {storyboard ? <pre style={{ whiteSpace: "pre-wrap", maxHeight: 340, overflow: "auto", fontSize: 12 }} aria-live="polite">{storyboard}</pre> : null}
-      </details>
       <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => setSelectedProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => setSelectedProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => setSelectedProduct(null)} aria-label={t("sweep3.text206")}>×</button>{selectedProduct.image ? <em>{kind === "video" ? t("studio.coverRef") : t("studio.imageReferenceNote")}</em> : null}</div> : null}</section>
+      <SlideshowStudio product={selectedProduct} locale={locale} onComplete={() => void loadHistory(true)} />
       {kind === "video" ? (
         <section className="app-card studio-coming-soon" aria-live="polite">
           <div className="studio-coming-soon-icon"><Video size={30} /></div>

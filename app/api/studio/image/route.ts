@@ -9,6 +9,8 @@ import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
 import { fetchReferenceImage } from "@/lib/studio/reference-image";
 import { buildPremiumImagePrompt } from "@/lib/studio/premium-prompt";
 
+export const maxDuration = 300;
+
 const qualities = ["medium", "high", "xhigh", "max"] as const;
 const resolutions = ["hd", "full_hd", "2k", "4k"] as const;
 const orientations = ["square", "landscape", "portrait"] as const;

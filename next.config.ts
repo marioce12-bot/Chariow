@@ -55,6 +55,14 @@ const globalSecurityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  serverExternalPackages: ["ffmpeg-static", "ffprobe-static"],
+  outputFileTracingExcludes: {
+    "/api/studio/slideshow/**": ["./node_modules/ffprobe-static/bin/darwin/**", "./node_modules/ffprobe-static/bin/win32/**", "./node_modules/ffprobe-static/bin/linux/ia32/**", "./node_modules/ffprobe-static/bin/linux/arm64/**"],
+  },
+  outputFileTracingIncludes: {
+    "/api/studio/slideshow/*": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe", "./public/vendeo-logo.webp"],
+    "/api/studio/slideshow/music/*": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe", "./public/vendeo-logo.webp"],
+  },
   async headers() {
     return [
       { source: "/:path*", headers: globalSecurityHeaders },

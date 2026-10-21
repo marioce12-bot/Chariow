@@ -14,6 +14,7 @@ export type SlideshowOptions = {
   width?: number;
   height?: number;
   fps?: number;
+  attribution?: string;
 };
 
 function run(binary: string, args: string[]): Promise<string> {
@@ -56,12 +57,12 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
   const imageSpan = (total + transition * (imagePaths.length - 1)) / imagePaths.length;
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-slideshow-"));
   try {
-    const args = ["-hide_banner", "-loglevel", "error", "-y"];
+    const args = ["-hide_banner", "-loglevel", "error", "-y", "-filter_complex_threads", "1"];
     for (const image of imagePaths) args.push("-loop", "1", "-t", String(imageSpan), "-i", image);
     if (options.musicPath) args.push("-stream_loop", "-1", "-i", options.musicPath);
     const filters: string[] = [];
     for (let i = 0; i < imagePaths.length; i++) {
-      filters.push(`[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p,settb=AVTB,setpts=PTS-STARTPTS[v${i}]`);
+      filters.push(`[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p,settb=AVTB,setpts=PTS-STARTPTS,fps=${fps}[v${i}]`);
     }
     let previous = "v0";
     for (let i = 1; i < imagePaths.length; i++) {
@@ -71,7 +72,8 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
       previous = next;
     }
     args.push("-filter_complex", filters.join(";"), "-map", `[${previous}]`);
-    if (options.musicPath) args.push("-map", `${imagePaths.length}:a:0`, "-af", "aresample=48000,volume=1", "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2");
+    if (options.musicPath) args.push("-map", `${imagePaths.length}:a:0`, "-af", `aresample=48000,volume=0.35,afade=t=out:st=${Math.max(0, total - 0.35)}:d=0.35`, "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2");
+    if (options.attribution) args.push("-metadata", `comment=${options.attribution}`, "-metadata", `description=${options.attribution}`);
     args.push("-t", String(total), "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-r", String(fps), "-pix_fmt", "yuv420p", "-movflags", "+faststart", outputPath);
     await run(ffmpegPath, args);
     const actual = await probeDuration(outputPath, ffprobePath);
