@@ -13,6 +13,8 @@ const images = [
   { id: "v1", kind: "video", prompt: "Vidéo un", status: "completed", credits_cost: 1, mediaUrl: "https://media.test/one.mp4", created_at: "2026-01-01" },
   { id: "v2", kind: "video", prompt: "Vidéo deux", status: "completed", credits_cost: 1, mediaUrl: "https://media.test/two.mp4", created_at: "2026-01-02" },
   { id: "i1", kind: "image", prompt: "Photo historique", status: "completed", credits_cost: 1, mediaUrl: "https://media.test/photo.png", created_at: "2026-01-03" },
+  { id: "s1", kind: "video", creationType: "slideshow", metadata: { type: "slideshow", duration: 12 }, sourceImageCount: 4, thumbnailUrl: "https://media.test/poster.jpg", status: "completed", mediaUrl: "https://media.test/final.mp4", prompt: "Final diaporama", credits_cost: 2, created_at: "2026-01-04" },
+  { id: "s-missing", kind: "video", creationType: "slideshow", mediaState: "missing", sourceImageCount: 3, status: "completed", prompt: "Sans MP4", credits_cost: 2, created_at: "2026-01-05" },
 ];
 const response = (data: unknown) => Promise.resolve({ ok: true, json: async () => data });
 function render() { act(() => root.render(<StudioView products={[]} />)); }
@@ -46,6 +48,36 @@ describe("Studio history reopening", () => {
     await act(async () => { card.focus(); card.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
     expect(container.querySelector(".studio-history-viewer img")).toBeTruthy();
     expect(fetchMock.mock.calls.some(([url, init]) => String(url).startsWith("/api/studio/") && init?.method === "POST")).toBe(false);
+  });
+  it("identifies the final slideshow, displays its poster and caption, and does not treat source photos as a slideshow", async () => {
+    render(); await settle();
+    const cards = container.querySelectorAll<HTMLElement>(".studio-history-card");
+    expect(cards[2].querySelector("strong")?.textContent).toBe("Image");
+    expect(cards[3].querySelector("strong")?.textContent).toBe("Diaporama");
+    expect(cards[3].querySelector("img")?.getAttribute("src")).toBe("https://media.test/poster.jpg");
+    expect(cards[3].textContent).toContain("12s");
+    expect(cards[3].textContent).toContain("4 images sources");
+    await act(async () => cards[3].click());
+    const video = container.querySelector<HTMLVideoElement>(".studio-history-viewer video");
+    expect(video?.getAttribute("src")).toBe("https://media.test/final.mp4");
+    expect(video?.getAttribute("poster")).toBe("https://media.test/poster.jpg");
+    expect(video?.getAttribute("aria-label")).toBe("Diaporama");
+  });
+  it("shows missing final MP4 information without a player or regeneration action", async () => {
+    render(); await settle();
+    await act(async () => container.querySelectorAll<HTMLElement>(".studio-history-card")[4].click());
+    expect(container.querySelector(".studio-history-viewer")?.textContent).toContain("MP4 final introuvable. Les images sources sont conservées. Aucune régénération automatique.");
+    expect(container.querySelector(".studio-history-viewer video")).toBeNull();
+    expect(container.querySelector(".studio-history-viewer button")).toBeNull();
+  });
+  it("keeps all-history and video filtering navigation working", async () => {
+    render(); await settle();
+    const filters = container.querySelectorAll<HTMLButtonElement>(".studio-history-toolbar button");
+    await act(async () => filters[2].click()); await settle();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("kind=video"))).toBe(true);
+    await act(async () => filters[0].click()); await settle();
+    expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/studio/history?")).toBe(true);
+    expect(container.querySelectorAll(".studio-history-card").length).toBe(5);
   });
   it("keeps prompt, edit, and delete action clicks from opening their card", async () => {
     render(); await settle();

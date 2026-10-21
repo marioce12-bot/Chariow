@@ -242,6 +242,7 @@ export async function runTaskStep(id: string, revision: number) {
         images.map((image) => image.id),
         meta.input.duration,
         meta.input.musicId,
+        id,
       );
     }
     const complete = Boolean(result);

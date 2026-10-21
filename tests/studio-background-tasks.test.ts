@@ -125,7 +125,7 @@ describe("runTaskStep", () => {
     const updates = configureDb(rowFor(fullMeta));
     mocks.render.mockResolvedValue({ generationId: "video-1", videoUrl: "https://video.test/1" });
     await runTaskStep(id, 6);
-    expect(mocks.render).toHaveBeenCalledWith(user.id, ["g0", "g1", "g2", "g3", "g4"], 25, "");
+    expect(mocks.render).toHaveBeenCalledWith(user.id, ["g0", "g1", "g2", "g3", "g4"], 25, "", id);
     expect(updates.at(-1).metadata).toMatchObject({ phase: "completed", revision: 7 });
   });
 });

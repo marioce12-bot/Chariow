@@ -61,9 +61,9 @@ async function ensurePrivateTrack(track: NonNullable<ReturnType<typeof getLicens
   if (uploaded.error && !/already exists/i.test(uploaded.error.message)) throw new Error("Unable to cache private music");
   const local = path.join(directory, `${randomUUID()}.mp3`); await writeFile(local, audio); return local;
 }
-async function uploadAndInsert(userId: string, generationId: string, body: Buffer, images: string[], duration: number, musicId: string, attribution: string) {
+export async function uploadAndInsert(userId: string, generationId: string, body: Buffer, images: string[], duration: number, musicId: string, attribution: string, thumbnailStoragePath: string, taskId?: string) {
   const storagePath = await storeStudioVideo({ body: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer, contentType: "video/mp4" }, userId, generationId);
-  const metadata = { type: "slideshow", imageGenerationIds: images, musicId, duration, attribution };
+  const metadata = { type: "slideshow", imageGenerationIds: images, parentGenerationId: images[0], thumbnailStoragePath, ...(taskId ? { backgroundTaskId: taskId } : {}), musicId, duration, attribution };
   const { error } = await createAdminClient().from("studio_generations").insert({ id: generationId, user_id: userId, kind: "video", prompt: SLIDESHOW_PROMPT, options: { type: "slideshow", duration }, metadata, status: "completed", storage_path: storagePath, credits_cost: 0 });
   if (error) throw error;
   return { generationId, videoUrl: await signedStudioUrl(storagePath), attribution, creditsCost: 0 as const, imageGenerationIds: images, duration, musicId };
@@ -80,7 +80,7 @@ async function loadOwnedImages(userId: string, ids: string[], directory: string)
     if (!/\.(png|jpe?g|webp)$/i.test(storagePath) || !storagePath.startsWith(`${userId}/`)) throw new Error("Image storage ownership mismatch");
     files.push(await downloadPrivate(storagePath, directory, MAX_SOURCE_BYTES));
   }
-  return files;
+  return { files, thumbnailStoragePath: (byId.get(ids[0]) as any).storage_path as string };
 }
 export async function preflightSlideshow(musicId: string) {
   const bins = binPaths(); await stat(bins.ffmpegPath); await stat(bins.ffprobePath);
@@ -91,14 +91,14 @@ export async function preflightSlideshow(musicId: string) {
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-preflight-"));
   try { await ensurePrivateTrack(track, work); } finally { await rm(work, { recursive: true, force: true }); }
 }
-export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string): Promise<SlideResult> {
+export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string, taskId?: string): Promise<SlideResult> {
   if (ids.length < MIN_SLIDESHOW_IMAGES || ids.length > MAX_SLIDESHOW_IMAGES || new Set(ids).size !== ids.length) throw new Error("Invalid slideshow image count");
   if (!(SLIDESHOW_DURATIONS as readonly number[]).includes(duration)) throw new Error("Invalid slideshow duration");
   const track = getLicensedTrack(musicId);
   if (musicId && !track) throw new Error("Music track unavailable");
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-slideshow-api-"));
   try {
-    const images = await loadOwnedImages(userId, ids, work);
+    const { files: images, thumbnailStoragePath } = await loadOwnedImages(userId, ids, work);
     const music = track ? await ensurePrivateTrack(track, work) : undefined;
     const output = path.join(work, "slideshow.mp4");
     const bins = binPaths();
@@ -106,7 +106,7 @@ export async function renderSlideshow(userId: string, ids: string[], duration: n
     await assembleSlideshow({ ...bins, outputPath: output, duration, imagePaths: images, musicPath: music, width: 720, height: 1280, fps: 25, attribution });
     const { size } = await stat(output);
     if (size > MAX_VIDEO_BYTES) throw new Error("Rendered video exceeds size limit");
-    return await uploadAndInsert(userId, randomUUID(), await readFile(output), ids, duration, musicId, attribution);
+    return await uploadAndInsert(userId, randomUUID(), await readFile(output), ids, duration, musicId, attribution, thumbnailStoragePath, taskId);
   } finally { await rm(work, { recursive: true, force: true }); }
 }
 export async function remixSlideshow(userId: string, generationId: string, musicId: string): Promise<SlideResult> {
