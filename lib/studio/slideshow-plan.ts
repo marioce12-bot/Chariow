@@ -1,5 +1,4 @@
 import { assertDistinctSlideshow, nearDuplicate } from "@/lib/studio/slideshow-distinctness";
-import { sourceCopyCandidates } from "@/lib/studio/faithful-prompt";
 import type { VideoAdInput } from "@/lib/studio/video-plan";
 export const SLIDESHOW_DURATIONS = [25, 30, 40] as const;
 
@@ -35,13 +34,33 @@ const LAYOUTS = [
   "Conversion end-card: centered real product identity, bold high-contrast action panel and one unmistakable CTA button treatment; resolved visual flow, no continuation arrow. Finished campaign closing advertisement, not a quiet product photo.",
 ];
 
+export class InsufficientProductDetailsError extends Error {
+  readonly code = "INSUFFICIENT_PRODUCT_DETAILS";
+}
+// Preserve HTML blocks and exact wording, including explicit coordinated facts.
+export function slideshowSourceCandidates(description: string): string[] {
+  const text = description.slice(0, 3000)
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<\/?(?:p|div|h[1-6]|li|ul|ol|br)\b[^>]*>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"').replace(/&#0*39;|&apos;/gi, "'");
+  return text.split(/\n+|(?<=[.!?])\s+/u).flatMap(sentence => {
+    // Never split away an instruction or an unsupported claim to launder it.
+    if (/ignore|instructions?|prompt|system|garanti|guarantee|témoign|testimonial|avis client|customer review|résultat|results?|miracle|\b\d+\s*%/i.test(sentence)) return [];
+    const parts = sentence.length > 140
+      ? sentence.split(/;\s*|,\s*(?=à\s+)|\s+et\s+(?=à\s+)/u)
+      : [sentence];
+    return parts.map(part => part.replace(/^\s*[-•*«»]\s*/, "").replace(/[«»]\s*$/g, "").trim());
+  }).filter(line => line.length >= 8 && line.length <= 140).slice(0, 60);
+}
 /** Select distinct explicit facts. Missing facts never authorize invented claims. */
 export function slideshowEvidence(description: string, name: string): string[] {
   const normalize = (text: string) => text.toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
   const title = normalize(name);
   const accepted: string[] = [];
   const tokens = (text: string) => new Set(normalize(text).split(" ").filter(word => word.length >= 3));
-  for (const line of sourceCopyCandidates(description)) {
+  for (const line of slideshowSourceCandidates(description)) {
     if (line.length > 140 || normalize(line) === title || tokens(line).size < 2 || nearDuplicate(line, name)) continue;
     // Exclude instructions, testimonials, unverified outcomes, boilerplate and urgency.
     if (/https?:|ignore|instructions?|prompt|system|garanti|guarantee|témoign|testimonial|avis client|customer review|étoiles|stars|aucun fait|no product facts|écris un avis|write a review|\b\d+\s*%|résultat|results?|miracle|derni[eè]re chance|offre limit|stock|cookie|copyright|tous droits|politique de|conditions générales/i.test(line)) continue;
@@ -97,7 +116,7 @@ export function buildSlideshowPlan(input: VideoAdInput & { campaignGoal?: unknow
   const hook = buildProductHook(name, hookFact, en);
   // Reserve the hook's source argument: it must never return as a later feature.
   const argumentsFacts = facts.filter(fact => fact !== hookFact && !nearDuplicate(fact, hook));
-  if (argumentsFacts.length < PRODUCT_SLIDES) throw new Error(en
+  if (argumentsFacts.length < PRODUCT_SLIDES) throw new InsufficientProductDetailsError(en
     ? "Not enough distinct verified product details for five coherent images. Add three different contents or features (plus a separate objective if used for the hook). No image generated or credits spent."
     : "Informations produit vérifiées insuffisantes pour cinq images cohérentes. Ajoute trois contenus ou caractéristiques différents (et un objectif distinct si utilisé en accroche). Aucune image générée ni crédit consommé.");
   const cta = (en ? { discover: "Discover this product", buy: "Buy this product", learn: "Learn more", contact: "Contact us" } : { discover: "Découvre ce produit", buy: "Achète ce produit", learn: "En savoir plus", contact: "Contacte-nous" })[goal];

@@ -42,8 +42,10 @@ type Task = {
 };
 const jsonResponse = async (response: Response) => {
   const data = await response.json();
-  if (!response.ok)
-    throw new Error(data.error || "Cette étape n’a pas pu être terminée.");
+  if (!response.ok) {
+    const error = new Error(data.message || data.error || "Cette étape n’a pas pu être terminée.") as Error & { code?: string; details?: unknown };
+    error.code = data.code; error.details = data.details; throw error;
+  }
   return data;
 };
 const send = (url: string, body: unknown) =>
@@ -146,14 +148,27 @@ export function SlideshowStudio({
     [attempted, setAttempted] = useState(false),
     [result, setResult] = useState<RenderResult | null>(null),
     [previewId, setPreviewId] = useState(""),
-    [creditsUsed, setCreditsUsed] = useState(0);
+    [creditsUsed, setCreditsUsed] = useState(0),
+    [planReady, setPlanReady] = useState(false),
+    [recovery, setRecovery] = useState(false),
+    [temporaryDescription, setTemporaryDescription] = useState(product?.description ?? ""),
+    [technicalDetails, setTechnicalDetails] = useState("");
   const running = useRef(false),
     taskRef = useRef<Task | null>(null),
     initialDone = useRef(false),
     signature = useRef(`${product?.id ?? ""}`);
+  const planSignature = useRef("");
+  const currentSignature = JSON.stringify([product?.id ?? "", temporaryDescription, duration, campaignGoal, musicId]);
+  const currentSignatureRef = useRef(currentSignature);
+  currentSignatureRef.current = currentSignature;
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
   const selectedTrack = tracks.find((track) => track.id === musicId);
+  const creationDescription = () => {
+    const existing = product?.description?.trim() ?? "";
+    const supplied = temporaryDescription.trim();
+    return !existing || supplied.includes(existing) ? supplied : `${existing}\n${supplied}`;
+  };
   const applyTask = (task: Task, notify = false) => {
     const wasProcessing = taskRef.current?.status === "processing";
     const changedTask = taskRef.current?.id !== task.id;
@@ -176,8 +191,10 @@ export function SlideshowStudio({
               : "Slideshow ready."
             : ""),
     );
+    const insufficient = task.status === "failed" && /INSUFFICIENT_PRODUCT_DETAILS|détails.*produit|product details|informations produit.*insuffisantes|not enough.*product/i.test(`${task.error ?? ""} ${task.message ?? ""}`);
+    if (insufficient) { setRecovery(true); setStatus(""); setTemporaryDescription((current) => current || product?.description || ""); setTechnicalDetails(task.error || task.message || ""); }
     setError(
-      task.status === "failed"
+      task.status === "failed" && !insufficient
         ? task.error ||
             (fr
               ? "Génération échouée. Consulte l’historique avant toute nouvelle tentative."
@@ -257,8 +274,14 @@ export function SlideshowStudio({
     setStatus("");
     setAttempted(false);
     setCreditsUsed(0);
+    setPlanReady(false); setRecovery(false); setTemporaryDescription(product?.description ?? "");
   }, [product?.id]);
+  useEffect(() => {
+    setPlanReady(false);
+    planSignature.current = "";
+  }, [product?.id, temporaryDescription, duration, campaignGoal, musicId]);
   async function generate() {
+    if (planReady) { if (planSignature.current === currentSignatureRef.current) await createTask(); else setPlanReady(false); return; }
     if (
       !enabled ||
       !ready ||
@@ -274,20 +297,26 @@ export function SlideshowStudio({
     setError("");
     setImages([]);
     setResult(null);
-    setStatus(fr ? "Envoi de la génération…" : "Starting generation…");
+    setStatus(fr ? "Préparation du plan…" : "Preparing plan…");
     try {
-      const response = await send("/api/studio/tasks", {
-        id: crypto.randomUUID(),
-        kind: "slideshow",
-        input: { product, duration, campaignGoal, locale, musicId },
-      });
-      const task = response.task as Task;
-      if (!task) throw new Error("Réponse de tâche invalide.");
-      applyTask(task, task.status === "completed");
-      if (task.status === "processing") {
-        /* polling resumes from server-owned task */
-      }
+      const chosenProduct = { ...product, description: creationDescription() };
+      await send("/api/studio/prompt", { product: chosenProduct, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId });
+      const submittedSignature = JSON.stringify([product.id, temporaryDescription, duration, campaignGoal, musicId]);
+      if (submittedSignature !== currentSignatureRef.current) { setPlanReady(false); setStatus(""); return; }
+      planSignature.current = submittedSignature;
+      setPlanReady(true); setRecovery(false); setTechnicalDetails("");
+      setStatus(fr ? "Plan prêt. Vérifie le coût avant de créer." : "Plan ready. Review the cost before creating."); setBusy(false);
     } catch (cause) {
+      const failure = cause as Error & { code?: string; details?: unknown };
+      const insufficient = failure.code === "INSUFFICIENT_PRODUCT_DETAILS" || /détails.*produit|product details|informations produit.*insuffisantes|not enough.*product/i.test(failure.message);
+      if (insufficient) {
+        setRecovery(true);
+        setStatus("");
+        setTechnicalDetails(typeof failure.details === "string" ? failure.details : failure.details ? JSON.stringify(failure.details, null, 2) : "");
+        setError("");
+        setReady(true);
+        return;
+      }
       initialDone.current = false;
       setReady(false);
       setBusy(false);
@@ -297,7 +326,21 @@ export function SlideshowStudio({
       );
     } finally {
       running.current = false;
+      setBusy(false);
     }
+  }
+  async function createTask() {
+    if (!planReady || planSignature.current !== currentSignatureRef.current || busy || running.current || !product || !ready || taskRef.current?.status === "processing") return;
+    running.current = true; setBusy(true); setAttempted(true); setError(""); setStatus(fr ? "Envoi de la génération…" : "Starting generation…");
+    try {
+      const response = await send("/api/studio/tasks", { id: crypto.randomUUID(), kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId } });
+      const task = response.task as Task; if (!task) throw new Error("Réponse de tâche invalide."); applyTask(task, task.status === "completed");
+    } catch (cause) {
+      initialDone.current = false; setReady(false); setBusy(false); setStatus(""); setPlanReady(false);
+      setTechnicalDetails(cause instanceof Error ? cause.message : "Erreur réseau.");
+      setError(fr ? "Lancement non confirmé. Vérifie l’historique avant de réessayer." : "Launch not confirmed. Check history before retrying.");
+    }
+    finally { running.current = false; }
   }
   async function replaceMusic() {
     if (!result || running.current || result.musicId === musicId) return;
@@ -455,23 +498,16 @@ export function SlideshowStudio({
           </details>
         </div>
       ) : null}
-      {!attempted ||
-      taskRef.current?.status === "completed" ||
-      taskRef.current?.status === "failed" ? (
+      {(!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed" || recovery) && !planReady ? (
         <>
-          <p className="studio-cost" style={{ margin: 0 }}>
-            {fr
-              ? `5 images · ${5 * imageCreditCost("hd", "medium")} crédits Studio`
-              : `5 images · ${5 * imageCreditCost("hd", "medium")} Studio credits`}
-          </p>
-          <button
+          {recovery ? <><p>{fr ? "Ajoute une précision utile sur le produit pour préparer le diaporama." : "Add a useful product detail to prepare the slideshow."}</p><label>{fr ? "Description temporaire" : "Temporary description"}<textarea aria-label={fr ? "Description temporaire" : "Temporary description"} rows={4} value={temporaryDescription} disabled={busy} onChange={e => setTemporaryDescription(e.target.value)} /></label><button type="button" className="btn btn-dark" disabled={!temporaryDescription.trim() || busy || !ready} onClick={() => void generate()}>{fr ? "Relancer" : "Retry"}</button></> : <button
             type="button"
             className="btn btn-dark studio-generate"
             disabled={!product || busy || !ready}
             onClick={() => void generate()}
           >
-            {fr ? "Créer" : "Create"}
-          </button>
+            {fr ? "Préparer le plan" : "Prepare plan"}
+          </button>}
           <small>
             {fr
               ? "Au moins 4 secondes de lecture par visuel. Montage et changement de musique sans crédits d’images supplémentaires."
@@ -479,6 +515,7 @@ export function SlideshowStudio({
           </small>
         </>
       ) : null}
+      {planReady ? <><p className="studio-cost">{fr ? `Coût : ${5 * imageCreditCost("hd", "medium")} crédits Studio` : `Cost: ${5 * imageCreditCost("hd", "medium")} Studio credits`}</p><button type="button" className="btn btn-dark studio-generate" disabled={busy || !ready} onClick={() => void generate()}>{fr ? "Créer" : "Create"}</button></> : null}
       {status ? (
         <div
           role="status"
@@ -521,11 +558,8 @@ export function SlideshowStudio({
           ))}
         </div>
       ) : null}
-      {error ? (
-        <p role="alert" className="form-error">
-          {error}
-        </p>
-      ) : null}
+      {error && !recovery ? <p role="alert" className="form-error">{error}</p> : null}
+      {technicalDetails || error ? <details><summary>{fr ? "Détails techniques" : "Technical details"}</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{technicalDetails || error}</pre></details> : null}
       {result ? (
         <div style={{ display: "grid", gap: 12 }}>
           <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>

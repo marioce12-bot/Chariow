@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { buildVideoAdPlan, videoPlanPrompt, videoPlanningSystem, VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
-import { buildSlideshowPlan, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
+import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import {
   CREATIVE_STYLES, CREATIVE_COMPOSITIONS, sourceCopyCandidates,
   parseCreativePlan, compileFaithfulPrompt,
@@ -52,6 +52,11 @@ export async function POST(request: Request) {
         const slideshow = buildSlideshowPlan({ ...input, campaignGoal: body?.campaignGoal }, typeof body?.musicId === "string" ? body.musicId.slice(0, 30) : undefined);
         return NextResponse.json({ prompt: slideshow.prompt, slideshow, locked: true });
       } catch (error) {
+        if (error instanceof InsufficientProductDetailsError) return NextResponse.json({
+          code: error.code,
+          error: body?.locale === "en" ? "Add product details below, then click Retry." : "Complète la description ci-dessous, puis appuie sur Relancer.",
+          details: error.message,
+        }, { status: 400 });
         return NextResponse.json({ error: error instanceof Error ? error.message : "Storyboard invalide." }, { status: 400 });
       }
     }
