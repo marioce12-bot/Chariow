@@ -10,6 +10,8 @@ import { fetchMetaAccounts } from "@/lib/meta/api";
 import { VITRINE_PROMPT, processVitrineAnswer, wantsVitrine } from "@/lib/shop/chat";
 import { resolveCampaignAnswer, type ChatCatalogProduct } from "@/lib/chariow/chat-product";
 
+export const maxDuration = 120;
+
 const VENDEO_SYSTEM_PROMPT = `Tu es l'analyste business de Vendeo pour les créateurs de produits digitaux francophones et anglophones.
 
 Tu aides l'utilisateur à comprendre ses ventes, ses produits, ses clients et ses opportunités commerciales.
@@ -350,7 +352,7 @@ export async function POST(request: Request) {
   try {
     answer = await askGemini(
       [{ role: "system", content: systemContent }, ...safeHistory, currentTurn],
-      { model: "gemini-3.6-flash" }
+      { model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW" }
     );
   } catch (geminiError) {
     console.error("Gemini chat error", geminiError instanceof Error ? geminiError.message : geminiError);

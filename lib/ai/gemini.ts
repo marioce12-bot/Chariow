@@ -90,13 +90,13 @@ async function toGeminiPayload(messages: ChatMessage[]) {
   return {
     contents,
     ...(systemText ? { systemInstruction: { parts: [{ text: systemText }] } } : {}),
-    generationConfig: { temperature: 0.4 },
+    generationConfig: { temperature: 0.4 } as { temperature: number; thinkingConfig?: { thinkingLevel: "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" } },
   };
 }
 
 // `timeoutMs` permet à l'appelant d'ajuster l'attente au temps qu'il lui reste avant la
 // limite de sa propre fonction (voir maxDuration dans app/api/chat/route.ts).
-export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: number; model?: string } = {}) {
+export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: number; model?: string; thinkingLevel?: "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" } = {}) {
   const { apiKey, baseUrl, model: configuredModel } = getConfig();
   const model = options.model || configuredModel;
   const controller = new AbortController();
@@ -104,6 +104,9 @@ export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: 
 
   try {
     const payload = await toGeminiPayload(messages);
+    if (options.thinkingLevel) {
+      payload.generationConfig = { ...payload.generationConfig, thinkingConfig: { thinkingLevel: options.thinkingLevel } };
+    }
     const response = await fetch(`${baseUrl}/models/${model}:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

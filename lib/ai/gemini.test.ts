@@ -16,7 +16,20 @@ describe("askGemini transport", () => {
     expect(String(url)).toBe("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=test-key");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body).contents).toEqual([{ role: "user", parts: [{ text: "Salut" }] }]);
+    expect(JSON.parse(init.body).generationConfig).toEqual({ temperature: 0.4 });
   });
+  it("passes optional low thinking level using Google REST configuration", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    vi.stubEnv("GEMINI_MODEL", "gemini-global-default");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Bonjour" }] } }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await askGemini([{ role: "user", content: "Salut" }], { model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/models/gemini-3.6-flash:");
+    expect(JSON.parse(init.body).generationConfig).toEqual({ temperature: 0.4, thinkingConfig: { thinkingLevel: "LOW" } });
+    expect(getGeminiModel()).toBe("gemini-global-default");
+  });
+
   it.each([{ status: 429, label: "quota" }, { status: 404, label: "model unavailable" }])("reports $label provider errors", async ({ status }) => {
     vi.stubEnv("GEMINI_API_KEY", "test-key");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { message: `provider-${status}` } }), { status })));
