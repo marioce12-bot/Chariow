@@ -1,5 +1,5 @@
 "use client";
-import { localizeSystemMessage } from "@/lib/i18n/system-messages";
+import { profitDisplayName, profitDisplayReasons } from "@/lib/product-profit-presentation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Skeleton } from "./Skeleton";
 import CampaignProfitPanel from "./CampaignProfitPanel";
@@ -74,9 +74,13 @@ export default function ProductProfitPanel({ storeId }: { storeId: string | null
       <h2 style={title}>{copy["dashboardExtra.productProfit"]}</h2>
       <p style={muted}>{en ? "Chariow fees are 15%. Provided net revenue is used as-is, without deducting fees again; otherwise, net revenue is estimated at 85% of gross revenue." : "Les frais Chariow sont de 15 %. Si le montant net est fourni, il est utilisé tel quel sans nouvelle déduction des frais. À défaut, le net est estimé à 85 % du brut."}</p>
     </div><label style={periodLabel}>{en ? "Period" : "Période"}{" "}<select value={period} onChange={(e) => setPeriod(e.target.value)}><option value="7">{en ? "7 days" : "7 jours"}</option><option value="30">{en ? "30 days" : "30 jours"}</option><option value="90">{en ? "90 days" : "90 jours"}</option></select></label></div>
-    {error && <p role="alert" style={alert}>{localizeSystemMessage(error, locale)}</p>}
+    {error && <p role="alert" style={alert}>{en ? "Sales could not be loaded. Please try again." : "Impossible de charger les ventes. Réessayez dans un instant."}</p>}
     {loading ? <div role="status" aria-busy="true" aria-label={en ? "Loading sales" : "Chargement des ventes"} style={grid}>{[0, 1, 2].map((item) => <article key={item} style={card}><Skeleton width="55%" height={18} /><Skeleton width="80%" height={12} style={{ marginTop: 16 }} /><Skeleton width="70%" height={12} style={{ marginTop: 8 }} /><Skeleton width="90%" height={12} style={{ marginTop: 8 }} /><Skeleton width="60%" height={20} style={{ marginTop: 16 }} /></article>)}</div> : products.length === 0 && !error ? <p>{en ? "No confirmed sales with an identifiable product and currency for this period." : "Aucune vente confirmée avec produit et devise identifiables sur cette période."}</p> : null}
-    {!loading && totals.length > 0 && <div style={totalsGrid}>{totals.map(([currency, total]) => <article className="profit-summary" key={currency} style={totalCard}><b>{en ? "Period summary" : "Résumé de la période"} <span>{currency}</span></b><div className="profit-summary-metrics"><div><small>{en ? "Net after fees" : "Montant net après frais"}</small><strong>{total.hasNet && !total.missingNet ? money(total.net, currency, locale) : (en ? "Unavailable" : "Indisponible")}</strong></div><div className="profit-summary-result"><small>{en ? "Estimated profit" : "Bénéfice estimé"}</small><strong>{total.missingProfit ? (en ? "Unavailable" : "Indisponible") : money(total.profit, currency, locale)}</strong></div></div></article>)}</div>}
+    {!loading && totals.length > 0 && <div style={totalsGrid}>{totals.map(([currency, total]) => {
+      const explanations = [...new Set(products.filter(p => p.currency === currency && p.profit == null).flatMap(p => profitDisplayReasons(p, en)))];
+      const summary = explanations.length <= 2 ? explanations.join(" ") : (en ? "Some sales, Meta spend or allocation data is incomplete for this period." : "Certaines données de ventes, de dépenses Meta ou de répartition sont incomplètes sur cette période.");
+      return <article className="profit-summary" key={currency} style={totalCard}><b>{en ? "Period summary" : "Résumé de la période"} <span>{currency}</span></b><div className="profit-summary-metrics"><div><small>{en ? "Net after fees" : "Montant net après frais"}</small><strong>{total.hasNet && !total.missingNet ? money(total.net, currency, locale) : (en ? "Unavailable" : "Indisponible")}</strong></div><div className="profit-summary-result"><small>{en ? "Estimated profit" : "Bénéfice estimé"}</small><strong>{total.missingProfit ? (en ? "Unavailable" : "Indisponible") : money(total.profit, currency, locale)}</strong>{total.missingProfit && <p className="profit-unavailable-reason" style={{ ...muted, margin: "6px 0 0" }}>{summary}</p>}</div></div></article>;
+    })}</div>}
     {!loading && <div style={grid}>{products.map((p) => {
       const key = `${p.productId}|${p.currency}`, ad = p.advertising;
       const spend = ad?.spend ?? ad?.adSpend ?? p.adSpend ?? null;
@@ -85,12 +89,12 @@ export default function ProductProfitPanel({ storeId }: { storeId: string | null
       const metaValues = ad?.metaValueByCurrency ?? conversions.map((x) => ({ currency: x.currency, amount: x.value }));
       const purchases = ad?.metaPurchases !== undefined ? ad.metaPurchases : p.metaPurchases !== undefined ? p.metaPurchases : conversions.length && conversions.every(x => x.purchases != null) ? conversions.reduce((sum, x) => sum + x.purchases!, 0) : null;
       const adStatus = ad?.status ?? ad?.adSpendStatus ?? p.adSpendStatus;
-      const reasons = ad?.reason ? [ad.reason] : ad?.adSpendReasons ?? p.adSpendReasons ?? [];
+      const reasons = profitDisplayReasons(p, en);
       const metaUnavailable = purchases == null;
       const statusText = adStatus === "ambiguous" ? (en ? "Unallocated (multi-product campaign)" : "Non alloué (campagne multi-produits)") : adStatus === "complete" ? (en ? "Available" : "Disponible") : (en ? "Unavailable" : "Indisponible");
       return <article className="profit-product" key={key} style={card}>
-        <div style={cardHead}><div><h3 style={productTitle}>{p.productName || p.productId}</h3>{p.productName && <small style={muted}>{en ? "ID:" : "ID :"} {p.productId}</small>}</div><span style={badge}>{p.currency}</span></div>
-        {p.campaigns?.length ? <p style={muted}>{en ? "Linked Chariow campaign metadata (not Meta attribution): " : "Métadonnées de campagne Chariow liée (pas une attribution Meta) : "}{p.campaigns.map((c) => `${c.name || c.id} (${c.sales})`).join(", ")}</p> : <p style={muted}>{en ? "No Chariow campaign is explicitly linked to these sales." : "Aucune campagne Chariow explicitement liée à ces ventes."}</p>}
+        <div style={cardHead}><div><h3 style={productTitle}>{profitDisplayName(p.productName, en ? "Unnamed product" : "Produit sans nom")}</h3></div><span style={badge}>{p.currency}</span></div>
+        {p.campaigns?.length ? <p style={muted}>{en ? "Individual Chariow order campaign metadata (not Meta attribution): " : "Métadonnées de campagne des commandes Chariow (pas une attribution Meta) : "}{p.campaigns.map((c) => `${profitDisplayName(c.name, en ? "Campaign" : "Campagne")} (${c.sales})`).join(", ")}</p> : <p style={muted}>{en ? "No individual campaign metadata on these orders. This does not affect product-linked campaign spend." : "Aucune métadonnée de campagne individuelle sur ces commandes. Cela ne remet pas en cause les campagnes associées au produit."}</p>}
         <div className="profit-product-stats" style={stats}>
           <span>{en ? "Chariow paid orders" : "Commandes payées Chariow"} <b>{p.provenance?.paidSales ?? p.units}</b></span>
           <span>{en ? "Orders with individual campaign metadata" : "Commandes avec métadonnées de campagne individuelles"} <b>{p.provenance?.campaignLinkedSales ?? 0}</b></span>
@@ -108,11 +112,14 @@ export default function ProductProfitPanel({ storeId }: { storeId: string | null
         </div>
         {p.provenance?.reliability === "partial" && <small role="note" style={muted}>{en ? "Incomplete financial data: some amounts are unavailable." : "Données financières incomplètes : certains montants ne sont pas disponibles."}</small>}
         <div className="profit-product-result" style={p.profit == null ? { ...profitRow, background: "#f6f7f9", color: "#475569" } : profitRow}>
-          <strong>{p.profit == null ? (en ? "Estimated profit unavailable: allocation, period, currency or required financial data is incomplete." : "Bénéfice estimé indisponible : allocation, période, devise ou données financières requises incomplètes.") : `${en ? "Estimated profit" : "Bénéfice estimé"}: ${money(p.profit, p.currency, locale)}`}</strong>
+          <div><strong>{`${en ? "Estimated profit" : "Bénéfice estimé"}: ${p.profit == null ? (en ? "Unavailable" : "Indisponible") : money(p.profit, p.currency, locale)}`}</strong>{p.profit == null && <p className="profit-unavailable-reason" style={{ ...muted, margin: "6px 0 0" }}>{reasons[0]}</p>}</div>
           <span>{en ? "Indicative margin:" : "Taux indicatif :"} {p.marginPercent == null ? "—" : `${p.marginPercent.toFixed(1)} %`}</span>
         </div>
-        {reasons.length > 0 && <small role="note" style={muted}>{reasons.join(" ")}</small>}
-        <small role="note" style={muted}>{en ? "Meta conversions and conversion value are aggregate attribution metrics; they do not prove individual Chariow orders. Profit is estimated from net after fees, existing costs and only explicitly linked campaign spend. No currency conversion is applied here; different currencies remain separate. The displayed margin is indicative." : "Les conversions et leur valeur Meta sont des métriques d’attribution agrégées ; elles ne prouvent pas les commandes Chariow une par une. Le bénéfice est estimé à partir du net après frais, des coûts existants et des seules dépenses de campagnes explicitement liées. Aucune conversion de devise n’est appliquée ici : les devises différentes restent séparées. La marge affichée est indicative."}</small>
+        <details className="profit-details" style={{ ...muted, margin: "10px 0 0" }}><summary style={{ cursor: "pointer" }}>{en ? "About this estimate" : "Comprendre cette estimation"}</summary>
+          {p.profit == null && <ul>{reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}
+          <p>{en ? "Meta conversions are aggregate metrics; they do not prove individual Chariow orders." : "Les conversions Meta sont agrégées ; elles ne prouvent pas les commandes Chariow une par une."}</p>
+          <p>{en ? "Profit uses net after Chariow fees, existing costs and only product-linked campaign spend. Different currencies remain separate, with no automatic conversion. This estimate is indicative." : "Le bénéfice utilise le net après frais Chariow, les coûts existants et les dépenses des campagnes associées au produit. Les devises restent séparées, sans conversion automatique. Cette estimation est indicative."}</p>
+        </details>
       </article>;
     })}</div>}
     <CampaignProfitPanel key={`${storeId}:${period}`} storeId={storeId} period={Number(period) as 7 | 30 | 90} />

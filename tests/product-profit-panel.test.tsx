@@ -41,7 +41,7 @@ describe("ProductProfitPanel", () => {
   });
 
   it.each([
-    { netRevenue: 1019.15, expected: "indisponible" },
+    { netRevenue: 1019.15, expected: "Indisponible" },
     { netRevenue: null, expected: "incomplètes" },
   ])("keeps net after fees separate when profit is unknown ($netRevenue)", async ({ netRevenue, expected }) => {
     const product = { productId: "p", productName: "Ebook", currency: "XOF", units: 1, grossRevenue: 1199, netRevenue, chariowFees: 179.85, estimatedNetRevenue: false, chariowFeeRate: 0.15, profit: null, marginPercent: null, adSpendStatus: "unavailable", adSpendReasons: ["Période invalide"] };
