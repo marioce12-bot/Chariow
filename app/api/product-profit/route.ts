@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { aggregateProductProfit } from "@/lib/product-profit-math";
+import { enrichProductAdProfit } from "@/lib/product-ad-profit";
+import { loadProductAdData } from "@/lib/product-ad-data";
 
 const MAX = 999999999999.99;
 function str(value: unknown): string | null {
@@ -32,7 +34,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Période invalide" }, { status: 400 });
   const { data: store, error: storeError } = await supabase
     .from("stores")
-    .select("id")
+    .select("id,sales_last_synced_at,sales_last_sync_complete")
     .eq("id", storeId)
     .eq("user_id", user.id)
     .single();
@@ -41,7 +43,11 @@ export async function GET(request: Request) {
       { error: "Boutique introuvable" },
       { status: 404 },
     );
-  const since = new Date(Date.now() - Number(period) * 86400000).toISOString();
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  start.setUTCDate(start.getUTCDate() - Number(period) + 1);
+  const since = start.toISOString();
+  const until = now.toISOString();
   const pageSize = 1000;
   let from = 0;
   const sales: Array<{
@@ -61,7 +67,7 @@ export async function GET(request: Request) {
       .select("product_id, chariow_campaign_id, chariow_campaign_name, amount, net_amount, currency, status, raw_payload")
       .eq("store_id", storeId)
       .gte("occurred_at", since)
-      .lte("occurred_at", new Date().toISOString())
+      .lte("occurred_at", until)
       .order("occurred_at", { ascending: true })
       .order("chariow_sale_id", { ascending: true })
       .range(from, from + pageSize - 1);
@@ -78,10 +84,27 @@ export async function GET(request: Request) {
     .eq("store_id", storeId);
   if (costsError)
     return NextResponse.json({ error: costsError.message }, { status: 500 });
-  return NextResponse.json({
-    products: aggregateProductProfit(sales, costs ?? []),
-    costs: costs ?? [],
+  const aggregate = aggregateProductProfit(sales, costs ?? []);
+  const advertising = await loadProductAdData(supabase, user.id, storeId, since.slice(0, 10), until.slice(0, 10), aggregate);
+  const salesSync = Date.parse(store.sales_last_synced_at ?? "");
+  const salesComplete = store.sales_last_sync_complete === true && Number.isFinite(salesSync)
+    && salesSync <= now.getTime() && now.getTime() - salesSync <= 48 * 3600000;
+  const enriched = enrichProductAdProfit({ ...advertising.data, aggregate, now, salesComplete });
+  const products = aggregate.map((product, index) => {
+    const ad = enriched[index];
+    const unavailable = advertising.status !== "available";
+    const profit = unavailable ? null : ad.profit;
+    return {
+      ...product, ...ad, profit,
+      marginPercent: profit != null && product.netRevenue != null && product.netRevenue > 0
+        ? Math.round(profit / product.netRevenue * 10000) / 100 : null,
+      ...(unavailable ? { adSpend: null, adSpendStatus: "unavailable", metaPurchases: null,
+        metaPurchaseValue: null, metaConversionsByCurrency: [],
+        adSpendByCurrency: ad.adSpendByCurrency.map(amount => ({ ...amount, amount: null })),
+        adSpendReasons: ["Données publicitaires indisponibles : lecture ou synchronisation incomplète."] } : {}),
+    };
   });
+  return NextResponse.json({ products, costs: costs ?? [], period: Number(period), since, until });
 }
 export async function PUT(request: Request) {
   const { supabase, user, response } = await requireUser();
