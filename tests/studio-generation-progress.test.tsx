@@ -27,12 +27,16 @@ beforeEach(() => {
   container = document.createElement("div"); document.body.append(container);
   root = createRoot(container);
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    if (url === "/api/studio/image") return response({ imageUrl: "https://example.test/generated.png", generationId: "g1" });
+    if (url === "/api/studio/tasks" && init?.method === "POST") return response({ task: { id: "task1", kind: "image", status: "completed", result: { imageUrl: "https://example.test/generated.png", generationId: "g1" } } });
+    if (url === "/api/studio/tasks") return response({ tasks: [] });
     if (url === "/api/studio/credits") return response({ balance: 42 });
     if (url.startsWith("/api/studio/history")) return response({ items: [], nextCursor: null });
     return response({});
   });
   vi.stubGlobal("fetch", fetchMock);
+
+
+
 });
 afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 
@@ -51,7 +55,7 @@ describe("Studio image generation progress", () => {
 
   it("does not show completion after API failure", async () => {
     const original = fetchMock.getMockImplementation()!;
-    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => url === "/api/studio/image"
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => url === "/api/studio/tasks" && init?.method === "POST"
       ? response({ error: "API failed" }, false) : original(url, init));
     render(); await clickGenerate();
     expect(progress()).not.toBe("100");
@@ -88,21 +92,50 @@ describe("Studio image generation progress", () => {
 
   it("sends the selected product visual as a real image reference", async () => {
     render(); selectProduct(); await clickGenerate();
-    const call = fetchMock.mock.calls.find(([url]) => url === "/api/studio/image")!;
-    expect(JSON.parse(String(call[1]?.body)).referenceUrls).toEqual([product.image]);
+    const call = fetchMock.mock.calls.find(([url, init]) => url === "/api/studio/tasks" && init?.method === "POST")!;
+    const body = JSON.parse(String(call[1]?.body));
+    expect(body.kind).toBe("image");
+    expect(body.input.referenceUrls).toEqual([product.image]);
   });
 
   it("shows a fresh estimate while the image API is still pending", async () => {
     let complete: (value: unknown) => void = () => {};
     const original = fetchMock.getMockImplementation()!;
-    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => url === "/api/studio/image"
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => url === "/api/studio/tasks" && init?.method === "POST"
       ? new Promise(resolve => { complete = resolve; }) : original(url, init));
     render(); await clickGenerate();
     expect(progress()).toBe("3");
     expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(true);
-    await act(async () => { complete({ ok: true, json: async () => ({ imageUrl: "https://example.test/result.png" }) }); });
+    await act(async () => { complete({ ok: true, json: async () => ({ task: { id: "pending", status: "completed", result: { imageUrl: "https://example.test/result.png" } } }) }); });
     expect(progress()).toBe("95");
     await act(async () => { container.querySelector(".studio-media")!.dispatchEvent(new Event("load")); });
     expect(progress()).toBe("100");
   });
+
+  it("restores a processing task after remount and completes it without another POST", async () => {
+    let postCount = 0;
+    let pollCount = 0;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/studio/tasks" && init?.method === "POST") { postCount++; return response({ task: { id: "durable", status: "processing" } }); }
+      if (url === "/api/studio/tasks") { if (postCount === 0) return response({ tasks: [] }); pollCount++; return response({ tasks: [{ id: "durable", kind: "image", status: pollCount > 2 ? "completed" : "processing", result: pollCount > 2 ? { imageUrl: "https://example.test/recovered.png", generationId: "g2" } : undefined }] }); }
+      if (url.startsWith("/api/studio/history")) return response({ items: [], nextCursor: null });
+      return response({ balance: 42 });
+    });
+    render();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    const textarea = container.querySelector<HTMLTextAreaElement>(".studio-prompt-box textarea")!;
+    await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "Créer une image"); textarea.dispatchEvent(new Event("input", { bubbles: true })); });
+    await act(async () => { container.querySelector<HTMLButtonElement>(".studio-generate")!.click(); await new Promise(resolve => setTimeout(resolve, 0)); });
+    expect(postCount).toBe(1);
+    act(() => root.unmount());
+    root = createRoot(container); render();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(true);
+    expect(postCount).toBe(1);
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 4_100)); });
+    expect(container.querySelector<HTMLImageElement>(".studio-media")?.src).toContain("recovered.png");
+    expect(postCount).toBe(1);
+  });
+
+
 });

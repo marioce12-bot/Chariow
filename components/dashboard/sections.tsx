@@ -128,6 +128,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [loading, setLoading] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const stopProgressRef = useRef<(() => void) | null>(null);
+  const [imageTask, setImageTask] = useState<{ id: string; status: string } | null>(null);
+  const [imageRecoveryReady, setImageRecoveryReady] = useState(false);
+  const imageRecoveryReadyRef = useRef(false);
+  const imageTaskIdRef = useRef<string | null>(null);
   const [error, setError] = useState("");
   const [balance, setBalance] = useState(0);
   const [creditAmount, setCreditAmount] = useState("200");
@@ -140,6 +144,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedGenerationId, setSelectedGenerationId] = useState<string | null>(null);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const historyViewerRef = useRef<HTMLElement | null>(null);
+  const studioTabTouchedRef = useRef(false);
+  useEffect(() => {
+    if (!selectedHistoryId) return;
+    historyViewerRef.current?.focus({ preventScroll: true });
+    historyViewerRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }, [selectedHistoryId]);
   const [editOpen, setEditOpen] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editInstruction, setEditInstruction] = useState("");
@@ -155,6 +167,81 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   // (évite une boucle de re-render infinie sur l'effet ci-dessous).
   const reconciledJobsRef = useRef<Set<string>>(new Set());
   useEffect(() => () => { stopProgressRef.current?.(); stopProgressRef.current = null; }, []);
+
+  // Restore the server-owned photo task after mount/refresh. This is deliberately
+  // a GET only: an unknown response must never silently start a second billable job.
+  useEffect(() => {
+    let active = true;
+    let checking = false;
+    const recover = async () => {
+      if (checking || imageRecoveryReadyRef.current) return;
+      checking = true;
+      try {
+        const response = await fetch("/api/studio/tasks");
+        if (!response.ok) throw new Error("Impossible de vérifier la génération photo en cours.");
+        const data = await response.json();
+        const task = Array.isArray(data.tasks) ? data.tasks.find((item: any) => item.kind === "image") : null;
+        if (!active) return;
+        const latest = data.tasks?.find((item: any) => item.status === "processing") ?? data.tasks?.[0];
+        if (!studioTabTouchedRef.current && latest) setStudioTab(latest.kind === "slideshow" ? "slideshow" : "photo");
+        if (task?.status === "processing") {
+          imageTaskIdRef.current = task.id;
+          setImageTask({ id: task.id, status: "processing" });
+          setLoading(true);
+          setGenerationProgress(3);
+          stopProgressRef.current = startEstimatedGenerationProgress(setGenerationProgress);
+        } else if (task?.status === "completed" && task.result?.imageUrl) {
+          setImageUrl(task.result.imageUrl);
+          setSelectedGenerationId(task.result.generationId ?? null);
+          setGenerationProgress(95);
+          setLoading(false);
+        } else if (task?.status === "failed") {
+          setError(task.error || task.message || "La génération photo a échoué.");
+          setLoading(false);
+        }
+        imageRecoveryReadyRef.current = true;
+        setImageRecoveryReady(true);
+      } catch {
+        if (!active) return;
+        setError("Impossible de vérifier si une génération photo est en cours. Réessayez la vérification avant de créer une nouvelle image.");
+        imageRecoveryReadyRef.current = false;
+        setImageRecoveryReady(false);
+      } finally { checking = false; }
+    };
+    void recover();
+    const timer = window.setInterval(() => void recover(), 4000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
+    if (!imageTask || imageTask.status !== "processing") return;
+    let active = true;
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await fetch("/api/studio/tasks");
+        if (!response.ok) return;
+        const data = await response.json();
+        const task = Array.isArray(data.tasks) ? data.tasks.find((item: any) => item.id === imageTask.id) : null;
+        if (!active || !task) return;
+        if (task.status === "completed") {
+          stopProgressRef.current?.(); stopProgressRef.current = null;
+          setImageUrl(task.result?.imageUrl ?? null);
+          setSelectedGenerationId(task.result?.generationId ?? null);
+          setGenerationProgress(95);
+          setImageTask({ id: task.id, status: "completed" });
+          setLoading(false); generatingRef.current = false;
+          void loadHistory(true);
+          void fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).then((credits) => { if (credits) setBalance(credits.balance ?? 0); }).catch(() => undefined);
+        } else if (task.status === "failed") {
+          stopProgressRef.current?.(); stopProgressRef.current = null;
+          setError(task.error || task.message || "La génération photo a échoué.");
+          setImageTask({ id: task.id, status: "failed" });
+          setLoading(false); generatingRef.current = false; setGenerationProgress(0);
+        }
+      } catch { /* A transient poll failure is retried on the next interval. */ }
+    }, 4_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [imageTask?.id, imageTask?.status]);
 
   useEffect(() => {
     fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).then((data) => { if (data) setBalance(data.balance ?? 0); }).catch(() => undefined);
@@ -285,6 +372,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
   async function generate() {
     if (generatingRef.current) return;
+    if (kind === "image" && (!imageRecoveryReadyRef.current || imageTask?.status === "processing")) return;
     if (kind === "video" && STUDIO_VIDEO_LOCKED) {
       setError(locale === "en" ? "Video generation is not available yet." : "La génération vidéo reste indisponible.");
       return;
@@ -293,6 +381,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       setError(kind === "image" ? t("sweep1.text201") : t("sweep2.text202"));
       return;
     }
+    let photoStillProcessing = false;
     generatingRef.current = true;
     stopProgressRef.current?.();
     stopProgressRef.current = null;
@@ -308,39 +397,51 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       const referenceUrls = kind === "image"
         ? Array.from(new Set([...(uploadedReferenceUrls.length < 3 && selectedProduct?.image ? [selectedProduct.image] : []), ...uploadedReferenceUrls])).slice(0, 3)
         : [];
-      const response = await fetch(kind === "image" ? "/api/studio/image" : "/api/studio/video", {
+      const response = await fetch(kind === "image" ? "/api/studio/tasks" : "/api/studio/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(kind === "image"
-          ? { prompt, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", referenceUrls }
+          ? { id: crypto.randomUUID(), kind: "image", input: { prompt, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", referenceUrls } }
           : { prompt, duration, resolution: videoResolution, aspectRatio, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "La génération a échoué.");
       if (kind === "image") {
-        stopProgressRef.current?.();
-        stopProgressRef.current = null;
-        setImageUrl(typeof result.imageUrl === "string" ? result.imageUrl : null);
-        // Keep the estimate capped below completion until the browser confirms
-        // that the returned image has actually loaded.
-        setGenerationProgress(95);
+        const task = result.task;
+        if (!task?.id) throw new Error("La tâche photo n'a pas pu être enregistrée.");
+        imageTaskIdRef.current = task.id;
+        setImageTask({ id: task.id, status: task.status });
+        photoStillProcessing = task.status === "processing";
+        if (task.status === "completed" && task.result?.imageUrl) {
+          stopProgressRef.current?.(); stopProgressRef.current = null;
+          setImageUrl(task.result.imageUrl);
+          setGenerationProgress(95);
+          setLoading(false); generatingRef.current = false;
+        }
+        // For processing, the estimate remains running and polling owns completion.
       }
-      if (kind === "image") setSelectedGenerationId(result.generationId);
+      if (kind === "image" && result.task?.status === "completed") setSelectedGenerationId(result.task.result?.generationId ?? null);
       if (kind === "image") setReferenceFiles([]);
       else setVideoJob({ id: result.jobId, status: result.status || "queued" });
-      if (result.generationId) await loadHistory(true);
-      const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
-      if (credits) setBalance(credits.balance ?? 0);
+      if (kind === "video") {
+        const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
+        if (credits) setBalance(credits.balance ?? 0);
+      }
     } catch (generationError) {
+      if (kind === "image") { imageRecoveryReadyRef.current = false; setImageRecoveryReady(false); }
       stopProgressRef.current?.();
       stopProgressRef.current = null;
       setGenerationProgress(0);
       setError(generationError instanceof Error ? generationError.message : t("sweep3.text203"));
     } finally {
-      stopProgressRef.current?.();
-      stopProgressRef.current = null;
-      setLoading(false);
-      generatingRef.current = false;
+      if (!photoStillProcessing || kind === "video") {
+        stopProgressRef.current?.();
+        stopProgressRef.current = null;
+      }
+      if (kind === "video" || !photoStillProcessing) {
+        setLoading(false);
+        generatingRef.current = false;
+      }
     }
   }
 
@@ -413,6 +514,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   }
 
   const videoReady = videoJob?.status === "completed" && videoJob.contentUrl;
+  const selectedHistory = history.find((item) => item.id === selectedHistoryId) ?? null;
 
   return (
     <div className="studio-page">
@@ -425,8 +527,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       </div>
 
       <div className="studio-tabs" role="tablist" aria-label={t("sweep2.text205")}>
-        <button type="button" role="tab" id="studio-photo-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo"} className={studioTab === "photo" ? "active" : ""} onClick={() => { setStudioTab("photo"); setKind("image"); }}><ImageIcon size={17} /> Photo</button>
-        <button type="button" role="tab" id="studio-slideshow-tab" aria-controls="studio-slideshow-panel" aria-selected={studioTab === "slideshow"} className={studioTab === "slideshow" ? "active" : ""} onClick={() => setStudioTab("slideshow")}><ImageIcon size={17} /> {locale === "en" ? "Slideshow" : "Diaporama"}</button>
+        <button type="button" role="tab" id="studio-photo-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo"} className={studioTab === "photo" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("photo"); setKind("image"); }}><ImageIcon size={17} /> Photo</button>
+        <button type="button" role="tab" id="studio-slideshow-tab" aria-controls="studio-slideshow-panel" aria-selected={studioTab === "slideshow"} className={studioTab === "slideshow" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("slideshow"); }}><ImageIcon size={17} /> {locale === "en" ? "Slideshow" : "Diaporama"}</button>
         <button type="button" role="tab" aria-selected={false} disabled aria-disabled="true" style={{ opacity: 0.45, cursor: "not-allowed" }} title={locale === "en" ? "Coming later — generation locked" : "À venir — génération verrouillée"}><Video size={17} /> {t("studio.video")}</button>
       </div>
       <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => setSelectedProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => setSelectedProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => setSelectedProduct(null)} aria-label={t("sweep3.text206")}>×</button>{selectedProduct.image ? <em>{kind === "video" ? t("studio.coverRef") : t("studio.imageReferenceNote")}</em> : null}</div> : null}</section>
@@ -471,7 +573,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           )}
 
           {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
-          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading}>
+          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady)}>
             <Sparkles size={17} /> {loading || referenceUploading ? t("studio.generating") : kind === "image" ? t("studio.createImage") : t("studio.createVideo")}
           </button>
           <p className="studio-cost">{kind === "image" ? t("studio.imageCost") : t("studio.videoCost", { rate: videoResolution === "1080p" ? "38" : videoResolution === "720p" ? "25" : "15", res: videoResolution })}</p>
@@ -487,8 +589,12 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         </section>
       </div>}
       </div>
+      {selectedHistory ? <section ref={historyViewerRef} tabIndex={-1} className="app-card studio-result studio-history-viewer" aria-label={t("studio.result")}>
+        <div className="card-head"><div><span className="eyebrow">{t("overview.history")}</span><h2>{selectedHistory.kind === "image" ? t("studio.yourImage") : t("studio.yourVideo")}</h2></div>{selectedHistory.kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>
+        {selectedHistory.status === "processing" ? <p role="status">{t("dynamicExtra.videoStatus", { status: selectedHistory.status })}</p> : selectedHistory.status === "failed" || selectedHistory.status === "cancelled" ? <p role="status">{t("overview.importFailed")}</p> : selectedHistory.mediaUrl ? selectedHistory.kind === "video" ? <><video className="studio-media" src={selectedHistory.mediaUrl} controls playsInline preload="metadata" /><a className="btn btn-ghost" href={selectedHistory.mediaUrl} download="vendeo-studio-video.mp4">{t("studio.downloadVideo")}</a></> : <><div className="studio-media-wrap"><img className="studio-media" src={selectedHistory.mediaUrl} alt={t("studio.yourImage")} /></div><div className="studio-result-actions"><button type="button" className="btn btn-ghost" onClick={() => void downloadMedia(selectedHistory.mediaUrl!, "vendeo-studio-image.png")}>{t("studio.downloadImage")}</button><button type="button" className="btn btn-ghost" onClick={() => { setKind("image"); setStudioTab("photo"); setImageUrl(selectedHistory.mediaUrl ?? null); setSelectedGenerationId(selectedHistory.id); setEditOpen(true); }}>{t("studio.edit")}</button></div></> : <p>{t("sweep2.text214")}</p>}
+      </section> : null}
       <div className="studio-history-toolbar"><span className="eyebrow">{t("overview.history")}</span><div><button className={historyKind === "all" ? "active" : ""} onClick={() => setHistoryKind("all")}>{t("sweep1.text216")}</button><button className={historyKind === "image" ? "active" : ""} onClick={() => setHistoryKind("image")}>Images</button><button className={historyKind === "video" ? "active" : ""} onClick={() => setHistoryKind("video")}>{t("sweep2.text217")}</button></div></div>
-      <section className="studio-history">{history.length ? history.map((item) => <article className="studio-history-card" key={item.id} onClick={() => { setSelectedGenerationId(item.id); setKind(item.kind); if (item.kind === "image") setImageUrl(item.mediaUrl ?? null); else if (item.video_job_id) setVideoJob({ id: item.video_job_id, status: item.status, contentUrl: item.mediaUrl }); }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt={t("wizardExtra.step.creation")} loading="lazy" decoding="async" /> : item.mediaUrl && item.kind === "video" ? <video src={`${item.mediaUrl}#t=0.5`} muted playsInline preload="metadata" aria-label={t("sweep3.text218")} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{item.kind === "image" ? "Image" : t("studio.video")}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "…" : ""}</p><small>{new Date(item.created_at).toLocaleString("fr-FR")} · {item.credits_cost} {" "}{t("sweep1.text219")}{" "}{item.status === "processing" ? t("optionsExtra.text24") : item.status === "failed" ? t("overview.importFailed") : t("adsExtra.status.completed")}</small></div><div className="studio-history-actions"><button onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>{t("sweep2.text220")}</button>{item.kind === "image" ? <button onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditOpen(true); }}>{t("studio.edit")}</button> : null}<button onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette création ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>{t("ads.correction.deleteCampaign")}</button></div></article>) : <div className="studio-history-empty">{t("sweep3.text221")}</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? t("adminExtra.notifications.loading") : t("optionsExtra.text25")}</button> : null}</section>
+      <section className="studio-history">{history.length ? history.map((item) => <article className="studio-history-card" key={item.id} tabIndex={0} role="group" aria-label={`${item.kind === "image" ? "Image" : t("studio.video")}: ${item.prompt.slice(0, 90)}`} onClick={() => setSelectedHistoryId(item.id)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelectedHistoryId(item.id); } }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt={t("wizardExtra.step.creation")} loading="lazy" decoding="async" /> : item.mediaUrl && item.kind === "video" ? <video src={`${item.mediaUrl}#t=0.5`} muted playsInline preload="metadata" aria-label={t("sweep3.text218")} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{item.kind === "image" ? "Image" : t("studio.video")}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "…" : ""}</p><small>{new Date(item.created_at).toLocaleString("fr-FR")} · {item.credits_cost} {" "}{t("sweep1.text219")}{" "}{item.status === "processing" ? t("optionsExtra.text24") : item.status === "failed" ? t("overview.importFailed") : t("adsExtra.status.completed")}</small></div><div className="studio-history-actions"><button type="button" onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>{t("sweep2.text220")}</button>{item.kind === "image" ? <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditOpen(true); }}>{t("studio.edit")}</button> : null}<button type="button" onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette création ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>{t("ads.correction.deleteCampaign")}</button></div></article>) : <div className="studio-history-empty">{t("sweep3.text221")}</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? t("adminExtra.notifications.loading") : t("optionsExtra.text25")}</button> : null}</section>
     </div>
   );
 }

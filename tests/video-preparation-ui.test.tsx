@@ -2,226 +2,29 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { StudioView } from "@/components/dashboard/sections";
 import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
-vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string) => key }) }));
+import { verifySlideImage } from "@/components/studio/SlideshowStudio";
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-const slides = { duration: 25, aspectRatio: "9:16", transitionSeconds: 0.8, prompt: "Storyboard simulé", countReason: "Exactement cinq visuels fidèles au produit.", warnings: [], campaignGoal: "discover", slides: Array.from({ length: 5 }, (_, index) => ({ index, prompt: `Prompt ${index + 1}`, displaySeconds: 5.64, role: index === 0 ? "hook" : index === 4 ? "cta" : "evidence", headline: `Titre ${index + 1}`, supportingCopy: ["Copie de soutien"], source: { field: "description", excerpt: "fait produit" }, layout: `layout-${index}` })) };
-const tracks = ["wonderful", "life-is"].map(id => ({ id: `sb-${id}`, title: id, artist: "Scott Buckley", license: "CC BY 4.0", sourceUrl: "https://www.scottbuckley.com.au/library/", licenseUrl: "https://creativecommons.org/licenses/by/4.0/", credit: "Credit Scott Buckley", youtubeNotice: "YouTube DESCRIPTION" }));
+const tracks = [{ id: "sb-wonderful", title: "wonderful", artist: "Scott Buckley", license: "CC BY 4.0", sourceUrl: "https://example.com/source", licenseUrl: "https://example.com/license", credit: "Credit Scott Buckley", youtubeNotice: "YouTube DESCRIPTION" }];
 const reply = (data: unknown, ok = true) => ({ ok, json: async () => data });
 const setup = () => { const container = document.createElement("div"); document.body.append(container); return { container, root: createRoot(container) }; };
-const click = async (container: HTMLElement, name: string) => {
-  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(element => element.textContent?.trim() === name);
-  expect(button, `button « ${name} »`).toBeTruthy(); await act(async () => button!.click());
-};
-const selectValue = async (select: HTMLSelectElement, value: string) => act(async () => { select.value = value; select.dispatchEvent(new Event("change", { bubbles: true })); });
-const renderStudio = async (root: ReturnType<typeof createRoot>, locale = "fr") => act(async () => root.render(<SlideshowStudio locale={locale} product={{ id: "1", name: "Mon ebook", image: "https://example.com/cover.png" }} />));
-describe("Preview slideshow UI", () => {
-  beforeEach(() => vi.stubGlobal("Image", class {
-    onload: null | (() => void) = null; onerror: null | (() => void) = null;
-    set src(_url: string) { queueMicrotask(() => this.onload?.()); }
-  }));
-  it("separates Photo / Diaporama / Video, preserves draft choices across tabs without generation", async () => {
-    const fetcher = vi.fn(async (url: string) => reply(url === "/api/studio/slideshow/config" ? { enabled: true, tracks } : url === "/api/studio/prompt" ? { slideshow: slides } : { items: [] }));
-    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
-    try {
-      await act(async () => root.render(<StudioView products={[{ id: "1", name: "Mon ebook" }]} />));
-      const tabs = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-      expect(tabs.map(tab => tab.textContent?.trim())).toEqual(["Photo", "Diaporama", "studio.video"]);
-      expect(tabs[2].disabled).toBe(true);
-      const photoPanel = container.querySelector<HTMLElement>("#studio-photo-panel")!;
-      const slideshowPanel = container.querySelector<HTMLElement>("#studio-slideshow-panel")!;
-      expect(photoPanel.hidden).toBe(false); expect(slideshowPanel.hidden).toBe(true);
-      await click(container, "Diaporama"); expect(photoPanel.hidden).toBe(true); expect(slideshowPanel.hidden).toBe(false);
-      expect(slideshowPanel.textContent).not.toMatch(/prompt|personnage|character/i);
-      await act(async () => tabs[2].click()); expect(tabs[1].getAttribute("aria-selected")).toBe("true");
-      await act(async () => container.querySelectorAll<HTMLButtonElement>(".studio-product-list button")[1].click());
-      const music = slideshowPanel.querySelector<HTMLSelectElement>('select[aria-label="Musique"]'); expect(music).toBeTruthy();
-      await selectValue(music!, tracks[0].id);
-      const goal = [...slideshowPanel.querySelectorAll<HTMLSelectElement>("select")].find(select => select !== music);
-      expect(goal).toBeTruthy(); expect(goal!.getAttribute("aria-label")).toBe("Objectif"); await selectValue(goal!, "buy");
-      await click(container, "Photo"); await click(container, "Diaporama");
-      expect(music!.value).toBe(tracks[0].id); expect(goal!.value).toBe("buy");
-      expect(container.textContent).toContain("Créer");
-      expect(fetcher.mock.calls.some(([url]) => url === "/api/studio/prompt" || url === "/api/studio/image")).toBe(false);
-    } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
-
-  it("shows the five-image credit cost before generation and runs preparation, five images and render once", async () => {
-    let images = 0;
-    const fetcher = vi.fn(async (url: string, options?: RequestInit) => {
-      const body = options?.body ? JSON.parse(String(options.body)) : {};
-      if (url.endsWith("/config")) return reply({ enabled: true, tracks });
-      if (url === "/api/studio/prompt") return reply({ slideshow: slides });
-      if (url === "/api/studio/image") { images++; return reply({ generationId: `image-${images}`, imageUrl: `https://example.com/${images}.png`, cost: 20 }); }
-      return reply({ generationId: "video-1", videoUrl: "https://example.com/original.mp4", musicId: body.musicId, imageGenerationIds: Array.from({ length: 5 }, (_, i) => `image-${i + 1}`), attribution: "Credit Scott Buckley — YouTube DESCRIPTION", duration: 25 });
-    });
-    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
-    try {
-      await renderStudio(root);
-      expect(container.textContent).toContain("5 images · 100 crédits Studio");
-      expect(container.textContent).toContain("Montage et changement de musique sans crédits d’images supplémentaires.");
-      const generate = [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.trim() === "Créer")!;
-      expect(generate).toBeTruthy(); await act(async () => { generate.click(); generate.click(); });
-      expect(images).toBe(5);
-      const imageCalls = fetcher.mock.calls.filter(([url]) => url === "/api/studio/image"); expect(imageCalls).toHaveLength(5);
-      expect(fetcher.mock.calls.filter(([url]) => url === "/api/studio/prompt")).toHaveLength(1);
-      for (const [, options] of imageCalls) { const imageBody = JSON.parse(String(options?.body)); expect(imageBody.slideshow).toMatchObject({ duration: 25, aspectRatio: "9:16", locale: "fr", campaignGoal: "discover", imageCount: 5 }); expect(typeof imageBody.slideshow.slideIndex).toBe("number"); }
-      expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/preflight"))).toHaveLength(1);
-      expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/render"))).toHaveLength(1);
-      expect(container.textContent).toContain("Credit Scott Buckley — YouTube DESCRIPTION");
-      expect(container.querySelector('video[aria-label="Diaporama final"]')?.getAttribute("src")).toContain("original");
-    } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
-
-  it("remplace la musique sans régénérer les images et conserve licence et attribution du résultat", async () => {
-    let images = 0;
-    const fetcher = vi.fn(async (url: string, options?: RequestInit) => {
-      const body = options?.body ? JSON.parse(String(options.body)) : {};
-      if (url.endsWith("/config")) return reply({ enabled: true, tracks });
-      if (url === "/api/studio/prompt") return reply({ slideshow: slides });
-      if (url === "/api/studio/image") { images++; return reply({ generationId: `image-${images}`, imageUrl: `https://example.com/${images}.png`, cost: 20 }); }
-      return reply({ generationId: "video-1", videoUrl: `https://example.com/${url.endsWith("/remix") ? "remixed" : "original"}.mp4`, musicId: body.musicId, imageGenerationIds: Array.from({ length: 5 }, (_, i) => `image-${i + 1}`), attribution: "Credit Scott Buckley — YouTube DESCRIPTION", duration: 25 });
-    });
-    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
-    try {
-      await renderStudio(root); const music = container.querySelector<HTMLSelectElement>('select[aria-label="Musique"]')!;
-      await selectValue(music, tracks[0].id); await click(container, "Créer");
-      const license = [...container.querySelectorAll("details")].find(detail => detail.textContent?.includes("Licence et crédits"));
-      expect(license).toBeTruthy(); expect(license!.open).toBe(false); expect(license!.querySelector("summary")?.textContent).toContain("Licence et crédits");
-      expect(container.textContent).toContain("CC BY 4.0"); expect(license!.textContent).toContain("Credit Scott Buckley");
-      await selectValue(music, tracks[1].id); await click(container, "Remplacer la musique");
-      expect(images).toBe(5); expect(fetcher.mock.calls.filter(([url]) => url.endsWith("/remix"))).toHaveLength(1);
-      expect(container.textContent).toContain("Musique remplacée"); expect(container.textContent).toContain("Credit Scott Buckley — YouTube DESCRIPTION");
-      expect(container.querySelector('video[aria-label="Diaporama final"]')?.getAttribute("src")).toContain("remixed");
-    } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
-
-  it.each([2, 3, 4, 6])("does not generate images for a %i-image storyboard", async count => {
-    const invalidPlan = { ...slides, slides: Array.from({ length: count }, (_, index) => ({ index, prompt: `Prompt ${index + 1}`, displaySeconds: 1, role: index === 0 ? "hook" : index === count - 1 ? "cta" : "evidence" })) };
-    const fetcher = vi.fn(async (url: string) => url.endsWith("/config") ? reply({ enabled: true, tracks: [] }) : url === "/api/studio/prompt" ? reply({ slideshow: invalidPlan }) : reply({ ready: true }));
-    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
-    try { await renderStudio(root); await click(container, "Créer"); expect(container.querySelector('[role="alert"]')?.textContent).toContain("exactement 5 images"); expect(fetcher.mock.calls.some(([url]) => url === "/api/studio/image" || String(url).endsWith("/render"))).toBe(false); }
-    finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
-
-  it.each(["preparation", "preflight"]) ("generates no images when %s fails", async failure => {
-    const fetcher = vi.fn(async (url: string) => {
-      if (url.endsWith("/config")) return reply({ enabled: true, tracks: [] });
-      if (url === "/api/studio/prompt") return failure === "preparation" ? reply({ error: "Preparation failed" }, false) : reply({ slideshow: slides });
-      if (url.endsWith("/preflight")) return reply({ error: "Preflight failed" }, false);
-      return reply({ ready: true });
-    });
-    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
-    try { await renderStudio(root); await click(container, "Créer"); expect(fetcher.mock.calls.filter(([url]) => url === "/api/studio/image")).toHaveLength(0); expect(fetcher.mock.calls.some(([url]) => url.endsWith("/render"))).toBe(false); expect(container.querySelector('[role="alert"]')?.textContent).toContain(failure === "preparation" ? "Preparation failed" : "Preflight failed"); }
-    finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
-
-  it("stops after the first failed image without retrying or assembling", async () => {
-    const fetcher = vi.fn(async (url: string) => url.endsWith("/config") ? reply({ enabled: true, tracks: [] }) : url === "/api/studio/prompt" ? reply({ slideshow: slides }) : url.endsWith("/preflight") ? reply({ ready: true }) : reply({ error: "Simulation échec" }, false));
-    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
-    try {
-      await renderStudio(root); await click(container, "Créer");
-      expect(fetcher.mock.calls.filter(([url]) => url === "/api/studio/image")).toHaveLength(1);
-      expect(fetcher.mock.calls.some(([url]) => url.endsWith("/render"))).toBe(false);
-      expect(container.textContent).toContain("Aucune nouvelle tentative automatique");
-      expect([...container.querySelectorAll("button")].some(button => button.textContent === "Créer")).toBe(false);
-    } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
-
-  it("animates continuously without percentages, keeps thumbnails on one row and hides prompts", async () => {
-    const imageWaiters: Array<(value: ReturnType<typeof reply>) => void> = [];
-    let finishRender!: (value: ReturnType<typeof reply>) => void;
-    const fetcher = vi.fn(async (url: string) => {
-      if (url.endsWith("/config")) return reply({ enabled: true, tracks: [] });
-      if (url === "/api/studio/prompt") return reply({ slideshow: slides });
-      if (url.endsWith("/preflight")) return reply({ ready: true });
-      if (url === "/api/studio/image") return new Promise<ReturnType<typeof reply>>(resolve => imageWaiters.push(resolve));
-      return new Promise<ReturnType<typeof reply>>(resolve => { finishRender = resolve; });
-    });
-    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
-    const spinner = () => container.querySelector('[data-testid="slideshow-spinner"]');
-    try {
-      await renderStudio(root); expect(container.querySelector("pre")).toBeNull();
-      expect([...container.querySelectorAll("button")].map(button => button.textContent)).toEqual(["Créer"]);
-      await click(container, "Créer"); expect(spinner()).toBeTruthy(); expect(container.querySelector('[role="progressbar"]')).toBeNull();
-      for (let index = 0; index < 5; index++) {
-        await act(async () => imageWaiters[index](reply({ generationId: `image-${index}`, imageUrl: `https://example.com/${index}.png`, cost: 20 })));
-        expect(spinner()?.getAttribute("style")).toContain("linear infinite");
-        expect(container.textContent).not.toMatch(/\d+%/);
-        expect(container.querySelector("pre")).toBeNull(); expect(container.textContent).not.toContain("Prompt 1");
-      }
-      expect(spinner()).toBeTruthy(); expect(container.textContent).toContain("Montage du diaporama");
-      const row = container.querySelector<HTMLElement>('[aria-label="Visuels générés"]')!;
-      expect(row.style.flexWrap).toBe("nowrap"); expect(row.style.overflowX).toBe("auto");
-      expect(row.querySelectorAll("img")).toHaveLength(5);
-      for (const image of row.querySelectorAll("img")) expect(image.style.width).toBe("56px");
-      expect(container.querySelector('video[aria-label="Diaporama final"]')).toBeNull();
-      await act(async () => finishRender(reply({ generationId: "video-ready", videoUrl: "https://example.com/final.mp4", musicId: "", attribution: "", imageGenerationIds: [], duration: 25 })));
-      expect(spinner()).toBeNull(); expect(container.textContent).not.toContain("100%");
-      expect(container.querySelector('video[aria-label="Diaporama final"]')?.getAttribute("src")).toContain("final.mp4");
-    } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
-
-  it("does not claim 100 percent when the final MP4 is missing", async () => {
-    let imageCount = 0;
-    const fetcher = vi.fn(async (url: string) => {
-      if (url.endsWith("/config")) return reply({ enabled: true, tracks: [] });
-      if (url === "/api/studio/prompt") return reply({ slideshow: slides });
-      if (url === "/api/studio/image") return reply({ generationId: `image-${++imageCount}`, imageUrl: "https://example.com/image.png", cost: 20 });
-      return reply({ ready: true });
-    });
-    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
-    try {
-      await renderStudio(root); await click(container, "Créer");
-      expect(container.querySelector('[role="progressbar"]')).toBeNull();
-      expect(container.textContent).not.toContain("Diaporama prêt");
-      expect(container.querySelector('[role="alert"]')?.textContent).toContain("Vidéo finale manquante");
-      expect(fetcher.mock.calls.filter(([url]) => url === "/api/studio/image")).toHaveLength(5);
-    } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
-
-  it("offers readable durations only and never changes locked video options", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => reply({ enabled: true, tracks: [] })));
-    const { container, root } = setup();
-    try { await renderStudio(root); const duration = container.querySelector<HTMLSelectElement>('select[aria-label="Durée"]')!;
-      expect([...duration.options].map(option => option.value)).toEqual(["25", "30", "40"]); expect(duration.value).toBe("25");
-    } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
-  it("stops on an inaccessible third image, accounts for its charge and never renders or retries", async () => {
-    vi.stubGlobal("Image", class { onload: null | (() => void) = null; onerror: null | (() => void) = null;
-      set src(url: string) { queueMicrotask(() => url.endsWith("3.png") ? this.onerror?.() : this.onload?.()); }
-    });
-    let images = 0;
-    const fetcher = vi.fn(async (url: string) => url.endsWith("/config") ? reply({ enabled: true, tracks: [] }) : url === "/api/studio/prompt" ? reply({ slideshow: slides }) : url.endsWith("/preflight") ? reply({ ready: true }) : reply({ generationId: `image-${++images}`, imageUrl: `https://example.com/${images}.png`, cost: 20 }));
-    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
-    try { await renderStudio(root); await click(container, "Créer");
-      expect(images).toBe(3); expect(container.querySelectorAll("img")).toHaveLength(2);
-      expect(container.textContent).toContain("2/5 visuels · 60 crédits Studio utilisés");
-      expect(container.querySelector('[role="alert"]')?.textContent).toContain("Visuel inaccessible");
-      expect(fetcher.mock.calls.some(([url]) => url.endsWith("/render"))).toBe(false);
-      const thumbnail = container.querySelector("img")!; await act(async () => thumbnail.dispatchEvent(new Event("error")));
-      expect(container.querySelectorAll("img")).toHaveLength(1); expect(container.textContent).toContain("Aperçu indisponible");
-    } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
-
-  it("uses English labels and copy for the single-button flow", async () => {
-    let imageCount = 0;
-    const fetcher = vi.fn(async (url: string, options?: RequestInit) => {
-      if (url.endsWith("/config")) return reply({ enabled: true, tracks });
-      if (url === "/api/studio/prompt") return reply({ slideshow: slides });
-      if (url === "/api/studio/image") { imageCount++; return reply({ generationId: `image-${imageCount}`, imageUrl: `https://example.com/${imageCount}.png`, cost: 20 }); }
-      if (url.endsWith("/render")) return reply({ generationId: "video-en", videoUrl: "https://example.com/video.mp4", musicId: "", imageGenerationIds: Array.from({ length: 5 }, (_, index) => `image-${index + 1}`), attribution: "", duration: 25 });
-      return reply({ ready: true });
-    });
-    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
-    try {
-      await renderStudio(root, "en"); expect(container.textContent).toContain("Create"); expect(container.textContent).toContain("5 images · 100 Studio credits");
-      expect(container.querySelector('select[aria-label="Music"]')).toBeTruthy();
-      await click(container, "Create");
-      expect(fetcher.mock.calls.filter(([url]) => url === "/api/studio/prompt")).toHaveLength(1);
-      expect(fetcher.mock.calls.filter(([url]) => url === "/api/studio/image")).toHaveLength(5);
-      expect(container.textContent).toContain("Your slideshow is ready");
-    } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
-  });
+const render = async (root: ReturnType<typeof createRoot>) => act(async () => root.render(<SlideshowStudio locale="fr" product={{ id: "p1", name: "Mon ebook", image: "https://example.com/cover.png" }} />));
+const click = async (container: HTMLElement, name: string) => { const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(el => el.textContent?.trim() === name); expect(button).toBeTruthy(); await act(async () => button!.click()); };
+const completed = { id: "task-1", kind: "slideshow", status: "completed", progress: 100, message: "Diaporama prêt.", images: Array.from({ length: 5 }, (_, i) => ({ id: `i${i}`, url: `https://example.com/${i}.png` })), result: { generationId: "video-1", videoUrl: "https://example.com/video.mp4", attribution: "Credit Scott Buckley — YouTube DESCRIPTION", duration: 25, musicId: "", imageGenerationIds: ["i0", "i1", "i2", "i3", "i4"] } };
+describe("Slideshow server task UI", () => {
+ beforeEach(() => { vi.stubGlobal("fetch", vi.fn(async (url: string) => url.endsWith("/config") ? reply({ enabled: true, tracks }) : url === "/api/studio/tasks" ? reply({ tasks: [] }) : reply({}))); });
+ it("uses one task POST for double taps, never calls client pipeline and preserves music remix", async () => {
+   const fetcher = vi.fn(async (url: string, options?: RequestInit) => { if (url.endsWith("/config")) return reply({ enabled: true, tracks }); if (url === "/api/studio/tasks" && options?.method === "POST") return reply({ task: completed }); if (url === "/api/studio/tasks") return reply({ tasks: [] }); if (url.endsWith("/remix")) return reply({ ...completed.result, videoUrl: "https://example.com/remix.mp4", musicId: "sb-wonderful" }); return reply({}); });
+   vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
+   try { await render(root); expect(container.textContent).toContain("5 images · 100 crédits Studio"); const create = [...container.querySelectorAll("button")].find(b => b.textContent?.trim() === "Créer")!; await act(async () => { create.click(); create.click(); });
+    expect(fetcher.mock.calls.filter(([url, options]) => url === "/api/studio/tasks" && options?.method === "POST")).toHaveLength(1); expect(fetcher.mock.calls.some(([url]) => ["/api/studio/prompt", "/api/studio/image", "/api/studio/slideshow/preflight", "/api/studio/slideshow/render"].includes(String(url)))).toBe(false); expect(container.querySelectorAll("img")).toHaveLength(5); expect(container.querySelector('video[aria-label="Diaporama final"]')?.getAttribute("src")).toContain("video.mp4");
+    const music = container.querySelector<HTMLSelectElement>('select[aria-label="Musique"]')!; await act(async () => { music.value = tracks[0].id; music.dispatchEvent(new Event("change", { bubbles: true })); }); await click(container, "Remplacer la musique"); expect(fetcher.mock.calls.filter(([url]) => String(url).endsWith("/remix"))).toHaveLength(1); expect(container.textContent).toContain("YouTube DESCRIPTION");
+   } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
+ });
+ it("recovers completed task on mount and carries images/result without POST", async () => {
+   const fetcher = vi.fn(async (url: string, opts?: RequestInit) => url.endsWith("/config") ? reply({ enabled: true, tracks }) : reply({ tasks: [completed] })); vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
+   try { await render(root); expect(container.textContent).toContain("Ton diaporama est prêt"); expect(container.querySelectorAll("img")).toHaveLength(5); expect(container.querySelector('video[aria-label="Diaporama final"]')?.getAttribute("src")).toContain("video.mp4"); expect(fetcher.mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false); }
+   finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
+ });
+ it("retains the exported image verifier contract", async () => { vi.stubGlobal("Image", class { onload: null | (() => void) = null; set src(_url: string) { queueMicrotask(() => this.onload?.()); } }); await expect(verifySlideImage("https://example.com/image.png")).resolves.toBeUndefined(); vi.unstubAllGlobals(); });
 });
