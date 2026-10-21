@@ -9,6 +9,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { fetchMetaAccounts } from "@/lib/meta/api";
 import { VITRINE_PROMPT, processVitrineAnswer, wantsVitrine } from "@/lib/shop/chat";
 import { resolveCampaignAnswer, type ChatCatalogProduct } from "@/lib/chariow/chat-product";
+import { campaignManagementContext, resolveCampaignActionProposal, type AssistantCampaign } from "@/lib/chat/campaign-action-proposal";
 
 export const maxDuration = 120;
 
@@ -318,7 +319,11 @@ export async function POST(request: Request) {
   const systemCap = documentAttachments.length ? baseSystemCap + MAX_DOCUMENT_CONTEXT_CHARS : baseSystemCap;
   const boundedSystemContent = rawSystemContent.length > systemCap ? `${rawSystemContent.slice(0, systemCap)}[...system tronqué...]` : rawSystemContent;
   // Les identités et URL produits ne sont jamais tronquées avec les analytics.
-  const systemContent = `${boundedSystemContent}${campaignCatalogContext}`;
+  const { data: managedCampaigns, error: managedCampaignError } = await supabase.from("ad_campaigns")
+    .select("id,title,product_name,platform,status,external_campaign_id")
+    .eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
+  const assistantCampaigns: AssistantCampaign[] = managedCampaignError ? [] : (managedCampaigns ?? []);
+  const systemContent = `${boundedSystemContent}${campaignCatalogContext}${campaignManagementContext(assistantCampaigns)}`;
 
   // L'historique de la conversation en cours est toujours transmis : c'est la mémoire
   // du tunnel de création de campagne. On ne le supprime plus jamais pour économiser
@@ -361,6 +366,7 @@ export async function POST(request: Request) {
   answer = cleanAiText(answer, { preserveStrong: true });
   const userProvidedUrls = (previousHistory ?? []).filter((item) => item.role === "user").map((item) => String(item.content ?? "")).concat(message).flatMap((text) => text.match(/https?:\/\/[^\s<>"\]]+/g) ?? []);
   answer = resolveCampaignAnswer(answer, campaignCatalog, { userProvidedUrls, locale: body?.locale });
+  answer = resolveCampaignActionProposal(answer, assistantCampaigns, body?.locale);
   // [[CREE_VITRINE]] : le serveur valide le JSON, crée la vitrine et remplace la balise par le lien.
   // Images jointes (la plus récente d'abord) : le logo est repris depuis là, jamais depuis une URL donnée par l'IA.
   const vitrineImageUrls = [

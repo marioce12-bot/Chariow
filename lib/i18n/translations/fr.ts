@@ -87,7 +87,7 @@ export const fr: Dict = {
     chat: {
       trialEnded: "Ton essai gratuit est terminé.", activate: "Activer l'abonnement",
       sales: "Ventes", spend: "Dépenses pub", roas: "ROAS réel",
-      eyebrow: "Centre de décision", title: "Que veux-tu comprendre aujourd'hui ?",
+      eyebrow: "Centre de décision", title: "Que veux-tu faire aujourd'hui ?", launchSuggestion: "Tu veux lancer une campagne ?", launchSuggestionPrompt: "Je veux préparer la création d’une campagne. Aide-moi à définir les éléments nécessaires, sans la lancer.",
       desc: "Vendeo croise tes ventes, tes pubs et ta rentabilité pour te dire quoi faire ensuite.",
       protectTitle: "Protéger ma marge", protectText: "Repérer les pubs qui brûlent du budget", protectPrompt: "Où est-ce que je perds de l'argent cette semaine ?",
       opportunityTitle: "Trouver une opportunité", opportunityText: "Voir ce qui mérite plus d'attention", opportunityPrompt: "Quelle est ma meilleure opportunité cette semaine ?",

@@ -203,3 +203,16 @@ html[data-theme="dark"] .ai-page .chat-history-list button.active { background:r
   .ai-page .chat-bubble.user { max-width: min(68ch, 88%); }
   .ai-page .chat-composer { margin-left: auto; margin-right: auto; max-width: 980px; width: 100%; }
 }
+
+/* Aperçu des mutations : lisible sur mobile, sans exécution automatique. */
+.ai-page .campaign-action-card { background:#f7f9fd; border:1px solid var(--line); border-radius:12px; display:grid; font-size:13px; gap:10px; margin-top:12px; min-width:0; overflow-wrap:anywhere; padding:12px; white-space:normal; }
+.ai-page .campaign-action-card strong { font-size:13px; }
+.ai-page .campaign-action-card p { line-height:1.5; margin:7px 0; }
+.ai-page .campaign-action-card label { color:var(--muted); display:grid; font-size:12px; gap:5px; margin:8px 0; }
+.ai-page .campaign-action-card input { background:#fff; border:1px solid #c9d4ee; border-radius:8px; box-sizing:border-box; color:var(--ink); font:inherit; font-size:16px; min-height:44px; min-width:0; padding:9px 10px; width:100%; }
+.ai-page .campaign-action-card button { background:var(--blue); border:1px solid transparent; border-radius:9px; color:#fff; cursor:pointer; font:inherit; font-size:13px; font-weight:600; margin:4px 6px 4px 0; min-height:44px; padding:9px 12px; }
+.ai-page .campaign-action-card button:last-of-type:not(:first-of-type) { background:#fff; border-color:var(--line); color:var(--ink); }
+.ai-page .campaign-action-card button:disabled { cursor:default; opacity:.5; }
+.ai-page .campaign-action-card button:focus-visible,.ai-page .campaign-action-card input:focus-visible { outline:3px solid #98b8ff; outline-offset:2px; }
+.ai-page .campaign-action-card [role="alert"] { background:#fff4e8; border-radius:8px; color:#7d3e0a; padding:9px; }
+.ai-page .campaign-action-card [role="status"] { color:#21633e; }

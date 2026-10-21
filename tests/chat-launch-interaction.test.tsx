@@ -55,6 +55,21 @@ async function startSubmission() {
 }
 
 describe("launch popup submission with mocked network only", () => {
+  it("puts the new campaign suggestion first and starts conversation without launching", async () => {
+    await act(async () => root.render(<ChatView onGoToSubscription={() => {}} onUsageChange={() => {}} />));
+    await flush();
+    expect(container.textContent).toContain("Que veux-tu faire aujourd'hui ?");
+    const suggestions = [...container.querySelectorAll<HTMLButtonElement>(".chat-quickstart .chat-chip")];
+    expect(suggestions[0].textContent).toContain("Tu veux lancer une campagne ?");
+    expect(suggestions.length).toBeGreaterThan(1);
+    act(() => suggestions[0].click());
+    await flush();
+    const chatRequests = requests.mock.calls.filter(([url]) => url === "/api/chat");
+    expect(chatRequests).toHaveLength(1);
+    expect(JSON.parse(chatRequests[0][1]!.body as string).message).toContain("sans la lancer");
+    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
   it("animates while waiting, submits once, and reaches 100 only after success", async () => {
     const { dialog } = await startSubmission();
     expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(1);

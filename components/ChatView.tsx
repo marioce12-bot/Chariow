@@ -5,6 +5,7 @@ import { Activity, ArrowRight, Camera, Copy, FileText, History, Megaphone, Packa
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { LaunchProgress } from "@/components/chat/LaunchProgress";
+import { CampaignAction, type CampaignActionData } from "@/components/chat/CampaignAction";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { AssistantMessageText } from "@/components/AssistantMessageText";
 import { normalizeCurrency, type SupportedCurrency } from "@/lib/currency";
@@ -21,6 +22,7 @@ import "../app/dashboard-fullwidth.css";
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
 const LAUNCH_TAG = "[[LANCE_CAMPAGNE]]";
+const CAMPAIGN_ACTION_TAG = "[[GERER_CAMPAGNE]]";
 // Au-delà, on arrête d'attendre l'IA : le message d'erreur s'affiche et le bouton d'envoi
 // est débloqué (sinon une réponse jamais arrivée laissait le chat « en train d'écrire » à vie).
 const CHAT_REQUEST_TIMEOUT_MS = 70_000;
@@ -141,25 +143,22 @@ function collectLaunchMedia(previous: ChatMessageItem[]): LaunchMedia {
 
 // Extrait le texte affichable et, si présent, le JSON de lancement d'un message assistant.
 // La balise et son JSON ne doivent jamais apparaître dans la bulle de chat.
-function parseAssistantMessage(rawContent: string): { content: string; launchPayload: LaunchPayload | null } {
-  const tagIndex = rawContent.indexOf(LAUNCH_TAG);
-  if (tagIndex === -1) {
-    return { content: cleanAiText(rawContent, { preserveStrong: true }), launchPayload: null };
-  }
-  const before = rawContent.slice(0, tagIndex);
-  const after = rawContent.slice(tagIndex + LAUNCH_TAG.length).trim();
+function parseAssistantMessage(rawContent: string): { content: string; launchPayload: LaunchPayload | null; campaignAction: CampaignActionData | null } {
   let launchPayload: LaunchPayload | null = null;
-  if (after) {
-    try {
-      const parsed = JSON.parse(after);
-      if (parsed && typeof parsed === "object") launchPayload = parsed as LaunchPayload;
-    } catch {
-      // L'IA n'a parfois pas renvoyé un JSON valide (modèle de secours, troncature...) :
-      // on garde simplement le bouton de lancement, le formulaire restera vide dans ce cas.
-      launchPayload = null;
+  let campaignAction: CampaignActionData | null = null;
+  const positions = [LAUNCH_TAG, CAMPAIGN_ACTION_TAG].map((tag) => ({ tag, index: rawContent.indexOf(tag) })).filter(({ index }) => index >= 0).sort((a, b) => a.index - b.index);
+  const first = positions[0];
+  if (!first) return { content: cleanAiText(rawContent, { preserveStrong: true }), launchPayload, campaignAction };
+  try {
+    // Parse the complete suffix, not a brace regex: ad copy may contain braces.
+    const value = JSON.parse(rawContent.slice(first.index + first.tag.length).trim());
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      if (first.tag === LAUNCH_TAG) launchPayload = value as LaunchPayload;
+      else if (typeof value.campaignId === "string" && value.campaignId.trim() && ["edit", "delete", "pause", "activate", "duplicate"].includes(value.action)) campaignAction = { campaignId: value.campaignId, action: value.action };
     }
-  }
-  return { content: cleanAiText(before.trim(), { preserveStrong: true }), launchPayload };
+  } catch { /* malformed or multiple proposals cannot authorize any operation */ }
+  const content = rawContent.slice(0, first.index).trim();
+  return { content: cleanAiText(content, { preserveStrong: true }), launchPayload, campaignAction };
 }
 
 // Suggestions de démarrage : chacune correspond à une capacité réellement disponible
@@ -321,6 +320,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const abortRef = useRef<AbortController | null>(null);
 
   const AI_QUICK_PROMPTS: QuickPrompt[] = [
+    { icon: <Rocket size={14} />, label: t("chat.launchSuggestion"), prompt: t("chat.launchSuggestionPrompt") },
     { icon: <Megaphone size={14} />, label: t("chat.qStop"), prompt: t("chat.qStopPrompt") },
     { icon: <TrendingUp size={14} />, label: t("chat.qScale"), prompt: t("chat.qScalePrompt") },
     { icon: <Package size={14} />, label: t("chat.qBest"), prompt: t("chat.qBestPrompt") },
@@ -767,9 +767,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
 
           {messages.map((message, index) => {
             const isAssistant = message.role !== "user";
-            const { content, launchPayload } = isAssistant
+            const { content, launchPayload, campaignAction } = isAssistant
               ? parseAssistantMessage(message.content)
-              : { content: message.content, launchPayload: null as LaunchPayload | null };
+              : { content: message.content, launchPayload: null as LaunchPayload | null, campaignAction: null as CampaignActionData | null };
             const hasLaunchAction = isAssistant && message.content.includes(LAUNCH_TAG);
             const isLong = content.length > 520;
             const expanded = expandedMessages[index] === true;
@@ -809,6 +809,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                     )}
                   </div>
                 ) : null}
+                {campaignAction ? <CampaignAction data={campaignAction} /> : null}
                 {hasLaunchAction ? (
                   <button type="button" className="btn btn-dark chat-launch-action" onClick={() => openLaunchConfirm(launchPayload, launchMedia)}>
                     <Rocket size={15} /> {t("chat.launchNow")}

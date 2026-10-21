@@ -44,7 +44,7 @@ async function graphPost(path: string, accessToken: string, params: Record<strin
   const body = new URLSearchParams({ ...params, access_token: accessToken });
   const response = await fetch(`${META_GRAPH_BASE_URL}/${path}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body, cache: "no-store" });
   const json = await response.json().catch(() => ({})) as GraphResponse;
-  if (!response.ok || (typeof json.id !== "string" && json.success !== true)) {
+  if (!response.ok || json.error || (typeof json.id !== "string" && json.success !== true)) {
     throw new Error(describeGraphError(json, response.status));
   }
   return json;
@@ -56,7 +56,7 @@ async function graphGet(path: string, accessToken: string, fields: string) {
   url.searchParams.set("access_token", accessToken);
   const response = await fetch(url.toString(), { cache: "no-store" });
   const json = await response.json().catch(() => ({})) as GraphResponse;
-  if (!response.ok) {
+  if (!response.ok || json.error) {
     throw new Error(describeGraphError(json, response.status));
   }
   return json;
@@ -73,7 +73,7 @@ async function graphDelete(path: string, accessToken: string) {
   url.searchParams.set("access_token", accessToken);
   const response = await fetch(url.toString(), { method: "DELETE", cache: "no-store" });
   const json = await response.json().catch(() => ({})) as GraphResponse;
-  if (!response.ok || json.success === false) {
+  if (!response.ok || json.error || json.success !== true) {
     throw new Error(describeGraphError(json, response.status));
   }
   return json;
