@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildSlideshowPlan, runPreparedSlideshow } from "@/lib/studio/slideshow-plan";
 import { runVideoPipeline } from "@/lib/studio/video-pipeline";
-const input = { name: "Ebook", description: "Guide numérique complet.", hasReference: true, duration: 60, aspectRatio: "9:16", character: "auto" as const };
+const input = { name: "Ebook", description: "Guide numérique complet.", hasReference: true, duration: 25, aspectRatio: "9:16", character: "auto" as const };
 describe("Prepared worker contracts", () => {
   it("passes the selected licensed music into slideshow assembly and preserves attribution", async () => {
     const plan = buildSlideshowPlan(input, "123");
@@ -10,7 +10,7 @@ describe("Prepared worker contracts", () => {
     const assemble = vi.fn(async () => "/final.mp4");
     const result = await runPreparedSlideshow(plan, "job", { generateImage, resolveLicensedMusic, assemble });
     expect(resolveLicensedMusic).toHaveBeenCalledWith("123");
-    expect(assemble).toHaveBeenCalledWith(expect.objectContaining({ musicPath: "/local/music.ogg", duration: 60, transitionDuration: 0.5 }));
+    expect(assemble).toHaveBeenCalledWith(expect.objectContaining({ musicPath: "/local/music.ogg", duration: 25, transitionDuration: 0.8 }));
     expect(result.attribution).toBe("Test — CC0");
   });
   it("rejects unvalidated music rights before any images are generated", async () => {

@@ -46,7 +46,7 @@ function request(slideshow: Record<string, unknown>) {
 }
 
 function validStoryboard(overrides: Record<string, unknown> = {}) {
-  return { product, duration: 15, aspectRatio: "9:16", locale: "fr", campaignGoal: "buy", imageCount: 5, slideIndex: 0, ...overrides };
+  return { product, duration: 25, aspectRatio: "9:16", locale: "fr", campaignGoal: "buy", imageCount: 5, slideIndex: 0, ...overrides };
 }
 
 function expectNoPaidOrExternalWork() {
@@ -88,6 +88,26 @@ describe("POST /api/studio/image slideshow validation", () => {
     expectNoPaidOrExternalWork();
   });
 
+  it("never marks a carousel image complete when private storage failed", async () => {
+    mocks.requireActiveSubscription.mockResolvedValue(null);
+    mocks.fetchReferenceImage.mockResolvedValue({ body: new ArrayBuffer(1), contentType: "image/png" });
+    mocks.imageCreditCost.mockReturnValue(20); mocks.getAiImageEditModel.mockReturnValue("mock-model");
+    mocks.generateFalImageWithReferences.mockResolvedValue("https://provider.test/transient.png");
+    mocks.storeStudioImage.mockRejectedValue(new Error("mock storage failure"));
+    const updates: Array<Record<string, unknown>> = [];
+    const eqChain = { eq: vi.fn() };
+    eqChain.eq.mockReturnValue(eqChain);
+    const table = { insert: vi.fn(() => ({ select: () => ({ single: async () => ({ data: { id: "generation-1" }, error: null }) }) })), update: vi.fn((value: Record<string, unknown>) => { updates.push(value); return eqChain; }) };
+    const rpc = vi.fn(async (operation: string) => operation === "reserve_credits" ? ({ data: { ok: true, transaction_id: "mock-transaction" }, error: null }) : ({ error: null }));
+    mocks.createAdminClient.mockReturnValue({ from: () => table, rpc });
+    const response = await POST(request(validStoryboard()));
+    expect(response.ok).toBe(false); expect(updates.some(value => value.status === "completed")).toBe(false);
+    expect(updates.some(value => value.status === "failed")).toBe(true);
+    expect(mocks.generateFalImageWithReferences).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith("refund_credit_debit", { transaction_id: "mock-transaction" });
+    expect(mocks.signedStudioUrl).not.toHaveBeenCalled();
+  });
+
   it("accepts the released five-image storyboard on Production without bypassing subscription", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     const response = await POST(request(validStoryboard()));
@@ -104,7 +124,7 @@ describe("POST /api/studio/image slideshow validation", () => {
       name: product.name,
       description: product.description,
       hasReference: true,
-      duration: 15,
+      duration: 25,
       aspectRatio: "9:16",
       character: "without",
       locale: "fr",
@@ -123,7 +143,7 @@ describe("POST /api/studio/image slideshow validation", () => {
   expect(mocks.generateFalImageWithReferences).not.toHaveBeenCalled();
     // Validation and prompt compilation occur before the subscription gate; no client prompt reaches I/O.
     expect(expected.slides[2].prompt).toContain("ROLE: EVIDENCE");
-    expect(expected.slides[2].prompt).toContain("Reliure cousue à la main.");
+    expect(expected.slides[2].prompt).toContain("Papier ivoire certifié FSC.");
     expect(expected.slides[2].headline).not.toBe(expected.slides[0].headline);
     expect(mocks.fetchReferenceImage).not.toHaveBeenCalled();
   });

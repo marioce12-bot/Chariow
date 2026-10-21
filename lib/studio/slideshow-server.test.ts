@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { isPreviewEnabled, publicTracks, resolveTrackPath } from "@/lib/studio/slideshow-server";
+import { isRemixSlideshowDuration, isPreviewEnabled, publicTracks, resolveTrackPath } from "@/lib/studio/slideshow-server";
 
 describe("slideshow backend safety", () => {
   const prior = process.env.VERCEL_ENV;
@@ -16,6 +16,11 @@ describe("slideshow backend safety", () => {
     expect(isPreviewEnabled()).toBe(false);
     delete process.env.VERCEL_ENV;
     expect(isPreviewEnabled()).toBe(false);
+  });
+
+  it("keeps music remix available for legacy and new slideshow lengths", () => {
+    for (const seconds of [5, 10, 25, 30, 40]) expect(isRemixSlideshowDuration(seconds)).toBe(true);
+    for (const seconds of [0, 15, 20, 60, "25", null]) expect(isRemixSlideshowDuration(seconds)).toBe(false);
   });
 
   it("resolves private music only from a fixed id-based bucket path", () => {

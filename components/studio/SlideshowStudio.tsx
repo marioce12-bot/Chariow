@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { CampaignGoal, SlideshowPlan } from "@/lib/studio/slideshow-plan";
+import { LoaderCircle } from "lucide-react";
+import { SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { imageCreditCost } from "@/lib/studio/credits";
 
 type Product = { id: string; name: string; description?: string | null; image?: string | null };
@@ -14,12 +16,31 @@ const jsonResponse = async (response: Response) => {
 };
 const send = (url: string, body: unknown) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(jsonResponse);
 
+// Verify the returned asset, not merely the provider's success JSON. Never retry generation.
+export function verifySlideImage(url: string, fr = true): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const message = fr ? "Visuel inaccessible. Vérifie l’historique sans relancer la génération." : "Image unavailable. Check history without regenerating.";
+    const timer = setTimeout(() => { image.onload = null; image.onerror = null; reject(new Error(message)); }, 30000);
+    image.onload = () => { clearTimeout(timer); resolve(); };
+    image.onerror = () => { clearTimeout(timer); reject(new Error(message)); };
+    image.src = url;
+  });
+}
+function SlideThumbnail({ url, index, fr }: { url: string; index: number; fr: boolean }) {
+  const [failed, setFailed] = useState(false);
+  return <figure style={{ margin: 0, flex: "0 0 56px" }}>{failed
+    ? <div role="img" aria-label={fr ? "Aperçu indisponible" : "Preview unavailable"} style={{ width: 56, height: 78, borderRadius: 6, background: "#f1f5f9", display: "grid", placeItems: "center", fontSize: 10, textAlign: "center" }}>{fr ? "Aperçu indisponible" : "Preview unavailable"}</div>
+    : <img src={url} onError={() => setFailed(true)} alt={`${fr ? "Visuel" : "Image"} ${index + 1}`} style={{ display: "block", width: 56, height: 78, objectFit: "cover", borderRadius: 6 }} />}
+    <figcaption style={{ fontSize: 11, textAlign: "center" }}>{index + 1}/5</figcaption></figure>;
+}
+
 export function SlideshowStudio({ product, locale, onComplete }: { product: Product | null; locale: string; onComplete?: () => void }) {
   const fr = locale !== "en";
   const [enabled, setEnabled] = useState(false);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [musicId, setMusicId] = useState("");
-  const [duration, setDuration] = useState(10);
+  const [duration, setDuration] = useState(25);
   const [campaignGoal, setCampaignGoal] = useState<CampaignGoal>("discover");
   const [planning, setPlanning] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -30,7 +51,6 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
   const [result, setResult] = useState<RenderResult | null>(null);
   const [previewId, setPreviewId] = useState("");
   const [creditsUsed, setCreditsUsed] = useState(0);
-  const [progress, setProgress] = useState(0);
   const running = useRef(false);
   const selectedTrack = tracks.find(track => track.id === musicId);
   const inputSignature = `${product?.id ?? ""}:${duration}:${campaignGoal}`;
@@ -47,7 +67,7 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
     if (running.current) return;
     if (draftSignature.current === inputSignature) return;
     draftSignature.current = inputSignature;
-    setProgress(0); setImages([]); setAttempted(false); setResult(null); setError(""); setStatus(""); setCreditsUsed(0);
+    setImages([]); setAttempted(false); setResult(null); setError(""); setStatus(""); setCreditsUsed(0);
   }, [inputSignature, busy]);
 
   async function prepare() {
@@ -65,30 +85,30 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
   }
   async function generate() {
     if (!enabled || !product || attempted || running.current) return;
-    running.current = true; setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null); setProgress(5);
+    running.current = true; setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null);
     const completed: Array<{ id: string; url: string }> = [];
     let totalCredits = 0;
     try {
       setStatus(fr ? "Préparation du diaporama…" : "Preparing slideshow…");
       const preparedPlan = await prepare();
       if (!preparedPlan) { setAttempted(false); setStatus(""); return; }
-      setProgress(10);
       const description = product.description ? new DOMParser().parseFromString(product.description, "text/html").body.textContent ?? "" : "";
       const slideshow = { product: { ...product, description }, duration, aspectRatio: "9:16", locale, campaignGoal, imageCount: preparedPlan.slides.length };
       setStatus(fr ? "Vérification…" : "Checking…");
       await send("/api/studio/slideshow/preflight", { musicId });
-      setProgress(15);
       for (const slide of preparedPlan.slides) {
         setStatus(fr ? `Génération du visuel ${slide.index + 1}/${preparedPlan.slides.length}…` : `Generating image ${slide.index + 1}/${preparedPlan.slides.length}…`);
         const data = await send("/api/studio/image", { prompt: slide.prompt, quality: "medium", resolution: "hd", orientation: "portrait", background: "opaque", referenceUrls: product.image ? [product.image] : [], slideshow: { ...slideshow, slideIndex: slide.index } });
         if (!data.generationId || !data.imageUrl) throw new Error("Réponse image incomplète. Ne relance pas la génération : vérifie l’historique.");
-        completed.push({ id: data.generationId, url: data.imageUrl }); totalCredits += Number(data.cost) || 0;
-        setImages([...completed]); setCreditsUsed(totalCredits); setProgress(15 + completed.length * 15);
+        totalCredits += Number(data.cost) || 0; setCreditsUsed(totalCredits);
+        await verifySlideImage(data.imageUrl, fr);
+        completed.push({ id: data.generationId, url: data.imageUrl });
+        setImages([...completed]); setCreditsUsed(totalCredits);
       }
       setStatus(fr ? "Montage du diaporama…" : "Assembling slideshow…");
       const data = await send("/api/studio/slideshow/render", { generationIds: completed.map(image => image.id), duration, musicId });
       if (!data.generationId || !data.videoUrl) throw new Error(fr ? "Vidéo finale manquante. Vérifie l’historique sans relancer les images." : "Final video missing. Check history without regenerating images.");
-      setResult(data); setProgress(100); setStatus(fr ? "Diaporama prêt." : "Slideshow ready.");
+      setResult(data); setStatus(fr ? "Diaporama prêt." : "Slideshow ready.");
       onComplete?.();
     } catch (cause) {
       setError(`${cause instanceof Error ? cause.message : "Génération interrompue."} ${fr ? "Aucune nouvelle tentative automatique. Les visuels terminés restent dans l’historique." : "No automatic retry. Completed images remain in history."}`);
@@ -116,7 +136,7 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
     {!product ? <small>{fr ? "Choisis un produit ci-dessus." : "Choose a product above."}</small> : null}
     <div className="studio-options">
       <label className="studio-field"><span>{fr ? "Objectif" : "Goal"}</span><select aria-label={fr ? "Objectif" : "Goal"} value={campaignGoal} disabled={busy || planning} onChange={event => setCampaignGoal(event.target.value as CampaignGoal)}><option value="discover">{fr ? "Découvrir" : "Discover"}</option><option value="buy">{fr ? "Acheter" : "Buy"}</option><option value="learn">{fr ? "En savoir plus" : "Learn"}</option><option value="contact">{fr ? "Contacter" : "Contact"}</option></select></label>
-      <label className="studio-field"><span>{fr ? "Durée" : "Duration"}</span><select aria-label={fr ? "Durée" : "Duration"} value={duration} disabled={busy || planning} onChange={event => setDuration(Number(event.target.value))}><option value={5}>5 {fr ? "secondes" : "seconds"}</option><option value={10}>10 {fr ? "secondes" : "seconds"}</option></select></label>
+      <label className="studio-field"><span>{fr ? "Durée" : "Duration"}</span><select aria-label={fr ? "Durée" : "Duration"} value={duration} disabled={busy || planning} onChange={event => setDuration(Number(event.target.value))}>{SLIDESHOW_DURATIONS.map(seconds => <option key={seconds} value={seconds}>{seconds} {fr ? "secondes" : "seconds"}</option>)}</select></label>
       <label className="studio-field"><span>{fr ? "Musique" : "Music"}</span><select aria-label={fr ? "Musique" : "Music"} disabled={busy} value={musicId} onChange={event => { setMusicId(event.target.value); setPreviewId(""); }}><option value="">{fr ? "Sans musique" : "No music"}</option>{tracks.map(track => <option key={track.id} value={track.id}>{track.title} — {track.artist}</option>)}</select></label>
     </div>
     {selectedTrack ? <div style={{ display: "grid", gap: 8 }}>
@@ -133,13 +153,13 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
     {!attempted ? <>
       <p className="studio-cost" style={{ margin: 0 }}>{fr ? `5 images · ${5 * imageCreditCost("hd", "medium")} crédits Studio` : `5 images · ${5 * imageCreditCost("hd", "medium")} Studio credits`}</p>
       <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || planning} onClick={() => void generate()}>{fr ? "Créer" : "Create"}</button>
-      <small>{fr ? "Montage et changement de musique sans crédits d’images supplémentaires." : "Assembly and music changes use no additional image credits."}</small>
+      <small>{fr ? "Au moins 4 secondes de lecture par visuel. Montage et changement de musique sans crédits d’images supplémentaires." : "At least 4 seconds of reading per image. Assembly and music changes use no additional image credits."}</small>
     </> : null}
-    {attempted ? <div style={{ display: "grid", gap: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span role="status" aria-live="polite">{status}</span><strong aria-hidden="true">{progress}%</strong></div>
-      <div role="progressbar" aria-label={fr ? "Progression du diaporama" : "Slideshow progress"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-valuetext={`${progress}%`} style={{ height: 8, width: "100%", borderRadius: 99, background: "var(--border, #e5e7eb)", overflow: "hidden" }}><div style={{ height: "100%", width: `${progress}%`, borderRadius: 99, background: "#2563eb", transition: "width 300ms ease" }} /></div>
+    {status ? <div role="status" aria-live="polite" aria-busy={busy} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {busy ? <LoaderCircle className="animate-spin" data-testid="slideshow-spinner" aria-hidden="true" size={22} style={{ flexShrink: 0, animation: "spin 1s linear infinite" }} /> : null}
+      <span>{status}</span>
     </div> : null}
-    {images.length ? <div aria-label={fr ? "Visuels générés" : "Generated images"} style={{ display: "flex", flexWrap: "nowrap", gap: 8, overflowX: "auto", minWidth: 0, maxWidth: "100%", paddingBottom: 4 }}>{images.map((image, index) => <figure key={image.id} style={{ margin: 0, flex: "0 0 56px" }}><img src={image.url} alt={`${fr ? "Visuel" : "Image"} ${index + 1}`} style={{ display: "block", width: 56, height: 78, objectFit: "cover", borderRadius: 6 }} /><figcaption style={{ fontSize: 11, textAlign: "center" }}>{index + 1}/5</figcaption></figure>)}</div> : null}
+    {images.length ? <div aria-label={fr ? "Visuels générés" : "Generated images"} style={{ display: "flex", flexWrap: "nowrap", gap: 8, overflowX: "auto", minWidth: 0, maxWidth: "100%", paddingBottom: 4 }}>{images.map((image, index) => <SlideThumbnail key={image.id} url={image.url} index={index} fr={fr} />)}</div> : null}
     {error ? <p role="alert" className="form-error">{error}</p> : null}
     {result ? <div style={{ display: "grid", gap: 12 }}>
       <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>

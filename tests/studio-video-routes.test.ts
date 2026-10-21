@@ -21,9 +21,13 @@ describe("Locked studio video preparation routes", () => {
     expect(askText.mock.calls[0][0][0].content).toContain("Aucun champ libre");
   });
   it("prepares the slideshow without even calling the text model", async () => {
-    const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 60, product }));
+    const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 25, product }));
     const data = await response.json();
     expect(response.status).toBe(200); expect(data.slideshow.slides).toHaveLength(5); expect(data.locked).toBe(true);
+    expect(askText).not.toHaveBeenCalled();
+  });
+  it.each([5,10,15,20,60])("rejects %ss slideshow before any model call", async duration => {
+    expect((await prompt(request({ mediaType: "video", videoMode: "slideshow", duration, product }))).status).toBe(400);
     expect(askText).not.toHaveBeenCalled();
   });
   it("falls back safely when text service fails", async () => {

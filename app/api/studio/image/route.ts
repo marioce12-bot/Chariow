@@ -103,7 +103,11 @@ export async function POST(request: Request) {
     await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     let storagePath: string | null = null;
     try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat); } catch (storageError) { console.error("Studio image storage error", storageError); }
-    await admin.from("studio_generations").update({ status: "completed", storage_path: storagePath }).eq("id", generation.id).eq("user_id", user.id);
+    // A carousel cannot be assembled from a transient/failed provider URL. Fail honestly,
+    // keep the existing refund path and never launch another generation automatically.
+    if (slideshow && !storagePath) throw new Error("Le visuel n’a pas pu être sauvegardé. Montage annulé, aucune nouvelle génération automatique.");
+    const saved = await admin.from("studio_generations").update({ status: "completed", storage_path: storagePath }).eq("id", generation.id).eq("user_id", user.id);
+    if (slideshow && saved?.error) throw new Error("Le visuel n’a pas pu être enregistré dans l’historique. Montage annulé.");
     return NextResponse.json({ imageUrl: storagePath ? await signedStudioUrl(storagePath) : imageUrl, generationId: generation.id, cost });
   } catch (error) {
     await admin.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });

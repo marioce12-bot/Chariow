@@ -7,9 +7,11 @@ const ffprobePath = require("ffprobe-static") as { path: string };
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assembleSlideshow } from "@/lib/studio/slideshow";
 import { slideshowAudioFilter, SLIDESHOW_AUDIO_CHANGE } from "@/lib/studio/slideshow-audio";
-import { MAX_SLIDESHOW_IMAGES, MIN_SLIDESHOW_IMAGES } from "@/lib/studio/slideshow-plan";
+import { MAX_SLIDESHOW_IMAGES, MIN_SLIDESHOW_IMAGES, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { storeStudioVideo, signedStudioUrl } from "@/lib/studio/media";
 import { LICENSED_MUSIC, getLicensedTrack, musicAttribution, YOUTUBE_CREDIT_NOTICE } from "@/lib/studio/licensed-music";
+
+export const isRemixSlideshowDuration = (duration: unknown) => typeof duration === "number" && ([5, 10, ...SLIDESHOW_DURATIONS] as readonly number[]).includes(duration);
 
 export const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 120 * 1024 * 1024;
@@ -91,6 +93,7 @@ export async function preflightSlideshow(musicId: string) {
 }
 export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string): Promise<SlideResult> {
   if (ids.length < MIN_SLIDESHOW_IMAGES || ids.length > MAX_SLIDESHOW_IMAGES || new Set(ids).size !== ids.length) throw new Error("Invalid slideshow image count");
+  if (!(SLIDESHOW_DURATIONS as readonly number[]).includes(duration)) throw new Error("Invalid slideshow duration");
   const track = getLicensedTrack(musicId);
   if (musicId && !track) throw new Error("Music track unavailable");
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-slideshow-api-"));
@@ -111,7 +114,7 @@ export async function remixSlideshow(userId: string, generationId: string, music
   if (musicId && !track) throw new Error("Music track unavailable");
   const admin = createAdminClient();
   const { data: row, error } = await admin.from("studio_generations").select("id,user_id,kind,status,storage_path,metadata").eq("id", generationId).eq("user_id", userId).maybeSingle();
-  if (error || !row || row.user_id !== userId || row.kind !== "video" || row.status !== "completed" || typeof row.storage_path !== "string" || !row.storage_path.startsWith(`${userId}/`) || row.metadata?.type !== "slideshow" || !Array.isArray(row.metadata.imageGenerationIds) || row.metadata.imageGenerationIds.length < 2 || row.metadata.imageGenerationIds.length > MAX_SLIDESHOW_IMAGES || new Set(row.metadata.imageGenerationIds).size !== row.metadata.imageGenerationIds.length || row.metadata.imageGenerationIds.some((id: unknown) => typeof id !== "string") || ![5,10].includes(row.metadata.duration) || (row.metadata.musicId !== "" && !getLicensedTrack(row.metadata.musicId))) throw new Error("Slideshow unavailable");
+  if (error || !row || row.user_id !== userId || row.kind !== "video" || row.status !== "completed" || typeof row.storage_path !== "string" || !row.storage_path.startsWith(`${userId}/`) || row.metadata?.type !== "slideshow" || !Array.isArray(row.metadata.imageGenerationIds) || row.metadata.imageGenerationIds.length < 2 || row.metadata.imageGenerationIds.length > MAX_SLIDESHOW_IMAGES || new Set(row.metadata.imageGenerationIds).size !== row.metadata.imageGenerationIds.length || row.metadata.imageGenerationIds.some((id: unknown) => typeof id !== "string") || !isRemixSlideshowDuration(row.metadata.duration) || (row.metadata.musicId !== "" && !getLicensedTrack(row.metadata.musicId))) throw new Error("Slideshow unavailable");
   const images = row.metadata.imageGenerationIds as string[];
   // Verify the original still belongs to the user and is an image; never trust client paths/metadata alone.
   const { data: imageRows, error: imageError } = await admin.from("studio_generations").select("id,user_id,kind,status").in("id", images).eq("user_id", userId);

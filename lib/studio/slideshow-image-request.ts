@@ -11,7 +11,7 @@ export function validateSlideshowImageRequest(value: unknown, environment: strin
   const referenceUrl = typeof product.image === "string" && /^https:\/\//i.test(product.image) ? product.image.slice(0, 2000) : "";
   const plan = buildSlideshowPlan({
     name: product.name.slice(0, 200), description: typeof product.description === "string" ? product.description.trim().slice(0, 3000) : "",
-    hasReference: Boolean(referenceUrl), duration: Number(request.duration), aspectRatio: String(request.aspectRatio), character: "without",
+    hasReference: Boolean(referenceUrl), duration: Number(request.duration), aspectRatio: String(request.aspectRatio), character: "with",
     locale: request.locale === "en" ? "en" : "fr", campaignGoal: request.campaignGoal,
   });
   assertSlideshowPlan(plan);

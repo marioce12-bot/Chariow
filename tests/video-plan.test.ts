@@ -52,15 +52,15 @@ describe("Evidence-only video advertising planner", () => {
 });
 
 describe("Slideshow preparation without generation", () => {
-  it("prepares exactly 5 faithful images with transitions accounted for in the final 60s", () => {
-    const plan = buildSlideshowPlan(input);
+  it("prepares exactly 5 faithful images with transitions accounted for in the final 25s", () => {
+    const plan = buildSlideshowPlan({ ...input, duration: 25 });
     expect(plan.slides).toHaveLength(5);
-    expect(plan.slides.reduce((sum, s) => sum + s.displaySeconds, 0) - 4 * plan.transitionSeconds).toBe(60);
+    expect(plan.slides.reduce((sum, s) => sum + s.displaySeconds, 0) + 4 * plan.transitionSeconds).toBe(25);
     expect(new Set(plan.slides.map(s => s.prompt )).size).toBe(5);
     expect(plan.slides.every(s => s.prompt.includes("Never invent"))).toBe(true);
   });
   it("generates only via injected stubs with stable keys and stops on image failure", async () => {
-    const plan = buildSlideshowPlan(input);
+    const plan = buildSlideshowPlan({ ...input, duration: 25 });
     const generate = vi.fn().mockResolvedValue({ path: "/synthetic/slide.png" });
     expect(await prepareSlideshowImages(plan, "job", generate)).toHaveLength(5);
     expect(generate.mock.calls[0][0].idempotencyKey).toBe("job:image:0");
