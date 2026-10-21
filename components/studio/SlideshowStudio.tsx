@@ -104,12 +104,8 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
   }
   if (!enabled) return null;
   const sectionStyle = { marginTop: 20, display: "grid", gap: 16 } as const;
-  return <section className="app-card studio-form" style={sectionStyle} aria-label={fr ? "Diaporama animé Preview" : "Animated slideshow Preview"}>
-    <div><span className="eyebrow">Preview uniquement</span><h2>{fr ? "Diaporama animé" : "Animated slideshow"}</h2><p>{fr ? "Des visuels cohérents avec ton produit, des transitions et une musique que tu peux changer après le rendu." : "Product-faithful visuals, transitions and a soundtrack you can change after rendering."}</p></div>
-    <div role="group" aria-label="Type de vidéo" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      <button type="button" className="btn btn-dark" aria-pressed="true">{fr ? "Diaporama animé" : "Animated slideshow"}</button>
-      <button type="button" className="btn btn-ghost" disabled aria-disabled="true" style={{ opacity: 0.4, cursor: "not-allowed" }}>{fr ? "Scènes avec personnages — bientôt" : "Character scenes — coming later"}</button>
-    </div>
+  return <section className="app-card studio-form" style={sectionStyle} aria-label={fr ? "Diaporama animé" : "Animated slideshow"}>
+    <div><h2>{fr ? "Diaporama animé" : "Animated slideshow"}</h2><p>{fr ? "Des visuels cohérents avec ton produit, des transitions et une musique que tu peux changer après le rendu." : "Product-faithful visuals, transitions and a soundtrack you can change after rendering."}</p></div>
     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>{product?.image ? <img src={product.image} alt={product.name} style={{ width: 72, height: 88, objectFit: "contain", borderRadius: 10 }} /> : null}<strong>{product?.name ?? (fr ? "Choisis un produit dans la liste ci-dessus." : "Select a product above.")}</strong></div>
     <label className="studio-field"><span>{fr ? "Objectif de campagne" : "Campaign goal"}</span><select aria-label={fr ? "Objectif de campagne" : "Campaign goal"} value={campaignGoal} disabled={busy || planning} onChange={event => setCampaignGoal(event.target.value as CampaignGoal)}><option value="discover">{fr ? "Découvrir" : "Discover"}</option><option value="buy">{fr ? "Acheter" : "Buy"}</option><option value="learn">{fr ? "En savoir plus" : "Learn"}</option><option value="contact">{fr ? "Contacter" : "Contact"}</option></select></label>
     <label className="studio-field"><span>{fr ? "Durée de la vidéo" : "Video duration"}</span><select value={duration} disabled={busy || planning} onChange={event => setDuration(Number(event.target.value))}><option value={5}>5 {fr ? "secondes" : "seconds"}</option><option value={10}>10 {fr ? "secondes" : "seconds"}</option></select></label>

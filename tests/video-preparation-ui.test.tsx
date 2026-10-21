@@ -11,20 +11,39 @@ const tracks = ["wonderful", "life-is"].map(id => ({ id: `sb-${id}`, title: id, 
 const reply = (data: unknown, ok = true) => ({ ok, json: async () => data });
 const setup = () => { const container = document.createElement("div"); document.body.append(container); return { container, root: createRoot(container) }; };
 const click = async (container: HTMLElement, name: string) => {
-  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(element => element.textContent === name);
+  const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(element => element.textContent?.trim() === name);
   expect(button).toBeTruthy(); await act(async () => button!.click());
 };
 describe("Preview slideshow UI", () => {
-  it("keeps the global video tab and character scenes locked, preparing prompts without image calls", async () => {
+  it("separates Photo / Diaporama / Video, keeps video locked and preserves slideshow drafts without generation", async () => {
     const fetcher = vi.fn(async (url: string, _init?: RequestInit) => reply(url === "/api/studio/slideshow/config" ? { enabled: true, tracks } : url === "/api/studio/prompt" ? { slideshow: slides } : url === "/api/studio/credits" ? { balance: 0 } : { items: [] }));
     vi.stubGlobal("fetch", fetcher); const { container, root } = setup();
     try {
       await act(async () => root.render(<StudioView products={[{ id: "1", name: "Mon ebook" }]} />));
-      const video = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(button => button.textContent?.includes("studio.video"))!;
+      const tabs = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+      expect(tabs.map(tab => tab.textContent?.trim())).toEqual(["Photo", "Diaporama", "studio.video"]);
+      const video = tabs[2];
       expect(video.disabled).toBe(true);
-      expect([...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.startsWith("Scènes avec personnages"))?.disabled).toBe(true);
+      const photoPanel = container.querySelector<HTMLElement>("#studio-photo-panel")!;
+      const slideshowPanel = container.querySelector<HTMLElement>("#studio-slideshow-panel")!;
+      expect(photoPanel.hidden).toBe(false); expect(slideshowPanel.hidden).toBe(true);
+      expect(photoPanel.querySelector('[aria-label="Diaporama animé"]')).toBeNull();
+      await click(container, "Diaporama");
+      expect(tabs[1].getAttribute("aria-selected")).toBe("true");
+      expect(photoPanel.hidden).toBe(true); expect(slideshowPanel.hidden).toBe(false);
+      expect(slideshowPanel.textContent).not.toMatch(/personnage|character|preview/i);
+      await act(async () => video.click());
+      expect(tabs[1].getAttribute("aria-selected")).toBe("true");
       await act(async () => container.querySelectorAll<HTMLButtonElement>(".studio-product-list button")[1].click());
       await click(container, "1. Générer les prompts du diaporama"); expect(container.textContent).toContain("Storyboard prêt"); expect(container.textContent).toContain("exactement 5 images"); expect(container.textContent).toContain("Exactement cinq visuels fidèles au produit."); expect(container.textContent).toContain("fait produit"); const promptCall = fetcher.mock.calls.find(([url]) => url === "/api/studio/prompt")!; expect(JSON.parse(String(promptCall[1]?.body)).campaignGoal).toBe("discover");
+      const music = slideshowPanel.querySelector<HTMLSelectElement>("fieldset select")!;
+      await act(async () => { music.value = tracks[0].id; music.dispatchEvent(new Event("change", { bubbles: true })); });
+      await click(container, "Photo");
+      expect(photoPanel.hidden).toBe(false); expect(slideshowPanel.hidden).toBe(true);
+      await click(container, "Diaporama");
+      expect(slideshowPanel.hidden).toBe(false); expect(slideshowPanel.textContent).toContain("Storyboard prêt");
+      expect(music.value).toBe(tracks[0].id);
+      expect(fetcher.mock.calls.filter(([url]) => url === "/api/studio/prompt")).toHaveLength(1);
       expect(fetcher.mock.calls.some(([url]) => url === "/api/studio/video" || url === "/api/studio/image")).toBe(false);
     } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
   });
