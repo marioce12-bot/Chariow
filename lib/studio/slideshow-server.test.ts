@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { isPreviewEnabled, publicTracks, resolveTrackPath } from "@/lib/studio/slideshow-server";
@@ -34,5 +34,21 @@ describe("slideshow backend safety", () => {
     const source = await readFile(path.join(process.cwd(), "lib/studio/slideshow-server.ts"), "utf8");
     expect(source).not.toMatch(/@\/lib\/ai\/|generateFal|generateImage|reserveCredits|generateVideo/);
     expect(source).toMatch(/\"-c:v\", \"copy\"/);
+  });
+
+  it("rejects six image ids before filesystem or database I/O", async () => {
+    const mkdtemp = vi.fn();
+    const createAdminClient = vi.fn();
+    vi.resetModules();
+    vi.doMock("node:fs/promises", () => ({ mkdtemp, readFile: vi.fn(), rm: vi.fn(), stat: vi.fn(), writeFile: vi.fn() }));
+    vi.doMock("@/lib/supabase/admin", () => ({ createAdminClient }));
+    vi.doMock("@/lib/studio/slideshow", () => ({ assembleSlideshow: vi.fn() }));
+    vi.doMock("@/lib/studio/media", () => ({ storeStudioVideo: vi.fn(), signedStudioUrl: vi.fn() }));
+    const server = await import("@/lib/studio/slideshow-server");
+    await expect(server.renderSlideshow("owner", ["a", "b", "c", "d", "e", "f"], 5, "")).rejects.toThrow();
+    expect(mkdtemp).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+    vi.doUnmock("node:fs/promises"); vi.doUnmock("@/lib/supabase/admin"); vi.doUnmock("@/lib/studio/slideshow"); vi.doUnmock("@/lib/studio/media");
+    vi.resetModules();
   });
 });

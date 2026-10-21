@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     if (!["16:9", "9:16", "1:1"].includes(aspectRatio)) return NextResponse.json({ error: "Format vidéo non pris en charge." }, { status: 400 });
     const input: VideoAdInput = { name, description, hasReference: Boolean(productImage), duration, aspectRatio, character, userBrief, previousPrompt, locale: body?.locale === "en" ? "en" : "fr" };
     if (body?.videoMode === "slideshow") {
-      const slideshow = buildSlideshowPlan(input, typeof body?.musicId === "string" ? body.musicId.slice(0, 30) : undefined);
+      const slideshow = buildSlideshowPlan({ ...input, campaignGoal: body?.campaignGoal }, typeof body?.musicId === "string" ? body.musicId.slice(0, 30) : undefined);
       return NextResponse.json({ prompt: slideshow.prompt, slideshow, locked: true });
     }
     let videoAnswer = "";

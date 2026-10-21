@@ -8,6 +8,7 @@ import { imageCreditCost } from "@/lib/studio/credits";
 import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
 import { fetchReferenceImage } from "@/lib/studio/reference-image";
 import { buildPremiumImagePrompt } from "@/lib/studio/premium-prompt";
+import { validateSlideshowImageRequest } from "@/lib/studio/slideshow-image-request";
 
 export const maxDuration = 300;
 
@@ -24,11 +25,16 @@ function oneOf<T extends readonly string[]>(value: unknown, values: T, fallback:
 export async function POST(request: Request) {
   const { user, response } = await requireUser();
   if (!user) return response;
+  const body = await request.json().catch(() => ({}));
+  let slideshow: ReturnType<typeof validateSlideshowImageRequest> | undefined;
+  if (Object.hasOwn(body ?? {}, "slideshow")) {
+    try { slideshow = validateSlideshowImageRequest(body.slideshow, process.env.VERCEL_ENV); }
+    catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Storyboard invalide." }, { status: 400 }); }
+  }
   const subscriptionBlock = await requireActiveSubscription(user.id);
   if (subscriptionBlock) return subscriptionBlock;
 
-  const body = await request.json().catch(() => ({}));
-  const userPrompt = typeof body?.prompt === "string" ? body.prompt : "";
+  const userPrompt = slideshow?.prompt ?? (typeof body?.prompt === "string" ? body.prompt : "");
   if (!userPrompt.trim() || userPrompt.length > 4_000) {
     return NextResponse.json({ error: "Décris l'image à créer en 1 à 4 000 caractères." }, { status: 400 });
   }
@@ -36,13 +42,13 @@ export async function POST(request: Request) {
   const options: StudioImageOptions = {
     quality: oneOf(body?.quality, qualities, "medium"),
     resolution: oneOf(body?.resolution, resolutions, "hd"),
-    orientation: oneOf(body?.orientation, orientations, "square"),
+    orientation: slideshow?.orientation ?? oneOf(body?.orientation, orientations, "square"),
     background: oneOf(body?.background, backgrounds, "auto"),
     outputFormat: oneOf(body?.outputFormat, outputFormats, "png"),
   };
-  const referenceUrls: string[] = Array.isArray(body?.referenceUrls)
+  const referenceUrls: string[] = slideshow?.referenceUrls ?? (Array.isArray(body?.referenceUrls)
     ? body.referenceUrls.filter((value: unknown): value is string => typeof value === "string").slice(0, 3)
-    : [];
+    : []);
   const references = (await Promise.all(referenceUrls.map((url: string) => fetchReferenceImage(url)))).filter((reference): reference is NonNullable<typeof reference> => Boolean(reference));
   if (referenceUrls.length > 0 && references.length === 0) {
     return NextResponse.json({ error: "Les images de référence ne sont pas accessibles ou leur format n'est pas supporté." }, { status: 400 });

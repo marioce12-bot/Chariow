@@ -6,6 +6,7 @@ import ffmpegPath from "ffmpeg-static";
 const ffprobePath = require("ffprobe-static") as { path: string };
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assembleSlideshow } from "@/lib/studio/slideshow";
+import { MAX_SLIDESHOW_IMAGES, MIN_SLIDESHOW_IMAGES } from "@/lib/studio/slideshow-plan";
 import { storeStudioVideo, signedStudioUrl } from "@/lib/studio/media";
 import { LICENSED_MUSIC, getLicensedTrack, musicAttribution, YOUTUBE_CREDIT_NOTICE } from "@/lib/studio/licensed-music";
 
@@ -87,6 +88,7 @@ export async function preflightSlideshow(musicId: string) {
   try { await ensurePrivateTrack(track, work); } finally { await rm(work, { recursive: true, force: true }); }
 }
 export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string): Promise<SlideResult> {
+  if (ids.length < MIN_SLIDESHOW_IMAGES || ids.length > MAX_SLIDESHOW_IMAGES || new Set(ids).size !== ids.length) throw new Error("Invalid slideshow image count");
   const track = getLicensedTrack(musicId);
   if (musicId && !track) throw new Error("Music track unavailable");
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-slideshow-api-"));
@@ -107,7 +109,7 @@ export async function remixSlideshow(userId: string, generationId: string, music
   if (musicId && !track) throw new Error("Music track unavailable");
   const admin = createAdminClient();
   const { data: row, error } = await admin.from("studio_generations").select("id,user_id,kind,status,storage_path,metadata").eq("id", generationId).eq("user_id", userId).maybeSingle();
-  if (error || !row || row.user_id !== userId || row.kind !== "video" || row.status !== "completed" || typeof row.storage_path !== "string" || !row.storage_path.startsWith(`${userId}/`) || row.metadata?.type !== "slideshow" || !Array.isArray(row.metadata.imageGenerationIds) || ![2,3,4].includes(row.metadata.imageGenerationIds.length) || ![5,10].includes(row.metadata.duration) || (row.metadata.musicId !== "" && !getLicensedTrack(row.metadata.musicId))) throw new Error("Slideshow unavailable");
+  if (error || !row || row.user_id !== userId || row.kind !== "video" || row.status !== "completed" || typeof row.storage_path !== "string" || !row.storage_path.startsWith(`${userId}/`) || row.metadata?.type !== "slideshow" || !Array.isArray(row.metadata.imageGenerationIds) || row.metadata.imageGenerationIds.length < MIN_SLIDESHOW_IMAGES || row.metadata.imageGenerationIds.length > MAX_SLIDESHOW_IMAGES || new Set(row.metadata.imageGenerationIds).size !== row.metadata.imageGenerationIds.length || row.metadata.imageGenerationIds.some((id: unknown) => typeof id !== "string") || ![5,10].includes(row.metadata.duration) || (row.metadata.musicId !== "" && !getLicensedTrack(row.metadata.musicId))) throw new Error("Slideshow unavailable");
   const images = row.metadata.imageGenerationIds as string[];
   // Verify the original still belongs to the user and is an image; never trust client paths/metadata alone.
   const { data: imageRows, error: imageError } = await admin.from("studio_generations").select("id,user_id,kind,status").in("id", images).eq("user_id", userId);

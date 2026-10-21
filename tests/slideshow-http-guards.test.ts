@@ -10,6 +10,7 @@ const { requireUser, rateLimit, isPreviewEnabled, renderSlideshow, remixSlidesho
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit }));
 vi.mock("@/lib/studio/slideshow-server", () => ({ isPreviewEnabled, renderSlideshow, remixSlideshow }));
+vi.mock("@/lib/studio/slideshow-plan", () => ({ MIN_SLIDESHOW_IMAGES: 2, MAX_SLIDESHOW_IMAGES: 5 }));
 
 import { POST as render } from "@/app/api/studio/slideshow/render/route";
 import { POST as remix } from "@/app/api/studio/slideshow/remix/route";
@@ -54,6 +55,17 @@ describe("slideshow HTTP guards (all implementation dependencies mocked)", () =>
     expect(response.status).toBe(200);
     expect(renderSlideshow).toHaveBeenCalledWith("user-A", [uid1, uid2], 5, "");
     expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("accepts five images and rejects six before invoking the implementation", async () => {
+    const five = [uid1, uid2, "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444", "55555555-5555-4555-8555-555555555555"];
+    expect((await render(request({ generationIds: five, duration: 5, musicId: "" }))).status).toBe(200);
+    expect(renderSlideshow).toHaveBeenCalledWith("user-A", five, 5, "");
+    vi.clearAllMocks();
+    requireUser.mockResolvedValue({ user: { id: "user-A" } }); rateLimit.mockReturnValue(false); isPreviewEnabled.mockReturnValue(true);
+    const six = [...five, "66666666-6666-4666-8666-666666666666"];
+    expect((await render(request({ generationIds: six, duration: 5, musicId: "" }))).status).toBe(400);
+    expect(renderSlideshow).not.toHaveBeenCalled();
   });
 
   it("routes remix only to audio-remix implementation; never invokes render/generation", async () => {

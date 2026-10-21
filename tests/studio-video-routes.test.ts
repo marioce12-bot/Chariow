@@ -23,7 +23,7 @@ describe("Locked studio video preparation routes", () => {
   it("prepares the slideshow without even calling the text model", async () => {
     const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 60, product }));
     const data = await response.json();
-    expect(response.status).toBe(200); expect(data.slideshow.slides).toHaveLength(4); expect(data.locked).toBe(true);
+    expect(response.status).toBe(200); expect(data.slideshow.slides).toHaveLength(3); expect(data.locked).toBe(true);
     expect(askText).not.toHaveBeenCalled();
   });
   it("falls back safely when text service fails", async () => {
