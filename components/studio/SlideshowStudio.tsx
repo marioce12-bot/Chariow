@@ -22,7 +22,6 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
   const [duration, setDuration] = useState(10);
   const [campaignGoal, setCampaignGoal] = useState<CampaignGoal>("discover");
   const [plan, setPlan] = useState<AdPlan | null>(null);
-  const [planSignature, setPlanSignature] = useState("");
   const [planning, setPlanning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -35,6 +34,7 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
   const running = useRef(false);
   const selectedTrack = tracks.find(track => track.id === musicId);
   const inputSignature = `${product?.id ?? ""}:${duration}:${campaignGoal}`;
+  const draftSignature = useRef(inputSignature);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -45,11 +45,13 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
     // Inputs are disabled during a run. A deliberate product/duration change starts a new draft,
     // never an automatic repeat of a failed or uncertain chargeable request.
     if (running.current) return;
+    if (draftSignature.current === inputSignature) return;
+    draftSignature.current = inputSignature;
     setPlan(null); setImages([]); setAttempted(false); setResult(null); setError(""); setStatus(""); setCreditsUsed(0);
-  }, [inputSignature]);
+  }, [inputSignature, busy]);
 
   async function prepare() {
-    if (!product || planning || running.current) return;
+    if (!product) return;
     setPlanning(true); setError("");
     try {
       const description = product.description ? new DOMParser().parseFromString(product.description, "text/html").body.textContent ?? "" : "";
@@ -57,28 +59,32 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
       const preparedPlan = data.slideshow as AdPlan | undefined;
       if (!preparedPlan?.slides?.length) throw new Error("Storyboard manquant.");
       if (preparedPlan.slides.length !== 5 || preparedPlan.slides[0].role !== "hook" || preparedPlan.slides[4].role !== "cta" || preparedPlan.slides.slice(1, 4).some(slide => slide.role !== "evidence")) throw new Error(fr ? "Le storyboard publicitaire doit contenir exactement 5 images : une accroche, trois visuels produit et un CTA final. Aucun visuel n’a été généré." : "The ad storyboard must contain exactly 5 images: a hook, three product slides and a final CTA. No images were generated.");
-      setPlan(preparedPlan); setPlanSignature(inputSignature); setStatus(fr ? "Prompts prêts. Aucune image n’a encore été générée." : "Prompts ready. No images generated yet.");
+      setPlan(preparedPlan);
+      return preparedPlan;
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Préparation impossible."); }
     finally { setPlanning(false); }
   }
   async function generate() {
-    if (!enabled || !product || !plan || planSignature !== inputSignature || attempted || running.current) return;
+    if (!enabled || !product || attempted || running.current) return;
     running.current = true; setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null);
     const completed: Array<{ id: string; url: string }> = [];
     let totalCredits = 0;
     try {
+      setStatus(fr ? "Préparation du diaporama…" : "Preparing slideshow…");
+      const preparedPlan = await prepare();
+      if (!preparedPlan) { setAttempted(false); setStatus(""); return; }
       const description = product.description ? new DOMParser().parseFromString(product.description, "text/html").body.textContent ?? "" : "";
-      const slideshow = { product: { ...product, description }, duration, aspectRatio: "9:16", locale, campaignGoal, imageCount: plan.slides.length };
+      const slideshow = { product: { ...product, description }, duration, aspectRatio: "9:16", locale, campaignGoal, imageCount: preparedPlan.slides.length };
       setStatus(fr ? "Vérification du moteur et de la musique avant toute génération payante…" : "Checking renderer and music before image generation…");
       await send("/api/studio/slideshow/preflight", { musicId });
-      for (const slide of plan.slides) {
-        setStatus(fr ? `Génération du visuel ${slide.index + 1}/${plan.slides.length}… Un seul appel, sans nouvelle tentative automatique.` : `Generating image ${slide.index + 1}/${plan.slides.length}… One request, no automatic retry.`);
+      for (const slide of preparedPlan.slides) {
+        setStatus(fr ? `Génération du visuel ${slide.index + 1}/${preparedPlan.slides.length}…` : `Generating image ${slide.index + 1}/${preparedPlan.slides.length}…`);
         const data = await send("/api/studio/image", { prompt: slide.prompt, quality: "medium", resolution: "hd", orientation: "portrait", background: "opaque", referenceUrls: product.image ? [product.image] : [], slideshow: { ...slideshow, slideIndex: slide.index } });
         if (!data.generationId || !data.imageUrl) throw new Error("Réponse image incomplète. Ne relance pas la génération : vérifie l’historique.");
         completed.push({ id: data.generationId, url: data.imageUrl }); totalCredits += Number(data.cost) || 0;
         setImages([...completed]); setCreditsUsed(totalCredits);
       }
-      setStatus(fr ? "Montage des images, fondus et musique… Aucune génération par modèle vidéo." : "Assembling images, transitions and music… No video model generation.");
+      setStatus(fr ? "Montage du diaporama…" : "Assembling slideshow…");
       const data = await send("/api/studio/slideshow/render", { generationIds: completed.map(image => image.id), duration, musicId });
       setResult(data); setStatus(fr ? "Diaporama terminé. Tu peux remplacer la musique sans regénérer les images." : "Slideshow ready. Change the soundtrack without generating images again.");
       onComplete?.();
@@ -103,27 +109,54 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
     const link = document.createElement("a"); link.href = url; link.download = "VENDEO-CREDITS-MUSIQUE.txt"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   if (!enabled) return null;
-  const sectionStyle = { marginTop: 20, display: "grid", gap: 16 } as const;
-  return <section className="app-card studio-form" style={sectionStyle} aria-label={fr ? "Diaporama animé" : "Animated slideshow"}>
-    <div><h2>{fr ? "Diaporama animé" : "Animated slideshow"}</h2><p>{fr ? "Des visuels cohérents avec ton produit, des transitions et une musique que tu peux changer après le rendu." : "Product-faithful visuals, transitions and a soundtrack you can change after rendering."}</p></div>
-    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>{product?.image ? <img src={product.image} alt={product.name} style={{ width: 72, height: 88, objectFit: "contain", borderRadius: 10 }} /> : null}<strong>{product?.name ?? (fr ? "Choisis un produit dans la liste ci-dessus." : "Select a product above.")}</strong></div>
-    <label className="studio-field"><span>{fr ? "Objectif de campagne" : "Campaign goal"}</span><select aria-label={fr ? "Objectif de campagne" : "Campaign goal"} value={campaignGoal} disabled={busy || planning} onChange={event => setCampaignGoal(event.target.value as CampaignGoal)}><option value="discover">{fr ? "Découvrir" : "Discover"}</option><option value="buy">{fr ? "Acheter" : "Buy"}</option><option value="learn">{fr ? "En savoir plus" : "Learn"}</option><option value="contact">{fr ? "Contacter" : "Contact"}</option></select></label>
-    <label className="studio-field"><span>{fr ? "Durée de la vidéo" : "Video duration"}</span><select value={duration} disabled={busy || planning} onChange={event => setDuration(Number(event.target.value))}><option value={5}>5 {fr ? "secondes" : "seconds"}</option><option value={10}>10 {fr ? "secondes" : "seconds"}</option></select></label>
-    <small>{fr ? "Carrousel publicitaire : exactement 5 images — une accroche qui donne envie de continuer, trois visuels promotionnels fidèles au produit et un appel à l’action final." : "Ad carousel: exactly 5 images — a hook that encourages viewers to continue, three product-faithful promotional slides and a final call to action."}</small>
-    <button type="button" className="btn btn-ghost" disabled={!product || planning || busy || attempted} onClick={() => void prepare()}>{planning ? (fr ? "Préparation…" : "Preparing…") : (fr ? "1. Générer les prompts du diaporama" : "1. Prepare slideshow prompts")}</button>
-    {plan ? <div><p><strong>{fr ? "Storyboard prêt" : "Storyboard ready"}</strong> · {plan.slides.length}/5 images · {duration}s · 9:16</p>{plan.countReason ? <p>{fr ? "Structure : " : "Structure: "}{plan.countReason}</p> : null}{plan.warnings?.length ? <ul>{plan.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul> : null}{plan.slides.map(slide => <article key={slide.index} style={{ marginTop: 12, padding: 12, border: "1px solid var(--border, #ddd)", borderRadius: 10 }}><strong>{fr ? "Visuel" : "Slide"} {slide.index + 1} · {slide.role ?? (slide.index === 0 ? "hook" : slide.index === plan.slides.length - 1 ? "cta" : "evidence")}</strong>{slide.headline ? <h3>{slide.headline}</h3> : null}{slide.supportingCopy?.map((copy, index) => <p key={index}>{copy}</p>)}{slide.source ? <small>{fr ? "Source : description produit — " : "Source: product description — "}{slide.source.excerpt}</small> : null}{slide.layout ? <p><small>{fr ? "Mise en page : " : "Layout: "}{slide.layout}</small></p> : null}<details><summary>{fr ? "Prompt du visuel" : "Image prompt"}</summary><pre style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto", fontSize: 12 }}>{slide.prompt}</pre></details></article>)}</div> : null}
-    <fieldset disabled={busy} style={{ border: "1px solid var(--border, #ddd)", borderRadius: 12, padding: 14 }}><legend>{fr ? "2. Choisir la musique" : "2. Choose music"}</legend><small>{fr ? "Musique clairement audible : niveau normalisé et crêtes protégées contre la saturation. Le même mixage est appliqué à l’aperçu et au remplacement audio." : "Clearly audible music: normalized loudness with protected peaks. Preview and audio replacement use the same mix."}</small>
-      <label className="studio-field"><span>{fr ? "Bande-son" : "Soundtrack"}</span><select value={musicId} onChange={event => { setMusicId(event.target.value); setPreviewId(""); }}><option value="">{fr ? "Sans musique" : "No music"}</option>{tracks.map(track => <option key={track.id} value={track.id}>{track.title} — {track.artist}</option>)}</select></label>
-      {selectedTrack ? <div style={{ display: "grid", gap: 8 }}><small>{selectedTrack.license} · <a href={selectedTrack.licenseUrl} target="_blank" rel="noreferrer">Licence</a> · <a href={selectedTrack.sourceUrl} target="_blank" rel="noreferrer">Source</a></small><p>{selectedTrack.credit}</p><small>{selectedTrack.youtubeNotice}</small><button type="button" className="btn btn-ghost" onClick={() => setPreviewId(previewId === musicId ? "" : musicId)}>{fr ? "Écouter / prévisualiser ce morceau" : "Listen / preview this track"}</button></div> : null}
-      {previewId ? <video aria-label="Aperçu musical synchronisé" key={previewId} controls preload="none" src={`/api/studio/slideshow/music/${encodeURIComponent(previewId)}/preview`} style={{ width: "100%", maxWidth: 360, maxHeight: 180, background: "#f7f8fa", marginTop: 12 }} /> : null}
-      <small style={{ display: "block", marginTop: 12 }}>{fr ? "Attribution obligatoire. Les MP3 ne sont pas proposés séparément. Sur YouTube, colle les crédits exportés dans la description. Ne soumets pas cette musique aux systèmes Content ID." : "Attribution required. MP3s are not offered separately. On YouTube, paste the exported credits into the description. Do not submit this music to Content ID."}</small>
-    </fieldset>
-    {!attempted ? <button type="button" className="btn btn-dark" disabled={!plan || planSignature !== inputSignature || !product || busy || planning} onClick={() => void generate()}>{fr ? `3. Générer le diaporama (${plan?.slides.length ?? 5} images)` : `3. Generate slideshow (${plan?.slides.length ?? 5} images)`}</button> : null}
-    {!attempted ? <small>{fr ? "Le coût affiché est celui des images standard du Studio. Le montage et le remplacement audio ne relancent pas ces images." : "Standard Studio image pricing applies. Assembly and audio replacement do not regenerate images."} {plan ? `${plan.slides.length} × ${imageCreditCost("hd", "medium")} crédits Studio.` : ""}</small> : null}
-    {status ? <div role="status" aria-live="polite" style={{ padding: 12, background: "var(--bg, #f5f5f5)", borderRadius: 10 }}>{status}{busy ? <progress aria-label="Progression du diaporama" style={{ display: "block", width: "100%", marginTop: 10 }} /> : null}</div> : null}
+  return <section className="app-card studio-form" style={{ marginTop: 20, display: "grid", gap: 16 }} aria-label={fr ? "Diaporama animé" : "Animated slideshow"}>
+    {!product ? <small>{fr ? "Choisis un produit ci-dessus." : "Choose a product above."}</small> : null}
+    <div className="studio-options">
+      <label className="studio-field"><span>{fr ? "Objectif" : "Goal"}</span><select aria-label={fr ? "Objectif" : "Goal"} value={campaignGoal} disabled={busy || planning} onChange={event => setCampaignGoal(event.target.value as CampaignGoal)}><option value="discover">{fr ? "Découvrir" : "Discover"}</option><option value="buy">{fr ? "Acheter" : "Buy"}</option><option value="learn">{fr ? "En savoir plus" : "Learn"}</option><option value="contact">{fr ? "Contacter" : "Contact"}</option></select></label>
+      <label className="studio-field"><span>{fr ? "Durée" : "Duration"}</span><select aria-label={fr ? "Durée" : "Duration"} value={duration} disabled={busy || planning} onChange={event => setDuration(Number(event.target.value))}><option value={5}>5 {fr ? "secondes" : "seconds"}</option><option value={10}>10 {fr ? "secondes" : "seconds"}</option></select></label>
+      <label className="studio-field"><span>{fr ? "Musique" : "Music"}</span><select aria-label={fr ? "Musique" : "Music"} disabled={busy} value={musicId} onChange={event => { setMusicId(event.target.value); setPreviewId(""); }}><option value="">{fr ? "Sans musique" : "No music"}</option>{tracks.map(track => <option key={track.id} value={track.id}>{track.title} — {track.artist}</option>)}</select></label>
+    </div>
+    {selectedTrack ? <div style={{ display: "grid", gap: 8 }}>
+      <button type="button" className="btn btn-ghost" onClick={() => setPreviewId(previewId === musicId ? "" : musicId)}>{fr ? "Écouter" : "Listen"}</button>
+      {previewId ? <video aria-label={fr ? "Aperçu musical synchronisé" : "Music preview"} key={previewId} controls preload="none" src={`/api/studio/slideshow/music/${encodeURIComponent(previewId)}/preview`} style={{ width: "100%", maxWidth: 360, maxHeight: 180, background: "#f7f8fa" }} /> : null}
+      <small>{fr ? "Attribution requise · " : "Attribution required · "}{selectedTrack.license}</small>
+      <details><summary>{fr ? "Licence et crédits" : "License and credits"}</summary>
+        <p>{selectedTrack.credit}</p>
+        <small><a href={selectedTrack.licenseUrl} target="_blank" rel="noreferrer">{fr ? "Licence" : "License"}</a> · <a href={selectedTrack.sourceUrl} target="_blank" rel="noreferrer">Source</a></small>
+        <p>{selectedTrack.youtubeNotice}</p>
+        <small>{fr ? "Sur YouTube, ajoute les crédits exportés à la description. Pas de MP3 séparé ni de dépôt Content ID." : "On YouTube, add the exported credits to the description. No standalone MP3 or Content ID registration."}</small>
+      </details>
+    </div> : null}
+    {!attempted ? <>
+      <p className="studio-cost" style={{ margin: 0 }}>{fr ? `5 images · ${5 * imageCreditCost("hd", "medium")} crédits Studio` : `5 images · ${5 * imageCreditCost("hd", "medium")} Studio credits`}</p>
+      <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || planning} onClick={() => void generate()}>{fr ? "Générer le diaporama" : "Generate slideshow"}</button>
+      <small>{fr ? "Montage et changement de musique sans crédits d’images supplémentaires." : "Assembly and music changes use no additional image credits."}</small>
+    </> : null}
+    {status ? <div role="status" aria-live="polite" style={{ padding: 12, background: "var(--bg, #f5f5f5)", borderRadius: 10 }}>{status}{busy ? <progress aria-label={fr ? "Progression du diaporama" : "Slideshow progress"} style={{ display: "block", width: "100%", marginTop: 10 }} /> : null}</div> : null}
     {error ? <p role="alert" className="form-error">{error}</p> : null}
-    {images.length ? <div aria-label="Visuels générés" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{images.map((image, index) => <figure key={image.id} style={{ margin: 0 }}><img src={image.url} alt={`Visuel généré ${index + 1}`} style={{ maxWidth: 150, maxHeight: 210, borderRadius: 10 }} /><figcaption>Visuel {index + 1}</figcaption></figure>)}</div> : null}
-    {attempted ? <small>{images.length} visuel(s) terminé(s). Coût retourné par les appels image réussis : {creditsUsed} crédits Studio.</small> : null}
-    {result ? <div style={{ display: "grid", gap: 12 }}><h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3><video key={result.videoUrl} aria-label="Diaporama final" controls preload="metadata" src={result.videoUrl} style={{ width: "100%", maxWidth: 420, maxHeight: 600, background: "#111", borderRadius: 12 }} /><a className="btn btn-dark" href={result.videoUrl} download="vendeo-diaporama.mp4" target="_blank" rel="noreferrer">{fr ? "Télécharger la vidéo MP4" : "Download MP4 video"}</a><button type="button" className="btn btn-ghost" disabled={busy || result.musicId === musicId} onClick={() => void replaceMusic()}>{fr ? "Remplacer la musique — garder les images" : "Replace soundtrack — keep images"}</button><label className="studio-field"><span>{fr ? "Crédits à joindre à la vidéo et à sa description YouTube" : "Credits to include with the video and in its YouTube description"}</span><textarea readOnly rows={6} value={result.attribution} /></label><button type="button" className="btn btn-ghost" onClick={downloadCredits}>{fr ? "Exporter les crédits musique (.txt)" : "Export music credits (.txt)"}</button></div> : null}
+    {result ? <div style={{ display: "grid", gap: 12 }}>
+      <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>
+      <video key={result.videoUrl} aria-label="Diaporama final" controls preload="metadata" src={result.videoUrl} style={{ width: "100%", maxWidth: 420, maxHeight: 600, background: "#111", borderRadius: 12 }} />
+      <a className="btn btn-dark" href={result.videoUrl} download="vendeo-diaporama.mp4" target="_blank" rel="noreferrer">{fr ? "Télécharger" : "Download"}</a>
+      <button type="button" className="btn btn-ghost" disabled={busy || result.musicId === musicId} onClick={() => void replaceMusic()}>{fr ? "Remplacer la musique" : "Replace music"}</button>
+      {result.attribution ? <details><summary>{fr ? "Crédits musique à joindre" : "Music credits to include"}</summary>
+        <label className="studio-field"><span>{fr ? "À joindre à la vidéo et à sa description YouTube" : "Include with the video and in its YouTube description"}</span><textarea readOnly rows={6} value={result.attribution} /></label>
+        <button type="button" className="btn btn-ghost" onClick={downloadCredits}>{fr ? "Exporter les crédits musique (.txt)" : "Export music credits (.txt)"}</button>
+      </details> : null}
+    </div> : null}
+    {plan ? <details><summary>{fr ? "Détails du diaporama" : "Slideshow details"}</summary>
+      <p>{plan.slides.length}/5 images · {duration}s · 9:16</p>
+      {plan.countReason ? <p>{plan.countReason}</p> : null}
+      {plan.warnings?.length ? <ul>{plan.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul> : null}
+      {plan.slides.map(slide => <article key={slide.index} style={{ marginTop: 12 }}>
+        <strong>{fr ? "Visuel" : "Slide"} {slide.index + 1}</strong>
+        {slide.headline ? <h3>{slide.headline}</h3> : null}
+        {slide.supportingCopy?.map((copy, index) => <p key={index}>{copy}</p>)}
+        {slide.source ? <small>{fr ? "Source : description produit — " : "Source: product description — "}{slide.source.excerpt}</small> : null}
+        <details><summary>{fr ? "Prompt du visuel" : "Image prompt"}</summary><pre style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto", fontSize: 12 }}>{slide.prompt}</pre></details>
+      </article>)}
+      {images.length ? <div aria-label="Visuels générés" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{images.map((image, index) => <img key={image.id} src={image.url} alt={`Visuel ${index + 1}`} style={{ maxWidth: 100, maxHeight: 140, borderRadius: 10 }} />)}</div> : null}
+      {attempted ? <small>{fr ? `${images.length} visuel(s) terminé(s) · ${creditsUsed} crédits Studio utilisés.` : `${images.length} image(s) completed · ${creditsUsed} Studio credits used.`}</small> : null}
+    </details> : null}
   </section>;
 }
