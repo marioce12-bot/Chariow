@@ -36,6 +36,10 @@ describe("Evidence-first advertising slideshow, no real generation", () => {
     expect(plan.slides.map(s => [s.headline,...s.supportingCopy]).flat().join(" ")).not.toMatch(/100|garanti|avis|recettes garanties/);
     expect(plan.slides.every(s => s.prompt.includes("Do not invent a cover"))).toBe(true);
   });
+  it("warns about reading pace for five seconds, not for the recommended ten", () => {
+    expect(buildSlideshowPlan({...input, duration:5}).warnings.join(" ")).toContain("Lecture rapide");
+    expect(buildSlideshowPlan({...input, duration:10}).warnings.join(" ")).not.toContain("Lecture rapide");
+  });
   it("deduplicates repeated arguments and stops at five even with more product facts", () => {
     expect(slideshowEvidence(`${facts[0]}\n${facts[0]}\n${facts[1]}`,input.name)).toHaveLength(2);
     expect(buildSlideshowPlan({ ...input, description: [...facts,"Une version audio est incluse.","Le document contient un index."].join("\n") }).slides).toHaveLength(5);
