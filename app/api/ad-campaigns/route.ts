@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
 import { normalizeMetaCta } from "@/lib/meta/cta";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
+import { getMetaCampaignLifecycle } from "@/lib/meta/status";
 
 const objectives = new Set(["sales", "traffic", "engagement", "leads"]);
 
@@ -105,7 +106,13 @@ export async function GET() {
   if (!user) return response;
   const { data, error } = await supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,carousel_urls,destination_url,countries,geo_targeting,meta_page_id,call_to_action,advantage_creative,advantage_audience,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "Impossible de charger les campagnes" }, { status: 500 });
-  return NextResponse.json({ campaigns: data ?? [] });
+  // This endpoint feeds the current-campaign UI, including older tabs/PWA clients
+  // which still render a history drawer when terminal rows are present. Exclude
+  // those rows from the response only: their records and reporting data stay intact.
+  const campaigns = (data ?? []).filter((campaign) => !["archived", "deleted"].includes(
+    getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? "",
+  ));
+  return NextResponse.json({ campaigns }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function DELETE(request: Request) {

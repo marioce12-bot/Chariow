@@ -1,4 +1,4 @@
-const CACHE_NAME = "vendeo-shell-v5";
+const CACHE_NAME = "vendeo-shell-v6";
 const SHELL_ASSETS = [
   "/manifest.webmanifest",
   "/vendeo-logo-light.webp",

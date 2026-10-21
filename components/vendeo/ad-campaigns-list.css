@@ -69,30 +69,8 @@
   }
 }
 .ad-campaign-history {
-  margin-top: 14px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-}
-.ad-campaign-history summary {
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-}
-.ad-campaign-history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-.ad-campaign-history-list .ad-campaign-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  /* Compatibility guard for an older client tree during a rolling update. */
+  display: none !important;
 }
 @media (max-width: 420px) {
   .ad-campaign-actions {
@@ -101,8 +79,5 @@
   }
   .ad-campaign-duplicate {
     min-height: 36px;
-  }
-  .ad-campaign-history-list .ad-campaign-row {
-    align-items: flex-start;
   }
 }
