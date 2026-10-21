@@ -29,7 +29,7 @@ describe("Locked studio video preparation routes", () => {
   it("rejects insufficient and repeated facts with HTTP 400 before any model call", async () => {
     const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 25, product: { ...product, description: "Le pack réunit trois guides pratiques. Le pack rassemble 3 ouvrages pratiques." } }));
     expect(response.status).toBe(400);
-    expect((await response.json()).error).toContain("insuffisantes");
+    expect((await response.json()).code).toBe("INSUFFICIENT_PRODUCT_DETAILS");
     expect(askText).not.toHaveBeenCalled();
   });
   it.each([5,10,15,20,60])("rejects %ss slideshow before any model call", async duration => {

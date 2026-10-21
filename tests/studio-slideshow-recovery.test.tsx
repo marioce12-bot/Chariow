@@ -24,6 +24,7 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
+  localStorage.clear();
   fetcher = vi.fn(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [] }));
   vi.stubGlobal("fetch", fetcher);
 });
@@ -64,13 +65,13 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     });
     await mount();
     await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); });
-    expect(calls("POST")).toHaveLength(1);
+    expect(calls("POST")).toHaveLength(2);
     act(() => root.unmount());
     serverTask = completed;
     await remount();
     expect(container.textContent).toContain("Ton diaporama est prêt");
     expect(container.querySelectorAll("img")).toHaveLength(5);
-    expect(calls("POST")).toHaveLength(1);
+    expect(calls("POST")).toHaveLength(2);
   });
 
   it("après échec du GET initial, bloque la génération jusqu'au polling récupérateur", async () => {
@@ -82,12 +83,10 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
       return response({ tasks: [completed] });
     });
     await mount();
-    const create = container.querySelector<HTMLButtonElement>("button.studio-generate")!;
-    expect(create.disabled).toBe(true);
+    expect(container.querySelector<HTMLButtonElement>("button.studio-generate")).toBeNull();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("Vérification du suivi");
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(container.textContent).toContain("Ton diaporama est prêt");
-    expect(container.querySelector<HTMLButtonElement>("button.studio-generate")!.disabled).toBe(false);
     expect(calls("POST")).toHaveLength(0);
   });
 
@@ -96,17 +95,17 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     let serverTask: typeof processing | typeof completed | null = null;
     fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url.endsWith("/config")) return config();
-      if (init?.method === "POST") { serverTask = processing; throw new Error("réponse perdue"); }
+      if (init?.method === "POST" && url === "/api/studio/tasks") { const posted = JSON.parse(String(init.body)); serverTask = { ...processing, id: posted.id }; throw new Error("réponse perdue"); }
       return response({ tasks: serverTask ? [serverTask] : [] });
     });
     await mount();
     await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); });
-    expect(calls("POST")).toHaveLength(1);
+    expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(1);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("aucune relance automatique");
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(container.textContent).toContain("Génération en cours");
     expect(container.querySelectorAll("img")).toHaveLength(5);
-    expect(calls("POST")).toHaveLength(1);
+    expect(calls("POST")).toHaveLength(2);
   });
 
   it("notifie avec le dernier onComplete après rerender avant la fin du polling", async () => {
@@ -140,7 +139,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
       const button = [...container.querySelectorAll("button")].find((item) => item.textContent?.trim() === name)!;
       button.click(); await Promise.resolve();
     });
-    await click("Préparer le plan");
+    await click("Créer");
     expect(container.textContent).toContain("Ajoute une précision utile");
     expect(container.querySelector("details")?.open).toBe(false);
     const textarea = container.querySelector("textarea")!;
@@ -151,17 +150,57 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     });
     await click("Relancer");
     expect(container.textContent).toContain("100 crédits Studio");
-    expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(0);
+    expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(1);
     const prompt = fetcher.mock.calls.filter(([url]) => url === "/api/studio/prompt").at(-1)!;
     expect(JSON.parse(String(prompt[1]?.body))).toMatchObject({
       product: { description: "Description existante\nDétails ajoutés" }, mediaType: "video", videoMode: "slideshow", duration: 25,
       aspectRatio: "9:16", campaignGoal: "discover", locale: "fr", musicId: "",
     });
-    await act(async () => {
-      const create = [...container.querySelectorAll("button")].find((item) => item.textContent?.trim() === "Créer")!;
-      create.click(); create.click(); await Promise.resolve();
-    });
-    expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(1);
+    expect([...container.querySelectorAll("button")].some((item) => item.textContent?.trim() === "Créer")).toBe(false);
+  });
+  it("fait progresser l’indicateur sous 100% pendant les étapes images 1 à n", async () => {
+    vi.useFakeTimers();
+    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, progress: 14, phase: "running", images: images.slice(0, 1), message: "Image 1/5" }] }));
+    await mount();
+    expect(container.textContent).toContain("Image 1/5");
+    const before = Number(container.querySelector('[role="status"]')?.textContent?.match(/(\d+(?:\.\d+)?)%/)?.[1] ?? 0);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    const after = Number(container.querySelector('[role="status"]')?.textContent?.match(/(\d+(?:\.\d+)?)%/)?.[1] ?? 0);
+    expect(after).toBeGreaterThan(before);
+    expect(after).toBeLessThan(100);
+    expect(container.textContent).toContain("1/5");
+    expect(container.querySelector('[data-testid="slideshow-spinner"]')?.getAttribute("class")).toContain("animate-spin");
+    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, progress: 82, phase: "running", images: images.slice(0, 4), message: "Image 4/5" }] }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    expect(container.textContent).toContain("4/5 visuels");
+    expect(container.textContent).not.toContain("100%");
+  });
+
+  it("avance pendant chaque longue étape sans reculer au polling", async () => {
+    vi.useFakeTimers();
+    let task: any = { ...processing, revision: 1, phase: "running", progress: 5, images: [], message: "Génération du visuel 1/5…" };
+    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [task] }));
+    const percent = () => Number(container.querySelector('[role="status"]')?.textContent?.match(/(\d+(?:\.\d+)?)%/)?.[1] ?? 0);
+    await mount(); const start = percent();
+    await act(async () => { await vi.advanceTimersByTimeAsync(120_000); }); const first = percent();
+    expect(first).toBeGreaterThan(start); expect(first).toBeLessThan(22);
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); }); expect(percent()).toBeGreaterThanOrEqual(first);
+    task = { ...task, revision: 2, progress: 22, images: images.slice(0, 1), message: "Génération du visuel 2/5…" };
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); }); const next = percent();
+    expect(next).toBeGreaterThanOrEqual(first);
+    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
+    expect(percent()).toBeGreaterThan(next); expect(percent()).toBeLessThan(39);
+    expect(container.textContent).toContain("visuel 2/5"); expect(calls("POST")).toHaveLength(0);
+  });
+  it("affiche l'erreur de worker une seule fois et conserve les quatre images", async () => {
+    const message = "Le suivi serveur n’a pas pu continuer.";
+    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, status: "failed", images: images.slice(0, 4), message, error: message, creditsConsumed: 80 }] }));
+    await mount();
+    expect(container.textContent?.split(message)).toHaveLength(2);
+    expect(container.querySelectorAll("img")).toHaveLength(4);
+    expect(container.textContent).toContain("80 crédits Studio utilisés");
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(calls("POST")).toHaveLength(0);
   });
   it("affiche un seul bloc bref pour un ancien échec et garde le blocage après doublons", async () => {
     const long = "Informations produit vérifiées insuffisantes pour cinq images cohérentes. Ajoute trois contenus différents.";

@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateStudioImage } from "@/lib/studio/image-generation";
 import { buildSlideshowPlan } from "@/lib/studio/slideshow-plan";
@@ -9,6 +9,34 @@ import {
 import { signedStudioUrl } from "@/lib/studio/media";
 
 export const TASK_TYPE = "studio_background_task";
+export type StageRecord = {
+  step: number;
+  kind: "preflight" | "image" | "render";
+  state: "running" | "completed" | "uncertain";
+  generationId?: string;
+  cost: number;
+  creditState: "none" | "confirmed" | "uncertain";
+  startedAt: string;
+  completedAt?: string;
+};
+export class StudioTaskError extends Error {
+  constructor(public code: string, public status: number | null = null) {
+    super("Le suivi serveur n’a pas pu continuer. Les étapes terminées sont conservées ; aucune étape payante n’est relancée.");
+  }
+}
+export function stageGenerationId(id: string, revision: number) {
+  const hex = createHash("sha256").update(`studio-stage:${id}:${revision}`).digest("hex");
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`;
+}
+// Strict allow-list: never log provider messages, inputs, URLs, tokens or user data.
+export function logTaskEvent(event: string, id: string, step: number, meta?: Partial<TaskMetadata>, error?: unknown) {
+  const failure = error instanceof StudioTaskError ? error : undefined;
+  console.info(JSON.stringify({ event, taskId: id, step, httpStatus: failure?.status ?? null,
+    errorCode: failure?.code ?? (error ? "STUDIO_STEP_FAILED" : null),
+    completedImages: meta?.images?.length ?? 0,
+    creditsConsumed: meta?.creditsConsumed ?? (meta?.images?.length ?? 0) * 20,
+    creditState: meta?.creditState ?? "uncertain" }));
+}
 export type TaskMetadata = {
   type: typeof TASK_TYPE;
   taskKind: "image" | "slideshow";
@@ -19,6 +47,11 @@ export type TaskMetadata = {
   progress: number;
   updatedAt: string;
   images: Array<{ id: string; url: string }>;
+  stages?: StageRecord[];
+  creditsConsumed?: number;
+  creditState?: "confirmed" | "uncertain";
+  errorCode?: string;
+  httpStatus?: number | null;
   result?: any;
   error?: string;
 };
@@ -42,36 +75,42 @@ export function workerOrigin() {
     ? "https://www.vendeo-studio.site"
     : `https://${process.env.VERCEL_URL}`;
 }
-export async function dispatchTask(id: string, revision: number) {
-  const response = await fetch(`${workerOrigin()}/api/studio/tasks/worker`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-studio-task-token": taskToken(id, revision),
-    },
-    body: JSON.stringify({ id, revision }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok)
-    throw new Error(
-      "Le suivi serveur n’a pas pu continuer. Aucune étape payante n’est relancée.",
-    );
+export async function dispatchTask(id: string, revision: number, metadata?: TaskMetadata) {
+  try {
+    const response = await fetch(`${workerOrigin()}/api/studio/tasks/worker`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-studio-task-token": taskToken(id, revision) },
+      body: JSON.stringify({ id, revision }), cache: "no-store", signal: AbortSignal.timeout(20_000),
+    });
+    if (!response.ok) throw new StudioTaskError("STUDIO_WORKER_HTTP", response.status);
+    logTaskEvent("worker_accepted", id, revision, metadata);
+  } catch (error) {
+    const safe = error instanceof StudioTaskError ? error : new StudioTaskError("STUDIO_WORKER_RESPONSE_LOST");
+    logTaskEvent("worker_dispatch_failed", id, revision, metadata, safe);
+    throw safe;
+  }
 }
 export async function publicTask(row: any) {
   const metadata = row.metadata as TaskMetadata;
   let result = metadata.result;
-  let images = metadata.images ?? [];
-  if (images.length) {
+  let images = [...(metadata.images ?? [])];
+  // Read-only reconciliation: recover a stored child after a lost response or parent write.
+  // Never dispatch work, reserve credits, or call a provider while reading task status.
+  const recoverableIds = (metadata.stages ?? []).filter(stage => stage.kind === "image" && stage.generationId).map(stage => stage.generationId!);
+  if (images.length || recoverableIds.length) {
     const { data } = await createAdminClient()
       .from("studio_generations")
-      .select("id,storage_path")
+      .select("id,storage_path,status,credits_cost")
       .in(
         "id",
-        images.map((image) => image.id),
+        [...new Set([...images.map((image) => image.id), ...recoverableIds])],
       )
       .eq("user_id", row.user_id)
       .limit(5);
+    for (const generationId of recoverableIds) {
+      const saved = data?.find((item: any) => item.id === generationId && item.status === "completed" && item.storage_path);
+      if (saved && !images.some(image => image.id === generationId)) images.push({ id: generationId, url: await signedStudioUrl(saved.storage_path) });
+    }
     images = await Promise.all(
       images.map(async (image) => {
         const saved = data?.find((item: any) => item.id === image.id);
@@ -106,8 +145,13 @@ export async function publicTask(row: any) {
     id: row.id,
     kind: metadata.taskKind,
     status: stale ? "failed" : row.status,
-    phase: metadata.phase,
-    progress: metadata.progress,
+    phase: stale ? "failed" : metadata.phase,
+    revision: metadata.revision,
+    updatedAt: metadata.updatedAt,
+    creditsConsumed: Math.max(metadata.creditsConsumed ?? 0, images.length * 20),
+    creditState: stale && metadata.phase === "running" ? "uncertain" : (metadata.creditState ?? "confirmed"),
+    errorCode: stale ? "STUDIO_TASK_STALE" : metadata.errorCode,
+    progress: row.status === "completed" && result ? 100 : Math.min(99, metadata.progress),
     message: metadata.message,
     error: stale
       ? "Le suivi de cette génération a été interrompu. Consulte l’historique : aucune nouvelle génération n’a été lancée automatiquement."
@@ -137,7 +181,10 @@ export async function failTask(
     return;
   const message =
     error instanceof Error ? error.message : "Génération interrompue.";
-  await admin
+  const code = error instanceof StudioTaskError ? error.code : "STUDIO_STEP_FAILED";
+  const uncertain = row.metadata.phase === "running";
+  logTaskEvent("task_failed", id, row.metadata.revision, { ...row.metadata, creditState: uncertain ? "uncertain" : row.metadata.creditState }, error);
+  const failure = await admin
     .from("studio_generations")
     .update({
       status: "failed",
@@ -146,6 +193,10 @@ export async function failTask(
         ...row.metadata,
         phase: "failed",
         error: message,
+        errorCode: code,
+        httpStatus: error instanceof StudioTaskError ? error.status : null,
+        creditState: uncertain ? "uncertain" : (row.metadata.creditState ?? "confirmed"),
+        stages: (row.metadata.stages ?? []).map((stage: StageRecord) => stage.state === "running" ? { ...stage, state: "uncertain", creditState: stage.kind === "image" ? "uncertain" : stage.creditState } : stage),
         message,
         updatedAt: new Date().toISOString(),
       },
@@ -154,6 +205,7 @@ export async function failTask(
     .eq("status", "processing")
     .eq("metadata->>revision", String(row.metadata.revision))
     .eq("metadata->>phase", row.metadata.phase);
+  if (failure.error) logTaskEvent("failure_persistence_failed", id, row.metadata.revision, row.metadata, new StudioTaskError("STUDIO_PERSISTENCE_FAILED"));
 }
 export async function runTaskStep(id: string, revision: number) {
   const admin = createAdminClient();
@@ -172,9 +224,21 @@ export async function runTaskStep(id: string, revision: number) {
   )
     return;
   const meta = row.metadata as TaskMetadata;
-  const claimed = {
+  const stage: StageRecord = {
+    step: revision, kind: meta.taskKind === "image" || (revision > 0 && meta.images.length < 5) ? "image" : revision === 0 ? "preflight" : "render",
+    state: "running", cost: 0, creditState: "none", startedAt: new Date().toISOString(),
+  };
+  if (stage.kind === "image") {
+    stage.generationId = stageGenerationId(id, revision);
+    stage.cost = meta.taskKind === "slideshow" ? 20 : 0;
+    stage.creditState = "uncertain";
+  }
+  // A durable per-step claim is written BEFORE any paid work; never reclaim running/uncertain steps.
+  const claimed: TaskMetadata = {
     ...meta,
     phase: "running",
+    stages: [...(meta.stages ?? []), stage],
+    creditState: stage.kind === "image" ? "uncertain" : (meta.creditState ?? "confirmed"),
     updatedAt: new Date().toISOString(),
   };
   const claim = await admin
@@ -187,14 +251,15 @@ export async function runTaskStep(id: string, revision: number) {
     .select("id");
   if (claim.error) throw claim.error;
   if (!claim.data?.length) return; // A duplicate worker must not reserve credits or call a provider.
+  logTaskEvent("stage_started", id, revision, claimed);
   try {
     let result: any;
     let images = meta.images;
     if (meta.taskKind === "image") {
-      const response = await generateStudioImage(row.user_id, meta.input);
+      const response = await generateStudioImage(row.user_id, meta.input, { generationId: stage.generationId!, taskId: id, step: revision });
       result = await response.json();
       if (!response.ok)
-        throw new Error(result.error || "Génération impossible.");
+        throw new StudioTaskError("STUDIO_IMAGE_HTTP", response.status ?? null);
     } else if (revision === 0) {
       // Reject insufficient/repeated copy and scenes before any external preflight or image.
       const { product, duration, campaignGoal, locale } = meta.input;
@@ -236,13 +301,10 @@ export async function runTaskStep(id: string, revision: number) {
           imageCount: 5,
           slideIndex: slide.index,
         },
-      });
+      }, { generationId: stage.generationId!, taskId: id, step: revision });
       const image = await response.json();
       if (!response.ok || !image.generationId || !image.imageUrl)
-        throw new Error(
-          image.error ||
-            "Visuel incomplet. Consulte l’historique sans relancer les images.",
-        );
+        throw new StudioTaskError(image.code === "STUDIO_STAGE_UNCERTAIN" ? "STUDIO_STAGE_UNCERTAIN" : "STUDIO_IMAGE_HTTP", response.status ?? null);
       images = [...images, { id: image.generationId, url: image.imageUrl }];
     } else {
       result = await renderSlideshow(
@@ -253,10 +315,15 @@ export async function runTaskStep(id: string, revision: number) {
         id,
       );
     }
+    if (meta.taskKind === "slideshow" && result && (!result.videoUrl || !result.generationId))
+      throw new StudioTaskError("STUDIO_MP4_NOT_READY");
     const complete = Boolean(result);
     const next: TaskMetadata = {
       ...meta,
       images,
+      stages: [...(meta.stages ?? []), { ...stage, state: "completed", creditState: stage.kind === "image" ? "confirmed" : "none", completedAt: new Date().toISOString() }],
+      creditsConsumed: (meta.creditsConsumed ?? meta.images.length * 20) + (stage.kind === "image" ? (meta.taskKind === "image" ? Number(result?.cost ?? 0) : 20) : 0),
+      creditState: "confirmed",
       revision: revision + 1,
       phase: complete ? "completed" : "queued",
       progress: complete ? 100 : Math.min(95, 5 + images.length * 17),
@@ -273,12 +340,15 @@ export async function runTaskStep(id: string, revision: number) {
       .update({ status: complete ? "completed" : "processing", metadata: next })
       .eq("id", id)
       .eq("metadata->>phase", "running")
-      .eq("metadata->>revision", String(revision));
-    if (saved.error) throw saved.error;
+      .eq("metadata->>revision", String(revision))
+      .select("id");
+    if (!saved.data?.length && !saved.error) return;
+    if (saved.error) throw new StudioTaskError("STUDIO_PERSISTENCE_FAILED");
+    logTaskEvent("stage_completed", id, revision, next);
     // Each step has its own server execution budget. Browser lifetime is irrelevant.
     if (!complete) {
       try {
-        await dispatchTask(id, next.revision);
+        await dispatchTask(id, next.revision, next);
       } catch (error) {
         await failTask(id, error, { revision: next.revision, phase: "queued" });
       }

@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server";
-import { runTaskStep, validTaskToken } from "@/lib/studio/background-tasks";
+import { failTask, logTaskEvent, runTaskStep, StudioTaskError, validTaskToken } from "@/lib/studio/background-tasks";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export async function POST(request: Request) {
@@ -17,6 +17,16 @@ export async function POST(request: Request) {
     )
   )
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  after(() => runTaskStep(body.id, body.revision));
+  logTaskEvent("worker_received", body.id, body.revision);
+  after(async () => {
+    try { await runTaskStep(body.id, body.revision); }
+    catch {
+      const failure = new StudioTaskError("STUDIO_WORKER_EXECUTION_FAILED");
+      logTaskEvent("worker_execution_failed", body.id, body.revision, undefined, failure);
+      await failTask(body.id, failure, { revision: body.revision, phase: "queued" }).catch(() => {
+        logTaskEvent("failure_persistence_failed", body.id, body.revision, undefined, failure);
+      });
+    }
+  });
   return NextResponse.json({ accepted: true }, { status: 202 });
 }

@@ -35,6 +35,7 @@ function oneOf<T extends readonly string[]>(
 export async function generateStudioImage(
   userId: string,
   body: any,
+  stage?: { generationId: string; taskId: string; step: number },
 ): Promise<Response> {
   let slideshow: ReturnType<typeof validateSlideshowImageRequest> | undefined;
   if (Object.hasOwn(body ?? {}, "slideshow")) {
@@ -120,30 +121,39 @@ export async function generateStudioImage(
   );
 
   const admin = createAdminClient();
+  const generationMetadata = {
+    prompt: finalPrompt, originalPrompt: userPrompt,
+    promptVersion: "premium-creative-director-v1", model,
+    referenceCount: references.length,
+    ...(stage ? { taskId: stage.taskId, step: stage.step, creditState: "none" } : {}),
+  };
   const { data: generation, error: generationError } = await admin
     .from("studio_generations")
     .insert({
+      ...(stage ? { id: stage.generationId } : {}),
       user_id: userId,
       kind: "image",
       prompt: finalPrompt,
       options,
-      metadata: {
-        prompt: finalPrompt,
-        originalPrompt: userPrompt,
-        promptVersion: "premium-creative-director-v1",
-        model,
-        referenceCount: references.length,
-      },
+      metadata: generationMetadata,
       status: "processing",
       credits_cost: cost,
     })
     .select("id")
     .single();
-  if (generationError)
+  if (generationError) {
+    if (stage && generationError.code === "23505") {
+      const existing = await admin.from("studio_generations").select("id,user_id,status,storage_path,credits_cost").eq("id", stage.generationId).eq("user_id", userId).maybeSingle();
+      if (!existing.error && existing.data?.status === "completed" && existing.data.storage_path) {
+        return NextResponse.json({ imageUrl: await signedStudioUrl(existing.data.storage_path), generationId: stage.generationId, cost: existing.data.credits_cost ?? cost });
+      }
+      return stagedUncertain(stage, cost);
+    }
     return NextResponse.json(
       { error: "L'historique Studio n'est pas configuré." },
       { status: 503 },
     );
+  }
 
   const reservation = await admin.rpc("reserve_credits", {
     target_user_id: userId,
@@ -151,9 +161,10 @@ export async function generateStudioImage(
     operation_name: "studio_image",
     model_name: model,
     provider_amount: Math.round(cost / 1.5),
-    request_id: crypto.randomUUID(),
+    request_id: stage?.generationId ?? crypto.randomUUID(),
   });
   if (reservation.error) {
+    if (stage) { await setCreditState(admin, userId, stage.generationId, generationMetadata, "uncertain"); return stagedUncertain(stage, cost, "reservation_error"); }
     console.error(
       "Studio credit reservation error",
       reservation.error.message,
@@ -186,13 +197,12 @@ export async function generateStudioImage(
       { status: 402 },
     );
 
+  if (stage && !reserveResult.transaction_id) return stagedUncertain(stage, cost, "reservation_unconfirmed");
+  if (stage && !(await setCreditState(admin, userId, generation.id, generationMetadata, "reserved"))) return stagedUncertain(stage, cost, "persistence_error");
   try {
     const imageUrl = references.length
       ? await generateFalImageWithReferences(finalPrompt, references, options)
       : await generateFalImage(finalPrompt, format, options);
-    await admin.rpc("complete_credit_debit", {
-      transaction_id: reserveResult.transaction_id,
-    });
     let storagePath: string | null = null;
     try {
       storagePath = await storeStudioImage(
@@ -202,7 +212,8 @@ export async function generateStudioImage(
         options.outputFormat,
       );
     } catch (storageError) {
-      console.error("Studio image storage error", storageError);
+      if (stage) console.error("Studio staged image", { taskId: stage.taskId, step: stage.step, status: 502, errorCode: "STUDIO_STORAGE_FAILED", creditState: "uncertain", cost });
+      else console.error("Studio image storage error", storageError);
     }
     // A carousel cannot be assembled from a transient/failed provider URL. Fail honestly,
     // keep the existing refund path and never launch another generation automatically.
@@ -210,9 +221,18 @@ export async function generateStudioImage(
       throw new Error(
         "Le visuel n’a pas pu être sauvegardé. Montage annulé, aucune nouvelle génération automatique.",
       );
+    // Preserve the acquired asset before financial acknowledgement. A lost debit response
+    // must not discard a paid provider result or make it eligible for another paid call.
+    if (stage && storagePath) {
+      const stored = await admin.from("studio_generations").update({ storage_path: storagePath }).eq("id", generation.id).eq("user_id", userId);
+      if (stored.error) return stagedUncertain(stage, cost, "asset_persistence_error");
+    }
+    const debit = await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
+    if (stage && (debit.error || debit.data !== true)) { await setCreditState(admin, userId, generation.id, generationMetadata, "uncertain"); return stagedUncertain(stage, cost, "debit_error"); }
+    if (stage && !(await setCreditState(admin, userId, generation.id, generationMetadata, "consumed"))) return stagedUncertain(stage, cost, "persistence_error");
     const saved = await admin
       .from("studio_generations")
-      .update({ status: "completed", storage_path: storagePath })
+      .update({ status: "completed", storage_path: storagePath, ...(stage ? { metadata: { ...generationMetadata, creditState: "consumed" } } : {}) })
       .eq("id", generation.id)
       .eq("user_id", userId);
     if (slideshow && saved?.error)
@@ -225,9 +245,11 @@ export async function generateStudioImage(
       cost,
     });
   } catch (error) {
-    await admin.rpc("refund_credit_debit", {
-      transaction_id: reserveResult.transaction_id,
-    });
+    const refund = await admin.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });
+    if (stage) {
+      const state = refund.error ? "uncertain" : "refunded";
+      if (!(await setCreditState(admin, userId, generation.id, generationMetadata, state))) return stagedUncertain(stage, cost, "persistence_error");
+    }
     await admin
       .from("studio_generations")
       .update({
@@ -238,10 +260,21 @@ export async function generateStudioImage(
       .eq("user_id", userId);
     const message =
       error instanceof Error ? error.message : "Erreur de génération d'image.";
-    console.error("fal.ai studio image error", message);
+    if (stage) console.error("Studio staged image", { taskId: stage.taskId, step: stage.step, status: 502, errorCode: "provider_error", creditState: "uncertain", cost });
+    else console.error("fal.ai studio image error", message);
     return NextResponse.json(
       { error: "Impossible de générer l'image pour le moment." },
       { status: 502 },
     );
   }
+}
+
+
+async function setCreditState(admin: any, userId: string, id: string, metadata: Record<string, unknown>, creditState: string) {
+  const result = await admin.from("studio_generations").update({ metadata: { ...metadata, creditState } }).eq("id", id).eq("user_id", userId).select("id");
+  return !result?.error && Boolean(result?.data?.length);
+}
+function stagedUncertain(stage: { taskId: string; step: number }, cost: number, errorCode = "stage_uncertain") {
+  console.error("Studio staged image", { taskId: stage.taskId, step: stage.step, status: 409, errorCode, creditState: "uncertain", cost });
+  return NextResponse.json({ error: "Cette étape nécessite une vérification manuelle.", code: "STUDIO_STAGE_UNCERTAIN" }, { status: 409 });
 }

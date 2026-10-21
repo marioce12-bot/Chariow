@@ -13,7 +13,7 @@ vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/lib/subscription/access", () => ({ requireActiveSubscription: mocks.subscription }));
 vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit: mocks.rateLimit }));
 
-import { publicTask, runTaskStep, TASK_TYPE } from "@/lib/studio/background-tasks";
+import { publicTask, runTaskStep, TASK_TYPE, stageGenerationId, dispatchTask, StudioTaskError } from "@/lib/studio/background-tasks";
 import { GET, POST as createTask } from "@/app/api/studio/tasks/route";
 import { POST as workerPost } from "@/app/api/studio/tasks/worker/route";
 
@@ -53,7 +53,7 @@ function configureDb(row: any, claimWon = true) {
         eq: (key: string, value: any) => { filters[key] = value; return chain; },
         select: async () => {
           const won = claimWon && matches();
-          if (won && values.metadata) row.metadata = values.metadata;
+          if (won) { if (values.metadata) row.metadata = values.metadata; if (values.status) row.status = values.status; }
           return { data: won ? [{ id }] : [], error: null };
         },
       };
@@ -84,7 +84,7 @@ describe("runTaskStep", () => {
   it("génère une image et persiste l'étape suivante", async () => {
     const updates = configureDb(rowFor(metadata()));
     await runTaskStep(id, 0);
-    expect(mocks.generate).toHaveBeenCalledWith(user.id, { prompt: "un paysage" });
+    expect(mocks.generate).toHaveBeenCalledWith(user.id, { prompt: "un paysage" }, { generationId: stageGenerationId(id, 0), taskId: id, step: 0 });
     expect(updates[1]).toMatchObject({ status: "completed", metadata: { phase: "completed", revision: 1, result: { generationId: "gen-1" } } });
     expect(mocks.dispatch).not.toHaveBeenCalled();
   });
@@ -92,7 +92,7 @@ describe("runTaskStep", () => {
     const updates = configureDb(rowFor(metadata()));
     mocks.generate.mockResolvedValue({ ...ok({ error: "provider error" }), ok: false });
     await runTaskStep(id, 0);
-    expect(updates.at(-1)).toMatchObject({ status: "failed", metadata: { phase: "failed", error: "provider error" } });
+    expect(updates.at(-1)).toMatchObject({ status: "failed", metadata: { phase: "failed", errorCode: "STUDIO_IMAGE_HTTP" } });
     expect(mocks.dispatch).not.toHaveBeenCalled();
     expect(mocks.generate).toHaveBeenCalledTimes(1);
   });
@@ -108,6 +108,43 @@ describe("runTaskStep", () => {
     expect(mocks.generate).toHaveBeenCalledTimes(1);
     expect(updates.at(-1)).not.toMatchObject({ status: "failed", metadata: { phase: "failed" } });
   });
+  it("conserve 4/5 et les 80 crédits confirmés si le worker suivant répond 503", async () => {
+    const images = Array.from({ length: 3 }, (_, i) => ({ id: `g${i}`, url: `u${i}` }));
+    const row = rowFor(metadata("slideshow", { revision: 4, images }));
+    configureDb(row);
+    vi.mocked(fetch).mockResolvedValue(new Response("secret provider payload", { status: 503 }));
+    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    await runTaskStep(id, 4);
+    expect(row.status).toBe("failed");
+    expect(row.metadata.images).toHaveLength(4);
+    expect(row.metadata.creditsConsumed).toBe(80);
+    expect(row.metadata.errorCode).toBe("STUDIO_WORKER_HTTP");
+    expect(row.metadata.httpStatus).toBe(503);
+    expect(row.metadata.stages.at(-1).state).toBe("completed");
+    await runTaskStep(id, 4); await runTaskStep(id, 5);
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(log.mock.calls)).not.toContain("secret provider payload");
+    log.mockRestore();
+  });
+  it("une réponse worker perdue garde les 4 visuels et interdit le rejeu payant", async () => {
+    const row = rowFor(metadata("slideshow", { revision: 4, images: Array.from({ length: 3 }, (_, i) => ({ id: `g${i}`, url: `u${i}` })) }));
+    configureDb(row); vi.mocked(fetch).mockRejectedValue(new Error("private transport details"));
+    await runTaskStep(id, 4);
+    expect(row.metadata.images).toHaveLength(4);
+    expect(row.metadata.errorCode).toBe("STUDIO_WORKER_RESPONSE_LOST");
+    await runTaskStep(id, 5);
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+  });
+  it("ne reprend jamais une étape running incertaine même avec le même token", async () => {
+    configureDb(rowFor(metadata("slideshow", { revision: 5, phase: "running", images: Array.from({ length: 4 }, (_, i) => ({ id: `g${i}`, url: `u${i}` })) })));
+    await runTaskStep(id, 5); await runTaskStep(id, 5);
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+  it("utilise une identité stable distincte pour chaque étape", () => {
+    expect(stageGenerationId(id, 4)).toBe(stageGenerationId(id, 4));
+    expect(stageGenerationId(id, 4)).not.toBe(stageGenerationId(id, 5));
+    expect(stageGenerationId(id, 4)).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
   it("bloque un récit répétitif avant préflight, images et dispatch", async () => {
     const meta = metadata("slideshow");
     meta.input.product.description = "Le pack réunit trois guides pratiques. Le pack rassemble 3 ouvrages pratiques.";
@@ -116,6 +153,14 @@ describe("runTaskStep", () => {
     expect(updates.at(-1)).toMatchObject({ status: "failed", metadata: { phase: "failed" } });
     expect(mocks.preflight).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled();
     expect(mocks.render).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
+  });
+  it("n'annonce jamais 100 sans MP4 prêt", async () => {
+    const row = rowFor(metadata("slideshow", { revision: 6, images: Array.from({ length: 5 }, (_, i) => ({ id: `g${i}`, url: `u${i}` })) }));
+    configureDb(row); mocks.render.mockResolvedValue({ generationId: "video-1" });
+    await runTaskStep(id, 6);
+    expect(row.status).toBe("failed"); expect(row.metadata.progress).not.toBe(100);
+    expect(row.metadata.errorCode).toBe("STUDIO_MP4_NOT_READY");
+    expect(mocks.generate).not.toHaveBeenCalled();
   });
   it("fait le préflight puis les cinq images puis le rendu aux phases correspondantes", async () => {
     const slideshowInput = metadata("slideshow").input;
@@ -179,6 +224,15 @@ describe("routes des tâches studio", () => {
     expect(result.images[0].url).toBe("https://signed.test/user-1/img-kept.png");
     expect(queries).toContain("in:img-kept");
     expect(queries).toContain("limit:5");
+  });
+  it("récupère en lecture seule l'image enfant si l'écriture parent a été perdue", async () => {
+    const taskRow = rowFor(metadata("slideshow", { phase: "failed", stages: [{ step: 1, kind: "image", state: "uncertain", generationId: "child-saved", cost: 20, creditState: "uncertain", startedAt: new Date().toISOString() }] }), "failed");
+    mocks.from.mockImplementation(() => ({ select: () => {
+      const chain: any = { in: () => chain, eq: () => chain, limit: async () => ({ data: [{ id: "child-saved", storage_path: "owner/child.png", status: "completed", credits_cost: 20 }], error: null }) }; return chain;
+    } }));
+    const result = await publicTask(taskRow);
+    expect(result.images).toHaveLength(1); expect(result.images[0].id).toBe("child-saved");
+    expect(result.creditsConsumed).toBe(20); expect(mocks.generate).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
   });
   it("POST répété par le même propriétaire ne redéclenche pas la tâche", async () => {
     mocks.requireUser.mockResolvedValue({ user, response: null });

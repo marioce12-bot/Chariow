@@ -4,6 +4,7 @@ import type { CampaignGoal } from "@/lib/studio/slideshow-plan";
 import { LoaderCircle } from "lucide-react";
 import { SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { imageCreditCost } from "@/lib/studio/credits";
+import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
 
 type Product = {
   id: string;
@@ -39,6 +40,11 @@ type Task = {
   images?: Array<{ id: string; url: string }>;
   result?: RenderResult;
   createdAt?: string;
+  updatedAt?: string;
+  revision?: number;
+  phase?: string;
+  creditsConsumed?: number;
+  creditState?: "confirmed" | "uncertain";
 };
 const jsonResponse = async (response: Response) => {
   const data = await response.json();
@@ -149,18 +155,19 @@ export function SlideshowStudio({
     [result, setResult] = useState<RenderResult | null>(null),
     [previewId, setPreviewId] = useState(""),
     [creditsUsed, setCreditsUsed] = useState(0),
-    [planReady, setPlanReady] = useState(false),
     [recovery, setRecovery] = useState(false),
+    [pendingRequest, setPendingRequest] = useState(false),
     [temporaryDescription, setTemporaryDescription] = useState(product?.description ?? ""),
     [technicalDetails, setTechnicalDetails] = useState("");
   const running = useRef(false),
     taskRef = useRef<Task | null>(null),
     initialDone = useRef(false),
     signature = useRef(`${product?.id ?? ""}`);
-  const planSignature = useRef("");
   const currentSignature = JSON.stringify([product?.id ?? "", temporaryDescription, duration, campaignGoal, musicId]);
   const currentSignatureRef = useRef(currentSignature);
   currentSignatureRef.current = currentSignature;
+  const displayedProgressRef = useRef(0);
+  const progressStartedAtRef = useRef(Date.now());
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
   const selectedTrack = tracks.find((track) => track.id === musicId);
@@ -169,28 +176,35 @@ export function SlideshowStudio({
     const supplied = temporaryDescription.trim();
     return !existing || supplied.includes(existing) ? supplied : `${existing}\n${supplied}`;
   };
+  const progressStageRef = useRef("");
+  const showProgress = (task: Task) => {
+    const key = `${task.id}:${task.revision ?? ""}:${task.images?.length ?? 0}`;
+    if (progressStageRef.current !== key) {
+      progressStageRef.current = key;
+      const updated = Date.parse(task.updatedAt ?? "");
+      progressStartedAtRef.current = Number.isFinite(updated) ? updated : Date.now();
+    }
+    const count = task.images?.length ?? 0;
+    const montage = count >= 5 || /montage|render|assembly/i.test(task.message ?? "");
+    const floor = Math.max(task.progress ?? 1, montage ? 90 : count ? 5 + count * 17 : task.revision === 0 ? 1 : 5);
+    const ceiling = montage ? 99.8 : task.revision === 0 ? 4.9 : Math.min(89.9, 5 + (count + 1) * 17 - 0.1);
+    const elapsed = Math.max(0, Date.now() - progressStartedAtRef.current);
+    const estimated = floor + Math.max(0, ceiling - floor) * (1 - Math.exp(-elapsed / 90_000));
+    displayedProgressRef.current = Math.min(99.8, Math.max(displayedProgressRef.current, Math.round(estimated * 10) / 10));
+    setStatus(`${task.message || (fr ? "Génération en cours…" : "Generating…")} ${displayedProgressRef.current}%`);
+  };
   const applyTask = (task: Task, notify = false) => {
     const wasProcessing = taskRef.current?.status === "processing";
     const changedTask = taskRef.current?.id !== task.id;
+    if (taskRef.current?.id !== task.id) { displayedProgressRef.current = 0; progressStartedAtRef.current = Date.now(); }
     taskRef.current = task;
     setAttempted(true);
     setImages(task.images ?? []);
-    setCreditsUsed(
-      (task.images?.length ?? 0) * imageCreditCost("hd", "medium"),
-    );
+    setCreditsUsed(task.creditsConsumed ?? (task.images?.length ?? 0) * imageCreditCost("hd", "medium"));
     setBusy(task.status === "processing");
-    setStatus(
-      task.message ||
-        (task.status === "processing"
-          ? fr
-            ? "Génération en cours…"
-            : "Generating…"
-          : task.status === "completed"
-            ? fr
-              ? "Diaporama prêt."
-              : "Slideshow ready."
-            : ""),
-    );
+    const stage = task.message || (task.phase === "queued" ? (fr ? "En attente…" : "Queued…") : task.phase === "running" ? (fr ? "Génération des visuels…" : "Generating images…") : "");
+    if (task.status === "processing") showProgress(task);
+    else setStatus(task.status === "failed" ? "" : task.message || (task.status === "completed" ? (fr ? "Diaporama prêt." : "Slideshow ready.") : ""));
     const insufficient = task.status === "failed" && /INSUFFICIENT_PRODUCT_DETAILS|détails.*produit|product details|informations produit.*insuffisantes|not enough.*product/i.test(`${task.error ?? ""} ${task.message ?? ""}`);
     if (insufficient) { setRecovery(true); setStatus(""); setTemporaryDescription((current) => current || product?.description || ""); setTechnicalDetails(task.error || task.message || ""); }
     setError(
@@ -213,6 +227,9 @@ export function SlideshowStudio({
   useEffect(() => {
     const controller = new AbortController();
     let alive = true;
+    const stopProgress = startEstimatedGenerationProgress(() => {
+      if (alive && taskRef.current?.status === "processing") showProgress(taskRef.current);
+    });
     const poll = async () => {
       try {
         const response = await fetch("/api/studio/tasks", {
@@ -220,14 +237,17 @@ export function SlideshowStudio({
         });
         const data = await jsonResponse(response);
         if (!alive) return;
-        const task = ((data.tasks as Task[]) || []).find(
-          (item) => item.kind === "slideshow",
-        );
-        if (task) applyTask(task);
-        else if (!taskRef.current) {
-          setBusy(false);
-          setAttempted(false);
-        }
+        const pendingId = (() => { try { return localStorage.getItem(`vendeo-slideshow-request:${product?.id ?? ""}`); } catch { return null; } })();
+        const slideshowTasks = ((data.tasks as Task[]) || []).filter((item) => item.kind === "slideshow");
+        const task = (pendingId ? slideshowTasks.find((item) => item.id === pendingId) : null) ?? (!pendingId ? slideshowTasks[0] : null);
+        if (task) {
+          applyTask(task);
+          try { localStorage.removeItem(`vendeo-slideshow-request:${product?.id ?? ""}`); } catch { /* ignore */ }
+          setPendingRequest(false);
+        } else if (pendingId) {
+          setPendingRequest(true); setBusy(false); setReady(true); setAttempted(true);
+          setError(fr ? "Lancement non confirmé. Vérifie l’historique avant toute nouvelle génération." : "Launch is unconfirmed. Check history before generating again.");
+        } else if (!taskRef.current) { setBusy(false); setAttempted(false); }
         initialDone.current = true;
         setReady(true);
       } catch {
@@ -254,13 +274,15 @@ export function SlideshowStudio({
       });
     void poll();
     const timer = setInterval(() => {
-      if (!initialDone.current || taskRef.current?.status === "processing")
-        void poll();
+      let pending = false;
+      try { pending = !!localStorage.getItem(`vendeo-slideshow-request:${product?.id ?? ""}`); } catch { /* ignore */ }
+      if (!initialDone.current || taskRef.current?.status === "processing" || pending) void poll();
     }, 4000);
     return () => {
       alive = false;
       controller.abort();
       clearInterval(timer);
+      stopProgress();
     };
   }, []);
   useEffect(() => {
@@ -274,73 +296,54 @@ export function SlideshowStudio({
     setStatus("");
     setAttempted(false);
     setCreditsUsed(0);
-    setPlanReady(false); setRecovery(false); setTemporaryDescription(product?.description ?? "");
+    setRecovery(false); setTemporaryDescription(product?.description ?? "");
   }, [product?.id]);
-  useEffect(() => {
-    setPlanReady(false);
-    planSignature.current = "";
-  }, [product?.id, temporaryDescription, duration, campaignGoal, musicId]);
   async function generate() {
-    if (planReady) { if (planSignature.current === currentSignatureRef.current) await createTask(); else setPlanReady(false); return; }
-    if (
-      !enabled ||
-      !ready ||
-      !product ||
-      busy ||
-      running.current ||
-      taskRef.current?.status === "processing"
-    )
-      return;
+    if (!enabled || !ready || !product || busy || running.current || taskRef.current?.status === "processing") return;
+    if (recovery && !temporaryDescription.trim()) return;
     running.current = true;
-    setBusy(true);
-    setAttempted(true);
-    setError("");
-    setImages([]);
-    setResult(null);
-    setStatus(fr ? "Préparation du plan…" : "Preparing plan…");
+    setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null);
+    setStatus(fr ? "Vérification des informations…" : "Checking product details…");
     try {
-      const chosenProduct = { ...product, description: creationDescription() };
-      await send("/api/studio/prompt", { product: chosenProduct, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId });
-      const submittedSignature = JSON.stringify([product.id, temporaryDescription, duration, campaignGoal, musicId]);
-      if (submittedSignature !== currentSignatureRef.current) { setPlanReady(false); setStatus(""); return; }
-      planSignature.current = submittedSignature;
-      setPlanReady(true); setRecovery(false); setTechnicalDetails("");
-      setStatus(fr ? "Plan prêt. Vérifie le coût avant de créer." : "Plan ready. Review the cost before creating."); setBusy(false);
+      await send("/api/studio/prompt", { product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId });
+      setRecovery(false); setTechnicalDetails("");
+      await createTask();
     } catch (cause) {
       const failure = cause as Error & { code?: string; details?: unknown };
       const insufficient = failure.code === "INSUFFICIENT_PRODUCT_DETAILS" || /détails.*produit|product details|informations produit.*insuffisantes|not enough.*product/i.test(failure.message);
       if (insufficient) {
-        setRecovery(true);
-        setStatus("");
+        setRecovery(true); setStatus("");
         setTechnicalDetails(typeof failure.details === "string" ? failure.details : failure.details ? JSON.stringify(failure.details, null, 2) : "");
-        setError("");
-        setReady(true);
-        return;
+        setError(""); setReady(true); return;
       }
-      initialDone.current = false;
-      setReady(false);
-      setBusy(false);
-      setStatus("");
-      setError(
-        `${cause instanceof Error ? cause.message : "Erreur réseau."} ${fr ? "Consulte l’historique avant de réessayer ; aucune relance automatique." : "Check history before retrying; no automatic retry."}`,
-      );
-    } finally {
-      running.current = false;
-      setBusy(false);
-    }
+      if (failure.message === "Lancement non confirmé") return;
+      setBusy(false); setStatus("");
+      setError(`${cause instanceof Error ? cause.message : "Erreur réseau."} ${fr ? "Consulte l’historique avant de réessayer." : "Check history before retrying."}`);
+    } finally { running.current = false; setBusy((taskRef.current as Task | null)?.status === "processing" || pendingRequest); }
   }
   async function createTask() {
-    if (!planReady || planSignature.current !== currentSignatureRef.current || busy || running.current || !product || !ready || taskRef.current?.status === "processing") return;
-    running.current = true; setBusy(true); setAttempted(true); setError(""); setStatus(fr ? "Envoi de la génération…" : "Starting generation…");
-    try {
-      const response = await send("/api/studio/tasks", { id: crypto.randomUUID(), kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId } });
-      const task = response.task as Task; if (!task) throw new Error("Réponse de tâche invalide."); applyTask(task, task.status === "completed");
-    } catch (cause) {
-      initialDone.current = false; setReady(false); setBusy(false); setStatus(""); setPlanReady(false);
-      setTechnicalDetails(cause instanceof Error ? cause.message : "Erreur réseau.");
-      setError(fr ? "Lancement non confirmé. Vérifie l’historique avant de réessayer." : "Launch not confirmed. Check history before retrying.");
+    if (!product || !ready || taskRef.current?.status === "processing") return;
+    const key = `vendeo-slideshow-request:${product.id}`;
+    let id = "";
+    try { id = localStorage.getItem(key) || ""; } catch { /* session persistence may be unavailable */ }
+    if (!id) {
+      id = crypto.randomUUID();
+      try { localStorage.setItem(key, id); } catch { /* backend idempotency still protects this request */ }
     }
-    finally { running.current = false; }
+    setStatus(fr ? "Lancement de la génération…" : "Starting generation…");
+    try {
+      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId } });
+      const task = response.task as Task;
+      if (!task) throw new Error("Réponse de tâche invalide.");
+      try { localStorage.removeItem(key); } catch { /* ignore */ }
+      applyTask(task, task.status === "completed");
+    } catch {
+      // Never issue another paid POST when acceptance is uncertain. Poll only the task list.
+      setStatus(""); setBusy(false); setReady(false);
+      setPendingRequest(true);
+      setError(fr ? "Lancement non confirmé. Vérifie l’historique avant de réessayer ; aucune relance automatique." : "Launch not confirmed. Check history before retrying; no automatic retry.");
+      throw new Error("Lancement non confirmé");
+    }
   }
   async function replaceMusic() {
     if (!result || running.current || result.musicId === musicId) return;
@@ -498,24 +501,14 @@ export function SlideshowStudio({
           </details>
         </div>
       ) : null}
-      {(!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed" || recovery) && !planReady ? (
+      {(!pendingRequest && (!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed" || recovery)) && !busy && ready ? (
         <>
-          {recovery ? <><p>{fr ? "Ajoute une précision utile sur le produit pour préparer le diaporama." : "Add a useful product detail to prepare the slideshow."}</p><label>{fr ? "Description temporaire" : "Temporary description"}<textarea aria-label={fr ? "Description temporaire" : "Temporary description"} rows={4} value={temporaryDescription} disabled={busy} onChange={e => setTemporaryDescription(e.target.value)} /></label><button type="button" className="btn btn-dark" disabled={!temporaryDescription.trim() || busy || !ready} onClick={() => void generate()}>{fr ? "Relancer" : "Retry"}</button></> : <button
-            type="button"
-            className="btn btn-dark studio-generate"
-            disabled={!product || busy || !ready}
-            onClick={() => void generate()}
-          >
-            {fr ? "Préparer le plan" : "Prepare plan"}
-          </button>}
-          <small>
-            {fr
-              ? "Au moins 4 secondes de lecture par visuel. Montage et changement de musique sans crédits d’images supplémentaires."
-              : "At least 4 seconds of reading per image. Assembly and music changes use no additional image credits."}
-          </small>
+          {recovery ? <><p>{fr ? "Ajoute une précision utile sur le produit pour préparer le diaporama." : "Add a useful product detail to prepare the slideshow."}</p><label>{fr ? "Description temporaire" : "Temporary description"}<textarea aria-label={fr ? "Description temporaire" : "Temporary description"} rows={4} value={temporaryDescription} disabled={busy} onChange={e => setTemporaryDescription(e.target.value)} /></label></> : null}
+          <p className="studio-cost">{fr ? `Coût : ${5 * imageCreditCost("hd", "medium")} crédits Studio` : `Cost: ${5 * imageCreditCost("hd", "medium")} Studio credits`}</p>
+          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready || (!!taskRef.current?.images?.length && taskRef.current.status === "failed")} onClick={() => void generate()}>{recovery ? (fr ? "Relancer" : "Retry") : (fr ? "Créer" : "Create")}</button>
         </>
       ) : null}
-      {planReady ? <><p className="studio-cost">{fr ? `Coût : ${5 * imageCreditCost("hd", "medium")} crédits Studio` : `Cost: ${5 * imageCreditCost("hd", "medium")} Studio credits`}</p><button type="button" className="btn btn-dark studio-generate" disabled={busy || !ready} onClick={() => void generate()}>{fr ? "Créer" : "Create"}</button></> : null}
+      {pendingRequest ? <p role="status">{fr ? "Vérifie l’historique ; aucune nouvelle génération ne sera lancée automatiquement." : "Check history; no new generation will be started automatically."}</p> : null}
       {status ? (
         <div
           role="status"
@@ -529,7 +522,7 @@ export function SlideshowStudio({
               data-testid="slideshow-spinner"
               aria-hidden="true"
               size={22}
-              style={{ flexShrink: 0, animation: "spin 1s linear infinite" }}
+              style={{ flexShrink: 0 }}
             />
           ) : null}
           <span>{status}</span>
@@ -559,7 +552,7 @@ export function SlideshowStudio({
         </div>
       ) : null}
       {error && !recovery ? <p role="alert" className="form-error">{error}</p> : null}
-      {technicalDetails || error ? <details><summary>{fr ? "Détails techniques" : "Technical details"}</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{technicalDetails || error}</pre></details> : null}
+      {technicalDetails ? <details><summary>{fr ? "Détails techniques" : "Technical details"}</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{technicalDetails}</pre></details> : null}
       {result ? (
         <div style={{ display: "grid", gap: 12 }}>
           <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>

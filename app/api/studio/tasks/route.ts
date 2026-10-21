@@ -7,6 +7,9 @@ import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATION
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
 import {
   TASK_TYPE,
+  logTaskEvent,
+  failTask,
+  StudioTaskError,
   publicTask,
   runTaskStep,
   type TaskMetadata,
@@ -116,6 +119,9 @@ export async function POST(request: Request) {
     taskKind: body.kind,
     input: body.input,
     revision: 0,
+    stages: [],
+    creditsConsumed: 0,
+    creditState: "confirmed",
     phase: "queued",
     progress: 1,
     message: "Génération en arrière-plan…",
@@ -144,7 +150,17 @@ export async function POST(request: Request) {
       },
       { status: 409 },
     );
-  after(() => runTaskStep(body.id, 0));
+  logTaskEvent("task_created", body.id, 0, metadata);
+  after(async () => {
+    try { await runTaskStep(body.id, 0); }
+    catch {
+      const failure = new StudioTaskError("STUDIO_WORKER_EXECUTION_FAILED");
+      logTaskEvent("worker_execution_failed", body.id, 0, metadata, failure);
+      await failTask(body.id, failure, { revision: 0, phase: "queued" }).catch(() => {
+        logTaskEvent("failure_persistence_failed", body.id, 0, metadata, failure);
+      });
+    }
+  });
   return NextResponse.json(
     { task: await publicTask(inserted.data) },
     { status: 202, headers: { "Cache-Control": "no-store" } },
