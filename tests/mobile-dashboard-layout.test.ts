@@ -21,7 +21,8 @@ describe("mobile dashboard shell layout", () => {
     expect(css).not.toMatch(/dashboard-platform\s*>\s*\.app-layout\s*\{[^}]*padding-top:\s*0/);
     expect(css).toMatch(/padding-top:\s*calc\([\s\S]*var\(--dashboard-header-height\)/);
     expect(css).not.toContain("dashboard-mobile-store-switcher");
-    expect(css).toMatch(/\.dashboard-platform\.dashboard-assistant-active\s*>\s*\.app-header\s*\{\s*display:\s*none;\s*\}/);
+    expect(source).toContain('className="dashboard-workspace"');
+    expect(css).toMatch(/\.dashboard-platform\.dashboard-assistant-active\s*>\s*\.dashboard-workspace\s*>\s*\.app-header\s*\{\s*display:\s*none;\s*\}/);
     expect(source).toContain('" app-layout-flush"');
     const aiCss = readFileSync(new URL("../app/vendeo-ai.css", import.meta.url), "utf8");
     expect(aiCss).toContain(".app-layout-flush ~ .mobile-nav");

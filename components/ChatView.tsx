@@ -1,7 +1,7 @@
 "use client";
 
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
-import { Activity, ArrowRight, Camera, Copy, FileText, Megaphone, Menu, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp } from "lucide-react";
+import { Activity, ArrowRight, Camera, Copy, FileText, History, Megaphone, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { LaunchProgress } from "@/components/chat/LaunchProgress";
@@ -280,6 +280,39 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const historyToggleRef = useRef<HTMLButtonElement>(null);
+  const historyDrawerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!historyOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    historyDrawerRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    function handleHistoryKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setHistoryOpen(false);
+      }
+      if (event.key !== "Tab") return;
+      const buttons = historyDrawerRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)");
+      if (!buttons?.length) return;
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", handleHistoryKey);
+    return () => {
+      document.removeEventListener("keydown", handleHistoryKey);
+      document.body.style.overflow = previousOverflow;
+      historyToggleRef.current?.focus();
+    };
+  }, [historyOpen]);
   // Numéro de « session » de conversation : incrémenté à chaque changement de conversation
   // (nouvelle ou ouverte depuis l'historique). Une réponse de l'IA n'est affichée que si la
   // session qui l'a demandée est toujours la session courante — sinon l'ancienne réponse
@@ -690,8 +723,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
           <div className="chat-header-title">
             <strong>Vendeo AI</strong>
           </div>
-          <button type="button" className="chat-history-toggle" onClick={() => setHistoryOpen(true)} aria-label={t("chat.history")} title={t("chat.history")}>
-            <Menu size={18} />
+          <button ref={historyToggleRef} type="button" className="chat-history-toggle" onClick={() => setHistoryOpen(true)} aria-label={t("chat.history")} title={t("chat.history")} aria-haspopup="dialog" aria-expanded={historyOpen} aria-controls="chat-history-drawer">
+            <History size={18} aria-hidden="true" />
+            <span>{t("chat.history")}</span>
           </button>
         </div>
 
@@ -1039,7 +1073,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
 
       {historyOpen ? (
         <div className="chat-history-backdrop" onClick={() => setHistoryOpen(false)}>
-          <aside className="chat-history-drawer" onClick={(event) => event.stopPropagation()} aria-label={t("chat.history")}>
+          <aside ref={historyDrawerRef} id="chat-history-drawer" role="dialog" aria-modal="true" className="chat-history-drawer" onClick={(event) => event.stopPropagation()} aria-label={t("chat.history")}>
             <div className="chat-history-head">
               <strong>{t("chat.history")}</strong>
               <button type="button" onClick={() => setHistoryOpen(false)} aria-label={t("wizardExtra.close")}>×</button>
@@ -1053,7 +1087,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
               <ul className="chat-history-list">
                 {conversations.map((conversation) => (
                   <li key={conversation.id}>
-                    <button type="button" className={conversation.id === conversationId ? "active" : ""} onClick={() => void openConversation(conversation.id)}>
+                    <button type="button" className={conversation.id === conversationId ? "active" : ""} aria-current={conversation.id === conversationId ? "true" : undefined} onClick={() => void openConversation(conversation.id)}>
                       <strong>{conversation.title || t("chat.untitled")}</strong>
                       <small>{formatConversationDate(conversation.updated_at, locale)}</small>
                     </button>

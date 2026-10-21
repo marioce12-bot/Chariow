@@ -347,7 +347,8 @@
   }
 }
 @media (max-width: 760px) {
-  .dashboard-platform.dashboard-assistant-active > .app-header {
+  /* Le bandeau est dans .dashboard-workspace, pas directement sous le shell. */
+  .dashboard-platform.dashboard-assistant-active > .dashboard-workspace > .app-header {
     display: none;
   }
   .dashboard-platform .dashboard-profile,
