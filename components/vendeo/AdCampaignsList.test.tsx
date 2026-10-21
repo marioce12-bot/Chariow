@@ -59,7 +59,7 @@ describe("AdCampaignsList lifecycle UI", () => {
       container.querySelector<HTMLButtonElement>('button[aria-label="Actualiser"]')!.click();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    expect(container.querySelector<HTMLImageElement>(".ad-campaign-thumb")?.src).toBe("https://example.test/updated.jpg");
+    expect(container.querySelector<HTMLImageElement>(".ad-campaign-thumb img")?.src).toBe("https://example.test/updated.jpg");
 
     await act(async () => {
       container.querySelector<HTMLElement>(".ad-campaign-row")!.click();
@@ -76,6 +76,26 @@ describe("AdCampaignsList lifecycle UI", () => {
 
     expect(container.querySelector<HTMLImageElement>(".ad-campaign-detail img")?.src).toBe("https://example.test/refreshed.jpg");
     expect(container.querySelector(".ad-campaign-detail")?.textContent).toContain("Texte après refresh");
+  });
+  it("revalidates a linked Meta media failure without launching or editing the provider campaign", async () => {
+    backendCampaigns = fixtures.map((item) => item.id === "active"
+      ? { ...item, media_url: "https://example.test/unavailable.jpg", external_campaign_id: "meta-campaign" }
+      : item);
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Actualiser"]')!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    fetchMock.mockClear();
+    await act(async () => {
+      container.querySelector(".ad-campaign-thumb img")!.dispatchEvent(new dom.window.Event("error"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(fetchMock.mock.calls.some(([url]) => url === "/api/ad-campaigns/active/status")).toBe(true);
+    expect(fetchMock.mock.calls.some(([url]) => url.startsWith("/api/ad-campaigns#store="))).toBe(true);
+    expect(fetchMock.mock.calls.every((call) => !(call as unknown as [string, RequestInit?])[1]?.method)).toBe(true);
+    expect(fetchMock.mock.calls.some(([url]) => /launch|pause|resume/.test(String(url)))).toBe(false);
+    expect(container.querySelector('.ad-campaign-thumb [role="img"]')).not.toBeNull();
   });
   it("duplicates a current campaign without launching a provider campaign", async () => {
     await act(async () => {

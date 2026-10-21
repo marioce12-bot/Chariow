@@ -14,6 +14,7 @@ import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
 import type { PlanId } from "@/lib/plans";
 import { getMetaCampaignLifecycle, getMetaPausedReason, isMetaPausedReason } from "@/lib/meta/status";
 import { useNavigationCache, useNavigationData } from "@/components/dashboard/NavigationDataCache";
+import { CampaignMedia } from "./CampaignMedia";
 
 type AdCampaign = {
   id: string;
@@ -129,6 +130,12 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const load = useCallback(async () => {
     if (campaignsUrl) await navigationCache.load(campaignsUrl, 0, true);
   }, [campaignsUrl, navigationCache]);
+  const recoverMedia = async (campaign: AdCampaign) => {
+    if (campaign.platform === "meta" && campaign.external_campaign_id) {
+      await fetch(`/api/ad-campaigns/${campaign.id}/status`, { cache: "no-store" }).catch(() => null);
+    }
+    await load();
+  };
 
   // Revalidate every linked Meta campaign, including paused ones, for remote
   // status/creative changes. IDs are stable so
@@ -229,7 +236,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                   ) : null}
                 </div>
                 <div className="ad-campaign-actions">
-                  {c.media_url ? <img className="ad-campaign-thumb" src={c.media_url} alt={t("adsExtra.poster_alt")} style={{ width: 42, height: 42, borderRadius: 7, objectFit: "cover", border: "1px solid var(--line)" }} /> : null}
+                  {c.media_url ? <CampaignMedia className="ad-campaign-thumb" src={c.media_url} alt={t("adsExtra.poster_alt")} unavailableLabel={locale === "en" ? "Preview unavailable" : "Aperçu indisponible"} onUnavailable={() => recoverMedia(c)} style={{ width: 42, height: 42, borderRadius: 7, border: "1px solid var(--line)" }} /> : null}
                   <span
                     style={{
                       fontSize: 11,
@@ -314,7 +321,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
         <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4" onClick={() => setSelected(null)}>
           <div className="app-card ad-campaign-detail" style={{ maxWidth: 620, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onClick={(event) => event.stopPropagation()}>
             <div className="card-head campaign-modal-head"><div><span className="eyebrow">{t("campaigns.detail")}</span><h2>{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="compact-icon-button" onClick={() => setSelected(null)} aria-label={t("campaigns.close")}><X size={16} /></button></div>
-            {selected.media_url ? <img src={selected.media_url} alt={t("campaigns.preview")} style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10, marginBottom: 14 }} /> : null}
+            {selected.media_url ? <CampaignMedia src={selected.media_url} alt={t("campaigns.preview")} unavailableLabel={locale === "en" ? "Preview unavailable" : "Aperçu indisponible"} controls onUnavailable={() => recoverMedia(selected)} style={{ width: "100%", maxHeight: 260, borderRadius: 10, marginBottom: 14 }} /> : null}
             {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; navigationCache.invalidate(); setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>{t("campaigns.text")}</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>{t("campaigns.network")}</strong> {selected.platform === "meta" ? "Facebook / Instagram" : selected.platform === "pinterest" ? "Pinterest" : "TikTok"}</div><div><strong>{t("campaigns.objective")}</strong> {selected.objective}</div><div><strong>{t("campaigns.audience")}</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} {" "}{t("finalExtra.text68")}</div><div><strong>{t("campaigns.budget")}</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} {" "}{t("finalExtra.text69")}{" "}{selected.duration_days} {" "}{t("sweep1.text330")}</div>{selected.destination_url ? <div><strong>{t("campaigns.link")}</strong> {selected.destination_url}</div> : null}</div>}
             {selected.external_error ? (
               <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: isMetaPausedReason(selected.external_error) ? "#FFFBEB" : "#FEE2E2", color: isMetaPausedReason(selected.external_error) ? "#92400E" : "#991B1B", fontSize: 13 }}>
