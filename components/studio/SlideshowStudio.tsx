@@ -21,7 +21,6 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
   const [musicId, setMusicId] = useState("");
   const [duration, setDuration] = useState(10);
   const [campaignGoal, setCampaignGoal] = useState<CampaignGoal>("discover");
-  const [plan, setPlan] = useState<AdPlan | null>(null);
   const [planning, setPlanning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -31,6 +30,7 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
   const [result, setResult] = useState<RenderResult | null>(null);
   const [previewId, setPreviewId] = useState("");
   const [creditsUsed, setCreditsUsed] = useState(0);
+  const [progress, setProgress] = useState(0);
   const running = useRef(false);
   const selectedTrack = tracks.find(track => track.id === musicId);
   const inputSignature = `${product?.id ?? ""}:${duration}:${campaignGoal}`;
@@ -47,7 +47,7 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
     if (running.current) return;
     if (draftSignature.current === inputSignature) return;
     draftSignature.current = inputSignature;
-    setPlan(null); setImages([]); setAttempted(false); setResult(null); setError(""); setStatus(""); setCreditsUsed(0);
+    setProgress(0); setImages([]); setAttempted(false); setResult(null); setError(""); setStatus(""); setCreditsUsed(0);
   }, [inputSignature, busy]);
 
   async function prepare() {
@@ -59,34 +59,36 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
       const preparedPlan = data.slideshow as AdPlan | undefined;
       if (!preparedPlan?.slides?.length) throw new Error("Storyboard manquant.");
       if (preparedPlan.slides.length !== 5 || preparedPlan.slides[0].role !== "hook" || preparedPlan.slides[4].role !== "cta" || preparedPlan.slides.slice(1, 4).some(slide => slide.role !== "evidence")) throw new Error(fr ? "Le storyboard publicitaire doit contenir exactement 5 images : une accroche, trois visuels produit et un CTA final. Aucun visuel n’a été généré." : "The ad storyboard must contain exactly 5 images: a hook, three product slides and a final CTA. No images were generated.");
-      setPlan(preparedPlan);
       return preparedPlan;
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Préparation impossible."); }
     finally { setPlanning(false); }
   }
   async function generate() {
     if (!enabled || !product || attempted || running.current) return;
-    running.current = true; setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null);
+    running.current = true; setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null); setProgress(5);
     const completed: Array<{ id: string; url: string }> = [];
     let totalCredits = 0;
     try {
       setStatus(fr ? "Préparation du diaporama…" : "Preparing slideshow…");
       const preparedPlan = await prepare();
       if (!preparedPlan) { setAttempted(false); setStatus(""); return; }
+      setProgress(10);
       const description = product.description ? new DOMParser().parseFromString(product.description, "text/html").body.textContent ?? "" : "";
       const slideshow = { product: { ...product, description }, duration, aspectRatio: "9:16", locale, campaignGoal, imageCount: preparedPlan.slides.length };
-      setStatus(fr ? "Vérification du moteur et de la musique avant toute génération payante…" : "Checking renderer and music before image generation…");
+      setStatus(fr ? "Vérification…" : "Checking…");
       await send("/api/studio/slideshow/preflight", { musicId });
+      setProgress(15);
       for (const slide of preparedPlan.slides) {
         setStatus(fr ? `Génération du visuel ${slide.index + 1}/${preparedPlan.slides.length}…` : `Generating image ${slide.index + 1}/${preparedPlan.slides.length}…`);
         const data = await send("/api/studio/image", { prompt: slide.prompt, quality: "medium", resolution: "hd", orientation: "portrait", background: "opaque", referenceUrls: product.image ? [product.image] : [], slideshow: { ...slideshow, slideIndex: slide.index } });
         if (!data.generationId || !data.imageUrl) throw new Error("Réponse image incomplète. Ne relance pas la génération : vérifie l’historique.");
         completed.push({ id: data.generationId, url: data.imageUrl }); totalCredits += Number(data.cost) || 0;
-        setImages([...completed]); setCreditsUsed(totalCredits);
+        setImages([...completed]); setCreditsUsed(totalCredits); setProgress(15 + completed.length * 15);
       }
       setStatus(fr ? "Montage du diaporama…" : "Assembling slideshow…");
       const data = await send("/api/studio/slideshow/render", { generationIds: completed.map(image => image.id), duration, musicId });
-      setResult(data); setStatus(fr ? "Diaporama terminé. Tu peux remplacer la musique sans regénérer les images." : "Slideshow ready. Change the soundtrack without generating images again.");
+      if (!data.generationId || !data.videoUrl) throw new Error(fr ? "Vidéo finale manquante. Vérifie l’historique sans relancer les images." : "Final video missing. Check history without regenerating images.");
+      setResult(data); setProgress(100); setStatus(fr ? "Diaporama prêt." : "Slideshow ready.");
       onComplete?.();
     } catch (cause) {
       setError(`${cause instanceof Error ? cause.message : "Génération interrompue."} ${fr ? "Aucune nouvelle tentative automatique. Les visuels terminés restent dans l’historique." : "No automatic retry. Completed images remain in history."}`);
@@ -96,10 +98,10 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
   async function replaceMusic() {
     if (!result || running.current || result.musicId === musicId) return;
     running.current = true; setBusy(true); setError("");
-    setStatus(fr ? "Remplacement audio uniquement… Les images et la piste vidéo sont conservées." : "Replacing audio only… Images and video stream are preserved.");
+    setStatus(fr ? "Remplacement de la musique…" : "Replacing music…");
     try {
       const data = await send("/api/studio/slideshow/remix", { generationId: result.generationId, musicId });
-      setResult(data); setStatus(fr ? "Musique remplacée. Aucune image regénérée, aucun nouvel appel de génération." : "Music replaced. No images regenerated, no new generation request."); onComplete?.();
+      setResult(data); setStatus(fr ? "Musique remplacée." : "Music replaced."); onComplete?.();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Remplacement impossible."); }
     finally { running.current = false; setBusy(false); }
   }
@@ -110,6 +112,7 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
   }
   if (!enabled) return null;
   return <section className="app-card studio-form" style={{ marginTop: 20, display: "grid", gap: 16 }} aria-label={fr ? "Diaporama animé" : "Animated slideshow"}>
+    <h2 style={{ margin: 0 }}>{fr ? "Diaporama" : "Slideshow"}</h2>
     {!product ? <small>{fr ? "Choisis un produit ci-dessus." : "Choose a product above."}</small> : null}
     <div className="studio-options">
       <label className="studio-field"><span>{fr ? "Objectif" : "Goal"}</span><select aria-label={fr ? "Objectif" : "Goal"} value={campaignGoal} disabled={busy || planning} onChange={event => setCampaignGoal(event.target.value as CampaignGoal)}><option value="discover">{fr ? "Découvrir" : "Discover"}</option><option value="buy">{fr ? "Acheter" : "Buy"}</option><option value="learn">{fr ? "En savoir plus" : "Learn"}</option><option value="contact">{fr ? "Contacter" : "Contact"}</option></select></label>
@@ -129,10 +132,14 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
     </div> : null}
     {!attempted ? <>
       <p className="studio-cost" style={{ margin: 0 }}>{fr ? `5 images · ${5 * imageCreditCost("hd", "medium")} crédits Studio` : `5 images · ${5 * imageCreditCost("hd", "medium")} Studio credits`}</p>
-      <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || planning} onClick={() => void generate()}>{fr ? "Générer le diaporama" : "Generate slideshow"}</button>
+      <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || planning} onClick={() => void generate()}>{fr ? "Créer" : "Create"}</button>
       <small>{fr ? "Montage et changement de musique sans crédits d’images supplémentaires." : "Assembly and music changes use no additional image credits."}</small>
     </> : null}
-    {status ? <div role="status" aria-live="polite" style={{ padding: 12, background: "var(--bg, #f5f5f5)", borderRadius: 10 }}>{status}{busy ? <progress aria-label={fr ? "Progression du diaporama" : "Slideshow progress"} style={{ display: "block", width: "100%", marginTop: 10 }} /> : null}</div> : null}
+    {attempted ? <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span role="status" aria-live="polite">{status}</span><strong aria-hidden="true">{progress}%</strong></div>
+      <div role="progressbar" aria-label={fr ? "Progression du diaporama" : "Slideshow progress"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-valuetext={`${progress}%`} style={{ height: 8, width: "100%", borderRadius: 99, background: "var(--border, #e5e7eb)", overflow: "hidden" }}><div style={{ height: "100%", width: `${progress}%`, borderRadius: 99, background: "#2563eb", transition: "width 300ms ease" }} /></div>
+    </div> : null}
+    {images.length ? <div aria-label={fr ? "Visuels générés" : "Generated images"} style={{ display: "flex", flexWrap: "nowrap", gap: 8, overflowX: "auto", minWidth: 0, maxWidth: "100%", paddingBottom: 4 }}>{images.map((image, index) => <figure key={image.id} style={{ margin: 0, flex: "0 0 56px" }}><img src={image.url} alt={`${fr ? "Visuel" : "Image"} ${index + 1}`} style={{ display: "block", width: 56, height: 78, objectFit: "cover", borderRadius: 6 }} /><figcaption style={{ fontSize: 11, textAlign: "center" }}>{index + 1}/5</figcaption></figure>)}</div> : null}
     {error ? <p role="alert" className="form-error">{error}</p> : null}
     {result ? <div style={{ display: "grid", gap: 12 }}>
       <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>
@@ -144,19 +151,6 @@ export function SlideshowStudio({ product, locale, onComplete }: { product: Prod
         <button type="button" className="btn btn-ghost" onClick={downloadCredits}>{fr ? "Exporter les crédits musique (.txt)" : "Export music credits (.txt)"}</button>
       </details> : null}
     </div> : null}
-    {plan ? <details><summary>{fr ? "Détails du diaporama" : "Slideshow details"}</summary>
-      <p>{plan.slides.length}/5 images · {duration}s · 9:16</p>
-      {plan.countReason ? <p>{plan.countReason}</p> : null}
-      {plan.warnings?.length ? <ul>{plan.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul> : null}
-      {plan.slides.map(slide => <article key={slide.index} style={{ marginTop: 12 }}>
-        <strong>{fr ? "Visuel" : "Slide"} {slide.index + 1}</strong>
-        {slide.headline ? <h3>{slide.headline}</h3> : null}
-        {slide.supportingCopy?.map((copy, index) => <p key={index}>{copy}</p>)}
-        {slide.source ? <small>{fr ? "Source : description produit — " : "Source: product description — "}{slide.source.excerpt}</small> : null}
-        <details><summary>{fr ? "Prompt du visuel" : "Image prompt"}</summary><pre style={{ whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto", fontSize: 12 }}>{slide.prompt}</pre></details>
-      </article>)}
-      {images.length ? <div aria-label="Visuels générés" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{images.map((image, index) => <img key={image.id} src={image.url} alt={`Visuel ${index + 1}`} style={{ maxWidth: 100, maxHeight: 140, borderRadius: 10 }} />)}</div> : null}
-      {attempted ? <small>{fr ? `${images.length} visuel(s) terminé(s) · ${creditsUsed} crédits Studio utilisés.` : `${images.length} image(s) completed · ${creditsUsed} Studio credits used.`}</small> : null}
-    </details> : null}
+    {attempted ? <small>{fr ? `${images.length}/5 visuels · ${creditsUsed} crédits Studio utilisés.` : `${images.length}/5 images · ${creditsUsed} Studio credits used.`}</small> : null}
   </section>;
 }

@@ -123,7 +123,8 @@ describe("POST /api/studio/image slideshow validation", () => {
   expect(mocks.generateFalImageWithReferences).not.toHaveBeenCalled();
     // Validation and prompt compilation occur before the subscription gate; no client prompt reaches I/O.
     expect(expected.slides[2].prompt).toContain("ROLE: EVIDENCE");
-    expect(expected.slides[2].prompt).toContain("Papier ivoire certifié FSC.");
+    expect(expected.slides[2].prompt).toContain("Reliure cousue à la main.");
+    expect(expected.slides[2].headline).not.toBe(expected.slides[0].headline);
     expect(mocks.fetchReferenceImage).not.toHaveBeenCalled();
   });
 });
