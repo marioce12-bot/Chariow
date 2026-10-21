@@ -50,7 +50,7 @@ describe("wizard launch progress", () => {
     ["fr", "meta", "Meta", "Envoi à Meta…"],
     ["en", "tiktok", "TikTok", "Sending to TikTok…"],
     ["fr", "pinterest", "Pinterest", "Envoi à Pinterest…"],
-  ] as const)("shows indeterminate accessible progress in %s for %s", async (language, platform, expectedPlatform, expectedLabel) => {
+  ] as const)("shows estimated numeric progress in %s for %s", async (language, platform, expectedPlatform, expectedLabel) => {
     locale = language;
     let resolveFetch!: (value: unknown) => void;
     fetchMock.mockImplementation(() => new Promise((resolve) => { resolveFetch = resolve; }));
@@ -62,13 +62,13 @@ describe("wizard launch progress", () => {
     const progress = container.querySelector('[role="progressbar"]');
     expect(progress).not.toBeNull();
     expect(progress?.getAttribute("aria-label")).toContain(expectedPlatform);
-    expect(progress?.hasAttribute("aria-valuenow")).toBe(false);
-    expect(container.textContent).not.toMatch(/\b\d+\s*%/);
+    expect(progress?.getAttribute("aria-valuenow")).toBe("0");
+    expect(container.textContent).toContain("0 %");
     const back = Array.from(container.querySelectorAll("button")).find((item) => item.textContent?.includes(language === "en" ? "Back" : "Retour"));
     expect(back?.disabled).toBe(true);
     await tick(300);
-    expect(container.querySelector('[role="progressbar"]')?.hasAttribute("aria-valuenow")).toBe(false);
-    expect(container.textContent).not.toMatch(/\b\d+\s*%/);
+    expect(Number(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
+    expect(container.textContent).toMatch(/\b[1-9]\d?\s*%/);
     await act(async () => { resolveFetch({ ok: true, json: async () => ({}) }); });
   });
 
@@ -91,6 +91,7 @@ describe("wizard launch progress", () => {
     act(() => button("Lancer la campagne").click());
     expect(onLaunched).not.toHaveBeenCalled();
     await act(async () => { resolveFetch({ ok: true, json: async () => ({}) }); });
+    expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("100");
     expect(onLaunched).toHaveBeenCalledOnce();
     expect(onLaunched).toHaveBeenCalledWith("campaign-123");
   });
@@ -101,10 +102,13 @@ describe("wizard launch progress", () => {
     act(() => button("Lancer la campagne").click());
     await tick();
     expect(container.textContent).toContain("Real API failure");
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+    expect(container.textContent).not.toContain("100 %");
     act(() => button("Réessayer").click());
     await tick();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain("Campagne envoyée à Meta");
+    expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("100");
   });
 
   it("preserves Pinterest tag-required guidance and requires explicit Traffic fallback confirmation", async () => {

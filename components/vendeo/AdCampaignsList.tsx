@@ -3,7 +3,7 @@ import { AutopilotBudgetLimit } from "./AutopilotBudgetLimit";
 
 import "./ad-campaigns-list.css";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CopyPlus, PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
 import { LaunchAdWizard } from "./wizard/LaunchAdWizard";
@@ -103,8 +103,9 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const campaignsQuery = useNavigationData<{ campaigns?: AdCampaign[] }>(campaignsUrl);
   const navigationCache = useNavigationCache();
   const campaigns = Array.isArray(campaignsQuery.data?.campaigns) ? campaignsQuery.data.campaigns : [];
-  const currentCampaigns = campaigns.filter((campaign) => !["archived", "deleted"].includes(getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? ""));
-  const historicalCampaigns = campaigns.filter((campaign) => ["archived", "deleted"].includes(getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? ""));
+  const currentCampaigns = campaigns
+    .filter((campaign) => !["archived", "deleted"].includes(getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? ""))
+    .sort((a, b) => Number(b.status === "active") - Number(a.status === "active") || b.created_at.localeCompare(a.created_at));
   const loading = campaignsQuery.loading;
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
   const [correcting, setCorrecting] = useState<AdCampaign | null>(null);
@@ -115,40 +116,49 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const refreshInFlight = useRef(false);
   useEffect(() => {
     if (!selected) return;
     const latest = campaigns.find((campaign) => campaign.id === selected.id);
-    if (latest && (latest.status !== selected.status || latest.external_error !== selected.external_error)) {
+    if (latest && !editing && JSON.stringify(latest) !== JSON.stringify(selected)) {
+      setSelected((current) => current?.id === selected.id ? { ...current, ...latest } : current);
+    } else if (latest && editing && (latest.status !== selected.status || latest.external_error !== selected.external_error)) {
       setSelected((current) => current?.id === selected.id ? { ...current, status: latest.status, external_error: latest.external_error } : current);
     }
-  }, [campaigns, selected]);
+  }, [campaigns, selected, editing]);
   const load = useCallback(async () => {
     if (campaignsUrl) await navigationCache.load(campaignsUrl, 0, true);
   }, [campaignsUrl, navigationCache]);
 
-  // Poll transitional and active Meta rows; never leave an expired Active
-  // assertion on screen after an unavailable platform read. IDs are stable so
+  // Revalidate every linked Meta campaign, including paused ones, for remote
+  // status/creative changes. IDs are stable so
   // list cache refreshes do not continuously restart polling.
-  const monitoredIds = campaigns.filter((campaign) => campaign.platform === "meta" && ["review", "preparing", "unknown", "active"].includes(campaign.status)).map((campaign) => campaign.id).sort().join(",");
+  const monitoredIds = [...new Set(campaigns.filter((campaign) => campaign.platform === "meta" && campaign.external_campaign_id && !["archived", "deleted"].includes(getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? "")).map((campaign) => campaign.id))].sort();
+  const refresh = useCallback(async () => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    try {
+      for (let i = 0; i < monitoredIds.length; i += 5) {
+        await Promise.all(monitoredIds.slice(i, i + 5).map((id) => fetch(`/api/ad-campaigns/${id}/status`, { cache: "no-store" }).catch(() => null)));
+      }
+      await load();
+    } finally {
+      refreshInFlight.current = false;
+    }
+  }, [load, monitoredIds.join(",")]);
   useEffect(() => {
-    if (!monitoredIds) return;
+    if (!monitoredIds.length) return;
     let disposed = false;
-    let inFlight = false;
-    const refresh = async () => {
-      if (disposed || inFlight || document.visibilityState !== "visible") return;
-      inFlight = true;
-      try {
-        await Promise.all(monitoredIds.split(",").map((id) => fetch(`/api/ad-campaigns/${id}/status`, { cache: "no-store" }).catch(() => null)));
-        if (!disposed) await load();
-      } finally { inFlight = false; }
+    const refreshWhenVisible = () => {
+      if (!disposed && document.visibilityState === "visible") void refresh();
     };
-    void refresh();
-    const interval = window.setInterval(() => void refresh(), 15_000);
-    const onReturn = () => void refresh();
+    refreshWhenVisible();
+    const interval = window.setInterval(refreshWhenVisible, 30_000);
+    const onReturn = refreshWhenVisible;
     document.addEventListener("visibilitychange", onReturn);
     window.addEventListener("focus", onReturn);
     return () => { disposed = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", onReturn); window.removeEventListener("focus", onReturn); };
-  }, [monitoredIds, load]);
+  }, [monitoredIds.length, refresh]);
 
 
   if (!storeId) return null;
@@ -159,7 +169,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
       <div className="card-head">
         <div><h2>{t("campaigns.title")}</h2></div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" className="btn btn-ghost compact-action" onClick={() => void load()} aria-label={t("campaigns.refresh")}>
+          <button type="button" className="btn btn-ghost compact-action" onClick={() => void refresh()} aria-label={t("campaigns.refresh")}>
             <RefreshCw size={16} />
           </button>
         </div>
@@ -248,8 +258,6 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
           {currentCampaigns.length > 3 ? <button type="button" className="btn btn-ghost" onClick={() => setShowAll((value) => !value)}>{showAll ? t("campaigns.reduce") : t("campaigns.more", { count: currentCampaigns.length - 3 })}</button> : null}
         </div>
       )}
-      {historicalCampaigns.length > 0 ? <details className="ad-campaign-history"><summary>{t("adsExtra.history", { count: historicalCampaigns.length })}</summary><div className="ad-campaign-history-list">{historicalCampaigns.map((campaign) => { const lifecycle = getMetaCampaignLifecycle(campaign.status, campaign.external_error)!; const meta = STATUS_META[lifecycle]; return <div className="ad-campaign-row" key={campaign.id}><div className="ad-campaign-title">{campaign.title || campaign.product_name || campaign.product_id}</div><span className="ad-campaign-badge" style={{ background: meta.bg, color: meta.fg }}>{statusLabels[lifecycle]}</span><button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => setDuplicating(campaign)}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button></div>; })}</div></details> : null}
-
       {resuming ? (
         <ResumeCampaignModal
           campaignId={resuming.id}
@@ -264,7 +272,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
             if (campaign) setCorrecting({ ...campaign, external_error: message ?? campaign.external_error });
           }}
           onLaunched={() => {
-            setResuming(null);
+            // Keep the confirmed 100% result visible until the user closes it.
             navigationCache.invalidate();
             void load();
           }}

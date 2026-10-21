@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/meta/creative-sync", () => ({ getMetaCreativePatch: vi.fn(async () => ({})) }));
+
 const { fetchMetaAccountStatus, getMetaAdReviewStatus, fetchMetaCampaignList } = vi.hoisted(() => ({
   fetchMetaAccountStatus: vi.fn(),
   getMetaAdReviewStatus: vi.fn(),

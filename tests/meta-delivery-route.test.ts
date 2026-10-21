@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const { getMetaCreativePatch } = vi.hoisted(() => ({ getMetaCreativePatch: vi.fn() }));
+vi.mock("@/lib/meta/creative-sync", () => ({ getMetaCreativePatch }));
 const { requireUser, getMetaAdReviewStatus } = vi.hoisted(() => ({ requireUser: vi.fn(), getMetaAdReviewStatus: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/crypto", () => ({ decryptSecret: () => "test-token" }));
@@ -11,6 +13,7 @@ const snapshot = (effectiveStatus: string, impressions: number | null = null, ed
 const get = async () => { const response = await GET(new Request("http://localhost/api/ad-campaigns/c/status"), { params: Promise.resolve({ id: "c" }) }); return { status: response.status, body: await response.json() }; };
 beforeEach(() => {
   vi.clearAllMocks(); writes = [];
+  getMetaCreativePatch.mockResolvedValue({});
   row = { id: "c", platform: "meta", status: "review", external_ad_id: "a", meta_ad_account_id: "m", external_error: null, meta_delivery_observation: null };
   account = { access_token_encrypted: "encrypted", account_status: 1 };
   const supabase = { from: (table: string) => {
@@ -20,6 +23,23 @@ beforeEach(() => {
   requireUser.mockResolvedValue({ supabase, user: { id: "u" }, response: null });
 });
 describe("Meta campaign status route delivery evidence", () => {
+  it("persists a changed creative even when status and delivery observation stay identical", async () => {
+    row.status = "active";
+    getMetaAdReviewStatus.mockResolvedValue(snapshot("ACTIVE", 1));
+    await get();
+    writes.length = 0;
+    getMetaCreativePatch.mockResolvedValue({ external_creative_id: "new", media_url: "https://cdn.example/new.jpg", carousel_urls: [] });
+    expect((await get()).body.status).toBe("active");
+    expect(writes).toHaveLength(1);
+    expect(row).toMatchObject({ external_creative_id: "new", media_url: "https://cdn.example/new.jpg", carousel_urls: [] });
+  });
+  it.each(["paused", "autopilot_paused", "rejected"])("refreshes a %s campaign edited directly in Meta", async (status) => {
+    row.status = status;
+    getMetaAdReviewStatus.mockResolvedValue(snapshot("ACTIVE", 1));
+    getMetaCreativePatch.mockResolvedValue({ media_url: "https://cdn.example/new.jpg" });
+    expect((await get()).body.status).toBe("active");
+    expect(row.media_url).toBe("https://cdn.example/new.jpg");
+  });
   it.each([["PENDING_REVIEW", null, "review"], ["PREPARING", null, "preparing"], ["ACTIVE", 0, "active"], ["ACTIVE", 1, "active"], ["ACTIVE", null, "active"]])("maps fresh %s / %s impressions to %s", async (status, impressions, expected) => {
     getMetaAdReviewStatus.mockResolvedValue(snapshot(status as string, impressions as number | null));
     const result = await get(); expect(result.status).toBe(200); expect(result.body.status).toBe(expected);

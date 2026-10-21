@@ -121,12 +121,14 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunch
       )}
 
       {phase === "launching" && (
-        <LaunchProgress indeterminate label={t("ads.launching", { platform: platformLabel })} />
+        <LaunchProgress label={t("ads.launching", { platform: platformLabel })} />
       )}
 
       {phase === "done" && (
-        <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm font-semibold text-[#065F46]">
-          {t("ads.launchSuccess", { platform: platformLabel })}
+        <div className="space-y-3">
+          <LaunchProgress complete label={t("ads.launchSuccess", { platform: platformLabel })} />
+          <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm font-semibold text-[#065F46]">
+            {t("ads.launchSuccess", { platform: platformLabel })}
           {objectiveFallback && state.platform === "pinterest" ? (
             <p className="mt-2 font-normal">{tagCopy.trafficDone}</p>
           ) : objectiveFallback ? (
@@ -139,6 +141,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunch
               {locale === "en" ? "We used your ad account pixel to optimize for sales. Make sure it is added to your Chariow store, otherwise Meta will not see your purchases." : "Nous avons utilisé le pixel de ton compte publicitaire pour optimiser les ventes. Vérifie qu’il est bien ajouté dans ta boutique Chariow, sinon Meta ne verra pas tes achats."}
             </p>
           ) : null}
+          </div>
         </div>
       )}
 

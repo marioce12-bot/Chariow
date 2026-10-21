@@ -3,6 +3,7 @@ import { fetchMetaAccountStatus } from "@/lib/meta/api";
 import { getMetaAdReviewStatus, mapMetaEffectiveStatus } from "@/lib/meta/campaigns";
 import { getMetaCampaignLifecycle, markMetaPausedReason } from "@/lib/meta/status";
 import { fetchMetaCampaignList } from "@/lib/meta/campaign-list";
+import { getMetaCreativePatch } from "@/lib/meta/creative-sync";
 
 type CampaignRow = {
   id: string;
@@ -11,6 +12,9 @@ type CampaignRow = {
   status: string;
   external_error: string | null;
   meta_delivery_observation?: unknown;
+  external_creative_id?: string | null;
+  media_url?: string | null;
+  carousel_urls?: string[] | null;
 };
 
 type SyncInput = {
@@ -55,10 +59,10 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   while (true) {
     let query = input.supabase
       .from("ad_campaigns")
-      .select("id,external_ad_id,external_campaign_id,status,external_error,meta_delivery_observation")
+      .select("id,external_ad_id,external_campaign_id,status,external_error,meta_delivery_observation,external_creative_id,media_url,carousel_urls")
       .eq("platform", "meta")
       .eq("meta_ad_account_id", input.accountId)
-      .in("status", ["active", "review", "preparing", "unknown", "paused"])
+      .in("status", ["active", "review", "preparing", "unknown", "paused", "autopilot_paused", "rejected"])
       .order("id", { ascending: true })
       .not("external_ad_id", "is", null);
     if (input.userId) query = query.eq("user_id", input.userId);
@@ -137,7 +141,10 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
       if (campaign.external_campaign_id && !inventoryById.has(campaign.external_campaign_id)) continue;
       result.checked += 1;
       try {
-        const snapshot = await getMetaAdReviewStatus({ adId: campaign.external_ad_id, accessToken: input.accessToken });
+        const [snapshot, creativePatch] = await Promise.all([
+          getMetaAdReviewStatus({ adId: campaign.external_ad_id, accessToken: input.accessToken }),
+          getMetaCreativePatch({ adId: campaign.external_ad_id, accessToken: input.accessToken, campaign }),
+        ]);
         const { effectiveStatus, feedback, impressions } = snapshot;
         const delivery = evaluateMetaDelivery(campaign.external_ad_id, snapshot, campaign.meta_delivery_observation);
         let mapped = mapMetaEffectiveStatus(effectiveStatus, feedback, result.accountStatus, impressions);
@@ -168,11 +175,11 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
           ? markMetaPausedReason(mapped.error ?? "Meta signale que la publicité est en pause.")
           : mapped.error;
         const observation = ["active", "preparing"].includes(mapped.status) ? delivery.observation : null;
-        if (campaign.status === mapped.status && campaign.external_error === externalError && JSON.stringify(observation) === JSON.stringify(campaign.meta_delivery_observation ?? null)) continue;
+        if (!Object.keys(creativePatch).length && campaign.status === mapped.status && campaign.external_error === externalError && JSON.stringify(observation) === JSON.stringify(campaign.meta_delivery_observation ?? null)) continue;
 
         let update = input.supabase
           .from("ad_campaigns")
-          .update({ status: mapped.status, external_error: externalError, meta_delivery_observation: observation })
+          .update({ status: mapped.status, external_error: externalError, meta_delivery_observation: observation, ...creativePatch })
           .eq("id", campaign.id);
         if (input.userId) update = update.eq("user_id", input.userId);
         const { error: updateError } = await update;
