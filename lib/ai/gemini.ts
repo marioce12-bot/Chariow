@@ -96,8 +96,9 @@ async function toGeminiPayload(messages: ChatMessage[]) {
 
 // `timeoutMs` permet à l'appelant d'ajuster l'attente au temps qu'il lui reste avant la
 // limite de sa propre fonction (voir maxDuration dans app/api/chat/route.ts).
-export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: number } = {}) {
-  const { apiKey, baseUrl, model } = getConfig();
+export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: number; model?: string } = {}) {
+  const { apiKey, baseUrl, model: configuredModel } = getConfig();
+  const model = options.model || configuredModel;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 

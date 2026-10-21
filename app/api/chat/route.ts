@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { askImole } from "@/lib/ai/imole";
 import { askGemini } from "@/lib/ai/gemini";
 import { getChariowSnapshot, serializeChariowContext } from "@/lib/chariow/analytics";
 import { cleanAiText } from "@/lib/ai/format";
@@ -247,7 +246,6 @@ export async function POST(request: Request) {
     console.error("Meta accounts context error", metaContextError instanceof Error ? metaContextError.message : metaContextError);
   }
 
-  // Imole peut refuser les payloads trop volumineux (400).
   // On tronque le contexte analytique de façon plus agressive qu'avant, MAIS on ne
   // sacrifie plus jamais l'historique de conversation pour gagner de la place : c'est
   // cet historique qui permet à l'IA de se souvenir des réponses déjà données pendant
@@ -350,17 +348,13 @@ export async function POST(request: Request) {
   };
 
   try {
-    answer = await askImole([{ role: "system", content: systemContent }, ...safeHistory, currentTurn]);
-  } catch (imoleError) {
-    console.error("Imole chat error", imoleError instanceof Error ? imoleError.message : imoleError);
-    // Imole a un problème (panne, quota, timeout...) : on retente avec Gemini
-    // (palier gratuit Google) avant d'abandonner et de renvoyer une erreur.
-    try {
-      answer = await askGemini([{ role: "system", content: systemContent }, ...safeHistory, currentTurn]);
-    } catch (geminiError) {
-      console.error("Gemini fallback error", geminiError instanceof Error ? geminiError.message : geminiError);
-      return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
-    }
+    answer = await askGemini(
+      [{ role: "system", content: systemContent }, ...safeHistory, currentTurn],
+      { model: "gemini-3.6-flash" }
+    );
+  } catch (geminiError) {
+    console.error("Gemini chat error", geminiError instanceof Error ? geminiError.message : geminiError);
+    return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
   }
   answer = cleanAiText(answer, { preserveStrong: true });
   const userProvidedUrls = (previousHistory ?? []).filter((item) => item.role === "user").map((item) => String(item.content ?? "")).concat(message).flatMap((text) => text.match(/https?:\/\/[^\s<>"\]]+/g) ?? []);
