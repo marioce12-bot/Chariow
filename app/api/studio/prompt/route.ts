@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
+import { buildVideoAdPlan, videoPlanPrompt, videoPlanningSystem, VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
+import { buildSlideshowPlan } from "@/lib/studio/slideshow-plan";
 import {
   CREATIVE_STYLES, CREATIVE_COMPOSITIONS, sourceCopyCandidates,
   parseCreativePlan, compileFaithfulPrompt,
@@ -37,6 +39,27 @@ export async function POST(request: Request) {
   const price = typeof product?.price === "number" || typeof product?.price === "string" ? String(product.price).slice(0, 40) : "";
   const currency = typeof product?.currency === "string" ? product.currency.slice(0, 10) : "";
   const allowedPrice = price && /prix|price|tarif/i.test(userBrief) ? [price, currency].filter(Boolean).join(" ") : undefined;
+
+  if (body?.mediaType === "video") {
+    const duration = Number(body?.duration ?? 15);
+    if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(duration)) return NextResponse.json({ error: "Durée vidéo non prise en charge." }, { status: 400 });
+    const aspectRatio = body?.aspectRatio ?? "9:16";
+    if (!["16:9", "9:16", "1:1"].includes(aspectRatio)) return NextResponse.json({ error: "Format vidéo non pris en charge." }, { status: 400 });
+    const input: VideoAdInput = { name, description, hasReference: Boolean(productImage), duration, aspectRatio, character, userBrief, previousPrompt, locale: body?.locale === "en" ? "en" : "fr" };
+    if (body?.videoMode === "slideshow") {
+      const slideshow = buildSlideshowPlan(input, typeof body?.musicId === "string" ? body.musicId.slice(0, 30) : undefined);
+      return NextResponse.json({ prompt: slideshow.prompt, slideshow, locked: true });
+    }
+    let videoAnswer = "";
+    try {
+      videoAnswer = await askText([
+        { role: "system", content: videoPlanningSystem(input) },
+        { role: "user", content: JSON.stringify({ productName: name, confirmedProductCopy: candidates.map((text, index) => ({ index, text })), hasReference: Boolean(productImage), artisticPreferencesOnly: userBrief, previousDirectionOnly: previousPrompt, duration, aspectRatio, character }) },
+      ], { order: ["imole", "groq", "gemini"] });
+    } catch { /* The constrained local planner is usable even when the text service is unavailable. */ }
+    const plan = buildVideoAdPlan(input, videoAnswer);
+    return NextResponse.json({ prompt: videoPlanPrompt(plan), plan, locked: true });
+  }
 
   let answer: string;
   try {
