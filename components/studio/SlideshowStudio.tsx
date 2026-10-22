@@ -161,12 +161,15 @@ export function SlideshowStudio({
   const lacksCredits = available !== null && available < slideshowCost;
   const resumeCost = resumeTask?.resume?.allowed ? resumeTask.resume.cost : 0;
   const lacksResumeCredits = available !== null && resumeCost > 0 && available < resumeCost;
-  // Read-only balance lookup (balance minus credits already reserved). Never blocks the UI on failure:
-  // the server re-checks the balance before creating any task.
+  // Read-only balance lookup (balance minus credits already reserved). Fail-open: if the balance is
+  // unavailable or malformed, the UI does not block and the server (which re-checks) decides.
   const refreshCredits = () =>
     fetch("/api/studio/credits", { cache: "no-store" })
       .then(jsonResponse)
-      .then((data) => setAvailable(Math.max(0, Number(data.balance ?? 0) - Number(data.reserved ?? 0))))
+      .then((data) => {
+        if (typeof data?.balance !== "number") return;
+        setAvailable(Math.max(0, data.balance - (typeof data.reserved === "number" ? data.reserved : 0)));
+      })
       .catch(() => undefined);
   const newDraftRef = useRef(false);
   const selectedTaskRef = useRef(selectedTaskId);
