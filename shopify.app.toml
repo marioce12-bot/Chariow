@@ -1,10 +1,8 @@
 # Configuration de l'app Shopify « Vendeo ».
-# Avant le premier déploiement : remplacer client_id par le Client ID de l'app
-# (Dev Dashboard > l'app > Paramètres). Le Client ID n'est pas secret ;
-# le Client Secret ne doit JAMAIS être mis dans ce fichier.
+# Le Client ID n'est pas secret ; le Client Secret ne doit JAMAIS être mis dans ce fichier.
 # Déploiement : `shopify app config link` puis `shopify app deploy`.
 
-client_id = "REMPLACER_PAR_LE_CLIENT_ID"
+client_id = "2435d1651ab10d9f80e7933e8d792240"
 name = "Vendeo"
 application_url = "https://www.vendeo-studio.site/api/integrations/shopify/install"
 embedded = false
