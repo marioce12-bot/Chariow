@@ -10,6 +10,7 @@ import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATION
 import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, slideshowVoiceAvailability } from "@/lib/studio/slideshow-voice";
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
 import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { logPreparationFailure, type PreparationStage } from "@/lib/studio/preparation-diagnostics";
 import {
   TASK_TYPE,
   logTaskEvent,
@@ -120,19 +121,24 @@ export async function POST(request: Request) {
     // an invalid storyboard, reserve credits, or call a provider to diagnose it.
     const product = body.input.product;
     product.description = typeof product.description === "string" ? product.description.trim().slice(0, 3000) : "";
+    let preparationStage: PreparationStage = "slideshow_plan";
     try {
       if (body.input.voiceover === true) {
         // Fail before image credits or provider calls while Preview validation is locked.
+        preparationStage = "voice_gate";
         assertSlideshowVoiceAllowed();
+        preparationStage = "voice_plan";
         const voice = buildSlideshowVoicePlan(product, body.input.duration, body.input.locale, body.input.campaignGoal);
         body.input.locale = voice.language;
         body.input.musicId = voice.musicId;
       }
+      preparationStage = "slideshow_plan";
       buildSlideshowPlan({ name: product.name, description: product.description,
         hasReference: Boolean(product.image), duration: body.input.duration,
         aspectRatio: "9:16", character: "with", locale: body.input.locale,
         campaignGoal: body.input.campaignGoal, variationId: typeof body.input.variationId === "string" ? body.input.variationId.slice(0, 100) : "default" }, body.input.musicId);
     } catch (error) {
+      logPreparationFailure(body.id, preparationStage, error);
       const insufficient = error instanceof InsufficientProductDetailsError;
       return NextResponse.json({
         error: insufficient
