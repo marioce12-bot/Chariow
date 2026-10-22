@@ -187,15 +187,20 @@ export async function generateStudioImage(
     required?: number;
     transaction_id?: string;
   } | null;
-  if (!reserveResult?.ok)
+  if (!reserveResult?.ok) {
+    // Refused before any reservation or provider call: nothing was charged. For a staged step, drop the
+    // placeholder row so the very same step can be retried safely after a top-up (no "uncertain" state).
+    if (stage) await admin.from("studio_generations").delete().eq("id", generation.id).eq("user_id", userId).eq("status", "processing");
     return NextResponse.json(
       {
         error: `Solde insuffisant. Cette image nécessite ${cost} crédits, ton solde est de ${reserveResult?.balance ?? 0}.`,
+        code: "INSUFFICIENT_CREDITS",
         required: cost,
         balance: reserveResult?.balance ?? 0,
       },
       { status: 402 },
     );
+  }
 
   if (stage && !reserveResult.transaction_id) return stagedUncertain(stage, cost, "reservation_unconfirmed");
   if (stage && !(await setCreditState(admin, userId, generation.id, generationMetadata, "reserved"))) return stagedUncertain(stage, cost, "persistence_error");
