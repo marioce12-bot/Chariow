@@ -69,4 +69,36 @@ describe("public documentation center", () => {
     expect(source).not.toContain('fetch(');
     expect(source).not.toContain('dangerouslySetInnerHTML');
   });
+  it("reuses Vendeo identity tokens without the old decorative green palette", () => {
+    const css = readFileSync("components/docs/documentation.css", "utf8");
+    const brand = readFileSync("app/styles/vendeo.css", "utf8");
+    expect(brand).toContain("--blue:#4c21f6");
+    expect(brand).toContain("--green:#103ef8"); // Legacy token name, Vendeo blue value.
+    expect(css).toContain("--docs-accent:var(--blue)");
+    expect(css).toContain("--docs-ink:var(--ink)");
+    expect(css).toContain("--docs-line:var(--line)");
+    expect(css).toContain("background:var(--purple)");
+    for (const oldColor of ["#254d45", "#dcf79f", "#6d9c38", "#e8f0dc", "#192d26", "#426038"]) {
+      expect(css).not.toContain(oldColor);
+    }
+    expect(css).toContain(".docs-callout{background:#fffbeb;border:1px solid #fcd34d");
+    expect(css).toContain("color:#92400e");
+  });
+  it("keeps normal text, CTA and keyboard focus colors above WCAG AA contrast", () => {
+    const luminance = (hex: string) => {
+      const values = hex.match(/[a-f0-9]{2}/gi)!.map(c => {
+        const n = parseInt(c, 16) / 255;
+        return n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4;
+      });
+      return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
+    };
+    for (const [foreground, background] of [
+      ["#000c2e", "#fbfcff"], ["#5b6681", "#fbfcff"],
+      ["#4c21f6", "#eef2ff"], ["#ffffff", "#4c21f6"],
+      ["#ffffff", "#103ef8"], ["#92400e", "#fffbeb"],
+    ]) {
+      const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+      expect((values[0] + 0.05) / (values[1] + 0.05)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });
