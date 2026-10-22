@@ -82,113 +82,158 @@ export function validTaskToken(id: string, revision: number, token: string) {
     Buffer.from(token),
   );
 }
-export async function publicTask(row: any) {
+export type PublicTask = {
+  id: string;
+  kind: TaskMetadata["taskKind"];
+  status: string;
+  phase?: string;
+  revision?: number;
+  updatedAt?: string;
+  creditsConsumed?: number;
+  creditState?: string;
+  errorCode?: string;
+  progress?: number;
+  message?: string;
+  error?: string;
+  images: Array<{ id: string; url: string | null }>;
+  sourceImagesConfirmed?: boolean;
+  input?: any;
+  result?: any;
+  mediaPending?: boolean;
+  trackingUnavailable?: boolean;
+  createdAt?: string;
+};
+
+export async function publicTask(row: any): Promise<PublicTask> {
   const metadata = row.metadata as TaskMetadata;
   let result = metadata.result;
   let recoveredFinal = false;
-  if (!result && metadata.taskKind === "slideshow" && metadata.input?.voiceover === true && (metadata.stages ?? []).some(stage => stage.kind === "render")) {
-    const { data } = await createAdminClient().from("studio_generations")
-      .select("id,storage_path,metadata").eq("user_id", row.user_id)
-      .eq("metadata->>backgroundTaskId", row.id).eq("metadata->>type", "slideshow")
-      .eq("status", "completed").limit(1);
+  let mediaPending = false;
+  let reconciliationError = false;
+  const signedUrls = new Map<string, Promise<string | null>>();
+  const sign = (path: string): Promise<string | null> => {
+    const existing = signedUrls.get(path);
+    if (existing) return existing;
+    const signed = signedStudioUrl(path).catch(() => {
+      mediaPending = true;
+      return null;
+    });
+    signedUrls.set(path, signed);
+    return signed;
+  };
+
+  if (!result && metadata.taskKind === "slideshow" && metadata.input?.voiceover === true &&
+      (metadata.stages ?? []).some((stage) => stage.kind === "render")) {
+    const { data, error } = await createAdminClient()
+      .from("studio_generations")
+      .select("id,storage_path,metadata")
+      .eq("user_id", row.user_id)
+      .eq("metadata->>backgroundTaskId", row.id)
+      .eq("metadata->>type", "slideshow")
+      .eq("status", "completed")
+      .limit(1);
+    if (error) reconciliationError = true;
     const saved = data?.[0];
     if (saved?.storage_path && saved.metadata?.voiceover) {
-      result = { generationId: saved.id, videoUrl: await signedStudioUrl(saved.storage_path),
-        duration: saved.metadata.duration, musicId: saved.metadata.musicId, attribution: saved.metadata.attribution,
-        imageGenerationIds: saved.metadata.imageGenerationIds, creditsCost: 0 };
+      result = {
+        generationId: saved.id,
+        videoUrl: await sign(saved.storage_path),
+        duration: saved.metadata.duration,
+        musicId: saved.metadata.musicId,
+        attribution: saved.metadata.attribution,
+        imageGenerationIds: saved.metadata.imageGenerationIds,
+        creditsCost: 0,
+      };
       recoveredFinal = true;
     }
   }
-  let images = [...(metadata.images ?? [])];
+
+  let images: Array<{ id: string; url: string | null }> = [...(metadata.images ?? [])];
   let sourceImagesConfirmed = images.length === 0;
-  // Read-only reconciliation: recover a stored child after a lost response or parent write.
-  // Never dispatch work, reserve credits, or call a provider while reading task status.
-  const recoverableIds = (metadata.stages ?? []).filter(stage => stage.kind === "image" && stage.generationId).map(stage => stage.generationId!);
+  const recoverableIds = (metadata.stages ?? [])
+    .filter((stage) => stage.kind === "image" && stage.generationId)
+    .map((stage) => stage.generationId!);
   if (images.length || recoverableIds.length) {
-    const { data } = await createAdminClient()
+    const { data, error } = await createAdminClient()
       .from("studio_generations")
       .select("id,storage_path,status,credits_cost")
-      .in(
-        "id",
-        [...new Set([...images.map((image) => image.id), ...recoverableIds])],
-      )
+      .in("id", [...new Set([...images.map((image) => image.id), ...recoverableIds])])
       .eq("user_id", row.user_id)
       .limit(5);
-    sourceImagesConfirmed = images.every(image => data?.some((saved: any) => saved.id === image.id && saved.status === "completed" && saved.storage_path));
-    for (const generationId of recoverableIds) {
-      const saved = data?.find((item: any) => item.id === generationId && item.status === "completed" && item.storage_path);
-      if (saved && !images.some(image => image.id === generationId)) images.push({ id: generationId, url: await signedStudioUrl(saved.storage_path) });
+    if (error) {
+      reconciliationError = true;
+    } else {
+      const savedImages = data ?? [];
+      const completedWithStorage = (id: string) => savedImages.find(
+        (saved: any) => saved.id === id && saved.status === "completed" && saved.storage_path,
+      );
+      sourceImagesConfirmed = images.every((image) => Boolean(completedWithStorage(image.id)));
+      const verified = new Map<string, { id: string; url: string | null }>();
+      for (const image of images) {
+        const saved = completedWithStorage(image.id);
+        if (saved) verified.set(image.id, { id: image.id, url: await sign(saved.storage_path) });
+      }
+      for (const id of recoverableIds) {
+        const saved = completedWithStorage(id);
+        if (saved && !verified.has(id)) verified.set(id, { id, url: await sign(saved.storage_path) });
+      }
+      images = [...verified.values()];
+      if (metadata.taskKind === "image" && !result) {
+        const stage = [...(metadata.stages ?? [])].reverse().find((item) => item.kind === "image" && item.generationId);
+        const saved = stage && completedWithStorage(stage.generationId!);
+        if (saved) {
+          result = { generationId: saved.id, imageUrl: await sign(saved.storage_path), cost: saved.credits_cost ?? 0 };
+          recoveredFinal = true;
+        }
+      }
     }
-    images = await Promise.all(
-      images.map(async (image) => {
-        const saved = data?.find((item: any) => item.id === image.id);
-        return saved?.storage_path
-          ? { ...image, url: await signedStudioUrl(saved.storage_path) }
-          : image;
-      }),
-    );
   }
+
   if (result?.generationId) {
-    const { data } = await createAdminClient()
+    const { data, error } = await createAdminClient()
       .from("studio_generations")
-      .select("storage_path,metadata")
+      .select("id,storage_path,status,credits_cost,metadata")
       .eq("id", result.generationId)
       .eq("user_id", row.user_id)
       .maybeSingle();
-    if (data?.storage_path) {
-      const url = await signedStudioUrl(data.storage_path);
-      result = {
-        ...result,
-        ...(metadata.taskKind === "image"
-          ? { imageUrl: url }
-          : { videoUrl: url, ...(data.metadata?.type === "slideshow" ? { musicId: data.metadata.musicId, attribution: data.metadata.attribution, duration: data.metadata.duration } : {}) }),
-      };
-    } else if (!data) result = null; // A deliberately deleted creation must not reappear.
+    if (error) reconciliationError = true;
+    if (!data || data.status !== "completed" || !data.storage_path) {
+      result = null;
+      recoveredFinal = false;
+    } else {
+      const url = await sign(data.storage_path);
+      if (metadata.taskKind === "image") result = { ...result, imageUrl: url };
+      else result = { ...result, videoUrl: url, duration: data.metadata?.duration ?? result.duration,
+        musicId: data.metadata?.musicId ?? result.musicId, attribution: data.metadata?.attribution ?? result.attribution };
+      recoveredFinal = true;
+    }
   }
-  // Provider work is never repeated after an uncertain timeout.
-  const stale =
-    row.status === "processing" &&
-    Date.now() - Date.parse(metadata.updatedAt) > 7 * 60_000;
+
+  const stale = row.status === "processing" && Date.now() - Date.parse(metadata.updatedAt) > 7 * 60_000;
   const input = metadata.taskKind === "slideshow" ? {
-    product: metadata.input?.product ? {
-      name: metadata.input.product.name,
-      description: metadata.input.product.description,
-      image: metadata.input.product.image,
-    } : undefined,
-    duration: metadata.input?.duration,
-    musicId: metadata.input?.musicId,
-    campaignGoal: metadata.input?.campaignGoal,
-    locale: metadata.input?.locale,
-    variationId: metadata.input?.variationId,
-    voiceover: metadata.input?.voiceover === true,
+    product: metadata.input?.product ? { name: metadata.input.product.name, description: metadata.input.product.description, image: metadata.input.product.image } : undefined,
+    duration: metadata.input?.duration, musicId: metadata.input?.musicId, campaignGoal: metadata.input?.campaignGoal,
+    locale: metadata.input?.locale, variationId: metadata.input?.variationId, voiceover: metadata.input?.voiceover === true,
   } : undefined;
+  if (reconciliationError) return { id: row.id, kind: metadata.taskKind, status: "tracking_unavailable", trackingUnavailable: true, images: [], sourceImagesConfirmed: false };
   return {
-    id: row.id,
-    kind: metadata.taskKind,
+    id: row.id, kind: metadata.taskKind,
     status: recoveredFinal ? "completed" : stale ? "failed" : row.status,
     phase: recoveredFinal ? "completed" : stale ? "failed" : metadata.phase,
-    revision: metadata.revision,
-    updatedAt: metadata.updatedAt,
+    revision: metadata.revision, updatedAt: metadata.updatedAt,
     creditsConsumed: Math.max(metadata.creditsConsumed ?? 0, images.length * 20),
     creditState: stale && metadata.phase === "running" ? "uncertain" : (metadata.creditState ?? "confirmed"),
     errorCode: stale ? "STUDIO_TASK_STALE" : metadata.errorCode,
     progress: (recoveredFinal || row.status === "completed") && result ? 100 : Math.min(99, metadata.progress),
     message: recoveredFinal ? "Création prête." : metadata.taskKind === "slideshow" && row.status === "failed"
-      ? slideshowPublicFailure(metadata.input?.locale)
-      : metadata.message,
+      ? slideshowPublicFailure(metadata.input?.locale) : metadata.message,
     error: recoveredFinal ? undefined : stale
       ? "Le suivi de cette génération a été interrompu. Consulte l’historique : aucune nouvelle génération n’a été lancée automatiquement."
-      : row.status === "failed"
-        ? metadata.taskKind === "slideshow" ? publicSlideshowError(metadata.error, metadata.input?.locale) : metadata.error
-        : undefined,
-    images,
-    sourceImagesConfirmed,
-    ...(input ? { input } : {}),
-    result,
-    createdAt: row.created_at,
+      : row.status === "failed" ? (metadata.taskKind === "slideshow" ? publicSlideshowError(metadata.error, metadata.input?.locale) : metadata.error) : undefined,
+    images, sourceImagesConfirmed, ...(input ? { input } : {}), result,
+    ...(mediaPending ? { mediaPending: true } : {}), createdAt: row.created_at,
   };
 }
-
 // Historical dispatch errors were persisted ONLY by failTask(expected phase=queued).
 // The compare-and-set against queued proves no worker had claimed that revision:
 // a claimed worker switches to running before any paid call and prevents this failure write.
@@ -210,7 +255,8 @@ export function continuationQuote(row: any, task: any) {
   const stageProofMissing = !meta.stages && meta.revision > 0 && meta.continueQueued !== true && !legacyQueuedDispatchCheckpoint(row, task);
   const failedOrStale = row.status === "failed" || stale;
   let reason: string | null = null;
-  if (meta.taskKind !== "slideshow") reason = "UNSUPPORTED_TASK";
+  if (task.trackingUnavailable === true) reason = "TRACKING_UNAVAILABLE";
+  else if (meta.taskKind !== "slideshow") reason = "UNSUPPORTED_TASK";
   else if (!failedOrStale) reason = "TASK_NOT_FAILED";
   else if (task.sourceImagesConfirmed === false) reason = "COMPLETED_ASSET_MISSING";
   else if (uncertain) reason = "STAGE_UNCERTAIN";

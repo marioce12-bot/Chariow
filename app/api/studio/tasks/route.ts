@@ -20,22 +20,26 @@ import {
 } from "@/lib/studio/background-tasks";
 export const runtime = "nodejs";
 export const maxDuration = 300;
-export async function GET() {
+export async function GET(request: Request) {
   const { user, response } = await requireUser();
   if (!user) return response;
-  const { data, error } = await createAdminClient()
+  const requestedId = new URL(request.url).searchParams.get("id");
+  if (requestedId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedId))
+    return NextResponse.json({ tasks: [] }, { headers: { "Cache-Control": "no-store" } });
+  let query = createAdminClient()
     .from("studio_generations")
     .select("id,user_id,status,metadata,created_at")
     .eq("user_id", user.id)
-    .eq("metadata->>type", TASK_TYPE)
-    .order("created_at", { ascending: false })
-    .limit(10);
+    .eq("metadata->>type", TASK_TYPE);
+  if (requestedId) query = query.eq("id", requestedId);
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(requestedId ? 1 : 10);
   if (error)
     return NextResponse.json({ error: "Suivi indisponible." }, { status: 503 });
-  return NextResponse.json(
-    { tasks: await Promise.all((data ?? []).map(publicTask)) },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  const tasks = await Promise.all((data ?? []).map(async (row) => {
+    try { return await publicTask(row); }
+    catch { return { id: row.id, kind: row.metadata?.taskKind, status: "tracking_unavailable", trackingUnavailable: true }; }
+  }));
+  return NextResponse.json({ tasks }, { headers: { "Cache-Control": "no-store" } });
 }
 export async function POST(request: Request) {
   const { user, response } = await requireUser();

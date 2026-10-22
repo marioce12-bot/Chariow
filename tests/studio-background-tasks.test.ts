@@ -9,6 +9,7 @@ vi.mock("workflow/api", () => ({ start: mocks.start }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: mocks.from }) }));
 vi.mock("@/lib/studio/image-generation", () => ({ generateStudioImage: mocks.generate }));
 vi.mock("@/lib/studio/slideshow-server", () => ({ preflightSlideshow: mocks.preflight, renderSlideshow: mocks.render, isPreviewEnabled: mocks.preview }));
+vi.mock("@/lib/studio/media", () => ({ signedStudioUrl: vi.fn(async (path: string) => `https://signed.test/${path}`) }));
 vi.mock("next/server", () => ({ NextResponse: { json: (body: unknown, init?: ResponseInit) => new Response(JSON.stringify(body), init) }, after: mocks.after }));
 vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/lib/subscription/access", () => ({ requireActiveSubscription: mocks.subscription }));
@@ -208,7 +209,7 @@ describe("routes des tâches studio", () => {
     mocks.requireUser.mockResolvedValue({ user, response: null });
     let filteredOwner: string | undefined;
     mocks.from.mockReturnValue({ select: () => ({ eq: (_key: string, value: string) => { filteredOwner = value; return { eq: () => ({ order: () => ({ limit: async () => ({ data: [], error: null }) }) }) }; } }) });
-    const response = await GET();
+    const response = await GET(new Request("https://preview.test/api/studio/tasks"));
     expect(response.status).toBe(200);
     expect(filteredOwner).toBe(user.id);
     expect(await response.json()).toEqual({ tasks: [] });
@@ -221,7 +222,7 @@ describe("routes des tâches studio", () => {
         const chain: any = {
           in: (_key: string, ids: string[]) => { queries.push(`in:${ids.join(",")}`); return chain; },
           eq: () => chain,
-          limit: async (n: number) => { queries.push(`limit:${n}`); return { data: [{ id: "img-kept", storage_path: "user-1/img-kept.png" }], error: null }; },
+          limit: async (n: number) => { queries.push(`limit:${n}`); return { data: [{ id: "img-kept", status: "completed", storage_path: "user-1/img-kept.png" }], error: null }; },
           maybeSingle: async () => ({ data: null, error: null }),
         };
         return chain;
@@ -262,5 +263,27 @@ describe("routes des tâches studio", () => {
     expect(response.status).toBe(200);
     expect(mocks.after).not.toHaveBeenCalled();
     expect(mocks.subscription).not.toHaveBeenCalled();
+  });
+});
+
+describe("reprise après indisponibilité des URL signées", () => {
+  it("conserve les IDs enfants vérifiés et le coût même si la signature échoue", async () => {
+    const taskRow = rowFor(metadata("slideshow", {
+      phase: "failed", revision: 2,
+      stages: [{ step: 1, kind: "image", state: "completed", generationId: "child-429", cost: 20, creditState: "confirmed", startedAt: new Date().toISOString() }],
+    }), "failed");
+    const media = await import("@/lib/studio/media");
+    const urls = vi.mocked(media.signedStudioUrl);
+    urls.mockRejectedValueOnce(new Error("storage 429"));
+    const adminModule = await import("@/lib/supabase/admin");
+    vi.spyOn(adminModule, "createAdminClient").mockReturnValue({
+      from: () => ({ select: () => ({ in: () => ({ eq: () => ({ limit: async () => ({ data: [{ id: "child-429", status: "completed", storage_path: "owner/child.png", credits_cost: 20 }], error: null }) }) }) }) }),
+      storage: { from: () => ({ createSignedUrl: urls }) },
+    } as any);
+    const task = await publicTask(taskRow);
+    expect(task.images).toEqual([{ id: "child-429", url: null }]);
+    expect(task.sourceImagesConfirmed).toBe(true);
+    expect(urls).toHaveBeenCalledTimes(1);
+    expect(task.creditsConsumed).toBe(20);
   });
 });
