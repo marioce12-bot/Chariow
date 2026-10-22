@@ -86,14 +86,17 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   if (wordCount(name) + wordCount(cta) > maxWords) throw new Error("Nom et CTA complet dépassent le budget vocal; TTS non lancé.");
   const accepted: string[] = [name];
   let words = wordCount(name) + wordCount(cta);
-  // Keep 25s concise; longer formats may add one then further source-backed beats.
-  const detailLimit = duration <= 25 ? 1 : duration <= 30 ? 2 : evidence.length;
+  // A hard lower word target ensures the selected runtime changes the narration
+  // density. Evidence is used once, in source order; no invented/repeated filler.
+  // Keep source-backed speech dense enough to approach the selected runtime;
+  // actual rendered audio is independently checked for terminal silence.
+  const minimumWords = Math.ceil(duration * 0.9);
   for (const part of evidence) {
-    if (accepted.length - 1 >= detailLimit) break;
     const count = part.trim().split(/\s+/).filter(Boolean).length;
     if (words + count > maxWords) continue;
     accepted.push(part.trim()); words += count;
   }
+  if (words < minimumWords) throw new Error(`Source insuffisante pour une narration couvrant ${duration}s (${words} mots disponibles, ${minimumWords} requis); TTS non lancé.`);
   const spokenFacts = accepted.map(part => part.replace(/[.!?]+$/g, ""));
   const script = `${spokenFacts.join(". ")}. ${cta.replace(/[.!?]+$/g, "")}.`;
   const kind = category(name, description);

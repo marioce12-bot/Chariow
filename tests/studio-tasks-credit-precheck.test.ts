@@ -12,7 +12,7 @@ vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit: () => false }));
 import { POST } from "@/app/api/studio/tasks/route";
 import { TASK_TYPE } from "@/lib/studio/background-tasks";
 const id = "123e4567-e89b-42d3-a456-426614174000";
-const input = { voiceover: true, product: { name: "Guide", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion." }, duration: 25, musicId: "", locale: "fr" };
+const input = { voiceover: true, product: { name: "Guide", description: "Disponible au format PDF. Le guide comporte huit chapitres consacrés à la préparation du jardin. Chaque chapitre présente trois exercices pratiques, une liste de matériel et un calendrier saisonnier. Les fiches expliquent le choix des graines, la préparation du sol, l’arrosage régulier, la rotation des cultures et la récolte. Les illustrations montrent des plantations en pots et en pleine terre. Le téléchargement permet une lecture hors connexion sur téléphone ou tablette." }, duration: 25, musicId: "", locale: "fr" };
 const request = () => new Request("https://preview.test/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input }) });
 const insertedRow = { id, user_id: "owner", status: "processing", metadata: { type: TASK_TYPE, taskKind: "slideshow", input: { voiceover: true }, revision: 0, phase: "queued" } };
 function configureDb(account: { balance: number; reserved: number } | null, accountError: unknown = null) {

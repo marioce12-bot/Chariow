@@ -38,11 +38,33 @@ async function probeDuration(file: string, ffprobe: string): Promise<number> {
   return Number(raw);
 }
 
+async function probeVoiceCoverage(file: string, ffmpeg: string, ffprobe: string): Promise<{ duration: number; audibleEnd: number }> {
+  const duration = await probeDuration(file, ffprobe);
+  const diagnostics = await new Promise<string>((resolve, reject) => {
+    const child = spawn(ffmpeg, ["-hide_banner", "-i", file, "-vn", "-af", "silencedetect=noise=-45dB:d=0.25", "-f", "null", "-"]);
+    let stderr = "";
+    child.stderr.on("data", chunk => stderr += chunk);
+    child.on("error", reject);
+    child.on("close", code => code === 0 ? resolve(stderr) : reject(new Error(`ffmpeg silence analysis failed: ${stderr.slice(-1000)}`)));
+  });
+  const starts = [...diagnostics.matchAll(/silence_start: ([\d.]+)/g)];
+  const ends = [...diagnostics.matchAll(/silence_end: ([\d.]+)/g)];
+  const lastStart = starts.length ? Number(starts.at(-1)![1]) : undefined;
+  const lastEnd = ends.length ? Number(ends.at(-1)![1]) : undefined;
+  // silencedetect closes a final silence at EOF, so equal start/end counts do
+  // not mean the tail was audible. A terminal silence of >=250ms is rejected.
+  const trailingStart = lastStart !== undefined && (lastEnd === undefined || lastEnd >= duration - 0.05) ? lastStart : duration;
+  return { duration, audibleEnd: trailingStart };
+}
+
 /** Preserve the generated source; locally speed up only modest overruns, then verify the actual WAV duration. */
 export async function prepareSlideshowVoice(rawAudio: string, ffmpegPath: string, ffprobePath: string, duration: number, workDir: string): Promise<string> {
   const limit = duration - 0.75;
   const rawDuration = await probeDuration(rawAudio, ffprobePath);
   if (!Number.isFinite(rawDuration) || rawDuration <= 0) throw new Error(`Invalid raw voice duration: ${rawDuration}s`);
+  const coverage = await probeVoiceCoverage(rawAudio, ffmpegPath, ffprobePath);
+  const minimumAudible = duration - 3;
+  if (coverage.audibleEnd < minimumAudible) throw new Error(`Narration audible seulement jusqu'à ${coverage.audibleEnd.toFixed(2)}s sur ${duration}s (minimum ${minimumAudible.toFixed(2)}s); voix rejetée plutôt que d'habiller un silence par la musique.`);
   if (rawDuration <= limit) return rawAudio;
   // Leave 50ms for sample-frame rounding in the tempo filter, then remeasure.
   const tempo = rawDuration / (limit - 0.05);
@@ -52,6 +74,8 @@ export async function prepareSlideshowVoice(rawAudio: string, ffmpegPath: string
   await run(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-y", "-i", rawAudio, "-vn", "-filter:a", `atempo=${tempo.toFixed(6)}`, "-c:a", "pcm_s16le", adjusted]);
   const adjustedDuration = await probeDuration(adjusted, ffprobePath);
   if (!Number.isFinite(adjustedDuration) || adjustedDuration > limit) throw new Error(`Adjusted voice duration ${adjustedDuration}s exceeds safe limit ${limit}s; voice rejected without truncation`);
+  const adjustedCoverage = await probeVoiceCoverage(adjusted, ffmpegPath, ffprobePath);
+  if (adjustedCoverage.audibleEnd < minimumAudible) throw new Error(`Narration ajustée audible seulement jusqu'à ${adjustedCoverage.audibleEnd.toFixed(2)}s (minimum ${minimumAudible.toFixed(2)}s); voix rejetée.`);
   return adjusted;
 }
 

@@ -247,6 +247,12 @@ describe("routes des tâches studio", () => {
     expect(result.images).toHaveLength(1); expect(result.images[0].id).toBe("child-saved");
     expect(result.creditsConsumed).toBe(20); expect(mocks.generate).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
   });
+  it("expose la variation persistée pour restaurer le même seed depuis l’historique", async () => {
+    const taskRow = rowFor(metadata("slideshow", { input: { ...metadata("slideshow").input, variationId: "stable-seed-42" } }));
+    const result = await publicTask(taskRow);
+    expect(result.input?.variationId).toBe("stable-seed-42");
+    expect(mocks.generate).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
+  });
   it("POST répété par le même propriétaire ne redéclenche pas la tâche", async () => {
     mocks.requireUser.mockResolvedValue({ user, response: null });
     const existing = rowFor(metadata());

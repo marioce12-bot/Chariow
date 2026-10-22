@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     const input: VideoAdInput = { name, description, hasReference: Boolean(productImage), duration, aspectRatio, character, userBrief, previousPrompt, locale: body?.locale === "en" ? "en" : "fr" };
     if (body?.videoMode === "slideshow") {
       try {
-        const slideshow = buildSlideshowPlan({ ...input, campaignGoal: body?.campaignGoal }, typeof body?.musicId === "string" ? body.musicId.slice(0, 30) : undefined);
+        const slideshow = buildSlideshowPlan({ ...input, campaignGoal: body?.campaignGoal, variationId: typeof body?.variationId === "string" ? body.variationId.slice(0, 100) : "default" }, typeof body?.musicId === "string" ? body.musicId.slice(0, 30) : undefined);
         return NextResponse.json({ prompt: slideshow.prompt, slideshow, locked: true });
       } catch (error) {
         if (error instanceof InsufficientProductDetailsError) return NextResponse.json({

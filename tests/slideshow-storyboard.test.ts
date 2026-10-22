@@ -132,10 +132,21 @@ describe("Evidence-first advertising slideshow, no real generation", () => {
       expect(generateImage).not.toHaveBeenCalled(); expect(resolveLicensedMusic).not.toHaveBeenCalled(); expect(assemble).not.toHaveBeenCalled();
     }
   });
+  it("varies the opening composition by durable task seed and keeps complexion explicit", () => {
+    const seeds = Array.from({ length: 100 }, (_, i) => `task-${i}`);
+    const plans = seeds.map(variationId => buildSlideshowPlan({ ...input, variationId }));
+    const layouts = new Set(plans.map(plan => plan.slides[0].layout));
+    expect(layouts.size).toBeGreaterThanOrEqual(5);
+    expect(buildSlideshowPlan({ ...input, variationId: seeds[0] }).slides[0]).toEqual(plans[0].slides[0]);
+    expect(plans.every(plan => plan.slides[0].prompt.includes("medium warm brown/golden-brown skin"))).toBe(true);
+    expect(plans.every(plan => plan.slides[0].prompt.includes("do not infer ethnicity, ancestry, nationality or origin"))).toBe(true);
+    expect(plans.every(plan => plan.slides.every(slide => slide.prompt.length <= 4000))).toBe(true);
+  });
   it("rebuilds the exact slide server-side and rejects count/index tampering", () => {
-    const request = { product:{name:input.name,description:facts.join("\n"),image:"https://example.test/cover.png"}, duration:25,aspectRatio:"9:16",locale:"fr",campaignGoal:"buy",slideIndex:4,imageCount:5 };
+    const request = { product:{name:input.name,description:facts.join("\n"),image:"https://example.test/cover.png"}, duration:25,aspectRatio:"9:16",locale:"fr",campaignGoal:"buy",slideIndex:4,imageCount:5,variationId:"task-stable-42" };
     const result = validateSlideshowImageRequest(request,"preview");
     expect(result.prompt).toContain("Procure-toi «Produit Atlas»");
+    expect(result.prompt).toBe(buildSlideshowPlan({ ...input, campaignGoal: "buy", variationId: request.variationId }).slides[4].prompt);
     expect(result.referenceUrls).toEqual([request.product.image]);
     for(const patch of [{imageCount:6},{imageCount:4},{slideIndex:5},{slideIndex:-1},{slideIndex:1.5}]) expect(() => validateSlideshowImageRequest({...request,...patch},"preview")).toThrow();
     expect(validateSlideshowImageRequest(request,"production")).toEqual(result);

@@ -36,7 +36,7 @@ type Task = {
   phase?: string;
   creditsConsumed?: number;
   creditState?: "confirmed" | "uncertain";
-  input?: { product?: Product; duration?: number; musicId?: string; campaignGoal?: CampaignGoal; locale?: string };
+  input?: { product?: Product; duration?: number; musicId?: string; campaignGoal?: CampaignGoal; locale?: string; variationId?: string };
   resume?: { allowed: boolean; reason: string | null; cost: number; nextStep: string; requiresConfirmation: boolean };
 };
 const jsonResponse = async (response: Response) => {
@@ -172,6 +172,7 @@ export function SlideshowStudio({
         setAvailable(Math.max(0, data.balance - (typeof data.reserved === "number" ? data.reserved : 0)));
       })
       .catch(() => undefined);
+  const variationIdRef = useRef("");
   const newDraftRef = useRef(false);
   const selectedTaskRef = useRef(selectedTaskId);
   const productRef = useRef(product);
@@ -219,6 +220,7 @@ export function SlideshowStudio({
     setResumeTask(task.status === "failed" ? task : null);
     if (changedTask) setResumeConfirmed(false);
     if (task.input && (changedTask || loadedHistoryRef.current === task.id)) {
+      if (task.input.variationId) variationIdRef.current = task.input.variationId;
       if (task.input.duration) setDuration(task.input.duration);
       if (typeof task.input.musicId === "string") setMusicId(task.input.musicId);
       if (task.input.campaignGoal) setCampaignGoal(task.input.campaignGoal);
@@ -333,6 +335,7 @@ export function SlideshowStudio({
     setStatus("");
     setAttempted(false);
     setCreditsUsed(0);
+    variationIdRef.current = "";
     setRecovery(false); setTemporaryDescription(product?.description ?? "");
   }, [product?.id]);
   useEffect(() => {
@@ -357,6 +360,7 @@ export function SlideshowStudio({
     taskRef.current = null; setResumeTask(null); setResumeConfirmed(false);
     displayedProgressRef.current = 0; setProgress(0);
     setImages([]); setCreditsUsed(0); setResult(null); setError(""); setStatus("");
+    variationIdRef.current = "";
     setRecovery(false); setAttempted(false); setTemporaryDescription(product?.description ?? "");
   }
   async function continueSlideshow() {
@@ -383,7 +387,8 @@ export function SlideshowStudio({
     setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null);
     setStatus(fr ? "Vérification des informations…" : "Checking product details…");
     try {
-      await send("/api/studio/prompt", { product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId: "", voiceover: true });
+      if (!variationIdRef.current) variationIdRef.current = crypto.randomUUID();
+      await send("/api/studio/prompt", { variationId: variationIdRef.current, product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId: "", voiceover: true });
       setRecovery(false); setTechnicalDetails("");
       if (recovery) { taskRef.current = null; setResumeTask(null); setAttempted(false); setStatus(fr ? "Plan prêt. Vérifie le coût, puis appuie sur Créer." : "Plan ready. Review the cost, then click Create."); return; }
       await createTask();
@@ -411,7 +416,7 @@ export function SlideshowStudio({
     }
     setStatus(fr ? "Lancement de la génération…" : "Starting generation…");
     try {
-      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId: "", voiceover: true } });
+      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId: "", voiceover: true, variationId: variationIdRef.current } });
       const task = response.task as Task;
       if (!task) throw new Error("Réponse de tâche invalide.");
       try { localStorage.removeItem(key); } catch { /* ignore */ }

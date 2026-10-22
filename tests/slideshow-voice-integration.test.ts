@@ -11,7 +11,7 @@ vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit: () => false }));
 import { POST } from "@/app/api/studio/tasks/route";
 import { publicTask, TASK_TYPE, runTaskStep } from "@/lib/studio/background-tasks";
 const id = "123e4567-e89b-42d3-a456-426614174000";
-const slideshowInput = (voiceover?: boolean) => ({ ...(voiceover === undefined ? {} : { voiceover }), product: { name: "Guide", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion." }, duration: 25, musicId: "", locale: "fr" });
+const slideshowInput = (voiceover?: boolean) => ({ ...(voiceover === undefined ? {} : { voiceover }), product: { name: "Guide", description: "Disponible au format PDF. Le guide comporte huit chapitres consacrés à la préparation du jardin. Chaque chapitre présente trois exercices pratiques, une liste de matériel et un calendrier saisonnier. Les fiches expliquent le choix des graines, la préparation du sol, l’arrosage régulier, la rotation des cultures et la récolte. Les illustrations montrent des plantations en pots et en pleine terre. Le téléchargement permet une lecture hors connexion sur téléphone ou tablette." }, duration: 25, musicId: "", locale: "fr" });
 const request = (input: unknown) => new Request("https://preview.test/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input }) });
 beforeEach(() => {
   vi.clearAllMocks(); vi.stubEnv("VERCEL_ENV", "preview"); vi.stubEnv("VENDEO_SLIDESHOW_TTS_TEST_ALLOWED", "false"); vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "false"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "false");
@@ -46,7 +46,7 @@ describe("nouveaux diaporamas avec voix", () => {
   });
   it("bloque avant insertion, image ou voix tant que le test réel n’est pas autorisé", async () => {
     const insert = vi.fn(); mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
-    const response = await POST(new Request("https://preview.test/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input: { voiceover: true, product: { name: "Guide", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion." }, duration: 25, musicId: "", locale: "fr" } }) }));
+    const response = await POST(new Request("https://preview.test/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input: { voiceover: true, product: { name: "Guide", description: "Disponible au format PDF. Le guide comporte huit chapitres consacrés à la préparation du jardin. Chaque chapitre présente trois exercices pratiques, une liste de matériel et un calendrier saisonnier. Les fiches expliquent le choix des graines, la préparation du sol, l’arrosage régulier, la rotation des cultures et la récolte. Les illustrations montrent des plantations en pots et en pleine terre. Le téléchargement permet une lecture hors connexion sur téléphone ou tablette." }, duration: 25, musicId: "", locale: "fr" } }) }));
     expect(response.status).toBe(400); expect(insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled();
   });
   it("un worker voix running n’est jamais réexécuté après une réponse ambiguë", async () => {

@@ -126,7 +126,7 @@ export async function POST(request: Request) {
       buildSlideshowPlan({ name: product.name, description: product.description,
         hasReference: Boolean(product.image), duration: body.input.duration,
         aspectRatio: "9:16", character: "with", locale: body.input.locale,
-        campaignGoal: body.input.campaignGoal }, body.input.musicId);
+        campaignGoal: body.input.campaignGoal, variationId: typeof body.input.variationId === "string" ? body.input.variationId.slice(0, 100) : "default" }, body.input.musicId);
     } catch (error) {
       return NextResponse.json({
         error: body.input.voiceover === true && !(error instanceof InsufficientProductDetailsError) ? (error instanceof Error ? error.message : "Voix indisponible.") : error instanceof InsufficientProductDetailsError

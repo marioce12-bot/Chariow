@@ -55,4 +55,12 @@ describe("narration genuinely adapted to selected duration, fixture-only", () =>
       await expect(prepareSlideshowVoice(raw, ffmpeg, ffprobe, 25, dir)).rejects.toThrow(/maximum 1.2x.*without truncation/);
     } finally { await rm(dir, { recursive: true, force: true }); }
   });
+  it("rejects a clip with a long terminal silent tail despite a 25s container duration", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "studio-voice-tail-"));
+    try {
+      const raw = path.join(dir, "tail.wav");
+      execFileSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=24000:duration=11.5", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", "25", "-filter_complex", "[0:a][1:a]concat=n=2:v=0:a=1", raw]);
+      await expect(prepareSlideshowVoice(raw, ffmpeg, ffprobe, 25, dir)).rejects.toThrow(/audible seulement jusqu'à 11\.5.*minimum 22\.00/);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
 });

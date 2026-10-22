@@ -14,9 +14,9 @@ function run(binary: string, args: string[]) {
     proc.on("error", reject); proc.on("close", code => code === 0 ? resolve(out.trim()) : reject(new Error(err)));
   });
 }
-function musicLevel(file: string, start: number) {
+function musicLevel(file: string, start: number, duration = 4) {
   return new Promise<number>((resolve, reject) => {
-    const proc = spawn(ffmpeg, ["-hide_banner", "-ss", String(start), "-i", file, "-t", "4", "-vn", "-af", "bandpass=f=440:width_type=h:width=20,volumedetect", "-f", "null", "-"]);
+    const proc = spawn(ffmpeg, ["-hide_banner", "-ss", String(start), "-i", file, "-t", String(duration), "-vn", "-af", "bandpass=f=440:width_type=h:width=20,volumedetect", "-f", "null", "-"]);
     let err = "";
     proc.stderr.on("data", x => err += x);
     proc.on("error", reject);
@@ -33,7 +33,7 @@ describe("slideshow voice mix", () => {
       const images = ["one.png", "two.png"].map(name => path.join(dir, name));
       for (let i = 0; i < images.length; i++) await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", `color=c=${i ? "red" : "blue"}:s=160x90:d=14`, "-frames:v", "1", images[i]]);
       const voice = path.join(dir, "voice.wav"), music = path.join(dir, "music.wav"), tooLong = path.join(dir, "long.wav");
-      await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=8", voice]);
+      await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=22.5", voice]);
       await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=28", music]);
       await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=35", tooLong]);
       for (const [name, extra] of [["voice-only.mp4", { voicePath: voice }], ["mixed.mp4", { voicePath: voice, musicPath: music }]] as const) {
@@ -45,7 +45,7 @@ describe("slideshow voice mix", () => {
         expect(streams).toContain("aac,audio");
         if (name === "mixed.mp4") {
           const duringSpeech = await musicLevel(output, 2);
-          const afterSpeech = await musicLevel(output, 13);
+          const afterSpeech = await musicLevel(output, 23.5, 1);
           expect(afterSpeech - duringSpeech).toBeGreaterThan(3);
         }
       }

@@ -14,7 +14,7 @@ import { POST as createTask } from "@/app/api/studio/tasks/route";
 const request = (data: unknown) => new Request("http://localhost/api/studio/prompt", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
 const facts = "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion.";
 const input = (description: string) => ({ product: { name: "Atlas", description }, mediaType: "video", videoMode: "slideshow", duration: 25, aspectRatio: "9:16", musicId: "", locale: "fr" });
-beforeEach(() => { vi.clearAllMocks(); mocks.subscription.mockResolvedValue(null); mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert: mocks.insert }); });
+beforeEach(() => { vi.clearAllMocks(); vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "false"); vi.stubEnv("VENDEO_SLIDESHOW_TTS_TEST_ALLOWED", "false"); mocks.subscription.mockResolvedValue(null); mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert: mocks.insert }); });
 describe("free slideshow preparation routes", () => {
   it("returns one short explanation with technical details, with no AI call or database write", async () => {
     const response = await prepare(request(input("")));
