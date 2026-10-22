@@ -13,6 +13,7 @@ import { MetaAccountSkeleton } from "@/components/dashboard/MetaAccountSkeleton"
 import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
 import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
+import { StorePlatformDialog } from "@/components/dashboard/StorePlatformDialog";
 import { STUDIO_VIDEO_LOCKED } from "@/lib/studio/video-plan";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
@@ -1939,10 +1940,23 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [shopifyDomain, setShopifyDomain] = useState("");
   const [showShopifyForm, setShowShopifyForm] = useState(false);
+  const [showPlatformDialog, setShowPlatformDialog] = useState(false);
+  const shopifyInput = useRef<HTMLInputElement>(null);
   const currentPlan: PlanId = "starter";
   const maxStores = planMaxStores(currentPlan);
+  const storeLimitReached = stores.length >= maxStores;
+
+  useEffect(() => { if (showShopifyForm) shopifyInput.current?.focus(); }, [showShopifyForm]);
+
+  function choosePlatform(platform: "chariow" | "shopify") {
+    if (saving || storeLimitReached) return;
+    setError("");
+    if (platform === "chariow") void connectChariow();
+    else { setShowPlatformDialog(false); setShowShopifyForm(true); }
+  }
 
   async function connectChariow(storeId?: string) {
+    if (!storeId && storeLimitReached) return;
     setError("");
     setSaving(true);
     try {
@@ -1960,12 +1974,15 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
         ? `/api/integrations/chariow/connect?store_id=${encodeURIComponent(storeId)}`
         : "/api/integrations/chariow/connect";
       window.location.href = target;
+    } catch {
+      setError(locale === "en" ? "Unable to start the Chariow connection. Please try again." : "Impossible de lancer la connexion Chariow. Réessaie.");
     } finally {
       setSaving(false);
     }
   }
 
   async function connectShopify(storeId?: string) {
+    if (!storeId && storeLimitReached) return;
     setError(""); setSaving(true);
     try {
       if (!storeId) {
@@ -1976,6 +1993,8 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
         if (!check.ok || checkData.configured === false || checkData.available === false) { setError(checkData.error ?? (locale === "en" ? "Shopify connection is not configured." : "La connexion Shopify n’est pas configurée.")); return; }
         window.location.href = `/api/integrations/shopify/connect?shop=${encodeURIComponent(domain)}`;
       } else window.location.href = `/api/integrations/shopify/connect?store_id=${encodeURIComponent(storeId)}`;
+    } catch {
+      setError(locale === "en" ? "Unable to start the Shopify connection. Please try again." : "Impossible de lancer la connexion Shopify. Réessaie.");
     } finally { setSaving(false); }
   }
 
@@ -2037,17 +2056,15 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
           <p>{t("sweep1.text315")}{" "}<strong className="store-count">{stores.length}/{maxStores}</strong></p>
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}><Plus size={16} /> {saving ? t("optionsExtra.text59") : t("sweep2.text316")}</button>
-          <button type="button" className="btn btn-ghost" onClick={() => setShowShopifyForm((shown) => !shown)} disabled={saving}>{locale === "en" ? "Add Shopify" : "Ajouter Shopify"}</button>
-        </div>
+        <button type="button" className="btn btn-dark" aria-haspopup="dialog" onClick={() => { setError(""); setShowShopifyForm(false); setShowPlatformDialog(true); }} disabled={saving}><Plus size={16} /> {saving ? t("optionsExtra.text59") : t("sweep2.text316")}</button>
       </div>
 
+      {showPlatformDialog && <StorePlatformDialog full={storeLimitReached} busy={saving} error={localizeSystemMessage(error, locale)} onChoose={choosePlatform} onClose={() => setShowPlatformDialog(false)} />}
       {showShopifyForm && <form onSubmit={(event) => { event.preventDefault(); void connectShopify(); }} style={{ maxWidth: 760, marginBottom: 16 }}>
-        <label>{locale === "en" ? "Shopify domain" : "Domaine Shopify"}<input aria-label={locale === "en" ? "Shopify domain" : "Domaine Shopify"} value={shopifyDomain} onChange={(event) => setShopifyDomain(event.target.value)} placeholder="example.myshopify.com" autoComplete="url" /></label>
-        <button className="btn btn-dark" type="submit" disabled={saving}>{locale === "en" ? "Connect Shopify" : "Connecter Shopify"}</button>
+        <label>{locale === "en" ? "Shopify domain" : "Domaine Shopify"}<input ref={shopifyInput} aria-label={locale === "en" ? "Shopify domain" : "Domaine Shopify"} value={shopifyDomain} onChange={(event) => setShopifyDomain(event.target.value)} placeholder="example.myshopify.com" autoComplete="url" disabled={saving || storeLimitReached} /></label>
+        <button className="btn btn-dark" type="submit" disabled={saving || storeLimitReached}>{locale === "en" ? "Connect Shopify" : "Connecter Shopify"}</button>
       </form>}
-      {error && <p className="store-error" role="alert">{localizeSystemMessage(error, locale)}</p>}
+      {error && !showPlatformDialog && <p className="store-error" role="alert">{localizeSystemMessage(error, locale)}</p>}
 
       <div className="app-card" style={{ maxWidth: 760 }}>
         {stores.map((store) => {

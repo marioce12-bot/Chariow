@@ -1,0 +1,54 @@
+.store-platform-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, .48);
+  backdrop-filter: blur(4px);
+}
+.store-platform-dialog {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  padding: 30px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 22px;
+  background: var(--surface, #fff);
+  color: var(--text, #111827);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .2);
+}
+.store-platform-dialog h2 { margin: 10px 24px 8px 0; font-size: 24px; line-height: 1.25; }
+.store-platform-dialog > p { margin: 0 0 20px; font-size: 14px; line-height: 1.6; }
+.store-platform-close {
+  position: absolute; top: 16px; right: 16px; display: grid; place-items: center;
+  width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer;
+}
+.store-platform-close:hover { background: rgba(127, 127, 127, .1); }
+.store-platform-options { display: grid; gap: 12px; }
+.store-platform-option {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 88px;
+  padding: 16px; border: 1px solid var(--line, #e5e7eb); border-radius: 14px;
+  color: inherit; background: transparent; text-align: left; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.store-platform-option:not(:disabled):hover { border-color: #103ef8; background: rgba(16, 62, 248, .04); }
+.store-platform-option:focus-visible, .store-platform-close:focus-visible { outline: 2px solid #103ef8; outline-offset: 3px; }
+.store-platform-option:disabled { opacity: .55; cursor: not-allowed; }
+.store-platform-option > span:nth-child(2) { flex: 1; min-width: 0; }
+.store-platform-option strong { display: block; font-size: 16px; }
+.store-platform-option small { display: block; margin-top: 4px; font-size: 12px; line-height: 1.5; }
+.store-platform-logo { display: grid; place-items: center; flex-shrink: 0; width: 48px; height: 48px; border-radius: 12px; background: #f5f6fa; }
+.store-platform-logo img { object-fit: contain; }
+.store-platform-logo-shopify { color: #95bf47; }
+.store-platform-dialog .store-platform-notice { padding: 12px 14px; border-radius: 10px; background: #fff7ed; color: #9a3412; font-size: 13px; }
+@media (max-width: 480px) {
+  .store-platform-backdrop { padding: 16px; }
+  .store-platform-dialog { max-height: calc(100dvh - 32px); padding: 24px 20px; border-radius: 18px; }
+  .store-platform-dialog h2 { font-size: 22px; }
+  .store-platform-option { gap: 10px; padding: 14px 12px; }
+}
