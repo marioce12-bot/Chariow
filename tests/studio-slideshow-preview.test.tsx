@@ -66,6 +66,18 @@ describe("SlideshowStudio preview zone", () => {
     section = preview();
     expect(section?.textContent).toContain("Ton diaporama est prêt");
     expect(section?.querySelector('video[aria-label="Diaporama final"]')?.getAttribute("src")).toBe(result.videoUrl);
+    const video = section?.querySelector("video");
+    expect(video?.parentElement?.classList.contains("studio-slideshow-final")).toBe(true);
+    expect(video?.controls).toBe(true);
+    expect(video?.playsInline).toBe(true);
+    expect(video?.preload).toBe("metadata");
+    expect(video?.style.maxWidth).toBe("var(--slideshow-player-width, 420px)");
+    expect(video?.style.maxHeight).toBe("var(--slideshow-player-height, 600px)");
+    const download = section?.querySelector<HTMLAnchorElement>('a[download="vendeo-diaporama.mp4"]');
+    expect(download?.getAttribute("href")).toBe(result.videoUrl);
+    expect(download?.textContent).toBe("Télécharger");
+    expect(section?.querySelector("details summary")?.textContent).toContain("Crédits musique à joindre");
+    expect(section?.querySelector("details textarea")?.textContent).toBe(result.attribution);
     expect(section?.querySelectorAll("img")).toHaveLength(5);
     expect(calls("POST")).toHaveLength(0);
   });

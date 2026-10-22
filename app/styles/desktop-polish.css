@@ -32,6 +32,26 @@
   .studio-form, .studio-result { min-width: 0; }
   .studio-result { min-height: 360px; }
   .studio-empty { flex: initial; min-height: 230px; }
+}
+
+@media (min-width: 801px) {
+  /* Keep the portrait result from dictating the height of the desktop workspace.
+     These overrides are scoped to slideshows; mobile and other Studio tabs retain
+     their existing layout and player dimensions. */
+  .studio-slideshow-grid { grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); max-width: 1040px; margin-inline: auto; gap: 24px; }
+  .studio-slideshow-grid > .studio-form { align-self: start; }
+  .studio-slideshow-grid > .studio-form > p { margin-block: 0; }
+  .studio-slideshow-preview { min-height: 0; gap: 12px; }
+  .studio-slideshow-preview .card-head h2 { font-size: 16px; }
+  .studio-slideshow-preview .studio-slideshow-canvas { flex: initial; min-height: 0; justify-content: flex-start; }
+  .studio-slideshow-preview .studio-slideshow-canvas.studio-empty { min-height: 220px; justify-content: center; }
+  .studio-slideshow-preview .studio-slideshow-canvas > p { margin: 0 0 10px; font-size: 12px; }
+  .studio-slideshow-final > h3 { margin: 0; font-size: 13px; }
+  .studio-slideshow-final > video { --slideshow-player-width: clamp(146.25px, 21.375vh, 180px); --slideshow-player-height: clamp(260px, 38vh, 320px); }
+  .studio-slideshow-final > details { font-size: 12px; }
+}
+
+@media (min-width: 761px) {
   .studio-history-card { background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 12px 2px; }
   .studio-history-card:last-of-type { border-bottom: 0; }
   .report-filters { align-items: end; flex-wrap: wrap; gap: 18px 28px; }
@@ -90,6 +110,11 @@
   .report-stat:nth-child(odd) { border-left: 0; }
   .meta-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .settings-section-channels { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 801px) and (max-width: 1023px) {
+  .studio-slideshow-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .studio-slideshow-preview { width: 100%; max-width: 520px; justify-self: center; }
 }
 
 @media (max-width: 760px) {

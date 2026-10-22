@@ -536,7 +536,7 @@ export function SlideshowStudio({
       ) : null}
       {error && !recovery ? <p role="alert" className="form-error">{error}</p> : null}
       {result ? (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div className="studio-slideshow-final" style={{ display: "grid", gap: 12 }}>
           <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>
           <video
             key={result.videoUrl}
@@ -547,8 +547,8 @@ export function SlideshowStudio({
             src={result.videoUrl}
             style={{
               width: "100%",
-              maxWidth: 420,
-              maxHeight: 600,
+              maxWidth: "var(--slideshow-player-width, 420px)",
+              maxHeight: "var(--slideshow-player-height, 600px)",
               background: "#111",
               borderRadius: 12,
             }}
