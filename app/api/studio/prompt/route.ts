@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { buildVideoAdPlan, videoPlanPrompt, videoPlanningSystem, VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
+import { logPreparationFailure } from "@/lib/studio/preparation-diagnostics";
+import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import {
   CREATIVE_STYLES, CREATIVE_COMPOSITIONS, sourceCopyCandidates,
   parseCreativePlan, compileFaithfulPrompt,
@@ -52,12 +54,13 @@ export async function POST(request: Request) {
         const slideshow = buildSlideshowPlan({ ...input, campaignGoal: body?.campaignGoal, variationId: typeof body?.variationId === "string" ? body.variationId.slice(0, 100) : "default" }, typeof body?.musicId === "string" ? body.musicId.slice(0, 30) : undefined);
         return NextResponse.json({ prompt: slideshow.prompt, slideshow, locked: true });
       } catch (error) {
+        logPreparationFailure(typeof body?.variationId === "string" ? body.variationId : "", "prompt_plan", error);
         if (error instanceof InsufficientProductDetailsError) return NextResponse.json({
           code: error.code,
           error: body?.locale === "en" ? "Add product details below, then click Retry." : "Complète la description ci-dessous, puis appuie sur Relancer.",
           details: error.message,
         }, { status: 400 });
-        return NextResponse.json({ error: error instanceof Error ? error.message : "Storyboard invalide." }, { status: 400 });
+        return NextResponse.json({ error: slideshowPublicFailure(body?.locale) }, { status: 400 });
       }
     }
     let videoAnswer = "";

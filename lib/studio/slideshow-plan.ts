@@ -16,6 +16,7 @@ export type SlideshowSlide = {
   source?: { field: "description"; excerpt: string }; layout: string; scene: string; visualMessage: string;
 };
 export type SlideshowPlan = {
+  productName?: string;
   duration: number; aspectRatio: string; transitionSeconds: number; musicId?: string;
   campaignGoal: CampaignGoal; countReason: string; warnings: string[];
   slides: SlideshowSlide[]; prompt: string;
@@ -185,9 +186,9 @@ export function buildSlideshowPlan(input: VideoAdInput & { campaignGoal?: unknow
     `ART DIRECTION: ${slide.layout}\nSCENE: ${slide.scene}\nVISUAL MESSAGE: ${slide.visualMessage}\nCONTINUITY: ${continuity}\n` +
     `Create a complete, compositionally distinct commercial advertisement for this exact product; do not reuse another slide's layout. Use dominant headline, concise argument, purposeful callouts and persuasive flow. Never copy another brand, props or product claims. Not generic stock imagery, not a repeated title-over-photo template. Use only the current product reference, the required staged person and abstract non-factual shapes. No watermark. Final check: exact approved copy, distinct composition, consistent identity, ${slide.role === "cta" ? "final action" : slide.role === "hook" ? "desire to continue" : "source-backed argument"}.`
   }));
-  assertDistinctSlideshow(slides);
+  assertDistinctSlideshow(slides, name);
   const selectedMusicId = musicId && /^\d+$/.test(musicId) ? musicId : undefined;
-  return { duration: input.duration, aspectRatio: input.aspectRatio, transitionSeconds, musicId: selectedMusicId, campaignGoal: goal, countReason, warnings, slides,
+  return { productName: name, duration: input.duration, aspectRatio: input.aspectRatio, transitionSeconds, musicId: selectedMusicId, campaignGoal: goal, countReason, warnings, slides,
     prompt: `Diaporama publicitaire animé — ${name} — ${input.duration}s, ${input.aspectRatio}.\n${countReason}\n${slides.map(slide => `${slide.index + 1}. ${slide.role}: ${slide.headline}; ${slide.displaySeconds.toFixed(3)}s.`).join("\n")}\nTransitions ${transitionSeconds}s incluses dans la durée finale. ${warnings.join(" ")} Aucune image ni vidéo générée lors de cette préparation.` };
 }
 
@@ -195,7 +196,7 @@ export function assertSlideshowPlan(plan: SlideshowPlan) {
   if (!Array.isArray(plan.slides) || plan.slides.length !== MAX_SLIDESHOW_IMAGES) throw new Error("Le diaporama doit contenir exactement 5 images.");
   if (!(SLIDESHOW_DURATIONS as readonly number[]).includes(plan.duration) || plan.transitionSeconds !== 0.8 || plan.slides.some(slide => slide.displaySeconds < 4)) throw new Error("Durée ou temps de lecture du diaporama invalide.");
   if (plan.slides[0].role !== "hook" || plan.slides.at(-1)?.role !== "cta" || plan.slides.slice(1, 4).some(slide => slide.role !== "evidence")) throw new Error("Une accroche, trois visuels produit et un CTA final sont requis.");
-  assertDistinctSlideshow(plan.slides);
+  assertDistinctSlideshow(plan.slides, plan.productName);
   if (plan.slides.some((slide, index) => slide.index !== index || !slide.prompt || slide.prompt.length > 4000 || !Number.isFinite(slide.displaySeconds) || slide.displaySeconds <= 0)) throw new Error("Storyboard invalide.");
 }
 export async function prepareSlideshowImages(plan: SlideshowPlan, jobId: string, generate: (input: { prompt: string; index: number; idempotencyKey: string }) => Promise<{ path: string }>) {
