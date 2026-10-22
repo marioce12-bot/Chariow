@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { slideshowAudioFilter } from "./slideshow-audio";
 import { chooseSlideshowMotionProfile } from "./slideshow-motion";
+import { SlideshowVoiceTimingError } from "./slideshow-voice-retry";
 
 export type SlideshowOptions = {
   ffmpegPath: string;
@@ -65,18 +66,18 @@ export async function prepareSlideshowVoice(rawAudio: string, ffmpegPath: string
   const rawDuration = await probeDuration(rawAudio, ffprobePath);
   if (!Number.isFinite(rawDuration) || rawDuration <= 0) throw new Error(`Invalid raw voice duration: ${rawDuration}s`);
   const coverage = await probeVoiceCoverage(rawAudio, ffmpegPath, ffprobePath);
-  if (coverage.audibleEnd < minimumAudible) throw new Error(`Narration trop courte: audible seulement jusqu'à ${coverage.audibleEnd.toFixed(2)}s sur ${duration}s (minimum 95%, soit ${minimumAudible.toFixed(2)}s); voix rejetée plutôt que d'habiller un silence par la musique.`);
+  if (coverage.audibleEnd < minimumAudible) throw new SlideshowVoiceTimingError("short", coverage.audibleEnd, rawDuration, `Narration trop courte: audible seulement jusqu'à ${coverage.audibleEnd.toFixed(2)}s sur ${duration}s (minimum 95%, soit ${minimumAudible.toFixed(2)}s); voix rejetée plutôt que d'habiller un silence par la musique.`);
   if (rawDuration <= limit || (rawDuration <= duration && coverage.audibleEnd <= limit)) return rawAudio;
   // Leave 50ms for sample-frame rounding in the tempo filter, then remeasure.
   const tempo = rawDuration / (limit - 0.05);
   const maxTempo = 1.2;
-  if (tempo > maxTempo) throw new Error(`Voice too long for intelligible playback: ${rawDuration}s requires ${tempo.toFixed(3)}x (maximum ${maxTempo}x); voice rejected without truncation`);
+  if (tempo > maxTempo) throw new SlideshowVoiceTimingError("long", coverage.audibleEnd, rawDuration, `Voice too long for intelligible playback: ${rawDuration}s requires ${tempo.toFixed(3)}x (maximum ${maxTempo}x); voice rejected without truncation`);
   const adjusted = path.join(workDir, "narration-adjusted.wav");
   await run(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-y", "-i", rawAudio, "-vn", "-filter:a", `atempo=${tempo.toFixed(6)}`, "-c:a", "pcm_s16le", adjusted]);
   const adjustedDuration = await probeDuration(adjusted, ffprobePath);
   if (!Number.isFinite(adjustedDuration) || adjustedDuration > limit) throw new Error(`Adjusted voice duration ${adjustedDuration}s exceeds safe limit ${limit}s; voice rejected without truncation`);
   const adjustedCoverage = await probeVoiceCoverage(adjusted, ffmpegPath, ffprobePath);
-  if (adjustedCoverage.audibleEnd < minimumAudible) throw new Error(`Narration ajustée audible seulement jusqu'à ${adjustedCoverage.audibleEnd.toFixed(2)}s (minimum ${minimumAudible.toFixed(2)}s); voix rejetée.`);
+  if (adjustedCoverage.audibleEnd < minimumAudible) throw new SlideshowVoiceTimingError("short", adjustedCoverage.audibleEnd, adjustedDuration, `Narration ajustée audible seulement jusqu'à ${adjustedCoverage.audibleEnd.toFixed(2)}s (minimum ${minimumAudible.toFixed(2)}s); voix rejetée.`);
   return adjusted;
 }
 
@@ -133,7 +134,9 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
       if (options.musicPath) {
         audio.push(`[voice]asplit=2[spoken][voicekey]`);
         // Normalize quiet licensed tracks before speech ducking; source beds can be extremely quiet.
-        audio.push(`[${imagePaths.length}:a]aresample=48000,loudnorm=I=-18:TP=-2:LRA=11,volume=0.25[music]`);
+        // Lift very weak non-silent sources above loudnorm's absolute gating
+        // threshold first; loudnorm alone leaves below-gate music inaudible.
+        audio.push(`[${imagePaths.length}:a]aresample=48000,dynaudnorm=m=100,loudnorm=I=-18:TP=-2:LRA=11,volume=0.25[music]`);
         audio.push(`[music][voicekey]sidechaincompress=threshold=0.025:ratio=8:attack=15:release=350[ducked]`);
         audio.push(`[spoken][ducked]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.841395:level=false,atrim=duration=${total},afade=t=out:st=${Math.max(0,total-0.35)}:d=0.35[aout]`);
       } else audio.push(`[voice]alimiter=limit=0.841395:level=false,atrim=duration=${total},afade=t=out:st=${Math.max(0,total-0.35)}:d=0.35[aout]`);

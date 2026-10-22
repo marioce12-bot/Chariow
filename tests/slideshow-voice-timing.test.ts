@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { buildSlideshowVoicePlan } from "@/lib/studio/slideshow-voice";
 import { prepareSlideshowVoice } from "@/lib/studio/slideshow";
+import { synthesizeCoveredSlideshowVoice } from "@/lib/studio/slideshow-voice-retry";
 const ffmpeg = "/usr/bin/ffmpeg", ffprobe = "/usr/bin/ffprobe";
 const product = {
   name: "Guide Snapchat",
@@ -31,6 +32,41 @@ describe("narration genuinely adapted to selected duration, fixture-only", () =>
       expect(() => buildSlideshowVoicePlan({ ...product, name: Array.from({ length: 70 }, (_, i) => `mot${i}`).join(" ") }, 25)).toThrow();
       expect(fetcher).not.toHaveBeenCalled();
     } finally { vi.unstubAllGlobals(); }
+  });
+  it("measures a 20.09s first response, rewrites and accepts a fitting mock response", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "studio-voice-retry-measured-"));
+    try {
+      const buffers: Buffer[] = [];
+      for (const audible of [20.09, 24.3]) {
+        const fixture = path.join(dir, `fixture-${audible}.wav`);
+        execFileSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", `sine=frequency=220:sample_rate=24000:duration=${audible}`, "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", "25", "-filter_complex", "[0:a][1:a]concat=n=2:v=0:a=1", fixture]);
+        buffers.push(await readFile(fixture));
+      }
+      const synthesize = vi.fn().mockResolvedValueOnce(buffers[0]).mockResolvedValueOnce(buffers[1]);
+      const result = await synthesizeCoveredSlideshowVoice(buildSlideshowVoicePlan(product, 25, "fr", "buy"), { product, campaignGoal: "buy" }, async (audio, attempt) => {
+        const raw = path.join(dir, `attempt-${attempt}.wav`);
+        await writeFile(raw, audio);
+        return prepareSlideshowVoice(raw, ffmpeg, ffprobe, 25, dir);
+      }, synthesize);
+      expect(synthesize).toHaveBeenCalledTimes(2);
+      expect(result.attempts).toBe(2);
+      expect(result.plan.script.endsWith("Prêt à lancer tes campagnes sur Snapchat ? Procure-toi le guide.")).toBe(true);
+      expect((await readFile(result.voicePath)).equals(buffers[1])).toBe(true);
+      expect(words(result.plan.script)).toBeGreaterThan(words(synthesize.mock.calls[0][0].script));
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  }, 30_000);
+  it("fits a modest overrun naturally below 1.2x and preserves the raw source", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "studio-voice-natural-"));
+    try {
+      const raw = path.join(dir, "raw.wav");
+      execFileSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=24000:duration=27.7", raw]);
+      const source = await readFile(raw);
+      const adjusted = await prepareSlideshowVoice(raw, ffmpeg, ffprobe, 25, dir);
+      expect(probe(adjusted)).toBeGreaterThanOrEqual(23.75);
+      expect(probe(adjusted)).toBeLessThanOrEqual(24.65);
+      expect(probe(raw) / probe(adjusted)).toBeLessThanOrEqual(1.2);
+      expect((await readFile(raw)).equals(source)).toBe(true);
+    } finally { await rm(dir, { recursive: true, force: true }); }
   });
   it.each([25, 30, 40])("accepts >=95% synthetic narration at %ss without truncating its source", async duration => {
     const dir = await mkdtemp(path.join(tmpdir(), "studio-voice-timing-"));
