@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveSubscription } from "@/lib/subscription/access";
 import { rateLimit } from "@/lib/shop/rate-limit";
+import { imageCreditCost } from "@/lib/studio/credits";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, slideshowVoiceAvailability } from "@/lib/studio/slideshow-voice";
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
@@ -135,6 +136,32 @@ export async function POST(request: Request) {
         details: error instanceof Error ? error.message : "Storyboard invalide.",
       }, { status: 400 });
     }
+    // Credit pre-check: the whole slideshow (5 images) must be affordable BEFORE the task is
+    // created. Read-only: nothing is reserved here, reservation still happens per image.
+    const required = 5 * imageCreditCost("hd", "medium");
+    const { data: account, error: accountError } = await admin
+      .from("credit_accounts")
+      .select("balance,reserved")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (accountError)
+      return NextResponse.json(
+        { error: "Impossible de vérifier ton solde de crédits. Réessaie dans un instant." },
+        { status: 503 },
+      );
+    const available = Math.max(0, (account?.balance ?? 0) - (account?.reserved ?? 0));
+    if (available < required)
+      return NextResponse.json(
+        {
+          code: "INSUFFICIENT_CREDITS",
+          error: body.input.locale === "en"
+            ? `Insufficient balance: this slideshow costs ${required} Studio credits, you have ${available}. Top up before creating.`
+            : `Solde insuffisant : ce diaporama coûte ${required} crédits Studio, il te reste ${available}. Recharge tes crédits avant de créer.`,
+          required,
+          balance: available,
+        },
+        { status: 402 },
+      );
   }
   const metadata: TaskMetadata = {
     type: TASK_TYPE,
