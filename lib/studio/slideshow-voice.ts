@@ -4,7 +4,7 @@ import { LICENSED_MUSIC } from "@/lib/studio/licensed-music";
 
 export const SLIDESHOW_VOICE_MODEL = "gemini-3.8-flash-tts" as const;
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
-const TIMEOUT_MS = 20_000;
+const TIMEOUT_MS = 90_000;
 const MUSIC_SOURCE = "https://www.scottbuckley.com.au/library/";
 // Entries are sourced from each official track page, not audio analysis. Instrumental piano/ambient textures are preferred to keep speech intelligible.
 export const SLIDESHOW_MUSIC_METADATA: Record<string, { tags: string[]; sourceUrl: string }> = {
