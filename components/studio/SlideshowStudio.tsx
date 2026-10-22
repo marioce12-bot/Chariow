@@ -155,7 +155,19 @@ export function SlideshowStudio({
     [temporaryDescription, setTemporaryDescription] = useState(product?.description ?? ""),
     [technicalDetails, setTechnicalDetails] = useState(""),
     [resumeTask, setResumeTask] = useState<Task | null>(null),
-    [resumeConfirmed, setResumeConfirmed] = useState(false);
+    [resumeConfirmed, setResumeConfirmed] = useState(false),
+    [available, setAvailable] = useState<number | null>(null);
+  const slideshowCost = 5 * imageCreditCost("hd", "medium");
+  const lacksCredits = available !== null && available < slideshowCost;
+  const resumeCost = resumeTask?.resume?.allowed ? resumeTask.resume.cost : 0;
+  const lacksResumeCredits = available !== null && resumeCost > 0 && available < resumeCost;
+  // Read-only balance lookup (balance minus credits already reserved). Never blocks the UI on failure:
+  // the server re-checks the balance before creating any task.
+  const refreshCredits = () =>
+    fetch("/api/studio/credits", { cache: "no-store" })
+      .then(jsonResponse)
+      .then((data) => setAvailable(Math.max(0, Number(data.balance ?? 0) - Number(data.reserved ?? 0))))
+      .catch(() => undefined);
   const newDraftRef = useRef(false);
   const selectedTaskRef = useRef(selectedTaskId);
   const productRef = useRef(product);
@@ -331,6 +343,10 @@ export function SlideshowStudio({
       .catch(cause => { if (alive) { setError(cause instanceof Error ? cause.message : "Suivi indisponible."); setReady(false); } });
     return () => { alive = false; };
   }, [selectedTaskId]);
+  // Show the credit balance before launch, and refresh it whenever a generation ends.
+  useEffect(() => {
+    if (!busy) void refreshCredits();
+  }, [busy]);
   function newSlideshow() {
     if (busy || pendingRequest || taskRef.current?.status === "processing") return;
     selectedTaskRef.current = null; loadedHistoryRef.current = null; newDraftRef.current = true;
@@ -342,6 +358,7 @@ export function SlideshowStudio({
   async function continueSlideshow() {
     const task = taskRef.current;
     if (running.current || busy || !task?.resume?.allowed || (task.resume.requiresConfirmation && !resumeConfirmed)) return;
+    if (available !== null && task.resume.cost > 0 && available < task.resume.cost) return;
     running.current = true; setBusy(true); setError("");
     try {
       const data = await send(`/api/studio/tasks/${encodeURIComponent(task.id)}/continue`, { expectedRevision: task.revision, confirmCost: task.resume.cost });
@@ -356,6 +373,7 @@ export function SlideshowStudio({
   async function generate() {
     if (!enabled || !ready || !product || busy || pendingRequest || running.current || taskRef.current?.status === "processing") return;
     if (recovery && !temporaryDescription.trim()) return;
+    if (lacksCredits) return;
     running.current = true;
     displayedProgressRef.current = 0; setProgress(0);
     setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null);
@@ -394,7 +412,15 @@ export function SlideshowStudio({
       if (!task) throw new Error("Réponse de tâche invalide.");
       try { localStorage.removeItem(key); } catch { /* ignore */ }
       applyTask(task, task.status === "completed");
-    } catch {
+    } catch (cause) {
+      const failure = cause as Error & { code?: string };
+      if (failure.code === "INSUFFICIENT_CREDITS") {
+        // Refused by the server BEFORE any task or paid call exists: safe to show clearly, nothing to verify in history.
+        try { localStorage.removeItem(key); } catch { /* ignore */ }
+        setStatus(""); setBusy(false); setAttempted(false); setError(failure.message);
+        void refreshCredits();
+        throw new Error("Lancement non confirmé");
+      }
       // Never issue another paid POST when acceptance is uncertain. Poll only the task list.
       setStatus(""); setBusy(false); setReady(false);
       setPendingRequest(true);
@@ -466,16 +492,18 @@ export function SlideshowStudio({
         <p>{fr ? `${images.length}/5 visuels conservés · ${creditsUsed} crédits déjà utilisés. Les visuels terminés ne seront pas recréés.` : `${images.length}/5 images preserved · ${creditsUsed} credits already used. Completed images will not be recreated.`}</p>
         {resumeTask.resume?.allowed ? <>
           <p>{fr ? `Coût restant de la reprise : ${resumeTask.resume.cost} crédits Studio.` : `Remaining resume cost: ${resumeTask.resume.cost} Studio credits.`}</p>
+          {lacksResumeCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : la reprise coûte ${resumeCost} crédits Studio, il te reste ${available}. Recharge tes crédits pour continuer.` : `Insufficient balance: resuming costs ${resumeCost} Studio credits, you have ${available}. Top up to continue.`}</p> : null}
           {resumeTask.resume.requiresConfirmation ? <label><input type="checkbox" checked={resumeConfirmed} onChange={e => setResumeConfirmed(e.target.checked)} />{fr ? `J’autorise la reprise pour ${resumeTask.resume.cost} crédits maximum.` : `I authorize resuming for up to ${resumeTask.resume.cost} credits.`}</label> : null}
         </> : <p>{fr ? `L’état de l’étape manquante n’est pas confirmé. La reprise reste bloquée pour éviter une nouvelle facturation. Coût restant estimé : ${resumeTask.resume?.cost ?? "—"} crédits, non autorisé tant que cette étape n’est pas vérifiée. Les visuels terminés sont conservés.` : `The missing stage is unconfirmed. Resuming is blocked to prevent another charge. Estimated remaining cost: ${resumeTask.resume?.cost ?? "—"} credits, not authorized until the stage is verified. Completed images are preserved.`}</p>}
-        <button type="button" className="btn btn-dark studio-continue" disabled={!resumeTask.resume?.allowed || (!!resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
+        <button type="button" className="btn btn-dark studio-continue" disabled={!resumeTask.resume?.allowed || lacksResumeCredits || (!!resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
         <button type="button" className="btn btn-ghost" onClick={newSlideshow}>{fr ? "Nouveau diaporama" : "New slideshow"}</button>
       </section> : null}
       {(!resumeTask || recovery) && (!pendingRequest && (!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed" || recovery)) && !busy && ready ? (
         <>
           {recovery ? <><p>{fr ? "Ajoute une précision utile sur le produit pour préparer le diaporama." : "Add a useful product detail to prepare the slideshow."}</p><label>{fr ? "Description temporaire" : "Temporary description"}<textarea aria-label={fr ? "Description temporaire" : "Temporary description"} rows={4} value={temporaryDescription} disabled={busy} onChange={e => setTemporaryDescription(e.target.value)} /></label></> : null}
-          <p className="studio-cost">{fr ? `Coût : ${5 * imageCreditCost("hd", "medium")} crédits Studio` : `Cost: ${5 * imageCreditCost("hd", "medium")} Studio credits`}</p>
-          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready} onClick={() => void generate()}>{recovery ? (fr ? "Relancer" : "Retry") : (fr ? "Créer" : "Create")}</button>
+          <p className="studio-cost">{fr ? `Coût : ${slideshowCost} crédits Studio` : `Cost: ${slideshowCost} Studio credits`}{available !== null ? (fr ? ` · Solde disponible : ${available}` : ` · Available balance: ${available}`) : null}</p>
+          {lacksCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : ce diaporama coûte ${slideshowCost} crédits Studio, il te reste ${available}. Recharge tes crédits avant de créer.` : `Insufficient balance: this slideshow costs ${slideshowCost} Studio credits, you have ${available}. Top up before creating.`}</p> : null}
+          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready || lacksCredits} onClick={() => void generate()}>{recovery ? (fr ? "Relancer" : "Retry") : (fr ? "Créer" : "Create")}</button>
         </>
       ) : null}
       {pendingRequest ? <p role="status">{fr ? "Vérifie l’historique ; aucune nouvelle génération ne sera lancée automatiquement." : "Check history; no new generation will be started automatically."}</p> : null}
