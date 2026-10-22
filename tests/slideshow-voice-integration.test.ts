@@ -55,6 +55,31 @@ describe("nouveaux diaporamas avec voix", () => {
     await runTaskStep(id, 6); await runTaskStep(id, 6);
     expect(mocks.render).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled();
   });
+  it("publicTask masque les diagnostics de narration historiques dans status et output", async () => {
+    const diagnostic = "Narration duration 20.09s exceeds 25s limit (95%)";
+    const task = await publicTask({ id, user_id: "owner", status: "failed", metadata: { type: TASK_TYPE, taskKind: "slideshow", input: { voiceover: true, locale: "fr" }, revision: 3, phase: "failed", progress: 95, updatedAt: new Date().toISOString(), images: [], error: diagnostic, message: diagnostic, details: diagnostic } });
+    expect(task.status).toBe("failed");
+    expect(task.message).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(task.error).toBe(task.message);
+    expect(JSON.stringify(task)).not.toMatch(/20\.09|25s|95%|details/i);
+  });
+  it("préflight POST narration sparse ne divulgue pas les détails techniques", async () => {
+    vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "true"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "true");
+    mocks.preflight.mockRejectedValue(new Error("Narration duration 20.09s exceeds 25s limit (95%)"));
+    const insert = vi.fn();
+    mocks.from.mockImplementation((table) => table === "credit_accounts"
+      ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { balance: 500, reserved: 0 }, error: null }) }) }) }
+      : { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
+    const response = await POST(request({ ...slideshowInput(true), product: { name: "Guide", description: "Bref." } }));
+    const body = await response.json();
+    expect(response.status).toBe(400);
+    expect(body).not.toHaveProperty("details");
+    expect(JSON.stringify(body)).not.toMatch(/20\.09|25s|95%|technical|stack/i);
+    expect(body.code).toBe("INSUFFICIENT_PRODUCT_DETAILS");
+    expect(body.error).toMatch(/description ci-dessous/i);
+    expect(insert).not.toHaveBeenCalled();
+    expect(mocks.after).not.toHaveBeenCalled();
+  });
   it("retrouve le MP4 enfant en lecture seule après perte de l’écriture parent", async () => {
     const saved = { id: "final", storage_path: "owner/final.mp4", metadata: { type: "slideshow", voiceover: { version: 1 }, duration: 25, musicId: "sb-reverie", attribution: "CC BY 4.0", imageGenerationIds: [] } };
     mocks.from.mockImplementation(() => ({ select: () => {

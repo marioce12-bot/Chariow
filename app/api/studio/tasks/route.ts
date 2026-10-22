@@ -9,6 +9,7 @@ import { imageCreditCost } from "@/lib/studio/credits";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, slideshowVoiceAvailability } from "@/lib/studio/slideshow-voice";
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
+import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import {
   TASK_TYPE,
   logTaskEvent,
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
       if (body.input.voiceover === true) {
         // Fail before image credits or provider calls while Preview validation is locked.
         assertSlideshowVoiceAllowed();
-        const voice = buildSlideshowVoicePlan(product, body.input.duration, body.input.locale);
+        const voice = buildSlideshowVoicePlan(product, body.input.duration, body.input.locale, body.input.campaignGoal);
         body.input.locale = voice.language;
         body.input.musicId = voice.musicId;
       }
@@ -128,12 +129,12 @@ export async function POST(request: Request) {
         aspectRatio: "9:16", character: "with", locale: body.input.locale,
         campaignGoal: body.input.campaignGoal, variationId: typeof body.input.variationId === "string" ? body.input.variationId.slice(0, 100) : "default" }, body.input.musicId);
     } catch (error) {
+      const insufficient = error instanceof InsufficientProductDetailsError;
       return NextResponse.json({
-        error: body.input.voiceover === true && !(error instanceof InsufficientProductDetailsError) ? (error instanceof Error ? error.message : "Voix indisponible.") : error instanceof InsufficientProductDetailsError
+        error: insufficient
           ? (body.input.locale === "en" ? "Add product details below, then click Retry." : "Complète la description ci-dessous, puis appuie sur Relancer.")
-          : "Storyboard invalide.",
-        ...(error instanceof InsufficientProductDetailsError ? { code: error.code } : {}),
-        details: error instanceof Error ? error.message : "Storyboard invalide.",
+          : slideshowPublicFailure(body.input.locale),
+        ...(insufficient ? { code: error.code } : {}),
       }, { status: 400 });
     }
     // Credit pre-check: the whole slideshow (5 images) must be affordable BEFORE the task is

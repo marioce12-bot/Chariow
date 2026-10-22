@@ -8,6 +8,7 @@ import {
 } from "@/lib/studio/slideshow-server";
 import { assertSlideshowVoiceAllowed } from "@/lib/studio/slideshow-voice";
 import { signedStudioUrl } from "@/lib/studio/media";
+import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 
 export const TASK_TYPE = "studio_background_task";
 export type StageRecord = {
@@ -172,10 +173,14 @@ export async function publicTask(row: any) {
     creditState: stale && metadata.phase === "running" ? "uncertain" : (metadata.creditState ?? "confirmed"),
     errorCode: stale ? "STUDIO_TASK_STALE" : metadata.errorCode,
     progress: (recoveredFinal || row.status === "completed") && result ? 100 : Math.min(99, metadata.progress),
-    message: recoveredFinal ? "Création prête." : metadata.message,
+    message: recoveredFinal ? "Création prête." : metadata.taskKind === "slideshow" && row.status === "failed"
+      ? slideshowPublicFailure(metadata.input?.locale)
+      : metadata.message,
     error: recoveredFinal ? undefined : stale
       ? "Le suivi de cette génération a été interrompu. Consulte l’historique : aucune nouvelle génération n’a été lancée automatiquement."
-      : metadata.error,
+      : row.status === "failed"
+        ? metadata.taskKind === "slideshow" ? publicSlideshowError(metadata.error, metadata.input?.locale) : metadata.error
+        : undefined,
     images,
     sourceImagesConfirmed,
     ...(input ? { input } : {}),

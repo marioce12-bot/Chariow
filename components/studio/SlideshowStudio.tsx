@@ -6,6 +6,7 @@ import { LaunchProgress } from "@/components/chat/LaunchProgress";
 import { SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
+import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 
 type Product = {
   id: string;
@@ -28,6 +29,7 @@ type Task = {
   progress?: number;
   message?: string;
   error?: string;
+  errorCode?: string;
   images?: Array<{ id: string; url: string }>;
   result?: RenderResult;
   createdAt?: string;
@@ -42,7 +44,7 @@ type Task = {
 const jsonResponse = async (response: Response) => {
   const data = await response.json();
   if (!response.ok) {
-    const error = new Error(data.message || data.error || "Cette étape n’a pas pu être terminée.") as Error & { code?: string; details?: unknown };
+    const error = new Error(publicSlideshowError(data.message || data.error, data.locale || "fr")) as Error & { code?: string; details?: unknown };
     error.code = data.code; error.details = data.details; throw error;
   }
   return data;
@@ -231,16 +233,13 @@ export function SlideshowStudio({
     setBusy(task.status === "processing");
     const stage = task.message || (task.phase === "queued" ? (fr ? "En attente…" : "Queued…") : task.phase === "running" ? (fr ? "Génération des visuels…" : "Generating images…") : "");
     if (task.status === "processing") showProgress(task);
-    else setStatus(task.status === "failed" ? "" : task.message || (task.status === "completed" ? (fr ? "Diaporama prêt." : "Slideshow ready.") : ""));
-    const insufficient = task.status === "failed" && /INSUFFICIENT_PRODUCT_DETAILS|détails.*produit|product details|informations produit.*insuffisantes|not enough.*product/i.test(`${task.error ?? ""} ${task.message ?? ""}`);
+    else setStatus(task.status === "completed" && task.result ? (fr ? "Diaporama prêt." : "Slideshow ready.") : "");
+    const insufficient = task.status === "failed" && (task.errorCode === "INSUFFICIENT_PRODUCT_DETAILS" || /^(Add product details below, then click Retry\.|Complète la description ci-dessous, puis appuie sur Relancer\.)$/.test(task.error ?? task.message ?? ""));
     if (!insufficient) setRecovery(false);
     if (insufficient) { setRecovery(true); setStatus(""); setTemporaryDescription((current) => current || product?.description || ""); setTechnicalDetails(task.error || task.message || ""); }
     setError(
-      task.status === "failed" && !insufficient
-        ? task.error ||
-            (fr
-              ? "Génération échouée. Consulte l’historique avant toute nouvelle tentative."
-              : "Generation failed. Check history before trying again.")
+      (task.status === "failed" || (task.status === "completed" && !task.result)) && !insufficient
+        ? publicSlideshowError(task.error || task.message || slideshowPublicFailure(fr ? "fr" : "en"), fr ? "fr" : "en")
         : "",
     );
     if (task.status === "completed" && task.result) {
@@ -536,7 +535,6 @@ export function SlideshowStudio({
           : <p role="status" aria-live="polite">{status}</p>
       ) : null}
       {error && !recovery ? <p role="alert" className="form-error">{error}</p> : null}
-      {technicalDetails ? <details><summary>{fr ? "Détails techniques" : "Technical details"}</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{technicalDetails}</pre></details> : null}
       {result ? (
         <div style={{ display: "grid", gap: 12 }}>
           <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>

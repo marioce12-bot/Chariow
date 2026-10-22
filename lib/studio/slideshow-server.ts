@@ -5,13 +5,14 @@ import path from "node:path";
 import ffmpegPath from "ffmpeg-static";
 const ffprobePath = require("ffprobe-static") as { path: string };
 import { createAdminClient } from "@/lib/supabase/admin";
-import { assembleSlideshow } from "@/lib/studio/slideshow";
+import { assembleSlideshow, prepareSlideshowVoice } from "@/lib/studio/slideshow";
 import { slideshowAudioFilter, SLIDESHOW_AUDIO_CHANGE } from "@/lib/studio/slideshow-audio";
 import { MAX_SLIDESHOW_IMAGES, MIN_SLIDESHOW_IMAGES, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { storeStudioVideo, signedStudioUrl } from "@/lib/studio/media";
 import { LICENSED_MUSIC, getLicensedTrack, musicAttribution, YOUTUBE_CREDIT_NOTICE } from "@/lib/studio/licensed-music";
 
-import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, synthesizeSlideshowVoice } from "@/lib/studio/slideshow-voice";
+import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan } from "@/lib/studio/slideshow-voice";
+import { synthesizeCoveredSlideshowVoice } from "@/lib/studio/slideshow-voice-retry";
 
 export const isRemixSlideshowDuration = (duration: unknown) => typeof duration === "number" && ([5, 10, ...SLIDESHOW_DURATIONS] as readonly number[]).includes(duration);
 
@@ -112,16 +113,20 @@ export async function renderSlideshow(userId: string, ids: string[], duration: n
     const music = track ? await ensurePrivateTrack(track, work) : undefined;
     let voicePath: string | undefined;
     let voiceMetadata: Record<string, unknown> | undefined;
-    if (voicePlan) {
-      // The worker's durable CAS has already claimed this render stage. An uncertain
-      // call is never retried; no Studio credit reservation occurs for narration.
-      const audio = await synthesizeSlideshowVoice(voicePlan);
-      voicePath = path.join(work, "narration.wav");
-      await writeFile(voicePath, audio);
-      voiceMetadata = { ...voicePlan, provider: "gemini", tier: "free", creditsCost: 0, version: 1 };
+    const bins = binPaths();
+    if (voicePlan && voiceInput) {
+      // The durable render claim prevents duplicate workers. Only measured timing
+      // failures may request a revised script; uncertain/API failures stop at once.
+      const covered = await synthesizeCoveredSlideshowVoice(voicePlan, voiceInput, async (audio, attempt) => {
+        const raw = path.join(work, `narration-${attempt}.wav`);
+        await writeFile(raw, audio);
+        return prepareSlideshowVoice(raw, bins.ffmpegPath, bins.ffprobePath, duration, work);
+      });
+      voicePlan = covered.plan;
+      voicePath = covered.voicePath;
+      voiceMetadata = { ...voicePlan, provider: "gemini", tier: "free", creditsCost: 0, version: 2, attempts: covered.attempts };
     }
     const output = path.join(work, "slideshow.mp4");
-    const bins = binPaths();
     const attribution = track ? `${musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", SLIDESHOW_AUDIO_CHANGE] })}\n${YOUTUBE_CREDIT_NOTICE}` : "Sans musique. Aucune attribution musicale nécessaire pour ce rendu.";
     const finalAttribution = voicePlan ? `${attribution}\nAdditional modifications: music ducked under generated product narration.` : attribution;
     await assembleSlideshow({ ...bins, outputPath: output, duration, imagePaths: images, musicPath: music, voicePath, width: 720, height: 1280, fps: 25, attribution: finalAttribution });

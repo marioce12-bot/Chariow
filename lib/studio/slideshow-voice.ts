@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { buildSlideshowCta, buildSlideshowPlan, campaignGoal, slideshowEvidence, slideshowSourceCandidates } from "@/lib/studio/slideshow-plan";
+import { buildSlideshowCta, buildSlideshowPlan, campaignGoal, InsufficientProductDetailsError, slideshowEvidence, slideshowSourceCandidates } from "@/lib/studio/slideshow-plan";
 import { LICENSED_MUSIC } from "@/lib/studio/licensed-music";
 
 export const SLIDESHOW_VOICE_MODEL = "gemini-3.8-flash-tts" as const;
@@ -69,16 +69,17 @@ function chooseMusic(categoryName: string): string {
 }
 function score(tags: string[], prefs: string[]) { return (tags.includes("instrumental") ? 5 : 0) + prefs.reduce((n, tag, i) => n + (tags.includes(tag) ? (prefs.length - i) * 8 : 0), 0) - (tags.includes("drums") || tags.includes("percussion") ? 4 : 0); }
 
-export function buildSlideshowVoicePlan(product: { name: string; description?: string }, duration: number, locale = "fr", goal: unknown = "discover"): SlideshowVoicePlan {
+export function buildSlideshowVoicePlan(product: { name: string; description?: string }, duration: number, locale = "fr", goal: unknown = "discover", measuredBudget?: { minimumWords: number; maxWords: number }): SlideshowVoicePlan {
   const name = product.name?.trim().slice(0, 200);
   const description = typeof product.description === "string" ? product.description : "";
-  const evidence = slideshowEvidence(description, name);
+  const evidence = slideshowEvidence(description, name, 60);
   const language = inferLanguage(evidence, locale);
   // Estimate natural delivery at 2.0–2.6 words/sec across the required 95% voice window.
   // This estimate is not a guarantee: actual rendered audio is measured before success.
   const speakingWindow = duration * 0.95;
-  const minimumWords = Math.ceil(speakingWindow * 2.0);
-  const maxWords = Math.floor(speakingWindow * 2.6);
+  const minimumWords = measuredBudget?.minimumWords ?? Math.ceil(speakingWindow * 2.0);
+  const maxWords = measuredBudget?.maxWords ?? Math.floor(speakingWindow * 2.6);
+  if (!Number.isFinite(minimumWords) || !Number.isFinite(maxWords) || minimumWords <= 0 || maxWords < minimumWords) throw new Error("Invalid narration word budget");
   const wordCount = (part: string) => part.trim().split(/\s+/).filter(Boolean).length;
   if (wordCount(name) > maxWords) throw new Error("Nom du produit trop long pour le budget vocal de cette durée; TTS non lancé.");
   // Reuse slideshow validator, with inferred locale and its required complete, distinct evidence.
@@ -95,9 +96,10 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   for (const part of evidence) {
     const count = part.trim().split(/\s+/).filter(Boolean).length;
     if (words + count > maxWords) continue;
+    if (measuredBudget && words >= minimumWords) break;
     accepted.push(part.trim()); words += count;
   }
-  if (words < minimumWords) throw new Error(`Source insuffisante pour une narration couvrant ${duration}s (${words} mots disponibles, ${minimumWords} requis); TTS non lancé.`);
+  if (words < minimumWords) throw new InsufficientProductDetailsError(`Source insuffisante pour une narration couvrant ${duration}s (${words} mots disponibles, ${minimumWords} requis); TTS non lancé.`);
   const spokenFacts = accepted.map(part => part.replace(/[.!?]+$/g, ""));
   const script = `${spokenFacts.join(". ")}. ${cta.replace(/[.!?]+$/g, "")}.`;
   const kind = category(name, description);
@@ -105,12 +107,12 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   return { script, language, musicId: chooseMusic(kind), model: SLIDESHOW_VOICE_MODEL, voice: language === "fr" ? "Kore" : "Puck", duration, tone };
 }
 
-export async function synthesizeSlideshowVoice(plan: SlideshowVoicePlan, fetcher: typeof fetch = fetch): Promise<Buffer> {
+export async function synthesizeSlideshowVoice(plan: SlideshowVoicePlan, fetcher: typeof fetch = fetch, timeoutMs = TIMEOUT_MS): Promise<Buffer> {
   assertSlideshowVoiceAllowed();
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY manquante.");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), Math.max(1, Math.min(timeoutMs, TIMEOUT_MS)));
   try {
     const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${SLIDESHOW_VOICE_MODEL}:generateContent`, {
       method: "POST", signal: controller.signal, headers: { "Content-Type": "application/json", "x-goog-api-key": key },

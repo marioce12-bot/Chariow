@@ -16,7 +16,9 @@ function run(binary: string, args: string[]) {
 }
 function musicLevel(file: string, start: number, duration = 4) {
   return new Promise<number>((resolve, reject) => {
-    const proc = spawn(ffmpeg, ["-hide_banner", "-ss", String(start), "-i", file, "-t", String(duration), "-vn", "-af", "bandpass=f=440:width_type=h:width=20,volumedetect", "-f", "null", "-"]);
+    // Warm the narrow bandpass before selecting the measurement window; seeking
+    // first would measure filter startup rather than the final-frame music.
+    const proc = spawn(ffmpeg, ["-hide_banner", "-i", file, "-vn", "-af", `bandpass=f=440:width_type=h:width=20,atrim=start=${start}:end=${start + duration},volumedetect`, "-f", "null", "-"]);
     let err = "";
     proc.stderr.on("data", x => err += x);
     proc.on("error", reject);
@@ -49,6 +51,9 @@ describe("slideshow voice mix", () => {
           const afterSpeech = await musicLevel(output, 23.5, 1);
           expect(afterSpeech).toBeGreaterThan(-60);
           expect(duringSpeech).toBeGreaterThan(-60);
+          // The 25fps production final frame spans 24.96–25s. Music must
+          // survive there too, not stop at the last spoken syllable.
+          expect(await musicLevel(output, 24.96, 0.04)).toBeGreaterThan(-65);
         }
       }
       await expect(assembleSlideshow({ ffmpegPath: ffmpeg, ffprobePath: ffprobe, outputPath: path.join(dir, "bad.mp4"), duration: 25, imagePaths: images, width: 160, height: 90, fps: 2, voicePath: tooLong })).rejects.toThrow(/too long for intelligible playback/);

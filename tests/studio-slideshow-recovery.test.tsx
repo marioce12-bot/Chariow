@@ -145,7 +145,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     });
     await click("Créer");
     expect(container.textContent).toContain("Ajoute une précision utile");
-    expect(container.querySelector("details")?.open).toBe(false);
+    expect(container.querySelectorAll("details")).toHaveLength(0);
     const textarea = container.querySelector("textarea")!;
     expect((textarea as HTMLTextAreaElement).value).toBe("Description existante");
     await act(async () => {
@@ -205,10 +205,13 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(container.textContent).toContain("visuel 2/5"); expect(calls("POST")).toHaveLength(0);
   });
   it("affiche l'erreur de worker une seule fois et conserve les quatre images", async () => {
-    const message = "Le suivi serveur n’a pas pu continuer.";
-    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, status: "failed", images: images.slice(0, 4), message, error: message, creditsConsumed: 80 }] }));
+    const message = "Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.";
+    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, status: "failed", images: images.slice(0, 4), message: "Technical worker trace", error: "Technical worker trace", details: "raw details", creditsConsumed: 80 }] }));
     await mount();
     expect(container.textContent?.split(message)).toHaveLength(2);
+    expect(container.textContent).not.toContain("Technical worker trace");
+    expect(container.querySelector("pre")).toBeNull();
+    expect(container.querySelector("details")).toBeNull();
     expect(container.querySelectorAll("img")).toHaveLength(4);
     expect(container.textContent).toContain("80 crédits Studio utilisés");
     expect(container.querySelector('[role="status"]')).toBeNull();
@@ -223,19 +226,11 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     });
     await mount();
     expect(container.querySelector('[role="status"]')).toBeNull();
-    expect(container.querySelector('[role="alert"]')).toBeNull();
-    expect(container.querySelectorAll("details")).toHaveLength(1);
-    expect(container.querySelector("details")!.open).toBe(false);
-    expect(container.textContent?.split(long)).toHaveLength(2);
-    const textarea = container.querySelector("textarea")!;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "Même fait. Même fait.");
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await act(async () => { [...container.querySelectorAll("button")].find(b => b.textContent === "Relancer")!.click(); });
-    expect(container.querySelector("textarea")!.value).toBe("Même fait. Même fait.");
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(container.querySelectorAll("details")).toHaveLength(0);
+    expect(container.querySelectorAll("pre")).toHaveLength(0);
+    expect(container.textContent).not.toContain(long);
     expect([...container.querySelectorAll("button")].some(b => b.textContent === "Créer")).toBe(false);
-    expect([...container.querySelectorAll("button")].find(b => b.textContent === "Relancer")!.disabled).toBe(false);
     expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(0);
   });
   it("a new product clears the old failed workspace so Create starts exactly one new task", async () => {
@@ -278,7 +273,8 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={null} selectedTaskId="unknown" /></I18nProvider>));
     expect(container.querySelector<HTMLButtonElement>(".studio-continue")?.disabled).toBe(true);
     expect(container.textContent).toContain("éviter une nouvelle facturation"); expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
-    expect(container.textContent?.split("Suivi interrompu.")).toHaveLength(2); expect(calls("POST")).toHaveLength(0);
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(container.querySelectorAll("details, pre")).toHaveLength(0); expect(calls("POST")).toHaveLength(0);
   });
 
 });

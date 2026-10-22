@@ -55,7 +55,7 @@ export function slideshowSourceCandidates(description: string): string[] {
   }).filter(line => line.length >= 8 && line.length <= 140).slice(0, 60);
 }
 /** Select distinct explicit facts. Missing facts never authorize invented claims. */
-export function slideshowEvidence(description: string, name: string): string[] {
+export function slideshowEvidence(description: string, name: string, maxFacts = 12): string[] {
   const normalize = (text: string) => text.toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
   const title = normalize(name);
   const accepted: string[] = [];
@@ -70,7 +70,7 @@ export function slideshowEvidence(description: string, name: string): string[] {
       return nearDuplicate(other, line) || normalize(other) === normalize(line) || overlap / Math.min(words.size, old.size) >= 0.75;
     })) continue;
     accepted.push(line);
-    if (accepted.length === 12) break;
+    if (accepted.length >= Math.min(60, Math.max(1, maxFacts))) break;
   }
   return accepted;
 }
