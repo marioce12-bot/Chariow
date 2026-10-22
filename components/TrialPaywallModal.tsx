@@ -59,7 +59,8 @@ export function TrialPaywallModal({ subscription }: { subscription: PaywallSubsc
   async function signOut() {
     setSigningOut(true);
     try {
-      await createClient().auth.signOut();
+      // Keep sessions on the user's other devices signed in.
+      await createClient().auth.signOut({ scope: "local" });
     } finally {
       window.location.href = "/";
     }

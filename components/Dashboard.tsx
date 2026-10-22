@@ -268,7 +268,8 @@ function DashboardWorkspace() {
     } catch {
       console.warn("Push subscription cleanup failed during sign out.");
     }
-    await createClient().auth.signOut();
+    // Supabase defaults to global logout, which also revokes other devices.
+    await createClient().auth.signOut({ scope: "local" });
     window.location.href = "/";
   }
 
