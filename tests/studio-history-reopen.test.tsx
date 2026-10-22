@@ -4,11 +4,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StudioView } from "../components/dashboard/sections";
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string) => key }) }));
-vi.mock("@/components/studio/SlideshowStudio", () => ({ SlideshowStudio: () => <div data-testid="slideshow-studio" /> }));
+vi.mock("@/components/studio/SlideshowStudio", () => ({ SlideshowStudio: ({ selectedTaskId }: { selectedTaskId: string | null }) => <div data-testid="slideshow-studio" data-selected-task-id={selectedTaskId ?? "none"} /> }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let container: HTMLDivElement;
 let root: Root;
 let fetchMock: ReturnType<typeof vi.fn>;
+let historyItems: any[];
 const images = [
   { id: "v1", kind: "video", prompt: "Vidéo un", status: "completed", credits_cost: 1, mediaUrl: "https://media.test/one.mp4", created_at: "2026-01-01" },
   { id: "v2", kind: "video", prompt: "Vidéo deux", status: "completed", credits_cost: 1, mediaUrl: "https://media.test/two.mp4", created_at: "2026-01-02" },
@@ -20,8 +21,9 @@ const response = (data: unknown) => Promise.resolve({ ok: true, json: async () =
 function render() { act(() => root.render(<StudioView products={[]} />)); }
 async function settle() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); }
 beforeEach(() => {
+  historyItems = images;
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
-  fetchMock = vi.fn(async (url: string) => url === "/api/studio/credits" ? response({ balance: 10 }) : url.startsWith("/api/studio/history") ? response({ items: images, nextCursor: null }) : response({}));
+  fetchMock = vi.fn(async (url: string) => url === "/api/studio/credits" ? response({ balance: 10 }) : url.startsWith("/api/studio/history") ? response({ items: historyItems, nextCursor: null }) : response({}));
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
@@ -62,6 +64,19 @@ describe("Studio history reopening", () => {
     expect(video?.getAttribute("src")).toBe("https://media.test/final.mp4");
     expect(video?.getAttribute("poster")).toBe("https://media.test/poster.jpg");
     expect(video?.getAttribute("aria-label")).toBe("Diaporama");
+  });
+  it("opens an unfinished background slideshow in the workspace with its exact task ID, while completed MP4 stays in history player", async () => {
+    historyItems = [...images, { id: "task-slideshow-42", kind: "video", creationType: "slideshow", metadata: { type: "studio_background_task", taskKind: "slideshow" }, status: "processing", credits_cost: 0, prompt: "Diaporama", created_at: "2026-01-06" }];
+    render(); await settle();
+    const cards = container.querySelectorAll<HTMLElement>(".studio-history-card");
+    await act(async () => cards[5].click());
+    expect(container.querySelector("#studio-slideshow-panel")?.hasAttribute("hidden")).toBe(false);
+    expect(container.querySelector("[data-testid=slideshow-studio]")?.getAttribute("data-selected-task-id")).toBe("task-slideshow-42");
+    expect(container.querySelector(".studio-history-viewer")).toBeNull();
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url).startsWith("/api/studio/") && init?.method === "POST")).toBe(false);
+    await act(async () => cards[3].click());
+    expect(container.querySelector(".studio-history-viewer video")?.getAttribute("src")).toBe("https://media.test/final.mp4");
+    expect(container.querySelector(".studio-history-viewer video")?.getAttribute("poster")).toBe("https://media.test/poster.jpg");
   });
   it("shows missing final MP4 information without a player or regeneration action", async () => {
     render(); await settle();

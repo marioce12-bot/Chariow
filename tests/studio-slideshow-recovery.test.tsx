@@ -149,6 +149,9 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await click("Relancer");
+    expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(0);
+    expect(container.textContent).toContain("Plan prêt");
+    await click("Créer");
     expect(container.textContent).toContain("100 crédits Studio");
     expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(1);
     const prompt = fetcher.mock.calls.filter(([url]) => url === "/api/studio/prompt").at(-1)!;
@@ -226,4 +229,47 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect([...container.querySelectorAll("button")].find(b => b.textContent === "Relancer")!.disabled).toBe(false);
     expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(0);
   });
+  it("a new product clears the old failed workspace so Create starts exactly one new task", async () => {
+    const old = { ...processing, status: "failed", revision: 5, images: images.slice(0, 4), error: "dispatch", resume: { allowed: true, cost: 20, requiresConfirmation: true } };
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (init?.method === "POST" && url === "/api/studio/prompt") return response({ plan: {} });
+      if (init?.method === "POST" && url === "/api/studio/tasks") return response({ task: { ...processing, id: JSON.parse(String(init.body)).id } });
+      return response({ tasks: [old] });
+    });
+    await mount(); expect(container.querySelector(".studio-continue")).not.toBeNull();
+    await act(async () => root.render(<SlideshowStudio locale="fr" product={{ ...product, id: "p2" }} />));
+    const create = container.querySelector<HTMLButtonElement>("button.studio-generate")!;
+    expect(create.disabled).toBe(false); expect(container.textContent).toContain("Coût : 100 crédits Studio");
+    await act(async () => { create.click(); create.click(); });
+    expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && init?.method === "POST")).toHaveLength(1);
+  });
+  it("history ID loads its four images and Continue requires cost confirmation, then sends one POST", async () => {
+    const old = { ...processing, id: "selected-old", status: "failed", revision: 5, images: images.slice(0, 4), creditsConsumed: 80, progress: 73, error: "Suivi interrompu.", input: { product: { name: "Produit historique" }, duration: 30, musicId: "" }, resume: { allowed: true, cost: 20, requiresConfirmation: true, nextStep: "image" } };
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url.endsWith("/continue")) return response({ task: init?.method === "POST" ? { ...old, status: "processing", message: "Génération du visuel 5/5…" } : old });
+      return response({ tasks: [{ ...completed, id: "unrelated-latest" }] });
+    });
+    await act(async () => root.render(<SlideshowStudio locale="fr" product={null} selectedTaskId="selected-old" />));
+    expect(container.querySelectorAll("img")).toHaveLength(4); expect(container.textContent).toContain("80 crédits Studio utilisés");
+    expect(container.textContent).toContain("Produit historique"); expect(container.textContent).toContain("20 crédits Studio");
+    const button = container.querySelector<HTMLButtonElement>(".studio-continue")!;
+    expect(button.disabled).toBe(true); expect(calls("POST")).toHaveLength(0);
+    await act(async () => { container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(); });
+    await act(async () => { button.click(); button.click(); });
+    expect(calls("POST")).toHaveLength(1); const call = calls("POST")[0];
+    expect(call[0]).toBe("/api/studio/tasks/selected-old/continue"); expect(JSON.parse(String(call[1].body))).toEqual({ expectedRevision: 5, confirmCost: 20 });
+    expect(container.textContent).toContain("visuel 5/5"); expect(container.querySelectorAll("img")).toHaveLength(4);
+    expect(container.querySelector('[data-testid="slideshow-spinner"]')).not.toBeNull();
+  });
+  it("an uncertain stage shows a readable block and never submits any paid request", async () => {
+    const old = { ...processing, id: "unknown", status: "failed", revision: 5, images: images.slice(0, 4), creditsConsumed: 80, error: "Suivi interrompu.", resume: { allowed: false, reason: "STAGE_UNCERTAIN", cost: 20, requiresConfirmation: true } };
+    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ task: old }));
+    await act(async () => root.render(<SlideshowStudio locale="fr" product={null} selectedTaskId="unknown" />));
+    expect(container.querySelector<HTMLButtonElement>(".studio-continue")?.disabled).toBe(true);
+    expect(container.textContent).toContain("éviter une nouvelle facturation"); expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
+    expect(container.textContent?.split("Suivi interrompu.")).toHaveLength(2); expect(calls("POST")).toHaveLength(0);
+  });
+
 });

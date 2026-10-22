@@ -42,6 +42,7 @@ export type TaskMetadata = {
   taskKind: "image" | "slideshow";
   input: any;
   revision: number;
+  continueQueued?: boolean;
   phase: "queued" | "running" | "completed" | "failed";
   message: string;
   progress: number;
@@ -94,6 +95,7 @@ export async function publicTask(row: any) {
   const metadata = row.metadata as TaskMetadata;
   let result = metadata.result;
   let images = [...(metadata.images ?? [])];
+  let sourceImagesConfirmed = images.length === 0;
   // Read-only reconciliation: recover a stored child after a lost response or parent write.
   // Never dispatch work, reserve credits, or call a provider while reading task status.
   const recoverableIds = (metadata.stages ?? []).filter(stage => stage.kind === "image" && stage.generationId).map(stage => stage.generationId!);
@@ -107,6 +109,7 @@ export async function publicTask(row: any) {
       )
       .eq("user_id", row.user_id)
       .limit(5);
+    sourceImagesConfirmed = images.every(image => data?.some((saved: any) => saved.id === image.id && saved.status === "completed" && saved.storage_path));
     for (const generationId of recoverableIds) {
       const saved = data?.find((item: any) => item.id === generationId && item.status === "completed" && item.storage_path);
       if (saved && !images.some(image => image.id === generationId)) images.push({ id: generationId, url: await signedStudioUrl(saved.storage_path) });
@@ -141,6 +144,17 @@ export async function publicTask(row: any) {
   const stale =
     row.status === "processing" &&
     Date.now() - Date.parse(metadata.updatedAt) > 7 * 60_000;
+  const input = metadata.taskKind === "slideshow" ? {
+    product: metadata.input?.product ? {
+      name: metadata.input.product.name,
+      description: metadata.input.product.description,
+      image: metadata.input.product.image,
+    } : undefined,
+    duration: metadata.input?.duration,
+    musicId: metadata.input?.musicId,
+    campaignGoal: metadata.input?.campaignGoal,
+    locale: metadata.input?.locale,
+  } : undefined;
   return {
     id: row.id,
     kind: metadata.taskKind,
@@ -157,9 +171,42 @@ export async function publicTask(row: any) {
       ? "Le suivi de cette génération a été interrompu. Consulte l’historique : aucune nouvelle génération n’a été lancée automatiquement."
       : metadata.error,
     images,
+    sourceImagesConfirmed,
+    ...(input ? { input } : {}),
     result,
     createdAt: row.created_at,
   };
+}
+
+// Historical dispatch errors were persisted ONLY by failTask(expected phase=queued).
+// The compare-and-set against queued proves no worker had claimed that revision:
+// a claimed worker switches to running before any paid call and prevents this failure write.
+// Require the exact server-only signature, checkpoint revision, and verified stored children.
+export function legacyQueuedDispatchCheckpoint(row: any, task: any) {
+  const meta = row.metadata;
+  return !meta.stages && row.status === "failed" && meta.phase === "failed" &&
+    meta.error === "Le suivi serveur n’a pas pu continuer. Aucune étape payante n’est relancée." &&
+    meta.revision === task.images.length + 1 && task.images.length > 0 && task.images.length <= 5 &&
+    task.sourceImagesConfirmed === true;
+}
+export function continuationQuote(row: any, task: any) {
+  const meta = row.metadata as TaskMetadata;
+  const stale = task.status === "failed" && task.errorCode === "STUDIO_TASK_STALE";
+  const stages = meta.stages ?? [];
+  const knownCompletedImages = new Set((task.images ?? []).map((image: any) => image.id));
+  const uncertain = stages.some((stage) => stage.state !== "completed" &&
+    !(stage.kind === "image" && stage.generationId && knownCompletedImages.has(stage.generationId)));
+  const stageProofMissing = !meta.stages && meta.revision > 0 && meta.continueQueued !== true && !legacyQueuedDispatchCheckpoint(row, task);
+  const failedOrStale = row.status === "failed" || stale;
+  let reason: string | null = null;
+  if (meta.taskKind !== "slideshow") reason = "UNSUPPORTED_TASK";
+  else if (!failedOrStale) reason = "TASK_NOT_FAILED";
+  else if (task.sourceImagesConfirmed === false) reason = "COMPLETED_ASSET_MISSING";
+  else if (uncertain) reason = "STAGE_UNCERTAIN";
+  else if (stageProofMissing) reason = "STAGE_HISTORY_UNKNOWN";
+  else if (task.images.length > 5) reason = "INVALID_IMAGE_STATE";
+  const nextStep = task.images.length < 5 ? "image" : "render";
+  return { allowed: !reason, reason, cost: nextStep === "image" ? (5 - task.images.length) * 20 : 0, nextStep, requiresConfirmation: nextStep === "image" };
 }
 export async function failTask(
   id: string,

@@ -45,6 +45,8 @@ type Task = {
   phase?: string;
   creditsConsumed?: number;
   creditState?: "confirmed" | "uncertain";
+  input?: { product?: Product; duration?: number; musicId?: string; campaignGoal?: CampaignGoal; locale?: string };
+  resume?: { allowed: boolean; reason: string | null; cost: number; nextStep: string; requiresConfirmation: boolean };
 };
 const jsonResponse = async (response: Response) => {
   const data = await response.json();
@@ -135,10 +137,12 @@ export function SlideshowStudio({
   product,
   locale,
   onComplete,
+  selectedTaskId = null,
 }: {
   product: Product | null;
   locale: string;
   onComplete?: () => void;
+  selectedTaskId?: string | null;
 }) {
   const fr = locale !== "en",
     [enabled, setEnabled] = useState(false),
@@ -158,7 +162,14 @@ export function SlideshowStudio({
     [recovery, setRecovery] = useState(false),
     [pendingRequest, setPendingRequest] = useState(false),
     [temporaryDescription, setTemporaryDescription] = useState(product?.description ?? ""),
-    [technicalDetails, setTechnicalDetails] = useState("");
+    [technicalDetails, setTechnicalDetails] = useState(""),
+    [resumeTask, setResumeTask] = useState<Task | null>(null),
+    [resumeConfirmed, setResumeConfirmed] = useState(false);
+  const newDraftRef = useRef(false);
+  const selectedTaskRef = useRef(selectedTaskId);
+  const productRef = useRef(product);
+  productRef.current = product;
+  const loadedHistoryRef = useRef<string | null>(null);
   const running = useRef(false),
     taskRef = useRef<Task | null>(null),
     initialDone = useRef(false),
@@ -198,6 +209,13 @@ export function SlideshowStudio({
     const changedTask = taskRef.current?.id !== task.id;
     if (taskRef.current?.id !== task.id) { displayedProgressRef.current = 0; progressStartedAtRef.current = Date.now(); }
     taskRef.current = task;
+    setResumeTask(task.status === "failed" ? task : null);
+    if (changedTask) setResumeConfirmed(false);
+    if (task.input && (changedTask || loadedHistoryRef.current === task.id)) {
+      if (task.input.duration) setDuration(task.input.duration);
+      if (typeof task.input.musicId === "string") setMusicId(task.input.musicId);
+      if (task.input.campaignGoal) setCampaignGoal(task.input.campaignGoal);
+    }
     setAttempted(true);
     setImages(task.images ?? []);
     setCreditsUsed(task.creditsConsumed ?? (task.images?.length ?? 0) * imageCreditCost("hd", "medium"));
@@ -206,6 +224,7 @@ export function SlideshowStudio({
     if (task.status === "processing") showProgress(task);
     else setStatus(task.status === "failed" ? "" : task.message || (task.status === "completed" ? (fr ? "Diaporama prêt." : "Slideshow ready.") : ""));
     const insufficient = task.status === "failed" && /INSUFFICIENT_PRODUCT_DETAILS|détails.*produit|product details|informations produit.*insuffisantes|not enough.*product/i.test(`${task.error ?? ""} ${task.message ?? ""}`);
+    if (!insufficient) setRecovery(false);
     if (insufficient) { setRecovery(true); setStatus(""); setTemporaryDescription((current) => current || product?.description || ""); setTechnicalDetails(task.error || task.message || ""); }
     setError(
       task.status === "failed" && !insufficient
@@ -232,17 +251,24 @@ export function SlideshowStudio({
     });
     const poll = async () => {
       try {
-        const response = await fetch("/api/studio/tasks", {
-          signal: controller.signal,
+        const exactId = selectedTaskRef.current || taskRef.current?.id;
+        const response = await fetch(exactId ? `/api/studio/tasks/${encodeURIComponent(exactId)}/continue` : "/api/studio/tasks", {
+          signal: controller.signal, cache: "no-store",
         });
         const data = await jsonResponse(response);
         if (!alive) return;
-        const pendingId = (() => { try { return localStorage.getItem(`vendeo-slideshow-request:${product?.id ?? ""}`); } catch { return null; } })();
-        const slideshowTasks = ((data.tasks as Task[]) || []).filter((item) => item.kind === "slideshow");
-        const task = (pendingId ? slideshowTasks.find((item) => item.id === pendingId) : null) ?? (!pendingId ? slideshowTasks[0] : null);
+        const pendingId = (() => { try { return localStorage.getItem(`vendeo-slideshow-request:${productRef.current?.id ?? ""}`); } catch { return null; } })();
+        const slideshowTasks = ((data.task ? [data.task] : data.tasks as Task[]) || []).filter((item) => item.kind === "slideshow");
+        let task = (pendingId ? slideshowTasks.find((item) => item.id === pendingId) : null) ?? (!pendingId ? slideshowTasks[0] : null);
+        if (!exactId && !pendingId && newDraftRef.current && task?.status !== "processing") task = undefined;
         if (task) {
-          applyTask(task);
-          try { localStorage.removeItem(`vendeo-slideshow-request:${product?.id ?? ""}`); } catch { /* ignore */ }
+          if (task.status === "failed" && !task.resume) {
+            const detail = await fetch(`/api/studio/tasks/${encodeURIComponent(task.id)}/continue`, { cache: "no-store", signal: controller.signal }).then(jsonResponse);
+            if (!alive) return;
+            task = detail.task ?? task;
+          }
+          applyTask(task!);
+          try { localStorage.removeItem(`vendeo-slideshow-request:${productRef.current?.id ?? ""}`); } catch { /* ignore */ }
           setPendingRequest(false);
         } else if (pendingId) {
           setPendingRequest(true); setBusy(false); setReady(true); setAttempted(true);
@@ -275,7 +301,7 @@ export function SlideshowStudio({
     void poll();
     const timer = setInterval(() => {
       let pending = false;
-      try { pending = !!localStorage.getItem(`vendeo-slideshow-request:${product?.id ?? ""}`); } catch { /* ignore */ }
+      try { pending = !!localStorage.getItem(`vendeo-slideshow-request:${productRef.current?.id ?? ""}`); } catch { /* ignore */ }
       if (!initialDone.current || taskRef.current?.status === "processing" || pending) void poll();
     }, 4000);
     return () => {
@@ -290,6 +316,9 @@ export function SlideshowStudio({
     if (signature.current === next) return;
     signature.current = next;
     if (taskRef.current?.status === "processing") return;
+    if (selectedTaskId) return;
+    newDraftRef.current = true;
+    taskRef.current = null; setResumeTask(null); setResumeConfirmed(false);
     setImages([]);
     setResult(null);
     setError("");
@@ -298,8 +327,41 @@ export function SlideshowStudio({
     setCreditsUsed(0);
     setRecovery(false); setTemporaryDescription(product?.description ?? "");
   }, [product?.id]);
+  useEffect(() => {
+    const previous = selectedTaskRef.current;
+    selectedTaskRef.current = selectedTaskId;
+    if (!selectedTaskId) { if (previous && productRef.current) newSlideshow(); return; }
+    let alive = true;
+    loadedHistoryRef.current = selectedTaskId; newDraftRef.current = false;
+    setReady(false); setError(""); setResumeConfirmed(false);
+    fetch(`/api/studio/tasks/${encodeURIComponent(selectedTaskId)}/continue`, { cache: "no-store" })
+      .then(jsonResponse).then(data => { if (alive && data.task) { applyTask(data.task); setReady(true); } })
+      .catch(cause => { if (alive) { setError(cause instanceof Error ? cause.message : "Suivi indisponible."); setReady(false); } });
+    return () => { alive = false; };
+  }, [selectedTaskId]);
+  function newSlideshow() {
+    if (busy || pendingRequest || taskRef.current?.status === "processing") return;
+    selectedTaskRef.current = null; loadedHistoryRef.current = null; newDraftRef.current = true;
+    taskRef.current = null; setResumeTask(null); setResumeConfirmed(false);
+    setImages([]); setCreditsUsed(0); setResult(null); setError(""); setStatus("");
+    setRecovery(false); setAttempted(false); setTemporaryDescription(product?.description ?? "");
+  }
+  async function continueSlideshow() {
+    const task = taskRef.current;
+    if (running.current || busy || !task?.resume?.allowed || (task.resume.requiresConfirmation && !resumeConfirmed)) return;
+    running.current = true; setBusy(true); setError("");
+    try {
+      const data = await send(`/api/studio/tasks/${encodeURIComponent(task.id)}/continue`, { expectedRevision: task.revision, confirmCost: task.resume.cost });
+      if (!data.task) throw new Error("Suivi indisponible.");
+      applyTask(data.task);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Reprise non confirmée. Aucun nouvel essai automatique.");
+      // Read-only reconciliation; never repeat a potentially accepted continuation POST.
+      try { const r = await fetch(`/api/studio/tasks/${encodeURIComponent(task.id)}/continue`, { cache: "no-store" }); const data = await jsonResponse(r); if (data.task) applyTask(data.task); } catch { /* keep visible error */ }
+    } finally { running.current = false; setBusy(taskRef.current?.status === "processing"); }
+  }
   async function generate() {
-    if (!enabled || !ready || !product || busy || running.current || taskRef.current?.status === "processing") return;
+    if (!enabled || !ready || !product || busy || pendingRequest || running.current || taskRef.current?.status === "processing") return;
     if (recovery && !temporaryDescription.trim()) return;
     running.current = true;
     setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null);
@@ -307,6 +369,7 @@ export function SlideshowStudio({
     try {
       await send("/api/studio/prompt", { product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId });
       setRecovery(false); setTechnicalDetails("");
+      if (recovery) { taskRef.current = null; setResumeTask(null); setAttempted(false); setStatus(fr ? "Plan prêt. Vérifie le coût, puis appuie sur Créer." : "Plan ready. Review the cost, then click Create."); return; }
       await createTask();
     } catch (cause) {
       const failure = cause as Error & { code?: string; details?: unknown };
@@ -389,7 +452,7 @@ export function SlideshowStudio({
       <h2 style={{ margin: 0 }}>{fr ? "Diaporama" : "Slideshow"}</h2>
       {!product ? (
         <small>
-          {fr ? "Choisis un produit ci-dessus." : "Choose a product above."}
+          {fr ? "Choisis un produit ci-dessus pour une nouvelle création." : "Choose a product above for a new creation."}
         </small>
       ) : null}
       <div className="studio-options">
@@ -501,11 +564,23 @@ export function SlideshowStudio({
           </details>
         </div>
       ) : null}
-      {(!pendingRequest && (!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed" || recovery)) && !busy && ready ? (
+      {resumeTask && !recovery && !busy ? <section aria-label={fr ? "Reprise du diaporama" : "Resume slideshow"}>
+        <h3>{fr ? "Diaporama interrompu" : "Interrupted slideshow"}</h3>
+        {resumeTask.input?.product?.name ? <p>{resumeTask.input.product.name}</p> : null}
+        <p>{fr ? `Progression sauvegardée : ${Math.min(resumeTask.progress ?? 0, 99)} % · ${images.length < 5 ? `prochain visuel ${images.length + 1}/5` : "montage MP4 restant"}.` : `Saved progress: ${Math.min(resumeTask.progress ?? 0, 99)}% · ${images.length < 5 ? `next image ${images.length + 1}/5` : "MP4 assembly remaining"}.`}</p>
+        <p>{fr ? `${images.length}/5 visuels conservés · ${creditsUsed} crédits déjà utilisés. Les visuels terminés ne seront pas recréés.` : `${images.length}/5 images preserved · ${creditsUsed} credits already used. Completed images will not be recreated.`}</p>
+        {resumeTask.resume?.allowed ? <>
+          <p>{fr ? `Coût restant de la reprise : ${resumeTask.resume.cost} crédits Studio.` : `Remaining resume cost: ${resumeTask.resume.cost} Studio credits.`}</p>
+          {resumeTask.resume.requiresConfirmation ? <label><input type="checkbox" checked={resumeConfirmed} onChange={e => setResumeConfirmed(e.target.checked)} />{fr ? `J’autorise la reprise pour ${resumeTask.resume.cost} crédits maximum.` : `I authorize resuming for up to ${resumeTask.resume.cost} credits.`}</label> : null}
+        </> : <p>{fr ? `L’état de l’étape manquante n’est pas confirmé. La reprise reste bloquée pour éviter une nouvelle facturation. Coût restant estimé : ${resumeTask.resume?.cost ?? "—"} crédits, non autorisé tant que cette étape n’est pas vérifiée. Les visuels terminés sont conservés.` : `The missing stage is unconfirmed. Resuming is blocked to prevent another charge. Estimated remaining cost: ${resumeTask.resume?.cost ?? "—"} credits, not authorized until the stage is verified. Completed images are preserved.`}</p>}
+        <button type="button" className="btn btn-dark studio-continue" disabled={!resumeTask.resume?.allowed || (!!resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
+        <button type="button" className="btn btn-ghost" onClick={newSlideshow}>{fr ? "Nouveau diaporama" : "New slideshow"}</button>
+      </section> : null}
+      {(!resumeTask || recovery) && (!pendingRequest && (!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed" || recovery)) && !busy && ready ? (
         <>
           {recovery ? <><p>{fr ? "Ajoute une précision utile sur le produit pour préparer le diaporama." : "Add a useful product detail to prepare the slideshow."}</p><label>{fr ? "Description temporaire" : "Temporary description"}<textarea aria-label={fr ? "Description temporaire" : "Temporary description"} rows={4} value={temporaryDescription} disabled={busy} onChange={e => setTemporaryDescription(e.target.value)} /></label></> : null}
           <p className="studio-cost">{fr ? `Coût : ${5 * imageCreditCost("hd", "medium")} crédits Studio` : `Cost: ${5 * imageCreditCost("hd", "medium")} Studio credits`}</p>
-          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready || (!!taskRef.current?.images?.length && taskRef.current.status === "failed")} onClick={() => void generate()}>{recovery ? (fr ? "Relancer" : "Retry") : (fr ? "Créer" : "Create")}</button>
+          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready} onClick={() => void generate()}>{recovery ? (fr ? "Relancer" : "Retry") : (fr ? "Créer" : "Create")}</button>
         </>
       ) : null}
       {pendingRequest ? <p role="status">{fr ? "Vérifie l’historique ; aucune nouvelle génération ne sera lancée automatiquement." : "Check history; no new generation will be started automatically."}</p> : null}
