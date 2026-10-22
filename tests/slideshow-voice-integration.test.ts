@@ -11,11 +11,37 @@ vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit: () => false }));
 import { POST } from "@/app/api/studio/tasks/route";
 import { publicTask, TASK_TYPE, runTaskStep } from "@/lib/studio/background-tasks";
 const id = "123e4567-e89b-42d3-a456-426614174000";
+const slideshowInput = (voiceover?: boolean) => ({ ...(voiceover === undefined ? {} : { voiceover }), product: { name: "Guide", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion." }, duration: 25, musicId: "", locale: "fr" });
+const request = (input: unknown) => new Request("https://preview.test/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input }) });
 beforeEach(() => {
-  vi.clearAllMocks(); vi.stubEnv("VERCEL_ENV", "preview"); vi.stubEnv("VENDEO_SLIDESHOW_TTS_TEST_ALLOWED", "false");
+  vi.clearAllMocks(); vi.stubEnv("VERCEL_ENV", "preview"); vi.stubEnv("VENDEO_SLIDESHOW_TTS_TEST_ALLOWED", "false"); vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "false"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "false");
   mocks.user.mockResolvedValue({ user: { id: "owner" } }); mocks.subscription.mockResolvedValue(null);
 });
 describe("nouveaux diaporamas avec voix", () => {
+  it.each([false, undefined])("refuse un client obsolète avec voiceover=%s avant insertion ni provider", async (voiceover) => {
+    vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "true"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "true");
+    const insert = vi.fn(); mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
+    const response = await POST(request(slideshowInput(voiceover)));
+    const body = await response.json();
+    expect(response.status).toBe(409); expect(body.code).toBe("STUDIO_CLIENT_UPDATE_REQUIRED"); expect(body.error).toMatch(/Actualisez.*narration/i);
+    expect(insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.render).not.toHaveBeenCalled();
+  });
+  it("accepte une demande voiceover=true selon la garde normale", async () => {
+    vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "true"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "true");
+    const insertedRow = { id, user_id: "owner", status: "processing", metadata: { type: TASK_TYPE, taskKind: "slideshow", input: { voiceover: true }, revision: 0, phase: "queued" } };
+    const insert = vi.fn(() => ({ select: () => ({ single: async () => ({ data: insertedRow, error: null }) }) }));
+    mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
+    const response = await POST(request(slideshowInput(true)));
+    expect(response.status).toBe(202); expect(insert).toHaveBeenCalledOnce(); expect(mocks.after).toHaveBeenCalledOnce();
+    expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.render).not.toHaveBeenCalled();
+  });
+  it("renvoie la tâche existante avant la garde, sans redispatch", async () => {
+    vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "true"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "true");
+    const row = { id, user_id: "owner", status: "processing", metadata: { type: TASK_TYPE, taskKind: "slideshow", input: { voiceover: false }, phase: "running", revision: 2 } };
+    const insert = vi.fn(); mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row }) }) }), insert });
+    const response = await POST(request(slideshowInput(false)));
+    expect(response.status).toBe(200); expect(insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.render).not.toHaveBeenCalled();
+  });
   it("bloque avant insertion, image ou voix tant que le test réel n’est pas autorisé", async () => {
     const insert = vi.fn(); mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
     const response = await POST(new Request("https://preview.test/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input: { voiceover: true, product: { name: "Guide", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion." }, duration: 25, musicId: "", locale: "fr" } }) }));

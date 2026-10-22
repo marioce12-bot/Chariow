@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveSubscription } from "@/lib/subscription/access";
 import { rateLimit } from "@/lib/shop/rate-limit";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
-import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan } from "@/lib/studio/slideshow-voice";
+import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, slideshowVoiceAvailability } from "@/lib/studio/slideshow-voice";
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
 import {
   TASK_TYPE,
@@ -63,6 +63,19 @@ export async function POST(request: Request) {
       );
     return NextResponse.json({ task: await publicTask(existing) }); // Never dispatch a repeated POST.
   }
+  if (
+    body.kind === "slideshow" &&
+    slideshowVoiceAvailability().voiceoverEnabled &&
+    slideshowVoiceAvailability().available &&
+    body.input.voiceover !== true
+  )
+    return NextResponse.json(
+      {
+        code: "STUDIO_CLIENT_UPDATE_REQUIRED",
+        error: "Actualisez la page pour activer la narration vocale, puis relancez votre diaporama.",
+      },
+      { status: 409 },
+    );
   const blocked = await requireActiveSubscription(user.id);
   if (blocked) return blocked;
   if (rateLimit(`studio-task:${user.id}`, 6))
