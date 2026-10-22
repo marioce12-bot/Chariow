@@ -1,0 +1,25 @@
+# Configuration de l'app Shopify « Vendeo ».
+# Le Client ID n'est pas secret ; le Client Secret ne doit JAMAIS être mis dans ce fichier.
+# Déploiement : `shopify app config link` puis `shopify app deploy`.
+
+client_id = "2435d1651ab10d9f80e7933e8d792240"
+name = "Vendeo"
+application_url = "https://www.vendeo-studio.site/api/integrations/shopify/install"
+embedded = false
+
+[access_scopes]
+scopes = "read_orders,read_products"
+
+[auth]
+redirect_urls = ["https://www.vendeo-studio.site/api/integrations/shopify/callback"]
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  topics = ["orders/create", "orders/updated", "orders/cancelled", "orders/paid", "app/uninstalled"]
+  uri = "https://www.vendeo-studio.site/api/webhooks/shopify"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+  uri = "https://www.vendeo-studio.site/api/webhooks/shopify"
