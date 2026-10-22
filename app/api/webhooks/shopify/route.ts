@@ -1,12 +1,10 @@
-import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeShopDomain } from "@/lib/shopify/auth";
 import { syncShopifyStore } from "@/lib/shopify/sync";
+import { verifyShopifyWebhook } from "@/lib/shopify/webhooks";
 export const runtime = "nodejs";
 const MAX_BODY = 1024 * 1024;
-const equalBase64 = (expected: Buffer, value: string | null) => { if (!value || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return false; const actual = Buffer.from(value, "base64"); return actual.length === expected.length && crypto.timingSafeEqual(actual, expected); };
-export function verifyShopifyWebhook(raw: Buffer, signature: string | null, secret = process.env.SHOPIFY_CLIENT_SECRET) { if (!secret || secret.length < 32) return false; return equalBase64(crypto.createHmac("sha256", secret).update(raw).digest(), signature); }
 async function matchingStores(admin: any, shop: string) {
  const found: any[] = []; let from = 0;
  while (true) { const { data, error } = await admin.from("stores").select("id,user_id,platform,connected_at,is_active,connection_status,shop_domain").eq("platform", "shopify").eq("shop_domain", shop).range(from, from + 99); if (error) throw error; found.push(...(data ?? [])); if (!data || data.length < 100) break; from += 100; }

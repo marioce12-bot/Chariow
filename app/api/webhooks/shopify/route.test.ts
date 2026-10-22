@@ -4,7 +4,8 @@ import crypto from "node:crypto";
 const mocks = vi.hoisted(() => ({ createAdminClient: vi.fn(), stores: [] as any[], failDelete: false, updates: [] as any[], lookups: 0 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock("@/lib/shopify/sync", () => ({ syncShopifyStore: vi.fn() }));
-import { POST, verifyShopifyWebhook } from "./route";
+import { POST } from "./route";
+import { verifyShopifyWebhook } from "@/lib/shopify/webhooks";
 
 describe("Shopify webhook HMAC", () => {
   const secret = "x".repeat(40);
