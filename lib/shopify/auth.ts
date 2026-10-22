@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { hasShopifyTokenEncryptionKey } from "./token-key";
 
 export const SHOPIFY_SCOPES = ["read_products", "read_orders"] as const;
 export const SHOPIFY_STATE_COOKIE = "vendeo_shopify_oauth_state";
@@ -55,6 +56,6 @@ export function getShopifyConfigStatus() {
   const appUrl = (process.env.SHOPIFY_APP_URL || "https://www.vendeo-studio.site").replace(/\/$/, "");
   let validUrl = false;
   try { const parsed = new URL(appUrl); validUrl = parsed.origin === "https://www.vendeo-studio.site" && parsed.pathname === "/" && !parsed.search && !parsed.hash && !parsed.username && !parsed.password; } catch { /* invalid */ }
-  const configured = Boolean(process.env.SHOPIFY_CLIENT_ID && (process.env.SHOPIFY_CLIENT_SECRET?.length ?? 0) >= 32 && (process.env.SHOPIFY_TOKEN_ENCRYPTION_KEY?.length ?? 0) >= 32 && validUrl);
+  const configured = Boolean(process.env.SHOPIFY_CLIENT_ID && (process.env.SHOPIFY_CLIENT_SECRET?.length ?? 0) >= 32 && hasShopifyTokenEncryptionKey() && validUrl);
   return { configured, clientId: process.env.SHOPIFY_CLIENT_ID || null, appUrl, redirectUri: `${appUrl}${SHOPIFY_CALLBACK_PATH}`, scopes: [...SHOPIFY_SCOPES] };
 }

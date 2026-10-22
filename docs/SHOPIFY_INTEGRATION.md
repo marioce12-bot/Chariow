@@ -15,7 +15,7 @@ Dans les variables serveur Vercel de Production :
 - `SHOPIFY_CLIENT_ID` : identifiant de l’application Shopify autorisée.
 - `SHOPIFY_CLIENT_SECRET` : secret de cette application, à collecter uniquement par formulaire sécurisé.
 - `SHOPIFY_APP_URL=https://www.vendeo-studio.site`.
-- `SHOPIFY_TOKEN_ENCRYPTION_KEY` : clé aléatoire serveur d’au moins 32 caractères, distincte du secret de l’application; conserver cette clé, sa rotation nécessite un rechiffrement des jetons.
+- Clé de chiffrement des jetons Shopify : `SHOPIFY_TOKEN_ENCRYPTION_KEY` (dédiée, au moins 32 caractères) est facultative si `TOKEN_ENCRYPTION_KEY` (clé maître, au moins 32 caractères) est configurée. La clé dédiée a priorité; sa transformation SHA-256 est conservée pour compatibilité avec les jetons existants. Sinon, Vendeo dérive la clé Shopify par HMAC-SHA-256 de la clé maître avec le contexte `vendeo:shopify:token-encryption:v1`, afin de séparer cryptographiquement Shopify des autres usages de la clé maître. Il n’est donc pas nécessaire de créer une nouvelle clé si la clé maître existe déjà. Garder la clé choisie stable et secrète : sa rotation exige de rechiffrer les jetons stockés avant de remplacer l’ancienne clé; ne pas simplement substituer la clé, sous peine de rendre les jetons existants illisibles.
 - `CRON_SECRET` : secret déjà utilisé pour les tâches Vercel; le nouveau cron refuse toute requête s’il est absent.
 
 Les variables serveur ne doivent jamais être préfixées `NEXT_PUBLIC_`. Les jetons offline expirables et leur refresh token sont stockés chiffrés en AES-256-GCM dans `shopify_connections`, table sans accès client. Les nonces OAuth sont consommés atomiquement dans `shopify_oauth_states`.

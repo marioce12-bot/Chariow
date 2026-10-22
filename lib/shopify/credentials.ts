@@ -1,10 +1,9 @@
 import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getShopifyTokenEncryptionKey } from "./token-key";
 
 function encryptionKey() {
-  const configured = process.env.SHOPIFY_TOKEN_ENCRYPTION_KEY;
-  if (!configured || configured.length < 32) throw new Error("SHOPIFY_TOKEN_ENCRYPTION_KEY must be at least 32 characters");
-  return crypto.createHash("sha256").update(configured, "utf8").digest();
+  return getShopifyTokenEncryptionKey();
 }
 export function encryptShopifyToken(token: string) {
   const iv = crypto.randomBytes(12);
