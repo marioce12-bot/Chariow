@@ -46,6 +46,13 @@
 .store-platform-logo img { object-fit: contain; }
 .store-platform-logo-shopify { color: #95bf47; }
 .store-platform-dialog .store-platform-notice { padding: 12px 14px; border-radius: 10px; background: #fff7ed; color: #9a3412; font-size: 13px; }
+.store-platform-back { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 20px; padding: 8px 0; border: 0; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.store-platform-back:focus-visible { outline: 2px solid #103ef8; outline-offset: 3px; }
+.store-platform-form { display: grid; gap: 12px; min-width: 0; margin: 0; }
+.store-platform-form label { font-size: 14px; font-weight: 600; }
+.store-platform-form input { width: 100%; min-width: 0; min-height: 46px; padding: 12px; box-sizing: border-box; border: 1px solid var(--line, #e5e7eb); border-radius: 10px; background: var(--surface, #fff); color: inherit; font: inherit; font-size: 16px; }
+.store-platform-form input:focus-visible { outline: 2px solid #103ef8; outline-offset: 2px; }
+.store-platform-form .btn { width: 100%; min-width: 0; }
 @media (max-width: 480px) {
   .store-platform-backdrop { padding: 16px; }
   .store-platform-dialog { max-height: calc(100dvh - 32px); padding: 24px 20px; border-radius: 18px; }

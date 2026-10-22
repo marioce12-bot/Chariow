@@ -1952,7 +1952,7 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
     if (saving || storeLimitReached) return;
     setError("");
     if (platform === "chariow") void connectChariow();
-    else { setShowPlatformDialog(false); setShowShopifyForm(true); }
+    else setShowShopifyForm(true);
   }
 
   async function connectChariow(storeId?: string) {
@@ -2059,11 +2059,13 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
         <button type="button" className="btn btn-dark" aria-haspopup="dialog" onClick={() => { setError(""); setShowShopifyForm(false); setShowPlatformDialog(true); }} disabled={saving}><Plus size={16} /> {saving ? t("optionsExtra.text59") : t("sweep2.text316")}</button>
       </div>
 
-      {showPlatformDialog && <StorePlatformDialog full={storeLimitReached} busy={saving} error={localizeSystemMessage(error, locale)} onChoose={choosePlatform} onClose={() => setShowPlatformDialog(false)} />}
-      {showShopifyForm && <form onSubmit={(event) => { event.preventDefault(); void connectShopify(); }} style={{ maxWidth: 760, marginBottom: 16 }}>
-        <label>{locale === "en" ? "Shopify domain" : "Domaine Shopify"}<input ref={shopifyInput} aria-label={locale === "en" ? "Shopify domain" : "Domaine Shopify"} value={shopifyDomain} onChange={(event) => setShopifyDomain(event.target.value)} placeholder="example.myshopify.com" autoComplete="url" disabled={saving || storeLimitReached} /></label>
+      {showPlatformDialog && <StorePlatformDialog full={storeLimitReached} busy={saving} error={localizeSystemMessage(error, locale)} showShopifyForm={showShopifyForm} onChoose={choosePlatform} onBack={() => { setError(""); setShowShopifyForm(false); }} onClose={() => setShowPlatformDialog(false)}>
+      {showShopifyForm && <form className="store-platform-form" onSubmit={(event) => { event.preventDefault(); void connectShopify(); }}>
+        <label htmlFor="store-shopify-domain">{locale === "en" ? "Shopify domain" : "Domaine Shopify"}</label>
+        <input id="store-shopify-domain" ref={shopifyInput} aria-label={locale === "en" ? "Shopify domain" : "Domaine Shopify"} value={shopifyDomain} onChange={(event) => setShopifyDomain(event.target.value)} placeholder="example.myshopify.com" autoComplete="url" autoCapitalize="none" spellCheck={false} disabled={saving || storeLimitReached} aria-invalid={!!error} aria-describedby="store-platform-description" />
         <button className="btn btn-dark" type="submit" disabled={saving || storeLimitReached}>{locale === "en" ? "Connect Shopify" : "Connecter Shopify"}</button>
       </form>}
+      </StorePlatformDialog>}
       {error && !showPlatformDialog && <p className="store-error" role="alert">{localizeSystemMessage(error, locale)}</p>}
 
       <div className="app-card" style={{ maxWidth: 760 }}>

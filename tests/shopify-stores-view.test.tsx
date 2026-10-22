@@ -46,20 +46,45 @@ describe("StoresView — ajout et reprise des connexions", () => {
     expect(dialog()?.textContent).toContain("Unable to start the Chariow connection");
   });
   it("ouvre le formulaire Shopify, rejette les domaines invalides sans fetch et vérifie un domaine valide", async () => {
-    await render(); await click(addButton()); await click(choice("Shopify")); expect(dialog()).toBeNull();
-    const input = container.querySelector<HTMLInputElement>('input[aria-label="Shopify domain"]')!; expect(document.activeElement).toBe(input);
-    await typeIn(input, "evil.example.com"); await submitForm(); expect(container.textContent).toContain("Enter a valid *.myshopify.com domain."); expect(fetchMock).not.toHaveBeenCalled();
-    await typeIn(input, "  My-Shop.myshopify.com "); await submitForm(); expect(fetchMock).toHaveBeenCalledWith("/api/integrations/shopify/connect/check"); expect(container.querySelector("form")).toBeTruthy();
+    await render(); await click(addButton()); const modal = dialog()!; await click(choice("Shopify"));
+    expect(dialog()).toBe(modal);
+    const input = modal.querySelector<HTMLInputElement>('input[aria-label="Shopify domain"]')!; expect(input).toBeTruthy(); expect(document.activeElement).toBe(input);
+    expect(modal.querySelector("form")).toBeTruthy(); expect(container.querySelectorAll("form")).toHaveLength(1); expect(container.querySelectorAll('input[aria-label="Shopify domain"]')).toHaveLength(1);
+    await typeIn(input, "evil.example.com"); await submitForm(); expect(modal.textContent).toContain("Enter a valid *.myshopify.com domain."); expect(fetchMock).not.toHaveBeenCalled();
+    await typeIn(input, "  My-Shop.myshopify.com "); await submitForm(); expect(fetchMock).toHaveBeenCalledWith("/api/integrations/shopify/connect/check"); expect(modal.querySelector("form")).toBeTruthy();
   });
   it("affiche l'échec de configuration Shopify et l'erreur réseau", async () => {
-    await render(); await click(addButton()); await click(choice("Shopify")); const input = container.querySelector<HTMLInputElement>('input[aria-label="Shopify domain"]')!;
+    await render(); await click(addButton()); const modal = dialog()!; await click(choice("Shopify")); const input = modal.querySelector<HTMLInputElement>('input[aria-label="Shopify domain"]')!;
     await typeIn(input, "demo.myshopify.com"); fetchMock.mockResolvedValueOnce(response(true, { configured: false })); await submitForm();
-    expect(container.textContent).toContain("Shopify connection is not configured."); fetchMock.mockRejectedValueOnce(new Error("offline")); await submitForm();
-    expect(container.textContent).toContain("Unable to start the Shopify connection.");
+    expect(modal.textContent).toContain("Shopify connection is not configured."); fetchMock.mockRejectedValueOnce(new Error("offline")); await submitForm();
+    expect(modal.textContent).toContain("Unable to start the Shopify connection.");
+  });
+  it("revient aux plateformes en effaçant les erreurs, puis ferme et rouvre sans le formulaire", async () => {
+    await render(); const trigger = addButton() as HTMLButtonElement; await click(trigger); const modal = dialog()!; await click(choice("Shopify"));
+    const input = modal.querySelector<HTMLInputElement>('input[aria-label="Shopify domain"]')!; await typeIn(input, "bad.example.com"); await submitForm();
+    expect(modal.querySelector('[role="alert"]')?.textContent).toContain("Enter a valid *.myshopify.com domain.");
+    await click(Array.from(modal.querySelectorAll("button")).find(button => button.textContent?.includes("Back to platforms")) ?? null);
+    expect(dialog()).toBe(modal); expect(choice("Shopify")).toBeTruthy(); expect(modal.querySelector("form")).toBeNull(); expect(modal.querySelector('input[aria-label="Shopify domain"]')).toBeNull(); expect(modal.querySelector('[role="alert"]')).toBeNull();
+    await click(choice("Shopify")); expect(dialog()).toBe(modal); expect(modal.querySelector("form")).toBeTruthy();
+    await act(async () => { modal.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); }); expect(dialog()).toBeNull(); expect(container.querySelector("form")).toBeNull(); expect(container.querySelector('input[aria-label="Shopify domain"]')).toBeNull();
+    await click(trigger); expect(dialog()).toBeTruthy(); expect(dialog()?.querySelector("form")).toBeNull(); expect(dialog()?.querySelector('input[aria-label="Shopify domain"]')).toBeNull();
+    const backdrop = container.querySelector(".store-platform-backdrop")!; await act(async () => { backdrop.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await click(trigger); await click(choice("Shopify")); const reopenedBackdrop = container.querySelector(".store-platform-backdrop")!; await act(async () => { reopenedBackdrop.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(dialog()).toBeNull(); expect(container.querySelector("form")).toBeNull(); expect(container.querySelector('input[aria-label="Shopify domain"]')).toBeNull();
   });
   it("à 3/3 conserve la modale, désactive les deux choix et ne fetch rien", async () => {
     await render([store(), store({ id: "2" }), store({ id: "3" })]); await click(addButton());
     expect(dialog()?.textContent).toContain("All 3 store slots are in use"); expect((choice("Chariow") as HTMLButtonElement).disabled).toBe(true); expect((choice("Shopify") as HTMLButtonElement).disabled).toBe(true); expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("bloque le formulaire déjà ouvert si la capacité devient complète", async () => {
+    await render(); await click(addButton()); await click(choice("Shopify"));
+    await act(async () => { root.render(<StoresView stores={[store(), store({ id: "2" }), store({ id: "3" })]} subscription={null} onStoresChange={vi.fn()} />); });
+    const modal = dialog()!;
+    expect(modal.querySelector<HTMLInputElement>("input")!.disabled).toBe(true);
+    expect(modal.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(true);
+    expect(modal.textContent).toContain("All 3 store slots are in use");
+    await act(async () => { modal.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it("ferme par Escape/backdrop, rend le focus et piège la tabulation", async () => {
     await render(); const trigger = addButton() as HTMLButtonElement; trigger.focus(); await click(trigger); const modal = dialog()!;
