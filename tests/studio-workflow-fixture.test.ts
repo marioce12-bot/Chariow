@@ -23,4 +23,15 @@ describe("isolated preview workflow fixture", () => {
     expect(source).not.toMatch(/from ["'].*(?:supabase|image-generation|slideshow-server|slideshow-voice|credits|subscription)/);
     expect(source).not.toContain("fetch(");
   });
+  it("serves the complete Preview check with enough synthetic evidence for every duration and no TTS", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    start.mockResolvedValue({ returnValue: Promise.resolve({ completedImages: 5, studioCreditsConsumed: 0 }) });
+    const response = await GET();
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result).toMatchObject({ fixtureOnly: true, studioCreditsConsumed: 0, ttsCalls: 0 });
+    expect(result.narration.map((plan: any) => plan.duration)).toEqual([25, 30, 40]);
+    for (const plan of result.narration) expect(plan.words).toBeGreaterThanOrEqual(Math.ceil(plan.duration * 0.95 * 2));
+  });
+
 });
