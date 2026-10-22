@@ -12,6 +12,7 @@ import "@/app/marketing-fixes.css";
 import "@/app/landing-premium.css";
 import "@/app/landing-preview-layout.css";
 import "@/app/landing-side-reveal.css";
+import "@/app/docs-entry.css";
 
 const demos = [
   { fr: "Accueil", en: "Home", frAlt: "Capture réelle de l’accueil Vendeo : tableau de bord avec les indicateurs et les raccourcis de gestion.", enAlt: "Authentic screenshot of the Vendeo home dashboard, showing its metrics and management shortcuts." },
@@ -59,7 +60,7 @@ export function Marketing() {
   return <main className="landing-premium">
     <header className="marketing-header"><div className="container"><nav className="marketing-nav" aria-label={t("optionsExtra.text9")}>
       <Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40}/></Link>
-      <div id="landing-navigation" className={`nav-links${mobileOpen ? " mobile-open" : ""}`}><a href="#comment" onClick={() => setMobileOpen(false)}>{t("landing.nav.how")}</a><a href="#fonctionnalites" onClick={() => setMobileOpen(false)}>{t("landing.nav.features")}</a><a href="#tarifs" onClick={() => setMobileOpen(false)}>{t("landing.nav.pricing")}</a><a href="#faq" onClick={() => setMobileOpen(false)}>{t("landing.nav.faq")}</a></div>
+      <div id="landing-navigation" className={`nav-links${mobileOpen ? " mobile-open" : ""}`}><a href="#comment" onClick={() => setMobileOpen(false)}>{t("landing.nav.how")}</a><a href="#fonctionnalites" onClick={() => setMobileOpen(false)}>{t("landing.nav.features")}</a><a href="#tarifs" onClick={() => setMobileOpen(false)}>{t("landing.nav.pricing")}</a><a href="#faq" onClick={() => setMobileOpen(false)}>{t("landing.nav.faq")}</a><Link href="/docs" className="landing-docs-link" onClick={() => setMobileOpen(false)}>Documentation <span aria-hidden="true">↗</span></Link></div>
       <div className="marketing-actions"><Link className="btn btn-ghost" href="/login">{t("landing.nav.login")}</Link><Link className="btn btn-white" href="/register">{t("landing.nav.start")} <ArrowRight size={15}/></Link></div>
       <button className="landing-menu" type="button" aria-label={mobileOpen ? t("adminExtra.nav.close") : t("optionsExtra.text10")} aria-expanded={mobileOpen} aria-controls="landing-navigation" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X/> : <Menu/>}</button>
     </nav></div></header>
@@ -97,6 +98,6 @@ export function Marketing() {
 
     <section className="section" id="faq"><div className="container landing-reveal"><div className="section-head"><div><span className="eyebrow">{t("landing.faq.eyebrow")}</span><h2>{t("landing.faq.title1")}<br/>{t("landing.faq.title2")}</h2></div><p>{t("landing.faq.paragraph")}</p></div><div className="faq-list">{faqs.map(([q,a],i)=><div className="faq-item" key={q}><button className="faq-question" onClick={()=>setOpen(open===i?null:i)} aria-expanded={open===i}>{q}<span>{open===i?"−":"+"}</span></button>{open===i&&<div className="faq-answer">{a}</div>}</div>)}</div></div></section>
     <section className="section landing-cta-section"><div className="container landing-reveal"><div className="cta"><span className="eyebrow">{t("landing.cta.eyebrow")}</span><h2>{t("landing.cta.title1")}<br/>{t("landing.cta.title2")}</h2><p>{t("landing.cta.paragraph")}</p><Link href="/register" className="btn btn-dark">{t("landing.cta.button")} <ArrowRight size={16}/></Link></div></div></section>
-    <footer className="site-footer"><div className="container footer-row"><Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40}/></Link><div className="footer-links"><Link href="/about">{t("landing.footer.about")}</Link><Link href="/privacy">{t("landing.footer.privacy")}</Link><Link href="/terms">{t("landing.footer.terms")}</Link></div><span style={{color:"#91a3c8",fontSize:11}}>© 2026 Vendeo</span></div></footer>
+    <footer className="site-footer"><div className="container footer-row"><Link href="/" className="brand"><Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40}/></Link><div className="footer-links"><Link href="/docs">Documentation</Link><Link href="/about">{t("landing.footer.about")}</Link><Link href="/privacy">{t("landing.footer.privacy")}</Link><Link href="/terms">{t("landing.footer.terms")}</Link></div><span style={{color:"#91a3c8",fontSize:11}}>© 2026 Vendeo</span></div></footer>
   </main>;
 }

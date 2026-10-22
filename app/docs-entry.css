@@ -1,0 +1,5 @@
+/* Public documentation entry, without changing landing animations. */
+.landing-premium .nav-links{gap:18px}
+.landing-premium .nav-links .landing-docs-link{display:inline-flex;align-items:center;gap:7px;border:1px solid #dfe5f1;border-radius:7px;padding:7px 10px;background:#f7f9ff;font-weight:600;color:#344d95}
+@media(max-width:1100px) and (min-width:851px){.landing-premium .nav-links{gap:10px;font-size:12px}.landing-premium .marketing-actions .btn{font-size:12px;padding-left:10px;padding-right:10px}}
+@media(max-width:850px){.landing-premium .nav-links{gap:0}.landing-premium .nav-links .landing-docs-link{margin:4px 0;padding:12px;border-color:#e2e8f4}}
