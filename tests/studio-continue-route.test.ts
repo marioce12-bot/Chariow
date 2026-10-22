@@ -1,3 +1,4 @@
+vi.mock("workflow/api", () => ({ start: vi.fn() }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({ from: vi.fn(), generate: vi.fn(), render: vi.fn(), after: [] as Array<() => Promise<void>>, auth: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireUser: m.auth }));
@@ -53,6 +54,8 @@ describe("continue route no-charge integration", () => {
     expect(row.status).toBe("processing"); expect(m.generate).not.toHaveBeenCalled();
     const firstFour = row.metadata.images.map((i: any) => i.id);
     await m.after[0]();
+    expect(m.generate).not.toHaveBeenCalled();
+    await runTaskStep(id, 5);
     expect(m.generate).toHaveBeenCalledTimes(1); expect(row.metadata.images).toHaveLength(5);
     expect(row.metadata.images.slice(0, 4).map((i: any) => i.id)).toEqual(firstFour); expect(row.metadata.creditsConsumed).toBe(100);
     await runTaskStep(id, 5); expect(m.generate).toHaveBeenCalledTimes(1);
@@ -73,7 +76,7 @@ describe("continue route no-charge integration", () => {
   it("resumes the proved legacy queued dispatch checkpoint without recreating the four images", async () => {
     delete row.metadata.stages; row.metadata.error = "Le suivi serveur n’a pas pu continuer. Aucune étape payante n’est relancée.";
     expect((await POST(request({ expectedRevision: 5, confirmCost: 20 }), context)).status).toBe(202);
-    expect(row.metadata.stages).toHaveLength(4); await m.after[0](); expect(m.generate).toHaveBeenCalledTimes(1); expect(row.metadata.images).toHaveLength(5);
+    expect(row.metadata.stages).toHaveLength(4); await m.after[0](); await runTaskStep(id, 5); expect(m.generate).toHaveBeenCalledTimes(1); expect(row.metadata.images).toHaveLength(5);
   });
   it("arbitrary legacy failure stays unknown and missing stored sources block continuation", async () => {
     delete row.metadata.stages;

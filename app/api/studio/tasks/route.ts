@@ -1,3 +1,5 @@
+import { start } from "workflow/api";
+import { studioTaskWorkflow } from "@/lib/studio/task-workflow";
 import { NextResponse, after } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,7 +14,6 @@ import {
   failTask,
   StudioTaskError,
   publicTask,
-  runTaskStep,
   type TaskMetadata,
 } from "@/lib/studio/background-tasks";
 export const runtime = "nodejs";
@@ -173,7 +174,7 @@ export async function POST(request: Request) {
     );
   logTaskEvent("task_created", body.id, 0, metadata);
   after(async () => {
-    try { await runTaskStep(body.id, 0); }
+    try { await start(studioTaskWorkflow, [body.id, 0]); }
     catch {
       const failure = new StudioTaskError("STUDIO_WORKER_EXECUTION_FAILED");
       logTaskEvent("worker_execution_failed", body.id, 0, metadata, failure);

@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   from: vi.fn(), generate: vi.fn(), preflight: vi.fn(), render: vi.fn(), dispatch: vi.fn(),
   requireUser: vi.fn(), subscription: vi.fn(), rateLimit: vi.fn(), after: vi.fn((fn: () => unknown) => { void fn; }),
-  preview: vi.fn(() => true),
+  preview: vi.fn(() => true), start: vi.fn(),
 }));
+vi.mock("workflow/api", () => ({ start: mocks.start }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: mocks.from }) }));
 vi.mock("@/lib/studio/image-generation", () => ({ generateStudioImage: mocks.generate }));
 vi.mock("@/lib/studio/slideshow-server", () => ({ preflightSlideshow: mocks.preflight, renderSlideshow: mocks.render, isPreviewEnabled: mocks.preview }));
@@ -13,7 +14,8 @@ vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/lib/subscription/access", () => ({ requireActiveSubscription: mocks.subscription }));
 vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit: mocks.rateLimit }));
 
-import { publicTask, runTaskStep, TASK_TYPE, stageGenerationId, dispatchTask, StudioTaskError } from "@/lib/studio/background-tasks";
+import { publicTask, runTaskStep, TASK_TYPE, stageGenerationId, taskToken } from "@/lib/studio/background-tasks";
+import { studioTaskWorkflow } from "@/lib/studio/task-workflow";
 import { GET, POST as createTask } from "@/app/api/studio/tasks/route";
 import { POST as workerPost } from "@/app/api/studio/tasks/worker/route";
 
@@ -96,44 +98,31 @@ describe("runTaskStep", () => {
     expect(mocks.dispatch).not.toHaveBeenCalled();
     expect(mocks.generate).toHaveBeenCalledTimes(1);
   });
-  it("un timeout de dispatch ne marque pas failed si le worker suivant a déjà claimé running", async () => {
-    const updates = configureDb(rowFor(metadata("slideshow", { revision: 1 })));
-    vi.mocked(fetch).mockImplementation(async () => {
-      // Simulate the next worker winning its queued→running database CAS.
-      (updates as any).row.metadata = { ...(updates as any).row.metadata, revision: 2, phase: "running" };
-      throw new Error("dispatch timed out");
-    });
-    await runTaskStep(id, 1);
-    expect(fetch).toHaveBeenCalledTimes(1);
-    expect(mocks.generate).toHaveBeenCalledTimes(1);
-    expect(updates.at(-1)).not.toMatchObject({ status: "failed", metadata: { phase: "failed" } });
-  });
-  it("conserve 4/5 et les 80 crédits confirmés si le worker suivant répond 503", async () => {
-    const images = Array.from({ length: 3 }, (_, i) => ({ id: `g${i}`, url: `u${i}` }));
-    const row = rowFor(metadata("slideshow", { revision: 4, images }));
+  it("persiste 4/5 puis retourne la révision 5 sans aucun appel HTTP récursif", async () => {
+    const row = rowFor(metadata("slideshow", { revision: 4, images: Array.from({ length: 3 }, (_, i) => ({ id: `g${i}`, url: `u${i}` })) }));
     configureDb(row);
-    vi.mocked(fetch).mockResolvedValue(new Response("secret provider payload", { status: 503 }));
-    const log = vi.spyOn(console, "info").mockImplementation(() => {});
-    await runTaskStep(id, 4);
-    expect(row.status).toBe("failed");
+    vi.mocked(fetch).mockResolvedValue(new Response("recursion blocked", { status: 508 }));
+    expect(await runTaskStep(id, 4)).toBe(5);
+    expect(row.status).toBe("processing");
     expect(row.metadata.images).toHaveLength(4);
     expect(row.metadata.creditsConsumed).toBe(80);
-    expect(row.metadata.errorCode).toBe("STUDIO_WORKER_HTTP");
-    expect(row.metadata.httpStatus).toBe(503);
-    expect(row.metadata.stages.at(-1).state).toBe("completed");
-    await runTaskStep(id, 4); await runTaskStep(id, 5);
-    expect(mocks.generate).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(log.mock.calls)).not.toContain("secret provider payload");
-    log.mockRestore();
+    expect(row.metadata.phase).toBe("queued");
+    expect(fetch).not.toHaveBeenCalled();
   });
-  it("une réponse worker perdue garde les 4 visuels et interdit le rejeu payant", async () => {
-    const row = rowFor(metadata("slideshow", { revision: 4, images: Array.from({ length: 3 }, (_, i) => ({ id: `g${i}`, url: `u${i}` })) }));
-    configureDb(row); vi.mocked(fetch).mockRejectedValue(new Error("private transport details"));
-    await runTaskStep(id, 4);
-    expect(row.metadata.images).toHaveLength(4);
-    expect(row.metadata.errorCode).toBe("STUDIO_WORKER_RESPONSE_LOST");
+  it("conserve les quatre images si le cinquième fournisseur échoue et ne le rejoue pas", async () => {
+    const images = Array.from({ length: 4 }, (_, i) => ({ id: `g${i}`, url: `u${i}` }));
+    const row = rowFor(metadata("slideshow", { revision: 5, images, creditsConsumed: 80 }));
+    configureDb(row);
+    mocks.generate.mockResolvedValue({ ...ok({ error: "provider error" }), ok: false });
+    expect(await runTaskStep(id, 5)).toBeUndefined();
+    expect(row.status).toBe("failed");
+    expect(row.metadata.images).toEqual(images);
+    expect(row.metadata.creditsConsumed).toBe(80);
+    expect(row.metadata.errorCode).toBe("STUDIO_IMAGE_HTTP");
+    expect(row.metadata.stages.at(-1).state).toBe("uncertain");
     await runTaskStep(id, 5);
     expect(mocks.generate).toHaveBeenCalledTimes(1);
+    expect(fetch).not.toHaveBeenCalled();
   });
   it("ne reprend jamais une étape running incertaine même avec le même token", async () => {
     configureDb(rowFor(metadata("slideshow", { revision: 5, phase: "running", images: Array.from({ length: 4 }, (_, i) => ({ id: `g${i}`, url: `u${i}` })) })));
@@ -161,6 +150,22 @@ describe("runTaskStep", () => {
     expect(row.status).toBe("failed"); expect(row.metadata.progress).not.toBe(100);
     expect(row.metadata.errorCode).toBe("STUDIO_MP4_NOT_READY");
     expect(mocks.generate).not.toHaveBeenCalled();
+  });
+  it("le workflow complète réellement les cinq checkpoints et le MP4 sans réseau ni récursion", async () => {
+    const row = rowFor(metadata("slideshow"));
+    configureDb(row);
+    mocks.generate.mockImplementation(async (_user, _input, stage) => ok({ generationId: stage.generationId, imageUrl: `https://fixture.test/${stage.step}` }));
+    mocks.render.mockResolvedValue({ generationId: "fixture-mp4", videoUrl: "https://fixture.test/final.mp4" });
+    await studioTaskWorkflow(id, 0);
+    expect(row.status).toBe("completed");
+    expect(row.metadata).toMatchObject({ revision: 7, phase: "completed", progress: 100, creditsConsumed: 100 });
+    expect(row.metadata.images).toHaveLength(5);
+    expect(row.metadata.stages).toHaveLength(7);
+    expect(new Set(row.metadata.images.map((image: any) => image.id)).size).toBe(5);
+    expect(mocks.preflight).toHaveBeenCalledTimes(1);
+    expect(mocks.generate).toHaveBeenCalledTimes(5);
+    expect(mocks.render).toHaveBeenCalledTimes(1);
+    expect(fetch).not.toHaveBeenCalled();
   });
   it("fait le préflight puis les cinq images puis le rendu aux phases correspondantes", async () => {
     const slideshowInput = metadata("slideshow").input;
@@ -190,6 +195,14 @@ describe("routes des tâches studio", () => {
     expect((await workerPost(request(""))).status).toBe(401);
     expect((await workerPost(request("0".repeat(64)))).status).toBe(401);
     expect(mocks.after).not.toHaveBeenCalled();
+  });
+  it("accepte le worker signé en lançant le workflow durable, pas une étape récursive", async () => {
+    const response = await workerPost(new Request("http://localhost/api/studio/tasks/worker", { method: "POST", headers: { "content-type": "application/json", "x-studio-task-token": taskToken(id, 0) }, body: JSON.stringify({ id, revision: 0 }) }));
+    expect(response.status).toBe(202);
+    await mocks.after.mock.calls[0][0]();
+    expect(mocks.start).toHaveBeenCalledWith(expect.any(Function), [id, 0]);
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
   it("ne retourne en GET que les tâches du propriétaire", async () => {
     mocks.requireUser.mockResolvedValue({ user, response: null });

@@ -32,9 +32,21 @@ describe("Deterministic pre-generation copy and visual semantics guards", () => 
     const plan = buildSlideshowPlan({ ...input, description: objective + "\n" + input.description });
     expect(plan.slides[0].source?.excerpt).toBe(objective);
     expect(plan.slides.slice(1, 4).map(slide => slide.source?.excerpt)).toEqual(input.description.split("\n"));
-    expect(plan.slides.at(-1)?.headline).toBe("Découvre ce produit");
+    expect(plan.slides.at(-1)?.headline).toBe("Découvre le guide");
     expect(plan.slides.slice(1).some(slide => slide.headline.includes(input.name))).toBe(false);
     expect(new Set(plan.slides.map(slide => slide.scene)).size).toBe(5);
+  });
+  it("does not claim a Snapchat launch from detached campaign/statistics references", () => {
+    const description = "Guide d'analyse des statistiques des campagnes Snapchat. Il explique le ciblage. Il présente des exemples pratiques. Les étapes sont organisées par niveau.";
+    const plan = buildSlideshowPlan({ ...input, name: "Guide Snapchat", description, campaignGoal: "buy" });
+    expect(plan.slides.at(-1)?.headline).toBe("Procure-toi le guide");
+    expect(plan.slides.at(-1)?.headline).not.toMatch(/lancer tes campagnes/i);
+  });
+  it("permits a booking CTA only for explicit service-booking language, never a guide", () => {
+    const explicit = "Service de séance photo. Réserver une séance photo avec notre studio. La séance comprend une galerie privée. Livraison numérique des images.";
+    expect(buildSlideshowPlan({ ...input, name: "Séance photo studio", description: explicit, campaignGoal: "buy" }).slides.at(-1)?.headline).toBe("Réserve ta séance");
+    const guide = "Guide pour réserver une séance photo. Il présente les étapes de préparation. Il détaille les différents objectifs. Il contient des exercices pratiques.";
+    expect(buildSlideshowPlan({ ...input, name: "Guide photo", description: guide, campaignGoal: "buy" }).slides.at(-1)?.headline).toBe("Procure-toi le guide");
   });
   it.each(["headline", "source", "scene", "visualMessage", "layout", "prompt"] as const)("blocks repeated %s across all slides before any image/music/assembly call", async field => {
     const plan = buildSlideshowPlan(input);

@@ -1,3 +1,4 @@
+import { withWorkflow } from "workflow/next";
 import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
@@ -57,10 +58,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["ffmpeg-static", "ffprobe-static"],
   outputFileTracingExcludes: {
+    "/.well-known/workflow/**": ["./node_modules/ffprobe-static/bin/darwin/**", "./node_modules/ffprobe-static/bin/win32/**", "./node_modules/ffprobe-static/bin/linux/ia32/**", "./node_modules/ffprobe-static/bin/linux/arm64/**"],
     "/api/studio/tasks/**": ["./node_modules/ffprobe-static/bin/darwin/**", "./node_modules/ffprobe-static/bin/win32/**", "./node_modules/ffprobe-static/bin/linux/ia32/**", "./node_modules/ffprobe-static/bin/linux/arm64/**"],
     "/api/studio/slideshow/**": ["./node_modules/ffprobe-static/bin/darwin/**", "./node_modules/ffprobe-static/bin/win32/**", "./node_modules/ffprobe-static/bin/linux/ia32/**", "./node_modules/ffprobe-static/bin/linux/arm64/**"],
   },
   outputFileTracingIncludes: {
+    "/.well-known/workflow/**": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe", "./public/vendeo-logo.webp"],
     "/api/studio/tasks": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
     "/api/studio/tasks/*": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
     "/api/studio/slideshow/*": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe", "./public/vendeo-logo.webp"],
@@ -75,4 +78,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withWorkflow(nextConfig);

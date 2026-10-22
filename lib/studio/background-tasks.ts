@@ -71,27 +71,6 @@ export function validTaskToken(id: string, revision: number, token: string) {
     Buffer.from(token),
   );
 }
-export function workerOrigin() {
-  // Never forward an internal credential to a client-controlled Host header.
-  return process.env.VERCEL_ENV === "production"
-    ? "https://www.vendeo-studio.site"
-    : `https://${process.env.VERCEL_URL}`;
-}
-export async function dispatchTask(id: string, revision: number, metadata?: TaskMetadata) {
-  try {
-    const response = await fetch(`${workerOrigin()}/api/studio/tasks/worker`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-studio-task-token": taskToken(id, revision) },
-      body: JSON.stringify({ id, revision }), cache: "no-store", signal: AbortSignal.timeout(20_000),
-    });
-    if (!response.ok) throw new StudioTaskError("STUDIO_WORKER_HTTP", response.status);
-    logTaskEvent("worker_accepted", id, revision, metadata);
-  } catch (error) {
-    const safe = error instanceof StudioTaskError ? error : new StudioTaskError("STUDIO_WORKER_RESPONSE_LOST");
-    logTaskEvent("worker_dispatch_failed", id, revision, metadata, safe);
-    throw safe;
-  }
-}
 export async function publicTask(row: any) {
   const metadata = row.metadata as TaskMetadata;
   let result = metadata.result;
@@ -406,14 +385,9 @@ export async function runTaskStep(id: string, revision: number) {
     if (!saved.data?.length && !saved.error) return;
     if (saved.error) throw new StudioTaskError("STUDIO_PERSISTENCE_FAILED");
     logTaskEvent("stage_completed", id, revision, next);
-    // Each step has its own server execution budget. Browser lifetime is irrelevant.
-    if (!complete) {
-      try {
-        await dispatchTask(id, next.revision, next);
-      } catch (error) {
-        await failTask(id, error, { revision: next.revision, phase: "queued" });
-      }
-    }
+    // The durable orchestrator schedules the next independent invocation.
+    // Never fetch this worker from a worker (Vercel rejects recursive chains).
+    return complete ? null : next.revision;
   } catch (error) {
     await failTask(id, error, { revision, phase: "running" });
   }

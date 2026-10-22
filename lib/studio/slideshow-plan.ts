@@ -97,6 +97,28 @@ export function buildProductHook(name: string, fact: string | undefined, en = fa
   }
   return en ? `What is ${name}?` : `Que contient ${name} ?`;
 }
+/** Choose a short CTA from the product's explicit type/objective; never imply an
+ * order channel, booking, discount, availability or service not in the source. */
+export function buildSlideshowCta(name: string, facts: string[], goal: CampaignGoal, en = false): string {
+  const source = `${name} ${facts.join(" ")}`;
+  const ebook = /\b(e-?book|livre numérique|digital book)\b/i.test(source);
+  const guide = /\b(guide|handbook)\b/i.test(source);
+  const snapchatLaunch = /\b(?:lancer|launch)\b[^.!?\n]{0,70}\b(?:campagnes?|campaigns?)\b[^.!?\n]{0,50}\b(?:sur\s+snapchat|on\s+snapchat)\b/i.test(source) ||
+    /\b(?:lancer|launch)\b[^.!?\n]{0,70}\b(?:campagnes?|campaigns?)\b[^.!?\n]{0,50}\b(?:snapchat)\b/i.test(source);
+  const snapchatCampaigns = /\bsnapchat\b/i.test(source) && /\b(?:campagnes?|campaigns?)\b/i.test(source);
+  const explicitBookingService = !guide && !ebook && /\b(?:réserver|reserver|book)\s+(?:une?\s+)?(?:séance|session|consultation|rendez-vous|appointment)\b/i.test(source);
+  if (snapchatCampaigns && snapchatLaunch && guide && goal !== "learn" && goal !== "contact") return en
+    ? "Ready to launch Snapchat campaigns? Get the guide"
+    : "Prêt à lancer tes campagnes sur Snapchat ? Procure-toi le guide";
+  if (explicitBookingService && goal === "buy") return en ? "Book your session" : "Réserve ta séance";
+  if (ebook && goal === "buy") return en ? "Get the ebook" : "Procure-toi l’ebook";
+  if (guide && goal === "buy") return en ? "Get the guide" : "Procure-toi le guide";
+  const item = ebook ? (en ? "the ebook" : "l’ebook") : guide ? (en ? "the guide" : "le guide") : `«${name}»`;
+  if (goal === "discover") return ebook ? (en ? "Get your ebook" : "Prends ton ebook") : en ? `Discover ${item}` : `Découvre ${item}`;
+  if (goal === "buy") return en ? `Get ${item}` : `Procure-toi ${item}`;
+  if (goal === "learn") return en ? `Explore ${item}` : `Explore ${item}`;
+  return en ? `Ask about ${item}` : `Renseigne-toi sur ${item}`;
+}
 /** No text/image service call: decide evidence, count and narrative BEFORE compiling prompts. */
 export function buildSlideshowPlan(input: VideoAdInput & { campaignGoal?: unknown }, musicId?: string): SlideshowPlan {
   if (!(SLIDESHOW_DURATIONS as readonly number[]).includes(input.duration)) throw new Error("Durée de diaporama non prise en charge");
@@ -119,7 +141,7 @@ export function buildSlideshowPlan(input: VideoAdInput & { campaignGoal?: unknow
   if (argumentsFacts.length < PRODUCT_SLIDES) throw new InsufficientProductDetailsError(en
     ? "Not enough distinct verified product details for five coherent images. Add three different contents or features (plus a separate objective if used for the hook). No image generated or credits spent."
     : "Informations produit vérifiées insuffisantes pour cinq images cohérentes. Ajoute trois contenus ou caractéristiques différents (et un objectif distinct si utilisé en accroche). Aucune image générée ni crédit consommé.");
-  const cta = (en ? { discover: "Discover this product", buy: "Buy this product", learn: "Learn more", contact: "Contact us" } : { discover: "Découvre ce produit", buy: "Achète ce produit", learn: "En savoir plus", contact: "Contacte-nous" })[goal];
+  const cta = buildSlideshowCta(name, slideshowSourceCandidates(input.description), goal, en);
   const countReason = en
     ? "Exactly 5 images: opening hook + 3 product-grounded promotional slides + final CTA, regardless of duration."
     : "Exactement 5 images : une accroche + 3 visuels promotionnels ancrés dans le produit + un CTA final, quelle que soit la durée.";

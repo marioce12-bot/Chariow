@@ -1,8 +1,10 @@
+import { start } from "workflow/api";
+import { studioTaskWorkflow } from "@/lib/studio/task-workflow";
 import { NextResponse, after } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveSubscription } from "@/lib/subscription/access";
-import { TASK_TYPE, continuationQuote, failTask, logTaskEvent, publicTask, runTaskStep, StudioTaskError, legacyQueuedDispatchCheckpoint, stageGenerationId, type StageRecord, type TaskMetadata } from "@/lib/studio/background-tasks";
+import { TASK_TYPE, continuationQuote, failTask, logTaskEvent, publicTask, StudioTaskError, legacyQueuedDispatchCheckpoint, stageGenerationId, type StageRecord, type TaskMetadata } from "@/lib/studio/background-tasks";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -89,7 +91,7 @@ export async function POST(request: Request, context: Context) {
   if (claim.error) return NextResponse.json({ error: "Reprise indisponible." }, { status: 503 });
   if (!claim.data?.length) return NextResponse.json({ error: "La tâche a déjà été reprise ou modifiée." }, { status: 409 });
   after(async () => {
-    try { await runTaskStep(id, nextMeta.revision); }
+    try { await start(studioTaskWorkflow, [id, nextMeta.revision]); }
     catch {
       const failure = new StudioTaskError("STUDIO_WORKER_EXECUTION_FAILED");
       logTaskEvent("worker_execution_failed", id, meta.revision, nextMeta, failure);

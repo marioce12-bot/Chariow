@@ -1,3 +1,4 @@
+vi.mock("workflow/api", () => ({ start: vi.fn() }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ ask: vi.fn(), from: vi.fn(), insert: vi.fn(), after: vi.fn(), worker: vi.fn(), subscription: vi.fn(), debit: vi.fn() }));
 vi.mock("next/server", () => ({ NextResponse: { json: (body: unknown, init?: ResponseInit) => new Response(JSON.stringify(body), init) }, after: mocks.after }));

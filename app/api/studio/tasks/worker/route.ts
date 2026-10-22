@@ -1,5 +1,7 @@
+import { start } from "workflow/api";
+import { studioTaskWorkflow } from "@/lib/studio/task-workflow";
 import { NextResponse, after } from "next/server";
-import { failTask, logTaskEvent, runTaskStep, StudioTaskError, validTaskToken } from "@/lib/studio/background-tasks";
+import { failTask, logTaskEvent, StudioTaskError, validTaskToken } from "@/lib/studio/background-tasks";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export async function POST(request: Request) {
@@ -19,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   logTaskEvent("worker_received", body.id, body.revision);
   after(async () => {
-    try { await runTaskStep(body.id, body.revision); }
+    try { await start(studioTaskWorkflow, [body.id, body.revision]); }
     catch {
       const failure = new StudioTaskError("STUDIO_WORKER_EXECUTION_FAILED");
       logTaskEvent("worker_execution_failed", body.id, body.revision, undefined, failure);
