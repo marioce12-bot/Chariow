@@ -7,6 +7,7 @@ import { SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
 import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
 
 type Product = {
   id: string;
@@ -553,15 +554,14 @@ export function SlideshowStudio({
               borderRadius: 12,
             }}
           />
-          <a
+          <VideoDownloadButton
             className="btn btn-dark"
-            href={result.videoUrl}
-            download="vendeo-diaporama.mp4"
-            target="_blank"
-            rel="noreferrer"
+            url={result.videoUrl}
+            filename="vendeo-diaporama.mp4"
+            locale={locale}
           >
             {fr ? "Télécharger" : "Download"}
-          </a>
+          </VideoDownloadButton>
           {result.attribution ? (
             <details>
               <summary>

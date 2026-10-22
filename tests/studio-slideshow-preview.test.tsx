@@ -73,8 +73,9 @@ describe("SlideshowStudio preview zone", () => {
     expect(video?.preload).toBe("metadata");
     expect(video?.style.maxWidth).toBe("var(--slideshow-player-width, 420px)");
     expect(video?.style.maxHeight).toBe("var(--slideshow-player-height, 600px)");
-    const download = section?.querySelector<HTMLAnchorElement>('a[download="vendeo-diaporama.mp4"]');
-    expect(download?.getAttribute("href")).toBe(result.videoUrl);
+    const download = section?.querySelector<HTMLButtonElement>('.studio-slideshow-final button');
+    expect(download?.type).toBe("button");
+    expect(section?.querySelector('a[href="' + result.videoUrl + '"]')).toBeNull();
     expect(download?.textContent).toBe("Télécharger");
     expect(section?.querySelector("details summary")?.textContent).toContain("Crédits musique à joindre");
     expect(section?.querySelector("details textarea")?.textContent).toBe(result.attribution);

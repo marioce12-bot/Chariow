@@ -39,6 +39,35 @@ describe("Studio history reopening", () => {
     expect(container.querySelector(".studio-history-viewer video")?.hasAttribute("playsinline")).toBe(true);
     expect(fetchMock.mock.calls.some(([url, init]) => ["/api/studio/video", "/api/studio/image"].includes(String(url)) && init?.method === "POST")).toBe(false);
   });
+  it("downloads an existing history MP4 locally without opening its remote URL or creating a generation", async () => {
+    const createObjectURL = vi.fn(() => "blob:history-video");
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL });
+    const clicks: Array<{ href: string; download: string }> = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      clicks.push({ href: this.href, download: this.download });
+    });
+    try {
+      render(); await settle();
+      await act(async () => container.querySelectorAll<HTMLElement>(".studio-history-card")[3].click());
+      const viewer = container.querySelector(".studio-history-viewer")!;
+      expect(viewer.querySelector("a[href]")).toBeNull();
+      const download = Array.from(viewer.querySelectorAll<HTMLButtonElement>("button")).find((button) => button.textContent === "studio.downloadVideo")!;
+      expect(download).toBeTruthy();
+      fetchMock.mockImplementation(async (url: string) => {
+        if (url === "https://media.test/final.mp4") return { ok: true, blob: async () => new Blob(["existing MP4"], { type: "video/mp4" }) };
+        return response({});
+      });
+      await act(async () => download.click());
+      expect(fetchMock).toHaveBeenCalledWith("https://media.test/final.mp4");
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(clicks).toHaveLength(1);
+      expect(clicks[0].href).toBe("blob:history-video");
+      expect(clicks[0].download).toMatch(/\.mp4$/);
+      expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    } finally { click.mockRestore(); }
+  });
   it("opens an image from the slideshow tab without switching or requiring a job id", async () => {
     render(); await settle();
     await act(async () => container.querySelector<HTMLButtonElement>("#studio-slideshow-tab")!.click());
