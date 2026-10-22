@@ -102,7 +102,8 @@ export async function synthesizeSlideshowVoice(plan: SlideshowVoicePlan, fetcher
   try {
     const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${SLIDESHOW_VOICE_MODEL}:generateContent`, {
       method: "POST", signal: controller.signal, headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({ contents: [{ parts: [{ text: `Read exactly this script in ${plan.language}. Tone: ${plan.tone}. Do not add any words.\n${plan.script}` }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: plan.voice } } } } }),
+      // Gemini 3.8 reads text verbatim; delivery directions belong in speech_metadata.
+      body: JSON.stringify({ contents: [{ parts: [{ text: plan.script, speech_metadata: { style: plan.tone } }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: plan.voice } } } } }),
     });
     if (!response.ok) {
       if (response.status === 429 || response.status === 403) throw new Error("Quota ou accès Gemini gratuit indisponible; aucune relance ni bascule vers une offre payante n'est effectuée.");

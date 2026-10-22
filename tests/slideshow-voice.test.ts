@@ -45,6 +45,31 @@ describe("slideshow voice", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(String(fetcher.mock.calls[0][0])).toContain("gemini-3.8-flash-tts");
   });
+  it.each([
+    product,
+    { name: "Travel organizer", description: "A compact planner with 120 pages. Recycled paper certified. Stitched binding built to last. Portable format for travel." },
+  ])("sends only the product narration as spoken text for $name", async (voiceProduct) => {
+    process.env.VERCEL_ENV = "preview";
+    process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED = "true";
+    process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED = "true";
+    process.env.GEMINI_API_KEY = "test-only";
+    // Inspect a rejected mock request: no network call or audio generation.
+    const fetcher = vi.fn().mockResolvedValue({ ok: false, status: 400 });
+    const plan = buildSlideshowVoicePlan(voiceProduct, 25);
+    await expect(synthesizeSlideshowVoice(plan, fetcher as any)).rejects.toThrow(/HTTP 400/);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const request = JSON.parse(fetcher.mock.calls[0][1].body);
+    const spokenText = request.contents.flatMap((content: any) => content.parts.map((part: any) => part.text ?? "")).join("");
+    expect(spokenText).toBe(plan.script);
+    expect(spokenText).toContain(voiceProduct.name);
+    expect(spokenText).toContain("120 pages");
+    for (const instruction of ["Regarde exactement ce script", "ton chaleureux et narratif", "Do not add any words", "Read exactly this script", "Tone:", plan.tone]) {
+      expect(spokenText.toLowerCase()).not.toContain(instruction.toLowerCase());
+    }
+    expect(request.contents).toEqual([{ parts: [{ text: plan.script, speech_metadata: { style: plan.tone } }] }]);
+    expect(request.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName).toBe(plan.voice);
+    expect(request.generationConfig.responseModalities).toEqual(["AUDIO"]);
+  });
   it.each([403, 429])("stops on free-tier HTTP %s without retry or fallback", async (status) => {
     process.env.VERCEL_ENV = "preview";
     process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED = "true";
