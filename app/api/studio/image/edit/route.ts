@@ -6,6 +6,7 @@ import { requireActiveSubscription } from "@/lib/subscription/access";
 import { generateFalImage, generateFalImageFromUrl, getAiImageEditModel } from "@/lib/ai/fal";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { signedStudioUrl, storeStudioImage } from "@/lib/studio/media";
+import { buildImageEditInstruction } from "@/lib/studio/image-edit-prompt";
 
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -24,7 +25,9 @@ export async function POST(request: Request) {
   // Ecritures + RPC credits : client service-role. La lecture ci-dessus reste
   // faite avec le client utilisateur, donc bornee par RLS.
   const admin = createAdminClient();
-  const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt: `${source.prompt}\nModification demandée : ${instruction}`, options, status: "processing", credits_cost: cost, parent_id: source.id }).select("id").single();
+  const editInstruction = buildImageEditInstruction(instruction);
+  const editedPrompt = `${source.prompt}\nRequested edit: ${editInstruction}`;
+  const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt: editedPrompt, options, status: "processing", credits_cost: cost, parent_id: source.id }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
   const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image_edit", model_name: getAiImageEditModel(), provider_amount: Math.round(cost / 1.5), request_id: crypto.randomUUID() });
   const reserveResult = reservation.data as { ok?: boolean; balance?: number; transaction_id?: string } | null;
@@ -36,8 +39,8 @@ export async function POST(request: Request) {
     // régénération à partir du prompt d'origine et de l'instruction.
     const sourceImageUrl = source.storage_path ? await signedStudioUrl(source.storage_path).catch(() => null) : null;
     const imageUrl = sourceImageUrl
-      ? await generateFalImageFromUrl(instruction, sourceImageUrl)
-      : await generateFalImage(`${source.prompt}. Modification demandée : ${instruction}`, "square", { ...options, outputFormat: options.outputFormat as "png" | "jpeg" });
+      ? await generateFalImageFromUrl(editInstruction, sourceImageUrl)
+      : await generateFalImage(editedPrompt, "square", { ...options, outputFormat: options.outputFormat as "png" | "jpeg" });
     await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     let storagePath: string | null = null;
     try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat || "png"); } catch (storageError) { console.error("Studio edit storage error", storageError); }

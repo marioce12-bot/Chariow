@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import { buildSlideshowCta, buildSlideshowPlan, campaignGoal, InsufficientProductDetailsError, slideshowEvidence, slideshowSourceCandidates } from "@/lib/studio/slideshow-plan";
 import { LICENSED_MUSIC } from "@/lib/studio/licensed-music";
+import { neutralProductCta, resolveProductLanguage } from "@/lib/studio/product-language";
 
 export const SLIDESHOW_VOICE_MODEL = "gemini-3.8-flash-tts" as const;
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
@@ -42,15 +43,7 @@ export function assertSlideshowVoiceAllowed(): void {
   if (process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED !== "true") throw new Error("Voix off bloquée : le palier gratuit Gemini doit être confirmé. Aucune offre payante utilisée.");
 }
 
-export type SlideshowVoicePlan = { script: string; language: "fr" | "en"; musicId: string; model: typeof SLIDESHOW_VOICE_MODEL; voice: string; duration: number; tone: string };
-function inferLanguage(facts: string[], locale: string): "fr" | "en" {
-  let fr = 0, en = 0;
-  const frWords = /\b(le|la|les|des|une|avec|pour|dans|et|est|sont|du|sur|sans|livre|créé|offre|permet)\b/gi;
-  const enWords = /\b(the|and|with|for|in|is|are|from|without|book|made|offers|helps|features)\b/gi;
-  for (const fact of facts) { fr += (fact.match(frWords) ?? []).length; en += (fact.match(enWords) ?? []).length; }
-  if (fr !== en) return fr > en ? "fr" : "en";
-  return locale === "fr" ? "fr" : "en";
-}
+export type SlideshowVoicePlan = { script: string; language: string; musicId: string; model: typeof SLIDESHOW_VOICE_MODEL; voice: string; duration: number; tone: string };
 function category(name: string, description: string): string {
   const text = `${name} ${description}`.toLowerCase();
   if (/livre|book|roman|journal|album/.test(text)) return "books";
@@ -73,7 +66,7 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   const name = product.name?.trim().slice(0, 200);
   const description = typeof product.description === "string" ? product.description : "";
   const evidence = slideshowEvidence(description, name, 60);
-  const language = inferLanguage(evidence, locale);
+  const language = resolveProductLanguage({ name: product.name, description }, locale).code;
   // Estimate natural delivery at 2.0–2.6 words/sec across the required 95% voice window.
   // This estimate is not a guarantee: actual rendered audio is measured before success.
   const speakingWindow = duration * 0.95;
@@ -83,9 +76,9 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   const wordCount = (part: string) => part.trim().split(/\s+/).filter(Boolean).length;
   if (wordCount(name) > maxWords) throw new Error("Nom du produit trop long pour le budget vocal de cette durée; TTS non lancé.");
   // Reuse slideshow validator, with inferred locale and its required complete, distinct evidence.
-  buildSlideshowPlan({ name, description, duration, aspectRatio: "1:1", locale: language, hasReference: false, character: "auto" });
+  buildSlideshowPlan({ name, description, duration, aspectRatio: "1:1", locale, hasReference: false, character: "auto" });
   // Keep complete evidence sentences only; never clip a fact.
-  const cta = buildSlideshowCta(name, slideshowSourceCandidates(description), campaignGoal(goal), language === "en");
+  const cta = language === "fr" || language === "en" ? buildSlideshowCta(name, slideshowSourceCandidates(description), campaignGoal(goal), language === "en") : (neutralProductCta(language) ?? name);
   if (wordCount(name) + wordCount(cta) > maxWords) throw new Error("Nom et CTA complet dépassent le budget vocal; TTS non lancé.");
   const accepted: string[] = [name];
   let words = wordCount(name) + wordCount(cta);
@@ -104,7 +97,7 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   const script = `${spokenFacts.join(". ")}. ${cta.replace(/[.!?]+$/g, "")}.`;
   const kind = category(name, description);
   const tone = kind === "books" ? "chaleureux et narratif" : kind === "beauty" ? "doux et serein" : kind === "technology" ? "clair et posé" : kind === "food" ? "convivial et lumineux" : kind === "wellness" ? "calme et rassurant" : "naturel, clair et posé";
-  return { script, language, musicId: chooseMusic(kind), model: SLIDESHOW_VOICE_MODEL, voice: language === "fr" ? "Kore" : "Puck", duration, tone };
+  return { script, language, musicId: chooseMusic(kind), model: SLIDESHOW_VOICE_MODEL, voice: language === "en" ? "Puck" : "Kore", duration, tone };
 }
 
 export async function synthesizeSlideshowVoice(plan: SlideshowVoicePlan, fetcher: typeof fetch = fetch, timeoutMs = TIMEOUT_MS): Promise<Buffer> {

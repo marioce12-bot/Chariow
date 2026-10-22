@@ -5,6 +5,7 @@ import { buildVideoAdPlan, videoPlanPrompt, videoPlanningSystem, VIDEO_AD_DURATI
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { logPreparationFailure } from "@/lib/studio/preparation-diagnostics";
 import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { resolveProductLanguage } from "@/lib/studio/product-language";
 import {
   CREATIVE_STYLES, CREATIVE_COMPOSITIONS, sourceCopyCandidates,
   parseCreativePlan, compileFaithfulPrompt,
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
   const orientation = body?.orientation === "landscape" ? "landscape" : body?.orientation === "portrait" ? "portrait" : "square";
   const background = body?.background === "transparent" ? "transparent" : body?.background === "opaque" ? "opaque" : "auto";
   const description = typeof product?.description === "string" ? product.description.trim().slice(0, 3_000) : "";
+  const contentLanguage = resolveProductLanguage({ name, description }, body?.locale);
   const productImage = typeof product?.image === "string" && /^https:\/\//i.test(product.image) ? product.image.slice(0, 2_000) : "";
   const userBrief = typeof body?.userBrief === "string" ? body.userBrief.trim().slice(0, 1_500) : "";
   const previousPrompt = typeof body?.previousPrompt === "string" ? body.previousPrompt.trim().slice(0, 4_000) : "";
@@ -52,7 +54,7 @@ export async function POST(request: Request) {
     if (body?.videoMode === "slideshow") {
       try {
         const slideshow = buildSlideshowPlan({ ...input, campaignGoal: body?.campaignGoal, variationId: typeof body?.variationId === "string" ? body.variationId.slice(0, 100) : "default" }, typeof body?.musicId === "string" ? body.musicId.slice(0, 30) : undefined);
-        return NextResponse.json({ prompt: slideshow.prompt, slideshow, locked: true });
+        return NextResponse.json({ prompt: slideshow.prompt, slideshow, contentLanguage, locked: true });
       } catch (error) {
         logPreparationFailure(typeof body?.variationId === "string" ? body.variationId : "", "prompt_plan", error);
         if (error instanceof InsufficientProductDetailsError) return NextResponse.json({
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
       ], { order: ["imole", "groq", "gemini"] });
     } catch { /* The constrained local planner is usable even when the text service is unavailable. */ }
     const plan = buildVideoAdPlan(input, videoAnswer);
-    return NextResponse.json({ prompt: videoPlanPrompt(plan), plan, locked: true });
+    return NextResponse.json({ prompt: videoPlanPrompt(plan), plan, contentLanguage, locked: true });
   }
 
   let answer: string;
@@ -95,7 +97,7 @@ export async function POST(request: Request) {
   const plan = parseCreativePlan(answer, candidates, previousPrompt);
   const prompt = compileFaithfulPrompt({
     evidence: { name, description, hasReference: Boolean(productImage), price: allowedPrice },
-    candidates, plan, orientation, background, character,
+    candidates, plan, orientation, background, character, locale: body?.locale,
   });
-  return NextResponse.json({ prompt });
+  return NextResponse.json({ prompt, contentLanguage });
 }

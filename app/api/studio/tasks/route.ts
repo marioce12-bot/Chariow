@@ -11,6 +11,7 @@ import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, slideshowVoiceAva
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
 import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { logPreparationFailure, type PreparationStage } from "@/lib/studio/preparation-diagnostics";
+import { resolveProductLanguage } from "@/lib/studio/product-language";
 import {
   TASK_TYPE,
   logTaskEvent,
@@ -121,6 +122,8 @@ export async function POST(request: Request) {
     // an invalid storyboard, reserve credits, or call a provider to diagnose it.
     const product = body.input.product;
     product.description = typeof product.description === "string" ? product.description.trim().slice(0, 3000) : "";
+    // Interface locale stays untouched: persisted content language comes from product evidence.
+    body.input.contentLanguage = resolveProductLanguage(product, body.input.locale).code;
     let preparationStage: PreparationStage = "slideshow_plan";
     try {
       if (body.input.voiceover === true) {
@@ -129,7 +132,7 @@ export async function POST(request: Request) {
         assertSlideshowVoiceAllowed();
         preparationStage = "voice_plan";
         const voice = buildSlideshowVoicePlan(product, body.input.duration, body.input.locale, body.input.campaignGoal);
-        body.input.locale = voice.language;
+        body.input.contentLanguage = voice.language;
         body.input.musicId = voice.musicId;
       }
       preparationStage = "slideshow_plan";

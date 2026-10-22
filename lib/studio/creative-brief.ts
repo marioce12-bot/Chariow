@@ -1,3 +1,4 @@
+import { resolveProductLanguage } from "./product-language";
 import { inferProductType, type ProductType } from "./creative-workflows";
 
 export type StudioCreativeInput = {
@@ -30,6 +31,7 @@ export type CreativeBrief = {
   format: string;
   platform: string;
   animationDirection?: string;
+  productLanguage: string;
 };
 
 // Direction artistique par type de produit. Elle ne fait que guider le modèle
@@ -44,7 +46,7 @@ const PRODUCT_DIRECTIONS: Record<ProductType, Pick<CreativeBrief, "style" | "ton
     environment: "bureau chaleureux, table en bois, lumière naturelle, texture papier",
     lighting: "lumière douce et feutrée, ambiance intimiste",
     camera: "angle légèrement incliné, profondeur de champ, netteté sur la couverture",
-    composition: "hiérarchie publicitaire : titre accrocheur, visuel produit, 2-3 bénéfices, prix, appel à l'action",
+    composition: "hiérarchie publicitaire : titre et visuel produit, avec uniquement les éléments factuels fournis",
     productPlacement: "la couverture réelle est conservée à l'identique, lisible, jamais déformée",
   },
   formation: {
@@ -54,7 +56,7 @@ const PRODUCT_DIRECTIONS: Record<ProductType, Pick<CreativeBrief, "style" | "ton
     environment: "espace de travail moderne, écran d'ordinateur ou téléphone",
     lighting: "lumière claire et énergique",
     camera: "plan rapproché sur la personne et l'écran",
-    composition: "promesse forte, preuve de transformation, bénéfices, appel à l'action",
+    composition: "titre et visuel produit, avec uniquement les éléments factuels fournis",
     productPlacement: "le visuel du programme reste identifiable sans être reconstruit",
   },
   saas: {
@@ -157,14 +159,17 @@ export function buildCreativeBrief(
   mediaType: "image" | "video",
   format = "1:1",
   platform = "Facebook / Instagram",
+  locale = "fr",
 ): CreativeBrief {
   const productType = inferProductType(product.name, product.description);
   const direction = PRODUCT_DIRECTIONS[productType];
+  const language = resolveProductLanguage({ name: product.name, description: product.description }, locale);
   const price = product.price ? `${product.price}${product.currency ? ` ${product.currency}` : ""}` : undefined;
 
   return {
     objective: deriveObjective(userPrompt),
     productType,
+    productLanguage: language.label,
     productName: product.name,
     productDescription: product.description,
     price,
@@ -172,10 +177,10 @@ export function buildCreativeBrief(
     style: direction.style,
     tone: direction.tone,
     visualDirection: userPrompt || `visuel ${direction.style} pour un ${productType}`,
-    hook: userPrompt.split(/[.!?]/)[0]?.trim().slice(0, 80) || `Découvre ${product.name}`,
+    hook: userPrompt.split(/[.!?]/)[0]?.trim().slice(0, 80) || product.name,
     headline: product.name,
     benefits: deriveBenefits(product.description, userPrompt),
-    cta: "En savoir plus / Commander",
+    cta: "",
     scene: direction.scene,
     environment: direction.environment,
     lighting: direction.lighting,
@@ -191,20 +196,20 @@ export function buildCreativeBrief(
 // Transforme le brief structuré en prompt final pour le modèle. Le mode affiche
 // demande explicitement au modèle de rendre les textes commerciaux exacts.
 export function briefToPrompt(brief: CreativeBrief, mediaType: "image" | "video", hasReference: boolean, mode: "standard" | "poster" = "standard"): string {
-  const parts: string[] = [];
+  const parts: string[] = [`Visible language: ${brief.productLanguage}. Preserve product name and source excerpts exactly as supplied; never translate them. Any narration must use ${brief.productLanguage}. Do not add decorative text.`];
 
   if (mediaType === "image") {
     if (mode === "poster") {
-      parts.push("Create a polished advertising poster. The user's creative direction below is the highest priority and must be followed first.");
+      parts.push(`Create a polished advertising poster in ${brief.productLanguage}. Factual fidelity and exact source wording take priority over artistic preferences.`);
       parts.push(`User creative direction, verbatim: "${brief.objective}".`);
-      parts.push(`Render this exact French headline, legible and correctly spelled: "${brief.headline}".`);
-      if (brief.benefits.length) parts.push(`Render these exact French benefits, without changing their wording: ${brief.benefits.map((benefit) => `"${benefit}"`).join(", ")}.`);
+      parts.push(`Render this exact product headline in its original language, legible and correctly spelled: "${brief.headline}".`);
+      if (brief.benefits.length) parts.push(`Render these exact source benefits, without changing their wording: ${brief.benefits.map((benefit) => `"${benefit}"`).join(", ")}.`);
       if (brief.price) parts.push(`Render this exact price, without inventing or changing it: "${brief.price}".`);
-      parts.push(`Render this exact French call to action: "${brief.cta}".`);
+      parts.push(`Only render a call to action if it was explicitly supplied in the source copy; do not invent or translate one.`);
       parts.push(`Visual style: ${brief.style}, tone ${brief.tone}. Scene: ${brief.scene}.`);
       parts.push(`Environment: ${brief.environment}. Lighting: ${brief.lighting}. Camera: ${brief.camera}.`);
       parts.push("Layout: an appealing character or human presence when appropriate, the product as the visual hero, the headline prominent at the top, the listed benefits clearly arranged, a visible price banner when a price is provided, and the call to action in a strong footer area.");
-      parts.push("Do not invent any other words, claims, prices, logos, or slogans. All French text listed above must remain exactly as written and must be readable.");
+      parts.push("Do not invent any other words, claims, prices, logos, or slogans. All source text listed above must remain exactly as written in its original language and must be readable.");
     } else {
       parts.push(`Visuel publicitaire professionnel pour ${brief.productName}, sans aucun texte.`);
       parts.push(`Objectif : ${brief.objective}.`);

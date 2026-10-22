@@ -12,7 +12,7 @@ export function validateSlideshowImageRequest(value: unknown, environment: strin
   const plan = buildSlideshowPlan({
     name: product.name.slice(0, 200), description: typeof product.description === "string" ? product.description.trim().slice(0, 3000) : "",
     hasReference: Boolean(referenceUrl), duration: Number(request.duration), aspectRatio: String(request.aspectRatio), character: "with",
-    locale: request.locale === "en" ? "en" : "fr", campaignGoal: request.campaignGoal, variationId: typeof request.variationId === "string" ? request.variationId.slice(0, 100) : "default",
+    locale: typeof request.locale === "string" ? request.locale : "fr", campaignGoal: request.campaignGoal, variationId: typeof request.variationId === "string" ? request.variationId.slice(0, 100) : "default",
   });
   assertSlideshowPlan(plan);
   if (request.imageCount !== plan.slides.length || !Number.isInteger(request.slideIndex) || (request.slideIndex as number) < 0 || (request.slideIndex as number) >= plan.slides.length) throw new Error("Le storyboard a changé. Prépare à nouveau les prompts.");

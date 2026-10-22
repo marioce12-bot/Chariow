@@ -13,7 +13,7 @@ import { POST } from "@/app/api/studio/tasks/route";
 import { TASK_TYPE } from "@/lib/studio/background-tasks";
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const input = { voiceover: true, product: { name: "Guide", description: "Disponible au format PDF. Le guide comporte huit chapitres consacrés à la préparation du jardin. Chaque chapitre présente trois exercices pratiques, une liste de matériel et un calendrier saisonnier. Les fiches expliquent le choix des graines, la préparation du sol, l’arrosage régulier, la rotation des cultures et la récolte. Les illustrations montrent des plantations en pots et en pleine terre. Le téléchargement permet une lecture hors connexion sur téléphone ou tablette." }, duration: 25, musicId: "", locale: "fr" };
-const request = () => new Request("https://preview.test/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input }) });
+const request = (taskInput = input) => new Request("https://preview.test/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input: taskInput }) });
 const insertedRow = { id, user_id: "owner", status: "processing", metadata: { type: TASK_TYPE, taskKind: "slideshow", input: { voiceover: true }, revision: 0, phase: "queued" } };
 function configureDb(account: { balance: number; reserved: number } | null, accountError: unknown = null) {
   const insert = vi.fn(() => ({ select: () => ({ single: async () => ({ data: insertedRow, error: null }) }) }));
@@ -54,6 +54,23 @@ describe("pré-vérification du solde avant lancement d’un diaporama", () => {
     const response = await POST(request());
     expect(response.status).toBe(202);
     expect(insert).toHaveBeenCalledOnce(); expect(mocks.after).toHaveBeenCalledOnce();
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+  it("conserve l’interface française et persiste la création anglaise sans génération réelle", async () => {
+    const insert = configureDb({ balance: 100, reserved: 0 });
+    const englishInput = { ...input, product: { name: "Guide pratique", description: "This guide is available in PDF format. The guide contains eight chapters about preparing a garden. Each chapter includes three practical exercises, a materials checklist and a seasonal calendar. The worksheets explain seed selection, soil preparation, regular watering, crop rotation and harvesting. The illustrations show plants grown in pots and in the ground. The download can be read offline on a phone or tablet." } };
+    const response = await POST(request(englishInput));
+    expect(response.status).toBe(202);
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ input: expect.objectContaining({ locale: "fr", contentLanguage: "en" }) }) }));
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.render).not.toHaveBeenCalled();
+  });
+  it("garde les erreurs en français même si le produit est anglais", async () => {
+    configureDb({ balance: 0, reserved: 0 });
+    const englishInput = { ...input, product: { name: "Practical Guide", description: "This guide is available in PDF format. The guide contains eight chapters about preparing a garden. Each chapter includes three practical exercises, a materials checklist and a seasonal calendar. The worksheets explain seed selection, soil preparation, regular watering, crop rotation and harvesting. The illustrations show plants grown in pots and in the ground. The download can be read offline on a phone or tablet." } };
+    const response = await POST(request(englishInput));
+    expect(response.status).toBe(402);
+    expect((await response.json()).error).toContain("Solde insuffisant");
     expect(mocks.generate).not.toHaveBeenCalled();
   });
   it("répond 503 sans rien créer si le solde ne peut pas être lu", async () => {
