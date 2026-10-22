@@ -1,6 +1,4 @@
 // @vitest-environment jsdom
-import { act } from "react";
-import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
@@ -10,8 +8,6 @@ vi.mock("@/lib/i18n/i18n", () => ({
   useI18n: () => ({ locale: language.locale, t: (key: string) => translate(language.locale, key) }),
 }));
 import { PlatformMarquee } from "@/components/PlatformMarquee";
-
-(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("platform marquee", () => {
   it.each(["fr", "en"] as const)("renders all six brands and localized statuses in %s, with only one accessible copy", (locale) => {
@@ -33,40 +29,26 @@ describe("platform marquee", () => {
     for (const name of ["meta", "tiktok", "pinterest"]) {
       expect(lists[0].querySelector(`.platform-marquee-${name} small`)?.textContent).toBe(`(${translate(locale, "sweep2.text124")})`);
     }
+    expect(lists[0].querySelector(".platform-marquee-chariow small")).toBeNull();
     expect(container.querySelector("#platform-marquee-title")?.textContent).toBe(translate(locale, "sweep3.text122"));
-    expect(container.querySelector("[role=region]")?.getAttribute("tabindex")).toBe("0");
+    const region = container.querySelector("[role=region]");
+    expect(region?.getAttribute("aria-labelledby")).toBe("platform-marquee-title");
+    expect(region?.getAttribute("aria-describedby")).toBe("platform-marquee-help");
+    expect(region?.getAttribute("tabindex")).toBeNull();
     expect(container.querySelectorAll("[aria-hidden=true] button, [aria-hidden=true] a")).toHaveLength(0);
+    expect(container.querySelector("#platform-marquee-help")?.textContent).toBe(translate(locale, "sweep3.text122") ? (locale === "en" ? "With reduced motion, scroll horizontally to explore all platforms." : "Avec les animations réduites, faites défiler horizontalement pour découvrir toutes les plateformes.") : "");
   });
 
-  it("toggles a persistent pause and resume with a native keyboard-operable button", async () => {
-    language.locale = "fr";
-    const container = document.createElement("div");
-    document.body.append(container);
-    const root = createRoot(container);
-    await act(async () => root.render(<PlatformMarquee />));
-    const button = container.querySelector("button")!;
-    expect(button.type).toBe("button");
-    expect(button.getAttribute("aria-controls")).toBe("platform-marquee-viewport");
-    await act(async () => button.click());
-    expect(button.getAttribute("aria-pressed")).toBe("true");
-    expect(button.textContent).toBe("Reprendre");
-    expect(container.querySelector("section")?.getAttribute("data-paused")).toBe("true");
-    await act(async () => button.click());
-    expect(button.textContent).toBe("Pause");
-    await act(async () => root.unmount());
-    container.remove();
-  });
-
-  it("uses equal continuous loops, pauses on hover/focus and exposes all logos without animation in reduced-motion", () => {
+  it("runs an uninterrupted duplicated loop and exposes a static horizontal scroller for reduced motion", () => {
     const css = readFileSync("app/platform-marquee.css", "utf8");
-    expect(css).toContain("38s linear infinite");
+    expect(css).toContain("animation: platform-marquee-left 22s linear infinite");
     expect(css).toContain("translateX(-50%)");
-    expect(css).toContain(":focus-within");
-    expect(css).toContain(":hover");
-    expect(css).toContain("animation-play-state: paused");
+    expect(css).not.toContain(":focus-within");
+    expect(css).not.toContain(":hover");
+    expect(css).not.toContain("animation-play-state: paused");
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(css).toContain("animation: none");
-    expect(css).toContain("overflow-x: auto");
-    expect(css).toContain('.platform-marquee-group[aria-hidden="true"] { display: none; }');
+    expect(css).toContain(".platform-marquee-track { animation: none; transform: none; }");
+    expect(css).toContain(".platform-marquee-group[aria-hidden=\"true\"] { display: none; }");
+    expect(css).toContain(".platform-marquee-viewport { overflow-x: auto; mask-image: none; }");
   });
 });

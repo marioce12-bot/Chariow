@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { CampaignGoal } from "@/lib/studio/slideshow-plan";
-import { LoaderCircle } from "lucide-react";
+import { LaunchProgress } from "@/components/chat/LaunchProgress";
 import { SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
@@ -144,6 +144,7 @@ export function SlideshowStudio({
     [busy, setBusy] = useState(false),
     [ready, setReady] = useState(false),
     [status, setStatus] = useState(""),
+    [progress, setProgress] = useState(0),
     [error, setError] = useState(""),
     [images, setImages] = useState<Array<{ id: string; url: string }>>([]),
     [attempted, setAttempted] = useState(false),
@@ -191,7 +192,8 @@ export function SlideshowStudio({
     const elapsed = Math.max(0, Date.now() - progressStartedAtRef.current);
     const estimated = floor + Math.max(0, ceiling - floor) * (1 - Math.exp(-elapsed / 90_000));
     displayedProgressRef.current = Math.min(99.8, Math.max(displayedProgressRef.current, Math.round(estimated * 10) / 10));
-    setStatus(`${task.message || (fr ? "Génération en cours…" : "Generating…")} ${displayedProgressRef.current}%`);
+    setProgress(displayedProgressRef.current);
+    setStatus(task.message || (fr ? "Génération en cours…" : "Generating…"));
   };
   const applyTask = (task: Task, notify = false) => {
     const wasProcessing = taskRef.current?.status === "processing";
@@ -333,6 +335,7 @@ export function SlideshowStudio({
     if (busy || pendingRequest || taskRef.current?.status === "processing") return;
     selectedTaskRef.current = null; loadedHistoryRef.current = null; newDraftRef.current = true;
     taskRef.current = null; setResumeTask(null); setResumeConfirmed(false);
+    displayedProgressRef.current = 0; setProgress(0);
     setImages([]); setCreditsUsed(0); setResult(null); setError(""); setStatus("");
     setRecovery(false); setAttempted(false); setTemporaryDescription(product?.description ?? "");
   }
@@ -354,6 +357,7 @@ export function SlideshowStudio({
     if (!enabled || !ready || !product || busy || pendingRequest || running.current || taskRef.current?.status === "processing") return;
     if (recovery && !temporaryDescription.trim()) return;
     running.current = true;
+    displayedProgressRef.current = 0; setProgress(0);
     setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null);
     setStatus(fr ? "Vérification des informations…" : "Checking product details…");
     try {
@@ -476,23 +480,9 @@ export function SlideshowStudio({
       ) : null}
       {pendingRequest ? <p role="status">{fr ? "Vérifie l’historique ; aucune nouvelle génération ne sera lancée automatiquement." : "Check history; no new generation will be started automatically."}</p> : null}
       {status ? (
-        <div
-          role="status"
-          aria-live="polite"
-          aria-busy={busy}
-          style={{ display: "flex", alignItems: "center", gap: 10 }}
-        >
-          {busy ? (
-            <LoaderCircle
-              className="animate-spin"
-              data-testid="slideshow-spinner"
-              aria-hidden="true"
-              size={22}
-              style={{ flexShrink: 0 }}
-            />
-          ) : null}
-          <span>{status}</span>
-        </div>
+        busy ? <LaunchProgress progress={progress} label={status}
+          subtitle={fr ? "Les visuels terminés sont sauvegardés. Progression estimée entre les étapes." : "Completed images are saved. Progress is estimated between stages."} />
+          : <p role="status" aria-live="polite">{status}</p>
       ) : null}
       {images.length ? (
         <div

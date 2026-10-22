@@ -5,17 +5,19 @@ import { useI18n } from "@/lib/i18n/i18n";
 import { estimatedLaunchProgress } from "@/lib/chat/launch-progress";
 import "./launch-progress.css";
 
-/** The API returns one final response, not intermediate server progress. */
-export function LaunchProgress({ complete = false, indeterminate = false, label: customLabel }: { complete?: boolean; indeterminate?: boolean; label?: string }) {
+/** Shared campaign/Studio indicator. Campaigns estimate until the final response;
+ * Studio can supply checkpoint-backed progress without changing this UI. */
+export function LaunchProgress({ complete = false, indeterminate = false, label: customLabel, progress, subtitle }: { complete?: boolean; indeterminate?: boolean; label?: string; progress?: number; subtitle?: string }) {
   const { t } = useI18n();
   const [estimate, setEstimate] = useState(0);
+  const controlled = typeof progress === "number" && Number.isFinite(progress);
   useEffect(() => {
-    if (complete || indeterminate) return;
+    if (complete || indeterminate || controlled) return;
     const start = Date.now();
     const timer = window.setInterval(() => setEstimate(estimatedLaunchProgress(Date.now() - start)), 250);
     return () => window.clearInterval(timer);
-  }, [complete, indeterminate]);
-  const percent = complete ? 100 : estimate;
+  }, [complete, indeterminate, controlled]);
+  const percent = complete ? 100 : controlled ? Math.max(0, Math.min(99, Math.round(progress!))) : estimate;
   const pending = indeterminate && !complete;
   const label = customLabel ?? t(complete ? "chat.launchSent" : "chat.launchSubmitting");
 
@@ -33,7 +35,7 @@ export function LaunchProgress({ complete = false, indeterminate = false, label:
       </div>
       <div className="chat-launch-progress-copy">
         <strong role="status">{label}</strong>
-        {!pending && <small>{t(complete ? "chat.launchConfirmed" : "chat.launchProgressEstimated")}</small>}
+        {!pending && <small>{subtitle ?? t(complete ? "chat.launchConfirmed" : "chat.launchProgressEstimated")}</small>}
       </div>
     </div>
   );

@@ -32,6 +32,12 @@ describe("slideshow voice", () => {
     expect(Object.values(SLIDESHOW_MUSIC_METADATA).every(entry => entry.sourceUrl.startsWith("https://www.scottbuckley.com.au/library/"))).toBe(true);
     expect(plan.musicId).toBeTruthy();
   });
+  it.each([25, 30, 40])( "keeps narration within a conservative spoken-word budget for %ss", (duration) => {
+    const plan = buildSlideshowVoicePlan(product, duration);
+    const words = plan.script.trim().split(/\s+/).filter(Boolean).length;
+    expect(words).toBeLessThanOrEqual(Math.floor((duration - 0.75) * 1.65));
+    expect(plan.duration).toBe(duration);
+  });
   it("makes one mock Gemini request and returns valid bounded WAV bytes", async () => {
     process.env.VERCEL_ENV = "preview";
     process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED = "true";

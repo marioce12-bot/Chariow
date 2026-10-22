@@ -42,6 +42,22 @@ describe("chat campaign submission progress", () => {
       }
     }
   });
+  it("Studio reuses the exact campaign component with controlled progress", () => {
+    const studio = readFileSync("components/studio/SlideshowStudio.tsx", "utf8");
+    expect(studio).toContain('import { LaunchProgress } from "@/components/chat/LaunchProgress"');
+    expect(studio).toContain("<LaunchProgress progress={progress}");
+    expect(studio).not.toContain("LoaderCircle");
+    const html = renderToStaticMarkup(<I18nProvider><LaunchProgress progress={67} label="Génération du visuel 4/5…" subtitle="Visuels sauvegardés" /></I18nProvider>);
+    expect(html).toContain('aria-valuenow="67"');
+    expect(html).toContain('stroke-dasharray="67 100"');
+    expect(html).toContain("67 %");
+    expect(html).toContain("Visuels sauvegardés");
+    expect(html).toContain('class="chat-launch-progress-ring"');
+  });
+  it("controlled estimates stay below 100 until the result is confirmed", () => {
+    const html = renderToStaticMarkup(<I18nProvider><LaunchProgress progress={100} /></I18nProvider>);
+    expect(html).toContain('aria-valuenow="99"');
+  });
   it("keeps the existing destination, media and platform payload intact", () => {
     for (const field of ["linkUrl,", "storeId: payload.storeId", "productId: payload.productId", "mediaType: launchMediaKind", "carouselUrls:", "pinterestAdAccountId:", "metaAdAccountId:"]) {
       expect(source).toContain(field);

@@ -42,9 +42,10 @@ function render() {
   return Marketing();
 }
 function label() { return find(render(), "showcase-screen").props["aria-label"]; }
-function key(key: string) {
+function effect() { return hooks.effects[0](); }
+function key(value: string) {
   const preventDefault = vi.fn();
-  find(render(), "landing-showcase").props.onKeyDown({ key, preventDefault });
+  find(render(), "landing-showcase").props.onKeyDown({ key: value, preventDefault });
   expect(preventDefault).toHaveBeenCalledOnce();
 }
 let cleanup: void | (() => void);
@@ -54,7 +55,7 @@ beforeEach(() => {
   hooks.locale = "fr";
   cleanup = undefined;
   vi.stubGlobal("window", {
-    setInterval, clearInterval,
+    setTimeout, clearTimeout,
     matchMedia: vi.fn(() => ({ matches: false })),
   });
 });
@@ -69,16 +70,19 @@ describe("landing carousel cadence and controls", () => {
     hooks.locale = locale;
     const labels = locale === "en" ? ["Home", "Launch ads", "AI Studio"] : ["Accueil", "Lancement de publicités", "Studio IA"];
     render();
-    cleanup = hooks.effects[0]();
+    cleanup = effect();
     expect(label()).toBe(labels[0]);
     vi.advanceTimersByTime(2699);
     expect(label()).toBe(labels[0]);
     vi.advanceTimersByTime(1);
     expect(label()).toBe(labels[1]);
+    cleanup?.(); render(); cleanup = effect();
     vi.advanceTimersByTime(2700);
     expect(label()).toBe(labels[2]);
+    cleanup?.(); render(); cleanup = effect();
     vi.advanceTimersByTime(2700);
     expect(label()).toBe(labels[0]);
+    cleanup?.(); render(); cleanup = effect();
     expect(vi.getTimerCount()).toBe(1);
   });
   it("keeps entrance animations plus rotation below the 3000 ms budget", () => {
@@ -90,47 +94,38 @@ describe("landing carousel cadence and controls", () => {
       expect(2700 + Number(seconds) * 1000).toBeLessThanOrEqual(3000);
     }
   });
-  it("keeps keyboard navigation immediate while focus pauses autoplay", () => {
-    find(render(), "landing-showcase").props.onFocusCapture();
-    render();
-    cleanup = hooks.effects[0]();
-    expect(vi.getTimerCount()).toBe(0);
+  it("supports immediate keyboard navigation and continues autoplay while focused", () => {
+    render(); cleanup = effect();
     key("ArrowRight"); expect(label()).toBe("Lancement de publicités");
+    cleanup?.(); render(); cleanup = effect();
     key("End"); expect(label()).toBe("Studio IA");
     key("Home"); expect(label()).toBe("Accueil");
     key("ArrowLeft"); expect(label()).toBe("Studio IA");
-    vi.advanceTimersByTime(9000);
-    expect(label()).toBe("Studio IA");
-    find(render(), "landing-showcase").props.onBlurCapture({ currentTarget: { contains: () => false }, relatedTarget: null });
-    render();
-    cleanup = hooks.effects[0]();
     vi.advanceTimersByTime(2700);
     expect(label()).toBe("Accueil");
   });
-  it("keeps swipe navigation and pauses after touch", () => {
+  it("supports swipe navigation and continues autoplay after touch", () => {
     const currentTarget = { dataset: {} };
     find(render(), "landing-showcase").props.onTouchStart({ currentTarget, touches: [{ clientX: 150 }] });
     find(render(), "landing-showcase").props.onTouchEnd({ currentTarget, changedTouches: [{ clientX: 50 }] });
     expect(label()).toBe("Lancement de publicités");
-    cleanup = hooks.effects[0]();
-    vi.advanceTimersByTime(9000);
+    cleanup = effect();
+    vi.advanceTimersByTime(2699);
     expect(label()).toBe("Lancement de publicités");
+    vi.advanceTimersByTime(1);
+    expect(label()).toBe("Studio IA");
   });
-  it("pauses on hover and resumes at the shorter cadence", () => {
-    find(render(), "landing-showcase").props.onMouseEnter();
-    render();
-    cleanup = hooks.effects[0]();
-    expect(vi.getTimerCount()).toBe(0);
-    find(render(), "landing-showcase").props.onMouseLeave();
-    render();
-    cleanup = hooks.effects[0]();
+  it("continues autoplay without pausing on hover", () => {
+    render(); cleanup = effect();
+    const showcase = find(render(), "landing-showcase");
+    expect(showcase.props.onMouseEnter).toBeUndefined();
+    expect(showcase.props.onFocusCapture).toBeUndefined();
     vi.advanceTimersByTime(2700);
     expect(label()).toBe("Lancement de publicités");
   });
   it("disables autoplay for reduced motion but retains manual changes", () => {
     vi.mocked(window.matchMedia).mockReturnValue({ matches: true } as MediaQueryList);
-    render();
-    cleanup = hooks.effects[0]();
+    render(); cleanup = effect();
     vi.advanceTimersByTime(9000);
     expect(label()).toBe("Accueil");
     expect(vi.getTimerCount()).toBe(0);
@@ -138,11 +133,9 @@ describe("landing carousel cadence and controls", () => {
     expect(label()).toBe("Lancement de publicités");
   });
   it("clears the autoplay timer on unmount", () => {
-    render();
-    cleanup = hooks.effects[0]();
+    render(); cleanup = effect();
     expect(vi.getTimerCount()).toBe(1);
-    if (typeof cleanup === "function") cleanup();
-    cleanup = undefined;
+    cleanup?.(); cleanup = undefined;
     expect(vi.getTimerCount()).toBe(0);
     vi.advanceTimersByTime(9000);
     expect(label()).toBe("Accueil");

@@ -35,7 +35,7 @@ describe("slideshow voice mix", () => {
       const voice = path.join(dir, "voice.wav"), music = path.join(dir, "music.wav"), tooLong = path.join(dir, "long.wav");
       await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=8", voice]);
       await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=28", music]);
-      await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=24.9", tooLong]);
+      await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=35", tooLong]);
       for (const [name, extra] of [["voice-only.mp4", { voicePath: voice }], ["mixed.mp4", { voicePath: voice, musicPath: music }]] as const) {
         const output = path.join(dir, name);
         const result = await assembleSlideshow({ ffmpegPath: ffmpeg, ffprobePath: ffprobe, outputPath: output, duration: 25, imagePaths: images, width: 160, height: 90, fps: 2, profileSeed: 42, ...extra });
@@ -49,7 +49,7 @@ describe("slideshow voice mix", () => {
           expect(afterSpeech - duringSpeech).toBeGreaterThan(3);
         }
       }
-      await expect(assembleSlideshow({ ffmpegPath: ffmpeg, ffprobePath: ffprobe, outputPath: path.join(dir, "bad.mp4"), duration: 25, imagePaths: images, width: 160, height: 90, fps: 2, voicePath: tooLong })).rejects.toThrow(/must not exceed/);
+      await expect(assembleSlideshow({ ffmpegPath: ffmpeg, ffprobePath: ffprobe, outputPath: path.join(dir, "bad.mp4"), duration: 25, imagePaths: images, width: 160, height: 90, fps: 2, voicePath: tooLong })).rejects.toThrow(/too long for intelligible playback/);
     } finally { await rm(dir, { recursive: true, force: true }); }
   }, 120_000);
 });

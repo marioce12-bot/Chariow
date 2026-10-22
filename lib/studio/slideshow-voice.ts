@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { buildSlideshowPlan, slideshowEvidence } from "@/lib/studio/slideshow-plan";
+import { buildSlideshowCta, buildSlideshowPlan, campaignGoal, slideshowEvidence, slideshowSourceCandidates } from "@/lib/studio/slideshow-plan";
 import { LICENSED_MUSIC } from "@/lib/studio/licensed-music";
 
 export const SLIDESHOW_VOICE_MODEL = "gemini-3.8-flash-tts" as const;
@@ -69,25 +69,33 @@ function chooseMusic(categoryName: string): string {
 }
 function score(tags: string[], prefs: string[]) { return (tags.includes("instrumental") ? 5 : 0) + prefs.reduce((n, tag, i) => n + (tags.includes(tag) ? (prefs.length - i) * 8 : 0), 0) - (tags.includes("drums") || tags.includes("percussion") ? 4 : 0); }
 
-export function buildSlideshowVoicePlan(product: { name: string; description?: string }, duration: number, locale = "fr"): SlideshowVoicePlan {
+export function buildSlideshowVoicePlan(product: { name: string; description?: string }, duration: number, locale = "fr", goal: unknown = "discover"): SlideshowVoicePlan {
   const name = product.name?.trim().slice(0, 200);
   const description = typeof product.description === "string" ? product.description : "";
   const evidence = slideshowEvidence(description, name);
   const language = inferLanguage(evidence, locale);
+  // Reserve 0.75s at 1.65 spoken words/sec; reject an impossible product name before any TTS stage.
+  const maxWords = Math.max(1, Math.floor((duration - 0.75) * 1.65));
+  const wordCount = (part: string) => part.trim().split(/\s+/).filter(Boolean).length;
+  if (wordCount(name) > maxWords) throw new Error("Nom du produit trop long pour le budget vocal de cette durée; TTS non lancé.");
   // Reuse slideshow validator, with inferred locale and its required complete, distinct evidence.
   buildSlideshowPlan({ name, description, duration, aspectRatio: "1:1", locale: language, hasReference: false, character: "auto" });
-  // Keep complete evidence sentences only; never clip a fact. Speech budget is ~duration-3s at conservative 2.2 words/sec.
-  const maxWords = Math.max(1, Math.floor((duration - 3) * 2.2));
-  const scriptParts = [name, ...evidence];
-  const accepted: string[] = [];
-  let words = 0;
-  for (const part of scriptParts) {
-    const count = part.trim().split(/\s+/).length;
-    if (words + count > maxWords) break;
+  // Keep complete evidence sentences only; never clip a fact. Budget at a deliberately
+  // conservative 1.65 words/sec and reserve 0.75s for the natural ending/audio fade.
+  const cta = buildSlideshowCta(name, slideshowSourceCandidates(description), campaignGoal(goal), language === "en");
+  if (wordCount(name) + wordCount(cta) > maxWords) throw new Error("Nom et CTA complet dépassent le budget vocal; TTS non lancé.");
+  const accepted: string[] = [name];
+  let words = wordCount(name) + wordCount(cta);
+  // Keep 25s concise; longer formats may add one then further source-backed beats.
+  const detailLimit = duration <= 25 ? 1 : duration <= 30 ? 2 : evidence.length;
+  for (const part of evidence) {
+    if (accepted.length - 1 >= detailLimit) break;
+    const count = part.trim().split(/\s+/).filter(Boolean).length;
+    if (words + count > maxWords) continue;
     accepted.push(part.trim()); words += count;
   }
-  if (accepted.length < 2) throw new Error("Durée trop courte pour un script produit complet sans couper un fait vérifié.");
-  const script = accepted.join(language === "fr" ? ". " : ". ") + ".";
+  const spokenFacts = accepted.map(part => part.replace(/[.!?]+$/g, ""));
+  const script = `${spokenFacts.join(". ")}. ${cta.replace(/[.!?]+$/g, "")}.`;
   const kind = category(name, description);
   const tone = kind === "books" ? "chaleureux et narratif" : kind === "beauty" ? "doux et serein" : kind === "technology" ? "clair et posé" : kind === "food" ? "convivial et lumineux" : kind === "wellness" ? "calme et rassurant" : "naturel, clair et posé";
   return { script, language, musicId: chooseMusic(kind), model: SLIDESHOW_VOICE_MODEL, voice: language === "fr" ? "Kore" : "Puck", duration, tone };

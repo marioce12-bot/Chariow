@@ -93,7 +93,7 @@ export async function preflightSlideshow(musicId: string) {
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-preflight-"));
   try { await ensurePrivateTrack(track, work); } finally { await rm(work, { recursive: true, force: true }); }
 }
-export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string, taskId?: string, voiceInput?: { product: { name: string; description?: string }; locale?: string }): Promise<SlideResult> {
+export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string, taskId?: string, voiceInput?: { product: { name: string; description?: string }; locale?: string; campaignGoal?: unknown }): Promise<SlideResult> {
   if (ids.length < MIN_SLIDESHOW_IMAGES || ids.length > MAX_SLIDESHOW_IMAGES || new Set(ids).size !== ids.length) throw new Error("Invalid slideshow image count");
   if (!(SLIDESHOW_DURATIONS as readonly number[]).includes(duration)) throw new Error("Invalid slideshow duration");
   // Only newly created, explicitly opted-in background tasks use TTS. Legacy tasks remain unchanged.
@@ -101,7 +101,7 @@ export async function renderSlideshow(userId: string, ids: string[], duration: n
   if (voiceInput) {
     if (!taskId) throw new Error("La voix nécessite une tâche persistante pour éviter les doublons.");
     assertSlideshowVoiceAllowed();
-    voicePlan = buildSlideshowVoicePlan(voiceInput.product, duration, voiceInput.locale);
+    voicePlan = buildSlideshowVoicePlan(voiceInput.product, duration, voiceInput.locale, voiceInput.campaignGoal);
     musicId = voicePlan.musicId;
   }
   const track = getLicensedTrack(musicId);

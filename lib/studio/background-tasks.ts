@@ -352,7 +352,7 @@ export async function runTaskStep(id: string, revision: number) {
     } else {
       const ids = images.map((image) => image.id);
       result = meta.input.voiceover === true
-        ? await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id, { product: meta.input.product, locale: meta.input.locale })
+        ? await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id, { product: meta.input.product, locale: meta.input.locale, campaignGoal: meta.input.campaignGoal })
         : await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id);
     }
     if (meta.taskKind === "slideshow" && result && (!result.videoUrl || !result.generationId))

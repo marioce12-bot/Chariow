@@ -2,17 +2,18 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { I18nProvider } from "@/lib/i18n/i18n";
 import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
 import { verifySlideImage } from "@/components/studio/SlideshowStudio";
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const tracks = [{ id: "sb-wonderful", title: "wonderful", artist: "Scott Buckley", license: "CC BY 4.0", sourceUrl: "https://example.com/source", licenseUrl: "https://example.com/license", credit: "Credit Scott Buckley", youtubeNotice: "YouTube DESCRIPTION" }];
 const reply = (data: unknown, ok = true) => ({ ok, json: async () => data });
 const setup = () => { const container = document.createElement("div"); document.body.append(container); return { container, root: createRoot(container) }; };
-const render = async (root: ReturnType<typeof createRoot>) => act(async () => root.render(<SlideshowStudio locale="fr" product={{ id: "p1", name: "Mon ebook", image: "https://example.com/cover.png" }} />));
+const render = async (root: ReturnType<typeof createRoot>) => act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={{ id: "p1", name: "Mon ebook", image: "https://example.com/cover.png" }} /></I18nProvider>));
 const click = async (container: HTMLElement, name: string) => { const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(el => el.textContent?.trim() === name); expect(button).toBeTruthy(); await act(async () => button!.click()); };
 const completed = { id: "task-1", kind: "slideshow", status: "completed", progress: 100, message: "Diaporama prêt.", images: Array.from({ length: 5 }, (_, i) => ({ id: `i${i}`, url: `https://example.com/${i}.png` })), result: { generationId: "video-1", videoUrl: "https://example.com/video.mp4", attribution: "Credit Scott Buckley — YouTube DESCRIPTION", duration: 25, musicId: "", imageGenerationIds: ["i0", "i1", "i2", "i3", "i4"] } };
 describe("Slideshow server task UI", () => {
- beforeEach(() => { vi.stubGlobal("fetch", vi.fn(async (url: string) => url.endsWith("/config") ? reply({ enabled: true, tracks }) : url === "/api/studio/tasks" ? reply({ tasks: [] }) : reply({}))); });
+ beforeEach(() => { localStorage.clear(); vi.stubGlobal("fetch", vi.fn(async (url: string) => url.endsWith("/config") ? reply({ enabled: true, tracks }) : url === "/api/studio/tasks" ? reply({ tasks: [] }) : reply({}))); });
  it("uses one task POST for double taps, never calls client pipeline and uses automatic audio", async () => {
    const fetcher = vi.fn(async (url: string, options?: RequestInit) => { if (url.endsWith("/config")) return reply({ enabled: true, tracks }); if (url === "/api/studio/tasks" && options?.method === "POST") return reply({ task: completed }); if (url === "/api/studio/tasks") return reply({ tasks: [] }); if (url.endsWith("/remix")) return reply({ ...completed.result, videoUrl: "https://example.com/remix.mp4", musicId: "sb-wonderful" }); return reply({}); });
    vi.stubGlobal("fetch", fetcher); const { container, root } = setup();

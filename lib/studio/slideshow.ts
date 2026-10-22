@@ -38,6 +38,23 @@ async function probeDuration(file: string, ffprobe: string): Promise<number> {
   return Number(raw);
 }
 
+/** Preserve the generated source; locally speed up only modest overruns, then verify the actual WAV duration. */
+export async function prepareSlideshowVoice(rawAudio: string, ffmpegPath: string, ffprobePath: string, duration: number, workDir: string): Promise<string> {
+  const limit = duration - 0.75;
+  const rawDuration = await probeDuration(rawAudio, ffprobePath);
+  if (!Number.isFinite(rawDuration) || rawDuration <= 0) throw new Error(`Invalid raw voice duration: ${rawDuration}s`);
+  if (rawDuration <= limit) return rawAudio;
+  // Leave 50ms for sample-frame rounding in the tempo filter, then remeasure.
+  const tempo = rawDuration / (limit - 0.05);
+  const maxTempo = 1.2;
+  if (tempo > maxTempo) throw new Error(`Voice too long for intelligible playback: ${rawDuration}s requires ${tempo.toFixed(3)}x (maximum ${maxTempo}x); voice rejected without truncation`);
+  const adjusted = path.join(workDir, "narration-adjusted.wav");
+  await run(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-y", "-i", rawAudio, "-vn", "-filter:a", `atempo=${tempo.toFixed(6)}`, "-c:a", "pcm_s16le", adjusted]);
+  const adjustedDuration = await probeDuration(adjusted, ffprobePath);
+  if (!Number.isFinite(adjustedDuration) || adjustedDuration > limit) throw new Error(`Adjusted voice duration ${adjustedDuration}s exceeds safe limit ${limit}s; voice rejected without truncation`);
+  return adjusted;
+}
+
 /**
  * Assemble a local-image slideshow. Image generation is deliberately outside this module.
  * Requires explicitly provisioned ffmpeg/ffprobe binaries; these are not provisioned by default on Vercel workers.
@@ -69,9 +86,8 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
     imagePaths.forEach((image, index) => args.push("-loop", "1", "-t", String(spans[index]), "-i", image));
     if (options.musicPath) args.push("-stream_loop", "-1", "-i", options.musicPath);
     if (options.voicePath) {
-      const voiceDuration = await probeDuration(options.voicePath, ffprobePath);
-      if (!Number.isFinite(voiceDuration) || voiceDuration > total - 0.25) throw new Error(`Voice duration ${voiceDuration}s must not exceed slideshow duration minus 0.25s (${total - 0.25}s)`);
-      args.push("-i", options.voicePath);
+      const preparedVoice = await prepareSlideshowVoice(options.voicePath, ffmpegPath, ffprobePath, total, work);
+      args.push("-i", preparedVoice);
     }
     const filters: string[] = [];
     for (let i = 0; i < imagePaths.length; i++) {
