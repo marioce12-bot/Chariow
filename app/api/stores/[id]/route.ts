@@ -5,6 +5,12 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
   const { id } = await params;
+  const { data: owned } = await supabase.from("stores").select("id,platform").eq("id", id).eq("user_id", user.id).maybeSingle();
+  if (owned?.platform === "shopify") {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { error: credentialsError } = await createAdminClient().from("shopify_connections").delete().eq("store_id", id).eq("user_id", user.id);
+    if (credentialsError) return NextResponse.json({ error: "Impossible de supprimer les identifiants Shopify" }, { status: 500 });
+  }
   const { error } = await supabase.from("stores").update({
     is_active: false,
     access_token_encrypted: null,

@@ -46,7 +46,7 @@ import { NotificationPermissionPrompt } from "./NotificationPermissionPrompt";
 import { DashboardStoreSelector } from "./dashboard/StoreSelector";
 import "@/app/dashboard-refinement.css";
 import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
-import { StoreConnectionGate, hasConnectedChariowStore } from "./dashboard/StoreConnectionGate";
+import { StoreConnectionGate, hasConnectedCommerceStore } from "./dashboard/StoreConnectionGate";
 import { SaleCelebration } from "./dashboard/SaleCelebration";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
@@ -360,7 +360,7 @@ function DashboardWorkspace() {
   // before the effect has had a chance to set its loading flag.
   const storeDataLoading = overviewLoading || analyticsStoreId !== activeStoreId;
   const snapshotView = ["Vue d'ensemble", "Rapports", "Studio"].includes(active);
-  const needsStoreConnection = !loadingData && !hasConnectedChariowStore(stores);
+  const needsStoreConnection = !loadingData && !hasConnectedCommerceStore(stores);
 
   return (
     <>

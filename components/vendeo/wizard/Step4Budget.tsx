@@ -94,6 +94,7 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          store_id: state.storeId,
           product_id: state.product?.id,
           product_name: state.product?.name,
           platform: state.platform,

@@ -29,11 +29,11 @@ export async function GET(request: Request) {
     .select("id")
     .eq("id", storeId)
     .eq("user_id", user.id)
-    .eq("platform", "chariow")
+    .in("platform", ["chariow", "shopify"])
     .eq("is_active", true)
     .maybeSingle();
   if (storeError) return NextResponse.json({ error: "Impossible de vérifier la boutique" }, { status: 500 });
-  if (!store) return NextResponse.json({ error: "Boutique Chariow introuvable" }, { status: 404 });
+  if (!store) return NextResponse.json({ error: "Boutique introuvable" }, { status: 404 });
 
   const { data: campaigns, error: campaignError } = await supabase.from("ad_campaigns")
     .select("id")

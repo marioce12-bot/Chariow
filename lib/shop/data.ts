@@ -2,7 +2,8 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { getCachedStoreProducts } from "./products";
+import { getCachedStoreProducts, fetchStoreProducts } from "./products";
+import { catalogHosts, validateConfigForServer } from "./service";
 import { isSubscriptionActive, type SubscriptionRow } from "./subscription";
 import { isValidSlug } from "./slug";
 import { clientIp, rateLimit } from "./rate-limit";
@@ -109,9 +110,13 @@ export const loadShop = cache(async (slug: string): Promise<ShopView> => {
     if (!(await isOwnerViewing(row.user_id))) return { state: "unavailable" };
     preview = true;
   }
-  const parsed = validate(row.config);
+  const { data: store } = await createAdminClient().from("stores").select("platform").eq("id", row.store_id).maybeSingle();
+  let verifiedCatalog: Awaited<ReturnType<typeof fetchStoreProducts>> | null = null;
+  if (store?.platform === "shopify") { try { verifiedCatalog = await fetchStoreProducts(row.store_id); } catch { return { state: "unavailable" }; } }
+  const parsed = store?.platform === "shopify" ? validateConfigForServer(row.config, catalogHosts(verifiedCatalog ?? [])) : validate(row.config);
   if (!parsed.ok) return { state: "unavailable" };
   const config = parsed.config;
+  if (store?.platform === "shopify" && config.products.some((entry) => { const product = verifiedCatalog?.find((item) => item.id === entry.productId); return !product?.url || !sameShopifyProductUrl(entry.buyUrl, product.url); })) return { state: "unavailable" };
 
   let catalog: Awaited<ReturnType<typeof getCachedStoreProducts>> = [];
   let productsError = false;
@@ -139,16 +144,31 @@ export const loadShop = cache(async (slug: string): Promise<ShopView> => {
   return { state: "ok", preview, storefrontId: row.id, slug: row.slug, config, items, productsError, pixelId };
 });
 
+function sameShopifyProductUrl(candidate: string, verified: string): boolean {
+  try { const a = new URL(candidate), b = new URL(verified); return a.protocol === "https:" && !a.username && !a.password && !a.port && a.hostname.toLowerCase() === b.hostname.toLowerCase() && a.pathname === b.pathname; } catch { return false; }
+}
+
 // Cible d'un clic « Acheter » : uniquement pour une vitrine publiée, produit visible, lien re-validé (https + domaine autorisé).
 export async function resolveBuyTarget(slug: string, productId: string): Promise<{ storefrontId: string; url: string } | null> {
   const row = await readStorefront(slug);
   if (!row || !row.is_published) return null;
-  const parsed = validate(row.config);
+  const { data: store } = await createAdminClient().from("stores").select("platform").eq("id", row.store_id).maybeSingle();
+  let catalog: Awaited<ReturnType<typeof fetchStoreProducts>> = [];
+  if (store?.platform === "shopify") {
+    try { catalog = await fetchStoreProducts(row.store_id); } catch { return null; }
+  }
+  const hosts = catalogHosts(catalog);
+  const parsed = store?.platform === "shopify" ? validateConfigForServer(row.config, hosts) : validate(row.config);
   if (!parsed.ok) return null;
   const entry = parsed.config.products.find((product) => product.visible && product.productId === productId);
   if (!entry) return null;
-  const url = parseBuyUrl(entry.buyUrl);
-  return url ? { storefrontId: row.id, url } : null;
+  const url = store?.platform === "shopify" ? parseBuyUrl(entry.buyUrl, hosts) : parseBuyUrl(entry.buyUrl);
+  if (!url) return null;
+  if (store?.platform === "shopify") {
+    const product = catalog.find((item) => item.id === entry.productId);
+    if (!product?.url || !sameShopifyProductUrl(url, product.url)) return null;
+  }
+  return { storefrontId: row.id, url };
 }
 
 // Vitrine publiée (pour l'enregistrement des visites).

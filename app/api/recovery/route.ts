@@ -15,7 +15,7 @@ import { buildSaleContact } from "@/lib/chariow/sale-details";
 async function ownedStore(supabase: any, userId: string, storeId: string) {
   return supabase
     .from("stores")
-    .select("id,store_name,mcp_url,access_token_encrypted")
+    .select("id,platform,store_name,mcp_url,access_token_encrypted")
     .eq("id", storeId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -38,6 +38,7 @@ export async function GET(request: Request) {
     storeId,
   );
   if (ownerError || !store) return fail("Boutique introuvable", 404);
+  if (store.platform === "shopify") return NextResponse.json({ cases: [], candidates: [], totalsByCurrency: [], salesAfterRecovery: [], storeName: store.store_name, whatsappIntegration: "unavailable", note: "Les relances Shopify ne sont pas activées : aucune coordonnée client ni panier abandonné n’est importé avec les permissions actuelles." });
   const { data: cases, error } = await supabase
     .from("payment_recovery_cases")
     .select("*")
@@ -155,6 +156,7 @@ export async function POST(request: Request) {
   if (!/^[0-9a-f-]{36}$/i.test(storeId)) return fail("Boutique invalide");
   const { data: store } = await ownedStore(supabase, user.id, storeId);
   if (!store) return fail("Boutique introuvable", 404);
+  if (store.platform === "shopify") return fail("Les relances Shopify nécessitent une intégration des paniers abandonnés et des coordonnées autorisées. Fonction non activée.", 422);
   const admin = createAdminClient();
   if (body.action === "create") {
     if (!validRecoveryInput(body))

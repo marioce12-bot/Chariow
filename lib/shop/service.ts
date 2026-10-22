@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { validateShopConfig, type ShopConfig } from "./config";
+import { DEFAULT_ALLOWED_BUY_HOSTS, validateShopConfig, type ShopConfig } from "./config";
 import { fetchStoreProducts, type ShopProduct } from "./products";
 import { buildSlugCandidates, isValidSlug } from "./slug";
 
@@ -23,8 +23,16 @@ export function storefrontUrl(slug: string): string {
   return `${(process.env.NEXT_PUBLIC_APP_URL || "https://vendeo-studio.site").replace(/\/$/, "")}/shop/${slug}`;
 }
 
-export function validateConfigForServer(config: unknown) {
-  return validateShopConfig(config, { cloudName: process.env.CLOUDINARY_CLOUD_NAME ?? null });
+export function validateConfigForServer(config: unknown, allowedHosts?: string[]) {
+  return validateShopConfig(config, { cloudName: process.env.CLOUDINARY_CLOUD_NAME ?? null, allowedHosts: allowedHosts ? [...DEFAULT_ALLOWED_BUY_HOSTS, ...allowedHosts] : undefined });
+}
+
+export function catalogHosts(catalog: ShopProduct[]): string[] {
+  return [...new Set(catalog.flatMap((product) => {
+    if (!product.url) return [];
+    try { const url = new URL(product.url); return url.protocol === "https:" && !url.username && !url.password && !url.port ? [url.hostname.toLowerCase()] : []; }
+    catch { return []; }
+  }))];
 }
 
 // Crée ou met à jour la vitrine d'une boutique. Utilisé par l'API et par l'agent IA (balise [[CREE_VITRINE]]).
@@ -38,13 +46,9 @@ export async function saveStorefront(args: {
   preferredSlug?: string;
   catalog?: ShopProduct[];
 }): Promise<SaveResult> {
-  const parsed = validateConfigForServer(args.config);
-  if (!parsed.ok) return { ok: false, status: 400, error: parsed.errors.slice(0, 5).join(" ; ") };
-  const config: ShopConfig = parsed.config;
-
   const { data: store } = await args.supabase.from("stores").select("id, platform, is_active").eq("id", args.storeId).eq("user_id", args.userId).maybeSingle();
   if (!store) return { ok: false, status: 404, error: "Boutique introuvable" };
-  if (store.platform !== "chariow" || !store.is_active) return { ok: false, status: 400, error: "Seules les boutiques Chariow actives sont prises en charge" };
+  if (!(store.platform === "chariow" || store.platform === "shopify") || !store.is_active) return { ok: false, status: 400, error: "Seules les boutiques Chariow ou Shopify actives sont prises en charge" };
 
   let catalog = args.catalog;
   if (!catalog) {
@@ -54,9 +58,13 @@ export async function saveStorefront(args: {
       return { ok: false, status: 502, error: "Impossible de vérifier les produits de la boutique pour le moment" };
     }
   }
+  const parsed = validateConfigForServer(args.config, store.platform === "shopify" ? catalogHosts(catalog) : undefined);
+  if (!parsed.ok) return { ok: false, status: 400, error: parsed.errors.slice(0, 5).join(" ; ") };
+  const config: ShopConfig = parsed.config;
   const known = new Set(catalog.map((product) => product.id));
   const unknown = config.products.filter((product) => !known.has(product.productId)).map((product) => product.productId);
   if (unknown.length) return { ok: false, status: 400, error: `Produit(s) introuvable(s) dans la boutique : ${unknown.slice(0, 3).join(", ")}` };
+  if (store.platform === "shopify" && config.products.some((entry) => { const product = catalog!.find((item) => item.id === entry.productId); return !product?.url || !sameShopifyProductUrl(entry.buyUrl, product.url); })) return { ok: false, status: 400, error: "Le lien d'achat Shopify ne correspond pas au produit vérifié" };
   if (args.publish && !config.products.some((product) => product.visible)) return { ok: false, status: 400, error: "Affiche au moins un produit avant de publier" };
 
   const { data: existing } = await args.supabase.from("shop_storefronts").select("id").eq("store_id", args.storeId).eq("user_id", args.userId).maybeSingle();
@@ -88,13 +96,21 @@ export async function saveStorefront(args: {
   return { ok: false, status: 409, error: "Impossible de trouver un lien libre, choisis-en un autre" };
 }
 
+function sameShopifyProductUrl(candidate: string, verified: string): boolean {
+  try { const a = new URL(candidate), b = new URL(verified); return a.protocol === "https:" && !a.username && !a.password && !a.port && a.hostname.toLowerCase() === b.hostname.toLowerCase() && a.pathname === b.pathname; } catch { return false; }
+}
+
 export async function setStorefrontPublished(supabase: SupabaseClient, userId: string, id: string, publish: boolean): Promise<SaveResult> {
   const { data: row } = await supabase.from("shop_storefronts").select(STOREFRONT_COLUMNS).eq("id", id).eq("user_id", userId).maybeSingle();
   if (!row) return { ok: false, status: 404, error: "Vitrine introuvable" };
   if (publish) {
-    const parsed = validateConfigForServer((row as StorefrontRow).config);
+    const { data: store } = await supabase.from("stores").select("platform").eq("id", (row as StorefrontRow).store_id).maybeSingle();
+    let catalog: ShopProduct[] | undefined;
+    if (store?.platform === "shopify") { try { catalog = await fetchStoreProducts((row as StorefrontRow).store_id); } catch { return { ok: false, status: 502, error: "Impossible de vérifier les produits de la boutique pour le moment" }; } }
+    const parsed = validateConfigForServer((row as StorefrontRow).config, store?.platform === "shopify" && catalog ? catalogHosts(catalog) : undefined);
     if (!parsed.ok) return { ok: false, status: 400, error: "La configuration de la vitrine est invalide" };
     if (!parsed.config.products.some((product) => product.visible)) return { ok: false, status: 400, error: "Affiche au moins un produit avant de publier" };
+    if (store?.platform === "shopify" && parsed.config.products.some((entry) => { const product = catalog?.find((item) => item.id === entry.productId); return !product?.url || !sameShopifyProductUrl(entry.buyUrl, product.url); })) return { ok: false, status: 400, error: "Le lien d'achat Shopify ne correspond pas au produit vérifié" };
   }
   const { data, error } = await supabase.from("shop_storefronts").update({ is_published: publish }).eq("id", id).eq("user_id", userId).select(STOREFRONT_COLUMNS).single();
   if (error || !data) return { ok: false, status: 500, error: "Impossible de modifier la vitrine" };

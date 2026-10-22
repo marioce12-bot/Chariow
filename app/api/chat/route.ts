@@ -113,10 +113,10 @@ export async function POST(request: Request) {
   const storeId = body?.store_id || null;
   const { data: stores } = await supabase
     .from("stores")
-    .select("id, mcp_url, access_token_encrypted, store_name")
+    .select("id, platform, mcp_url, access_token_encrypted, store_name")
     .eq("user_id", user.id)
     .eq("is_active", true)
-    .eq("platform", "chariow");
+    .in("platform", ["chariow", "shopify"]);
 
   // Historique AVANT le message courant : on le récupère avant d'insérer le nouveau
   // message pour être certain de sa position et pouvoir garantir que la conversation
@@ -178,14 +178,22 @@ export async function POST(request: Request) {
         stores.map(async (store) => {
           const clip = (text: string) => (text.length > perStoreBudget ? `${text.slice(0, perStoreBudget)}\n[... données de cette boutique tronquées ...]` : text);
           try {
+            if (store.platform === "shopify") {
+              const [{ getShopifySnapshot }, shopifyAnalytics] = await Promise.all([import("@/lib/shopify/client"), import("@/lib/shopify/analytics")]);
+              const snapshot = await getShopifySnapshot(store);
+              const normalized = shopifyAnalytics.normalizeShopifySnapshot(snapshot, { from: "", to: "" });
+              const products = normalized.products.filter((p: any) => p.id && p.name).map((p: any) => ({ id: p.id, name: p.name, storeId: store.id, storeName: store.store_name, url: p.url ?? null }));
+              campaignCatalog.push(...products);
+              return clip(`--- Boutique Shopify : ${store.store_name} ---\n${JSON.stringify(normalized)}`);
+            }
             const snapshot = await getChariowSnapshot(store);
             const normalized = (await import("@/lib/chariow/analytics")).normalizeChariowSnapshot(snapshot, { from: "", to: "" });
-            const products = normalized.products.filter((p) => p.id && p.name).map((p) => ({ id: p.id, name: p.name, storeId: store.id, storeName: store.store_name, url: p.urlIsFallback ? null : p.url }));
+            const products = normalized.products.filter((p: any) => p.id && p.name).map((p: any) => ({ id: p.id, name: p.name, storeId: store.id, storeName: store.store_name, url: p.urlIsFallback ? null : p.url }));
             campaignCatalog.push(...products);
             return clip(`--- Boutique : ${store.store_name} ---\n${serializeChariowContext(snapshot)}`);
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            console.error("Chariow MCP error", message);
+            console.error(`${store.platform === "shopify" ? "Shopify" : "Chariow"} analytics error`, message);
             if (message.includes("401")) {
               await supabase
                 .from("stores")
@@ -202,7 +210,7 @@ export async function POST(request: Request) {
       context = `${diagnosticContext ? `${diagnosticContext}\n\n` : ""}${header}\n${snapshots.join("\n\n")}`;
       campaignCatalogContext = `\nCatalogue complet de toutes les boutiques actives (référence produits : id/storeId/storeName/url; ne pas omettre) : ${JSON.stringify(campaignCatalog)}`;
     } catch {
-      context = "Données Chariow momentanément indisponibles pour l'une ou plusieurs boutiques. Ne fabrique aucun chiffre.";
+      context = "Données de boutique momentanément indisponibles pour l'une ou plusieurs boutiques. Ne fabrique aucun chiffre.";
     }
 
     const storeIds = stores.map((s) => s.id);
@@ -313,7 +321,9 @@ export async function POST(request: Request) {
   // Consignes « vitrine » : ajoutées seulement quand la conversation en parle, et le plafond est relevé d'autant
   // pour qu'elles ne fassent pas tronquer le contexte boutique (qui vient après le prompt).
   const includeVitrine = wantsVitrine([message, ...(previousHistory ?? []).filter((item) => item.role === "user").slice(0, 6).map((item) => String(item.content ?? ""))]);
-  const systemPrompt = includeVitrine ? `${VENDEO_SYSTEM_PROMPT}\n\n${VITRINE_PROMPT}` : VENDEO_SYSTEM_PROMPT;
+  const shopifyOnly = Boolean(stores?.length) && (stores ?? []).every((store) => store.platform === "shopify");
+  const platformPrompt = shopifyOnly ? VENDEO_SYSTEM_PROMPT.replace(/Chariow/gi, "Shopify") : VENDEO_SYSTEM_PROMPT;
+  const systemPrompt = includeVitrine ? `${platformPrompt}\n\n${VITRINE_PROMPT}` : platformPrompt;
   const rawSystemContent = `${systemPrompt}\n\nContexte actuel :\n${safeContext}${documentsContext}`;
   const baseSystemCap = includeVitrine ? MAX_SYSTEM_CONTENT_CHARS + VITRINE_PROMPT.length + 2 : MAX_SYSTEM_CONTENT_CHARS;
   const systemCap = documentAttachments.length ? baseSystemCap + MAX_DOCUMENT_CONTEXT_CHARS : baseSystemCap;

@@ -11,6 +11,7 @@ export type ProductSales = {
   currency: string | null;
   status: string;
   raw_payload?: unknown;
+  quantity?: number;
 };
 export type ProductCost = {
   product_id: string;
@@ -47,24 +48,51 @@ function receivedNet(sale: ProductSales): number | null {
 /** Ebook production costs default to zero; advertising attribution is not available here. */
 export function aggregateProductProfit(sales: ProductSales[], costs: ProductCost[]) {
   const map = new Map<string, {
-    productId: string; productName: string | null; currency: string; units: number;
+    productId: string; productName: string | null; currency: string; isShopify: boolean; units: number;
     grossRevenue: number; netRevenue: number | null; chariowFees: number | null;
     estimatedNetRevenue: boolean; grossComplete: boolean; refunds: number;
     campaigns: Map<string, { id: string; name: string | null; sales: number }>;
   }>();
-  for (const sale of sales) {
+  for (const originalSale of sales) {
+    const isShopify = record(originalSale.raw_payload).provider === "shopify";
+    const rawPayload = record(originalSale.raw_payload);
+    const rawItems = rawPayload.line_items;
+    const refundStatus = String(rawPayload.original_financial_status ?? rawPayload.status ?? originalSale.status).toLowerCase();
+    const isShopifyRefund = isShopify && refundStatus.includes("refund");
+    const isFullShopifyRefund = isShopify && refundStatus === "refunded";
+    // Shopify payloads can represent one order with multiple product lines; each
+    // line's amount is treated as its gross line total (not unit price).
+    const lineItems = isShopify && Array.isArray(rawItems) ? rawItems : null;
+    const expandedSales: ProductSales[] = lineItems?.length
+      ? lineItems.map((line) => {
+          const li = record(line);
+          return {
+            ...originalSale,
+            product_id: String(li.product_id ?? originalSale.product_id ?? ""),
+            product_name: typeof li.title === "string" ? li.title : originalSale.product_name,
+            amount: isShopifyRefund ? null : amountValue(li.amount),
+            quantity: isShopifyRefund ? 0 : Math.max(0, Number(li.quantity ?? 1) || 0),
+            currency: typeof li.currency === "string" ? li.currency : originalSale.currency,
+            net_amount: li.net_amount == null ? (lineItems.length === 1 ? originalSale.net_amount : null) : amountValue(li.net_amount),
+            raw_payload: { provider: "shopify", net_amount: li.net_amount },
+            status: originalSale.status,
+          };
+        })
+      : [originalSale];
+    for (const sale of expandedSales) {
     const status = String(sale.status ?? "").trim().toLowerCase();
-    const refunded = status.includes("refund") || status.includes("chargeback");
-    if (!isConfirmedChariowSaleStatus(status) && !refunded && status !== "paid") continue;
+    const refunded = isShopify ? isFullShopifyRefund : status.includes("refund") || status.includes("chargeback");
+    if (!isShopify && !isConfirmedChariowSaleStatus(status) && !refunded && status !== "paid") continue;
+    if (isShopify && !["paid", "partially_refunded", "refunded"].includes(status)) continue;
     const currency = String(sale.currency ?? "").trim().toUpperCase();
     if (!currency || sale.product_id == null) continue;
     const key = `${sale.product_id}\u0000${currency}`;
     const item = map.get(key) ?? {
       productId: sale.product_id, productName: sale.product_name?.trim() || null,
-      currency, units: 0, grossRevenue: 0, netRevenue: 0, chariowFees: 0,
+      currency, isShopify, units: 0, grossRevenue: 0, netRevenue: 0, chariowFees: 0,
       estimatedNetRevenue: false, grossComplete: true, refunds: 0, campaigns: new Map(),
     };
-    if (refunded) {
+    if (refunded && !isShopify) {
       item.refunds += 1;
       const refundGross = numeric(sale.amount);
       if (refundGross == null) item.grossComplete = false;
@@ -73,30 +101,31 @@ export function aggregateProductProfit(sales: ProductSales[], costs: ProductCost
       const refundNet = receivedNet(sale);
       if (refundNet == null) item.netRevenue = null;
       else if (item.netRevenue != null) item.netRevenue -= Math.abs(refundNet);
-      if (refundGross == null || refundNet == null) item.chariowFees = null;
+      if (isShopify || refundGross == null || refundNet == null) item.chariowFees = null;
       else if (item.chariowFees != null) item.chariowFees -= Math.abs(refundGross) - Math.abs(refundNet);
       map.set(key, item);
       continue;
     }
-    item.units += 1;
+    item.units += isShopify ? Math.max(0, Number(sale.quantity ?? 1) || 0) : 1;
     const campaignId = sale.chariow_campaign_id?.trim();
     if (campaignId) {
       const campaign = item.campaigns.get(campaignId) ?? { id: campaignId, name: sale.chariow_campaign_name?.trim() || null, sales: 0 };
       campaign.sales += 1;
       item.campaigns.set(campaignId, campaign);
     }
-    const gross = numeric(sale.amount);
+    const gross = isShopifyRefund ? null : numeric(sale.amount);
     item.grossRevenue += gross ?? 0;
     if (gross == null) item.grossComplete = false;
     const received = receivedNet(sale);
-    const net = received ?? (gross == null ? null : roundMoney(gross * (1 - CHARIOW_FEE_RATE)));
-    if (received == null && net != null) item.estimatedNetRevenue = true;
+    const net = received ?? (isShopify || gross == null ? null : roundMoney(gross * (1 - CHARIOW_FEE_RATE)));
+    if (!isShopify && received == null && net != null) item.estimatedNetRevenue = true;
     if (net == null) item.netRevenue = null;
     else if (item.netRevenue != null) item.netRevenue += net;
-    if (gross == null || net == null) item.chariowFees = null;
+    if (isShopify || gross == null || net == null) item.chariowFees = null;
     else if (item.chariowFees != null) item.chariowFees += gross - net;
     if (!item.productName && sale.product_name?.trim()) item.productName = sale.product_name.trim();
     map.set(key, item);
+    }
   }
   return [...map.values()].map(({ grossComplete, campaigns, ...item }) => {
     const cost = costs.find((c) => c.product_id === item.productId && c.currency.toUpperCase() === item.currency);
@@ -108,7 +137,7 @@ export function aggregateProductProfit(sales: ProductSales[], costs: ProductCost
     return {
       ...item, grossRevenue: grossComplete ? roundMoney(item.grossRevenue) : null,
       netRevenue, chariowFees: item.chariowFees == null ? null : roundMoney(item.chariowFees),
-      chariowFeeRate: CHARIOW_FEE_RATE, totalCosts, profit, marginPercent: null,
+      chariowFeeRate: item.isShopify ? null : CHARIOW_FEE_RATE, totalCosts, profit, marginPercent: null,
       costStatus: "complete" as const, campaigns: [...campaigns.values()],
       provenance: { paidSales: item.units, refundCount: item.refunds,
         campaignLinkedSales: [...campaigns.values()].reduce((n, c) => n + c.sales, 0),

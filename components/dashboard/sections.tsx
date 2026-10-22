@@ -56,15 +56,26 @@ export function StoreOnboarding() {
   const { t , locale } = useI18n();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [platform, setPlatform] = useState<"chariow" | "shopify">("chariow");
+  const [shop, setShop] = useState("");
 
   async function connect() {
     setError("");
     setSaving(true);
     try {
-      // Redirection HTTP : connect va mener OAuth Chariow.
-      window.location.href = "/api/integrations/chariow/connect";
-    } catch {
-      setError(t("sectionsExtra.onboarding.error"));
+      if (platform === "chariow") {
+        window.location.href = "/api/integrations/chariow/connect";
+        return;
+      }
+      const domain = shop.trim().toLowerCase();
+      if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(domain)) throw new Error("invalid-shop-domain");
+      const response = await fetch("/api/integrations/shopify/connect/check");
+      if (!response.ok) throw new Error("shopify-configuration");
+      const config = await response.json();
+      if (config?.configured === false || config?.available === false) throw new Error("shopify-not-configured");
+      window.location.href = `/api/integrations/shopify/connect?shop=${encodeURIComponent(domain)}`;
+    } catch (cause) {
+      setError(cause instanceof Error && cause.message === "shopify-not-configured" ? "shopify-not-configured" : cause instanceof Error && cause.message === "invalid-shop-domain" ? "invalid-shop-domain" : t("sectionsExtra.onboarding.error"));
       setSaving(false);
     }
   }
@@ -77,10 +88,12 @@ export function StoreOnboarding() {
         </span>
         <span className="eyebrow">{t("sectionsExtra.onboarding.step")}</span>
         <h1>{t("sectionsExtra.onboarding.title")}</h1>
-        <p className="onboarding-lead">{t("sectionsExtra.onboarding.description")}</p>
-        {error && <p className="form-error">{localizeSystemMessage(error, locale)}</p>}
+        <p className="onboarding-lead">{platform === "shopify" ? (locale === "en" ? "Connect your Shopify store securely to sync its products." : "Connecte ta boutique Shopify en toute sécurité pour synchroniser ses produits.") : t("sectionsExtra.onboarding.description")}</p>
+        {error && <p className="form-error">{error === "shopify-not-configured" ? (locale === "en" ? "Shopify connection is not configured yet. Please try again later." : "La connexion Shopify n’est pas encore configurée. Réessaie plus tard.") : error === "invalid-shop-domain" ? (locale === "en" ? "Enter a valid *.myshopify.com domain." : "Saisis un domaine *.myshopify.com valide.") : localizeSystemMessage(error, locale)}</p>}
+        <label style={{ display: "block", marginTop: 16 }}>{locale === "en" ? "Platform" : "Plateforme"}<select aria-label={locale === "en" ? "Platform" : "Plateforme"} value={platform} onChange={event => setPlatform(event.target.value as "chariow" | "shopify")}><option value="chariow">Chariow</option><option value="shopify">Shopify</option></select></label>
+        {platform === "shopify" && <label style={{ display: "block", marginTop: 16 }}>{locale === "en" ? "Shop domain" : "Domaine de la boutique"}<input aria-label={locale === "en" ? "Shop domain" : "Domaine de la boutique"} value={shop} onChange={event => setShop(event.target.value)} placeholder="example.myshopify.com" style={{ display: "block", width: "100%", marginTop: 6 }} /></label>}
         <button className="btn btn-dark" disabled={saving} style={{ width: "100%", marginTop: 18 }} onClick={connect}>
-          {saving ? t("sectionsExtra.onboarding.loading") : t("sectionsExtra.onboarding.connect")} <ArrowRight size={15} />
+          {saving ? t("sectionsExtra.onboarding.loading") : platform === "shopify" ? (locale === "en" ? "Connect Shopify" : "Connecter Shopify") : t("sectionsExtra.onboarding.connect")} <ArrowRight size={15} />
         </button>
       </div>
     </div>
@@ -1924,6 +1937,8 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [shopifyDomain, setShopifyDomain] = useState("");
+  const [showShopifyForm, setShowShopifyForm] = useState(false);
   const currentPlan: PlanId = "starter";
   const maxStores = planMaxStores(currentPlan);
 
@@ -1948,6 +1963,30 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
     } finally {
       setSaving(false);
     }
+  }
+
+  async function connectShopify(storeId?: string) {
+    setError(""); setSaving(true);
+    try {
+      if (!storeId) {
+        const domain = shopifyDomain.trim().toLowerCase();
+        if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(domain)) { setError(locale === "en" ? "Enter a valid *.myshopify.com domain." : "Saisis un domaine *.myshopify.com valide."); return; }
+        const check = await fetch("/api/integrations/shopify/connect/check");
+        const checkData = await check.json().catch(() => ({}));
+        if (!check.ok || checkData.configured === false || checkData.available === false) { setError(checkData.error ?? (locale === "en" ? "Shopify connection is not configured." : "La connexion Shopify n’est pas configurée.")); return; }
+        window.location.href = `/api/integrations/shopify/connect?shop=${encodeURIComponent(domain)}`;
+      } else window.location.href = `/api/integrations/shopify/connect?store_id=${encodeURIComponent(storeId)}`;
+    } finally { setSaving(false); }
+  }
+
+  async function disconnectShopify(id: string) {
+    setError(""); setSaving(true);
+    try {
+      const res = await fetch("/api/integrations/shopify/disconnect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ store_id: id }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(data.error ?? "Impossible de déconnecter."); return; }
+      onStoresChange(stores.map((store) => store.id === id ? data.store : store));
+    } finally { setSaving(false); }
   }
 
   async function disconnectChariow(id: string) {
@@ -1998,11 +2037,16 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
           <p>{t("sweep1.text315")}{" "}<strong className="store-count">{stores.length}/{maxStores}</strong></p>
         </div>
 
-        <button type="button" className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}>
-          <Plus size={16} /> {saving ? t("optionsExtra.text59") : t("sweep2.text316")}
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" className="btn btn-dark" onClick={() => connectChariow()} disabled={saving}><Plus size={16} /> {saving ? t("optionsExtra.text59") : t("sweep2.text316")}</button>
+          <button type="button" className="btn btn-ghost" onClick={() => setShowShopifyForm((shown) => !shown)} disabled={saving}>{locale === "en" ? "Add Shopify" : "Ajouter Shopify"}</button>
+        </div>
       </div>
 
+      {showShopifyForm && <form onSubmit={(event) => { event.preventDefault(); void connectShopify(); }} style={{ maxWidth: 760, marginBottom: 16 }}>
+        <label>{locale === "en" ? "Shopify domain" : "Domaine Shopify"}<input aria-label={locale === "en" ? "Shopify domain" : "Domaine Shopify"} value={shopifyDomain} onChange={(event) => setShopifyDomain(event.target.value)} placeholder="example.myshopify.com" autoComplete="url" /></label>
+        <button className="btn btn-dark" type="submit" disabled={saving}>{locale === "en" ? "Connect Shopify" : "Connecter Shopify"}</button>
+      </form>}
       {error && <p className="store-error" role="alert">{localizeSystemMessage(error, locale)}</p>}
 
       <div className="app-card" style={{ maxWidth: 760 }}>
@@ -2019,10 +2063,10 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
                 <span>{store.platform} · {status === "connected" ? t("sweep3.text317") : status === "failed" ? t("sweep1.text318") : status === "expired" ? t("sweep2.text319") : t("sweep3.text320")}</span>
               </div>
               {canDisconnect ? (
-                <button className="btn btn-ghost" onClick={() => disconnectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
+                <button className="btn btn-ghost" onClick={() => store.platform === "shopify" ? disconnectShopify(store.id) : disconnectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
                   {t("settings.disconnect")}</button>
               ) : (
-                  <button type="button" className="btn btn-ghost" onClick={() => connectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
+                  <button type="button" className="btn btn-ghost" onClick={() => store.platform === "shopify" ? connectShopify(store.id) : connectChariow(store.id)} disabled={saving} style={{ fontSize: 10, padding: "7px 10px" }}>
                   {status === "failed" || status === "expired" ? t("optionsExtra.text60") : t("adminExtra.admin.retry")}
                  </button>
                )}

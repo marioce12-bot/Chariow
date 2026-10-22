@@ -40,14 +40,21 @@ export async function GET() {
   }));
 
   let products: Array<{ id: string; name: string; url: string | null }> = [];
-  const { data: store } = await supabase.from("stores").select("id,mcp_url,access_token_encrypted,connection_status").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle();
+  const { data: store } = await supabase.from("stores").select("id,platform,mcp_url,access_token_encrypted,connection_status").eq("user_id", user.id).eq("is_active", true).in("platform", ["chariow", "shopify"]).limit(1).maybeSingle();
   if (store) {
     try {
-      const snapshot = await getChariowSnapshot(store as any);
-      const normalized = normalizeChariowSnapshot(snapshot, { from: "", to: "" });
-      products = (normalized.products ?? []).map((product: any) => ({ id: String(product.id), name: String(product.name ?? "Produit"), url: product.url ?? null }));
+      if (store.platform === "shopify") {
+        const [{ getShopifySnapshot }, shopifyAnalytics] = await Promise.all([import("@/lib/shopify/client"), import("@/lib/shopify/analytics")]);
+        const snapshot = await getShopifySnapshot(store as any);
+        const normalized = shopifyAnalytics.normalizeShopifySnapshot(snapshot, { from: "", to: "" });
+        products = (normalized.products ?? []).map((product: any) => ({ id: String(product.id), name: String(product.name ?? "Produit"), url: product.url ?? null }));
+      } else {
+        const snapshot = await getChariowSnapshot(store as any);
+        const normalized = normalizeChariowSnapshot(snapshot, { from: "", to: "" });
+        products = (normalized.products ?? []).map((product: any) => ({ id: String(product.id), name: String(product.name ?? "Produit"), url: product.url ?? null }));
+      }
     } catch {
-      // Chariow momentanément indisponible : on affiche quand même les campagnes,
+      // Catalogue momentanément indisponible : on affiche quand même les campagnes,
       // simplement sans pouvoir les lier tant que le catalogue n'est pas rechargé.
     }
   }

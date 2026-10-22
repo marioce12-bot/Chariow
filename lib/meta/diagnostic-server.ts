@@ -53,7 +53,7 @@ export async function buildDiagnosticReports(
         .select("id")
         .eq("user_id", user.id)
         .eq("is_active", true)
-        .eq("platform", "chariow");
+        .in("platform", ["chariow", "shopify"]);
       if (storesError) throw new Error(storesError.message);
       const storeIds = (stores ?? []).map((store: { id: string }) => store.id);
 

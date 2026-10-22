@@ -10,6 +10,10 @@ export function hasConnectedChariowStore(stores: StoreData[]) {
   return stores.some(store => store.platform === "chariow" && store.connection_status === "connected");
 }
 
+export function hasConnectedCommerceStore(stores: StoreData[]) {
+  return hasConnectedChariowStore(stores) || stores.some(store => store.platform === "shopify" && store.connection_status === "connected" && store.is_active);
+}
+
 export function getChariowConnectTarget(stores: StoreData[]) {
   const existing = stores.find(store => store.platform === "chariow" && store.connection_status !== "connected");
   return existing ? `/api/integrations/chariow/connect?store_id=${encodeURIComponent(existing.id)}` : "/api/integrations/chariow/connect";
@@ -19,7 +23,8 @@ export function StoreConnectionGate({ stores, failed, onSignOut }: { stores: Sto
   const { locale } = useI18n();
   const en = locale === "en";
   const dialog = useRef<HTMLDivElement>(null);
-  const [screen, setScreen] = useState<"intro" | "choose">("intro");
+  const [screen, setScreen] = useState<"intro" | "choose">("intro")
+  const [shopDomain, setShopDomain] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -41,6 +46,25 @@ export function StoreConnectionGate({ stores, failed, onSignOut }: { stores: Sto
     setScreen(next);
   }
 
+  async function connectShopify() {
+    if (busy) return;
+    const shop = shopDomain.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) {
+      setError(en ? "Enter a valid *.myshopify.com domain." : "Saisis un domaine *.myshopify.com valide.");
+      return;
+    }
+    setBusy(true); setError("");
+    try {
+      const response = await fetch("/api/integrations/shopify/connect/check");
+      if (!response.ok) throw new Error("configuration-check");
+      const data = await response.json();
+      if (data?.configured === false || data?.available === false) throw new Error("not-configured");
+      window.location.assign(`/api/integrations/shopify/connect?shop=${encodeURIComponent(shop)}`);
+    } catch (cause) {
+      setError(cause instanceof Error && cause.message === "not-configured" ? (en ? "Shopify connection is not configured yet. Please try again later." : "La connexion Shopify n’est pas encore configurée. Réessaie plus tard.") : (en ? "Unable to verify Shopify setup or start connection. Please try again later." : "Impossible de vérifier la configuration Shopify ou de démarrer la connexion. Réessaie plus tard."));
+      setBusy(false);
+    }
+  }
   async function connect() {
     if (busy) return;
     setBusy(true);
@@ -79,6 +103,13 @@ export function StoreConnectionGate({ stores, failed, onSignOut }: { stores: Sto
         {en ? "Connect my store" : "Connecter ma boutique"}<ArrowRight size={18} aria-hidden="true" />
       </button> : <>
         <div className="store-type-options">
+          <div className="store-type-option" style={{ display: "block" }}>
+            <strong>Shopify</strong>
+            <label style={{ display: "block", marginTop: 10 }}>{en ? "Shop domain" : "Domaine de la boutique"}
+              <input aria-label={en ? "Shop domain" : "Domaine de la boutique"} value={shopDomain} onChange={event => setShopDomain(event.target.value)} placeholder="example.myshopify.com" autoComplete="url" disabled={busy} style={{ display: "block", width: "100%", marginTop: 5 }} />
+            </label>
+            <button className="btn btn-dark" type="button" disabled={busy} onClick={connectShopify} style={{ marginTop: 10 }}>{busy ? (en ? "Connecting…" : "Connexion…") : (en ? "Connect Shopify" : "Connecter Shopify")}</button>
+          </div>
           <button className="store-type-option" type="button" aria-label="Chariow" disabled={busy} onClick={connect}>
             <Store size={23} aria-hidden="true" /><span><strong>Chariow</strong><span>{busy ? (en ? "Connecting…" : "Connexion…") : (en ? "Connect securely using the existing Chariow flow." : "Connexion sécurisée avec le parcours Chariow existant.")}</span></span><ArrowRight size={18} aria-hidden="true" />
           </button>

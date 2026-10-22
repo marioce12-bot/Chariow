@@ -28,7 +28,24 @@ export async function fetchStoreProducts(storeId: string): Promise<ShopProduct[]
     .select("mcp_url, access_token_encrypted, platform, is_active")
     .eq("id", storeId)
     .maybeSingle();
-  if (!store || store.platform !== "chariow" || !store.is_active || !store.mcp_url) throw new Error("Boutique indisponible");
+  if (!store || !store.is_active) throw new Error("Boutique indisponible");
+  if (store.platform === "shopify") {
+    const { getShopifyProductSnapshot } = await import("@/lib/shopify/client");
+    const snapshot = await getShopifyProductSnapshot({ id: storeId } as any);
+    if (!snapshot.coverage?.products?.complete) throw new Error(snapshot.coverage?.products?.reason ?? "Catalogue Shopify incomplet");
+    return (snapshot.products?.data ?? []).flatMap((product: any) => {
+      const rawId = String(product.id);
+      const id = rawId.replace(/^gid:\/\/shopify\/Product\//, "");
+      if (!isProductId(id)) return [];
+      const name = clip(sanitizePlainText(String(product.title ?? product.name ?? "")), 120);
+      if (!name) return [];
+      const price = product.priceRangeV2?.minVariantPrice?.amount ?? product.price ?? null;
+      const currency = product.priceRangeV2?.minVariantPrice?.currencyCode ?? product.currencyCode ?? product.currency ?? null;
+      return [{ id, name, description: product.description ? clip(sanitizePlainText(String(product.description)), 600) || null : null, price,
+        currency: currency ? String(currency).slice(0, 8) : null, image: safeHttpsUrl(product.featuredImage?.url ?? product.image), url: safeHttpsUrl(product.onlineStoreUrl) }];
+    });
+  }
+  if (store.platform !== "chariow" || !store.mcp_url) throw new Error("Boutique indisponible");
   const accessToken = store.access_token_encrypted ? decryptSecret(store.access_token_encrypted) : undefined;
   const client = new ChariowMcpClient({ endpoint: store.mcp_url, accessToken });
   await client.initialize();

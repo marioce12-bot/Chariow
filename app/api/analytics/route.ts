@@ -35,12 +35,16 @@ export async function GET(request: Request) {
   const to = params.get("to") ?? undefined;
   const query = supabase
     .from("stores")
-    .select("id, store_name, mcp_url, access_token_encrypted, connection_status, connected_at")
+    .select("id, platform, store_name, mcp_url, access_token_encrypted, connection_status, connected_at")
     .eq("user_id", user.id)
     .eq("is_active", true);
   const { data: store, error } = await (storeId ? query.eq("id", storeId).maybeSingle() : query.limit(1).maybeSingle());
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!store) return NextResponse.json({ error: "Aucune boutique active" }, { status: 404 });
+  if (store.platform === "shopify") {
+    const { shopifyDashboardResponse } = await import("@/lib/shopify/dashboard");
+    return shopifyDashboardResponse(supabase, user.id, store, { from, to });
+  }
   try {
     const snapshot = await getChariowSnapshot(store, { from, to });
     // Enregistre tout de suite les ventes renvoyées par Chariow : la synchro automatique ne tourne qu'une fois

@@ -76,16 +76,16 @@ export async function GET(request: Request) {
     .lte("date_start", to);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const storesQuery = supabase.from("stores").select("id").eq("user_id", user.id).eq("is_active", true).eq("platform", "chariow");
+  const storesQuery = supabase.from("stores").select("id").eq("user_id", user.id).eq("is_active", true).in("platform", ["chariow", "shopify"]);
   const { data: store, error: storeError } = await (storeId ? storesQuery.eq("id", storeId).maybeSingle() : storesQuery.limit(1).maybeSingle());
   if (storeError) return NextResponse.json({ error: "Impossible de vérifier la boutique" }, { status: 500 });
-  if (storeId && !store) return NextResponse.json({ error: "Boutique Chariow introuvable" }, { status: 404 });
+  if (storeId && !store) return NextResponse.json({ error: "Boutique introuvable" }, { status: 404 });
   let saleRows: SaleRow[] = [];
   if (store) {
     try {
       saleRows = await fetchStoreSales(supabase, store.id, from, to);
     } catch (storeError) {
-      console.warn("Chariow sales unavailable", storeError instanceof Error ? storeError.message : storeError);
+      console.warn("Store sales unavailable", storeError instanceof Error ? storeError.message : storeError);
     }
   }
 

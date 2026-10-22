@@ -10,7 +10,7 @@ export const VITRINE_TAG = "[[CREE_VITRINE]]";
 // Consignes ajoutées au prompt système UNIQUEMENT quand la conversation parle de vitrine (voir wantsVitrine),
 // pour ne pas alourdir le prompt à chaque message. Le plafond MAX_SYSTEM_CONTENT_CHARS est relevé d'autant.
 export const VITRINE_PROMPT = `Création de vitrine (quand l'utilisateur veut une vitrine, un mini-site public pour vendre ses produits) :
-- Une vitrine est une page publique (vendeo-studio.site/shop/...) qui affiche les produits choisis ; le bouton Acheter mène au lien de paiement Chariow du produit.
+- Une vitrine est une page publique (vendeo-studio.site/shop/...) qui affiche les produits choisis ; le bouton Acheter mène au lien d'achat exact du catalogue concerné.
 - À réunir sans jamais redemander ce qui a déjà été dit : la boutique concernée (s'il en a plusieurs), le nom affiché, le logo (l'utilisateur joint une image dans le chat, sinon pas de logo), les produits à afficher dans l'ordre voulu, ses goûts (couleur principale, thème clair ou sombre, style de titre : bold, elegant ou minimal, phrase d'accroche).
 - Lien d'achat : ne demande pas les URL des pages produit du catalogue. Le serveur ajoute automatiquement l'URL du catalogue. Demande le nom du produit ou de la boutique seulement si le choix est ambigu. Un buyUrl explicitement fourni/modifié par l'utilisateur est conservé.
 - Une fois tout réuni, résume la vitrine en un seul message et demande une validation explicite avant de la créer.
@@ -133,13 +133,14 @@ export async function processVitrineAnswer(args: {
   if (!args.hasPriorAssistantTurn) return fail("confirme d'abord le récapitulatif de ta vitrine");
   if (!extracted.payload) return fail("les informations reçues sont illisibles, redonne-moi tes choix et je réessaie");
 
-  const { data: stores } = await args.supabase.from("stores").select("id, store_name").eq("user_id", args.userId).eq("platform", "chariow").eq("is_active", true);
-  if (!stores?.length) return fail("aucune boutique Chariow n'est connectée");
+  const { data: stores } = await args.supabase.from("stores").select("id, store_name, platform").eq("user_id", args.userId).in("platform", ["chariow", "shopify"]).eq("is_active", true);
+  if (!stores?.length) return fail("aucune boutique active n'est connectée");
   const wanted = isObject(extracted.payload) && typeof extracted.payload.storeName === "string" ? normalizeName(extracted.payload.storeName) : "";
   let store = wanted ? stores.find((candidate) => normalizeName(candidate.store_name) === wanted) : undefined;
   if (!store && stores.length === 1) store = stores[0];
   if (!store) return fail(`précise pour quelle boutique (${stores.map((candidate) => candidate.store_name).slice(0, 5).join(", ")})`);
 
+  const shopify = store.platform === "shopify";
   let catalog: ShopProduct[];
   try {
     catalog = await fetchStoreProducts(store.id);

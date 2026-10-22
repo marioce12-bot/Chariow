@@ -14,7 +14,7 @@ import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
 import { launchPinterest } from "@/lib/pinterest/api";
 import { PINTEREST_TAG_REQUIRED_CODE, isPinterestConversionTagError, pinterestTagChatMessage } from "@/lib/pinterest/tag-help";
 import { TIKTOK_FROM_CHAT_MESSAGE } from "@/lib/launch-platform";
-import { resolveChatCampaignStore } from "@/lib/chariow/campaign-store";
+import { resolveCommerceCampaignStore as resolveChatCampaignStore } from "@/lib/shopify/campaign-store";
 
 // Lance une campagne Meta complète via l'API Marketing directe (même chemin que
 // /api/ad-campaigns/[id]/launch), à partir d'un brief validé par l'utilisateur

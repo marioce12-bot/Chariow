@@ -18,8 +18,9 @@ export async function POST(request: Request) {
   if (!/^[0-9a-f-]{36}$/i.test(storeId) || !sourceSaleId || sourceSaleId.length > 200) return fail("Boutique ou paiement invalide");
 
   const {data: store, error: storeError} = await supabase.from("stores")
-    .select("id,store_name,mcp_url,access_token_encrypted").eq("id",storeId).eq("user_id",user.id).maybeSingle();
+    .select("id,platform,store_name,mcp_url,access_token_encrypted").eq("id",storeId).eq("user_id",user.id).maybeSingle();
   if (storeError || !store) return fail("Boutique introuvable",404);
+  if (store.platform === "shopify") return fail("Les relances Shopify ne sont pas activées avec les permissions actuelles.",422);
 
   const admin = createAdminClient();
   const {data: sale, error: saleError} = await admin.from("chariow_sales")

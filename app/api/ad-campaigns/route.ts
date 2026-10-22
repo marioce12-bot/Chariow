@@ -27,8 +27,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Budget ou durée invalide" }, { status: 400 });
   }
 
-  const { data: store } = await supabase.from("stores").select("id,mcp_url,access_token_encrypted").eq("user_id", user.id).eq("connection_status", "connected").limit(1).maybeSingle();
-  if (!store) return NextResponse.json({ error: "Connecte d’abord une boutique Chariow" }, { status: 400 });
+  let storeQuery = supabase.from("stores").select("id,mcp_url,access_token_encrypted").eq("user_id", user.id).eq("is_active", true).eq("connection_status", "connected");
+  const requestedStoreId = body.store_id ?? body.storeId;
+  if (typeof requestedStoreId === "string") storeQuery = storeQuery.eq("id", requestedStoreId);
+  const { data: store } = await storeQuery.limit(1).maybeSingle();
+  if (!store) return NextResponse.json({ error: "Connecte d’abord la boutique sélectionnée" }, { status: 400 });
 
   // Le compte pub et (pour Meta) la page choisis à l'étape 2 du wizard sont
   // enregistrés dès la création du brouillon — pas seulement au moment du

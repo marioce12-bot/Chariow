@@ -5,6 +5,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/cron/shopify/sync",
+      "schedule": "15 3 * * *"
+    },
+    {
       "path": "/api/cron/subscriptions/expire",
       "schedule": "0 3 * * *"
     },

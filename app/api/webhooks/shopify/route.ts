@@ -1,0 +1,42 @@
+import crypto from "node:crypto";
+import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeShopDomain } from "@/lib/shopify/auth";
+import { syncShopifyStore } from "@/lib/shopify/sync";
+export const runtime = "nodejs";
+const MAX_BODY = 1024 * 1024;
+const equalBase64 = (expected: Buffer, value: string | null) => { if (!value || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return false; const actual = Buffer.from(value, "base64"); return actual.length === expected.length && crypto.timingSafeEqual(actual, expected); };
+export function verifyShopifyWebhook(raw: Buffer, signature: string | null, secret = process.env.SHOPIFY_CLIENT_SECRET) { if (!secret || secret.length < 32) return false; return equalBase64(crypto.createHmac("sha256", secret).update(raw).digest(), signature); }
+async function matchingStores(admin: any, shop: string) {
+ const found: any[] = []; let from = 0;
+ while (true) { const { data, error } = await admin.from("stores").select("id,user_id,platform,connected_at,is_active,connection_status,shop_domain").eq("platform", "shopify").eq("shop_domain", shop).range(from, from + 99); if (error) throw error; found.push(...(data ?? [])); if (!data || data.length < 100) break; from += 100; }
+ return found;
+}
+async function cleanupStore(admin: any, store: any, redact: boolean) {
+ if (redact) {
+  const { error: salesError } = await admin.from("chariow_sales").delete().eq("store_id", store.id).like("chariow_sale_id", `shopify:${store.id}:%`); if (salesError) throw salesError;
+  for (const table of ["meta_campaign_mappings", "tiktok_campaign_mappings"]) { const { error } = await admin.from(table).delete().eq("store_id", store.id); if (error && error.code !== "42P01") throw error; }
+  const { error: notificationsError } = await admin.from("user_notifications").delete().eq("user_id", store.user_id).contains("metadata", { store_id: store.id }); if (notificationsError && notificationsError.code !== "42P01") throw notificationsError;
+  const { error: costsError } = await admin.from("product_profit_costs").delete().eq("store_id", store.id); if (costsError && costsError.code !== "42P01") throw costsError;
+ }
+ const { error: credentialsError } = await admin.from("shopify_connections").delete().eq("store_id", store.id); if (credentialsError) throw credentialsError;
+ const patch: Record<string, any> = { is_active: false, connection_status: redact ? "revoked" : "revoked" };
+ if (redact) Object.assign(patch, { shop_domain: null, sales_last_synced_at: null, sales_last_sync_complete: false, sales_sync_error: null });
+ const { error } = await admin.from("stores").update(patch).eq("id", store.id).eq("platform", "shopify"); if (error) throw error;
+}
+export async function POST(request: Request) {
+ const len = Number(request.headers.get("content-length") ?? 0); if (len > MAX_BODY) return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+ const raw = Buffer.from(await request.arrayBuffer()); if (raw.length > MAX_BODY) return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+ if (!verifyShopifyWebhook(raw, request.headers.get("x-shopify-hmac-sha256"))) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+ const shop = normalizeShopDomain(request.headers.get("x-shopify-shop-domain")), topic = (request.headers.get("x-shopify-topic") ?? "").toLowerCase();
+ if (!shop) return NextResponse.json({ error: "Invalid shop" }, { status: 400 });
+ const admin = createAdminClient(); let stores: any[];
+ try { stores = await matchingStores(admin, shop); } catch { return NextResponse.json({ error: "Store lookup failed" }, { status: 503 }); }
+ if (topic === "customers/data_request" || topic === "customers/redact") return NextResponse.json({ received: true, customer_data_stored: false });
+ if (topic === "shop/redact") { try { for (const store of stores) await cleanupStore(admin, store, true); } catch { return NextResponse.json({ error: "Shop data cleanup failed" }, { status: 503 }); } return NextResponse.json({ received: true }); }
+ if (topic === "app/uninstalled") { try { for (const store of stores) await cleanupStore(admin, store, false); } catch { return NextResponse.json({ error: "Uninstall cleanup failed" }, { status: 503 }); } return NextResponse.json({ received: true }); }
+ if (["orders/create", "orders/updated", "orders/cancelled", "orders/paid"].includes(topic)) {
+  try { for (const store of stores) if (store.is_active && store.connection_status === "connected") await syncShopifyStore(store); } catch { return NextResponse.json({ error: "Synchronization failed" }, { status: 503 }); }
+ }
+ return NextResponse.json({ received: true });
+}
