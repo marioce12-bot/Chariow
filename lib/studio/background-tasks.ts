@@ -20,10 +20,20 @@ export type StageRecord = {
   startedAt: string;
   completedAt?: string;
 };
+// Refusals returned BEFORE any credit reservation or provider call: nothing was charged,
+// so the step is safe to retry after the user tops up / renews.
+export const NO_CHARGE_ERROR_CODES = ["STUDIO_INSUFFICIENT_CREDITS", "STUDIO_PLANS_REQUIRED"];
 export class StudioTaskError extends Error {
-  constructor(public code: string, public status: number | null = null) {
-    super("Le suivi serveur n’a pas pu continuer. Les étapes terminées sont conservées ; aucune étape payante n’est relancée.");
+  constructor(public code: string, public status: number | null = null, message?: string) {
+    super(message ?? "Le suivi serveur n’a pas pu continuer. Les étapes terminées sont conservées ; aucune étape payante n’est relancée.");
   }
+}
+// Maps a non-OK image response to a task error. A 402 keeps its real, user-readable message.
+function stepHttpError(status: number | null, body: any, fallbackCode: string) {
+  const message = typeof body?.error === "string" ? body.error : undefined;
+  if (status === 402 && body?.code === "INSUFFICIENT_CREDITS") return new StudioTaskError("STUDIO_INSUFFICIENT_CREDITS", 402, message);
+  if (status === 402 && body?.code === "PLANS_REQUIRED") return new StudioTaskError("STUDIO_PLANS_REQUIRED", 402, message);
+  return new StudioTaskError(fallbackCode, status);
 }
 export function stageGenerationId(id: string, revision: number) {
   const hex = createHash("sha256").update(`studio-stage:${id}:${revision}`).digest("hex");
@@ -224,7 +234,10 @@ export async function failTask(
   const message =
     error instanceof Error ? error.message : "Génération interrompue.";
   const code = error instanceof StudioTaskError ? error.code : "STUDIO_STEP_FAILED";
-  const uncertain = row.metadata.phase === "running";
+  // A refusal returned before any reservation (insufficient credits, subscription) charged nothing:
+  // the running step is dropped instead of being marked uncertain, so it can be resumed after a top-up.
+  const noCharge = error instanceof StudioTaskError && NO_CHARGE_ERROR_CODES.includes(error.code);
+  const uncertain = row.metadata.phase === "running" && !noCharge;
   logTaskEvent("task_failed", id, row.metadata.revision, { ...row.metadata, creditState: uncertain ? "uncertain" : row.metadata.creditState }, error);
   const failure = await admin
     .from("studio_generations")
@@ -237,8 +250,10 @@ export async function failTask(
         error: message,
         errorCode: code,
         httpStatus: error instanceof StudioTaskError ? error.status : null,
-        creditState: uncertain ? "uncertain" : (row.metadata.creditState ?? "confirmed"),
-        stages: (row.metadata.stages ?? []).map((stage: StageRecord) => stage.state === "running" ? { ...stage, state: "uncertain", creditState: stage.kind === "image" ? "uncertain" : stage.creditState } : stage),
+        creditState: uncertain ? "uncertain" : (noCharge ? "confirmed" : (row.metadata.creditState ?? "confirmed")),
+        stages: (row.metadata.stages ?? [])
+          .filter((stage: StageRecord) => !(noCharge && stage.state === "running"))
+          .map((stage: StageRecord) => stage.state === "running" ? { ...stage, state: "uncertain", creditState: stage.kind === "image" ? "uncertain" : stage.creditState } : stage),
         message,
         updatedAt: new Date().toISOString(),
       },
@@ -301,7 +316,7 @@ export async function runTaskStep(id: string, revision: number) {
       const response = await generateStudioImage(row.user_id, meta.input, { generationId: stage.generationId!, taskId: id, step: revision });
       result = await response.json();
       if (!response.ok)
-        throw new StudioTaskError("STUDIO_IMAGE_HTTP", response.status ?? null);
+        throw stepHttpError(response.status ?? null, result, "STUDIO_IMAGE_HTTP");
     } else if (revision === 0) {
       // Reject insufficient/repeated copy and scenes before any external preflight or image.
       const { product, duration, campaignGoal, locale } = meta.input;
@@ -347,7 +362,7 @@ export async function runTaskStep(id: string, revision: number) {
       }, { generationId: stage.generationId!, taskId: id, step: revision });
       const image = await response.json();
       if (!response.ok || !image.generationId || !image.imageUrl)
-        throw new StudioTaskError(image.code === "STUDIO_STAGE_UNCERTAIN" ? "STUDIO_STAGE_UNCERTAIN" : "STUDIO_IMAGE_HTTP", response.status ?? null);
+        throw stepHttpError(response.status ?? null, image, image.code === "STUDIO_STAGE_UNCERTAIN" ? "STUDIO_STAGE_UNCERTAIN" : "STUDIO_IMAGE_HTTP");
       images = [...images, { id: image.generationId, url: image.imageUrl }];
     } else {
       const ids = images.map((image) => image.id);
