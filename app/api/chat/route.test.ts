@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { askGemini, askImole } = vi.hoisted(() => ({ askGemini: vi.fn(), askImole: vi.fn() }));
-vi.mock("@/lib/ai/gemini", () => ({ askGemini }));
+vi.mock("@/lib/ai/gemini", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/ai/gemini")>(), askGemini }));
 vi.mock("@/lib/ai/imole", () => ({ askImole }));
 vi.mock("@/lib/auth", () => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/chariow/analytics", () => ({ getChariowSnapshot: vi.fn(), serializeChariowContext: vi.fn() }));
@@ -14,6 +14,7 @@ vi.mock("@/lib/shop/chat", () => ({ VITRINE_PROMPT: "", processVitrineAnswer: ({
 vi.mock("@/lib/chariow/chat-product", () => ({ resolveCampaignAnswer: (answer: string) => answer }));
 import { requireUser } from "@/lib/auth";
 import { POST, maxDuration } from "@/app/api/chat/route";
+import { GeminiApiError } from "@/lib/ai/gemini";
 
 function makeSupabase() {
   const db: Record<string, any> = { history: [] };
@@ -41,7 +42,7 @@ describe("POST /api/chat provider selection", () => {
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Et ensuite ?", conversationId: "conversation-1" }) }));
     expect(response.status).toBe(200);
     const [messages, options] = askGemini.mock.calls[0];
-    expect(options).toEqual({ model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW" });
+    expect(options).toEqual({ model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW", overloadRetries: 2 });
     expect(messages.slice(-3).map((m: any) => [m.role, m.content])).toEqual([["user", "Première question"], ["assistant", "Première réponse"], ["user", "Et ensuite ?"]]);
     expect(askImole).not.toHaveBeenCalled();
   });
@@ -75,7 +76,20 @@ describe("POST /api/chat provider selection", () => {
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Bonjour" }) }));
     expect(response.status).toBe(502);
     expect(askGemini).toHaveBeenCalledTimes(1);
-    expect(askGemini.mock.calls[0][1]).toEqual({ model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW" });
+    expect(askGemini.mock.calls[0][1]).toEqual({ model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW", overloadRetries: 2 });
+    expect(askImole).not.toHaveBeenCalled();
+  });
+  it.each(["fr", "en"])("explains persistent overload in %s without a provider fallback or extra quota consumption", async (locale) => {
+    askGemini.mockRejectedValue(new GeminiApiError("high demand", 503));
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Bonjour", locale }) }));
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("15");
+    const payload = await response.json();
+    expect(payload).toMatchObject({ code: "AI_OVERLOADED", conversationId: "conversation-1" });
+    expect(payload.error).toContain(locale === "en" ? "high demand" : "saturé");
+    expect(askGemini).toHaveBeenCalledTimes(1);
+    expect(supabase.rpc).toHaveBeenCalledTimes(1);
+    expect(supabase.history).toHaveLength(1);
     expect(askImole).not.toHaveBeenCalled();
   });
 });

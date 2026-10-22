@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { askGemini } from "@/lib/ai/gemini";
+import { askGemini, GeminiApiError } from "@/lib/ai/gemini";
 import { getChariowSnapshot, serializeChariowContext } from "@/lib/chariow/analytics";
 import { cleanAiText } from "@/lib/ai/format";
 import { calculateProfitabilityAggregate } from "@/lib/profitability-aggregates";
@@ -357,10 +357,20 @@ export async function POST(request: Request) {
   try {
     answer = await askGemini(
       [{ role: "system", content: systemContent }, ...safeHistory, currentTurn],
-      { model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW" }
+      { model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW", overloadRetries: 2 }
     );
   } catch (geminiError) {
     console.error("Gemini chat error", geminiError instanceof Error ? geminiError.message : geminiError);
+    if (geminiError instanceof GeminiApiError && geminiError.status === 503) {
+      return NextResponse.json({
+        error: body?.locale === "en"
+          ? "Gemini is experiencing high demand despite automatic retries. Please try again in a few moments."
+          : "Gemini est saturé malgré les réessais automatiques. Réessaie dans quelques instants.",
+        code: "AI_OVERLOADED",
+        conversationId,
+        conversationTitle,
+      }, { status: 503, headers: { "Retry-After": "15" } });
+    }
     return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
   }
   answer = cleanAiText(answer, { preserveStrong: true });

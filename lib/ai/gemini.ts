@@ -17,6 +17,28 @@ const DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_MODEL = "gemini-2.0-flash";
 const DEFAULT_TIMEOUT_MS = 25_000;
 
+export class GeminiApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "GeminiApiError";
+  }
+}
+
+function waitForRetry(delayMs: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 // Gemini ne peut pas aller lire une URL externe lui-même : contrairement à Imole
 // (compatible OpenAI, qui accepte une part "image_url" pointant vers l'URL), il
 // faut lui fournir les octets de l'image en base64 (inline_data). On les
@@ -96,7 +118,7 @@ async function toGeminiPayload(messages: ChatMessage[]) {
 
 // `timeoutMs` permet à l'appelant d'ajuster l'attente au temps qu'il lui reste avant la
 // limite de sa propre fonction (voir maxDuration dans app/api/chat/route.ts).
-export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: number; model?: string; thinkingLevel?: "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" } = {}) {
+export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: number; model?: string; overloadRetries?: number; thinkingLevel?: "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" } = {}) {
   const { apiKey, baseUrl, model: configuredModel } = getConfig();
   const model = options.model || configuredModel;
   const controller = new AbortController();
@@ -107,20 +129,33 @@ export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: 
     if (options.thinkingLevel) {
       payload.generationConfig = { ...payload.generationConfig, thinkingConfig: { thinkingLevel: options.thinkingLevel } };
     }
-    const response = await fetch(`${baseUrl}/models/${model}:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-      cache: "no-store",
-    });
-
-    const data = (await response.json().catch(() => ({}))) as GeminiResponse;
-    if (!response.ok) throw new Error(data.error?.message || `Gemini API returned ${response.status}`);
-
-    const answer = data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
-    if (!answer.trim()) throw new Error("Gemini returned an empty response");
-    return answer.trim();
+    // Opt-in: Studio and other callers keep a single attempt. Only retry an
+    // explicit 503 refusal, never ambiguous network failures, timeouts, quota
+    // errors or successful/empty generations. All attempts share one deadline,
+    // the same model and payload; there is no provider fallback.
+    const retries = Math.min(2, Math.max(0, Math.floor(options.overloadRetries || 0)));
+    const body = JSON.stringify(payload);
+    for (let attempt = 0; ; attempt++) {
+      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+      const response = await fetch(`${baseUrl}/models/${model}:generateContent?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      const data = (await response.json().catch(() => ({}))) as GeminiResponse;
+      if (!response.ok) {
+        if (response.status === 503 && attempt < retries) {
+          await waitForRetry(1000 * 2 ** attempt, controller.signal);
+          continue;
+        }
+        throw new GeminiApiError(data.error?.message || `Gemini API returned ${response.status}`, response.status);
+      }
+      const answer = data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+      if (!answer.trim()) throw new Error("Gemini returned an empty response");
+      return answer.trim();
+    }
   } finally {
     clearTimeout(timeout);
   }
