@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -10,6 +10,8 @@ import { slideshowAudioFilter, SLIDESHOW_AUDIO_CHANGE } from "@/lib/studio/slide
 import { MAX_SLIDESHOW_IMAGES, MIN_SLIDESHOW_IMAGES, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { storeStudioVideo, signedStudioUrl } from "@/lib/studio/media";
 import { LICENSED_MUSIC, getLicensedTrack, musicAttribution, YOUTUBE_CREDIT_NOTICE } from "@/lib/studio/licensed-music";
+
+import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, synthesizeSlideshowVoice } from "@/lib/studio/slideshow-voice";
 
 export const isRemixSlideshowDuration = (duration: unknown) => typeof duration === "number" && ([5, 10, ...SLIDESHOW_DURATIONS] as readonly number[]).includes(duration);
 
@@ -61,9 +63,9 @@ async function ensurePrivateTrack(track: NonNullable<ReturnType<typeof getLicens
   if (uploaded.error && !/already exists/i.test(uploaded.error.message)) throw new Error("Unable to cache private music");
   const local = path.join(directory, `${randomUUID()}.mp3`); await writeFile(local, audio); return local;
 }
-export async function uploadAndInsert(userId: string, generationId: string, body: Buffer, images: string[], duration: number, musicId: string, attribution: string, thumbnailStoragePath: string, taskId?: string) {
+export async function uploadAndInsert(userId: string, generationId: string, body: Buffer, images: string[], duration: number, musicId: string, attribution: string, thumbnailStoragePath: string, taskId?: string, voiceover?: Record<string, unknown>) {
   const storagePath = await storeStudioVideo({ body: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer, contentType: "video/mp4" }, userId, generationId);
-  const metadata = { type: "slideshow", imageGenerationIds: images, parentGenerationId: images[0], thumbnailStoragePath, ...(taskId ? { backgroundTaskId: taskId } : {}), musicId, duration, attribution };
+  const metadata = { type: "slideshow", imageGenerationIds: images, parentGenerationId: images[0], thumbnailStoragePath, ...(taskId ? { backgroundTaskId: taskId } : {}), musicId, duration, attribution, ...(voiceover ? { voiceover } : {}) };
   const { error } = await createAdminClient().from("studio_generations").insert({ id: generationId, user_id: userId, kind: "video", prompt: SLIDESHOW_PROMPT, options: { type: "slideshow", duration }, metadata, status: "completed", storage_path: storagePath, credits_cost: 0 });
   if (error) throw error;
   return { generationId, videoUrl: await signedStudioUrl(storagePath), attribution, creditsCost: 0 as const, imageGenerationIds: images, duration, musicId };
@@ -91,22 +93,45 @@ export async function preflightSlideshow(musicId: string) {
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-preflight-"));
   try { await ensurePrivateTrack(track, work); } finally { await rm(work, { recursive: true, force: true }); }
 }
-export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string, taskId?: string): Promise<SlideResult> {
+export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string, taskId?: string, voiceInput?: { product: { name: string; description?: string }; locale?: string }): Promise<SlideResult> {
   if (ids.length < MIN_SLIDESHOW_IMAGES || ids.length > MAX_SLIDESHOW_IMAGES || new Set(ids).size !== ids.length) throw new Error("Invalid slideshow image count");
   if (!(SLIDESHOW_DURATIONS as readonly number[]).includes(duration)) throw new Error("Invalid slideshow duration");
+  // Only newly created, explicitly opted-in background tasks use TTS. Legacy tasks remain unchanged.
+  let voicePlan: ReturnType<typeof buildSlideshowVoicePlan> | undefined;
+  if (voiceInput) {
+    if (!taskId) throw new Error("La voix nécessite une tâche persistante pour éviter les doublons.");
+    assertSlideshowVoiceAllowed();
+    voicePlan = buildSlideshowVoicePlan(voiceInput.product, duration, voiceInput.locale);
+    musicId = voicePlan.musicId;
+  }
   const track = getLicensedTrack(musicId);
   if (musicId && !track) throw new Error("Music track unavailable");
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-slideshow-api-"));
   try {
     const { files: images, thumbnailStoragePath } = await loadOwnedImages(userId, ids, work);
     const music = track ? await ensurePrivateTrack(track, work) : undefined;
+    let voicePath: string | undefined;
+    let voiceMetadata: Record<string, unknown> | undefined;
+    if (voicePlan) {
+      // The worker's durable CAS has already claimed this render stage. An uncertain
+      // call is never retried; no Studio credit reservation occurs for narration.
+      const audio = await synthesizeSlideshowVoice(voicePlan);
+      voicePath = path.join(work, "narration.wav");
+      await writeFile(voicePath, audio);
+      voiceMetadata = { ...voicePlan, provider: "gemini", tier: "free", creditsCost: 0, version: 1 };
+    }
     const output = path.join(work, "slideshow.mp4");
     const bins = binPaths();
     const attribution = track ? `${musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", SLIDESHOW_AUDIO_CHANGE] })}\n${YOUTUBE_CREDIT_NOTICE}` : "Sans musique. Aucune attribution musicale nécessaire pour ce rendu.";
-    await assembleSlideshow({ ...bins, outputPath: output, duration, imagePaths: images, musicPath: music, width: 720, height: 1280, fps: 25, attribution });
+    const finalAttribution = voicePlan ? `${attribution}\nAdditional modifications: music ducked under generated product narration.` : attribution;
+    await assembleSlideshow({ ...bins, outputPath: output, duration, imagePaths: images, musicPath: music, voicePath, width: 720, height: 1280, fps: 25, attribution: finalAttribution });
     const { size } = await stat(output);
     if (size > MAX_VIDEO_BYTES) throw new Error("Rendered video exceeds size limit");
-    return await uploadAndInsert(userId, randomUUID(), await readFile(output), ids, duration, musicId, attribution, thumbnailStoragePath, taskId);
+    const generationId = taskId ? (() => {
+      const hex = createHash("sha256").update(`slideshow-final:${taskId}`).digest("hex");
+      return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`;
+    })() : randomUUID();
+    return await uploadAndInsert(userId, generationId, await readFile(output), ids, duration, musicId, finalAttribution, thumbnailStoragePath, taskId, voiceMetadata);
   } finally { await rm(work, { recursive: true, force: true }); }
 }
 export async function remixSlideshow(userId: string, generationId: string, musicId: string): Promise<SlideResult> {
@@ -115,6 +140,7 @@ export async function remixSlideshow(userId: string, generationId: string, music
   const admin = createAdminClient();
   const { data: row, error } = await admin.from("studio_generations").select("id,user_id,kind,status,storage_path,metadata").eq("id", generationId).eq("user_id", userId).maybeSingle();
   if (error || !row || row.user_id !== userId || row.kind !== "video" || row.status !== "completed" || typeof row.storage_path !== "string" || !row.storage_path.startsWith(`${userId}/`) || row.metadata?.type !== "slideshow" || !Array.isArray(row.metadata.imageGenerationIds) || row.metadata.imageGenerationIds.length < 2 || row.metadata.imageGenerationIds.length > MAX_SLIDESHOW_IMAGES || new Set(row.metadata.imageGenerationIds).size !== row.metadata.imageGenerationIds.length || row.metadata.imageGenerationIds.some((id: unknown) => typeof id !== "string") || !isRemixSlideshowDuration(row.metadata.duration) || (row.metadata.musicId !== "" && !getLicensedTrack(row.metadata.musicId))) throw new Error("Slideshow unavailable");
+  if (row.metadata.voiceover) throw new Error("La bande-son automatique de ce diaporama est conservée avec sa voix.");
   const images = row.metadata.imageGenerationIds as string[];
   // Verify the original still belongs to the user and is an image; never trust client paths/metadata alone.
   const { data: imageRows, error: imageError } = await admin.from("studio_generations").select("id,user_id,kind,status").in("id", images).eq("user_id", userId);

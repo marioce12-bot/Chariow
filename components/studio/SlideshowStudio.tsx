@@ -12,16 +12,6 @@ type Product = {
   description?: string | null;
   image?: string | null;
 };
-type Track = {
-  id: string;
-  title: string;
-  artist: string;
-  sourceUrl: string;
-  license: string;
-  licenseUrl: string;
-  credit: string;
-  youtubeNotice: string;
-};
 type RenderResult = {
   generationId: string;
   videoUrl: string;
@@ -146,8 +136,9 @@ export function SlideshowStudio({
 }) {
   const fr = locale !== "en",
     [enabled, setEnabled] = useState(false),
-    [tracks, setTracks] = useState<Track[]>([]),
     [musicId, setMusicId] = useState(""),
+    [voiceoverEnabled, setVoiceoverEnabled] = useState(false),
+    [voiceoverTestAllowed, setVoiceoverTestAllowed] = useState(false),
     [duration, setDuration] = useState(25),
     [campaignGoal, setCampaignGoal] = useState<CampaignGoal>("discover"),
     [busy, setBusy] = useState(false),
@@ -157,7 +148,6 @@ export function SlideshowStudio({
     [images, setImages] = useState<Array<{ id: string; url: string }>>([]),
     [attempted, setAttempted] = useState(false),
     [result, setResult] = useState<RenderResult | null>(null),
-    [previewId, setPreviewId] = useState(""),
     [creditsUsed, setCreditsUsed] = useState(0),
     [recovery, setRecovery] = useState(false),
     [pendingRequest, setPendingRequest] = useState(false),
@@ -174,14 +164,13 @@ export function SlideshowStudio({
     taskRef = useRef<Task | null>(null),
     initialDone = useRef(false),
     signature = useRef(`${product?.id ?? ""}`);
-  const currentSignature = JSON.stringify([product?.id ?? "", temporaryDescription, duration, campaignGoal, musicId]);
+  const currentSignature = JSON.stringify([product?.id ?? "", temporaryDescription, duration, campaignGoal]);
   const currentSignatureRef = useRef(currentSignature);
   currentSignatureRef.current = currentSignature;
   const displayedProgressRef = useRef(0);
   const progressStartedAtRef = useRef(Date.now());
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
-  const selectedTrack = tracks.find((track) => track.id === musicId);
   const creationDescription = () => {
     const existing = product?.description?.trim() ?? "";
     const supplied = temporaryDescription.trim();
@@ -292,7 +281,8 @@ export function SlideshowStudio({
       .then((data) => {
         if (alive) {
           setEnabled(data.enabled === true);
-          setTracks(Array.isArray(data.tracks) ? data.tracks : []);
+          setVoiceoverEnabled(data.voiceoverEnabled === true);
+          setVoiceoverTestAllowed(data.voiceoverTestAllowed === true);
         }
       })
       .catch(() => {
@@ -367,7 +357,7 @@ export function SlideshowStudio({
     setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null);
     setStatus(fr ? "Vérification des informations…" : "Checking product details…");
     try {
-      await send("/api/studio/prompt", { product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId });
+      await send("/api/studio/prompt", { product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId: "", voiceover: true });
       setRecovery(false); setTechnicalDetails("");
       if (recovery) { taskRef.current = null; setResumeTask(null); setAttempted(false); setStatus(fr ? "Plan prêt. Vérifie le coût, puis appuie sur Créer." : "Plan ready. Review the cost, then click Create."); return; }
       await createTask();
@@ -395,7 +385,7 @@ export function SlideshowStudio({
     }
     setStatus(fr ? "Lancement de la génération…" : "Starting generation…");
     try {
-      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId } });
+      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId: "", voiceover: true } });
       const task = response.task as Task;
       if (!task) throw new Error("Réponse de tâche invalide.");
       try { localStorage.removeItem(key); } catch { /* ignore */ }
@@ -406,29 +396,6 @@ export function SlideshowStudio({
       setPendingRequest(true);
       setError(fr ? "Lancement non confirmé. Vérifie l’historique avant de réessayer ; aucune relance automatique." : "Launch not confirmed. Check history before retrying; no automatic retry.");
       throw new Error("Lancement non confirmé");
-    }
-  }
-  async function replaceMusic() {
-    if (!result || running.current || result.musicId === musicId) return;
-    running.current = true;
-    setBusy(true);
-    setError("");
-    setStatus(fr ? "Remplacement de la musique…" : "Replacing music…");
-    try {
-      const data = await send("/api/studio/slideshow/remix", {
-        generationId: result.generationId,
-        musicId,
-      });
-      setResult(data);
-      setStatus(fr ? "Musique remplacée." : "Music replaced.");
-      onComplete?.();
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Remplacement impossible.",
-      );
-    } finally {
-      running.current = false;
-      setBusy(false);
     }
   }
   function downloadCredits() {
@@ -485,85 +452,9 @@ export function SlideshowStudio({
             ))}
           </select>
         </label>
-        <label className="studio-field">
-          <span>{fr ? "Musique" : "Music"}</span>
-          <select
-            aria-label={fr ? "Musique" : "Music"}
-            disabled={busy}
-            value={musicId}
-            onChange={(e) => {
-              setMusicId(e.target.value);
-              setPreviewId("");
-            }}
-          >
-            <option value="">{fr ? "Sans musique" : "No music"}</option>
-            {tracks.map((track) => (
-              <option key={track.id} value={track.id}>
-                {track.title} — {track.artist}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
-      {selectedTrack ? (
-        <div style={{ display: "grid", gap: 8 }}>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => setPreviewId(previewId === musicId ? "" : musicId)}
-          >
-            {fr ? "Écouter" : "Listen"}
-          </button>
-          {previewId ? (
-            <video
-              aria-label={fr ? "Aperçu musical synchronisé" : "Music preview"}
-              key={previewId}
-              controls
-              preload="none"
-              src={`/api/studio/slideshow/music/${encodeURIComponent(previewId)}/preview`}
-              style={{
-                width: "100%",
-                maxWidth: 360,
-                maxHeight: 180,
-                background: "#f7f8fa",
-              }}
-            />
-          ) : null}
-          <small>
-            {fr ? "Attribution requise · " : "Attribution required · "}
-            {selectedTrack.license}
-          </small>
-          <details>
-            <summary>
-              {fr ? "Licence et crédits" : "License and credits"}
-            </summary>
-            <p>{selectedTrack.credit}</p>
-            <small>
-              <a
-                href={selectedTrack.licenseUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {fr ? "Licence" : "License"}
-              </a>{" "}
-              ·{" "}
-              <a
-                href={selectedTrack.sourceUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Source
-              </a>
-            </small>
-            <p>{selectedTrack.youtubeNotice}</p>
-            <small>
-              {fr
-                ? "Sur YouTube, ajoute les crédits exportés à la description. Pas de MP3 séparé ni de dépôt Content ID."
-                : "On YouTube, add the exported credits to the description. No standalone MP3 or Content ID registration."}
-            </small>
-          </details>
-        </div>
-      ) : null}
+      <p>{fr ? "Voix et musique ajoutées automatiquement à la génération." : "Voiceover and music are added automatically during generation."}</p>
+      {!voiceoverEnabled || !voiceoverTestAllowed ? <small>{fr ? "La génération de voix est en cours de validation." : "Voice generation is being validated."}</small> : null}
       {resumeTask && !recovery && !busy ? <section aria-label={fr ? "Reprise du diaporama" : "Resume slideshow"}>
         <h3>{fr ? "Diaporama interrompu" : "Interrupted slideshow"}</h3>
         {resumeTask.input?.product?.name ? <p>{resumeTask.input.product.name}</p> : null}
@@ -654,14 +545,6 @@ export function SlideshowStudio({
           >
             {fr ? "Télécharger" : "Download"}
           </a>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            disabled={busy || result.musicId === musicId}
-            onClick={() => void replaceMusic()}
-          >
-            {fr ? "Remplacer la musique" : "Replace music"}
-          </button>
           {result.attribution ? (
             <details>
               <summary>

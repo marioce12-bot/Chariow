@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveSubscription } from "@/lib/subscription/access";
 import { rateLimit } from "@/lib/shop/rate-limit";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
+import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan } from "@/lib/studio/slideshow-voice";
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
 import {
   TASK_TYPE,
@@ -100,13 +101,20 @@ export async function POST(request: Request) {
     const product = body.input.product;
     product.description = typeof product.description === "string" ? product.description.trim().slice(0, 3000) : "";
     try {
+      if (body.input.voiceover === true) {
+        // Fail before image credits or provider calls while Preview validation is locked.
+        assertSlideshowVoiceAllowed();
+        const voice = buildSlideshowVoicePlan(product, body.input.duration, body.input.locale);
+        body.input.locale = voice.language;
+        body.input.musicId = voice.musicId;
+      }
       buildSlideshowPlan({ name: product.name, description: product.description,
         hasReference: Boolean(product.image), duration: body.input.duration,
         aspectRatio: "9:16", character: "with", locale: body.input.locale,
         campaignGoal: body.input.campaignGoal }, body.input.musicId);
     } catch (error) {
       return NextResponse.json({
-        error: error instanceof InsufficientProductDetailsError
+        error: body.input.voiceover === true && !(error instanceof InsufficientProductDetailsError) ? (error instanceof Error ? error.message : "Voix indisponible.") : error instanceof InsufficientProductDetailsError
           ? (body.input.locale === "en" ? "Add product details below, then click Retry." : "Complète la description ci-dessous, puis appuie sur Relancer.")
           : "Storyboard invalide.",
         ...(error instanceof InsufficientProductDetailsError ? { code: error.code } : {}),

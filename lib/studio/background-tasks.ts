@@ -6,6 +6,7 @@ import {
   preflightSlideshow,
   renderSlideshow,
 } from "@/lib/studio/slideshow-server";
+import { assertSlideshowVoiceAllowed } from "@/lib/studio/slideshow-voice";
 import { signedStudioUrl } from "@/lib/studio/media";
 
 export const TASK_TYPE = "studio_background_task";
@@ -94,6 +95,20 @@ export async function dispatchTask(id: string, revision: number, metadata?: Task
 export async function publicTask(row: any) {
   const metadata = row.metadata as TaskMetadata;
   let result = metadata.result;
+  let recoveredFinal = false;
+  if (!result && metadata.taskKind === "slideshow" && metadata.input?.voiceover === true && (metadata.stages ?? []).some(stage => stage.kind === "render")) {
+    const { data } = await createAdminClient().from("studio_generations")
+      .select("id,storage_path,metadata").eq("user_id", row.user_id)
+      .eq("metadata->>backgroundTaskId", row.id).eq("metadata->>type", "slideshow")
+      .eq("status", "completed").limit(1);
+    const saved = data?.[0];
+    if (saved?.storage_path && saved.metadata?.voiceover) {
+      result = { generationId: saved.id, videoUrl: await signedStudioUrl(saved.storage_path),
+        duration: saved.metadata.duration, musicId: saved.metadata.musicId, attribution: saved.metadata.attribution,
+        imageGenerationIds: saved.metadata.imageGenerationIds, creditsCost: 0 };
+      recoveredFinal = true;
+    }
+  }
   let images = [...(metadata.images ?? [])];
   let sourceImagesConfirmed = images.length === 0;
   // Read-only reconciliation: recover a stored child after a lost response or parent write.
@@ -154,20 +169,21 @@ export async function publicTask(row: any) {
     musicId: metadata.input?.musicId,
     campaignGoal: metadata.input?.campaignGoal,
     locale: metadata.input?.locale,
+    voiceover: metadata.input?.voiceover === true,
   } : undefined;
   return {
     id: row.id,
     kind: metadata.taskKind,
-    status: stale ? "failed" : row.status,
-    phase: stale ? "failed" : metadata.phase,
+    status: recoveredFinal ? "completed" : stale ? "failed" : row.status,
+    phase: recoveredFinal ? "completed" : stale ? "failed" : metadata.phase,
     revision: metadata.revision,
     updatedAt: metadata.updatedAt,
     creditsConsumed: Math.max(metadata.creditsConsumed ?? 0, images.length * 20),
     creditState: stale && metadata.phase === "running" ? "uncertain" : (metadata.creditState ?? "confirmed"),
     errorCode: stale ? "STUDIO_TASK_STALE" : metadata.errorCode,
-    progress: row.status === "completed" && result ? 100 : Math.min(99, metadata.progress),
-    message: metadata.message,
-    error: stale
+    progress: (recoveredFinal || row.status === "completed") && result ? 100 : Math.min(99, metadata.progress),
+    message: recoveredFinal ? "Création prête." : metadata.message,
+    error: recoveredFinal ? undefined : stale
       ? "Le suivi de cette génération a été interrompu. Consulte l’historique : aucune nouvelle génération n’a été lancée automatiquement."
       : metadata.error,
     images,
@@ -310,6 +326,7 @@ export async function runTaskStep(id: string, revision: number) {
     } else if (revision === 0) {
       // Reject insufficient/repeated copy and scenes before any external preflight or image.
       const { product, duration, campaignGoal, locale } = meta.input;
+      if (meta.input.voiceover === true) assertSlideshowVoiceAllowed();
       buildSlideshowPlan({
         name: product.name,
         description: typeof product.description === "string" ? product.description : "",
@@ -354,13 +371,10 @@ export async function runTaskStep(id: string, revision: number) {
         throw new StudioTaskError(image.code === "STUDIO_STAGE_UNCERTAIN" ? "STUDIO_STAGE_UNCERTAIN" : "STUDIO_IMAGE_HTTP", response.status ?? null);
       images = [...images, { id: image.generationId, url: image.imageUrl }];
     } else {
-      result = await renderSlideshow(
-        row.user_id,
-        images.map((image) => image.id),
-        meta.input.duration,
-        meta.input.musicId,
-        id,
-      );
+      const ids = images.map((image) => image.id);
+      result = meta.input.voiceover === true
+        ? await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id, { product: meta.input.product, locale: meta.input.locale })
+        : await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id);
     }
     if (meta.taskKind === "slideshow" && result && (!result.videoUrl || !result.generationId))
       throw new StudioTaskError("STUDIO_MP4_NOT_READY");
@@ -377,7 +391,7 @@ export async function runTaskStep(id: string, revision: number) {
       message: complete
         ? "Création prête."
         : images.length === 5
-          ? "Montage du diaporama…"
+          ? (meta.input.voiceover === true ? "Voix et mixage du diaporama…" : "Montage du diaporama…")
           : `Génération du visuel ${images.length + 1}/5…`,
       updatedAt: new Date().toISOString(),
       ...(result ? { result } : {}),

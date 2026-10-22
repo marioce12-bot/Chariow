@@ -12,6 +12,7 @@ export type SlideshowOptions = {
   duration: number;
   imagePaths: string[];
   musicPath?: string;
+  voicePath?: string;
   transitionDuration?: number;
   width?: number;
   height?: number;
@@ -52,7 +53,7 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
   if (!Number.isFinite(total) || total < 25 || !Number.isFinite(transition) || transition <= 0) throw new Error("Slideshow duration must be at least 25s and transitionDuration must be positive");
   if (transition * (imagePaths.length - 1) >= total) throw new Error("Transitions must be shorter than the total slideshow duration");
   if (width < 2 || height < 2 || fps < 1) throw new Error("Invalid output dimensions or frame rate");
-  await Promise.all([...imagePaths, ...(options.musicPath ? [options.musicPath] : [])].map(async file => {
+  await Promise.all([...imagePaths, ...(options.musicPath ? [options.musicPath] : []), ...(options.voicePath ? [options.voicePath] : [])].map(async file => {
     if (!path.isAbsolute(file)) throw new Error(`Input must be a local absolute path: ${file}`);
     await stat(file);
   }));
@@ -67,6 +68,11 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
     const args = ["-hide_banner", "-loglevel", "error", "-y", "-filter_complex_threads", "1"];
     imagePaths.forEach((image, index) => args.push("-loop", "1", "-t", String(spans[index]), "-i", image));
     if (options.musicPath) args.push("-stream_loop", "-1", "-i", options.musicPath);
+    if (options.voicePath) {
+      const voiceDuration = await probeDuration(options.voicePath, ffprobePath);
+      if (!Number.isFinite(voiceDuration) || voiceDuration > total - 0.25) throw new Error(`Voice duration ${voiceDuration}s must not exceed slideshow duration minus 0.25s (${total - 0.25}s)`);
+      args.push("-i", options.voicePath);
+    }
     const filters: string[] = [];
     for (let i = 0; i < imagePaths.length; i++) {
       const zoom = profile.zoomDirection > 0 ? "min(zoom+0.00008,1.025)" : "if(eq(on,1),1.025,max(zoom-0.00008,1))";
@@ -80,8 +86,20 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
       filters.push(`[${previous}][v${i}]xfade=transition=${effect}:duration=${transition}:offset=${offset}[${next}]`);
       previous = next;
     }
-    args.push("-filter_complex", filters.join(";"), "-map", `[${previous}]`);
-    if (options.musicPath) args.push("-map", `${imagePaths.length}:a:0`, "-af", slideshowAudioFilter(total), "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2");
+    if (options.voicePath) {
+      const voiceIndex = imagePaths.length + Number(Boolean(options.musicPath));
+      const audio: string[] = [`[${voiceIndex}:a]aresample=48000,loudnorm=I=-16:TP=-2:LRA=11:print_format=none,alimiter=limit=0.841395:level=false,apad,atrim=duration=${total},asetpts=PTS-STARTPTS[voice]`];
+      if (options.musicPath) {
+        audio.push(`[voice]asplit=2[spoken][voicekey]`);
+        audio.push(`[${imagePaths.length}:a]aresample=48000,volume=0.12[music]`);
+        audio.push(`[music][voicekey]sidechaincompress=threshold=0.025:ratio=8:attack=15:release=350[ducked]`);
+        audio.push(`[spoken][ducked]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.841395:level=false,atrim=duration=${total},afade=t=out:st=${Math.max(0,total-0.35)}:d=0.35[aout]`);
+      } else audio.push(`[voice]alimiter=limit=0.841395:level=false,atrim=duration=${total},afade=t=out:st=${Math.max(0,total-0.35)}:d=0.35[aout]`);
+      args.push("-filter_complex", [...filters, ...audio].join(";"), "-map", `[${previous}]`, "-map", "[aout]", "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2");
+    } else {
+      args.push("-filter_complex", filters.join(";"), "-map", `[${previous}]`);
+      if (options.musicPath) args.push("-map", `${imagePaths.length}:a:0`, "-af", slideshowAudioFilter(total), "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-ac", "2");
+    }
     if (options.attribution) args.push("-metadata", `comment=${options.attribution}`, "-metadata", `description=${options.attribution}`);
     args.push("-t", String(total), "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-r", String(fps), "-pix_fmt", "yuv420p", "-movflags", "+faststart", outputPath);
     await run(ffmpegPath, args);

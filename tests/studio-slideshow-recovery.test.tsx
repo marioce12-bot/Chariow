@@ -10,7 +10,7 @@ const result = { generationId: "video-1", videoUrl: "https://placeholder.invalid
 const processing = { id: "task-1", kind: "slideshow", status: "processing", progress: 60, message: "Génération en cours…", images };
 const completed = { ...processing, status: "completed", progress: 100, message: "Diaporama prêt.", result };
 const response = (body: unknown, ok = true) => ({ ok, json: async () => body }) as Response;
-const config = () => response({ enabled: true, tracks: [] });
+const config = () => response({ enabled: true, voiceoverEnabled: true, voiceoverTestAllowed: true, tracks: [] });
 
 let container: HTMLDivElement;
 let root: Root;
@@ -135,6 +135,9 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
       return response({ tasks: [] });
     });
     await mount();
+    expect(container.textContent).toContain("Voix et musique ajoutées automatiquement");
+    expect(container.querySelector('[aria-label="Musique"]')).toBeNull();
+    expect(container.textContent).not.toContain("Remplacer la musique");
     const click = async (name: string) => act(async () => {
       const button = [...container.querySelectorAll("button")].find((item) => item.textContent?.trim() === name)!;
       button.click(); await Promise.resolve();
@@ -157,8 +160,10 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     const prompt = fetcher.mock.calls.filter(([url]) => url === "/api/studio/prompt").at(-1)!;
     expect(JSON.parse(String(prompt[1]?.body))).toMatchObject({
       product: { description: "Description existante\nDétails ajoutés" }, mediaType: "video", videoMode: "slideshow", duration: 25,
-      aspectRatio: "9:16", campaignGoal: "discover", locale: "fr", musicId: "",
+      aspectRatio: "9:16", campaignGoal: "discover", locale: "fr", musicId: "", voiceover: true,
     });
+    const launch = fetcher.mock.calls.find(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")!;
+    expect(JSON.parse(String(launch[1]?.body))).toMatchObject({ input: { musicId: "", voiceover: true } });
     expect([...container.querySelectorAll("button")].some((item) => item.textContent?.trim() === "Créer")).toBe(false);
   });
   it("fait progresser l’indicateur sous 100% pendant les étapes images 1 à n", async () => {
