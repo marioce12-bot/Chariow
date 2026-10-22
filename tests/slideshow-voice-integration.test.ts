@@ -30,7 +30,9 @@ describe("nouveaux diaporamas avec voix", () => {
     vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "true"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "true");
     const insertedRow = { id, user_id: "owner", status: "processing", metadata: { type: TASK_TYPE, taskKind: "slideshow", input: { voiceover: true }, revision: 0, phase: "queued" } };
     const insert = vi.fn(() => ({ select: () => ({ single: async () => ({ data: insertedRow, error: null }) }) }));
-    mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
+    mocks.from.mockImplementation((table) => table === "credit_accounts"
+      ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { balance: 500, reserved: 0 }, error: null }) }) }) }
+      : { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
     const response = await POST(request(slideshowInput(true)));
     expect(response.status).toBe(202); expect(insert).toHaveBeenCalledOnce(); expect(mocks.after).toHaveBeenCalledOnce();
     expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.render).not.toHaveBeenCalled();

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { Film, Sparkles } from "lucide-react";
 import type { CampaignGoal } from "@/lib/studio/slideshow-plan";
 import { LaunchProgress } from "@/components/chat/LaunchProgress";
 import { SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
@@ -444,9 +445,10 @@ export function SlideshowStudio({
   }
   if (!enabled) return null;
   return (
+    <div className="studio-grid studio-slideshow-grid" style={{ marginTop: 20 }}>
     <section
       className="app-card studio-form"
-      style={{ marginTop: 20, display: "grid", gap: 16 }}
+      style={{ display: "grid", gap: 16, alignContent: "start" }}
       aria-label={fr ? "Diaporama animé" : "Animated slideshow"}
     >
       <h2 style={{ margin: 0 }}>{fr ? "Diaporama" : "Slideshow"}</h2>
@@ -509,34 +511,24 @@ export function SlideshowStudio({
           <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready || lacksCredits} onClick={() => void generate()}>{recovery ? (fr ? "Relancer" : "Retry") : (fr ? "Créer" : "Create")}</button>
         </>
       ) : null}
+    </section>
+    <section className="app-card studio-result studio-slideshow-preview" aria-label={fr ? "Aperçu du diaporama" : "Slideshow preview"} aria-busy={busy}>
+      <div className="card-head">
+        <div><span className="eyebrow">{fr ? "Résultat" : "Result"}</span><h2>{fr ? "Ton diaporama" : "Your slideshow"}</h2></div>
+        <Film size={20} aria-hidden="true" />
+      </div>
+      <div className={`studio-slideshow-canvas${!result && !busy ? " studio-empty" : ""}`}>
+        {!busy && !result ? <>
+          <Sparkles size={32} aria-hidden="true" />
+          <strong>{pendingRequest ? (fr ? "Lancement à vérifier" : "Check launch status") : recovery ? (fr ? "Précise ton produit" : "Add product details") : error || resumeTask ? (fr ? "Création interrompue" : "Creation interrupted") : (fr ? "Prêt à créer" : "Ready to create")}</strong>
+          {!pendingRequest && !recovery && !error && !resumeTask ? <p>{fr ? "Choisis ton produit, ajuste les réglages puis lance la création. Ton diaporama apparaîtra ici." : "Choose your product, adjust the settings and start creating. Your slideshow will appear here."}</p> : null}
+          {recovery ? <p>{fr ? "Complète les informations dans les réglages pour préparer ton diaporama." : "Complete the details in the settings to prepare your slideshow."}</p> : null}
+        </> : null}
       {pendingRequest ? <p role="status">{fr ? "Vérifie l’historique ; aucune nouvelle génération ne sera lancée automatiquement." : "Check history; no new generation will be started automatically."}</p> : null}
       {status ? (
         busy ? <LaunchProgress progress={progress} label={status}
           subtitle={fr ? "Les visuels terminés sont sauvegardés. Progression estimée entre les étapes." : "Completed images are saved. Progress is estimated between stages."} />
           : <p role="status" aria-live="polite">{status}</p>
-      ) : null}
-      {images.length ? (
-        <div
-          aria-label={fr ? "Visuels générés" : "Generated images"}
-          style={{
-            display: "flex",
-            flexWrap: "nowrap",
-            gap: 8,
-            overflowX: "auto",
-            minWidth: 0,
-            maxWidth: "100%",
-            paddingBottom: 4,
-          }}
-        >
-          {images.map((image, index) => (
-            <SlideThumbnail
-              key={image.id}
-              url={image.url}
-              index={index}
-              fr={fr}
-            />
-          ))}
-        </div>
       ) : null}
       {error && !recovery ? <p role="alert" className="form-error">{error}</p> : null}
       {technicalDetails ? <details><summary>{fr ? "Détails techniques" : "Technical details"}</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{technicalDetails}</pre></details> : null}
@@ -545,7 +537,8 @@ export function SlideshowStudio({
           <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>
           <video
             key={result.videoUrl}
-            aria-label="Diaporama final"
+            aria-label={fr ? "Diaporama final" : "Final slideshow"}
+            playsInline
             controls
             preload="metadata"
             src={result.videoUrl}
@@ -592,6 +585,30 @@ export function SlideshowStudio({
           ) : null}
         </div>
       ) : null}
+      </div>
+      {images.length ? (
+        <div
+          aria-label={fr ? "Visuels générés" : "Generated images"}
+          style={{
+            display: "flex",
+            flexWrap: "nowrap",
+            gap: 8,
+            overflowX: "auto",
+            minWidth: 0,
+            maxWidth: "100%",
+            paddingBottom: 4,
+          }}
+        >
+          {images.map((image, index) => (
+            <SlideThumbnail
+              key={image.id}
+              url={image.url}
+              index={index}
+              fr={fr}
+            />
+          ))}
+        </div>
+      ) : null}
       {attempted ? (
         <small>
           {fr
@@ -600,5 +617,6 @@ export function SlideshowStudio({
         </small>
       ) : null}
     </section>
+    </div>
   );
 }
