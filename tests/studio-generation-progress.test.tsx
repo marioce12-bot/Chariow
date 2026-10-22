@@ -38,7 +38,7 @@ beforeEach(() => {
 
 
 });
-afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
+afterEach(() => { act(() => root.unmount()); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Studio image generation progress", () => {
   it("stays at or below 95 on mount, keeps estimate until image load, then shows 100", async () => {
@@ -117,7 +117,7 @@ describe("Studio image generation progress", () => {
     let pollCount = 0;
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url === "/api/studio/tasks" && init?.method === "POST") { postCount++; return response({ task: { id: "durable", status: "processing" } }); }
-      if (url === "/api/studio/tasks") { if (postCount === 0) return response({ tasks: [] }); pollCount++; return response({ tasks: [{ id: "durable", kind: "image", status: pollCount > 2 ? "completed" : "processing", result: pollCount > 2 ? { imageUrl: "https://example.test/recovered.png", generationId: "g2" } : undefined }] }); }
+      if (url === "/api/studio/tasks" || url.startsWith("/api/studio/tasks?id=")) { if (postCount === 0) return response({ tasks: [] }); pollCount++; return response({ tasks: [{ id: "durable", kind: "image", status: pollCount > 2 ? "completed" : "processing", result: pollCount > 2 ? { imageUrl: "https://example.test/recovered.png", generationId: "g2" } : undefined }] }); }
       if (url.startsWith("/api/studio/history")) return response({ items: [], nextCursor: null });
       return response({ balance: 42 });
     });
@@ -137,5 +137,136 @@ describe("Studio image generation progress", () => {
     expect(postCount).toBe(1);
   });
 
+
+  it("shows a tracking outage instead of a frozen estimate, backs off and recovers with GET only", async () => {
+    vi.useFakeTimers();
+    let polls = 0;
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/studio/tasks") return response({ tasks: [{ id: "outage", kind: "image", status: "processing" }] });
+      if (url === "/api/studio/tasks?id=outage") {
+        polls++;
+        if (polls === 1) return response({ error: "Storage 429" }, false);
+        return response({ tasks: [{ id: "outage", kind: "image", status: "completed", result: { imageUrl: "https://example.test/restored.png", generationId: "saved" } }] });
+      }
+      return original(url, init);
+    });
+    await act(async () => { render(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    expect(container.textContent).toContain("Suivi temporairement indisponible");
+    expect(progress()).toBeUndefined();
+    expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(7_999); });
+    expect(polls).toBe(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(polls).toBe(2);
+    expect(container.querySelector<HTMLImageElement>(".studio-media")?.src).toContain("restored.png");
+    expect(container.textContent).not.toContain("Suivi temporairement indisponible");
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+  });
+
+  it("distinguishes a completed image awaiting a link and retrieves it without regeneration", async () => {
+    vi.useFakeTimers();
+    let available = false;
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const task = { id: "media", kind: "image", status: "completed", mediaPending: !available, result: { generationId: "saved", imageUrl: available ? "https://example.test/ready.png" : null } };
+      if (url === "/api/studio/tasks" || url === "/api/studio/tasks?id=media") return response({ tasks: [task] });
+      return original(url, init);
+    });
+    await act(async () => { render(); });
+    expect(container.textContent).toContain("Image créée");
+    expect(container.textContent).toContain("Récupération de l’image enregistrée");
+    expect(progress()).toBeUndefined();
+    expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    expect(container.textContent).toContain("Image créée");
+    available = true;
+    await act(async () => { await vi.advanceTimersByTimeAsync(8_000); });
+    const image = container.querySelector<HTMLImageElement>(".studio-media")!;
+    expect(image.src).toContain("ready.png");
+    expect(progress()).toBe("95");
+    await act(async () => { image.dispatchEvent(new Event("load")); });
+    expect(progress()).toBe("100");
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+  });
+
+  it("does not overlap slow polling requests and cancels an in-flight read on unmount", async () => {
+    vi.useFakeTimers();
+    let resolveRead: (value: any) => void = () => {};
+    let signal: AbortSignal | null | undefined;
+    let polls = 0;
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/studio/tasks") return response({ tasks: [{ id: "slow", kind: "image", status: "processing" }] });
+      if (url === "/api/studio/tasks?id=slow") { polls++; signal = init?.signal; return new Promise(resolve => { resolveRead = resolve; }); }
+      return original(url, init);
+    });
+    await act(async () => { render(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(polls).toBe(1);
+    act(() => root.unmount());
+    expect(signal?.aborted).toBe(true);
+    await act(async () => { resolveRead({ ok: true, json: async () => ({ tasks: [] }) }); });
+    root = createRoot(container);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(polls).toBe(1);
+  });
+
+  it("treats an isolated task read error as unavailable tracking, not as a failed generation", async () => {
+    vi.useFakeTimers();
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/studio/tasks") return response({ tasks: [{ id: "isolated", kind: "image", status: "processing" }] });
+      if (url === "/api/studio/tasks?id=isolated") return response({ tasks: [{ id: "isolated", kind: "image", status: "tracking_unavailable", trackingUnavailable: true }] });
+      return original(url, init);
+    });
+    await act(async () => { render(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    expect(container.textContent).toContain("Suivi temporairement indisponible");
+    expect(container.querySelector(".form-error")).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(true);
+  });
+
+  it("stops polling a deliberately deleted result without claiming it was generated again", async () => {
+    vi.useFakeTimers();
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/studio/tasks") return response({ tasks: [{ id: "deleted", kind: "image", status: "processing" }] });
+      if (url === "/api/studio/tasks?id=deleted") return response({ tasks: [{ id: "deleted", kind: "image", status: "completed", result: null, mediaPending: false }] });
+      return original(url, init);
+    });
+    await act(async () => { render(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    expect(container.textContent).toContain("Cette image n’est plus disponible");
+    expect(container.querySelector(".studio-media")).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(false);
+    const reads = fetchMock.mock.calls.filter(([url]) => url.includes("?id=deleted")).length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(fetchMock.mock.calls.filter(([url]) => url.includes("?id=deleted"))).toHaveLength(reads);
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+  });
+
+  it("reports a deleted completed result found on mount instead of silently showing an empty result", async () => {
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => url === "/api/studio/tasks" && !init?.method
+      ? response({ tasks: [{ id: "deleted-on-mount", kind: "image", status: "completed", result: null }] }) : original(url, init));
+    await act(async () => { render(); });
+    expect(container.textContent).toContain("Cette image n’est plus disponible");
+    expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(false);
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+  });
+
+  it("reports a completed POST response with no saved image and does not poll or regenerate", async () => {
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => url === "/api/studio/tasks" && init?.method === "POST"
+      ? response({ task: { id: "deleted-response", kind: "image", status: "completed", result: null } }) : original(url, init));
+    render(); await clickGenerate();
+    expect(container.textContent).toContain("Cette image n’est plus disponible");
+    expect(progress()).not.toBe("100");
+    expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(false);
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([url]) => url.includes("?id="))).toHaveLength(0);
+  });
 
 });

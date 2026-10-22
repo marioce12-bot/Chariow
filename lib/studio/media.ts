@@ -28,8 +28,32 @@ export async function storeStudioVideo(video: { body: ArrayBuffer; contentType?:
   return path;
 }
 
+const SIGNED_URL_TTL_MS = 45 * 60 * 1000;
+const SIGNED_URL_CACHE_MAX = 500;
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+const signedUrlInFlight = new Map<string, Promise<string>>();
+
 export async function signedStudioUrl(path: string) {
-  const { data, error } = await createAdminClient().storage.from("studio-media").createSignedUrl(path, 3600);
-  if (error) throw error;
-  return data.signedUrl;
+  const now = Date.now();
+  const cached = signedUrlCache.get(path);
+  if (cached && cached.expiresAt > now) {
+    // Refresh LRU position while keeping the original expiration.
+    signedUrlCache.delete(path);
+    signedUrlCache.set(path, cached);
+    return cached.url;
+  }
+  if (cached) signedUrlCache.delete(path);
+  const pending = signedUrlInFlight.get(path);
+  if (pending) return pending;
+  const request = (async () => {
+    const { data, error } = await createAdminClient().storage.from("studio-media").createSignedUrl(path, 3600);
+    if (error) throw error;
+    const entry = { url: data.signedUrl, expiresAt: Date.now() + SIGNED_URL_TTL_MS };
+    signedUrlCache.set(path, entry);
+    while (signedUrlCache.size > SIGNED_URL_CACHE_MAX) signedUrlCache.delete(signedUrlCache.keys().next().value!);
+    return entry.url;
+  })();
+  signedUrlInFlight.set(path, request);
+  try { return await request; }
+  finally { if (signedUrlInFlight.get(path) === request) signedUrlInFlight.delete(path); }
 }

@@ -81,7 +81,7 @@ describe("nouveaux diaporamas avec voix", () => {
     expect(mocks.after).not.toHaveBeenCalled();
   });
   it("retrouve le MP4 enfant en lecture seule après perte de l’écriture parent", async () => {
-    const saved = { id: "final", storage_path: "owner/final.mp4", metadata: { type: "slideshow", voiceover: { version: 1 }, duration: 25, musicId: "sb-reverie", attribution: "CC BY 4.0", imageGenerationIds: [] } };
+    const saved = { id: "final", status: "completed", storage_path: "owner/final.mp4", metadata: { type: "slideshow", voiceover: { version: 1 }, duration: 25, musicId: "sb-reverie", attribution: "CC BY 4.0", imageGenerationIds: [] } };
     mocks.from.mockImplementation(() => ({ select: () => {
       const chain: any = { eq: () => chain, limit: async () => ({ data: [saved] }), maybeSingle: async () => ({ data: saved }) }; return chain;
     } }));

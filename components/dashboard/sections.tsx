@@ -129,6 +129,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [generationProgress, setGenerationProgress] = useState(0);
   const stopProgressRef = useRef<(() => void) | null>(null);
   const [imageTask, setImageTask] = useState<{ id: string; status: string } | null>(null);
+  const [imageTrackingIssue, setImageTrackingIssue] = useState(false);
   const [imageRecoveryReady, setImageRecoveryReady] = useState(false);
   const imageRecoveryReadyRef = useRef(false);
   const imageTaskIdRef = useRef<string | null>(null);
@@ -189,6 +190,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         const data = await response.json();
         const task = Array.isArray(data.tasks) ? data.tasks.find((item: any) => item.kind === "image") : null;
         if (!active) return;
+        setError("");
         const latest = data.tasks?.find((item: any) => item.status === "processing") ?? data.tasks?.[0];
         if (!studioTabTouchedRef.current && latest) setStudioTab(latest.kind === "slideshow" ? "slideshow" : "photo");
         if (task?.status === "processing") {
@@ -202,6 +204,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           setSelectedGenerationId(task.result.generationId ?? null);
           setGenerationProgress(95);
           setLoading(false);
+        } else if (task?.status === "completed" && task.mediaPending) {
+          setImageTask({ id: task.id, status: "awaiting_media" });
+          setLoading(true);
+        } else if (task?.status === "completed") {
+          setError(locale === "en" ? "This image is no longer available. No new generation was started." : "Cette image n’est plus disponible. Aucune nouvelle génération n’a été lancée.");
+          setLoading(false);
+        } else if (task?.trackingUnavailable) {
+          throw new Error("Suivi temporairement indisponible.");
         } else if (task?.status === "failed") {
           setError(task.error || task.message || "La génération photo a échoué.");
           setLoading(false);
@@ -221,33 +231,55 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   }, []);
 
   useEffect(() => {
-    if (!imageTask || imageTask.status !== "processing") return;
+    if (!imageTask || !["processing", "awaiting_media"].includes(imageTask.status)) return;
     let active = true;
-    const timer = window.setInterval(async () => {
+    let failures = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const controller = new AbortController();
+    // Poll only this photo. Schedule AFTER each response so slow requests never overlap.
+    const poll = async () => {
       try {
-        const response = await fetch("/api/studio/tasks");
-        if (!response.ok) return;
+        const response = await fetch(`/api/studio/tasks?id=${encodeURIComponent(imageTask.id)}`, { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Suivi indisponible");
         const data = await response.json();
         const task = Array.isArray(data.tasks) ? data.tasks.find((item: any) => item.id === imageTask.id) : null;
-        if (!active || !task) return;
+        if (!active) return;
+        if (!task || task.trackingUnavailable) throw new Error("Suivi indisponible");
+        failures = task.mediaPending ? failures + 1 : 0;
+        setImageTrackingIssue(false);
         if (task.status === "completed") {
           stopProgressRef.current?.(); stopProgressRef.current = null;
-          setImageUrl(task.result?.imageUrl ?? null);
-          setSelectedGenerationId(task.result?.generationId ?? null);
-          setGenerationProgress(95);
-          setImageTask({ id: task.id, status: "completed" });
-          setLoading(false); generatingRef.current = false;
-          void loadHistory(true);
-          void fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).then((credits) => { if (credits) setBalance(credits.balance ?? 0); }).catch(() => undefined);
+          if (task.mediaPending) {
+            // The provider has finished: do not keep claiming it is generating.
+            setImageTask((current) => current?.status === "awaiting_media" ? current : { id: task.id, status: "awaiting_media" });
+          } else {
+            setImageUrl(task.result?.imageUrl ?? null);
+            setSelectedGenerationId(task.result?.generationId ?? null);
+            setGenerationProgress(task.result?.imageUrl ? 95 : 0);
+            if (!task.result?.imageUrl) setError(locale === "en" ? "This image is no longer available. No new generation was started." : "Cette image n’est plus disponible. Aucune nouvelle génération n’a été lancée.");
+            setImageTask({ id: task.id, status: "completed" });
+            setLoading(false); generatingRef.current = false;
+            void loadHistory(true);
+            void fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).then((credits) => { if (credits) setBalance(credits.balance ?? 0); }).catch(() => undefined);
+            return;
+          }
         } else if (task.status === "failed") {
           stopProgressRef.current?.(); stopProgressRef.current = null;
           setError(task.error || task.message || "La génération photo a échoué.");
           setImageTask({ id: task.id, status: "failed" });
           setLoading(false); generatingRef.current = false; setGenerationProgress(0);
+          return;
         }
-      } catch { /* A transient poll failure is retried on the next interval. */ }
-    }, 4_000);
-    return () => { active = false; window.clearInterval(timer); };
+      } catch {
+        if (!active) return;
+        failures++;
+        setImageTrackingIssue(true);
+        stopProgressRef.current?.(); stopProgressRef.current = null;
+      }
+      if (active) timer = setTimeout(() => void poll(), Math.min(30_000, 4_000 * 2 ** Math.min(failures, 3)));
+    };
+    timer = setTimeout(() => void poll(), 4_000);
+    return () => { active = false; clearTimeout(timer); controller.abort(); };
   }, [imageTask?.id, imageTask?.status]);
 
   useEffect(() => {
@@ -379,7 +411,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
   async function generate() {
     if (generatingRef.current) return;
-    if (kind === "image" && (!imageRecoveryReadyRef.current || imageTask?.status === "processing")) return;
+    if (kind === "image" && (!imageRecoveryReadyRef.current || ["processing", "awaiting_media"].includes(imageTask?.status ?? ""))) return;
     if (kind === "video" && STUDIO_VIDEO_LOCKED) {
       setError(locale === "en" ? "Video generation is not available yet." : "La génération vidéo reste indisponible.");
       return;
@@ -393,6 +425,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     stopProgressRef.current?.();
     stopProgressRef.current = null;
     setLoading(true);
+    setImageTrackingIssue(false);
     setError("");
     setImageUrl(null);
     setImageLoaded(false);
@@ -417,13 +450,17 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         const task = result.task;
         if (!task?.id) throw new Error("La tâche photo n'a pas pu être enregistrée.");
         imageTaskIdRef.current = task.id;
-        setImageTask({ id: task.id, status: task.status });
-        photoStillProcessing = task.status === "processing";
+        setImageTask({ id: task.id, status: task.status === "completed" && task.mediaPending ? "awaiting_media" : task.status });
+        photoStillProcessing = task.status === "processing" || (task.status === "completed" && task.mediaPending === true);
+        if (task.mediaPending) { stopProgressRef.current?.(); stopProgressRef.current = null; }
         if (task.status === "completed" && task.result?.imageUrl) {
           stopProgressRef.current?.(); stopProgressRef.current = null;
           setImageUrl(task.result.imageUrl);
           setGenerationProgress(95);
           setLoading(false); generatingRef.current = false;
+        } else if (task.status === "completed" && !task.mediaPending) {
+          setError(locale === "en" ? "This image is no longer available. No new generation was started." : "Cette image n’est plus disponible. Aucune nouvelle génération n’a été lancée.");
+          setGenerationProgress(0);
         }
         // For processing, the estimate remains running and polling owns completion.
       }
@@ -598,7 +635,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
           {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
           <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady)}>
-            <Sparkles size={17} /> {loading || referenceUploading ? t("studio.generating") : kind === "image" ? t("studio.createImage") : t("studio.createVideo")}
+            <Sparkles size={17} /> {loading && kind === "image" && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : kind === "image" ? t("studio.createImage") : t("studio.createVideo")}
           </button>
           <p className="studio-cost">{kind === "image" ? t("studio.imageCost") : t("studio.videoCost", { rate: videoResolution === "1080p" ? "38" : videoResolution === "720p" ? "25" : "15", res: videoResolution })}</p>
           <div className="studio-balance"><div><span className="eyebrow">{t("studio.balance")}</span><strong>{balance} {t("studio.credits")}</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>{t("studio.recharge")}</button><small>{t("studio.balanceHint")}</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>{t("studio.recharge")}</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label={t("wizardExtra.close")}>×</button></div><label className="studio-field"><span>{t("sweep1.text84")}</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>{t("finalExtra.text18")}{" "}<strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>{t("sweep3.text209")}</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? t("sweep1.text210") : t("sweep2.text211")}</button></div> : null}</div>
@@ -608,7 +645,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           <div className="card-head"><div><span className="eyebrow">{t("studio.result")}</span><h2>{kind === "image" ? t("studio.yourImage") : t("studio.yourVideo")}</h2></div>{kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>
           {imageUrl ? <><div className={editSubmitting ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imageUrl} alt={t("studio.yourImage")} decoding="async" onLoad={() => { setImageLoaded(true); setGenerationProgress(100); }} onError={() => { setImageLoaded(false); setGenerationProgress((current) => Math.min(current, 95)); setError(t("studio.imageLoadError")); }} /></div><div className="studio-result-actions"><button className="btn btn-ghost" onClick={() => void downloadMedia(imageUrl, "vendeo-studio-image.png")}>{t("studio.downloadImage")}</button><button className="btn btn-ghost" onClick={() => setEditOpen(true)} disabled={editSubmitting}>{t("studio.edit")}</button></div>{editOpen ? <div className="studio-edit-box"><label><span>{t("sweep3.text212")}</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} disabled={editSubmitting} /></label><small>{t("sweep1.text213")}</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editSubmitting || !editInstruction.trim()}>{editSubmitting ? t("optionsExtra.text22") : t("studio.edit")}</button><button className="btn btn-ghost" onClick={() => { setEditOpen(false); setEditInstruction(""); }} disabled={editSubmitting}>{t("workspaceExtra.cancel")}</button></div></div> : null}</> : null}
           {videoReady ? <><video className="studio-media" src={videoJob.contentUrl ?? undefined} controls playsInline /><a className="btn btn-ghost" href={videoJob.contentUrl ?? undefined} download="vendeo-studio-video.mp4">{t("studio.downloadVideo")}</a></> : null}
-          {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>{t("chat.posterGenerating")}</strong><p>{videoJob ? t("dynamicExtra.videoStatus", { status: (videoJob.status) }) : t("optionsExtra.text23")}</p>{kind === "image" && loading ? <div className="studio-generation-progress"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}</> : <><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></>}</div> : null}
+          {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>{kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Image created" : "Image créée") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Checking your creation" : "Vérification de ta création") : t("chat.posterGenerating")}</strong><p role="status">{kind === "image" && imageTrackingIssue ? (locale === "en" ? "Tracking is temporarily unavailable. Checking automatically; do not start another generation." : "Suivi temporairement indisponible. Vérification automatique en cours ; ne relance pas de génération.") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Retrieving the saved image. No new generation or credit charge." : "Récupération de l’image enregistrée. Aucune nouvelle génération ni dépense de crédits.") : videoJob ? t("dynamicExtra.videoStatus", { status: (videoJob.status) }) : t("optionsExtra.text23")}</p>{kind === "image" && loading && !imageTrackingIssue && imageTask?.status !== "awaiting_media" ? <div className="studio-generation-progress"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}</> : <><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></>}</div> : null}
           {imageUrl && kind === "image" ? <div className="studio-generation-progress" aria-live="polite"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}
         </section>
       </div>}
