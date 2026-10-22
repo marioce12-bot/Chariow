@@ -74,14 +74,16 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   const description = typeof product.description === "string" ? product.description : "";
   const evidence = slideshowEvidence(description, name);
   const language = inferLanguage(evidence, locale);
-  // Reserve 0.75s at 1.65 spoken words/sec; reject an impossible product name before any TTS stage.
-  const maxWords = Math.max(1, Math.floor((duration - 0.75) * 1.65));
+  // Estimate natural delivery at 2.0–2.6 words/sec across the required 95% voice window.
+  // This estimate is not a guarantee: actual rendered audio is measured before success.
+  const speakingWindow = duration * 0.95;
+  const minimumWords = Math.ceil(speakingWindow * 2.0);
+  const maxWords = Math.floor(speakingWindow * 2.6);
   const wordCount = (part: string) => part.trim().split(/\s+/).filter(Boolean).length;
   if (wordCount(name) > maxWords) throw new Error("Nom du produit trop long pour le budget vocal de cette durée; TTS non lancé.");
   // Reuse slideshow validator, with inferred locale and its required complete, distinct evidence.
   buildSlideshowPlan({ name, description, duration, aspectRatio: "1:1", locale: language, hasReference: false, character: "auto" });
-  // Keep complete evidence sentences only; never clip a fact. Budget at a deliberately
-  // conservative 1.65 words/sec and reserve 0.75s for the natural ending/audio fade.
+  // Keep complete evidence sentences only; never clip a fact.
   const cta = buildSlideshowCta(name, slideshowSourceCandidates(description), campaignGoal(goal), language === "en");
   if (wordCount(name) + wordCount(cta) > maxWords) throw new Error("Nom et CTA complet dépassent le budget vocal; TTS non lancé.");
   const accepted: string[] = [name];
@@ -90,7 +92,6 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   // density. Evidence is used once, in source order; no invented/repeated filler.
   // Keep source-backed speech dense enough to approach the selected runtime;
   // actual rendered audio is independently checked for terminal silence.
-  const minimumWords = Math.ceil(duration * 0.9);
   for (const part of evidence) {
     const count = part.trim().split(/\s+/).filter(Boolean).length;
     if (words + count > maxWords) continue;

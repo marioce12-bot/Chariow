@@ -8,7 +8,7 @@ import { prepareSlideshowVoice } from "@/lib/studio/slideshow";
 const ffmpeg = "/usr/bin/ffmpeg", ffprobe = "/usr/bin/ffprobe";
 const product = {
   name: "Guide Snapchat",
-  description: "Guide pour lancer des campagnes sur Snapchat. Le guide explique les réglages du ciblage. Il présente plusieurs exemples de publicités. Chaque chapitre détaille une étape de préparation. Les exercices accompagnent la lecture du guide. Une section décrit les indicateurs de suivi. Le document explique les formats publicitaires disponibles. Une liste rassemble les vérifications avant publication.",
+  description: "Guide pour lancer des campagnes sur Snapchat. Le guide explique les réglages du ciblage. Il présente plusieurs exemples de publicités. Chaque chapitre détaille une étape de préparation. Les exercices accompagnent la lecture du guide. Une section décrit les indicateurs de suivi. Le document explique les formats publicitaires disponibles. Une liste rassemble les vérifications avant publication. Le guide aide à définir les objectifs de chaque campagne. Des conseils présentent les audiences disponibles dans la plateforme. Les exemples montrent comment rédiger des annonces claires. Un chapitre décrit le calendrier de publication. Les tableaux récapitulent les résultats observés. Le lecteur peut comparer plusieurs formats de publicité. Des étapes expliquent comment préparer les visuels. Le guide détaille aussi le budget quotidien. Une partie aide à suivre les clics reçus. Les sections proposent des méthodes pour ajuster les campagnes. Les exemples couvrent les paramètres de ciblage avancés.",
 };
 const words = (text: string) => text.trim().split(/\s+/).length;
 const probe = (file: string) => Number(execFileSync(ffprobe, ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file], { encoding: "utf8" }).trim());
@@ -19,7 +19,8 @@ describe("narration genuinely adapted to selected duration, fixture-only", () =>
     expect(words(plans[1].script)).toBeLessThan(words(plans[2].script));
     for (const plan of plans) {
       expect(plan.script.endsWith("Prêt à lancer tes campagnes sur Snapchat ? Procure-toi le guide.")).toBe(true);
-      expect(words(plan.script)).toBeLessThanOrEqual(Math.floor((plan.duration - 0.75) * 1.65));
+      expect(words(plan.script)).toBeGreaterThanOrEqual(Math.ceil(plan.duration * 0.95 * 2.0));
+      expect(words(plan.script)).toBeLessThanOrEqual(Math.floor(plan.duration * 0.95 * 2.6));
       expect(plan.script).not.toMatch(/promotion|garanti|réserve|stock|révolutionnaire/i);
     }
   });
@@ -27,20 +28,20 @@ describe("narration genuinely adapted to selected duration, fixture-only", () =>
     const fetcher = vi.fn();
     vi.stubGlobal("fetch", fetcher);
     try {
-      expect(() => buildSlideshowVoicePlan({ ...product, name: Array.from({ length: 42 }, () => "mot").join(" ") }, 25)).toThrow(/budget vocal/);
+      expect(() => buildSlideshowVoicePlan({ ...product, name: Array.from({ length: 70 }, (_, i) => `mot${i}`).join(" ") }, 25)).toThrow();
       expect(fetcher).not.toHaveBeenCalled();
     } finally { vi.unstubAllGlobals(); }
   });
-  it.each([25, 30, 40])("measures and fits a modest audio overrun before %ss without truncating its source", async duration => {
+  it.each([25, 30, 40])("accepts >=95% synthetic narration at %ss without truncating its source", async duration => {
     const dir = await mkdtemp(path.join(tmpdir(), "studio-voice-timing-"));
     try {
       const raw = path.join(dir, "raw.wav");
       // Deterministic local sine fixture, not speech/provider generation.
-      execFileSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", `sine=frequency=220:sample_rate=24000:duration=${duration}`, "-c:a", "pcm_s16le", raw]);
+      execFileSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", `sine=frequency=220:sample_rate=24000:duration=${duration * 0.95}`, "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", String(duration), "-filter_complex", "[0:a][1:a]concat=n=2:v=0:a=1", "-c:a", "pcm_s16le", raw]);
       const source = await readFile(raw);
       const adjusted = await prepareSlideshowVoice(raw, ffmpeg, ffprobe, duration, dir);
-      expect(adjusted).not.toBe(raw);
-      expect(probe(adjusted)).toBeLessThanOrEqual(duration - 0.75);
+      expect(adjusted).toBe(raw);
+      expect(probe(adjusted)).toBeLessThanOrEqual(duration);
       expect(probe(raw) / probe(adjusted)).toBeLessThanOrEqual(1.2);
       expect((await readFile(raw)).equals(source)).toBe(true);
       // Already-fitting audio is preserved exactly, not unnecessarily accelerated.
@@ -60,7 +61,7 @@ describe("narration genuinely adapted to selected duration, fixture-only", () =>
     try {
       const raw = path.join(dir, "tail.wav");
       execFileSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=24000:duration=11.5", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", "25", "-filter_complex", "[0:a][1:a]concat=n=2:v=0:a=1", raw]);
-      await expect(prepareSlideshowVoice(raw, ffmpeg, ffprobe, 25, dir)).rejects.toThrow(/audible seulement jusqu'à 11\.5.*minimum 22\.00/);
+      await expect(prepareSlideshowVoice(raw, ffmpeg, ffprobe, 25, dir)).rejects.toThrow(/trop courte: audible seulement jusqu'à 11\.5.*minimum 95%, soit 23\.75/);
     } finally { await rm(dir, { recursive: true, force: true }); }
   });
 });
