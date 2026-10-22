@@ -38,12 +38,35 @@ async function probeDuration(file: string, ffprobe: string): Promise<number> {
   return Number(raw);
 }
 
+async function probeVoiceCoverage(file: string, ffmpeg: string, ffprobe: string): Promise<{ duration: number; audibleEnd: number }> {
+  const duration = await probeDuration(file, ffprobe);
+  const diagnostics = await new Promise<string>((resolve, reject) => {
+    const child = spawn(ffmpeg, ["-hide_banner", "-i", file, "-vn", "-af", "silencedetect=noise=-45dB:d=0.25", "-f", "null", "-"]);
+    let stderr = "";
+    child.stderr.on("data", chunk => stderr += chunk);
+    child.on("error", reject);
+    child.on("close", code => code === 0 ? resolve(stderr) : reject(new Error(`ffmpeg silence analysis failed: ${stderr.slice(-1000)}`)));
+  });
+  const starts = [...diagnostics.matchAll(/silence_start: ([\d.]+)/g)];
+  const ends = [...diagnostics.matchAll(/silence_end: ([\d.]+)/g)];
+  const lastStart = starts.length ? Number(starts.at(-1)![1]) : undefined;
+  const lastEnd = ends.length ? Number(ends.at(-1)![1]) : undefined;
+  // silencedetect closes a final silence at EOF, so equal start/end counts do
+  // not mean the tail was audible. A terminal silence of >=250ms is rejected.
+  const trailingStart = lastStart !== undefined && (lastEnd === undefined || lastEnd >= duration - 0.05) ? lastStart : duration;
+  return { duration, audibleEnd: trailingStart };
+}
+
 /** Preserve the generated source; locally speed up only modest overruns, then verify the actual WAV duration. */
 export async function prepareSlideshowVoice(rawAudio: string, ffmpegPath: string, ffprobePath: string, duration: number, workDir: string): Promise<string> {
-  const limit = duration - 0.75;
+  const minimumAudible = duration * 0.95;
+  // Keep the final music fade clear of the last spoken syllable.
+  const limit = duration - 0.35;
   const rawDuration = await probeDuration(rawAudio, ffprobePath);
   if (!Number.isFinite(rawDuration) || rawDuration <= 0) throw new Error(`Invalid raw voice duration: ${rawDuration}s`);
-  if (rawDuration <= limit) return rawAudio;
+  const coverage = await probeVoiceCoverage(rawAudio, ffmpegPath, ffprobePath);
+  if (coverage.audibleEnd < minimumAudible) throw new Error(`Narration trop courte: audible seulement jusqu'à ${coverage.audibleEnd.toFixed(2)}s sur ${duration}s (minimum 95%, soit ${minimumAudible.toFixed(2)}s); voix rejetée plutôt que d'habiller un silence par la musique.`);
+  if (rawDuration <= limit || (rawDuration <= duration && coverage.audibleEnd <= limit)) return rawAudio;
   // Leave 50ms for sample-frame rounding in the tempo filter, then remeasure.
   const tempo = rawDuration / (limit - 0.05);
   const maxTempo = 1.2;
@@ -52,6 +75,8 @@ export async function prepareSlideshowVoice(rawAudio: string, ffmpegPath: string
   await run(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-y", "-i", rawAudio, "-vn", "-filter:a", `atempo=${tempo.toFixed(6)}`, "-c:a", "pcm_s16le", adjusted]);
   const adjustedDuration = await probeDuration(adjusted, ffprobePath);
   if (!Number.isFinite(adjustedDuration) || adjustedDuration > limit) throw new Error(`Adjusted voice duration ${adjustedDuration}s exceeds safe limit ${limit}s; voice rejected without truncation`);
+  const adjustedCoverage = await probeVoiceCoverage(adjusted, ffmpegPath, ffprobePath);
+  if (adjustedCoverage.audibleEnd < minimumAudible) throw new Error(`Narration ajustée audible seulement jusqu'à ${adjustedCoverage.audibleEnd.toFixed(2)}s (minimum ${minimumAudible.toFixed(2)}s); voix rejetée.`);
   return adjusted;
 }
 
@@ -107,7 +132,8 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
       const audio: string[] = [`[${voiceIndex}:a]aresample=48000,loudnorm=I=-16:TP=-2:LRA=11:print_format=none,alimiter=limit=0.841395:level=false,apad,atrim=duration=${total},asetpts=PTS-STARTPTS[voice]`];
       if (options.musicPath) {
         audio.push(`[voice]asplit=2[spoken][voicekey]`);
-        audio.push(`[${imagePaths.length}:a]aresample=48000,volume=0.12[music]`);
+        // Normalize quiet licensed tracks before speech ducking; source beds can be extremely quiet.
+        audio.push(`[${imagePaths.length}:a]aresample=48000,loudnorm=I=-18:TP=-2:LRA=11,volume=0.25[music]`);
         audio.push(`[music][voicekey]sidechaincompress=threshold=0.025:ratio=8:attack=15:release=350[ducked]`);
         audio.push(`[spoken][ducked]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.841395:level=false,atrim=duration=${total},afade=t=out:st=${Math.max(0,total-0.35)}:d=0.35[aout]`);
       } else audio.push(`[voice]alimiter=limit=0.841395:level=false,atrim=duration=${total},afade=t=out:st=${Math.max(0,total-0.35)}:d=0.35[aout]`);

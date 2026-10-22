@@ -2,9 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, SLIDESHOW_MUSIC_METADATA, slideshowVoiceAvailability, synthesizeSlideshowVoice } from "@/lib/studio/slideshow-voice";
 
 afterEach(() => { delete process.env.VERCEL_ENV; delete process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED; delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED; delete process.env.GEMINI_API_KEY; delete process.env.VENDEO_SLIDESHOW_TTS_ENABLED; });
-const product = { name: "Carnet créatif", description: "Livre illustré avec 120 pages. Papier recyclé certifié. Reliure cousue durable. Format compact pour le voyage." };
+const product = { name: "Carnet créatif", description: "Livre illustré avec 120 pages. Papier recyclé certifié. Reliure cousue durable. Format compact pour le voyage. Chaque page accueille des notes et des dessins. Le format permet de glisser le carnet dans un sac. Les pages sont organisées pour accompagner les idées au quotidien. Une couverture souple protège les pages pendant le transport. Les pages épaisses accueillent des crayons et stylos. Le carnet comprend une table des matières pour retrouver les thèmes. Le papier sans acide conserve les dessins plus longtemps. Les sections sont séparées par des pages de garde colorées. Une pochette intérieure permet de ranger de petits souvenirs." };
 describe("slideshow voice", () => {
   it("blocks before the network unless preview and both explicit gates are true", async () => {
+    process.env.VERCEL_ENV = "development";
+    delete process.env.VENDEO_SLIDESHOW_TTS_ENABLED;
+    delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED;
     expect(slideshowVoiceAvailability().available).toBe(false);
     const fetcher = vi.fn();
     await expect(synthesizeSlideshowVoice({} as any, fetcher as any)).rejects.toThrow(/preview/);
@@ -24,9 +27,9 @@ describe("slideshow voice", () => {
     expect(plan.language).toBe("fr");
     expect(plan.script).toContain("120 pages");
     expect(plan.script).not.toMatch(/garanti|best|révolutionnaire/i);
-    const english = buildSlideshowVoicePlan({ name: "Travel organizer", description: "A compact planner with 120 pages. Recycled paper certified. Stitched binding built to last. Portable format for travel." }, 25, "fr");
+    const english = buildSlideshowVoicePlan({ name: "Travel organizer", description: "A compact planner with 120 pages. Recycled paper certified. Stitched binding built to last. Portable format for travel. Each page can hold notes and drawings. Pages are arranged to accompany everyday ideas. A flexible cover protects pages during daily use. Thick pages suit pencils and pens. A contents page helps locate each topic. Acid-free paper supports long-term storage. The compact size fits in a travel bag. Separate sections organize plans and notes." }, 25, "fr");
     expect(english.language).toBe("en");
-    const tech = buildSlideshowVoicePlan({ name: "Tech planner", description: "Software app with cloud sync. Works offline on devices. Includes encrypted backup. Compatible with desktop systems." }, 25, "en");
+    const tech = buildSlideshowVoicePlan({ name: "Tech planner", description: "Software app with cloud sync. Works offline on devices. Includes encrypted backup. Compatible with desktop systems. The app stores documents in folders. Users can access the calendar from a desktop computer. Teams can organize files into shared project spaces. A search tool locates saved notes. The calendar displays upcoming tasks. Users can export documents for local storage. The settings panel controls notification preferences. A desktop view supports keyboard navigation." }, 25, "en");
     expect(tech.musicId).not.toBe(english.musicId);
     expect(Object.keys(SLIDESHOW_MUSIC_METADATA)).toContain("sb-reverie");
     expect(Object.values(SLIDESHOW_MUSIC_METADATA).every(entry => entry.sourceUrl.startsWith("https://www.scottbuckley.com.au/library/"))).toBe(true);
@@ -35,7 +38,8 @@ describe("slideshow voice", () => {
   it.each([25, 30, 40])( "keeps narration within a conservative spoken-word budget for %ss", (duration) => {
     const plan = buildSlideshowVoicePlan(product, duration);
     const words = plan.script.trim().split(/\s+/).filter(Boolean).length;
-    expect(words).toBeLessThanOrEqual(Math.floor((duration - 0.75) * 1.65));
+    expect(words).toBeGreaterThanOrEqual(Math.ceil(duration * 0.95 * 2.0));
+    expect(words).toBeLessThanOrEqual(Math.floor(duration * 0.95 * 2.6));
     expect(plan.duration).toBe(duration);
   });
   it("makes one mock Gemini request and returns valid bounded WAV bytes", async () => {
@@ -53,7 +57,7 @@ describe("slideshow voice", () => {
   });
   it.each([
     product,
-    { name: "Travel organizer", description: "A compact planner with 120 pages. Recycled paper certified. Stitched binding built to last. Portable format for travel." },
+    { name: "Travel organizer", description: "A compact planner with 120 pages. Recycled paper certified. Stitched binding built to last. Portable format for travel. Each page can hold notes and drawings. The contents page organizes different projects. A flexible cover protects it in a bag. Thick paper works with pencils and pens. A storage pocket holds loose receipts. The layout separates weekly plans from notes. Its compact format fits beside a laptop. Sections use clear printed headings." },
   ])("sends only the product narration as spoken text for $name", async (voiceProduct) => {
     process.env.VERCEL_ENV = "preview";
     process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED = "true";

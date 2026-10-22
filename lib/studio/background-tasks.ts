@@ -158,6 +158,7 @@ export async function publicTask(row: any) {
     musicId: metadata.input?.musicId,
     campaignGoal: metadata.input?.campaignGoal,
     locale: metadata.input?.locale,
+    variationId: metadata.input?.variationId,
     voiceover: metadata.input?.voiceover === true,
   } : undefined;
   return {
@@ -325,7 +326,7 @@ export async function runTaskStep(id: string, revision: number) {
         name: product.name,
         description: typeof product.description === "string" ? product.description : "",
         hasReference: Boolean(product.image), duration, aspectRatio: "9:16",
-        character: "with", locale, campaignGoal,
+        character: "with", locale, campaignGoal, variationId: meta.input.variationId,
       });
       await preflightSlideshow(meta.input.musicId);
     } else if (images.length < 5) {
@@ -340,7 +341,7 @@ export async function runTaskStep(id: string, revision: number) {
         userBrief: "",
         previousPrompt: "",
         locale,
-        campaignGoal,
+        campaignGoal, variationId: meta.input.variationId,
       });
       const slide = plan.slides[images.length];
       const response = await generateStudioImage(row.user_id, {
@@ -356,6 +357,7 @@ export async function runTaskStep(id: string, revision: number) {
           aspectRatio: "9:16",
           locale,
           campaignGoal,
+          variationId: meta.input.variationId,
           imageCount: 5,
           slideIndex: slide.index,
         },
