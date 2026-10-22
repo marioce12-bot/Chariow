@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, SLIDESHOW_MUSIC_METADATA, slideshowVoiceAvailability, synthesizeSlideshowVoice } from "@/lib/studio/slideshow-voice";
 
-afterEach(() => { delete process.env.VERCEL_ENV; delete process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED; delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED; delete process.env.GEMINI_API_KEY; });
+afterEach(() => { delete process.env.VERCEL_ENV; delete process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED; delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED; delete process.env.GEMINI_API_KEY; delete process.env.VENDEO_SLIDESHOW_TTS_ENABLED; });
 const product = { name: "Carnet créatif", description: "Livre illustré avec 120 pages. Papier recyclé certifié. Reliure cousue durable. Format compact pour le voyage." };
 describe("slideshow voice", () => {
   it("blocks before the network unless preview and both explicit gates are true", async () => {
@@ -14,7 +14,10 @@ describe("slideshow voice", () => {
     expect(() => assertSlideshowVoiceAllowed()).toThrow(/palier gratuit/);
     process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED = "true";
     process.env.VERCEL_ENV = "production";
-    expect(() => assertSlideshowVoiceAllowed()).toThrow(/preview/);
+    expect(() => assertSlideshowVoiceAllowed()).toThrow(/activée/);
+    process.env.VENDEO_SLIDESHOW_TTS_ENABLED = "true";
+    expect(() => assertSlideshowVoiceAllowed()).not.toThrow();
+    expect(slideshowVoiceAvailability().available).toBe(true);
   });
   it("uses verified facts, infers language, and points metadata to official sources", () => {
     const plan = buildSlideshowVoicePlan(product, 25, "en");

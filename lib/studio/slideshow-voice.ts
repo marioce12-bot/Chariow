@@ -24,14 +24,22 @@ export const SLIDESHOW_MUSIC_METADATA: Record<string, { tags: string[]; sourceUr
 };
 
 export function slideshowVoiceAvailability() {
-  const preview = process.env.VERCEL_ENV === "preview";
-  const voiceoverTestAllowed = preview && process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED === "true" && process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED === "true";
-  return { available: voiceoverTestAllowed, voiceoverEnabled: preview, voiceoverTestAllowed, environment: "preview-only" as const, model: SLIDESHOW_VOICE_MODEL, reason: !preview ? "La voix off est disponible uniquement en environnement preview." : !voiceoverTestAllowed ? "Gemini slideshow TTS désactivé : les deux confirmations explicites sont requises." : undefined };
+  const environment = process.env.VERCEL_ENV;
+  const supported = environment === "preview" || environment === "production";
+  const enabled = process.env.VENDEO_SLIDESHOW_TTS_ENABLED === "true" ||
+    (environment === "preview" && process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED === "true");
+  const allowed = supported && enabled && process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED === "true";
+  return { available: allowed, voiceoverEnabled: supported, voiceoverTestAllowed: allowed,
+    environment: environment ?? "development", model: SLIDESHOW_VOICE_MODEL,
+    reason: allowed ? undefined : "Voix off momentanément indisponible. Aucun appel vocal ni crédit supplémentaire consommé." };
 }
 export function assertSlideshowVoiceAllowed(): void {
-  if (process.env.VERCEL_ENV !== "preview") throw new Error("TTS diaporama désactivé : réservé à l'environnement preview (VERCEL_ENV=preview requis).");
-  if (process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED !== "true") throw new Error("TTS diaporama désactivé : réservé à la prévisualisation (VENDEO_SLIDESHOW_TTS_TEST_ALLOWED=true requis).");
-  if (process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED !== "true") throw new Error("TTS diaporama bloqué : confirmez le palier gratuit (VENDEO_GEMINI_FREE_TIER_CONFIRMED=true requis).");
+  const environment = process.env.VERCEL_ENV;
+  if (environment !== "preview" && environment !== "production") throw new Error("TTS diaporama réservé aux environnements preview ou production autorisés.");
+  const enabled = process.env.VENDEO_SLIDESHOW_TTS_ENABLED === "true" ||
+    (environment === "preview" && process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED === "true");
+  if (!enabled) throw new Error("La voix off n’est pas encore activée dans cet environnement. Aucun appel vocal effectué.");
+  if (process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED !== "true") throw new Error("Voix off bloquée : le palier gratuit Gemini doit être confirmé. Aucune offre payante utilisée.");
 }
 
 export type SlideshowVoicePlan = { script: string; language: "fr" | "en"; musicId: string; model: typeof SLIDESHOW_VOICE_MODEL; voice: string; duration: number; tone: string };
