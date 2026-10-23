@@ -1,11 +1,11 @@
 // Configuration centralisée du forfait unique Vendeo.
 // Vendeo coûte 2 000 XOF/mois, autorise jusqu'à 3 boutiques et inclut un essai
-// complet de 15 jours. Le Studio est facturé séparément en crédits.
+// de 5 jours pour les nouvelles inscriptions. Le Studio est facturé séparément en crédits.
 // (sur le plan Vendeo standard). Toute logique de prix, de durée ou de
 // limites doit passer par ce fichier plutôt que d'écrire des valeurs
 // "en dur" dans les routes API ou les composants.
 //
-// Il n'y a plus de quota de messages IA : tant que l'essai de 15 jours ou
+// Il n'y a plus de quota de messages IA : tant que l'essai de 5 jours ou
 // l'abonnement est actif, l'usage de l'assistant IA est illimité (voir
 // consume_message_quota côté base de données).
 

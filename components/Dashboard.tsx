@@ -221,7 +221,7 @@ function DashboardWorkspace() {
 
   const userFirstName = userName ? (userName.trim().split(/\s+/)[0] || "créateur") : null;
   // Plus de quota de messages IA : l'accès est illimité tant que l'essai de
-  // 15 jours ou l'abonnement Vendeo est actif.
+  // 5 jours ou l'abonnement Vendeo est actif.
   const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
   const [wizardOpen, setWizardOpen] = useState(false);
   // Produit choisi via le bouton « Promouvoir » du catalogue : le formulaire de pub saute alors l'étape « Produit ».

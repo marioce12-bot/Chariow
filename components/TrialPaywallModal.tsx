@@ -6,7 +6,7 @@ import { useI18n } from "@/lib/i18n/i18n";
 
 type PaywallSubscription = { status: string } | null;
 
-// Pop-up bloquante affichée dès que l'essai gratuit de 15 jours (ou l'abonnement payant
+// Pop-up bloquante affichée dès que l'essai gratuit de 5 jours (ou l'abonnement payant
 // de 30 jours) est expiré côté base (subscriptions.status = 'past_due').
 // Elle n'est PAS fermable : ni croix, ni "Plus tard", ni clic sur le fond, ni Échap.
 // Seules issues : s'abonner (paiement) ou se déconnecter.

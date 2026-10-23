@@ -22,9 +22,11 @@ async function mount(stage: "welcome" | "tour", onDismiss = vi.fn(), onStart = v
 }
 function button(text: string) { return Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes(text))!; }
 describe("first-store welcome", () => {
-  it("announces the existing 15-day trial and actual end date without a restart promise", async () => {
+  it("uses a generic current-trial title, shows the actual end date, and avoids a restart promise", async () => {
     const { onStart } = await mount("welcome");
-    expect(container.textContent).toContain("Félicitations"); expect(container.textContent).toContain("15 jours");
+    expect(container.textContent).toContain("Félicitations"); expect(container.textContent).toContain("Ton essai gratuit en cours");
+    expect(container.textContent).toContain("Profite de ton essai gratuit en cours");
+    expect(container.textContent).not.toContain("essai gratuit de 5 jours");
     expect(container.textContent).toContain("30 octobre 2099"); expect(container.textContent).toContain("ne redémarre ni ne prolonge");
     expect(container.textContent).toContain("crédits Studio");
     await act(async () => button("Découvrir").click()); expect(onStart).toHaveBeenCalledOnce();
@@ -33,7 +35,8 @@ describe("first-store welcome", () => {
   it("does not announce an expired trial as active", async () => {
     await act(async () => root.render(<FirstStoreWelcome stage="welcome" subscription={{ ...subscription, trial_active: false, trial_ends_at: "2020-01-01" }} onStart={vi.fn()} onDismiss={vi.fn()} />));
     expect(container.textContent).not.toContain("Profite de ton essai gratuit en cours");
-    expect(container.textContent).toContain("état actuel dans Abonnement");
+    expect(container.textContent).toContain("Les nouveaux essais durent 5 jours");
+    expect(container.textContent).toContain("état actuel de ton essai dans Abonnement");
   });
   it("supports every tour step, back, completion and Escape", async () => {
     const { onDismiss } = await mount("tour");

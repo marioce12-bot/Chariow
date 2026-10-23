@@ -98,8 +98,8 @@ export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss }: {
         <span className="vendeo-welcome-connected"><Check size={14} aria-hidden="true" />{en ? "Store connected" : "Boutique connectée"}</span>
         <h2 id="vendeo-welcome-title">{en ? "Congratulations, you’re all set!" : "Félicitations, tout est prêt !"}</h2>
         <p id="vendeo-welcome-description">{en ? "Your first store is connected to Vendeo. Let’s explore your workspace together." : "Ta première boutique est connectée à Vendeo. Découvrons ensemble ton espace."}</p>
-        <div className="vendeo-welcome-trial"><strong>{en ? "Your 15-day free trial" : "Ton essai gratuit de 15 jours"}</strong>
-          <p>{trialActive ? (en ? "Enjoy your current free trial to discover Vendeo." : "Profite de ton essai gratuit en cours pour découvrir Vendeo.") : (en ? "The 15-day trial is linked to your registration. See Subscription for its current status." : "L’essai de 15 jours est lié à ton inscription. Retrouve son état actuel dans Abonnement.")}</p>
+        <div className="vendeo-welcome-trial"><strong>{en ? "Your current free trial" : "Ton essai gratuit en cours"}</strong>
+          <p>{trialActive ? (en ? "Enjoy your current free trial to discover Vendeo." : "Profite de ton essai gratuit en cours pour découvrir Vendeo.") : (en ? "New trials are 5 days. See Subscription for your current trial status." : "Les nouveaux essais durent 5 jours. Retrouve l’état actuel de ton essai dans Abonnement.")}</p>
           {validEnd && <small>{en ? "Trial end date: " : "Fin de l’essai : "}{validEnd.toLocaleDateString(en ? "en-GB" : "fr-FR", { day: "numeric", month: "long", year: "numeric" })}</small>}
           <small>{en ? "Connecting a store does not restart or extend the trial. Studio credits and ad budgets are separate." : "La connexion ne redémarre ni ne prolonge l’essai. Les crédits Studio et le budget publicitaire sont distincts."}</small>
         </div>
