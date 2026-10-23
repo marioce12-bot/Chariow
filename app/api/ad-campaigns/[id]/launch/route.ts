@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCarouselCreative, createMetaCreative, publishMetaAdWithAdvantage, updateMetaAdCreative } from "@/lib/meta/campaigns";
-import { fetchMetaPageAccessToken, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
+import { getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 import { createMetaVideoCreative, isVideoMediaUrl, prepareMetaCreativeVideo } from "@/lib/meta/ad-video";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
@@ -242,7 +242,6 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   const publisherPlatforms = metaPublisherPlatforms(plan);
   await supabase.from("ad_campaigns").update({ meta_ad_account_id: account.id, external_error: null }).eq("id", campaign.id).eq("user_id", userId);
   try {
-    const pageAccessToken = await fetchMetaPageAccessToken(pageId, accessToken);
     const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
     // Vidéo : envoyée à Meta et traitée AVANT de créer la campagne, pour ne pas laisser de
     // campagne orpheline chez Meta si la vidéo est refusée ou trop longue à traiter.
