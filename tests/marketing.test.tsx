@@ -27,58 +27,44 @@ describe("premium product landing", () => {
         expect(card.textContent).toContain(translate(locale, `landing.problem.p${index + 1}Title`));
         expect(card.textContent).toContain(translate(locale, `landing.problem.p${index + 1}`));
       });
-      expect(container.querySelector(".platform-marquee-track")).not.toBeNull();
       expect(container.querySelector("#comment")).not.toBeNull();
     } finally {
       language.locale = "fr";
     }
   });
-  it("renders a public demo clearly labelled, with no creator testimonials", () => {
+  it("renders the requested static French hero copy and destinations", () => {
+    language.locale = "fr";
+    const container = new JSDOM(renderToStaticMarkup(<Marketing />)).window.document.body;
+    expect(container.textContent).toContain("Ta boutique, tes visuels, tes pubs.");
+    expect(container.textContent).toContain("Tout au même endroit.");
+    expect(container.textContent).toContain("quelques clics");
+    expect(container.textContent).toContain("5 jours d’essai · 100 crédits de bienvenue");
+    expect(container.textContent).toContain("Lancer mon essai gratuit");
+    expect(container.textContent).toContain("Découvrir comment ça marche");
+    const heroActions = container.querySelector(".landing-hero-actions")!;
+    expect(heroActions.querySelector('a[href="/register"]')?.textContent).toContain("Lancer mon essai gratuit");
+    expect(heroActions.querySelector('a[href="#apercu"]')?.textContent).toContain("Découvrir comment ça marche");
+    expect(container.querySelector(".digital-hero")?.textContent).not.toMatch(/Shopify|Chariow/);
+  });
+  it("renders an accessible static workspace illustration with marked platform examples", () => {
     const html = renderToStaticMarkup(<Marketing />);
-    expect(html).toContain(translate("fr", "sweep1.text120"));
-    expect(translate("fr", "sweep1.text120")).toContain("données de démonstration");
-    expect(html).toContain('id="apercu"');
-    expect(html).toContain('role="region"');
+    const container = new JSDOM(html).window.document.body;
+    const visual = container.querySelector("figure.digital-workspace[aria-labelledby][aria-describedby]");
+    expect(visual).not.toBeNull();
+    for (const label of ["Meta", "TikTok", "Pinterest"]) expect(visual!.textContent).toContain(label);
+    expect(visual!.textContent).toMatch(/exemple|démo|demo/i);
+    expect(html).not.toContain("carousel-controls");
     expect(html).not.toContain('role="tablist"');
     expect(html).not.toContain('role="tab"');
-    expect(html).not.toContain("carousel-controls");
-    expect(html).toContain('href="/register"');
-    expect(html).toContain('href="/login"');
-    expect(html).not.toContain("proof-carousel");
-    expect(html).not.toContain("creators-marquee");
-    expect(source("app/page.tsx")).not.toContain("getProofImages");
+    expect(html).not.toContain("claim1minute");
+    expect(html).not.toContain("1 minute");
   });
-  it("uses localized authentic screenshot assets and descriptive alt text", () => {
-    const marketing = source("components/Marketing.tsx");
-    expect(marketing).toContain('actual-${["home", "ads", "studio"][activeDemo]}-${isEnglish ? "en" : "fr"}.webp');
-    expect(marketing).not.toContain("MarketingProductPreview");
-    expect(marketing).toContain("Capture réelle de l’écran de lancement de publicités Vendeo");
-    expect(marketing).toContain("Authentic screenshot of Vendeo AI Studio");
-    expect(marketing).not.toContain("dashboard-demo.webp");
-  });
-  it("supports mobile login, a localized accessible carousel that loops without pausing, and reduced-motion", () => {
+  it("keeps the product section accessible without carousel interaction or timer", () => {
     const src = source("components/Marketing.tsx");
-    expect(src).toContain('aria-controls="landing-navigation"');
-    expect(src).toContain('"ArrowLeft", "ArrowRight", "Home", "End"');
-    expect(src).toContain('fr: "Accueil", en: "Home"');
-    expect(src).toContain('fr: "Lancement de publicités", en: "Launch ads"');
-    expect(src).toContain('fr: "Studio IA", en: "AI Studio"');
-    expect(src).toContain("window.setTimeout");
-    expect(src).toContain("}, [activeDemo]);");
-    expect(src).not.toContain("setCarouselHovered");
-    expect(src).not.toContain("setCarouselFocused");
-    expect(src).toContain("onTouchStart=");
-    expect(src).toContain("onTouchEnd=");
-    expect(src).toContain("tabIndex={0}");
-    expect(src).not.toContain("aria-pressed");
-    expect(src).not.toContain("carousel-controls");
-    expect(src).toContain('className="marketing-actions"');
-    expect(src).toContain('!("IntersectionObserver" in window)');
-    const css = source("app/landing-premium.css");
-    expect(css).toContain("@media(prefers-reduced-motion:reduce)");
-    expect(css).toContain("animation:none!important");
-    expect(css).toContain(".landing-reveal{opacity:1;transform:none}");
-    expect(css).toContain("@keyframes lpSlideIn");
+    expect(src).not.toContain("PlatformRotator");
+    expect(src).not.toContain("activeDemo");
+    expect(src).not.toContain("setInterval");
+    expect(renderToStaticMarkup(<Marketing />)).toContain('id="apercu"');
   });
   it("keeps the platform marquee scrolling without a pause control or pause-on-touch", () => {
     const marquee = source("components/PlatformMarquee.tsx");

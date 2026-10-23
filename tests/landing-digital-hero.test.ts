@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const marketingPath = "components/Marketing.tsx";
 const current = readFileSync(marketingPath, "utf8");
 const baseline = execFileSync("git", ["show", `origin/main:${marketingPath}`], { encoding: "utf8" });
+const visual = readFileSync("components/DigitalWorkspaceVisual.tsx", "utf8");
 
 function between(source: string, start: string, end: string) {
   const from = source.indexOf(start);
@@ -30,25 +31,23 @@ describe("digital creator landing hero regression contract", () => {
     );
   });
 
-  it("retains every existing href and introduces the requested hero copy and asset", () => {
+  it("preserves all existing destinations and uses the requested hero CTAs", () => {
     const currentHrefs = hrefs(current);
     for (const href of hrefs(baseline)) expect(currentHrefs).toContain(href);
-
-    for (const text of ["Tu vends des ebooks", "Crée tes pubs", "100 crédits de bienvenue"]) {
-      expect(current).toContain(text);
-    }
-    expect(current).toContain("/landing/digital-creator.webp");
+    expect(current).toContain('href="/register"');
+    expect(current).toContain('href="#apercu"');
+    expect(current).toContain("Lancer mon essai gratuit");
+    expect(current).toContain("Découvrir comment ça marche");
   });
 
-  it("keeps the product carousel keyboard- and touch-navigable", () => {
-    const carousel = between(current, 'id="apercu"', "<PlatformMarquee");
-    const keyboardHandler = between(current, "function demoKey(", "\n  useEffect(");
-    for (const key of ['"ArrowLeft"', '"ArrowRight"', '"Home"', '"End"']) {
-      expect(keyboardHandler).toContain(key);
+  it("uses static, accessible workspace artwork with labeled platform examples", () => {
+    expect(current).toContain("DigitalWorkspaceVisual");
+    expect(visual).toMatch(/aria-label=/);
+    for (const label of ["ebook", "Meta", "TikTok", "Pinterest", "publicité", "nouvelle commande"]) {
+      expect(visual.toLowerCase()).toContain(label.toLowerCase());
     }
-    expect(current).toContain("onKeyDown={demoKey}");
-    expect(carousel).toContain("onTouchStart=");
-    expect(carousel).toContain("onTouchEnd=");
-    expect(carousel).toContain("setActiveDemo");
+    expect(visual).toMatch(/exemple|demo|démo/i);
+    expect(visual).not.toMatch(/\b\d+\s*(?:%|ventes|commandes|crédits)\b/i);
+    expect(visual).not.toMatch(/garanti|garantie/i);
   });
 });

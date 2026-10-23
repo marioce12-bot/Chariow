@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { PlatformRotator } from "@/components/PlatformRotator";
-import { PlatformMarquee } from "@/components/PlatformMarquee";
+import { DigitalWorkspaceVisual } from "@/components/DigitalWorkspaceVisual";
 import { ArrowRight, Check, Layers, Rocket, Wand2, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -14,33 +13,11 @@ import "@/app/landing-side-reveal.css";
 import "@/app/docs-entry.css";
 import "@/app/landing-digital-hero.css";
 
-const demos = [
-  { fr: "Accueil", en: "Home", frAlt: "Capture réelle de l’accueil Vendeo : tableau de bord avec les indicateurs et les raccourcis de gestion.", enAlt: "Authentic screenshot of the Vendeo home dashboard, showing its metrics and management shortcuts." },
-  { fr: "Lancement de publicités", en: "Launch ads", frAlt: "Capture réelle de l’écran de lancement de publicités Vendeo, avec les options de configuration de campagne.", enAlt: "Authentic screenshot of the Vendeo ad launch screen, showing campaign setup options." },
-  { fr: "Studio IA", en: "AI Studio", frAlt: "Capture réelle du Studio IA Vendeo, avec les outils de création de contenu publicitaire.", enAlt: "Authentic screenshot of Vendeo AI Studio, showing its advertising content creation tools." },
-];
-
 export function Marketing() {
   const { t, locale } = useI18n();
   const isEnglish = locale === "en";
   const [open, setOpen] = useState<number | null>(null);
-  const [activeDemo, setActiveDemo] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // Continuous loop: never paused by hover, focus or touch. The timer restarts after each change
-    // (auto or manual swipe/keyboard) so a manual change always keeps its full display time.
-    const timer = window.setTimeout(() => setActiveDemo((current) => (current + 1) % demos.length), 2700);
-    return () => window.clearTimeout(timer);
-  }, [activeDemo]);
-  function demoKey(event: React.KeyboardEvent<HTMLDivElement>) {
-    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
-    if (!keys.includes(event.key)) return;
-    event.preventDefault();
-    const next = event.key === "Home" ? 0 : event.key === "End" ? demos.length - 1
-      : (activeDemo + (event.key === "ArrowRight" ? 1 : -1) + demos.length) % demos.length;
-    setActiveDemo(next);
-  }
   useEffect(() => {
     const root = document.querySelector(".landing-premium");
     if (!root || window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
@@ -69,33 +46,17 @@ export function Marketing() {
 
       <div className="container landing-hero-inner">
         <div className="landing-hero-copy"><span className="landing-kicker"><i/> {isEnglish ? "FOR DIGITAL PRODUCT SELLERS" : "POUR LES VENDEURS DE PRODUITS DIGITAUX"}</span>
-          <h1 className="digital-hero-title">{isEnglish ? "Selling ebooks or courses?" : "Tu vends des ebooks ou des formations ?"}<span>{isEnglish ? "Create your ads more easily." : "Crée tes pubs plus facilement."}</span></h1>
-          <p className="landing-intro">{isEnglish ? "Connect your Chariow store, create your ad visuals with AI and track your campaigns. Your products and your ads, in one workspace." : "Connecte ta boutique Chariow, crée tes visuels publicitaires avec l’IA et suis tes campagnes. Tes produits et tes pubs, dans un même espace."}</p>
-          <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{isEnglish ? "Get started" : "Commencer"} <ArrowRight size={18}/></Link><a className="landing-text-link" href="#apercu">{t("sweep2.text118")}{" "}<span>↓</span></a></div>
+          <h1 className="digital-hero-title">{isEnglish ? "Your store, your visuals, your ads." : "Ta boutique, tes visuels, tes pubs."}<span>{isEnglish ? "All in one place." : "Tout au même endroit."}</span></h1>
+          <p className="landing-intro">{isEnglish ? "Sell your digital products without juggling tools. Connect your store, create visuals with AI, launch campaigns in a few clicks and track your orders in Vendeo." : "Vends tes produits digitaux sans jongler entre les outils. Connecte ta boutique, crée tes visuels avec l’IA, lance tes campagnes en quelques clics et suis tes commandes depuis Vendeo."}</p>
+          <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{isEnglish ? "Start my free trial" : "Lancer mon essai gratuit"} <ArrowRight size={18}/></Link><a className="landing-text-link" href="#apercu">{isEnglish ? "See how it works" : "Découvrir comment ça marche"}{" "}<span>↓</span></a></div>
           <p className="digital-trial"><Check size={14} aria-hidden="true"/>{isEnglish ? "5-day trial · 100 welcome credits" : "5 jours d’essai · 100 crédits de bienvenue"}</p>
           <ul className="digital-benefits" aria-label={isEnglish ? "Your workflow" : "Ton parcours avec Vendeo"}>
-            <li><Layers size={18} aria-hidden="true"/><span>{isEnglish ? "Your Chariow products" : "Tes produits Chariow"}</span></li>
-            <li><Wand2 size={18} aria-hidden="true"/><span>{isEnglish ? "AI ad visuals" : "Tes visuels avec l’IA"}</span></li>
-            <li><Rocket size={18} aria-hidden="true"/><span>{isEnglish ? "Campaign tracking" : "Tes campagnes suivies"}</span></li>
+            <li><Layers size={18} aria-hidden="true"/><span>{isEnglish ? "Your connected store" : "Ta boutique reliée"}</span></li>
+            <li><Wand2 size={18} aria-hidden="true"/><span>{isEnglish ? "Campaigns launched" : "Tes campagnes lancées"}</span></li>
+            <li><Rocket size={18} aria-hidden="true"/><span>{isEnglish ? "Orders tracked" : "Tes commandes suivies"}</span></li>
           </ul>
-          <div className="digital-channels"><PlatformRotator prefix={isEnglish ? "Launch your campaigns on" : "Lancez vos campagnes sur"} fullText={t("sweep1.text117")} /></div>
         </div>
-        <div className="digital-hero-visual">
-          <div className="digital-creator-photo"><Image src="/landing/digital-creator.webp" alt={isEnglish ? "Illustrative portrait of a digital product creator working on her laptop." : "Illustration d’une créatrice de produits numériques au travail sur son ordinateur."} width={960} height={1200} sizes="(max-width: 600px) 90vw, (max-width: 1000px) 70vw, 540px" priority/><span className="digital-creator-label"><Wand2 size={15} aria-hidden="true"/>{isEnglish ? "Your expertise. Your products." : "Ton expertise. Tes produits."}</span></div>
-          <div className="digital-product-tag"><span aria-hidden="true">↗</span><div>{isEnglish ? "Ebooks, courses, resources…" : "Ebooks, formations, ressources…"}<small>{isEnglish ? "A workspace for your marketing" : "Un espace pour ton marketing"}</small></div></div>
-        <div className="landing-showcase" id="apercu" tabIndex={0} role="region" aria-roledescription={isEnglish ? "carousel" : "carrousel"} aria-label={isEnglish ? "Vendeo product screenshots" : "Captures d’écran du produit Vendeo"} onKeyDown={demoKey} onTouchStart={(event) => { (event.currentTarget as HTMLDivElement).dataset.touchX = String(event.touches[0]?.clientX ?? 0); }} onTouchEnd={(event) => { const start = Number((event.currentTarget as HTMLDivElement).dataset.touchX ?? 0); const delta = (event.changedTouches[0]?.clientX ?? start) - start; if (Math.abs(delta) > 45) setActiveDemo((current) => (current + (delta < 0 ? 1 : demos.length - 1)) % demos.length); }}>
-          <p className="sr-only">{isEnglish ? "Screenshots rotate automatically in a loop. Use Left and Right Arrow keys to change screenshots, Home for the first, and End for the last. Swipe to change screenshots." : "Les captures défilent automatiquement en boucle. Utilisez les flèches gauche et droite pour changer de capture, Début pour la première et Fin pour la dernière. Balayez pour changer de capture."}</p>
-          <div className="showcase-topline"><span className="showcase-dots" aria-hidden="true"><i/><i/><i/></span><span>Vendeo <b>•</b> {" "}{t("workspaceExtra.workspace")}</span><span className="showcase-live"><i/> Interface</span></div>
-          <div className="showcase-screen" aria-live="off" aria-atomic="true" aria-roledescription={isEnglish ? "slide" : "diapositive"} aria-label={isEnglish ? demos[activeDemo].en : demos[activeDemo].fr}>
-            <div key={activeDemo} className="showcase-transition">
-              <Image src={`/landing/actual-${["home", "ads", "studio"][activeDemo]}-${isEnglish ? "en" : "fr"}.webp`} alt={isEnglish ? demos[activeDemo].enAlt : demos[activeDemo].frAlt} width={1265} height={800} sizes="(max-width: 850px) 95vw, 650px" priority={activeDemo === 0} className="showcase-image" />
-            </div>
-            <div className="showcase-caption">{t("sweep1.text120")}</div>
-          </div>
-          <div className="showcase-foot"><span>{t("sweep2.text121")}</span><span>Chariow <b>↗</b></span></div>
-        </div>
-        </div>
-        <PlatformMarquee />
+        <DigitalWorkspaceVisual isEnglish={isEnglish} />
       </div>
     </section>
 
