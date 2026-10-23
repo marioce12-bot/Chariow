@@ -2168,7 +2168,8 @@ export function SubscriptionView({ subscription, onBackToSettings }: { subscript
         <article className="price-card">
           <span className="eyebrow">{trial ? t("landing.pricing.pill") : t("optionsExtra.text61")}</span>
           <h3>Vendeo</h3>
-          <div className="price">2 000 XOF <small>{t("landing.pricing.perMonth")}</small></div>
+          <div className="price">{t("landing.pricing.price")} <small>{t("landing.pricing.perMonth")}</small></div>
+          <p className="pricing-billing-note">{t("landing.pricing.billingNote")}</p>
           <ul>
             <li>{t("sweep2.text325")}</li>
             <li>{t("sweep3.text326")}</li>

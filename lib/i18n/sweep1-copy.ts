@@ -108,7 +108,7 @@ const rows = [
   ['sweep1.text312', 'Aucun pixel Meta trouvé', 'No Meta pixel found'],
   ['sweep1.text315', 'Une source de vérité pour toutes tes ventes.', 'One source of truth for all your sales.'],
   ['sweep1.text318', 'Connexion échouée — relance l\'autorisation', 'Connection failed — restart authorization'],
-  ['sweep1.text321', 'Vendeo — 2 000 XOF / mois', 'Vendeo — 2,000 XOF / month'],
+  ['sweep1.text321', 'Vendeo — 3,50 $/mois', 'Vendeo — US$3.50/month'],
   ['sweep1.text324', 'Gère ton usage IA et tes boutiques depuis un seul endroit.', 'Manage your AI usage and stores from one place.'],
   ['sweep1.text327', '✓ Suivi Meta Ads et TikTok Ads', '✓ Meta Ads and TikTok Ads tracking'],
   ['sweep1.text330', 'jours', 'days'],
