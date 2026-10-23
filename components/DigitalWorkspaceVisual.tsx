@@ -1,50 +1,53 @@
 import Image from "next/image";
-import { ArrowUpRight, BookOpen, Check, Layers, ShoppingBag, Sparkles } from "lucide-react";
-import { SiMeta, SiPinterest, SiTiktok } from "react-icons/si";
+import { BarChart3, BookOpen, Check, Image as ImageIcon, ShoppingBag, Video } from "lucide-react";
+import { SiShopify } from "react-icons/si";
 
-/** Static explanatory composition. Sample products and events are not customer results. */
+/** Static explanatory flow; product, campaign and order are illustrative, not customer results. */
 export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: boolean }) {
   const en = isEnglish;
   return <figure className="digital-workspace" id="apercu" aria-labelledby="workspace-visual-title" aria-describedby="workspace-example-note">
-    <figcaption className="workspace-visual-heading" id="workspace-visual-title"><Layers size={16} aria-hidden="true"/>{en ? "Your business, connected in Vendeo" : "Ton activité, réunie dans Vendeo"}</figcaption>
-    <div className="workspace-map">
-      <span className="workspace-connection connection-top" aria-hidden="true"/>
-      <span className="workspace-connection connection-bottom" aria-hidden="true"/>
-      <section className="workspace-card workspace-products" aria-label={en ? "Digital product mockups" : "Mockups de produits digitaux"}>
-        <p className="workspace-card-label"><BookOpen size={14} aria-hidden="true"/>{en ? "Your digital products" : "Tes produits digitaux"}</p>
-        <div className="workspace-books" aria-hidden="true">
-          <div className="workspace-book book-course"><span>{en ? "ONLINE COURSE" : "FORMATION"}</span><i/><strong>{en ? "Share your\nexpertise" : "Partage ton\nexpertise"}</strong><small>{en ? "YOUR KNOW-HOW" : "TON SAVOIR-FAIRE"}</small></div>
-          <div className="workspace-book book-ebook"><span>EBOOK</span><strong>{en ? "Your next\nbig idea." : "Ta prochaine\ngrande idée."}</strong><i/><small>{en ? "YOUR DIGITAL GUIDE" : "TON GUIDE DIGITAL"}</small></div>
-        </div>
-      </section>
-      <section className="workspace-card workspace-networks" aria-label={en ? "Advertising platforms" : "Plateformes publicitaires"}>
-        <p className="workspace-card-label">{en ? "Your advertising channels" : "Tes canaux publicitaires"}</p>
-        <ul className="workspace-platforms">
-          <li><SiMeta aria-hidden="true" className="network-meta"/><span>Meta</span><ArrowUpRight aria-hidden="true"/></li>
-          <li><SiTiktok aria-hidden="true" className="network-tiktok"/><span>TikTok</span><ArrowUpRight aria-hidden="true"/></li>
-          <li><SiPinterest aria-hidden="true" className="network-pinterest"/><span>Pinterest</span><ArrowUpRight aria-hidden="true"/></li>
-        </ul>
-      </section>
-      <section className="workspace-hub" aria-label={en ? "Vendeo workspace and authentic AI Studio detail" : "Espace Vendeo et détail authentique du Studio IA"}>
-        <div className="workspace-hub-header"><Image src="/vendeo-logo.webp" alt="Vendeo" width={126} height={34}/><span><Layers size={12} aria-hidden="true"/>{en ? "One workspace" : "Un seul espace"}</span></div>
-        <div className="workspace-hub-tools"><span>{en ? "Store" : "Boutique"}</span><span className="active">Studio IA</span><span>{en ? "Ads" : "Publicités"}</span><span>{en ? "Orders" : "Commandes"}</span></div>
-        <div className="workspace-studio-detail"><Image src={`/landing/studio-detail-${en ? "en" : "fr"}.webp`} width={600} height={158} sizes="(max-width: 600px) 74vw, 380px" alt={en ? "Authentic Vendeo AI Studio excerpt: create your media with AI, with Image and Video options." : "Extrait réel du Studio IA Vendeo : Crée tes médias avec l’IA, options Image et Vidéo."}/></div>
-        <p className="workspace-hub-note"><Sparkles size={12} aria-hidden="true"/>{en ? "Authentic AI Studio detail" : "Extrait réel du Studio IA"}</p>
-      </section>
-      <section className="workspace-card workspace-ad" aria-label={en ? "Illustrative ad preview" : "Aperçu illustratif d’une publicité"}>
-        <p className="workspace-card-label">{en ? "Your next ad" : "Ta prochaine publicité"}<small>{en ? "Example" : "Exemple"}</small></p>
-        <div className="workspace-ad-creative">
-          <Image src="/landing/digital-creator.webp" alt="" width={960} height={1200} sizes="(max-width: 600px) 30vw, 150px"/>
-          <div><span>{en ? "YOUR EBOOK" : "TON EBOOK"}</span><strong>{en ? "Share\nyour knowledge." : "Partage\nton savoir."}</strong><span className="workspace-ad-cta">{en ? "Discover" : "Découvrir"} <ArrowUpRight size={10} aria-hidden="true"/></span></div>
-        </div>
-      </section>
-      <section className="workspace-card workspace-order" aria-label={en ? "Fictional new order example" : "Exemple fictif de nouvelle commande"}>
-        <p className="workspace-card-label"><span className="workspace-order-icon"><ShoppingBag size={15} aria-hidden="true"/></span>{en ? "New order" : "Nouvelle commande"}</p>
-        <span className="workspace-example-tag">{en ? "Example event" : "Événement fictif"}</span>
-        <div className="workspace-order-product"><BookOpen size={25} aria-hidden="true"/><div><strong>{en ? "Your ebook" : "Ton ebook"}</strong><span>{en ? "Digital product" : "Produit digital"}</span></div></div>
-        <p className="workspace-order-status"><Check size={13} aria-hidden="true"/>{en ? "Order received" : "Commande reçue"}</p>
-      </section>
+    <figcaption className="workspace-visual-heading" id="workspace-visual-title">
+      {en ? "From digital product to order analysis" : "Du produit digital à l’analyse des commandes"}
+    </figcaption>
+    <div className="workspace-integrations" aria-label={en ? "Connect your store" : "Connecte ta boutique"}>
+      <span>{en ? "Connect your store" : "Connecte ta boutique"}</span>
+      <span className="integration-logo chariow-logo"><Image src="/logos/chariow.svg" alt="Chariow" width={92} height={24}/></span>
+      <span className="integration-logo shopify-logo"><SiShopify aria-hidden="true"/> Shopify</span>
+      <span className="integration-vendeo">→ <Image src="/vendeo-logo.webp" alt="Vendeo" width={84} height={24}/></span>
     </div>
-    <p className="workspace-example-note" id="workspace-example-note">{en ? "Illustrative workflow · sample products, ad and order. No customer results shown." : "Illustration du parcours · produits, publicité et commande fictifs. Aucun résultat client présenté."}</p>
+    <ol className="workspace-flow" aria-label={en ? "Four steps with Vendeo" : "Quatre étapes avec Vendeo"}>
+      <li className="flow-step flow-product">
+        <span className="flow-step-number">01</span>
+        <h3>{en ? "Digital product" : "Produit digital"}</h3>
+        <div className="flow-product-mockups" aria-hidden="true">
+          <div className="flow-book flow-course"><small>{en ? "ONLINE COURSE" : "FORMATION"}</small><BookOpen size={20}/><strong>{en ? "Your expertise" : "Ton expertise"}</strong></div>
+          <div className="flow-book flow-ebook"><small>EBOOK</small><BookOpen size={19}/><strong>{en ? "Your next idea" : "Ta prochaine idée"}</strong></div>
+        </div>
+        <p>{en ? "An ebook or a course from your store" : "Un ebook ou une formation de ta boutique"}</p>
+      </li>
+      <li className="flow-step flow-creative">
+        <span className="flow-step-number">02</span>
+        <h3>{en ? "Image or video creative" : "Créa image ou vidéo"}</h3>
+        <div className="flow-creative-preview">
+          <Image src="/landing/digital-creator.webp" alt={en ? "Smiling digital creator in an illustrative ad creative" : "Créatrice souriante dans un visuel publicitaire illustratif"} width={960} height={1200} sizes="(max-width: 700px) 42vw, 210px"/>
+          <span className="creative-format"><ImageIcon size={13} aria-hidden="true"/> {en ? "Image" : "Image"}</span>
+          <span className="creative-format"><Video size={13} aria-hidden="true"/> {en ? "Video" : "Vidéo"}</span>
+        </div>
+        <p>{en ? "Create your ad in Vendeo Studio" : "Crée ta publicité dans le Studio Vendeo"}</p>
+      </li>
+      <li className="flow-step flow-campaign">
+        <span className="flow-step-number">03</span>
+        <h3>{en ? "Campaign published" : "Campagne publiée"}</h3>
+        <div className="campaign-preview"><span className="campaign-status"><i/> {en ? "Example status" : "Statut illustratif"}</span><div className="campaign-art"><Image src="/landing/digital-creator.webp" alt="" width={960} height={1200} sizes="(max-width: 700px) 40vw, 180px"/><strong>{en ? "Share your knowledge" : "Partage ton savoir"}</strong></div><span className="campaign-channel">{en ? "Ad creative preview" : "Aperçu du visuel publicitaire"}</span></div>
+        <p>{en ? "Review and launch your campaign" : "Vérifie et lance ta campagne"}</p>
+      </li>
+      <li className="flow-step flow-analysis">
+        <span className="flow-step-number">04</span>
+        <h3>{en ? "New order & analysis" : "Nouvelle commande & analyse"}</h3>
+        <div className="order-preview"><span className="order-example"><ShoppingBag size={13} aria-hidden="true"/> {en ? "Fictional example" : "Exemple fictif"}</span><strong><Check size={15} aria-hidden="true"/>{en ? "New order" : "Nouvelle commande"}</strong><span>{en ? "Digital product · sample event" : "Produit digital · événement fictif"}</span><div className="analysis-link"><BarChart3 size={16} aria-hidden="true"/>{en ? "Review campaign and orders" : "Analyse tes campagnes et commandes"}</div></div>
+        <p>{en ? "Follow orders and review campaign data" : "Suis tes commandes et analyse tes campagnes"}</p>
+      </li>
+    </ol>
+    <p className="workspace-example-note" id="workspace-example-note">{en ? "Illustrative workflow · sample creative, campaign and order. No customer results or performance claims." : "Parcours illustratif · créa, campagne et commande fictives. Aucun résultat client ni promesse de performance."}</p>
   </figure>;
 }
