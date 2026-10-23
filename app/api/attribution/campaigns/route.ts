@@ -44,8 +44,8 @@ export async function GET() {
   if (store) {
     try {
       if (store.platform === "shopify") {
-        const [{ getShopifySnapshot }, shopifyAnalytics] = await Promise.all([import("@/lib/shopify/client"), import("@/lib/shopify/analytics")]);
-        const snapshot = await getShopifySnapshot(store as any);
+        const [{ getShopifyProductSnapshot }, shopifyAnalytics] = await Promise.all([import("@/lib/shopify/client"), import("@/lib/shopify/analytics")]);
+        const snapshot = await getShopifyProductSnapshot(store as any);
         const normalized = shopifyAnalytics.normalizeShopifySnapshot(snapshot, { from: "", to: "" });
         products = (normalized.products ?? []).map((product: any) => ({ id: String(product.id), name: String(product.name ?? "Produit"), url: product.url ?? null }));
       } else {

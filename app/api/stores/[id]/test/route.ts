@@ -11,7 +11,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!store) return NextResponse.json({ error: "Boutique introuvable" }, { status: 404 });
   try {
     const snapshot = store.platform === "shopify"
-      ? await (await import("@/lib/shopify/client")).getShopifySnapshot(store)
+      ? await (await import("@/lib/shopify/client")).getShopifyProductSnapshot(store)
       : await getChariowSnapshot(store);
     return NextResponse.json({ ok: true, store_name: store.store_name, has_store_data: Boolean(snapshot.store), has_products: Boolean(snapshot.products), has_analytics: "salesAnalytics" in snapshot ? Boolean(snapshot.salesAnalytics) : Boolean(snapshot.sales) });
   } catch (testError) {
