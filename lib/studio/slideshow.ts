@@ -136,7 +136,10 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
     if (nativeScenes) {
       // Slim, continuous edge treatment only: no copy, face/body overlays, or
       // interference with baked-in text. The accent reaches full width at end.
-      filters.push(`[${previous}]drawbox=x=0:y=ih-8:w=iw:h=2:color=white@0.24:t=fill,drawbox=x=0:y=ih-8:w='iw*min(t/${total},1)':h=2:color=0x50E3C2@0.9:t=fill[designed]`);
+      // drawbox's `t` means thickness, not time. overlay evaluates `t` per frame.
+      filters.push(`color=c=0x50E3C2:s=${width}x2:r=${fps}:d=${total}[progress]`);
+      filters.push(`[${previous}]drawbox=x=0:y=ih-8:w=iw:h=2:color=white@0.24:t=fill[bordered]`);
+      filters.push(`[bordered][progress]overlay=x='-overlay_w+overlay_w*min(t/${total},1)':y=main_h-8:eval=frame:shortest=1[designed]`);
       previous = "designed";
     }
     if (options.voicePath) {
