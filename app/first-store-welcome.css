@@ -1,0 +1,34 @@
+.vendeo-welcome-layer { position:fixed; inset:0; z-index:1300; display:flex; align-items:center; justify-content:center; padding:20px; isolation:isolate; }
+.vendeo-welcome-shade { position:absolute; inset:0; background:rgba(10,18,42,.56); backdrop-filter:blur(3px); }
+.vendeo-welcome-shade.has-spotlight { background:transparent; backdrop-filter:none; }
+.vendeo-tour-spotlight { position:fixed; border:2px solid #8974ff; border-radius:12px; box-shadow:0 0 0 9999px rgba(10,18,42,.65); pointer-events:none; }
+.vendeo-welcome-card { position:relative; width:100%; max-width:460px; max-height:calc(100dvh - 40px); overflow:auto; border:1px solid var(--line,#e5e7eb); border-radius:24px; padding:30px; background:var(--surface,#fff); color:var(--text,#111827); box-shadow:0 24px 80px #0003; outline:none; }
+.vendeo-welcome-brand { display:flex; align-items:center; gap:12px; color:#4c21f6; font-size:15px; font-weight:800; letter-spacing:.06em; padding-right:20px; }
+.vendeo-welcome-brand > span { color:var(--muted,#667085); font-size:9px; letter-spacing:.12em; border-left:1px solid var(--line,#e5e7eb); padding-left:12px; }
+.vendeo-welcome-close { position:absolute; right:12px; top:12px; width:36px; height:36px; display:grid; place-items:center; border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; }
+.vendeo-welcome-symbol { display:grid; place-items:center; width:68px; height:68px; margin:26px 0 16px; border-radius:20px; background:linear-gradient(135deg,#ede9fe,#e0f2fe); color:#4c21f6; }
+.vendeo-welcome-connected { display:flex; align-items:center; gap:6px; color:#15803d; font-size:12px; font-weight:600; }
+.vendeo-welcome-card h2 { margin:12px 0; font-size:28px; line-height:1.16; letter-spacing:-.035em; }
+.vendeo-welcome-card p { margin:0; color:var(--muted,#667085); font-size:14px; line-height:1.7; }
+.vendeo-welcome-trial { margin:20px 0; padding:16px; border:1px solid #dcd4ff; border-radius:14px; background:rgba(115,80,246,.06); }
+.vendeo-welcome-trial strong { font-size:16px; color:#6b48e8; }
+.vendeo-welcome-trial p { margin:6px 0; font-size:13px; }
+.vendeo-welcome-trial small { display:block; color:var(--muted,#667085); font-size:11px; line-height:1.6; margin-top:6px; }
+.vendeo-welcome-primary { width:100%; justify-content:center; min-height:46px; }
+.vendeo-welcome-skip { display:block; margin:12px auto 0; min-height:36px; border:0; background:transparent; color:var(--muted,#667085); font-size:12px; cursor:pointer; }
+.vendeo-tour-progress { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:28px; font-size:10px; letter-spacing:.09em; color:var(--muted,#667085); }
+.vendeo-tour-progress strong { font-size:12px; letter-spacing:0; color:#6b48e8; }
+.vendeo-tour-track { height:4px; border-radius:4px; background:var(--line,#eee); overflow:hidden; margin:10px 0 22px; }
+.vendeo-tour-track > span { display:block; height:100%; background:linear-gradient(90deg,#4c21f6,#9278ff); }
+.vendeo-tour-actions { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:24px; }
+.vendeo-tour-actions button { min-height:44px; }
+.vendeo-tour-back { display:inline-flex; gap:6px; align-items:center; border:0; background:transparent; color:inherit; font-size:12px; cursor:pointer; }
+.vendeo-tour-back:disabled { opacity:.35; cursor:default; }
+.vendeo-guide-replay { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line,#e5e7eb); border-radius:9px; padding:7px 9px; color:inherit; background:transparent; font:inherit; font-size:12px; cursor:pointer; }
+.vendeo-welcome-layer button:focus-visible,.vendeo-guide-replay:focus-visible { outline:2px solid #8a70ff; outline-offset:3px; }
+@media (max-width:767px) { .vendeo-welcome-layer { padding:16px; } .vendeo-welcome-card { padding:24px 22px; max-height:calc(100dvh - 32px); border-radius:20px; } .vendeo-welcome-card h2 { font-size:25px; } .vendeo-tour-layer { align-items:center; padding-bottom:80px; } .vendeo-tour-layer .vendeo-welcome-card { max-height:calc(100dvh - 112px); } .vendeo-guide-replay { padding:7px; font-size:11px; } }
+html[data-theme="dark"] .vendeo-welcome-card { background:#0b1734; }
+html[data-theme="dark"] .vendeo-welcome-trial strong,html[data-theme="dark"] .vendeo-welcome-brand,html[data-theme="dark"] .vendeo-tour-progress strong { color:#b6a3ff; }
+html[data-theme="dark"] .vendeo-welcome-connected { color:#86efac; }
+
+.vendeo-welcome-brand > img { width:112px; height:30px; object-fit:contain; flex-shrink:0; }

@@ -29,3 +29,21 @@ html[data-theme="dark"] .store-type-option:hover:not(:disabled) { background:#22
 html[data-theme="dark"] .store-type-option > svg, html[data-theme="dark"] .store-connection-back { color:#b4aaff; }
 html[data-theme="dark"] .store-type-option span span { color:#b5c1d9; }
 @media (max-width:480px) { .store-connection-backdrop { padding:18px; } .store-connection-dialog { padding:28px 22px; border-radius:24px; max-height:calc(100dvh - 36px); } .store-connection-dialog h2 { font-size:25px; } .store-type-option { padding:14px; } }
+
+/* Keep platform cards visually consistent with StorePlatformDialog. */
+.store-connection-dialog .store-platform-options { display:grid; gap:12px; width:100%; }
+.store-connection-dialog .store-platform-option { display:flex; align-items:center; gap:14px; width:100%; min-height:88px; padding:16px; border:1px solid var(--line,#e5e7eb); border-radius:14px; color:inherit; background:transparent; text-align:left; cursor:pointer; transition:border-color .15s,background .15s; }
+.store-connection-dialog .store-platform-option:not(:disabled):hover { border-color:#103ef8; background:rgba(16,62,248,.04); }
+.store-connection-dialog .store-platform-option:focus-visible { outline:2px solid #103ef8; outline-offset:3px; }
+.store-connection-dialog .store-platform-option:disabled { opacity:.55; cursor:not-allowed; }
+.store-connection-dialog .store-platform-option-shopify:disabled { opacity:.38; filter:grayscale(1); }
+.store-connection-dialog .store-platform-option > span:nth-child(2) { flex:1; min-width:0; }
+.store-connection-dialog .store-platform-option strong { display:block; font-size:16px; }
+.store-connection-dialog .store-platform-option small { display:block; margin-top:4px; font-size:12px; line-height:1.5; }
+.store-connection-dialog .store-platform-logo { display:grid; place-items:center; flex-shrink:0; width:48px; height:48px; border-radius:12px; background:#f5f6fa; }
+.store-connection-dialog .store-platform-logo img { object-fit:contain; }
+.store-connection-dialog .store-platform-logo-shopify { color:#95bf47; }
+html[data-theme="dark"] .store-connection-dialog .store-platform-option { border-color:var(--line,#33405a); }
+html[data-theme="dark"] .store-connection-dialog .store-platform-logo { background:#f5f6fa; }
+html[data-theme="dark"] .store-connection-dialog .store-platform-logo-shopify { color:#95bf47; }
+@media (max-width:480px) { .store-connection-dialog .store-platform-option { padding:14px; } }
