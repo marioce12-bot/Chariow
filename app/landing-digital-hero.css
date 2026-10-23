@@ -32,8 +32,6 @@
 .landing-premium .digital-workspace .integration-logo,
 .landing-premium .digital-workspace .ad-platform-logo { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 27px; padding: 4px 9px; border: 1px solid #e6e9f2; border-radius: 8px; background: #fff; white-space: nowrap; }
 .landing-premium .digital-workspace .chariow-logo img { width: 63px; height: 17px; object-fit: contain; }
-.landing-premium .digital-workspace .shopify-logo { color: #34472d; font-size: 10px; font-weight: 700; }
-.landing-premium .digital-workspace .shopify-logo svg { width: 13px; height: 13px; color: #76a743; }
 .landing-premium .digital-workspace .integration-vendeo { display: inline-flex; align-items: center; gap: 5px; color: #8a91a5; font-size: 11px; }
 .landing-premium .digital-workspace .integration-vendeo img { width: 63px; height: auto; }
 .landing-premium .digital-workspace .ad-platform-logo { color: #35415f; font-size: 9px; font-weight: 650; }

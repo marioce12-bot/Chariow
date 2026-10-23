@@ -226,11 +226,10 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                   <span className="hint-line">
                     {c.platform === "meta" ? "Meta" : c.platform === "pinterest" ? "Pinterest" : "TikTok"}{c.objective === "sales" && c.effective_objective === "traffic" ? ` · ${t("adsExtra.traffic_without_pixel")}` : ""} · {Number(c.daily_budget).toLocaleString(locale)} $/{locale === "en" ? "day" : "j"} · {c.duration_days} {locale === "en" ? "days" : "j"}
                   </span>
-                  {/* /launch garde le statut "paid" (jamais "error") apres un refus Meta/TikTok
-                      pour permettre un nouvel essai sans repayer : le motif doit donc s'afficher
-                      aussi sur "paid". "rejected" est le refus survenu après diffusion (retour
-                      async de mapMetaEffectiveStatus) : même logique, le motif doit rester visible
-                      directement dans la liste, sans avoir à ouvrir le détail. */}
+                  {/* /launch garde le statut "paid" (jamais "error") apres un refus Meta/TikTok,
+                      donc le motif doit aussi s'afficher sur "paid". "rejected" est le refus
+                      survenu après diffusion (retour async de mapMetaEffectiveStatus) : même
+                      logique, le motif doit rester visible dans la liste sans ouvrir le détail. */}
                   {(c.status === "error" || c.status === "paid" || c.status === "rejected" || metaPausedMessage) && c.external_error ? (
                     <span className="hint-line" style={{ color: metaPausedMessage ? "#92400E" : "#991B1B" }}>{metaPausedMessage ?? campaignErrorMessage(c.external_error, locale, t, c.platform)}</span>
                   ) : null}

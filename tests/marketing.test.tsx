@@ -32,23 +32,25 @@ describe("premium product landing", () => {
       language.locale = "fr";
     }
   });
-  it("renders the complete French ad-creation and campaign-management promise", () => {
+  it("renders accurate French capabilities and the precise trial offer", () => {
     language.locale = "fr";
     const container = new JSDOM(renderToStaticMarkup(<Marketing />)).window.document.body;
     const hero = container.querySelector(".digital-hero")!;
-    expect(hero.textContent).toMatch(/pub|publicit/i);
+    expect(hero.textContent).toMatch(/publicit/i);
     expect(hero.textContent).toMatch(/image/i);
-    expect(hero.textContent).toMatch(/vidéo/i);
-    expect(hero.textContent).toMatch(/analyse|pilot/i);
-    expect(hero.textContent).toMatch(/lance/i);
-    expect(container.textContent).toContain("5 jours d’essai · 100 crédits de bienvenue");
+    expect(hero.textContent).toMatch(/données disponibles/i);
+    expect(hero.textContent).not.toMatch(/vidéo|pub lancée|sans repayer/i);
+    expect(container.textContent).toContain("5 jours d’essai · 100 crédits Studio offerts à l'inscription");
     expect(container.textContent).toContain("Lancer mon essai gratuit");
     expect(container.textContent).toContain("Découvrir comment ça marche");
     const heroActions = container.querySelector(".landing-hero-actions")!;
     expect(heroActions.querySelector('a[href="/register"]')?.textContent).toContain("Lancer mon essai gratuit");
     expect(heroActions.querySelector('a[href="#apercu"]')?.textContent).toContain("Découvrir comment ça marche");
+    const fr = source("lib/i18n/translations/fr.ts");
+    expect(fr).toContain("La génération vidéo n’est pas disponible actuellement.");
+    expect(fr).toContain("Les crédits Studio et le budget publicitaire sont distincts de l’abonnement.");
   });
-  it("renders an accessible five-scene photo carousel with store and campaign logos", () => {
+  it("renders an accessible three-scene carousel with verified store and campaign labels", () => {
     const html = renderToStaticMarkup(<Marketing />);
     const container = new JSDOM(html).window.document.body;
     const visual = container.querySelector(".digital-hero figure.digital-workspace[aria-labelledby][aria-describedby], .digital-hero .creator-stage[role='group'][aria-label]");
@@ -56,28 +58,28 @@ describe("premium product landing", () => {
     const visualText = visual!.textContent ?? "";
     const visualMarkup = visual!.outerHTML;
     expect(visualMarkup).toMatch(/chariow/i);
-    expect(visualMarkup).toMatch(/shopify/i);
+    expect(visualMarkup).not.toMatch(/shopify/i);
     expect(visualMarkup).toMatch(/vendeo/i);
     expect(visualText).toContain("Meta");
     expect(visualText).toContain("Pinterest");
     expect(visualText).toContain("TikTok");
-    expect(visualText).toContain("Connecte ton produit digital");
-    expect(visualText).toContain("Parcours tout-en-un");
+    expect(visualText).toContain("Connecte ta boutique Chariow");
+    expect(visualText).toContain("Le parcours Vendeo");
+    expect(visualText).toContain("données de démonstration");
     expect(visual!.querySelector('[role="region"][aria-roledescription="carrousel"]')).not.toBeNull();
     expect(visual!.querySelectorAll("button")).toHaveLength(0);
     const overlay = visual!.querySelector(".story-photo .story-overlay");
     expect(overlay).not.toBeNull();
     expect(overlay!.textContent).toContain("LE PARCOURS VENDEO");
-    expect(overlay!.textContent).toContain("ÉTAPE 1 SUR 5");
-    expect(overlay!.querySelector("h3")?.textContent).toBe("Connecte ton produit digital");
-    expect(overlay!.querySelector("p")?.textContent).toContain("Chariow ou Shopify");
+    expect(overlay!.textContent).toContain("ÉTAPE 1 SUR 3");
+    expect(overlay!.querySelector("h3")?.textContent).toBe("Connecte ta boutique Chariow");
+    expect(overlay!.querySelector("p")?.textContent).toContain("produits et commandes disponibles");
     expect(visual!.querySelector(".story-content")).toBeNull();
     expect(visual!.querySelector(".story-screenshot img")).not.toBeNull();
     expect(visual!.querySelector(".story-photo img")?.getAttribute("alt")).toMatch(/même créatrice/i);
     const visualSource = source("components/DigitalWorkspaceVisual.tsx");
-    expect(visualSource).toContain("flow-story-05.webp");
-    expect(visualSource).toContain("assistant IA");
-    expect(visualSource).toContain("analyser le secteur de ton produit");
+    expect(visualSource).toContain("flow-story-04.webp");
+    expect(visualSource).not.toMatch(/flow-story-05|assistant IA|video|vidéo|Shopify/i);
     expect(visualSource).toContain("window.setInterval");
     expect(visualSource).toContain("SCENE_DURATION_MS = 4000");
     const visualCss = source("app/landing-digital-hero.css");
