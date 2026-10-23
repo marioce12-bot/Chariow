@@ -23,6 +23,7 @@ export type SlideResult = { generationId: string; videoUrl: string; attribution:
 export const publicTracks = () => LICENSED_MUSIC.map(({ fileName: _fileName, localPath: _localPath, downloadUrl: _downloadUrl, ...track }) => track);
 /** Authenticated slideshow is released on Preview and Production; character video stays locked. */
 export function isPreviewEnabled() { return process.env.VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "production"; }
+export function isNativeSlideshowMotionEnabled() { return process.env.VERCEL_ENV === "preview"; }
 export function resolveTrackPath(trackId: string) {
   if (!/^[a-zA-Z0-9_-]{1,80}$/.test(trackId)) throw new Error("Invalid music id");
   return `_licensed-music/${trackId}.mp3`;
@@ -66,7 +67,7 @@ async function ensurePrivateTrack(track: NonNullable<ReturnType<typeof getLicens
 }
 export async function uploadAndInsert(userId: string, generationId: string, body: Buffer, images: string[], duration: number, musicId: string, attribution: string, thumbnailStoragePath: string, taskId?: string, voiceover?: Record<string, unknown>) {
   const storagePath = await storeStudioVideo({ body: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer, contentType: "video/mp4" }, userId, generationId);
-  const metadata = { type: "slideshow", imageGenerationIds: images, parentGenerationId: images[0], thumbnailStoragePath, ...(taskId ? { backgroundTaskId: taskId } : {}), musicId, duration, attribution, ...(voiceover ? { voiceover } : {}) };
+  const metadata = { type: "slideshow", imageGenerationIds: images, parentGenerationId: images[0], thumbnailStoragePath, ...(taskId ? { backgroundTaskId: taskId } : {}), musicId, duration, attribution, ...(voiceover ? { voiceover } : {}), ...(isNativeSlideshowMotionEnabled() ? { motionDesign: { engine: "vendeo-native-v1", characters: "static", seed: taskId ?? generationId } } : {}) };
   const { error } = await createAdminClient().from("studio_generations").insert({ id: generationId, user_id: userId, kind: "video", prompt: SLIDESHOW_PROMPT, options: { type: "slideshow", duration }, metadata, status: "completed", storage_path: storagePath, credits_cost: 0 });
   if (error) throw error;
   return { generationId, videoUrl: await signedStudioUrl(storagePath), attribution, creditsCost: 0 as const, imageGenerationIds: images, duration, musicId };
@@ -129,7 +130,9 @@ export async function renderSlideshow(userId: string, ids: string[], duration: n
     const output = path.join(work, "slideshow.mp4");
     const attribution = track ? `${musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", SLIDESHOW_AUDIO_CHANGE] })}\n${YOUTUBE_CREDIT_NOTICE}` : "Sans musique. Aucune attribution musicale nécessaire pour ce rendu.";
     const finalAttribution = voicePlan ? `${attribution}\nAdditional modifications: music ducked under generated product narration.` : attribution;
-    await assembleSlideshow({ ...bins, outputPath: output, duration, imagePaths: images, musicPath: music, voicePath, width: 720, height: 1280, fps: 25, attribution: finalAttribution });
+    // Preview experiment only. Production keeps the established renderer, even if
+    // this branch is merged later. A resumed task keeps the same camera profile.
+    await assembleSlideshow({ ...bins, outputPath: output, duration, imagePaths: images, musicPath: music, voicePath, width: 720, height: 1280, fps: 25, attribution: finalAttribution, motionDesign: isNativeSlideshowMotionEnabled(), ...(taskId ? { profileSeed: taskId } : {}) });
     const { size } = await stat(output);
     if (size > MAX_VIDEO_BYTES) throw new Error("Rendered video exceeds size limit");
     const generationId = taskId ? (() => {

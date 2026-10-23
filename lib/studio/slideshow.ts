@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { slideshowAudioFilter } from "./slideshow-audio";
-import { chooseSlideshowMotionProfile } from "./slideshow-motion";
+import { buildNativeMotionScenes, chooseSlideshowMotionProfile } from "./slideshow-motion";
 import { SlideshowVoiceTimingError } from "./slideshow-voice-retry";
 
 export type SlideshowOptions = {
@@ -21,6 +21,8 @@ export type SlideshowOptions = {
   attribution?: string;
   /** Optional deterministic seed for tests. */
   profileSeed?: string | number;
+  /** Opt-in deterministic Vendeo-authored motion treatment; legacy rendering remains the default. */
+  motionDesign?: boolean;
 };
 
 function run(binary: string, args: string[]): Promise<string> {
@@ -106,6 +108,7 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
   if (dwell < 4) throw new Error("Each image must remain fully visible for at least 4 seconds");
   const spans = imagePaths.map((_, index) => dwell + transition * (Number(index > 0) + Number(index < imagePaths.length - 1)));
   const profile = chooseSlideshowMotionProfile(options.profileSeed);
+  const nativeScenes = options.motionDesign ? buildNativeMotionScenes(imagePaths.length, fps, transition) : undefined;
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-slideshow-"));
   try {
     const args = ["-hide_banner", "-loglevel", "error", "-y", "-filter_complex_threads", "1"];
@@ -117,16 +120,27 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
     }
     const filters: string[] = [];
     for (let i = 0; i < imagePaths.length; i++) {
-      const zoom = profile.zoomDirection > 0 ? "min(zoom+0.00008,1.025)" : "if(eq(on,1),1.025,max(zoom-0.00008,1))";
-      filters.push(`[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p,zoompan=z='${zoom}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${width}x${height}:fps=${fps},settb=AVTB,setpts=PTS-STARTPTS,fps=${fps}[v${i}]`);
+      const scene = nativeScenes?.[i];
+      const zoom = scene?.zoom ?? (profile.zoomDirection > 0 ? "min(zoom+0.00008,1.025)" : "if(eq(on,1),1.025,max(zoom-0.00008,1))");
+      const x = scene?.x ?? "iw/2-(iw/zoom/2)", y = scene?.y ?? "ih/2-(ih/zoom/2)";
+      filters.push(`[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p,zoompan=z='${zoom}':x='${x}':y='${y}':d=1:s=${width}x${height}:fps=${fps},settb=AVTB,setpts=PTS-STARTPTS,fps=${fps}[v${i}]`);
     }
     let previous = "v0";
     for (let i = 1; i < imagePaths.length; i++) {
       const next = `mix${i}`;
       const offset = dwell * i + transition * (i - 1);
-      const effect = profile.transitions[(i - 1) % profile.transitions.length];
+      const effect = nativeScenes?.[i].transition ?? profile.transitions[(i - 1) % profile.transitions.length];
       filters.push(`[${previous}][v${i}]xfade=transition=${effect}:duration=${transition}:offset=${offset}[${next}]`);
       previous = next;
+    }
+    if (nativeScenes) {
+      // Slim, continuous edge treatment only: no copy, face/body overlays, or
+      // interference with baked-in text. The accent reaches full width at end.
+      // drawbox's `t` means thickness, not time. overlay evaluates `t` per frame.
+      filters.push(`color=c=0x50E3C2:s=${width}x2:r=${fps}:d=${total}[progress]`);
+      filters.push(`[${previous}]drawbox=x=0:y=ih-8:w=iw:h=2:color=white@0.24:t=fill[bordered]`);
+      filters.push(`[bordered][progress]overlay=x='-overlay_w+overlay_w*min(t/${total},1)':y=main_h-8:eval=frame:shortest=1[designed]`);
+      previous = "designed";
     }
     if (options.voicePath) {
       const voiceIndex = imagePaths.length + Number(Boolean(options.musicPath));
