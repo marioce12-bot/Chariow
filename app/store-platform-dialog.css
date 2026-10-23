@@ -39,6 +39,8 @@
 .store-platform-option:not(:disabled):hover { border-color: #103ef8; background: rgba(16, 62, 248, .04); }
 .store-platform-option:focus-visible, .store-platform-close:focus-visible { outline: 2px solid #103ef8; outline-offset: 3px; }
 .store-platform-option:disabled { opacity: .55; cursor: not-allowed; }
+.store-platform-option-shopify:disabled { opacity: .38; filter: grayscale(1); }
+.store-platform-dialog .store-platform-unavailable { margin: -10px 0 16px; color: #6b7280; font-size: 13px; }
 .store-platform-option > span:nth-child(2) { flex: 1; min-width: 0; }
 .store-platform-option strong { display: block; font-size: 16px; }
 .store-platform-option small { display: block; margin-top: 4px; font-size: 12px; line-height: 1.5; }

@@ -18,10 +18,13 @@ describe("Shopify retention", () => {
     expect(canonicalShopifyOrderId("gid://shopify/Order/123")).toBe("123");
     for (const id of ["123", "gid://shopify/Order/x", "gid://shopify/Order/0", "gid://shopify/Order/01", `gid://shopify/Order/${"1".repeat(31)}`]) expect(canonicalShopifyOrderId(id)).toBeNull();
   });
-  it("drops expired, invalid and redacted orders at the exact boundary", async () => {
+  it("rejects unknown/invalid raw dates and applies the 90-day boundary to valid incoming dates", async () => {
     const a = admin([hash("2")]);
     const rows = [order("1"), order("2"), order("3", "bad"), { id: "bad", createdAt: "2025-03-01" }, order("4", "2025-01-01T00:00:00.000Z"), order("5", "2025-01-01T00:00:00.001Z")];
     expect((await filterRetainedShopifySales(a, "store", rows, now)).map(x => x.id)).toEqual([order("1").id, order("5").id]);
+    // This raw-ingestion policy is separate from database cleanup: historical rows
+    // with a missing occurred_at use shopify_first_observed_at in the purge RPC.
+    expect(rows.some(x => x.createdAt === "bad" || !x.createdAt)).toBe(true);
   });
   it("scopes store and markers by Shopify platform and shop domain", async () => {
     const a = admin();

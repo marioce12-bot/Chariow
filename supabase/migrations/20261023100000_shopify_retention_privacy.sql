@@ -1,3 +1,11 @@
+-- Unknown order dates are never treated as expired. Start their clock at the
+-- actual first observation recorded here, not at an invented historical date.
+alter table public.chariow_sales add column if not exists shopify_first_observed_at timestamptz;
+update public.chariow_sales cs set shopify_first_observed_at = now()
+from public.stores s
+where cs.store_id = s.id and s.platform = 'shopify'
+  and cs.shopify_first_observed_at is null;
+
 create table if not exists public.shopify_order_redactions (
   shop_domain text not null,
   order_id_hash text not null check (order_id_hash ~ '^[0-9a-f]{64}$'),
@@ -26,8 +34,14 @@ begin
   v_expected := 'shopify:' || new.store_id::text || ':' || coalesce(v_id, '');
   -- Every Shopify sale must use its exact store-scoped key and a canonical positive order ID.
   if v_id is null or length(v_id) > 30 or new.chariow_sale_id <> v_expected then return null; end if;
+  -- Ignore caller-supplied clocks; preserve the real first observation on upsert.
+  if TG_OP = 'UPDATE' then
+    new.shopify_first_observed_at := coalesce(old.shopify_first_observed_at, now());
+  else
+    new.shopify_first_observed_at := now();
+  end if;
   perform public.shopify_retention_lock(v_domain, v_id);
-  if new.occurred_at is null or new.occurred_at <= now() - interval '90 days'
+  if coalesce(new.occurred_at, new.shopify_first_observed_at) <= now() - interval '90 days'
      or exists (select 1 from public.shopify_order_redactions r where r.shop_domain = v_domain
        and r.order_id_hash = encode(sha256(convert_to(v_id, 'UTF8')), 'hex')) then
     return null;
@@ -66,7 +80,8 @@ begin
   delete from public.chariow_sales cs using public.stores s
     where cs.store_id = s.id and s.platform = 'shopify'
       and cs.chariow_sale_id like 'shopify:' || s.id::text || ':%'
-      and (cs.occurred_at is null or cs.occurred_at <= now() - interval '90 days');
+      -- If both dates are absent, SQL NULL comparison conserves the row.
+      and coalesce(cs.occurred_at, cs.shopify_first_observed_at) <= now() - interval '90 days';
   get diagnostics n = row_count;
   return n;
 end $$;

@@ -24,6 +24,9 @@ describe.each(["fr", "en"] as const)("Shopify privacy review in %s", language =>
     expect(copy.retention).toContain("60");
     expect(copy.retention).toContain("90");
     expect(copy.retention).toContain("48");
+    expect(copy.retention).toMatch(language === "fr" ? /première observation.*migration/ : /first observation.*migration/);
+    expect(copy.retention).toMatch(language === "fr" ? /sans aucune de ces deux dates est conservée/ : /neither date is retained/);
+    expect(copy.retention).toMatch(language === "fr" ? /ne supprime ni ne requalifie/ : /does not delete or reclassify/);
     expect(copy.retention).toContain("shop/redact");
     expect(copy.retention).toContain("customers/redact");
     expect(copy.retention).toContain("customers/data_request");

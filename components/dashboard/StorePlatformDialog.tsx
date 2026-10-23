@@ -43,6 +43,7 @@ export function StorePlatformDialog({ full, busy, error, showShopifyForm, childr
       <h2 id="store-platform-title">{showShopifyForm ? (en ? "Connect Shopify" : "Connecter Shopify") : (en ? "Choose your platform" : "Choisis ta plateforme")}</h2>
       <p id="store-platform-description">{showShopifyForm ? (en ? "Enter your store’s .myshopify.com domain to continue securely to Shopify." : "Saisis le domaine .myshopify.com de ta boutique pour continuer vers Shopify en toute sécurité.") : (en ? "Which platform is your store on?" : "Sur quelle plateforme se trouve ta boutique ?")}</p>
       {full && <p className="store-platform-notice" role="status">{en ? "All 3 store slots are in use. You cannot add another store." : "Tes 3 emplacements sont utilisés. Tu ne peux pas ajouter une autre boutique."}</p>}
+      {!showShopifyForm && <p className="store-platform-unavailable" role="status">{en ? "Shopify connections are temporarily unavailable. Please try again later." : "La connexion Shopify est temporairement indisponible. Réessaie plus tard."}</p>}
       {showShopifyForm ? <>
         <button type="button" className="store-platform-back" onClick={onBack} disabled={busy}><ArrowLeft size={16} aria-hidden="true" />{en ? "Back to platforms" : "Retour aux plateformes"}</button>
         {children}
@@ -51,9 +52,9 @@ export function StorePlatformDialog({ full, busy, error, showShopifyForm, childr
           <span className="store-platform-logo"><img src="/logos/chariow-mark.svg" alt="Logo Chariow" width={36} height={36} /></span>
           <span><strong>Chariow</strong><small>{en ? "Connect your Chariow store" : "Connecte ta boutique Chariow"}</small></span><ArrowRight size={18} aria-hidden="true" />
         </button>
-        <button type="button" className="store-platform-option" aria-label="Shopify" disabled={busy || full} onClick={() => onChoose("shopify")}>
+        <button type="button" className="store-platform-option store-platform-option-shopify" aria-label="Shopify" aria-describedby="shopify-unavailable" disabled>
           <span className="store-platform-logo store-platform-logo-shopify"><FaShopify size={36} role="img" aria-label="Logo Shopify" /></span>
-          <span><strong>Shopify</strong><small>{en ? "Connect your Shopify store" : "Connecte ta boutique Shopify"}</small></span><ArrowRight size={18} aria-hidden="true" />
+          <span><strong>Shopify</strong><small id="shopify-unavailable">{en ? "Temporarily unavailable" : "Temporairement indisponible"}</small></span><ArrowRight size={18} aria-hidden="true" />
         </button>
       </div>}
       {busy && <p role="status">{en ? "Connecting…" : "Connexion…"}</p>}

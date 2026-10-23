@@ -14,8 +14,8 @@ export function DashboardStoreSelector({ stores, selectedStoreId, onChange, mobi
   const id = mobile ? "mobile-dashboard-store" : "desktop-dashboard-store";
   return <div className={mobile ? "dashboard-mobile-store-switcher" : "dashboard-desktop-store-switcher"} data-testid={mobile ? "mobile-store-selector" : "desktop-store-selector"}>
     <label className="store-selector" htmlFor={id}>
-      <span>{mobile && <Store size={14} aria-hidden="true" />}{t("interfaceExtra.displayedStore")}</span>
-      <select id={id} value={selectedStoreId ?? ""} disabled={loading || !stores.length} onChange={e => onChange(e.target.value || null)}>
+      {mobile && <span><Store size={14} aria-hidden="true" />{t("interfaceExtra.displayedStore")}</span>}
+      <select id={id} aria-label={mobile ? undefined : t("interfaceExtra.displayedStore")} value={selectedStoreId ?? ""} disabled={loading || !stores.length} onChange={e => onChange(e.target.value || null)}>
         {!stores.length && <option value="">{loading ? copy["dashboardExtra.storesLoading"] : copy["dashboardExtra.noStore"]}</option>}
         {stores.map(store => <option key={store.id} value={store.id}>{store.store_name}</option>)}
       </select>
