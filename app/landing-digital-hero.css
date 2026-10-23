@@ -1,0 +1,100 @@
+/* Preview hero: every rule is scoped to this section; navigation and lower sections stay untouched. */
+.landing-premium .hero.digital-hero {
+  padding: 54px 0 32px;
+  background: radial-gradient(ellipse at 83% 28%, #e4e2ff 0%, transparent 43%), radial-gradient(ellipse at 99% 0%, #e5f9fb 0%, transparent 36%), linear-gradient(180deg, #f8faff, #fff);
+}
+.landing-premium .digital-hero .landing-hero-inner {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.07fr);
+  grid-template-areas: "copy visual" "platforms platforms";
+  gap: 32px 52px;
+  align-items: center;
+}
+.landing-premium .digital-hero .landing-hero-copy { max-width: 540px; margin: 0; text-align: left; }
+.landing-premium .digital-hero .landing-kicker { font-size: 10px; letter-spacing: .11em; margin-bottom: 23px; gap: 9px; color: #415389; }
+.landing-premium .digital-hero-title { color: #101a38; font-size: clamp(39px, 4.05vw, 59px); font-weight: 650; letter-spacing: -.052em; line-height: 1.08; margin: 0 0 23px; }
+.landing-premium .digital-hero-title > span { display: block; padding: 5px 0 4px; background: linear-gradient(110deg, #5841da 0%, #2d5cf4 64%, #078fa6 100%); background-clip: text; -webkit-background-clip: text; color: transparent; }
+.landing-premium .digital-hero .landing-intro { font-size: 15px; line-height: 1.8; max-width: 470px; margin: 0; color: #58627b; }
+.landing-premium .digital-hero .landing-hero-actions { margin-top: 27px; gap: 24px; flex-direction: row; align-items: center; }
+.landing-premium .digital-hero .btn-lime { background: linear-gradient(105deg, #172444, #263985); border-radius: 50px; min-height: 54px; padding: 0 27px; gap: 26px; box-shadow: 0 8px 22px #1f327b17; font-size: 15px; }
+.landing-premium .digital-hero .btn-lime svg { color: #75e3ec; }
+.landing-premium .digital-hero .landing-text-link { font-size: 12px; }
+.landing-premium .digital-trial { display: flex; align-items: center; gap: 7px; font-size: 11px; color: #56617b; margin: 12px 0 27px; }
+.landing-premium .digital-trial svg { color: #477e8c; flex-shrink: 0; }
+.landing-premium .digital-benefits { display: flex; gap: 18px; list-style: none; padding: 22px 0 0; border-top: 1px solid #dde4f1; margin: 0; max-width: 470px; }
+.landing-premium .digital-benefits li { display: flex; flex-direction: column; gap: 10px; flex: 1; color: #3e4b6b; font-size: 11px; line-height: 1.55; }
+.landing-premium .digital-benefits svg { color: #5654c6; box-sizing: content-box; background: #efedff; padding: 9px; border: 1px solid #e2def9; border-radius: 11px; }
+.landing-premium .digital-benefits li:nth-child(2) svg { background: #edf1ff; color: #3a60da; border-color: #dfe6ff; }
+.landing-premium .digital-benefits li:nth-child(3) svg { background: #eaf8fb; color: #168599; border-color: #d7eff4; }
+.landing-premium .digital-channels { margin-top: 22px; }
+.landing-premium .digital-channels .hero-tagline { font-size: 12px; line-height: 1.8; font-weight: 500; color: #69738a; max-width: none; margin: 0; }
+.landing-premium .digital-channels .platform-rotator { font-size: inherit; }
+.landing-premium .digital-hero-visual { grid-area: visual; position: relative; min-width: 0; padding-top: 0; }
+.landing-premium .digital-creator-photo { position: relative; margin-left: 66px; height: 350px; overflow: hidden; border-radius: 120px 24px 24px 24px; background: #e7e6f5; box-shadow: 0 0 0 8px #ffffff75; }
+.landing-premium .digital-creator-photo > img { width: 100%; height: 100%; object-fit: cover; object-position: center 39%; }
+.landing-premium .digital-creator-label { position: absolute; top: 22px; right: 17px; display: flex; align-items: center; gap: 7px; background: #ffffffef; border: 1px solid #fff; border-radius: 30px; padding: 9px 13px; font-size: 10px; color: #354264; }
+.landing-premium .digital-creator-label svg { color: #6750cc; }
+.landing-premium .digital-product-tag { position: absolute; top: 205px; left: 0; z-index: 2; display: flex; align-items: center; gap: 11px; padding: 15px 18px; background: #172444; color: #fff; border-radius: 15px; box-shadow: 0 12px 30px #1c2d6d25; font-size: 11px; }
+.landing-premium .digital-product-tag > span { border: 1px solid #556788; border-radius: 10px; font-size: 23px; color: #83e5ee; padding: 2px 9px; }
+.landing-premium .digital-product-tag small { display: block; font-size: 10px; color: #bfcae3; margin-top: 4px; }
+.landing-premium .digital-hero .landing-showcase { margin: -60px 0 0; width: 100%; position: relative; z-index: 3; border-radius: 14px; box-shadow: 0 24px 60px #263e7320; animation: none; }
+.landing-premium .digital-hero .landing-showcase:hover { transform: translateY(-3px); }
+.landing-premium .digital-hero .showcase-topline { height: 33px; font-size: 10px; color: #58647d; }
+.landing-premium .digital-hero .showcase-screen { padding: 0; }
+.landing-premium .digital-hero .showcase-image { width: 100%; height: auto; aspect-ratio: 1265/800; }
+.landing-premium .digital-hero .showcase-caption { color: #47536c; font-size: 8px; right: 10px; bottom: 10px; }
+.landing-premium .digital-hero .showcase-foot { font-size: 10px; padding: 11px 15px; }
+.landing-premium .digital-hero .landing-platforms { margin-top: 12px; }
+@media (min-width: 1500px) {
+  .landing-premium .digital-hero-title { font-size: 60px; }
+}
+@media (max-width: 1100px) and (min-width: 901px) {
+  .landing-premium .digital-hero .landing-hero-inner { gap: 30px; }
+  .landing-premium .digital-creator-photo { margin-left: 32px; height: 320px; }
+  .landing-premium .digital-product-tag { top: 190px; padding: 12px; }
+  .landing-premium .digital-hero .landing-hero-actions { gap: 14px; }
+}
+@media (max-width: 900px) {
+  .landing-premium .hero.digital-hero { padding-top: 40px; }
+  .landing-premium .digital-hero .landing-hero-inner { grid-template-columns: minmax(0, 1fr); grid-template-areas: "copy" "visual" "platforms"; gap: 38px; }
+  .landing-premium .digital-hero .landing-hero-copy { max-width: 620px; margin-inline: auto; width: 100%; }
+  .landing-premium .digital-hero-title { font-size: clamp(38px, 6.5vw, 56px); max-width: 590px; }
+  .landing-premium .digital-hero .landing-intro { max-width: 550px; }
+  .landing-premium .digital-hero-visual { width: 100%; max-width: 620px; margin-inline: auto; }
+  .landing-premium .digital-creator-photo { height: 370px; margin-left: 80px; }
+  .landing-premium .digital-product-tag { top: 215px; }
+  .landing-premium .digital-hero .landing-showcase { max-width: none; }
+}
+@media (max-width: 560px) {
+  .landing-premium .hero.digital-hero { padding: 32px 0 28px; }
+  .landing-premium .digital-hero .landing-kicker { font-size: 8px; letter-spacing: .08em; margin-bottom: 17px; gap: 8px; }
+  .landing-premium .digital-hero-title { font-size: clamp(34px, 9.15vw, 49px); letter-spacing: -.045em; line-height: 1.1; margin-bottom: 18px; }
+  .landing-premium .digital-hero .landing-intro { font-size: 14px; line-height: 1.75; }
+  .landing-premium .digital-hero .landing-hero-actions { margin-top: 22px; gap: 20px; flex-wrap: wrap; }
+  .landing-premium .digital-hero .btn-lime { min-height: 51px; font-size: 14px; padding-inline: 24px; gap: 20px; }
+  .landing-premium .digital-hero .landing-text-link { font-size: 11px; }
+  .landing-premium .digital-trial { font-size: 10px; margin-bottom: 21px; }
+  .landing-premium .digital-benefits { gap: 13px; padding-top: 18px; }
+  .landing-premium .digital-benefits li { font-size: 10px; gap: 8px; }
+  .landing-premium .digital-channels { margin-top: 16px; }
+  .landing-premium .digital-channels .hero-tagline { font-size: 11px; }
+  .landing-premium .digital-hero .landing-hero-inner { gap: 30px; }
+  .landing-premium .digital-creator-photo { margin-left: 35px; height: 285px; border-radius: 85px 18px 18px 18px; }
+  .landing-premium .digital-creator-label { font-size: 8px; padding: 8px 10px; right: 10px; top: 15px; }
+  .landing-premium .digital-product-tag { top: 170px; padding: 10px 13px; border-radius: 12px; font-size: 9px; gap: 8px; }
+  .landing-premium .digital-product-tag small { font-size: 8px; }
+  .landing-premium .digital-hero .landing-showcase { margin-top: -39px; border-radius: 10px; }
+  .landing-premium .digital-hero .showcase-foot { font-size: 8px; padding: 9px 11px; }
+  .landing-premium .digital-hero .showcase-caption { font-size: 6px; padding: 4px 5px; }
+}
+
+/* Secondary legacy channel message stays functional without competing with the main promise. */
+.landing-premium .digital-channels .platform-animated { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
+.landing-premium .digital-channels .platform-prefix,
+.landing-premium .digital-channels .platform-line { display: inline-block; margin: 0; }
+.landing-premium .digital-hero .platform-marquee-viewport { padding-block: 16px; }
+@media (min-width: 901px) {
+  .landing-premium .digital-creator-photo { height: 320px; }
+  .landing-premium .digital-hero .landing-showcase { margin-top: -70px; }
+  .landing-premium .digital-product-tag { top: 175px; }
+  .landing-premium .digital-hero .landing-hero-inner { row-gap: 22px; }
+}

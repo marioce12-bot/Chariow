@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { AnimatedHeroTitle } from "@/components/AnimatedHeroTitle";
 import { PlatformRotator } from "@/components/PlatformRotator";
 import { PlatformMarquee } from "@/components/PlatformMarquee";
 import { ArrowRight, Check, Layers, Rocket, Wand2, Menu, X } from "lucide-react";
@@ -13,6 +12,7 @@ import "@/app/landing-premium.css";
 import "@/app/landing-preview-layout.css";
 import "@/app/landing-side-reveal.css";
 import "@/app/docs-entry.css";
+import "@/app/landing-digital-hero.css";
 
 const demos = [
   { fr: "Accueil", en: "Home", frAlt: "Capture réelle de l’accueil Vendeo : tableau de bord avec les indicateurs et les raccourcis de gestion.", enAlt: "Authentic screenshot of the Vendeo home dashboard, showing its metrics and management shortcuts." },
@@ -65,14 +65,24 @@ export function Marketing() {
       <button className="landing-menu" type="button" aria-label={mobileOpen ? t("adminExtra.nav.close") : t("optionsExtra.text10")} aria-expanded={mobileOpen} aria-controls="landing-navigation" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X/> : <Menu/>}</button>
     </nav></div></header>
 
-    <section className="hero landing-hero">
+    <section className="hero landing-hero digital-hero">
 
       <div className="container landing-hero-inner">
-        <div className="landing-hero-copy"><span className="landing-kicker"><i/> {t("landing.hero.stat")}</span>
-          <AnimatedHeroTitle first={t("landing.hero.title1")} second={t("landing.hero.title2")} last={t("landing.hero.title3")} />
-          <PlatformRotator prefix={isEnglish ? "Launch your campaigns on" : "Lancez vos campagnes sur"} fullText={t("sweep1.text117")} /><p className="landing-intro">{t("landing.hero.paragraph")}</p>
-          <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{t("landing.hero.cta")} <ArrowRight size={17}/></Link><a className="landing-text-link" href="#apercu">{t("sweep2.text118")}{" "}<span>↓</span></a></div>
+        <div className="landing-hero-copy"><span className="landing-kicker"><i/> {isEnglish ? "FOR DIGITAL PRODUCT SELLERS" : "POUR LES VENDEURS DE PRODUITS DIGITAUX"}</span>
+          <h1 className="digital-hero-title">{isEnglish ? "Selling ebooks or courses?" : "Tu vends des ebooks ou des formations ?"}<span>{isEnglish ? "Create your ads more easily." : "Crée tes pubs plus facilement."}</span></h1>
+          <p className="landing-intro">{isEnglish ? "Connect your Chariow store, create your ad visuals with AI and track your campaigns. Your products and your ads, in one workspace." : "Connecte ta boutique Chariow, crée tes visuels publicitaires avec l’IA et suis tes campagnes. Tes produits et tes pubs, dans un même espace."}</p>
+          <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{isEnglish ? "Get started" : "Commencer"} <ArrowRight size={18}/></Link><a className="landing-text-link" href="#apercu">{t("sweep2.text118")}{" "}<span>↓</span></a></div>
+          <p className="digital-trial"><Check size={14} aria-hidden="true"/>{isEnglish ? "5-day trial · 100 welcome credits" : "5 jours d’essai · 100 crédits de bienvenue"}</p>
+          <ul className="digital-benefits" aria-label={isEnglish ? "Your workflow" : "Ton parcours avec Vendeo"}>
+            <li><Layers size={18} aria-hidden="true"/><span>{isEnglish ? "Your Chariow products" : "Tes produits Chariow"}</span></li>
+            <li><Wand2 size={18} aria-hidden="true"/><span>{isEnglish ? "AI ad visuals" : "Tes visuels avec l’IA"}</span></li>
+            <li><Rocket size={18} aria-hidden="true"/><span>{isEnglish ? "Campaign tracking" : "Tes campagnes suivies"}</span></li>
+          </ul>
+          <div className="digital-channels"><PlatformRotator prefix={isEnglish ? "Launch your campaigns on" : "Lancez vos campagnes sur"} fullText={t("sweep1.text117")} /></div>
         </div>
+        <div className="digital-hero-visual">
+          <div className="digital-creator-photo"><Image src="/landing/digital-creator.webp" alt={isEnglish ? "Illustrative portrait of a digital product creator working on her laptop." : "Illustration d’une créatrice de produits numériques au travail sur son ordinateur."} width={960} height={1200} sizes="(max-width: 600px) 90vw, (max-width: 1000px) 70vw, 540px" priority/><span className="digital-creator-label"><Wand2 size={15} aria-hidden="true"/>{isEnglish ? "Your expertise. Your products." : "Ton expertise. Tes produits."}</span></div>
+          <div className="digital-product-tag"><span aria-hidden="true">↗</span><div>{isEnglish ? "Ebooks, courses, resources…" : "Ebooks, formations, ressources…"}<small>{isEnglish ? "A workspace for your marketing" : "Un espace pour ton marketing"}</small></div></div>
         <div className="landing-showcase" id="apercu" tabIndex={0} role="region" aria-roledescription={isEnglish ? "carousel" : "carrousel"} aria-label={isEnglish ? "Vendeo product screenshots" : "Captures d’écran du produit Vendeo"} onKeyDown={demoKey} onTouchStart={(event) => { (event.currentTarget as HTMLDivElement).dataset.touchX = String(event.touches[0]?.clientX ?? 0); }} onTouchEnd={(event) => { const start = Number((event.currentTarget as HTMLDivElement).dataset.touchX ?? 0); const delta = (event.changedTouches[0]?.clientX ?? start) - start; if (Math.abs(delta) > 45) setActiveDemo((current) => (current + (delta < 0 ? 1 : demos.length - 1)) % demos.length); }}>
           <p className="sr-only">{isEnglish ? "Screenshots rotate automatically in a loop. Use Left and Right Arrow keys to change screenshots, Home for the first, and End for the last. Swipe to change screenshots." : "Les captures défilent automatiquement en boucle. Utilisez les flèches gauche et droite pour changer de capture, Début pour la première et Fin pour la dernière. Balayez pour changer de capture."}</p>
           <div className="showcase-topline"><span className="showcase-dots" aria-hidden="true"><i/><i/><i/></span><span>Vendeo <b>•</b> {" "}{t("workspaceExtra.workspace")}</span><span className="showcase-live"><i/> Interface</span></div>
@@ -83,6 +93,7 @@ export function Marketing() {
             <div className="showcase-caption">{t("sweep1.text120")}</div>
           </div>
           <div className="showcase-foot"><span>{t("sweep2.text121")}</span><span>Chariow <b>↗</b></span></div>
+        </div>
         </div>
         <PlatformMarquee />
       </div>
