@@ -3,6 +3,7 @@ import { Marketing } from "@/components/Marketing";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+import { assertRetentionIsolation } from "@/lib/account-retention-isolation";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -18,9 +19,13 @@ const structuredData = {
 };
 
 export default async function Home() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) redirect("/dashboard");
+  let isolated = true;
+  try { assertRetentionIsolation(); } catch { isolated = false; }
+  if (isolated) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) redirect("/dashboard");
+  }
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} />

@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { CookieOptions } from "@supabase/ssr";
 import { ADMIN_COOKIE, isAdminSessionValidEdge } from "@/lib/admin-password-edge";
+import { assertRetentionIsolation } from "@/lib/account-retention-isolation";
 
 export async function middleware(request: NextRequest) {
   // Si Supabase renvoie le lien e-mail sur la landing (redirectTo non autorisé dans
@@ -22,6 +23,12 @@ export async function middleware(request: NextRequest) {
   }
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  try { assertRetentionIsolation(); } catch {
+    if (request.nextUrl.pathname.startsWith("/dashboard") || request.nextUrl.pathname.startsWith("/admin")) {
+      return NextResponse.redirect(new URL("/login?error=configuration", request.url));
+    }
+    return NextResponse.next();
+  }
   if (!supabaseUrl || !supabaseKey) {
     console.error("Missing Supabase environment variables in middleware");
     if (request.nextUrl.pathname.startsWith("/dashboard")) return NextResponse.redirect(new URL("/login?error=configuration", request.url));
@@ -42,6 +49,10 @@ export async function middleware(request: NextRequest) {
   // The admin page performs the final server-side check. Do not let a stale or
   // edge-incompatible cookie fall through to the Supabase admin error screen.
   if (isAdminPath && !isAdminLogin && !(await isAdminSessionValidEdge(request.cookies.get(ADMIN_COOKIE)?.value))) return NextResponse.redirect(new URL("/admin/login", request.url));
+  if (user && (request.nextUrl.pathname.startsWith("/dashboard") || ["/login", "/register"].includes(request.nextUrl.pathname))) {
+    const { data: retention, error: retentionError } = await supabase.rpc("account_retention_status");
+    if (retentionError || retention?.state !== "active") return NextResponse.redirect(new URL("/account/restore", request.url));
+  }
   if (user && ["/login", "/register"].includes(request.nextUrl.pathname)) return NextResponse.redirect(new URL("/dashboard", request.url));
   return response;
 }
