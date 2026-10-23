@@ -12,7 +12,7 @@ describe("fetchMetaResources", () => {
       { data: [{ id: "page_1", name: "Page", access_token: "page-token" }] },
       { data: [{ id: "pixel_1", name: "Pixel" }] },
     ];
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify(responses.shift()), { status: 200 }));
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify(responses.shift()), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await fetchMetaResources("act_123", "account-token");
