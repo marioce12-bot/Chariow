@@ -359,7 +359,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
             }
           : null;
         setUsage(nextUsage);
-        // La limite de l'essai gratuit est désormais la date trial_ends_at (15 jours),
+        // La limite de l'essai gratuit est désormais la date trial_ends_at (5 jours),
         // pas un nombre de messages : le serveur (consume_message_quota) est la seule
         // source de vérité. Côté client on se contente de refléter le statut renvoyé.
         if (nextUsage) setPlansRequired(nextUsage.status === "past_due");

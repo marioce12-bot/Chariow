@@ -6,7 +6,7 @@ import { TrialPaywallModal } from "@/components/TrialPaywallModal";
 
 // Garde monté dans app/dashboard/layout.tsx : lit l'état réel de l'abonnement côté serveur
 // (GET /api/subscription) et affiche la pop-up NON fermable dès que le compte
-// est 'past_due' (essai de 15 jours ou abonnement de 30 jours expiré).
+// est 'past_due' (essai de 5 jours ou abonnement de 30 jours expiré).
 // Il revérifie à chaque changement de page et au retour sur l'onglet
 // pour éviter un accès prolongé.
 export function SubscriptionPaywallGate() {

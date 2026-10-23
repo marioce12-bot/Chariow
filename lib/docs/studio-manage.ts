@@ -484,8 +484,8 @@ export const studioManageSections: DocSection[] = [
       "en": "Studio subscription and credits"
     },
     "summary": {
-      "fr": "Le forfait Vendeo est affiché à 2 000 XOF pour 30 jours, avec un essai de 15 jours ; les créations Studio utilisent un solde de crédits distinct.",
-      "en": "The Vendeo plan is listed at XOF 2,000 for 30 days, with a 15-day trial; Studio uses a separate credit balance."
+      "fr": "Le forfait Vendeo est affiché à 2 000 XOF pour 30 jours, avec un essai de 5 jours pour les nouvelles inscriptions ; les créations Studio utilisent un solde de crédits distinct.",
+      "en": "The Vendeo plan is listed at XOF 2,000 for 30 days, with a 5-day trial for new sign-ups; Studio uses a separate credit balance."
     },
     "articles": [
       {
@@ -496,8 +496,8 @@ export const studioManageSections: DocSection[] = [
         },
         "paragraphs": [
           {
-            "fr": "Le forfait actuellement proposé s’appelle Vendeo : 2 000 XOF pour une période de 30 jours. Un essai de 15 jours est prévu. L’abonnement donne accès au service selon l’état et la période indiqués dans l’application ; les crédits Studio sont séparés et servent aux créations.",
-            "en": "The currently listed plan is Vendeo: XOF 2,000 for a 30-day period. A 15-day trial is offered. Service access depends on the status and period shown in the app; Studio credits are separate and are used for creations."
+            "fr": "Le forfait actuellement proposé s’appelle Vendeo : 2 000 XOF pour une période de 30 jours. Les nouvelles inscriptions bénéficient d’un essai de 5 jours. L’abonnement donne accès au service selon l’état et la période indiqués dans l’application ; les crédits Studio sont séparés et servent aux créations.",
+            "en": "The currently listed plan is Vendeo: XOF 2,000 for a 30-day period. New sign-ups receive a 5-day trial. Service access depends on the status and period shown in the app; Studio credits are separate and are used for creations."
           }
         ],
         "steps": [
