@@ -59,7 +59,7 @@ afterEach(async () => {
 });
 
 describe("Dashboard store switch", () => {
-  it("keeps the header selector functional on every section and mobile selection only on overview", async () => {
+  it("keeps the sidebar selector functional on every section and mobile selection only on overview", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/api/stores") return jsonResponse({ stores: [{ id: "a", store_name: "Boutique A" }, { id: "b", store_name: "Boutique B" }] });
@@ -72,7 +72,7 @@ describe("Dashboard store switch", () => {
     expect(links.length).toBe(15);
     for (const link of links) {
       await act(async () => { link.click(); });
-      const selector = host.querySelector<HTMLSelectElement>(".app-header #desktop-dashboard-store")!;
+      const selector = host.querySelector<HTMLSelectElement>(".sidebar #desktop-dashboard-store")!;
       expect(selector, link.textContent!).not.toBeNull();
       expect(selector.disabled).toBe(false);
       const next = selector.value === "a" ? "b" : "a";
@@ -108,7 +108,11 @@ describe("Dashboard store switch", () => {
 
     const homePicker = host.querySelector('[data-testid="desktop-store-selector"]')!;
     expect(homePicker).not.toBeNull();
-    expect(homePicker.closest(".app-header")).not.toBeNull();
+    expect(homePicker.closest(".sidebar")).not.toBeNull();
+    expect(host.querySelector(".app-header select")).toBeNull();
+    expect(host.querySelector(".sidebar .side-label")).toBeNull();
+    expect(homePicker.querySelector("label > span")).toBeNull();
+    expect(homePicker.querySelector("select")?.getAttribute("aria-label")).toBe("interfaceExtra.displayedStore");
     expect(host.querySelector("#mobile-dashboard-store")).not.toBeNull();
     const select = homePicker.querySelector("select")!;
     expect(select.options.length).toBe(3);
