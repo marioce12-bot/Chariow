@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeShopDomain } from "@/lib/shopify/auth";
 import { syncShopifyStore } from "@/lib/shopify/sync";
 import { verifyShopifyWebhook } from "@/lib/shopify/webhooks";
+import { requestedOrderIds, redactRequestedShopifyOrders, exportRequestedShopifyOrders } from "@/lib/shopify/privacy-requests";
 export const runtime = "nodejs";
 const MAX_BODY = 1024 * 1024;
 async function matchingStores(admin: any, shop: string) {
@@ -30,7 +31,19 @@ export async function POST(request: Request) {
  if (!shop) return NextResponse.json({ error: "Invalid shop" }, { status: 400 });
  const admin = createAdminClient(); let stores: any[];
  try { stores = await matchingStores(admin, shop); } catch { return NextResponse.json({ error: "Store lookup failed" }, { status: 503 }); }
- if (topic === "customers/data_request" || topic === "customers/redact") return NextResponse.json({ received: true, customer_data_stored: false });
+ if (topic === "customers/data_request" || topic === "customers/redact") {
+  let ids: string[];
+  try { ids = requestedOrderIds(JSON.parse(raw.toString("utf8")), topic === "customers/redact" ? "orders_to_redact" : "orders_requested", shop); }
+  catch { return NextResponse.json({ error: "Invalid privacy request" }, { status: 400 }); }
+  try {
+   if (topic === "customers/redact") {
+    await redactRequestedShopifyOrders(admin, shop, ids);
+    return NextResponse.json({ received: true });
+   }
+   const orders = await exportRequestedShopifyOrders(admin, stores, shop, ids);
+   return NextResponse.json({ received: true, orders }, { headers: { "Cache-Control": "no-store" } });
+  } catch { return NextResponse.json({ error: "Customer privacy processing failed" }, { status: 503 }); }
+ }
  if (topic === "shop/redact") { try { for (const store of stores) await cleanupStore(admin, store, true); } catch { return NextResponse.json({ error: "Shop data cleanup failed" }, { status: 503 }); } return NextResponse.json({ received: true }); }
  if (topic === "app/uninstalled") { try { for (const store of stores) await cleanupStore(admin, store, false); } catch { return NextResponse.json({ error: "Uninstall cleanup failed" }, { status: 503 }); } return NextResponse.json({ received: true }); }
  if (["orders/create", "orders/updated", "orders/cancelled", "orders/paid"].includes(topic)) {

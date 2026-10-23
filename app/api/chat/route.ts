@@ -179,8 +179,8 @@ export async function POST(request: Request) {
           const clip = (text: string) => (text.length > perStoreBudget ? `${text.slice(0, perStoreBudget)}\n[... données de cette boutique tronquées ...]` : text);
           try {
             if (store.platform === "shopify") {
-              const [{ getShopifySnapshot }, shopifyAnalytics] = await Promise.all([import("@/lib/shopify/client"), import("@/lib/shopify/analytics")]);
-              const snapshot = await getShopifySnapshot(store);
+              const [{ getPrivateShopifySnapshot }, shopifyAnalytics] = await Promise.all([import("@/lib/shopify/private-snapshot"), import("@/lib/shopify/analytics")]);
+              const snapshot = await getPrivateShopifySnapshot(store);
               const normalized = shopifyAnalytics.normalizeShopifySnapshot(snapshot, { from: "", to: "" });
               const products = normalized.products.filter((p: any) => p.id && p.name).map((p: any) => ({ id: p.id, name: p.name, storeId: store.id, storeName: store.store_name, url: p.url ?? null }));
               campaignCatalog.push(...products);
