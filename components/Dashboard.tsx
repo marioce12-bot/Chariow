@@ -48,6 +48,8 @@ import "@/app/dashboard-refinement.css";
 import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
 import { StoreConnectionGate, hasConnectedCommerceStore } from "./dashboard/StoreConnectionGate";
 import { SaleCelebration } from "./dashboard/SaleCelebration";
+import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
+import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
 
@@ -362,12 +364,15 @@ function DashboardWorkspace() {
   const snapshotView = ["Vue d'ensemble", "Rapports", "Studio"].includes(active);
   const needsStoreConnection = !loadingData && !hasConnectedCommerceStore(stores);
 
+  const onboarding = useFirstStoreOnboarding({ userId: notificationUserId, stores, loading: loadingData, connected: !needsStoreConnection && !loadingData });
+  const onboardingOpen = onboarding.stage !== "closed" && !needsStoreConnection && !loadingData;
+  function replayGuide() { setActive(DEFAULT_DASHBOARD_SECTION); setMoreOpen(false); onboarding.replay(); }
   return (
     <>
-    {notificationUserId && !needsStoreConnection && !loadingData && <SaleCelebration key={notificationUserId} userId={notificationUserId} />}
+    {notificationUserId && !needsStoreConnection && !loadingData && !onboardingOpen && <SaleCelebration key={notificationUserId} userId={notificationUserId} />}
     <main className={`app-shell dashboard-platform${active === "Vendeo AI" ? " dashboard-assistant-active" : ""}${isOffline ? " dashboard-is-offline" : ""}`}>
-      <div className="dashboard-workspace" inert={needsStoreConnection ? true : undefined} aria-hidden={needsStoreConnection ? true : undefined}>
-      {notificationUserId && !needsStoreConnection && !loadingData && <NotificationPermissionPrompt key={notificationUserId} userId={notificationUserId} />}
+      <div className="dashboard-workspace" inert={needsStoreConnection || onboardingOpen ? true : undefined} aria-hidden={needsStoreConnection || onboardingOpen ? true : undefined}>
+      {notificationUserId && !needsStoreConnection && !loadingData && !onboardingOpen && <NotificationPermissionPrompt key={notificationUserId} userId={notificationUserId} />}
       {isOffline ? <div role="status" aria-live="polite" className="offline-notice">{w("offline")}</div> : null}
         <header className="app-header">
           <Link href="/" className="brand">
@@ -377,19 +382,20 @@ function DashboardWorkspace() {
           <DashboardHeaderNavigation active={active} onChange={setActive} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
-            <button type="button" className="mobile-autopilot-trigger" aria-label={t("workspaceExtra.autopilot")} title={t("workspaceExtra.autopilot")} aria-current={active === "Pilotage auto" ? "page" : undefined} onClick={() => { setActive("Pilotage auto"); setMoreOpen(false); }}>
+            <button type="button" data-onboarding="Pilotage auto" className="mobile-autopilot-trigger" aria-label={t("workspaceExtra.autopilot")} title={t("workspaceExtra.autopilot")} aria-current={active === "Pilotage auto" ? "page" : undefined} onClick={() => { setActive("Pilotage auto"); setMoreOpen(false); }}>
               <Bot size={18} aria-hidden="true" />
             </button>
              <button type="button" className={`mobile-more-trigger ${moreOpen || ["Rapports", "Bénéfices nets", "Relances WhatsApp", "Mes boutiques", "Abonnement", "Paramètres", "Comptes publicitaires"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
+            <button type="button" className="vendeo-guide-replay" onClick={replayGuide} aria-label={locale === "en" ? "Replay the workspace guide" : "Revoir le guide de mon espace"}>{locale === "en" ? "Guide" : "Guide"}</button>
             <button type="button" className="dashboard-profile" onClick={() => setActive("Paramètres")} aria-label={w("profile")} title={w("profile")}><span className="dashboard-avatar">{userFirstName?.slice(0, 2).toUpperCase() || "V"}</span></button>
             <button type="button" className="desktop-signout" onClick={signOut} aria-label={w("signOut")} title={w("signOut")}><LogOut size={15} /></button>
           </div>
         </header>
       <div className={`app-layout${active === "Vendeo AI" ? " app-layout-flush" : ""}${isOffline ? " app-layout-offline" : ""}`}>
         <aside className="sidebar">
-          <div className="dashboard-sidebar-store">
+          <div className="dashboard-sidebar-store" data-onboarding="store">
             <DashboardStoreSelector stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} />
           </div>
           <DashboardPrimaryNavigation active={active} onChange={setActive} />
@@ -452,7 +458,7 @@ function DashboardWorkspace() {
               onPeriodDaysChange={setOverviewPeriodDays}
               onNavigate={setActive}
               loading={storeDataLoading}
-              storeSelector={<div className="dashboard-overview-mobile-store"><DashboardStoreSelector mobile stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} /></div>}
+              storeSelector={<div className="dashboard-overview-mobile-store" data-onboarding="store"><DashboardStoreSelector mobile stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} /></div>}
             />
           )}
          </section>
@@ -471,23 +477,23 @@ function DashboardWorkspace() {
 
         {active !== "Paramètres" ? (
          <nav className={`mobile-nav${active === "Mes boutiques" ? " mobile-nav-hidden-on-stores" : ""}${mobileNavVisible ? " mobile-nav-visible" : " mobile-nav-hidden"}`} aria-label={w("mobileNav")}>
-         <button type="button" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
+         <button type="button" data-onboarding="Vue d'ensemble" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
            <LayoutDashboard size={18} />
             <span>{t("nav.overview")}</span>
          </button>
-           <button type="button" className={`nav-btn ${active === "Pub" ? "active" : ""}`} onClick={() => setActive("Pub")}>
+           <button type="button" data-onboarding="Pub" className={`nav-btn ${active === "Pub" ? "active" : ""}`} onClick={() => setActive("Pub")}>
              <Megaphone size={18} />
               <span>{t("nav.pubs")}</span>
           </button>
-             <button type="button" className={`nav-btn nav-btn-assistant ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
+             <button type="button" data-onboarding="Vendeo AI" className={`nav-btn nav-btn-assistant ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
                <Brain size={23} strokeWidth={2.2} />
                <span>{t("nav.assistant")}</span>
              </button>
-            <button type="button" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
+            <button type="button" data-onboarding="Studio" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
               <Sparkles size={21} strokeWidth={2.5} />
               <span>{t("nav.studio")}</span>
             </button>
-             <button type="button" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
+             <button type="button" data-onboarding="Radar marché" className={`nav-btn ${active === "Radar marché" ? "active" : ""}`} onClick={() => setActive("Radar marché")}>
                <Lightbulb size={18} />
                 <span>{t("nav.radar")}</span>
              </button>
@@ -512,7 +518,8 @@ function DashboardWorkspace() {
         ) : null}
       </div>
     </main>
-    {needsStoreConnection && <StoreConnectionGate stores={stores} failed={["failed", "expired", "revoked"].includes(searchParams.get("chariow") ?? "")} onSignOut={signOut} />}
+    {needsStoreConnection && <StoreConnectionGate stores={stores} failed={["failed", "expired", "revoked"].includes(searchParams.get("chariow") ?? "")} onSignOut={signOut} onConnectStart={onboarding.beginConnection} />}
+    {onboardingOpen && <FirstStoreWelcome stage={onboarding.stage as "welcome" | "tour"} subscription={subscription} onStart={() => { setActive(DEFAULT_DASHBOARD_SECTION); onboarding.startTour(); }} onDismiss={onboarding.dismiss} />}
     </>
   );
 }

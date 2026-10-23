@@ -140,6 +140,7 @@ function DashboardNavigationItems({
           <button
             type="button"
             className={primary ? "side-link" : "dashboard-header-link"}
+            data-onboarding={section}
             aria-label={!primary ? label : undefined}
             title={!primary ? label : undefined}
             aria-current={active === section ? "page" : undefined}
