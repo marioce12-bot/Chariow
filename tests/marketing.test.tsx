@@ -48,7 +48,7 @@ describe("premium product landing", () => {
     expect(heroActions.querySelector('a[href="/register"]')?.textContent).toContain("Lancer mon essai gratuit");
     expect(heroActions.querySelector('a[href="#apercu"]')?.textContent).toContain("Découvrir comment ça marche");
   });
-  it("renders an accessible static workspace illustration with marked platform examples", () => {
+  it("renders an accessible five-scene photo carousel with store and campaign logos", () => {
     const html = renderToStaticMarkup(<Marketing />);
     const container = new JSDOM(html).window.document.body;
     const visual = container.querySelector(".digital-hero figure.digital-workspace[aria-labelledby][aria-describedby], .digital-hero .creator-stage[role='group'][aria-label]");
@@ -57,10 +57,17 @@ describe("premium product landing", () => {
     const visualMarkup = visual!.outerHTML;
     expect(visualMarkup).toMatch(/chariow/i);
     expect(visualMarkup).toMatch(/shopify/i);
-    expect(visualText).toMatch(/image/i);
-    expect(visualText).toMatch(/vidéo/i);
-    expect(visualText).toMatch(/exemple|démo|demo|fictif/i);
-    expect(html).not.toContain("carousel-controls");
+    expect(visualMarkup).toMatch(/vendeo/i);
+    expect(visualText).toContain("Meta");
+    expect(visualText).toContain("Pinterest");
+    expect(visualText).toContain("TikTok");
+    expect(visualText).toContain("Connecte ton produit digital");
+    expect(visual!.querySelector('[role="region"][aria-roledescription="carrousel"]')).not.toBeNull();
+    expect(visual!.querySelectorAll(".story-dot")).toHaveLength(5);
+    expect(visual!.querySelector(".story-photo img")?.getAttribute("alt")).toMatch(/souriante/i);
+    expect(source("components/DigitalWorkspaceVisual.tsx")).toContain("flow-story-05.webp");
+    expect(source("components/DigitalWorkspaceVisual.tsx")).toContain("Assistant IA");
+    expect(source("components/DigitalWorkspaceVisual.tsx")).toContain("Analyser un secteur");
     expect(html).not.toContain('role="tablist"');
     expect(html).not.toContain('role="tab"');
     expect(html).not.toContain("claim1minute");

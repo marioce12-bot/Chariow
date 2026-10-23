@@ -2,24 +2,22 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 const source = readFileSync("components/Marketing.tsx", "utf8");
+const visualSource = readFileSync("components/DigitalWorkspaceVisual.tsx", "utf8");
 
-describe("static digital workspace hero", () => {
-  it("does not render or implement a carousel, interval, or one-minute claim", () => {
-    expect(source).not.toContain("PlatformRotator");
-    expect(source).not.toContain("landing-showcase");
-    expect(source).not.toContain("activeDemo");
-    expect(source).not.toContain("setInterval");
-    expect(source).not.toContain("claim1minute");
-    expect(source).not.toContain("1 minute");
+describe("five-scene digital workspace carousel", () => {
+  it("provides five manually selectable photo scenes without autoplay or timed claims", () => {
+    expect(visualSource).toContain('aria-roledescription={en ? "carousel" : "carrousel"}');
+    expect(visualSource.match(/image: "\/landing\/flow-story-0[1-5]\.webp"/g)).toHaveLength(10);
+    expect(visualSource).toContain("setActiveIndex");
+    expect(visualSource).not.toContain("setInterval");
+    expect(visualSource).not.toContain("claim1minute");
+    expect(visualSource).not.toContain("1 minute");
   });
 
-  it("keeps the hero generic and uses the new French message and CTA destinations", () => {
-    expect(source).toContain("Ta boutique, tes visuels, tes pubs.");
-    expect(source).toContain("Tout au même endroit.");
-    expect(source).toContain("quelques clics");
+  it("keeps the selected French headline and CTA destinations", () => {
+    expect(source).toContain("Du produit digital à la pub lancée.");
+    expect(source).toContain("Puis suis tes commandes.");
     expect(source).toContain("5 jours d’essai · 100 crédits de bienvenue");
-    expect(source).not.toContain("Shopify");
-    expect(source).not.toContain("Chariow");
     expect(source).toContain("Lancer mon essai gratuit");
     expect(source).toContain('href="/register"');
     expect(source).toContain("Découvrir comment ça marche");
