@@ -32,27 +32,34 @@ describe("premium product landing", () => {
       language.locale = "fr";
     }
   });
-  it("renders the requested static French hero copy and destinations", () => {
+  it("renders the complete French ad-creation and campaign-management promise", () => {
     language.locale = "fr";
     const container = new JSDOM(renderToStaticMarkup(<Marketing />)).window.document.body;
-    expect(container.textContent).toContain("Ta boutique, tes visuels, tes pubs.");
-    expect(container.textContent).toContain("Tout au même endroit.");
-    expect(container.textContent).toContain("quelques clics");
+    const hero = container.querySelector(".digital-hero")!;
+    expect(hero.textContent).toMatch(/pub|publicit/i);
+    expect(hero.textContent).toMatch(/image/i);
+    expect(hero.textContent).toMatch(/vidéo/i);
+    expect(hero.textContent).toMatch(/analyse|pilot/i);
+    expect(hero.textContent).toMatch(/lance/i);
     expect(container.textContent).toContain("5 jours d’essai · 100 crédits de bienvenue");
     expect(container.textContent).toContain("Lancer mon essai gratuit");
     expect(container.textContent).toContain("Découvrir comment ça marche");
     const heroActions = container.querySelector(".landing-hero-actions")!;
     expect(heroActions.querySelector('a[href="/register"]')?.textContent).toContain("Lancer mon essai gratuit");
     expect(heroActions.querySelector('a[href="#apercu"]')?.textContent).toContain("Découvrir comment ça marche");
-    expect(container.querySelector(".digital-hero")?.textContent).not.toMatch(/Shopify|Chariow/);
   });
   it("renders an accessible static workspace illustration with marked platform examples", () => {
     const html = renderToStaticMarkup(<Marketing />);
     const container = new JSDOM(html).window.document.body;
-    const visual = container.querySelector("figure.digital-workspace[aria-labelledby][aria-describedby]");
+    const visual = container.querySelector(".digital-hero figure.digital-workspace[aria-labelledby][aria-describedby], .digital-hero .creator-stage[role='group'][aria-label]");
     expect(visual).not.toBeNull();
-    for (const label of ["Meta", "TikTok", "Pinterest"]) expect(visual!.textContent).toContain(label);
-    expect(visual!.textContent).toMatch(/exemple|démo|demo/i);
+    const visualText = visual!.textContent ?? "";
+    const visualMarkup = visual!.outerHTML;
+    expect(visualMarkup).toMatch(/chariow/i);
+    expect(visualMarkup).toMatch(/shopify/i);
+    expect(visualText).toMatch(/image/i);
+    expect(visualText).toMatch(/vidéo/i);
+    expect(visualText).toMatch(/exemple|démo|demo|fictif/i);
     expect(html).not.toContain("carousel-controls");
     expect(html).not.toContain('role="tablist"');
     expect(html).not.toContain('role="tab"');

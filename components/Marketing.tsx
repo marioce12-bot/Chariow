@@ -46,8 +46,8 @@ export function Marketing() {
 
       <div className="container landing-hero-inner">
         <div className="landing-hero-copy"><span className="landing-kicker"><i/> {isEnglish ? "FOR DIGITAL PRODUCT SELLERS" : "POUR LES VENDEURS DE PRODUITS DIGITAUX"}</span>
-          <h1 className="digital-hero-title">{isEnglish ? "Your store, your visuals, your ads." : "Ta boutique, tes visuels, tes pubs."}<span>{isEnglish ? "All in one place." : "Tout au même endroit."}</span></h1>
-          <p className="landing-intro">{isEnglish ? "Sell your digital products without juggling tools. Connect your store, create visuals with AI, launch campaigns in a few clicks and track your orders in Vendeo." : "Vends tes produits digitaux sans jongler entre les outils. Connecte ta boutique, crée tes visuels avec l’IA, lance tes campagnes en quelques clics et suis tes commandes depuis Vendeo."}</p>
+          <h1 className="digital-hero-title">{isEnglish ? "Pilot your ads." : "Pilote tes pubs."}<span>{isEnglish ? "Create. Launch. Analyze." : "Crée. Lance. Analyse."}</span></h1>
+          <p className="landing-intro">{isEnglish ? "Create image and video ads with AI, launch campaigns on Meta and TikTok, then analyze spend and sales in Vendeo’s dashboard." : "Crée des publicités en image et en vidéo avec l’IA, lance tes campagnes sur Meta et TikTok, puis analyse tes dépenses et tes ventes dans le tableau de bord Vendeo."}</p>
           <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{isEnglish ? "Start my free trial" : "Lancer mon essai gratuit"} <ArrowRight size={18}/></Link><a className="landing-text-link" href="#apercu">{isEnglish ? "See how it works" : "Découvrir comment ça marche"}{" "}<span>↓</span></a></div>
           <p className="digital-trial"><Check size={14} aria-hidden="true"/>{isEnglish ? "5-day trial · 100 welcome credits" : "5 jours d’essai · 100 crédits de bienvenue"}</p>
           <ul className="digital-benefits" aria-label={isEnglish ? "Your workflow" : "Ton parcours avec Vendeo"}>

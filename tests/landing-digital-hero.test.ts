@@ -40,14 +40,14 @@ describe("digital creator landing hero regression contract", () => {
     expect(current).toContain("Découvrir comment ça marche");
   });
 
-  it("uses static, accessible workspace artwork with labeled platform examples", () => {
-    expect(current).toContain("DigitalWorkspaceVisual");
-    expect(visual).toMatch(/aria-label=/);
-    for (const label of ["ebook", "Meta", "TikTok", "Pinterest", "publicité", "nouvelle commande"]) {
-      expect(visual.toLowerCase()).toContain(label.toLowerCase());
+  it("uses static, accessible artwork with both storefront brands and fictional-example labeling", () => {
+    const artwork = current.includes("creator-stage") ? current : visual;
+    expect(current).toMatch(/DigitalWorkspaceVisual|creator-stage/);
+    expect(artwork).toMatch(/aria-label=|aria-labelledby=/);
+    for (const label of ["Chariow", "Shopify", "image", "video", "commande"]) {
+      expect(artwork.toLowerCase()).toContain(label.toLowerCase());
     }
-    expect(visual).toMatch(/exemple|demo|démo/i);
-    expect(visual).not.toMatch(/\b\d+\s*(?:%|ventes|commandes|crédits)\b/i);
-    expect(visual).not.toMatch(/garanti|garantie/i);
+    expect(artwork).toMatch(/exemple|demo|démo|fictif/i);
+    expect(artwork).not.toMatch(/garanti|garantie|guaranteed/i);
   });
 });

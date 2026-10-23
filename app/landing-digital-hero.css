@@ -160,3 +160,119 @@
   .digital-workspace .workspace-order .workspace-card-label { font-size: 8px; }
   .digital-workspace .workspace-ad .workspace-card-label { flex-wrap: wrap; }
 }
+
+
+/* Dashboard-first cockpit hero; all selectors remain scoped to this hero visual. */
+.landing-premium .digital-workspace { max-width: 760px; width: 100%; margin: 0; grid-area: visual; min-width: 0; scroll-margin-top: 112px; }
+.landing-premium .digital-workspace .workspace-visual-heading { justify-content: flex-start; flex-wrap: wrap; gap: 9px; margin: 0 0 12px 8px; color: #26375a; font-size: 12px; font-weight: 650; }
+.workspace-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #42bea6; box-shadow: 0 0 0 4px #42bea61c; }
+.workspace-demo-badge { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding: 6px 9px; color: #77530b; border: 1px solid #f1d796; border-radius: 999px; background: #fff8e5; font-size: 9px; font-weight: 700; letter-spacing: .035em; }
+.workspace-dashboard { position: relative; isolation: isolate; padding: 20px 21px 14px; border: 1px solid #e1e7f3; border-radius: 18px; background: linear-gradient(145deg,#fff 0%,#fbfcff 100%); box-shadow: 0 23px 70px #243b751b, 0 4px 13px #2035650a; }
+.workspace-dashboard-top,.workspace-brand,.workspace-connected,.workspace-store-chip,.workspace-dash-label,.workspace-metrics,.workspace-chart-title,.workspace-dashboard-footer { display: flex; align-items: center; }
+.workspace-dashboard-top { justify-content: space-between; gap: 12px; padding-bottom: 15px; border-bottom: 1px solid #edf0f6; }
+.workspace-brand { gap: 16px; min-width: 0; }
+.workspace-brand img { width: 91px; height: auto; }
+.workspace-brand > span { padding-left: 15px; border-left: 1px solid #e5e9f2; color: #52617d; font-size: 11px; font-weight: 600; }
+.workspace-connected { gap: 7px; }
+.workspace-store-chip { gap: 5px; padding: 5px 8px; border: 1px solid #e8ebf2; border-radius: 8px; background: #fff; color: #53607a; font-size: 9px; font-weight: 600; }
+.workspace-store-chip img { width: 16px; height: 16px; }
+.workspace-shopify { color: #5c7b37; font-weight: 700; }
+.workspace-shopify-bag { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border-radius: 5px; background: #90b957; color: white; font-size: 13px; }
+.workspace-dash-label { justify-content: space-between; gap: 10px; margin: 16px 0 11px; }
+.workspace-dash-label > div { display: flex; flex-direction: column; gap: 4px; }
+.workspace-dash-label > div > span { color: #8b96ac; font-size: 8px; font-weight: 700; letter-spacing: .1em; }
+.workspace-dash-label strong { color: #202d4c; font-size: 13px; letter-spacing: -.02em; }
+.workspace-period { padding: 6px 8px; border: 1px solid #e9edf4; border-radius: 7px; color: #66738d; background: #fff; font-size: 9px; white-space: nowrap; }
+.workspace-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; }
+.workspace-metrics > div { display: grid; grid-template-columns: 1fr auto; gap: 5px 2px; min-width: 0; padding: 10px 10px 9px; border: 1px solid #edf0f6; border-radius: 9px; background: #fff; }
+.workspace-metrics > div > span { grid-column: 1/-1; color: #77839c; font-size: 8px; white-space: nowrap; }
+.workspace-metrics strong { color: #253553; font-size: clamp(12px,1.25vw,17px); line-height: 1.1; letter-spacing: -.04em; white-space: nowrap; }
+.workspace-metrics small { align-self: center; color: #148b72; font-size: 7px; font-weight: 650; white-space: nowrap; }
+.workspace-chart { margin-top: 11px; overflow: hidden; border: 1px solid #edf0f6; border-radius: 10px; background: #fff; }
+.workspace-chart-title { justify-content: space-between; gap: 8px; padding: 9px 11px 0; color: #465574; font-size: 9px; font-weight: 650; }
+.workspace-chart-title > span:last-child { display: flex; align-items: center; gap: 4px; color: #7a859a; font-size: 7px; font-weight: 500; }
+.workspace-chart-title i,.workspace-chart-title b { width: 6px; height: 6px; border-radius: 50%; background: #6d5be8; }
+.workspace-chart-title b { background: #35b8b3; }
+.workspace-chart > img { display: block; width: 100%; height: auto; max-height: 150px; object-fit: cover; object-position: center 48%; }
+.workspace-dashboard-footer { justify-content: space-between; gap: 10px; margin-top: 10px; color: #8590a5; font-size: 8px; }
+.workspace-dashboard-footer > span:first-child { display: flex; align-items: center; gap: 6px; color: #4a5874; font-weight: 600; }
+.workspace-mini-avatar { display: inline-flex; width: 19px; height: 19px; align-items: center; justify-content: center; border-radius: 6px; background: #e9e8ff; color: #6152c4; font-size: 9px; }
+.workspace-status { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 999px; background: #eaf8f3; color: #198b6e; font-size: 7px; }
+.workspace-status i { width: 5px; height: 5px; border-radius: 50%; background: #26ae86; }
+.workspace-float-card { position: absolute; z-index: 2; border: 1px solid #e8ebf2; border-radius: 12px; background: #fff; box-shadow: 0 14px 40px #23376524; }
+.workspace-creative-card { width: 148px; right: -24px; top: 25%; padding: 9px; transform: rotate(2deg); }
+.workspace-float-heading { display: flex; align-items: center; gap: 6px; color: #34415e; font-size: 9px; font-weight: 650; }
+.workspace-float-icon { display: inline-flex; align-items: center; justify-content: center; width: 23px; height: 23px; border-radius: 7px; }
+.creative-icon { background: #f0edff; color: #705de0; }
+.workspace-float-menu { margin-left: auto; color: #9aa3b5; letter-spacing: 1px; }
+.workspace-creative-image { position: relative; height: 105px; margin-top: 8px; overflow: hidden; border-radius: 7px; background: #25346c; }
+.workspace-creative-image > img { position: absolute; inset: 0 0 0 auto; width: 68%; height: 100%; object-fit: cover; object-position: center 27%; }
+.workspace-creative-image::after { position: absolute; inset: 0; content: ""; background: linear-gradient(90deg,#202d64 0%,#202d64d9 35%,transparent 100%); }
+.workspace-creative-image > div { position: relative; z-index: 1; display: flex; width: 68%; height: 100%; flex-direction: column; justify-content: center; padding: 8px; color: white; }
+.workspace-creative-image small { color: #a6edef; font-size: 6px; letter-spacing: .08em; }
+.workspace-creative-image strong { margin-top: 5px; font-size: 12px; line-height: 1.12; }
+.workspace-creative-image > div > span { margin-top: 7px; color: #d7def4; font-size: 6px; }
+.workspace-creative-foot { display: flex; align-items: center; justify-content: space-between; padding: 7px 1px 0; color: #6a5acb; font-size: 8px; font-weight: 600; }
+.workspace-notification { left: -34px; bottom: 12%; display: grid; grid-template-columns: 30px 1fr 20px; align-items: center; gap: 8px; width: 238px; padding: 11px; }
+.workspace-notification-icon { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; background: #e8f8f5; color: #138d7e; }
+.workspace-notification-copy strong { display: block; color: #263653; font-size: 10px; }
+.workspace-notification-copy small { display: block; margin-top: 3px; color: #8b95a8; font-size: 7px; }
+.workspace-order-check { display: flex; align-items: center; justify-content: center; width: 19px; height: 19px; border-radius: 50%; background: #e8f7ef; color: #189568; }
+.workspace-notification-product { grid-column: 2/4; display: flex; align-items: center; gap: 5px; padding-top: 7px; border-top: 1px solid #eff1f5; color: #6c7890; font-size: 7px; }
+.workspace-example-note { margin: 12px 4px 0; color: #737f98; font-size: 9px; line-height: 1.55; text-align: center; }
+@media (max-width: 1100px) and (min-width: 901px) { .workspace-creative-card { right: -15px; width: 128px; } .workspace-notification { left: -20px; width: 210px; } }
+@media (max-width: 900px) { .landing-premium .digital-workspace { max-width: 700px; margin-inline: auto; } .workspace-creative-card { right: -12px; } .workspace-notification { left: -12px; } }
+@media (max-width: 560px) {
+  .landing-premium .digital-workspace .workspace-visual-heading { margin-left: 1px; margin-bottom: 10px; font-size: 11px; gap: 7px; }
+  .workspace-demo-badge { padding: 5px 7px; font-size: 7px; }
+  .workspace-dashboard { padding: 13px 11px 11px; border-radius: 14px; }
+  .workspace-dashboard-top { padding-bottom: 10px; }
+  .workspace-brand { gap: 8px; }
+  .workspace-brand img { width: 71px; }
+  .workspace-brand > span { padding-left: 8px; font-size: 8px; }
+  .workspace-connected { gap: 4px; }
+  .workspace-store-chip { gap: 3px; padding: 4px 5px; font-size: 7px; }
+  .workspace-store-chip img,.workspace-shopify-bag { width: 13px; height: 13px; }
+  .workspace-dash-label { margin: 12px 0 8px; }
+  .workspace-dash-label > div > span { font-size: 7px; }
+  .workspace-dash-label strong { font-size: 11px; }
+  .workspace-period { padding: 5px; font-size: 7px; }
+  .workspace-metrics { gap: 5px; }
+  .workspace-metrics > div { display: flex; flex-direction: column; gap: 4px; padding: 7px 6px; }
+  .workspace-metrics > div > span { font-size: 7px; }
+  .workspace-metrics strong { font-size: clamp(10px,3.3vw,14px); }
+  .workspace-metrics small { font-size: 6px; }
+  .workspace-chart { margin-top: 7px; }
+  .workspace-chart-title { padding: 7px 8px 0; font-size: 8px; }
+  .workspace-chart-title > span:last-child { font-size: 6px; }
+  .workspace-chart > img { max-height: 94px; }
+  .workspace-dashboard-footer { margin-top: 7px; font-size: 7px; }
+  .workspace-mini-avatar { width: 16px; height: 16px; }
+  .workspace-creative-card { top: 28%; right: -8px; width: 104px; padding: 6px; border-radius: 9px; }
+  .workspace-float-heading { gap: 4px; font-size: 7px; }
+  .workspace-float-icon { width: 18px; height: 18px; }
+  .workspace-float-icon svg { width: 11px; }
+  .workspace-creative-image { height: 72px; margin-top: 5px; }
+  .workspace-creative-image > div { padding: 5px; }
+  .workspace-creative-image small,.workspace-creative-image > div > span { font-size: 5px; }
+  .workspace-creative-image strong { font-size: 9px; }
+  .workspace-creative-foot { padding-top: 5px; font-size: 7px; }
+  .workspace-notification { left: -8px; bottom: 10%; grid-template-columns: 23px 1fr 15px; gap: 6px; width: 168px; padding: 7px; border-radius: 9px; }
+  .workspace-notification-icon { width: 23px; height: 23px; border-radius: 7px; }
+  .workspace-notification-icon svg { width: 13px; }
+  .workspace-notification-copy strong { font-size: 8px; }
+  .workspace-notification-copy small { font-size: 6px; }
+  .workspace-order-check { width: 15px; height: 15px; }
+  .workspace-order-check svg { width: 10px; }
+  .workspace-notification-product { gap: 3px; padding-top: 5px; font-size: 6px; }
+  .workspace-example-note { max-width: 380px; margin-top: 10px; font-size: 8px; }
+}
+@media (max-width: 365px) { .workspace-brand > span { display: none; } .workspace-creative-card { right: -5px; width: 92px; } .workspace-notification { left: -5px; width: 154px; } }
+
+.workspace-studio-strip { display: flex; align-items: center; gap: 9px; margin-top: 8px; padding: 6px 9px; border: 1px solid #edf0f6; border-radius: 8px; background: #fff; }
+.workspace-studio-strip > img { width: 84px; height: 28px; object-fit: cover; object-position: left center; border-radius: 4px; }
+.workspace-studio-strip > span { display: flex; flex-direction: column; gap: 3px; }
+.workspace-studio-strip strong { color: #3c4a67; font-size: 8px; }
+.workspace-studio-strip small { color: #8792a8; font-size: 7px; }
+.workspace-studio-strip > svg { margin-left: auto; color: #725fd9; }
+@media (max-width: 560px) { .workspace-studio-strip { gap: 6px; margin-top: 6px; padding: 5px 6px; } .workspace-studio-strip > img { width: 66px; height: 22px; } .workspace-studio-strip strong { font-size: 7px; } .workspace-studio-strip small { font-size: 6px; } .workspace-studio-strip > svg { width: 12px; } }
