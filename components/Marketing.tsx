@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { DigitalWorkspaceVisual } from "@/components/DigitalWorkspaceVisual";
-import { ArrowRight, Check, Layers, Rocket, Wand2, Menu, X } from "lucide-react";
+import { ArrowRight, Check, Layers, Rocket, Wand2, Menu, X, Play, ShoppingBag, Sparkles } from "lucide-react";
+import { SiShopify } from "react-icons/si";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
 import "@/app/marketing-fixes.css";
@@ -46,17 +46,25 @@ export function Marketing() {
 
       <div className="container landing-hero-inner">
         <div className="landing-hero-copy"><span className="landing-kicker"><i/> {isEnglish ? "FOR DIGITAL PRODUCT SELLERS" : "POUR LES VENDEURS DE PRODUITS DIGITAUX"}</span>
-          <h1 className="digital-hero-title">{isEnglish ? "Your store, your visuals, your ads." : "Ta boutique, tes visuels, tes pubs."}<span>{isEnglish ? "All in one place." : "Tout au même endroit."}</span></h1>
-          <p className="landing-intro">{isEnglish ? "Sell your digital products without juggling tools. Connect your store, create visuals with AI, launch campaigns in a few clicks and track your orders in Vendeo." : "Vends tes produits digitaux sans jongler entre les outils. Connecte ta boutique, crée tes visuels avec l’IA, lance tes campagnes en quelques clics et suis tes commandes depuis Vendeo."}</p>
+          <h1 className="digital-hero-title">{isEnglish ? "Create the ad. Launch it. See what sells." : "Crée ta pub. Lance-la. Vois ce qui se vend."}<span>{isEnglish ? "Your digital business, in motion." : "Ton business digital prend vie."}</span></h1>
+          <p className="landing-intro">{isEnglish ? "Create image and video ads with AI, launch and analyze campaigns, and track your digital product sales—all from Vendeo." : "Crée des publicités en image et en vidéo avec l’IA, pilote et analyse tes campagnes, puis suis tes ventes de produits digitaux — tout depuis Vendeo."}</p>
           <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{isEnglish ? "Start my free trial" : "Lancer mon essai gratuit"} <ArrowRight size={18}/></Link><a className="landing-text-link" href="#apercu">{isEnglish ? "See how it works" : "Découvrir comment ça marche"}{" "}<span>↓</span></a></div>
           <p className="digital-trial"><Check size={14} aria-hidden="true"/>{isEnglish ? "5-day trial · 100 welcome credits" : "5 jours d’essai · 100 crédits de bienvenue"}</p>
           <ul className="digital-benefits" aria-label={isEnglish ? "Your workflow" : "Ton parcours avec Vendeo"}>
-            <li><Layers size={18} aria-hidden="true"/><span>{isEnglish ? "Your connected store" : "Ta boutique reliée"}</span></li>
-            <li><Wand2 size={18} aria-hidden="true"/><span>{isEnglish ? "Campaigns launched" : "Tes campagnes lancées"}</span></li>
-            <li><Rocket size={18} aria-hidden="true"/><span>{isEnglish ? "Orders tracked" : "Tes commandes suivies"}</span></li>
+            <li><Wand2 size={18} aria-hidden="true"/><span>{isEnglish ? "Image & video ad creation" : "Création de pubs image & vidéo"}</span></li>
+            <li><Rocket size={18} aria-hidden="true"/><span>{isEnglish ? "Campaigns launched & analyzed" : "Campagnes lancées & analysées"}</span></li>
+            <li><Layers size={18} aria-hidden="true"/><span>{isEnglish ? "Digital sales tracked" : "Ventes digitales suivies"}</span></li>
           </ul>
         </div>
-        <DigitalWorkspaceVisual isEnglish={isEnglish} />
+        <div className="creator-stage" id="apercu" role="group" aria-label={isEnglish ? "Illustration of a digital creator making ads and selling digital products" : "Illustration d’une créatrice digitale qui crée des publicités et vend des produits numériques"}>
+          <div className="creator-stage-glow" aria-hidden="true" />
+          <div className="creator-photo"><Image src="/landing/digital-creator.webp" alt={isEnglish ? "Smiling digital creator" : "Créatrice digitale souriante"} fill priority sizes="(max-width: 900px) 90vw, 46vw" /></div>
+          <div className="creator-product-float" role="group" aria-label={isEnglish ? "Illustrative digital product mockups" : "Exemples illustratifs de produits digitaux"}><span className="creator-product-cover"><small>EBOOK</small><strong>{isEnglish ? "Make it\nhappen" : "Ose faire\nta place"}</strong><i aria-hidden="true" /></span><span className="creator-course-cover"><small>{isEnglish ? "ONLINE COURSE" : "FORMATION"}</small><strong>{isEnglish ? "Your next\nchapter" : "Ton prochain\nchapitre"}</strong></span></div>
+          <div className="creator-studio-float"><div className="creator-float-heading"><Sparkles size={13} aria-hidden="true"/><span>Studio IA</span><span className="creator-live-dot" /></div><Image src={`/landing/studio-detail-${isEnglish ? "en" : "fr"}.webp`} alt={isEnglish ? "Vendeo AI Studio image and video creation options" : "Options Image et Vidéo du Studio IA Vendeo"} width={600} height={158} sizes="(max-width: 600px) 55vw, 290px"/><div className="creator-media-tags"><span><Layers size={11} aria-hidden="true"/> Image</span><span><Play size={11} aria-hidden="true"/> Vidéo</span></div></div>
+          <div className="creator-order-float"><span className="creator-order-icon"><ShoppingBag size={15} aria-hidden="true"/></span><span><strong>{isEnglish ? "New order" : "Nouvelle commande"}</strong><small>{isEnglish ? "Your digital guide" : "Ton guide digital"}</small></span><b>+29 €</b></div>
+          <div className="creator-brand-logos" aria-label={isEnglish ? "Chariow and Shopify logos" : "Logos Chariow et Shopify"}><Image src="/logos/chariow.svg" alt="Chariow" width={80} height={16}/><span className="creator-brand-divider" aria-hidden="true"/><SiShopify aria-hidden="true"/><span>shopify</span></div>
+          <p className="creator-example-note">{isEnglish ? "Illustrative products and order · no customer results shown" : "Produits et commande fictifs · aucun résultat client présenté"}</p>
+        </div>
       </div>
     </section>
 
