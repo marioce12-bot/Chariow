@@ -138,15 +138,14 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
         <div className="story-photo">
           <Image key={currentScene.image} src={currentScene.image} alt={currentScene.alt} fill priority={activeIndex === 0} sizes="(max-width: 900px) 96vw, (max-width: 1250px) 58vw, 700px"/>
           <span className="story-photo-shade" aria-hidden="true"/>
-          <span className="story-step-badge">{String(activeIndex + 1).padStart(2, "0")} <span>/ 05</span></span>
           <div className="story-screenshot" role="img" aria-label={currentScene.screenshotAlt}>
-            <Image key={currentScene.screenshot} src={currentScene.screenshot} alt="" fill sizes="(max-width: 620px) 58vw, 340px"/>
+            <Image key={currentScene.screenshot} src={currentScene.screenshot} alt="" fill sizes="(max-width: 620px) 70vw, (max-width: 900px) 62vw, 520px"/>
           </div>
-        </div>
-        <div className="story-content">
-          <div className="story-meta"><span>{en ? "THE VENDEO WORKFLOW" : "LE PARCOURS VENDEO"}</span><span>{en ? `STEP ${activeIndex + 1} OF 5` : `ÉTAPE ${activeIndex + 1} SUR 5`}</span></div>
-          <h3>{currentScene.title}</h3>
-          <p>{currentScene.description}</p>
+          <div className="story-overlay">
+            <div className="story-meta"><span>{en ? "THE VENDEO WORKFLOW" : "LE PARCOURS VENDEO"}</span><span>{en ? `STEP ${activeIndex + 1} OF 5` : `ÉTAPE ${activeIndex + 1} SUR 5`}</span></div>
+            <h3>{currentScene.title}</h3>
+            <p>{currentScene.description}</p>
+          </div>
         </div>
       </article>
       <div className="story-progress" aria-hidden="true"><span key={activeIndex}/></div>

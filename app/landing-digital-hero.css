@@ -47,16 +47,14 @@
 .landing-premium .digital-workspace .story-card { display: block; }
 .landing-premium .digital-workspace .story-photo { position: relative; width: 100%; aspect-ratio: 1.52 / 1; min-height: 350px; overflow: hidden; background: #e9eaf3; }
 .landing-premium .digital-workspace .story-photo > img { object-fit: cover; object-position: center 38%; transition: transform .45s ease; }
-.landing-premium .digital-workspace .story-photo-shade { position: absolute; z-index: 1; inset: 42% 0 0; pointer-events: none; background: linear-gradient(180deg, transparent, #141c3840); }
-.landing-premium .digital-workspace .story-step-badge { position: absolute; z-index: 3; top: 15px; left: 15px; display: inline-flex; align-items: baseline; gap: 4px; padding: 7px 10px; border: 1px solid #ffffffc9; border-radius: 8px; background: #ffffffed; color: #252f53; font-size: 11px; font-weight: 800; box-shadow: 0 4px 12px #131b3820; }
-.landing-premium .digital-workspace .story-step-badge span { color: #828aa0; font-size: 8px; font-weight: 650; }
-.landing-premium .digital-workspace .story-screenshot { position: absolute; z-index: 2; right: clamp(14px, 2.4vw, 24px); bottom: clamp(14px, 2.4vw, 24px); width: min(49%, 370px); aspect-ratio: 1265 / 800; overflow: hidden; border: 3px solid #fff; border-radius: 12px; background: #fff; box-shadow: 0 16px 38px #111a3650; }
+.landing-premium .digital-workspace .story-photo-shade { position: absolute; z-index: 1; inset: 0; pointer-events: none; background: linear-gradient(180deg, #17213b18 0%, transparent 30%, transparent 54%, #111a354d 100%); }
+.landing-premium .digital-workspace .story-screenshot { position: absolute; z-index: 2; top: clamp(14px, 2.4vw, 24px); right: clamp(14px, 2.4vw, 24px); width: min(62%, 520px); aspect-ratio: 1265 / 800; overflow: hidden; border: 4px solid #fff; border-radius: 14px; background: #fff; box-shadow: 0 18px 42px #111a3666; }
 .landing-premium .digital-workspace .story-screenshot img { object-fit: contain; object-position: center; }
-.landing-premium .digital-workspace .story-content { display: flex; min-width: 0; flex-direction: column; padding: 20px 23px 21px; }
-.landing-premium .digital-workspace .story-meta { display: flex; justify-content: space-between; align-items: center; gap: 7px; color: #757f98; font-size: 8px; font-weight: 750; letter-spacing: .055em; }
-.landing-premium .digital-workspace .story-meta span:last-child { color: #6054c4; white-space: nowrap; }
-.landing-premium .digital-workspace .story-content h3 { margin: 12px 0 7px; color: #202c4c; font-size: clamp(19px, 2vw, 24px); font-weight: 700; letter-spacing: -.035em; line-height: 1.2; }
-.landing-premium .digital-workspace .story-content > p { margin: 0; color: #68738e; font-size: 12px; line-height: 1.65; }
+.landing-premium .digital-workspace .story-overlay { position: absolute; z-index: 3; left: clamp(14px, 2.4vw, 24px); bottom: clamp(14px, 2.4vw, 24px); display: flex; width: min(58%, 520px); min-width: 0; flex-direction: column; padding: 16px 18px; border: 1px solid #ffffff42; border-radius: 14px; background: linear-gradient(135deg, #172343ed, #171c35df); box-shadow: 0 15px 36px #111a3650; color: #fff; backdrop-filter: blur(10px); }
+.landing-premium .digital-workspace .story-meta { display: flex; justify-content: space-between; align-items: center; gap: 7px; color: #e4e9f6; font-size: 8px; font-weight: 750; letter-spacing: .055em; }
+.landing-premium .digital-workspace .story-meta span:last-child { color: #c3beff; white-space: nowrap; }
+.landing-premium .digital-workspace .story-overlay h3 { margin: 9px 0 6px; color: #fff; font-size: clamp(21px, 2.25vw, 29px); font-weight: 750; letter-spacing: -.035em; line-height: 1.15; }
+.landing-premium .digital-workspace .story-overlay > p { margin: 0; color: #e2e7f2; font-size: 12px; line-height: 1.5; }
 .landing-premium .digital-workspace .story-progress { height: 4px; background: #f0f2f8; }
 .landing-premium .digital-workspace .story-progress span { display: block; width: 100%; height: 100%; transform: scaleX(0); transform-origin: left center; background: linear-gradient(90deg, #6253d5, #2d9bae); animation: story-progress-fill 4s linear forwards; }
 @keyframes story-progress-fill { to { transform: scaleX(1); } }
@@ -64,7 +62,6 @@
 
 @media (max-width: 1100px) and (min-width: 901px) {
   .landing-premium .digital-hero .landing-hero-inner { gap: 25px; }
-  .landing-premium .digital-workspace .story-content { padding-inline: 18px; }
   .landing-premium .digital-workspace .workspace-brand-label { font-size: 7px; }
 }
 @media (max-width: 900px) {
@@ -93,13 +90,13 @@
   .landing-premium .digital-workspace .integration-logo,
   .landing-premium .digital-workspace .ad-platform-logo { min-height: 26px; padding-inline: 7px; }
   .landing-premium .digital-workspace .ad-platform-logo { font-size: 8px; }
-  .landing-premium .digital-workspace .story-photo { aspect-ratio: 1.24 / 1; min-height: 0; }
+  .landing-premium .digital-workspace .story-photo { aspect-ratio: 1 / 1; min-height: 0; }
   .landing-premium .digital-workspace .story-photo > img { object-position: center 38%; }
-  .landing-premium .digital-workspace .story-step-badge { top: 11px; left: 11px; }
-  .landing-premium .digital-workspace .story-screenshot { right: 11px; bottom: 11px; width: min(58%, 320px); border-width: 2px; border-radius: 9px; }
-  .landing-premium .digital-workspace .story-content { padding: 16px 16px 17px; }
-  .landing-premium .digital-workspace .story-content h3 { margin: 12px 0 7px; font-size: 20px; }
-  .landing-premium .digital-workspace .story-content > p { font-size: 11px; }
+  .landing-premium .digital-workspace .story-screenshot { top: 10px; right: 10px; width: min(70%, 370px); border-width: 3px; border-radius: 10px; }
+  .landing-premium .digital-workspace .story-overlay { left: 10px; right: 10px; bottom: 10px; width: auto; padding: 12px; border-radius: 11px; }
+  .landing-premium .digital-workspace .story-meta { font-size: 7px; }
+  .landing-premium .digital-workspace .story-overlay h3 { margin: 8px 0 4px; font-size: 18px; }
+  .landing-premium .digital-workspace .story-overlay > p { font-size: 10px; line-height: 1.45; }
   .landing-premium .digital-workspace .workspace-example-note { font-size: 8px; }
 }
 @media (max-width: 350px) {

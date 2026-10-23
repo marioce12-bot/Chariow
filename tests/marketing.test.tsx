@@ -65,6 +65,13 @@ describe("premium product landing", () => {
     expect(visualText).toContain("Parcours tout-en-un");
     expect(visual!.querySelector('[role="region"][aria-roledescription="carrousel"]')).not.toBeNull();
     expect(visual!.querySelectorAll("button")).toHaveLength(0);
+    const overlay = visual!.querySelector(".story-photo .story-overlay");
+    expect(overlay).not.toBeNull();
+    expect(overlay!.textContent).toContain("LE PARCOURS VENDEO");
+    expect(overlay!.textContent).toContain("ÉTAPE 1 SUR 5");
+    expect(overlay!.querySelector("h3")?.textContent).toBe("Connecte ton produit digital");
+    expect(overlay!.querySelector("p")?.textContent).toContain("Chariow ou Shopify");
+    expect(visual!.querySelector(".story-content")).toBeNull();
     expect(visual!.querySelector(".story-screenshot img")).not.toBeNull();
     expect(visual!.querySelector(".story-photo img")?.getAttribute("alt")).toMatch(/même créatrice/i);
     const visualSource = source("components/DigitalWorkspaceVisual.tsx");
@@ -73,6 +80,9 @@ describe("premium product landing", () => {
     expect(visualSource).toContain("analyser le secteur de ton produit");
     expect(visualSource).toContain("window.setInterval");
     expect(visualSource).toContain("SCENE_DURATION_MS = 4000");
+    const visualCss = source("app/landing-digital-hero.css");
+    expect(visualCss).toContain("width: min(62%, 520px)");
+    expect(visualCss).toContain("width: min(70%, 370px)");
     expect(html).not.toContain('role="tablist"');
     expect(html).not.toContain('role="tab"');
     expect(html).not.toContain("claim1minute");
