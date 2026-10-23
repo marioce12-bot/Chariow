@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 describe("mobile dashboard shell layout", () => {
-  it("keeps desktop selection in the shared header and mobile selection only in overview", () => {
+  it("keeps desktop selection in the sidebar and mobile selection only in overview", () => {
     const source = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
     const overview = readFileSync(new URL("../components/dashboard/OverviewHome.tsx", import.meta.url), "utf8");
     const css = readFileSync(new URL("../app/dashboard-navigation.css", import.meta.url), "utf8");
@@ -9,14 +9,17 @@ describe("mobile dashboard shell layout", () => {
     const layout = source.indexOf('<div className={`app-layout');
     expect(header).toBeGreaterThan(-1);
     expect(header).toBeLessThan(layout);
-    const headerStore = source.indexOf('className="dashboard-header-store"');
-    expect(headerStore).toBeGreaterThan(header);
-    expect(headerStore).toBeLessThan(layout);
+    const sidebar = source.indexOf('<aside className="sidebar">');
+    const sidebarStore = source.indexOf('className="dashboard-sidebar-store"');
+    expect(sidebarStore).toBeGreaterThan(sidebar);
+    expect(sidebarStore).toBeLessThan(source.indexOf("<DashboardPrimaryNavigation", sidebar));
+    expect(source.slice(header, layout)).not.toContain("DashboardStoreSelector");
+    expect(source).not.toContain('{w("sidebar")}');
     expect(source).toContain('className="dashboard-overview-mobile-store"><DashboardStoreSelector mobile');
     expect(source.indexOf('storeSelector={<div')).toBeGreaterThan(source.indexOf('<OverviewHome'));
-    expect(css).toContain('.dashboard-header-store { display: none; }');
+    expect(css).toContain('.dashboard-sidebar-store { display: none; }');
     expect(css).toContain('.dashboard-overview-mobile-store { display: none; }');
-    expect(css).toMatch(/@media \(min-width: 761px\) \{[\s\S]*\.dashboard-header-store \{ display: block/);
+    expect(css).toMatch(/@media \(min-width: 761px\) \{[\s\S]*\.dashboard-sidebar-store \{ display: block/);
     expect(overview).toContain("{storeSelector}");
     expect(css).not.toMatch(/dashboard-platform\s*>\s*\.app-layout\s*\{[^}]*padding-top:\s*0/);
     expect(css).toMatch(/padding-top:\s*calc\([\s\S]*var\(--dashboard-header-height\)/);
