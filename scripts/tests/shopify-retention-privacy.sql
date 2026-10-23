@@ -15,7 +15,26 @@ CREATE TABLE public.chariow_sales (
   occurred_at timestamptz,
   UNIQUE(store_id, chariow_sale_id)
 );
+-- Existing undated sales have no historical first-observation timestamp.
+INSERT INTO stores(id,platform,shop_domain) VALUES
+ ('00000000-0000-4000-8000-000000000005','shopify','legacy.myshopify.com'),
+ ('00000000-0000-4000-8000-000000000006','chariow',NULL);
+INSERT INTO chariow_sales(store_id,chariow_sale_id,occurred_at) VALUES
+ ('00000000-0000-4000-8000-000000000005','shopify:00000000-0000-4000-8000-000000000005:601',NULL),
+ ('00000000-0000-4000-8000-000000000006','chariow:601',NULL);
+CREATE TEMP TABLE observation_window AS SELECT clock_timestamp() AS earliest;
 \i supabase/migrations/20261023100000_shopify_retention_privacy.sql
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM chariow_sales, observation_window WHERE chariow_sale_id LIKE '%:601'
+    AND store_id='00000000-0000-4000-8000-000000000005'
+    AND occurred_at IS NULL AND shopify_first_observed_at >= earliest
+    AND shopify_first_observed_at <= clock_timestamp()) THEN
+    RAISE EXCEPTION 'legacy undated Shopify sale was deleted, missed or backdated';
+  END IF;
+  IF EXISTS (SELECT 1 FROM chariow_sales WHERE chariow_sale_id='chariow:601' AND shopify_first_observed_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'migration modified Chariow observation clock';
+  END IF;
+END $$;
 
 INSERT INTO stores(id,platform,shop_domain) VALUES
  ('00000000-0000-4000-8000-000000000001','shopify','alpha.myshopify.com'),
@@ -33,7 +52,27 @@ ALTER TABLE chariow_sales DISABLE TRIGGER chariow_shopify_retention_guard;
 INSERT INTO chariow_sales(store_id,chariow_sale_id,occurred_at) VALUES
  ('00000000-0000-4000-8000-000000000001','shopify:00000000-0000-4000-8000-000000000001:201',now()-interval '90 days 1 second'),
  ('00000000-0000-4000-8000-000000000001','shopify:00000000-0000-4000-8000-000000000001:202',now()-interval '90 days');
+INSERT INTO chariow_sales(store_id,chariow_sale_id,occurred_at,shopify_first_observed_at) VALUES
+ ('00000000-0000-4000-8000-000000000001','shopify:00000000-0000-4000-8000-000000000001:203',NULL,now()-interval '90 days'),
+ ('00000000-0000-4000-8000-000000000001','shopify:00000000-0000-4000-8000-000000000001:204',NULL,NULL),
+ ('00000000-0000-4000-8000-000000000001','shopify:00000000-0000-4000-8000-000000000001:205',NULL,now()-interval '89 days');
 ALTER TABLE chariow_sales ENABLE TRIGGER chariow_shopify_retention_guard;
+
+DO $$ DECLARE observed timestamptz; previous_observed timestamptz; BEGIN
+  INSERT INTO chariow_sales(store_id,chariow_sale_id,occurred_at,shopify_first_observed_at)
+    VALUES ('00000000-0000-4000-8000-000000000001','shopify:00000000-0000-4000-8000-000000000001:206',NULL,now()-interval '200 days')
+    RETURNING shopify_first_observed_at INTO observed;
+  IF observed IS DISTINCT FROM now() THEN RAISE EXCEPTION 'undated insertion was rejected or backdated'; END IF;
+  SELECT shopify_first_observed_at INTO previous_observed FROM chariow_sales WHERE chariow_sale_id LIKE '%:205';
+  UPDATE chariow_sales SET shopify_first_observed_at=now()+interval '200 days' WHERE chariow_sale_id LIKE '%:205';
+  IF NOT EXISTS (SELECT 1 FROM chariow_sales WHERE chariow_sale_id LIKE '%:205' AND shopify_first_observed_at=previous_observed) THEN
+    RAISE EXCEPTION 'update extended first observation clock';
+  END IF;
+  UPDATE chariow_sales SET shopify_first_observed_at=now()-interval '200 days' WHERE chariow_sale_id LIKE '%:206';
+  IF NOT EXISTS (SELECT 1 FROM chariow_sales WHERE chariow_sale_id LIKE '%:206' AND shopify_first_observed_at=observed) THEN
+    RAISE EXCEPTION 'update backdated first observation clock';
+  END IF;
+END $$;
 
 DO $$
 DECLARE n integer;
@@ -82,11 +121,15 @@ END $$;
 RESET ROLE;
 SET ROLE service_role;
 DO $$ BEGIN
-  IF public.purge_shopify_sales_retention() <> 2 THEN RAISE EXCEPTION 'purge should remove two Shopify expired rows'; END IF;
+  IF public.purge_shopify_sales_retention() <> 3 THEN RAISE EXCEPTION 'purge should remove three Shopify expired rows'; END IF;
 END $$;
 RESET ROLE;
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM chariow_sales WHERE chariow_sale_id LIKE '%:201' OR chariow_sale_id LIKE '%:202') THEN RAISE EXCEPTION 'purge left expired Shopify rows'; END IF;
+  IF EXISTS (SELECT 1 FROM chariow_sales WHERE chariow_sale_id LIKE '%:203') THEN RAISE EXCEPTION 'purge left first-observation-expired Shopify row'; END IF;
+  IF (SELECT count(*) FROM chariow_sales WHERE chariow_sale_id LIKE '%:204' OR chariow_sale_id LIKE '%:205' OR chariow_sale_id LIKE '%:206' OR chariow_sale_id LIKE '%:601') <> 5 THEN
+    RAISE EXCEPTION 'purge deleted an undated sale before proven expiry';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM chariow_sales WHERE store_id='00000000-0000-4000-8000-000000000003' AND chariow_sale_id='chariow:101') THEN RAISE EXCEPTION 'purge deleted old Chariow sale'; END IF;
   IF NOT EXISTS (SELECT 1 FROM chariow_sales WHERE store_id='00000000-0000-4000-8000-000000000002' AND chariow_sale_id LIKE '%:101') THEN RAISE EXCEPTION 'purge deleted active other-shop sale'; END IF;
 END $$;

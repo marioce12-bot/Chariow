@@ -15,7 +15,11 @@ export function canonicalShopifyOrderId(value: unknown): string | null {
 
 const idHash = (id: string) => createHash("sha256").update(id, "utf8").digest("hex");
 
-/** Fail-closed filter applied to raw Shopify orders before any normalization/persistence. */
+/**
+ * Fail-closed filter for new raw Shopify orders before persistence. Unknown or
+ * invalid incoming dates are intentionally skipped; existing database rows are
+ * aged by the retention RPC using occurred_at, then shopify_first_observed_at.
+ */
 export async function filterRetainedShopifySales(admin: any, storeId: string, sales: any[], now = new Date()): Promise<any[]> {
   if (!Array.isArray(sales)) throw new Error("Invalid Shopify sales batch");
   const { data: store, error: storeError } = await admin.from("stores").select("shop_domain").eq("id", storeId).eq("platform", "shopify").maybeSingle();
