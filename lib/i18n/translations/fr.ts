@@ -68,7 +68,7 @@ export const fr: Dict = {
       language: { title: "Langue", subtitle: "Choisis la langue de ton espace Vendeo.", french: "Français", english: "Anglais" },
     },
     nav: {
-      overview: "Accueil", pubs: "Pub", studio: "Studio", assistant: "Assistant", radar: "Radar", reports: "Rapports", autopilot: "Pilotage auto", stores: "Mes boutiques", subscription: "Abonnement", settings: "Paramètres", adAccounts: "Comptes publicitaires",
+      overview: "Accueil", pubs: "Pub", studio: "Studio", assistant: "Assistant", radar: "Radar", creativePerformance: "Performance visuel", reports: "Rapports", autopilot: "Pilotage auto", stores: "Mes boutiques", subscription: "Abonnement", settings: "Paramètres", adAccounts: "Comptes publicitaires",
     },
     auth: {
       resetTitle: "Réinitialise ton mot de passe.", resetDesc: "Reçois un lien sécurisé pour choisir un nouveau mot de passe.",

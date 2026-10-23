@@ -15,6 +15,7 @@ import {
   ChartNoAxesCombined,
   MessageCircle,
   MessageSquareText,
+  ImageIcon,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import { dashboardCopy } from "@/lib/i18n/dashboard-copy";
@@ -55,6 +56,7 @@ export const dashboardPrimaryNavigation: readonly NavigationItem[] = [
   },
   { section: "Studio", navKey: "nav.studio", label: "Studio", Icon: Sparkles },
   { section: "Pub", navKey: "nav.pubs", label: "Pub", Icon: Megaphone },
+  { section: "Performance visuel", navKey: "nav.creativePerformance", label: "Performance visuel", Icon: ImageIcon },
   {
     section: "Radar marché",
     navKey: "nav.radar",
