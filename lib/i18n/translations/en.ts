@@ -47,7 +47,7 @@ export const en: Dict = {
       pricing: {
         eyebrow: "Simple pricing", title1: "One plan.", title2: "Everything included.", paragraph: "5-day free trial for new sign-ups, then a single subscription to keep using Vendeo.",
         pill: "Free trial — 5 days for new trials", price: "2 000 XOF", perMonth: "/ month",
-        b1: "Unlimited AI analysis of your sales and ads", b2: "Up to 3 connected Chariow stores", b3: "Meta (Facebook and Instagram) and TikTok Ads", b4: "AI Studio (ad visuals and videos)", b5: "75 Studio credits offered at signup",
+        b1: "Unlimited AI analysis of your sales and ads", b2: "Up to 3 connected Chariow stores", b3: "Meta (Facebook and Instagram) and TikTok Ads", b4: "AI Studio (ad visuals and videos)", b5: "100 Studio credits offered at signup",
         cta: "Start my free trial",
       },
       faq: {
