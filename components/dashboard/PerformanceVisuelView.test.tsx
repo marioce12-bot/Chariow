@@ -6,10 +6,10 @@ describe("PerformanceVisuelView", () => {
   it("is a separate visual comparison screen with an honest empty state", () => {
     const html = renderToStaticMarkup(<PerformanceVisuelView storeId={null} />);
 
-    expect(html).toContain("<h1>Créations</h1>");
-    expect(html).toContain("Performance visuel");
-    expect(html).toContain("Comparer les visuels");
-    expect(html).toContain("Choisis une boutique connectée pour consulter ses visuels.");
+    expect(html).toContain("<h1>Suivi des créations</h1>");
+    expect(html).toContain("Pub");
+    expect(html).toContain("Analyse des créations");
+    expect(html).toContain("Choisis une boutique connectée pour consulter ses créations.");
     expect(html).not.toContain("Performance publicitaire");
     expect(html).not.toContain("Résultats des campagnes");
     expect(html).not.toContain("Visites");

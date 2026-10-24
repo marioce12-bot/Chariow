@@ -431,7 +431,7 @@ function DashboardWorkspace() {
             <CreditCard size={16} aria-hidden="true" />
           </button>
         </aside>
-        <section className={active === "Vendeo AI" ? "app-main chat-page" : "app-main"}>
+        <section className={`app-main${active === "Vendeo AI" ? " chat-page" : ""}${["Performance visuel", "Performance publicitaire"].includes(active) ? " app-performance-main" : ""}`}>
           {loadingData || (snapshotView && storeDataLoading) ? (
             <DashboardSkeleton />
           ) : active === "Paramètres" ? (

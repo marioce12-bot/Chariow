@@ -7,7 +7,7 @@ import { PerformanceVisuelView } from "./PerformanceVisuelView";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("PerformanceVisuelView visual comparison", () => {
-  it("renders one aggregated visual card without exposing campaign or visit lists", async () => {
+  it("renders one linked creative row with attributed metrics, without visit tables", async () => {
     const body = {
       period: { from: "2026-09-25", to: "2026-10-24" },
       metrics: { mediaCount: 1, campaigns: 2, launchedCampaigns: 2, unavailableCampaignMetrics: 0,
@@ -53,16 +53,15 @@ describe("PerformanceVisuelView visual comparison", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/creative-performance?store_id=store-1&days=30", { cache: "no-store" });
-    expect(container.textContent).toContain("Comparer les visuels");
+    expect(container.textContent).toContain("Résultats par création");
     expect(container.querySelectorAll(".creative-media-card")).toHaveLength(1);
     const visual = container.querySelector(".creative-media-card")?.textContent ?? "";
     expect(visual).toContain("21,00");
     expect(visual).toContain("23");
-    expect(visual).not.toContain("Private campaign name");
-    expect(container.textContent).not.toContain("Private campaign name");
+    expect(visual).toContain("Private campaign name 1");
+    expect(visual).toContain("Private campaign name 2");
     expect(container.textContent).not.toContain("Visites");
-    expect(container.querySelector(".creative-campaign-details")).toBeNull();
-    expect(container.querySelector(".creative-variant-summary")).toBeNull();
+    expect(container.querySelector(".creative-results-table")).not.toBeNull();
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/ad-campaigns"))).toBe(false);
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/ad-performance/geography"))).toBe(false);
 

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, ImagePlus, Loader2, Sparkles } from "lucide-react";
+import { FileText, ImagePlus, Loader2, Play, Sparkles } from "lucide-react";
 import { imageCreditCost } from "@/lib/studio/credits";
+import { CampaignPerformanceDemo } from "./CampaignPerformanceDemo";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import type { ProductData } from "./shared";
 import type { EditableCampaign } from "../vendeo/wizard/types";
@@ -22,14 +23,6 @@ function platformLabel(platform: string, en: boolean) {
   if (platform === "tiktok") return "TikTok Ads";
   if (platform === "pinterest") return "Pinterest Ads";
   return en ? "Unavailable" : "Indisponible";
-}
-
-function objectiveLabel(objective: string | null | undefined, en: boolean) {
-  if (objective === "sales") return en ? "Sales" : "Ventes";
-  if (objective === "traffic") return en ? "Traffic" : "Trafic";
-  if (objective === "engagement") return en ? "Engagement" : "Interaction";
-  if (objective === "leads") return en ? "Leads" : "Prospects";
-  return en ? "Not set" : "Non défini";
 }
 
 function formatDailyBudget(value: number | string, locale: string) {
@@ -60,6 +53,7 @@ export function CampaignPerformanceTab({
   locale?: string;
 }) {
   const en = locale === "en";
+  const previewExamples = readOnly || process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "preview";
   const generationCost = imageCreditCost("hd", "medium");
   const [campaignRecords, setCampaignRecords] = useState<CampaignRecord[]>([]);
   const [recordsLoading, setRecordsLoading] = useState(Boolean(storeId));
@@ -231,30 +225,27 @@ export function CampaignPerformanceTab({
     }
   }
 
+  if (previewExamples && !loading && !recordsLoading && !recordsError && (!storeId || !productOptions.length || !recommendation)) {
+    return <CampaignPerformanceDemo locale={locale} />;
+  }
+
   return (
     <section className="creative-library ad-campaign-preparation" aria-labelledby="ad-campaign-title">
-      <div className="creative-library-head">
-        <div>
-          <h2 id="ad-campaign-title">{en ? "Prepare a campaign" : "Préparer une campagne"}</h2>
-          <p>{en ? "Select a product to see whether a reliable proposal is ready." : "Choisis un produit pour voir si une proposition fiable est prête."}</p>
+      <div className="ad-data-disclaimer" role="note">
+        <Sparkles size={18} aria-hidden="true" />
+        <div><strong>{en ? "RECOMMENDATION BASED ON MEASURED DATA" : "RECOMMANDATION FONDÉE SUR DES DONNÉES MESURÉES"}</strong>
+          <span>{en ? "Campaign history and linked ad results are used only when they support a reliable starting point." : "L’historique des campagnes et leurs résultats publicitaires sont utilisés uniquement lorsqu’ils fournissent une base fiable."}</span>
         </div>
       </div>
 
       {loading ? <div className="creative-state" role="status">{en ? "Loading…" : "Chargement…"}</div>
-        : !storeId ? <div className="creative-state">{en ? "Connect a store first." : "Connecte d’abord une boutique."}</div>
-              : !productOptions.length ? <div className="creative-empty">
+        : !storeId ? previewExamples ? <CampaignPerformanceDemo locale={locale} /> : <div className="creative-state">{en ? "Connect a store first." : "Connecte d’abord une boutique."}</div>
+              : !productOptions.length ? previewExamples ? <CampaignPerformanceDemo locale={locale} /> : <div className="creative-empty">
             <div className="creative-empty-icon"><Sparkles size={22} aria-hidden="true" /></div>
             <h3>{en ? "No products available" : "Aucun produit disponible"}</h3>
             <p>{en ? "Connect a store with products to prepare a campaign." : "Connecte une boutique avec des produits pour préparer une campagne."}</p>
               </div>
             : <div className="ad-campaign-form">
-              <label className="ad-product-select">
-                <span>{en ? "Product" : "Produit"}</span>
-                <select value={selectedProductId} onChange={(event) => { setSelectedProductId(event.target.value); setActionMessage(""); setPendingImage(null); setGeneratedImageUrl(null); }} aria-label={en ? "Choose a product" : "Choisir un produit"}>
-                  {productOptions.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-                </select>
-              </label>
-
               {recordsLoading ? <div className="ad-recommendation" role="status">{en ? "Checking for a proposal…" : "Recherche d’une proposition…"}</div>
                 : recordsError ? <div className="creative-error" role="alert">{en ? "A proposal could not be prepared right now. Try again later." : "Impossible de préparer une proposition pour le moment. Réessaie plus tard."}</div>
                   : recommendation ? <div className="ad-recommendation" aria-live="polite">
@@ -263,17 +254,16 @@ export function CampaignPerformanceTab({
                         <div className="ad-recommendation-heading">
                           <span className="ad-recommendation-icon"><Sparkles size={18} aria-hidden="true" /></span>
                           <div>
-                            <h3>{en ? "Campaign recommendation" : "Recommandation de campagne"}</h3>
+                            <h3 id="ad-campaign-title">{en ? "Campaign recommendation" : "Recommandation de campagne"}</h3>
                             <p>{en
-                              ? "A starting setup based on measured campaign results. It is editable and does not guarantee future performance."
-                              : "Une base de départ issue de résultats de campagne mesurés. Elle reste modifiable et ne garantit pas les performances futures."}</p>
+                              ? "A complete suggestion based on measured campaign results, ready to review and personalize."
+                              : "Une suggestion complète, issue des résultats mesurés, prête à être vérifiée et personnalisée."}</p>
                           </div>
                         </div>
 
                         <dl className="ad-config-grid">
-                          <div><dt>{en ? "Product" : "Produit"}</dt><dd>{selectedProduct?.name || "—"}</dd></div>
+                          <div><dt>{en ? "Product" : "Produit"}</dt><dd>{productOptions.length > 1 ? <select className="ad-inline-product-select" value={selectedProductId} onChange={(event) => { setSelectedProductId(event.target.value); setActionMessage(""); setPendingImage(null); setGeneratedImageUrl(null); }} aria-label={en ? "Choose a product" : "Choisir un produit"}>{productOptions.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select> : (selectedProduct?.name || "—")}</dd></div>
                           <div><dt>{en ? "Platform" : "Plateforme"}</dt><dd>{platformLabel(recommendation.config.platform, en)}</dd></div>
-                          <div><dt>{en ? "Objective" : "Objectif"}</dt><dd>{objectiveLabel(recommendation.config.objective, en)}</dd></div>
                           <div><dt>{en ? "Geography / audience" : "Pays / audience"}</dt><dd>{en ? "Not recommended: reliable geographic attribution is unavailable." : "Non recommandé : aucune attribution géographique fiable ne permet de choisir un pays ou une audience."}</dd></div>
                           <div><dt>{en ? "Creative format" : "Format créatif"}</dt><dd>{en ? "One HD vertical image · 9:16" : "Une image HD verticale · 9:16"}</dd></div>
                           <div><dt>{en ? "Headline" : "Titre"}</dt><dd>{recommendation.config.title?.trim() || (en ? "To complete in the draft" : "À compléter dans le brouillon")}</dd></div>
@@ -290,9 +280,11 @@ export function CampaignPerformanceTab({
                       <aside className="ad-visual-preview" aria-label={en ? "Creative preview" : "Aperçu du visuel"}>
                         <div className="ad-preview-head"><strong>{en ? "Creative preview" : "Aperçu du visuel"}</strong><span>9:16</span></div>
                         <div className="ad-visual-frame">
-                          {previewUrl
-                            ? <img src={previewUrl} alt={generatedImageUrl ? (en ? "Generated campaign image" : "Visuel de campagne généré") : (en ? "Product image reference" : "Image produit de référence")} />
-                            : <div className="ad-visual-placeholder">{en ? "The campaign image will appear here after you review the credit cost and apply." : "Le visuel de campagne apparaîtra ici après l’affichage du coût et ton clic sur Appliquer."}</div>}
+                          <div className="ad-phone-shell"><div className="ad-phone-screen">
+                            {previewUrl ? <img className="ad-phone-image" src={previewUrl} alt={generatedImageUrl ? (en ? "Generated campaign image" : "Visuel de campagne généré") : (en ? "Product image reference" : "Image produit de référence")} /> : <div className="ad-phone-image placeholder" aria-hidden="true" />}
+                            <div className="ad-phone-sponsored"><span className="ad-phone-avatar">V</span><span>Vendeo<small>{en ? "Sponsored" : "Sponsorisé"}</small></span><span className="ad-phone-close" aria-hidden="true">×</span></div>
+                            <div className="ad-phone-cta"><span>{recommendation.config.title?.trim() || (en ? "Discover your new routine" : "Découvrez votre nouvelle routine")}</span><span aria-hidden="true">›</span></div>
+                          </div></div>
                         </div>
                         <small>{generatedImageUrl
                           ? (en ? "Generated image" : "Visuel généré")
@@ -322,10 +314,13 @@ export function CampaignPerformanceTab({
                             ? "After generation, review the platform, audience, copy and total budget in the draft. The separate “Launch now” button is the only action that sends the campaign."
                             : "Après génération, vérifie la plateforme, le ciblage, le texte et le budget total dans le brouillon. Seul le bouton distinct « Lancer maintenant » envoie la campagne."}</p>
                         </div>
+                        <button type="button" className="ad-launch-button" disabled={busy || readOnly} onClick={() => onApplyCampaign(recommendation.config)}>
+                          <Play size={15} /> {en ? "Launch now" : "Lancer maintenant"}
+                        </button>
                       </div>
                     </div>
                   </div>
-                    : <div className="ad-recommendation" role="status">
+                    : previewExamples ? <CampaignPerformanceDemo locale={locale} /> : <div className="ad-recommendation" role="status">
                       <h3>{en ? "No proposal for this product yet" : "Pas encore de proposition pour ce produit"}</h3>
                       <p>{en ? "Vendeo will show an action here when the available results support a reliable recommendation." : "Vendeo affichera une action ici lorsque les résultats disponibles permettront une proposition fiable."}</p>
                     </div>}

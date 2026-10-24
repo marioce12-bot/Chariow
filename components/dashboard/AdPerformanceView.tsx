@@ -24,6 +24,7 @@ export function AdPerformanceView({
   locale?: string;
 }) {
   const en = locale === "en";
+  const previewExamples = readOnly || process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "preview";
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -59,22 +60,22 @@ export function AdPerformanceView({
     <div className="creative-performance ad-performance-view">
       <header className="creative-performance-header">
         <div>
-          <div className="creative-performance-breadcrumb">{en ? "Workspace" : "Espace de travail"} <span aria-hidden="true">›</span> {en ? "Ad performance" : "Performance publicitaire"}</div>
+          <div className="creative-performance-breadcrumb">{en ? "Ads" : "Pub"} <span aria-hidden="true">›</span> {en ? "Ad performance" : "Performance publicitaire"}</div>
           <h1>{en ? "Ad performance" : "Performance publicitaire"}</h1>
           <p>{en
-            ? "A clear proposal when the available results are reliable enough. Review the draft before you launch."
-            : "Une proposition claire quand les résultats disponibles sont assez fiables. Relis le brouillon avant de lancer."}</p>
+            ? "A clear strategy, proposed from the data available to you."
+            : "Une stratégie claire, proposée à partir des données disponibles."}</p>
         </div>
       </header>
 
       <div className="ad-analysis-note" role="note">
         <span className="ad-analysis-icon"><Sparkles size={18} aria-hidden="true" /></span>
         <p><strong>{en ? "Background analysis" : "Analyse en arrière-plan"}</strong>{en
-          ? " — Vendeo checks the available results and shows an action only when they support a reliable starting point. Raw campaign and visit tables stay out of this screen."
-          : " — Vendeo vérifie les résultats disponibles et n’affiche une action que s’ils étayent une base fiable. Les tableaux bruts de campagnes et de visites restent en arrière-plan."}</p>
+          ? " — historical campaigns · linked creatives · advertising reports · attributed Chariow sales when available"
+          : " — campagnes historiques · créations associées · rapports publicitaires · ventes attribuées Chariow lorsqu’elles sont disponibles"}</p>
       </div>
 
-      {!storeId ? <div className="creative-state">{en ? "Connect a store to prepare a campaign." : "Connecte une boutique pour préparer une campagne."}</div>
+      {!storeId ? previewExamples ? <CampaignPerformanceTab storeId={null} periodDays={PERIOD_DAYS} data={null} loading={false} products={products} readOnly={readOnly} onApplyCampaign={onApplyCampaign} locale={locale} /> : <div className="creative-state">{en ? "Connect a store to prepare a campaign." : "Connecte une boutique pour préparer une campagne."}</div>
         : loading ? <div className="creative-state" role="status">{en ? "Preparing a recommendation…" : "Préparation de la proposition…"}</div>
           : error ? <div className="creative-error" role="alert">{error}</div>
             : data ? <CampaignPerformanceTab

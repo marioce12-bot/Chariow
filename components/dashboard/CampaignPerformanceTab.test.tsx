@@ -69,7 +69,7 @@ describe("CampaignPerformanceTab recommendation flow", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(container.querySelector<HTMLSelectElement>(".ad-product-select select")?.value).toBe("product-1");
+    expect(container.querySelector<HTMLSelectElement>(".ad-inline-product-select")?.value).toBe("product-1");
     expect(container.textContent).toContain("Recommandation de campagne");
     expect(container.textContent).toContain("Meta Ads");
     expect(container.textContent).toContain("Non recommandé : aucune attribution géographique fiable");
@@ -115,7 +115,7 @@ describe("CampaignPerformanceTab recommendation flow", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const select = container.querySelector<HTMLSelectElement>(".ad-product-select select");
+    const select = container.querySelector<HTMLSelectElement>(".ad-inline-product-select");
     expect(select).not.toBeNull();
     act(() => {
       select!.value = "product-2";
