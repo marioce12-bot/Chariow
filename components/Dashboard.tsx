@@ -6,6 +6,7 @@ import { BarChart3, CreditCard, Settings, Store, MessageSquare, Grid2X2, Lightbu
 
 
 import { ChatView } from "@/components/ChatView";
+import type { ChatNavigationSection } from "@/components/chat/navigation-intent";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
@@ -155,6 +156,13 @@ function DashboardWorkspace() {
   }
   function mobileMoreItemClass(section: string) {
     return [active === section ? "active" : "", guideMenuTarget === section ? "guide-highlight" : ""].filter(Boolean).join(" ");
+  }
+  function navigateFromAssistant(section: ChatNavigationSection) {
+    if (section === "Paramètres") setSettingsFocus("appearance");
+    if (section === "Comptes publicitaires") setSettingsFocus("accounts");
+    setMoreOpen(false);
+    setGuideMenuTarget(null);
+    setActive(section);
   }
   function openStudioWithPerformanceIdeas(prefill: CreativePerformanceStudioPrefill) {
     try {
@@ -467,6 +475,7 @@ function DashboardWorkspace() {
           ) : active === "Vendeo AI" ? (
             <ChatView
               onGoToSubscription={() => setActive("Abonnement")}
+              onNavigateSection={navigateFromAssistant}
               onUsageChange={(patch) =>
                 setSubscription((prev) => (prev ? { ...prev, ...patch } : prev))
               }
