@@ -577,6 +577,20 @@
   font-weight: 700;
   letter-spacing: -0.045em;
 }
+@media (min-width: 761px) {
+  .dashboard-platform .ov-kpi--revenue { background: #eff5ff; border-color: #cfe0ff; }
+  .dashboard-platform .ov-kpi--revenue > strong { color: #1d4ed8; }
+  .dashboard-platform .ov-kpi--revenue > span { color: #405d8e; }
+  .dashboard-platform .ov-kpi--sales { background: #edf8f1; border-color: #cbe8d4; }
+  .dashboard-platform .ov-kpi--sales > strong { color: #18794e; }
+  .dashboard-platform .ov-kpi--sales > span { color: #416b54; }
+  .dashboard-platform .ov-kpi--basket { background: #fff6e8; border-color: #f2ddb3; }
+  .dashboard-platform .ov-kpi--basket > strong { color: #a66316; }
+  .dashboard-platform .ov-kpi--basket > span { color: #7b5a2c; }
+  .dashboard-platform .ov-kpi--campaigns { background: #f3efff; border-color: #ddd2ff; }
+  .dashboard-platform .ov-kpi--campaigns > strong { color: #6841b6; }
+  .dashboard-platform .ov-kpi--campaigns > span { color: #5b4b7e; }
+}
 .dashboard-platform .btn-dark {
   background: #2563eb;
   color: white;

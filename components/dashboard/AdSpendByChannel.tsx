@@ -62,15 +62,30 @@ const REST_COLOR = "#CBD5E1";
 
 // Géométrie des graphiques (viewBox : le SVG s'adapte à la largeur de l'écran).
 const BAR_W = 320;
-const BAR_H = 210;
+const BAR_H_MOBILE = 210;
+const BAR_H_DESKTOP = 130;
 const BAR_TOP = 24;
 const BAR_BOTTOM = 40;
-const BAR_BASE = BAR_H - BAR_BOTTOM;
-const BAR_PLOT = BAR_BASE - BAR_TOP;
 const BAR_WIDTH = 64;
 const LINE_W = 320;
-const LINE_H = 140;
+const LINE_H_MOBILE = 140;
+const LINE_H_DESKTOP = 88;
 const LINE_PAD = { top: 14, bottom: 24, left: 8, right: 8 };
+
+const DESKTOP_CHART_QUERY = "(min-width: 761px)";
+function subscribeToDesktopChartViewport(onChange: () => void) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
+  const media = window.matchMedia(DESKTOP_CHART_QUERY);
+  if (media.addEventListener) media.addEventListener("change", onChange);
+  else media.addListener(onChange);
+  return () => {
+    if (media.removeEventListener) media.removeEventListener("change", onChange);
+    else media.removeListener(onChange);
+  };
+}
+function getDesktopChartViewport() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(DESKTOP_CHART_QUERY).matches;
+}
 
 const STALE_MS = 15 * 60 * 1000;
 const AUTO_SYNC_COOLDOWN_MS = 2 * 60 * 1000;
@@ -154,6 +169,11 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
   // Identity includes store, period and plan; mutations refresh the same usable reading.
   const cacheKey = useMemo(() => `/__computed/ad-spend/${JSON.stringify([storeId, periodDays, plan])}`, [storeId, periodDays, plan]);
   const cached = useSyncExternalStore(cache.subscribe, () => cache.snapshot(cacheKey), () => cache.snapshot(null)) as { data?: AdSpendData; loading: boolean; refreshing: boolean; error: boolean };
+  const isDesktopCharts = useSyncExternalStore(subscribeToDesktopChartViewport, getDesktopChartViewport, () => false);
+  const BAR_H = isDesktopCharts ? BAR_H_DESKTOP : BAR_H_MOBILE;
+  const BAR_BASE = BAR_H - BAR_BOTTOM;
+  const BAR_PLOT = BAR_BASE - BAR_TOP;
+  const LINE_H = isDesktopCharts ? LINE_H_DESKTOP : LINE_H_MOBILE;
   const [metaSyncing, setMetaSyncing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
