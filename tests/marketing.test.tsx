@@ -79,8 +79,8 @@ describe("premium product landing", () => {
     expect(visual!.querySelector(".story-photo img")?.getAttribute("alt")).toMatch(/même créatrice/i);
     const visualSource = source("components/DigitalWorkspaceVisual.tsx");
     expect(visualSource).toContain("flow-story-04.webp");
-    expect(visualSource).toContain("performance-visuel-desktop.webp");
-    expect(visualSource).toContain("performance-visuel-mobile.webp");
+    expect(visualSource).not.toContain("performance-visuel-desktop.webp");
+    expect(visualSource).not.toContain("performance-visuel-mobile.webp");
     expect(visualSource).toContain("sans chiffre d’exemple");
     expect(visualSource).not.toMatch(/flow-story-05|assistant IA|video|vidéo|Shopify/i);
     expect(visualSource).toContain("window.setInterval");

@@ -13,12 +13,13 @@ vi.mock("@/components/ChatView", () => ({ ChatView: () => null }));
 vi.mock("@/components/NotificationCenter", () => ({ NotificationCenter: () => null }));
 vi.mock("@/components/vendeo/AutopilotView", () => ({ AutopilotView: () => null }));
 vi.mock("@/components/NotificationsView", () => ({ NotificationsView: () => null }));
+vi.mock("@/components/dashboard/AdPerformanceView", () => ({ AdPerformanceView: () => null }));
 vi.mock("@/components/vendeo", () => ({ ImpactFinancierCard: () => null, LaunchAdBar: () => null, CampaignCrossTable: () => null, DiagnosticBoutique: () => null }));
 vi.mock("@/components/vendeo/wizard", () => ({ LaunchAdWizard: () => null }));
 vi.mock("@/components/dashboard/PerformanceVisuelView", () => ({ PerformanceVisuelView: () => null }));
 vi.mock("@/components/dashboard/DesktopNavigation", () => ({
   DashboardHeaderNavigation: () => null,
-  DashboardPrimaryNavigation: ({ onChange }: any) => createElement("nav", null, ...["Vue d'ensemble", "Vendeo AI", "Studio", "Pub", "Comptes publicitaires", "Radar marché", "Mes boutiques", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Performance publicitaire", "Abonnement", "Paramètres", "Notifications", "Suggestions et notes"].map(section => createElement("button", { key: section, onClick: () => onChange(section) }, section))),
+  DashboardPrimaryNavigation: ({ onChange }: any) => createElement("nav", null, ...["Vue d'ensemble", "Vendeo AI", "Studio", "Pub", "Performance visuel", "Performance publicitaire", "Comptes publicitaires", "Radar marché", "Mes boutiques", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Abonnement", "Paramètres", "Notifications", "Suggestions et notes"].map(section => createElement("button", { key: section, onClick: () => onChange(section) }, section))),
 }));
 vi.mock("@/components/dashboard/sections", () => ({
   StoreOnboarding: () => null, StudioView: () => null, MarketRadarView: () => null,
@@ -70,7 +71,7 @@ describe("Dashboard store switch", () => {
     await mount();
     await eventually(() => !host.querySelector('[data-testid="dashboard-skeleton"]'));
     const links = Array.from(host.querySelectorAll<HTMLButtonElement>(".sidebar nav button"));
-    expect(links.length).toBe(15);
+    expect(links.length).toBe(16);
     for (const link of links) {
       await act(async () => { link.click(); });
       const selector = host.querySelector<HTMLSelectElement>(".sidebar #desktop-dashboard-store")!;

@@ -10,9 +10,10 @@ vi.mock("@/lib/i18n/i18n", async () => {
 import { DashboardHeaderNavigation, DashboardPrimaryNavigation } from "@/components/dashboard/DesktopNavigation";
 
 describe("dashboard desktop navigation", () => {
-  it("keeps ten primary destinations, including ad performance and feedback", () => {
+  it("keeps eleven primary destinations, including separate visual and ad performance sections", () => {
     const html = renderToStaticMarkup(<DashboardPrimaryNavigation active="Accueil" onChange={() => {}} />);
-    expect((html.match(/<button/g) ?? []).length).toBe(10);
+    expect((html.match(/<button/g) ?? []).length).toBe(11);
+    expect(html).toContain("Performance visuel");
     expect(html).toContain("Performance publicitaire");
     expect(html).toContain("Suggestions et notes");
     expect(html).toContain("Accueil");
@@ -77,6 +78,7 @@ describe("dashboard desktop navigation", () => {
     expect(source).not.toContain('setActive("Pilotage auto")');
     expect((menu.match(/role="menuitem"/g) ?? [])).toHaveLength(6);
     for (const item of ['w("netProfit")', 'w("whatsapp")', 'Radar marché', 'Performance publicitaire', 'workspaceExtra.reports', 'workspaceExtra.settings']) expect(menu).toContain(item);
+    expect(menu).not.toContain("Performance visuel");
     expect(menu).not.toContain('workspaceExtra.subscription');
     expect(menu).not.toContain('adminExtra.admin.logout');
     expect(menu).not.toContain('setActive("Mes boutiques")');

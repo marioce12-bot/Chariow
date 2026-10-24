@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const data = await loadCreativePerformance({ supabase, userId: user.id, storeId, period, persistSnapshots: !readOnly });
     return NextResponse.json(data, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Performance publicitaire est temporairement indisponible.";
+    const message = error instanceof Error ? error.message : "Performance visuel est temporairement indisponible.";
     const migrationMissing = /creative_media_(assets|placements|asset_urls)|creative_campaign_metric_snapshots/i.test(message);
     return NextResponse.json({
       error: migrationMissing

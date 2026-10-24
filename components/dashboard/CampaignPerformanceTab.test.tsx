@@ -30,13 +30,13 @@ const performanceData = {
   productEligibility: [{ productId: "product-1", productName: "Carnet créatif", launchedCampaigns: 1, analyzedCampaigns: 1, eligible: true }],
 };
 const product = { id: "product-1", name: "Carnet créatif", description: "Un carnet illustré.", price: 12, currency: "USD", status: "published", image: null, createdAt: null, sales: 5 };
+const otherProduct = { id: "product-2", name: "Aquarelle", description: "Un produit sans résultats vérifiés.", price: 10, currency: "USD", status: "published", image: null, createdAt: null, sales: 0 };
 
 function button(label: string) {
   const found = Array.from(container.querySelectorAll("button")).find((item) => item.textContent?.includes(label));
   if (!found) throw new Error(`Missing button: ${label}`);
   return found as HTMLButtonElement;
 }
-async function flush() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); }
 
 beforeEach(() => {
   container = document.createElement("div");
@@ -63,16 +63,21 @@ afterEach(() => {
 });
 
 describe("CampaignPerformanceTab recommendation flow", () => {
-  it("shows the cost first, generates once, retries media import without regenerating, and opens an editable campaign draft", async () => {
+  it("shows a concise product proposal and cost, generates only on Apply, then opens a draft without publishing", async () => {
     await act(async () => {
-      root.render(<CampaignPerformanceTab storeId="store-1" period={performanceData.period} periodDays="30" data={performanceData as any} loading={false} products={[product]} readOnly={false} onApplyCampaign={onApplyCampaign} />);
+      root.render(<CampaignPerformanceTab storeId="store-1" periodDays="30" data={performanceData as any} loading={false} products={[otherProduct, product]} readOnly={false} onApplyCampaign={onApplyCampaign} />);
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
+    expect(container.querySelector<HTMLSelectElement>(".ad-product-select select")?.value).toBe("product-1");
+    expect(container.textContent).toContain("Une proposition est prête");
     expect(container.textContent).toContain("Appliquer · 20 crédits");
-    expect(container.textContent).toContain("ROAS 2,5×");
+    expect(container.textContent).not.toContain("Campagne historique");
+    expect(container.textContent).not.toContain("ROAS");
+    expect(container.textContent).not.toContain("Visites");
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/creative-performance/ideas"))).toBe(false);
     expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/studio/image")).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/ad-performance/geography"))).toBe(false);
     expect(mocks.uploadCampaignMedia).not.toHaveBeenCalled();
 
     await act(async () => { button("Appliquer · 20 crédits").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
@@ -81,9 +86,9 @@ describe("CampaignPerformanceTab recommendation flow", () => {
     expect(container.textContent).toContain("temporary upload issue");
     expect(mocks.uploadCampaignMedia).toHaveBeenCalledOnce();
     expect(onApplyCampaign).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("Image générée et conservée dans Studio.");
+    expect(container.textContent).toContain("L’image est prête. Réessaie l’import sans la générer à nouveau.");
 
-    await act(async () => { button("Réessayer l’import du média").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+    await act(async () => { button("Réessayer l’import").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(fetchMock.mock.calls.filter(([url]) => String(url) === "/api/studio/image")).toHaveLength(1);
     expect(mocks.uploadCampaignMedia).toHaveBeenCalledTimes(2);
     expect(onApplyCampaign).toHaveBeenCalledOnce();

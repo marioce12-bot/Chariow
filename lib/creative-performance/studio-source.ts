@@ -34,10 +34,10 @@ export async function validateCreativePerformanceStudioSource(
   if (!raw || typeof raw !== "object" || !UUID.test(raw.storeId) || !UUID.test(raw.campaignId) ||
       typeof raw.productId !== "string" || !raw.productId || raw.productId.length > 200 ||
       !raw.period || !DATE.test(raw.period.from) || !DATE.test(raw.period.to)) {
-    return { source: null, error: "La provenance Performance visuel est invalide; retourne à l’écran Performance visuel puis sélectionne une idée." };
+    return { source: null, error: "La provenance Performance publicitaire est invalide; retourne à cette section puis sélectionne une proposition." };
   }
   if (input.product?.id !== raw.productId) {
-    return { source: null, error: "Le produit choisi ne correspond plus à la campagne source. Sélectionne de nouveau l’idée depuis Performance visuel." };
+    return { source: null, error: "Le produit choisi ne correspond plus à la campagne source. Sélectionne de nouveau la proposition depuis Performance publicitaire." };
   }
   const { data: campaign, error: campaignError } = await admin.from("ad_campaigns")
     .select("id,store_id,product_id,product_name,platform,status,title,external_campaign_id")

@@ -29,6 +29,14 @@ describe("POST /api/track", () => {
     });
   });
 
+  it("accepts both separate performance sections", async () => {
+    for (const section of ["Performance visuel", "Performance publicitaire"]) {
+      const response = await POST(new Request("http://localhost/api/track", { method: "POST", body: JSON.stringify({ ...validBody, section }) }));
+      expect(response.status).toBe(200);
+    }
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     { ...validBody, seconds: "not-a-number" },
     { ...validBody, seconds: 61 },

@@ -60,6 +60,8 @@ describe("verified digital-product landing page", () => {
     for (const label of ["Chariow", "Vendeo", "Meta", "Pinterest", "TikTok", "image", "données de démonstration"]) {
       expect(visual.toLowerCase()).toContain(label.toLowerCase());
     }
+    expect(visual).not.toContain("performance-visuel-desktop.webp");
+    expect(visual).not.toContain("performance-visuel-mobile.webp");
     expect(visual).not.toMatch(/Shopify|actual-studio|vidéo|video|sans repayer|pay again/i);
     expect(current).toMatch(/données de démonstration/);
   });

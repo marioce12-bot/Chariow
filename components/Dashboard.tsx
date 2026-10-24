@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { BarChart3, CreditCard, Settings, Store, MessageSquare, LayoutDashboard, Lightbulb, Brain, Sparkles, LogOut, Megaphone, FileText } from "lucide-react";
+import { BarChart3, CreditCard, Settings, Store, MessageSquare, LayoutDashboard, Lightbulb, Brain, Sparkles, LogOut, Megaphone, FileText, ImageIcon } from "lucide-react";
 
 
 import { ChatView } from "@/components/ChatView";
@@ -38,7 +38,7 @@ import { useUsageTracking } from "@/components/useUsageTracking";
 import { SESSION_STORAGE_PROMPT_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
 import { StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
 import { PerformanceVisuelView } from "./dashboard/PerformanceVisuelView";
-import { CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY } from "@/lib/creative-performance/client";
+import { AdPerformanceView } from "./dashboard/AdPerformanceView";
 import { OverviewHome } from "./dashboard/OverviewHome";
 import { DashboardSkeleton } from "./dashboard/Skeleton";
 import ProductProfitPanel from "./dashboard/ProductProfitPanel";
@@ -65,6 +65,7 @@ const PERSISTED_DASHBOARD_SECTIONS = new Set([
   "Vendeo AI",
   "Studio",
   "Pub",
+  "Performance visuel",
   "Performance publicitaire",
   "Comptes publicitaires",
   "Radar marché",
@@ -82,7 +83,6 @@ function getInitialDashboardSection() {
   if (typeof window === "undefined") return DEFAULT_DASHBOARD_SECTION;
   try {
     const savedSection = window.sessionStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
-    if (savedSection === "Performance visuel") return "Performance publicitaire";
     return savedSection && PERSISTED_DASHBOARD_SECTIONS.has(savedSection) ? savedSection : DEFAULT_DASHBOARD_SECTION;
   } catch {
     return DEFAULT_DASHBOARD_SECTION;
@@ -394,7 +394,7 @@ function DashboardWorkspace() {
           <Link href="/" className="brand">
             <Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40} unoptimized />
           </Link>
-          <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance publicitaire":"Ad performance","Bénéfices nets":"Net profit","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active}</strong></div>
+          <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance visuel":"Creative performance","Performance publicitaire":"Ad performance","Bénéfices nets":"Net profit","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active}</strong></div>
           <DashboardHeaderNavigation active={active} onChange={setActive} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
@@ -433,11 +433,10 @@ function DashboardWorkspace() {
             />
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
+          ) : active === "Performance visuel" ? (
+            <PerformanceVisuelView storeId={activeStoreId} locale={locale} />
           ) : active === "Performance publicitaire" ? (
-            <PerformanceVisuelView storeId={activeStoreId} onOpenStudio={(prefill) => {
-              sessionStorage.setItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, JSON.stringify(prefill));
-              setActive("Studio");
-            }} onApplyCampaign={applyRecommendedCampaign} products={analytics?.products ?? []} locale={locale} />
+            <AdPerformanceView storeId={activeStoreId} onApplyCampaign={applyRecommendedCampaign} products={analytics?.products ?? []} locale={locale} />
           ) : active === "Pub" ? (
              <AdsView key={activeStoreId} plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
@@ -510,6 +509,10 @@ function DashboardWorkspace() {
             <button type="button" data-onboarding="Studio" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
               <Sparkles size={24} strokeWidth={2} />
               <span>{t("nav.studio")}</span>
+            </button>
+            <button type="button" data-onboarding="Performance visuel" className={`nav-btn ${active === "Performance visuel" ? "active" : ""}`} onClick={() => setActive("Performance visuel")}>
+              <ImageIcon size={24} />
+              <span>{t("nav.creativePerformance")}</span>
             </button>
         </nav>
         ) : null}

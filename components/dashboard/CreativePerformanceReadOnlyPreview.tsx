@@ -61,7 +61,7 @@ export default function CreativePerformanceReadOnlyPreview() {
         </select>
       </div>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <PerformanceVisuelView storeId={storeId || null} onOpenStudio={() => {}} readOnly={true} />
+      <PerformanceVisuelView storeId={storeId || null} readOnly />
     </section>
   );
 }

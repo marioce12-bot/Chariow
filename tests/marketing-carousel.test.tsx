@@ -9,11 +9,10 @@ describe("verified four-scene Vendeo workflow carousel", () => {
     expect(visualSource).toContain('aria-roledescription={en ? "carousel" : "carrousel"}');
     expect(visualSource).toContain("Parcours en quatre étapes");
     expect(visualSource.match(/image: "\/landing\/flow-story-0[134]\.webp"/g)).toHaveLength(8);
-    expect(visualSource.match(/screenshot: "\//g)).toHaveLength(8);
-    expect(visualSource.match(/mobileScreenshot: "\//g)).toHaveLength(2);
-    expect(visualSource).toContain("/landing/performance-visuel-desktop.webp");
-    expect(visualSource).toContain("/landing/performance-visuel-mobile.webp");
-    expect(visualSource).toContain("story-phone-capture");
+    expect(visualSource.match(/screenshot: "\//g)).toHaveLength(6);
+    expect(visualSource).not.toContain("/landing/performance-visuel-desktop.webp");
+    expect(visualSource).not.toContain("/landing/performance-visuel-mobile.webp");
+    expect(visualSource).not.toContain("story-phone-capture");
     expect(visualSource).toContain("sans chiffre d’exemple");
     expect(visualSource).toContain("no sample figures");
     expect(visualSource).toContain("window.setInterval");

@@ -7,10 +7,8 @@ import { SiMeta, SiPinterest, SiTiktok } from "react-icons/si";
 type StoryScene = {
   image: string;
   alt: string;
-  screenshot: string;
-  screenshotAlt: string;
-  mobileScreenshot?: string;
-  mobileScreenshotAlt?: string;
+  screenshot?: string;
+  screenshotAlt?: string;
   title: string;
   description: string;
 };
@@ -49,12 +47,8 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
     {
       image: "/landing/flow-story-04.webp",
       alt: "The same creator reviewing her store on her smartphone beside her laptop",
-      screenshot: "/landing/performance-visuel-desktop.webp",
-      screenshotAlt: "Authentic Creative Performance screen with no sample figures; platform metrics appear only when available",
-      mobileScreenshot: "/landing/performance-visuel-mobile.webp",
-      mobileScreenshotAlt: "Authentic mobile Creative Performance screen with no sample figures",
-      title: "Review creative performance",
-      description: "See the available campaign and creative data. Studio ideas unlock only after a launched campaign has real analyzed results.",
+      title: "Compare ad visuals",
+      description: "Compare available results for each ad creative; attributed sales appear only when they can be matched.",
     },
   ] : [
     {
@@ -84,12 +78,8 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
     {
       image: "/landing/flow-story-04.webp",
       alt: "La même créatrice consulte sa boutique sur son téléphone, près de son ordinateur",
-      screenshot: "/landing/performance-visuel-desktop.webp",
-      screenshotAlt: "Capture réelle de Performance publicitaire, sans chiffre d’exemple; les métriques s’affichent seulement lorsqu’elles sont disponibles",
-      mobileScreenshot: "/landing/performance-visuel-mobile.webp",
-      mobileScreenshotAlt: "Capture mobile réelle de Performance publicitaire, sans chiffre d’exemple",
-      title: "Analyse tes créations",
-      description: "Retrouve les données disponibles pour tes campagnes et créations. Les idées Studio sont proposées après l’analyse de résultats réels d’une campagne lancée.",
+      title: "Compare tes visuels",
+      description: "Compare les résultats disponibles de chaque création publicitaire; les ventes attribuées s’affichent seulement quand elles peuvent être reliées.",
     },
   ];
   const sceneCount = scenes.length;
@@ -127,12 +117,9 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
         <div className="story-photo">
           <Image key={currentScene.image} src={currentScene.image} alt={currentScene.alt} fill priority={activeIndex === 0} sizes="(max-width: 900px) 96vw, (max-width: 1250px) 58vw, 700px"/>
           <span className="story-photo-shade" aria-hidden="true"/>
-          <div className="story-screenshot" role="img" aria-label={currentScene.screenshotAlt}>
+          {currentScene.screenshot ? <div className="story-screenshot" role="img" aria-label={currentScene.screenshotAlt ?? ""}>
             <Image key={currentScene.screenshot} src={currentScene.screenshot} alt="" fill sizes="(max-width: 620px) 70vw, (max-width: 900px) 62vw, 520px"/>
-          </div>
-          {currentScene.mobileScreenshot && <div className="story-phone-capture" role="img" aria-label={currentScene.mobileScreenshotAlt}>
-            <Image key={currentScene.mobileScreenshot} src={currentScene.mobileScreenshot} alt="" fill sizes="(max-width: 620px) 14vw, 96px"/>
-          </div>}
+          </div> : null}
           <div className="story-overlay">
             <div className="story-meta"><span>{en ? "THE VENDEO WORKFLOW" : "LE PARCOURS VENDEO"}</span><span>{en ? `STEP ${activeIndex + 1} OF ${sceneCount}` : `ÉTAPE ${activeIndex + 1} SUR ${sceneCount}`}</span></div>
             <h3>{currentScene.title}</h3>
@@ -142,6 +129,6 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       </article>
       <div className="story-progress" aria-hidden="true"><span key={activeIndex}/></div>
     </div>
-    <p className="workspace-example-note" id="workspace-example-note">{en ? "Real Vendeo screenshots; some screens include demonstration data. Ad Performance shows the real interface without sample figures. Photos are illustrative, not customer results." : "Captures réelles de Vendeo; certains écrans montrent des données de démonstration. Performance publicitaire affiche sa véritable interface sans chiffre d’exemple. Photos illustratives, pas des résultats clients."}</p>
+    <p className="workspace-example-note" id="workspace-example-note">{en ? "Real Vendeo screenshots; some screens include demonstration data. Creative performance compares visuals with no sample figures; Ad performance prepares a draft for review. Photos are illustrative, not customer results." : "Captures réelles de Vendeo; certains écrans montrent des données de démonstration. Performance visuel compare les créations, sans chiffre d’exemple; Performance publicitaire prépare un brouillon à vérifier. Photos illustratives, pas des résultats clients."}</p>
   </figure>;
 }

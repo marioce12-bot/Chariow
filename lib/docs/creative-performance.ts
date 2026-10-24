@@ -6,36 +6,78 @@ export const creativePerformanceSections: DocSection[] = [
     group: "sell",
     title: { fr: "Performance visuel", en: "Creative performance" },
     summary: {
-      fr: "Comparez les résultats des images et vidéos de vos campagnes publicitaires.",
-      en: "Compare the results of images and videos in your advertising campaigns.",
+      fr: "Compare les résultats mesurés de tes images et vidéos publicitaires.",
+      en: "Compare the measured results of your advertising images and videos.",
     },
     articles: [
       {
         id: "compare-creatives",
-        title: { fr: "Comparer les visuels de campagne", en: "Compare campaign creatives" },
+        title: { fr: "Comparer les visuels", en: "Compare visuals" },
         paragraphs: [
           {
-            fr: "Cette section rassemble les images et vidéos utilisées dans vos campagnes Pinterest, TikTok et Meta. Comparez leurs dépenses et leurs clics, ainsi que les commandes et le chiffre d’affaires lorsqu’ils peuvent être reliés.",
-            en: "This section brings together images and videos used in your Pinterest, TikTok and Meta campaigns. Compare spend and clicks, as well as orders and revenue when they can be matched.",
+            fr: "Chaque image ou vidéo apparaît une seule fois, même si elle a été réutilisée. Les résultats disponibles sont regroupés par visuel pour faciliter la comparaison.",
+            en: "Each image or video appears once, even if it was reused. Available results are grouped by visual to make comparison easier.",
           },
         ],
         steps: [
           {
-            fr: "Choisissez la boutique à consulter, puis la période souhaitée.",
-            en: "Choose the store you want to view, then select a date range.",
+            fr: "Choisis une boutique connectée et la période à consulter.",
+            en: "Choose a connected store and the period you want to review.",
           },
           {
-            fr: "Utilisez le filtre Plateforme pour afficher Pinterest, TikTok ou Meta. Vous pouvez aussi actualiser les résultats.",
-            en: "Use the Platform filter to show Pinterest, TikTok or Meta. You can also refresh the results.",
+            fr: "Filtre les visuels par plateforme ou affiche uniquement ceux qui ont les meilleurs résultats mesurés.",
+            en: "Filter visuals by platform or show only those with the best measured results.",
           },
           {
-            fr: "Lisez les dépenses et les clics, puis les commandes et le chiffre d’affaires lorsqu’ils sont disponibles. Si une création est éligible, ouvrez Studio avec « Proposer des créatifs ».",
-            en: "Read spend and clicks, then orders and revenue when available. If a creative is eligible, open Studio with “Suggest creatives.”",
+            fr: "Compare les dépenses et les clics; les commandes et le chiffre d’affaires apparaissent quand l’attribution est disponible.",
+            en: "Compare spend and clicks; orders and revenue appear when attribution is available.",
           },
         ],
         notice: {
-          fr: "Les commandes ou le chiffre d’affaires peuvent manquer si la plateforme publicitaire n’est pas connectée ou si les ventes ne peuvent pas être reliées à la campagne. Pour un carrousel, les résultats de la campagne ne sont pas répartis entre ses images.",
-          en: "Orders or revenue may be missing if the advertising platform is not connected or sales cannot be matched to the campaign. For a carousel, campaign results are not split between its images.",
+          fr: "Certains chiffres peuvent manquer si une plateforme n’est pas connectée ou si une vente ne peut pas être reliée à un visuel. Les valeurs inconnues restent vides.",
+          en: "Some figures may be missing if a platform is not connected or a sale cannot be matched to a visual. Unknown values remain blank.",
+        },
+      },
+    ],
+  },
+];
+
+export const adPerformanceSections: DocSection[] = [
+  {
+    id: "ad-performance",
+    group: "sell",
+    title: { fr: "Performance publicitaire", en: "Ad performance" },
+    summary: {
+      fr: "Prépare une campagne à partir des résultats disponibles, puis vérifie le brouillon avant de la lancer.",
+      en: "Prepare a campaign from available results, then review the draft before launch.",
+    },
+    articles: [
+      {
+        id: "prepare-campaign",
+        title: { fr: "Préparer une campagne", en: "Prepare a campaign" },
+        paragraphs: [
+          {
+            fr: "Choisis un produit. Une proposition n’apparaît que lorsque les résultats et la configuration disponibles permettent de l’étayer. Si les données sont insuffisantes, aucune recommandation n’est affichée.",
+            en: "Choose a product. A proposal appears only when available results and setup support it. If the data is insufficient, no recommendation is shown.",
+          },
+        ],
+        steps: [
+          {
+            fr: "Appuie sur « Appliquer » : le coût en crédits de l’image est indiqué sur le bouton avant la génération.",
+            en: "Select “Apply”: the image credit cost is shown on the button before generation.",
+          },
+          {
+            fr: "L’image générée ouvre la configuration d’un brouillon. Vérifie la plateforme, le ciblage, le texte, le lien et le budget; tu peux les modifier.",
+            en: "The generated image opens a campaign draft. Review the platform, audience, copy, link and budget; you can edit them.",
+          },
+          {
+            fr: "Pour publier, relis le récapitulatif puis appuie explicitement sur « Lancer maintenant ». La campagne n’est pas publiée automatiquement.",
+            en: "To publish, review the summary and explicitly select “Launch now.” The campaign is not published automatically.",
+          },
+        ],
+        notice: {
+          fr: "Les crédits Studio pour générer une image sont distincts du budget publicitaire facturé par la plateforme. Une recommandation ne garantit pas les résultats futurs.",
+          en: "Studio credits for image generation are separate from the ad budget charged by the platform. A recommendation does not guarantee future results.",
         },
       },
     ],
