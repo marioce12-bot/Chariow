@@ -10,10 +10,11 @@ import { coreIntegrationSections } from "@/lib/docs/integrations-core";
 import { socialIntegrationSections } from "@/lib/docs/integrations-social";
 import { commerceSections } from "@/lib/docs/commerce";
 import { studioManageSections } from "@/lib/docs/studio-manage";
+import { creativePerformanceSections } from "@/lib/docs/creative-performance";
 import type { DocSection, LocalizedText } from "@/lib/docs/types";
 import "./documentation.css";
 
-const allSections: DocSection[] = [...commerceSections, ...coreIntegrationSections, ...socialIntegrationSections, ...assistantSections, ...studioManageSections];
+const allSections: DocSection[] = [...commerceSections, ...coreIntegrationSections, ...socialIntegrationSections, ...assistantSections, ...studioManageSections, ...creativePerformanceSections];
 export const documentationSections = (["start", "sell", "create", "manage"] as const).flatMap(group => allSections.filter(s => s.group === group));
 const groups = ["start", "sell", "create", "manage"] as const;
 const groupNames: Record<typeof groups[number], LocalizedText> = {

@@ -10,6 +10,15 @@ export type PinterestCampaignReport = {
   cpa: number | null;
 };
 
+export type PinterestAdReport = {
+  id: string;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  conversions: number;
+  cpa: number | null;
+};
+
 const COLUMNS = ["SPEND_IN_MICRO_DOLLAR", "IMPRESSION_1", "CLICKTHROUGH_1", "TOTAL_CONVERSIONS"];
 
 async function pinterestGet(path: string, accessToken: string): Promise<unknown> {
@@ -33,17 +42,21 @@ function toNumber(value: unknown) {
 async function listCampaigns(adAccountId: string, accessToken: string) {
   const campaigns: Array<{ id: string; name: string }> = [];
   let bookmark: string | null = null;
-  for (let page = 0; page < 5; page += 1) {
+  const seenBookmarks = new Set<string>();
+  for (let page = 0; page < 100; page += 1) {
     const query = new URLSearchParams({ page_size: "100" });
     if (bookmark) query.set("bookmark", bookmark);
     const json = (await pinterestGet(`/ad_accounts/${encodeURIComponent(adAccountId)}/campaigns?${query.toString()}`, accessToken)) as { items?: Array<Record<string, unknown>>; bookmark?: string | null };
     for (const item of json.items ?? []) {
       if (item.id) campaigns.push({ id: String(item.id), name: typeof item.name === "string" ? item.name : String(item.id) });
     }
-    bookmark = typeof json.bookmark === "string" && json.bookmark ? json.bookmark : null;
-    if (!bookmark) break;
+    const nextBookmark = typeof json.bookmark === "string" && json.bookmark ? json.bookmark : null;
+    if (!nextBookmark) return campaigns;
+    if (seenBookmarks.has(nextBookmark) || nextBookmark === bookmark) throw new Error("Pinterest campaign pagination repeated a bookmark");
+    seenBookmarks.add(nextBookmark);
+    bookmark = nextBookmark;
   }
-  return campaigns;
+  throw new Error("Pinterest campaign list is truncated after 100 pages");
 }
 
 // Stats Pinterest Ads par campagne (lecture seule). Le montant dépensé est renvoyé en
@@ -89,4 +102,52 @@ export async function fetchPinterestCampaignReport(adAccountId: string, accessTo
       conversions: value.conversions,
       cpa: value.conversions > 0 ? value.spend / value.conversions : null,
     }));
+}
+
+// Rapport par annonce via l'endpoint Pinterest Ads Analytics (lecture seule).
+export async function fetchPinterestAdReport(
+  adAccountId: string,
+  accessToken: string,
+  adIds: string[],
+  from: string,
+  to: string,
+): Promise<PinterestAdReport[]> {
+  if (adIds.length === 0) return [];
+
+  const totals = new Map<string, { spend: number; impressions: number; clicks: number; conversions: number }>();
+  for (let index = 0; index < adIds.length; index += 250) {
+    const query = new URLSearchParams({
+      start_date: from,
+      end_date: to,
+      ad_ids: adIds.slice(index, index + 250).join(","),
+      columns: COLUMNS.join(","),
+      granularity: "TOTAL",
+    });
+    const rows = await pinterestGet(
+      `/ad_accounts/${encodeURIComponent(adAccountId)}/ads/analytics?${query.toString()}`,
+      accessToken,
+    );
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows as Array<Record<string, unknown>>) {
+      const metrics = (row.metrics && typeof row.metrics === "object" ? row.metrics : row) as Record<string, unknown>;
+      const idValue = row.AD_ID ?? row.ad_id ?? metrics.AD_ID ?? metrics.ad_id;
+      if (idValue === undefined || idValue === null || String(idValue) === "") continue;
+      const id = String(idValue);
+      const current = totals.get(id) ?? { spend: 0, impressions: 0, clicks: 0, conversions: 0 };
+      current.spend += toNumber(metrics.SPEND_IN_MICRO_DOLLAR) / 1_000_000;
+      current.impressions += toNumber(metrics.IMPRESSION_1);
+      current.clicks += toNumber(metrics.CLICKTHROUGH_1);
+      current.conversions += toNumber(metrics.TOTAL_CONVERSIONS);
+      totals.set(id, current);
+    }
+  }
+
+  return Array.from(totals, ([id, value]) => ({
+    id,
+    impressions: value.impressions,
+    clicks: value.clicks,
+    spend: value.spend,
+    conversions: value.conversions,
+    cpa: value.conversions > 0 ? value.spend / value.conversions : null,
+  }));
 }

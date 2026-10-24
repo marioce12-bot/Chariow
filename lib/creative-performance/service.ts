@@ -1,7 +1,8 @@
 import { convertCurrency } from "@/lib/currency";
 import { isConfirmedChariowSaleStatus } from "@/lib/chariow/sales";
 import { decryptSecret } from "@/lib/crypto";
-import { fetchTikTokCampaignReport } from "@/lib/tiktok/report";
+import { fetchPinterestAdReport, fetchPinterestCampaignReport } from "@/lib/pinterest/report";
+import { fetchTikTokAdReport, fetchTikTokCampaignReport } from "@/lib/tiktok/report";
 import { resolveUniqueSaleCampaignLinks } from "./attribution";
 import { findQuasiDuplicates } from "./similarity";
 
@@ -35,6 +36,7 @@ type CampaignRow = {
   platform: "meta" | "tiktok" | "pinterest"; status: string; title: string | null;
   media_url: string | null; carousel_urls: unknown; external_campaign_id: string | null;
   external_ad_id: string | null; meta_ad_account_id: string | null; tiktok_ad_account_id: string | null;
+  pinterest_ad_account_id: string | null;
 };
 type Placement = {
   id: string; asset_id: string; ad_campaign_id: string | null; campaign_key: string;
@@ -55,7 +57,7 @@ type SalesRow = {
 };
 type MetricAccumulator = {
   scope: "ad" | "campaign"; currency: string | null; spend: number; impressions: number;
-  clicks: number; conversions: number; conversionValue: number; hasRows: boolean;
+  clicks: number; conversions: number; conversionValue: number | null; hasRows: boolean;
 };
 
 function validDate(value: string | null, fallback: string): string {
@@ -108,18 +110,31 @@ function emptyMetric(): CreativeMetric {
   };
 }
 
-function addInsight(target: Map<string, MetricAccumulator>, key: string, row: Insight, scope: "ad" | "campaign", currency: string | null) {
+function addReportMetric(
+  target: Map<string, MetricAccumulator>, key: string,
+  row: { impressions?: unknown; clicks?: unknown; spend?: unknown; conversions?: unknown; conversionValue?: unknown },
+  scope: "ad" | "campaign", currency: string | null,
+) {
   const metric = target.get(key) ?? {
     scope, currency, spend: 0, impressions: 0, clicks: 0, conversions: 0,
-    conversionValue: 0, hasRows: false,
+    conversionValue: null, hasRows: false,
   };
   metric.spend += num(row.spend);
   metric.impressions += num(row.impressions);
   metric.clicks += num(row.clicks);
   metric.conversions += num(row.conversions);
-  metric.conversionValue += num(row.conversion_value);
+  if (row.conversionValue !== null && row.conversionValue !== undefined) {
+    metric.conversionValue = (metric.conversionValue ?? 0) + num(row.conversionValue);
+  }
   metric.hasRows = true;
   target.set(key, metric);
+}
+
+function addInsight(target: Map<string, MetricAccumulator>, key: string, row: Insight, scope: "ad" | "campaign", currency: string | null) {
+  addReportMetric(target, key, {
+    impressions: row.impressions, clicks: row.clicks, spend: row.spend,
+    conversions: row.conversions, conversionValue: row.conversion_value,
+  }, scope, currency);
 }
 
 function metricKey(campaignKey: string) { return campaignKey; }
@@ -289,7 +304,7 @@ export async function loadCreativePerformance(input: {
 }) {
   const { supabase, userId, storeId, period } = input;
   const campaigns = await readPages<CampaignRow>((start, end) => supabase.from("ad_campaigns")
-    .select("id,store_id,product_id,product_name,platform,status,title,media_url,carousel_urls,external_campaign_id,external_ad_id,meta_ad_account_id,tiktok_ad_account_id")
+    .select("id,store_id,product_id,product_name,platform,status,title,media_url,carousel_urls,external_campaign_id,external_ad_id,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id")
     .eq("user_id", userId).eq("store_id", storeId).order("created_at", { ascending: false }).range(start, end));
   const placements = await readPages<Placement>((start, end) => supabase.from("creative_media_placements")
     .select("id,asset_id,ad_campaign_id,campaign_key,campaign_name_snapshot,platform,product_id,product_name_snapshot,variant_label,campaign_status_snapshot,external_campaign_id,external_ad_id,is_multi_media,asset_index")
@@ -326,14 +341,18 @@ export async function loadCreativePerformance(input: {
     }
   }
 
-  const tiktokByCampaign = new Map<string, { metric: MetricAccumulator; currency: string; accountId: string }>();
+  const providerCampaignKey = (platform: "tiktok" | "pinterest", accountId: string, externalId: string) => `${platform}:${accountId}:${externalId}`;
+  const providerAdKey = (platform: "tiktok" | "pinterest", accountId: string, externalId: string) => `${platform}:${accountId}:${externalId}`;
+  const tiktokByCampaign = new Map<string, MetricAccumulator>();
+  const tiktokByAd = new Map<string, MetricAccumulator>();
   const tiktokCurrencyByAccount = new Map<string, string>();
   const tiktokAccountIds = [...new Set(campaigns.filter((row) => row.platform === "tiktok").map((row) => row.tiktok_ad_account_id).filter(Boolean))] as string[];
   const tiktokErrors: string[] = [];
   if (tiktokAccountIds.length) {
     const { data: accounts, error: accountError } = await supabase.from("tiktok_ad_accounts")
-      .select("id,tiktok_advertiser_id,tiktok_integration_id,currency").eq("user_id", userId).in("id", tiktokAccountIds);
+      .select("id,tiktok_advertiser_id,tiktok_integration_id,currency,is_active").eq("user_id", userId).in("id", tiktokAccountIds);
     if (accountError) throw accountError;
+    if ((accounts ?? []).length < tiktokAccountIds.length) tiktokErrors.push("Compte TikTok Ads introuvable");
     for (const account of accounts ?? []) tiktokCurrencyByAccount.set(account.id, String(account.currency ?? "").toUpperCase());
     const integrationIds = [...new Set((accounts ?? []).map((row: any) => row.tiktok_integration_id).filter(Boolean))] as string[];
     const { data: integrations, error: integrationError } = integrationIds.length
@@ -343,19 +362,57 @@ export async function loadCreativePerformance(input: {
     const integrationById = new Map((integrations ?? []).map((row: any) => [row.id, row]));
     for (const account of accounts ?? []) {
       const integration: any = integrationById.get(account.tiktok_integration_id);
-      if (!integration?.is_active) { tiktokErrors.push("Intégration TikTok inactive"); continue; }
+      if (!account.is_active || !integration?.is_active) { tiktokErrors.push("Connexion TikTok Ads inactive"); continue; }
+      let accessToken: string;
+      try { accessToken = decryptSecret(integration.access_token_encrypted); }
+      catch { tiktokErrors.push("Jeton TikTok Ads indisponible"); continue; }
+      const currency = String(account.currency ?? "").toUpperCase() || null;
       try {
-        const report = await fetchTikTokCampaignReport(account.tiktok_advertiser_id, decryptSecret(integration.access_token_encrypted), period.from, period.to);
-        for (const row of report) {
-          tiktokByCampaign.set(`${account.id}:${row.id}`, {
-            metric: { scope: "campaign", currency: String(account.currency ?? "").toUpperCase() || null,
-              spend: row.spend, impressions: row.impressions, clicks: row.clicks, conversions: row.conversions,
-              conversionValue: 0, hasRows: true },
-            currency: String(account.currency ?? "").toUpperCase(), accountId: account.id,
-          });
-        }
-      } catch (error) {
-        tiktokErrors.push(error instanceof Error ? error.message : "Rapport TikTok indisponible");
+        const report = await fetchTikTokCampaignReport(account.tiktok_advertiser_id, accessToken, period.from, period.to);
+        for (const row of report) addReportMetric(tiktokByCampaign, providerCampaignKey("tiktok", account.id, row.id), row, "campaign", currency);
+      } catch { tiktokErrors.push("Rapport TikTok Ads indisponible"); }
+      const adIds = [...new Set(campaigns.filter((row) => row.platform === "tiktok" && row.tiktok_ad_account_id === account.id).map((row) => row.external_ad_id).filter(Boolean))] as string[];
+      if (adIds.length) {
+        try {
+          const report = await fetchTikTokAdReport(account.tiktok_advertiser_id, accessToken, period.from, period.to);
+          for (const row of report) addReportMetric(tiktokByAd, providerAdKey("tiktok", account.id, row.id), row, "ad", currency);
+        } catch { tiktokErrors.push("Rapport TikTok Ads par annonce indisponible"); }
+      }
+    }
+  }
+
+  const pinterestByCampaign = new Map<string, MetricAccumulator>();
+  const pinterestByAd = new Map<string, MetricAccumulator>();
+  const pinterestAccountIds = [...new Set(campaigns.filter((row) => row.platform === "pinterest").map((row) => row.pinterest_ad_account_id).filter(Boolean))] as string[];
+  const pinterestErrors: string[] = [];
+  if (pinterestAccountIds.length) {
+    const { data: accounts, error: accountError } = await supabase.from("pinterest_ad_accounts")
+      .select("id,pinterest_ad_account_id,pinterest_integration_id,currency,is_active").eq("user_id", userId).in("id", pinterestAccountIds);
+    if (accountError) throw accountError;
+    if ((accounts ?? []).length < pinterestAccountIds.length) pinterestErrors.push("Compte Pinterest Ads introuvable");
+    const integrationIds = [...new Set((accounts ?? []).map((row: any) => row.pinterest_integration_id).filter(Boolean))] as string[];
+    const { data: integrations, error: integrationError } = integrationIds.length
+      ? await supabase.from("pinterest_integrations").select("id,access_token_encrypted,is_active").eq("user_id", userId).in("id", integrationIds)
+      : { data: [], error: null };
+    if (integrationError) throw integrationError;
+    const integrationById = new Map((integrations ?? []).map((row: any) => [row.id, row]));
+    for (const account of accounts ?? []) {
+      const integration: any = integrationById.get(account.pinterest_integration_id);
+      if (!account.is_active || !integration?.is_active) { pinterestErrors.push("Connexion Pinterest Ads inactive"); continue; }
+      let accessToken: string;
+      try { accessToken = decryptSecret(integration.access_token_encrypted); }
+      catch { pinterestErrors.push("Jeton Pinterest Ads indisponible"); continue; }
+      const currency = String(account.currency ?? "").toUpperCase() || null;
+      try {
+        const report = await fetchPinterestCampaignReport(account.pinterest_ad_account_id, accessToken, period.from, period.to);
+        for (const row of report) addReportMetric(pinterestByCampaign, providerCampaignKey("pinterest", account.id, row.id), row, "campaign", currency);
+      } catch { pinterestErrors.push("Rapport Pinterest Ads indisponible"); }
+      const adIds = [...new Set(campaigns.filter((row) => row.platform === "pinterest" && row.pinterest_ad_account_id === account.id).map((row) => row.external_ad_id).filter(Boolean))] as string[];
+      if (adIds.length) {
+        try {
+          const report = await fetchPinterestAdReport(account.pinterest_ad_account_id, accessToken, adIds, period.from, period.to);
+          for (const row of report) addReportMetric(pinterestByAd, providerAdKey("pinterest", account.id, row.id), row, "ad", currency);
+        } catch { pinterestErrors.push("Rapport Pinterest Ads par annonce indisponible"); }
       }
     }
   }
@@ -364,6 +421,31 @@ export async function loadCreativePerformance(input: {
   const attributedByCampaign = new Map(metaAttribution.byCampaign);
   const tiktokAttribution = await readTikTokAttribution(supabase, userId, storeId, campaigns, period.from, period.to, tiktokCurrencyByAccount, metaAttribution.assignedSaleIds);
   for (const [campaignId, attribution] of tiktokAttribution) attributedByCampaign.set(campaignId, attribution);
+
+  const providerCampaignOwnerCounts = new Map<string, number>();
+  const providerAdOwners = new Map<string, CampaignRow[]>();
+  for (const campaign of campaigns) {
+    if (campaign.platform === "tiktok" && campaign.tiktok_ad_account_id) {
+      if (campaign.external_campaign_id) {
+        const key = providerCampaignKey("tiktok", campaign.tiktok_ad_account_id, campaign.external_campaign_id);
+        providerCampaignOwnerCounts.set(key, (providerCampaignOwnerCounts.get(key) ?? 0) + 1);
+      }
+      if (campaign.external_ad_id) {
+        const key = providerAdKey("tiktok", campaign.tiktok_ad_account_id, campaign.external_ad_id);
+        providerAdOwners.set(key, [...(providerAdOwners.get(key) ?? []), campaign]);
+      }
+    }
+    if (campaign.platform === "pinterest" && campaign.pinterest_ad_account_id) {
+      if (campaign.external_campaign_id) {
+        const key = providerCampaignKey("pinterest", campaign.pinterest_ad_account_id, campaign.external_campaign_id);
+        providerCampaignOwnerCounts.set(key, (providerCampaignOwnerCounts.get(key) ?? 0) + 1);
+      }
+      if (campaign.external_ad_id) {
+        const key = providerAdKey("pinterest", campaign.pinterest_ad_account_id, campaign.external_ad_id);
+        providerAdOwners.set(key, [...(providerAdOwners.get(key) ?? []), campaign]);
+      }
+    }
+  }
 
   const campaignMetricById = new Map<string, MetricAccumulator>();
   for (const campaign of campaigns) {
@@ -374,9 +456,21 @@ export async function loadCreativePerformance(input: {
       const campaignKey = `${campaign.meta_ad_account_id}:campaign:${campaign.external_campaign_id}`;
       metric = (adKey && insightByEntity.get(adKey)) || insightByEntity.get(campaignKey);
     } else if (campaign.platform === "tiktok" && campaign.tiktok_ad_account_id) {
-      metric = tiktokByCampaign.get(`${campaign.tiktok_ad_account_id}:${campaign.external_campaign_id}`)?.metric;
+      const key = providerCampaignKey("tiktok", campaign.tiktok_ad_account_id, campaign.external_campaign_id);
+      if (providerCampaignOwnerCounts.get(key) === 1) metric = tiktokByCampaign.get(key);
+    } else if (campaign.platform === "pinterest" && campaign.pinterest_ad_account_id) {
+      const key = providerCampaignKey("pinterest", campaign.pinterest_ad_account_id, campaign.external_campaign_id);
+      if (providerCampaignOwnerCounts.get(key) === 1) metric = pinterestByCampaign.get(key);
     }
     if (metric?.hasRows) campaignMetricById.set(campaign.id, metric);
+  }
+
+  const creativeMetricByCampaignId = new Map<string, MetricAccumulator>();
+  for (const [key, owners] of providerAdOwners) {
+    if (owners.length !== 1) continue;
+    const campaign = owners[0];
+    const metric = campaign.platform === "tiktok" ? tiktokByAd.get(key) : pinterestByAd.get(key);
+    if (metric?.hasRows) creativeMetricByCampaignId.set(campaign.id, metric);
   }
 
   // Utiliser les anciens instantanés si un fournisseur ne répond plus, sans afficher des zéros fabriqués.
@@ -387,6 +481,14 @@ export async function loadCreativePerformance(input: {
     .in("campaign_key", campaignKeys).order("captured_at", { ascending: false }).range(start, end)) : [];
   for (const snapshot of snapshots) {
     if (snapshot.metric_scope === "unavailable") continue;
+    const snapshotCampaign = campaigns.find((campaign) => campaign.id === snapshot.campaign_key);
+    if (snapshotCampaign?.platform === "tiktok" || snapshotCampaign?.platform === "pinterest") {
+      const accountId = snapshotCampaign.platform === "tiktok" ? snapshotCampaign.tiktok_ad_account_id : snapshotCampaign.pinterest_ad_account_id;
+      if (accountId && snapshotCampaign.external_campaign_id) {
+        const key = providerCampaignKey(snapshotCampaign.platform, accountId, snapshotCampaign.external_campaign_id);
+        if (providerCampaignOwnerCounts.get(key) !== 1) continue;
+      }
+    }
     const currentAttribution = attributedByCampaign.get(snapshot.campaign_key);
     if ((!currentAttribution || !currentAttribution.reliable) && snapshot.attributed_orders !== null && snapshot.attributed_revenue !== null && snapshot.attributed_currency) {
       attributedByCampaign.set(snapshot.campaign_key, {
@@ -398,7 +500,9 @@ export async function loadCreativePerformance(input: {
     campaignMetricById.set(snapshot.campaign_key, {
       scope: snapshot.metric_scope === "ad" ? "ad" : "campaign", currency: snapshot.currency,
       impressions: num(snapshot.impressions), clicks: num(snapshot.clicks), spend: num(snapshot.spend),
-      conversions: num(snapshot.platform_conversions), conversionValue: num(snapshot.platform_conversion_value), hasRows: true,
+      conversions: num(snapshot.platform_conversions),
+      conversionValue: snapshotCampaign?.platform === "meta" ? num(snapshot.platform_conversion_value) : null,
+      hasRows: true,
     });
   }
 
@@ -410,7 +514,9 @@ export async function loadCreativePerformance(input: {
     const noMetric = emptyMetric();
     if (!campaign || !campaign.external_campaign_id || !launchedStatuses.has(campaign.status)) return noMetric;
     if (placement.is_multi_media || (placementCounts.get(campaign.id) ?? 0) > 1) return noMetric;
-    const row = campaignMetricById.get(campaign.id);
+    const row = campaign.platform === "meta"
+      ? campaignMetricById.get(campaign.id)
+      : creativeMetricByCampaignId.get(campaign.id);
     if (!row?.hasRows) return noMetric;
     const attributed = attributedByCampaign.get(campaign.id);
     const attribution = attributed?.reliable
@@ -419,7 +525,8 @@ export async function loadCreativePerformance(input: {
     return {
       available: true, scope: row.scope, currency: row.currency, spend: cents(row.spend),
       impressions: Math.round(row.impressions), clicks: Math.round(row.clicks),
-      platformConversions: cents(row.conversions), platformConversionValue: cents(row.conversionValue),
+      platformConversions: cents(row.conversions),
+      platformConversionValue: row.conversionValue === null ? null : cents(row.conversionValue),
       attributedOrders: attribution.orders, attributedRevenue: attribution.revenue,
       attributedCurrency: attribution.currency, attributionReliable: attribution.reliable,
     };
@@ -436,7 +543,7 @@ export async function loadCreativePerformance(input: {
       platform: campaign.platform, external_campaign_id: campaign.external_campaign_id,
       period_from: period.from, period_to: period.to, currency: metric.currency,
       impressions: Math.round(metric.impressions), clicks: Math.round(metric.clicks), spend: cents(metric.spend),
-      platform_conversions: cents(metric.conversions), platform_conversion_value: cents(metric.conversionValue),
+      platform_conversions: cents(metric.conversions), platform_conversion_value: metric.conversionValue === null ? 0 : cents(metric.conversionValue),
       attributed_orders: attributed?.reliable ? attributed.orders : null,
       attributed_revenue: attributed?.reliable ? attributed.revenue : null,
       attributed_currency: attributed?.reliable ? attributed.currency : null,
@@ -565,9 +672,15 @@ export async function loadCreativePerformance(input: {
     productEligibility: [...productEligibility.values()],
     duplicateCandidates,
     notices: {
-      carousel: "Meta ne fournit ici que les résultats de la publicité/carrousel; ils ne sont pas répartis entre les cartes.",
-      tikTok: tiktokErrors.length ? "Certaines données TikTok ne sont pas disponibles actuellement; les derniers instantanés de cette période peuvent être utilisés." : null,
-      pinterest: campaigns.some((campaign) => campaign.platform === "pinterest") ? "Les rapports Pinterest ne sont pas branchés sur Performance visuel; aucune métrique Pinterest n’est simulée." : null,
+      carousel: "Les résultats d’un carrousel restent au niveau de la publicité; ils ne sont pas répartis entre les images.",
+      tikTok: campaigns.some((campaign) => campaign.platform === "tiktok")
+        ? tiktokErrors.length ? "Les rapports TikTok Ads ne sont pas disponibles pour le moment."
+          : !tiktokAccountIds.length ? "Connecte TikTok Ads pour consulter ses résultats." : null
+        : null,
+      pinterest: campaigns.some((campaign) => campaign.platform === "pinterest")
+        ? pinterestErrors.length ? "Les rapports Pinterest Ads ne sont pas disponibles pour le moment."
+          : !pinterestAccountIds.length ? "Connecte Pinterest Ads pour consulter ses résultats." : null
+        : null,
       variant: "Une variante n’est affichée que si elle a été indiquée explicitement.",
     },
   };

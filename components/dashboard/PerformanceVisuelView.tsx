@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Archive, BarChart3, ImageIcon, Layers3, Link2, RefreshCw, ShieldCheck, Sparkles, Video } from "lucide-react";
+import { BarChart3, ImageIcon, Layers3, Link2, RefreshCw, ShieldCheck, Sparkles, Video } from "lucide-react";
 import type { CreativePerformanceStudioPrefill } from "@/lib/creative-performance/client";
 import "./performance-visuel.css";
 
@@ -95,7 +95,6 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
     return () => { alive = false; };
   }, [storeId, period, refreshCount]);
 
-  const duplicateIds = useMemo(() => new Set((data?.duplicateCandidates ?? []).flatMap((pair) => [pair.firstId, pair.secondId])), [data]);
   const winningCampaigns = useMemo(() => new Set((data?.campaigns ?? []).filter((campaign) =>
     campaign.metrics && campaign.metrics.attributedRevenue !== null && campaign.metrics.attributedCurrency === campaign.metrics.currency && campaign.metrics.attributedRevenue > campaign.metrics.spend,
   ).map((campaign) => campaign.campaignId)), [data]);
@@ -104,16 +103,15 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
     (!onlyWinners || item.winner) &&
     (platformFilter === "all" || item.campaigns.some((campaign) => campaign.platform === platformFilter))),
   [data, onlyWinners, platformFilter, winningCampaigns]);
+  const campaignsWithMedia = new Set((data?.media ?? []).flatMap((item) => item.campaigns.map((placement) => placement.campaignId)));
+  const campaignsWithoutMedia = (data?.campaigns ?? []).filter((campaign) => !campaignsWithMedia.has(campaign.campaignId));
   const totals = data?.metrics.totals ?? [];
   const totalSpend = totals.length ? totals.map((row) => `${money(row.spend, row.currency)}${row.complete ? "" : " · partiel"}`).join(" · ") : "—";
   const totalClicks = totals.length ? number(totals.reduce((sum, row) => sum + row.clicks, 0)) : "—";
   const allOrdersKnown = totals.length > 0 && data?.metrics.unavailableCampaignMetrics === 0 && totals.every((row) => row.attributedOrders !== null);
   const totalOrders = allOrdersKnown ? number(totals.reduce((sum, row) => sum + (row.attributedOrders ?? 0), 0)) : "—";
   const costPerOrder = data?.metrics.unavailableCampaignMetrics ? "—" : totals.filter((row) => row.costPerOrder !== null).map((row) => money(row.costPerOrder, row.currency)).join(" · ") || "—";
-  const totalRevenue = data?.metrics.unavailableCampaignMetrics
-    ? "— · données incomplètes"
-    : totals.map((row) => `${money(row.attributedRevenue, row.currency)}${row.attributedRevenue === null ? " · attribution indisponible" : ""}`).join(" · ") || "—";
-  const measuredCampaigns = data?.campaigns.filter((campaign) => campaign.launched && campaign.metrics) ?? [];
+  const totalRevenue = totals.map((row) => money(row.attributedRevenue, row.currency)).join(" · ") || "—";
   const products = data?.productEligibility ?? [];
   const platforms = [...new Set((data?.media ?? []).flatMap((item) => item.campaigns.map((campaign) => campaign.platform)))];
   const variantRows = useMemo(() => {
@@ -183,7 +181,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
         <div>
           <div className="creative-performance-breadcrumb">Espace de travail <span aria-hidden="true">›</span> Performance visuel</div>
           <h1>Performance visuel</h1>
-          <p>Relie chaque création à son produit, sa campagne et sa variante. Les métriques viennent des rapports connectés et des ventes attribuées vérifiables.</p>
+          <p>Compare les résultats des images et vidéos de tes campagnes publicitaires. Retrouve les dépenses, clics et, quand elles peuvent être reliées, les commandes et le chiffre d’affaires.</p>
         </div>
         <label className="creative-period"><span>Période</span>
           <select value={period} onChange={(event) => setPeriod(event.target.value)} aria-label="Période de performance">
@@ -195,26 +193,14 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
       <section className="creative-kpis" aria-label="Indicateurs réels des campagnes">
         {kpis.map(({ label, icon: Icon }, index) => {
           const values = [totalSpend, totalClicks, totalOrders, costPerOrder, totalRevenue];
-          const notes = [
-            data?.metrics.unavailableCampaignMetrics ? `${data.metrics.unavailableCampaignMetrics} campagne(s) lancée(s) sans métrique disponible` : "Somme par devise; les campagnes non mesurées restent exclues.",
-            measuredCampaigns.length ? `${measuredCampaigns.length} campagne(s) mesurée(s)${data?.metrics.unavailableCampaignMetrics ? ` · ${data.metrics.unavailableCampaignMetrics} sans métriques` : ""}` : "Aucun clic mesuré sur la période.",
-            allOrdersKnown ? "Uniquement ventes attribuées de façon fiable." : "Certaines campagnes ne disposent pas d’une attribution fiable.",
-            "Affiché par devise quand les commandes sont attribuées.",
-            "Le chiffre reste vide si la devise ou l’attribution est incertaine.",
-          ];
           return <article className="creative-kpi" key={label}><span className="creative-kpi-icon"><Icon size={17} aria-hidden="true" /></span><div>
-            <span className="creative-kpi-label">{label}</span><strong>{values[index]}</strong><small>{notes[index]}</small>
+            <span className="creative-kpi-label">{label}</span><strong>{values[index]}</strong>
           </div></article>;
         })}
       </section>
 
-      <section className="creative-principles" aria-label="Règles de la bibliothèque">
-        <article className="creative-principle"><span className="creative-principle-icon"><ImageIcon size={17} aria-hidden="true" /></span><div><strong>Une fiche média, plusieurs campagnes</strong><p>Un SHA-256 identique retrouve le même fichier. Les ressemblances perceptuelles sont signalées comme quasi-doublons, jamais fusionnées automatiquement.</p></div></article>
-        <article className="creative-principle"><span className="creative-principle-icon"><Archive size={17} aria-hidden="true" /></span><div><strong>Historique conservé, idées sous conditions</strong><p>L’archivage conserve les liens et les instantanés. Studio ne reçoit que trois idées justifiées après une campagne lancée et analysée ; sinon, aucune génération n’est proposée.</p></div></article>
-      </section>
-
       {variantRows.length ? <section className="creative-variant-summary" aria-label="Comparaison des variantes renseignées">
-        <div><h2>Comparaison par variante</h2><p>Uniquement les libellés saisis explicitement. Les conversions de campagnes multi-média restent non ventilées.</p></div>
+        <div><h2>Comparaison par variante</h2><p>Consulte les résultats des variantes renseignées.</p></div>
         <div className="creative-variant-table">{variantRows.map((row) => <article className="creative-variant-summary-row" key={row.key}>
           <div><strong>{row.productName}</strong><small>{row.variant} · {row.count} rattachement(s)</small></div>
           <span><small>Dépenses</small><strong>{row.complete ? money(row.spend, row.currency) : `${money(row.spend, row.currency)} · partiel`}</strong></span>
@@ -223,17 +209,16 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
           <span><small>Coût/commande</small><strong>{row.ordersKnown && row.complete && row.orders > 0 ? money(row.spend / row.orders, row.currency) : "—"}</strong></span>
           <span><small>CA attribué</small><strong>{row.revenueKnown && row.complete ? money(row.revenue, row.currency) : "—"}</strong></span>
         </article>)}</div>
-      </section> : <p className="creative-variant-hint">Les variantes ne sont jamais déduites du nom du produit. Renseigne un libellé dans le détail de la création pour activer la comparaison par variante.</p>}
+      </section> : null}
 
-      {data?.notices.carousel ? <p className="creative-notice" role="status">{data.notices.carousel}</p> : null}
+      {error ? <div className="creative-error" role="alert">{error}</div> : null}
       {data?.notices.tikTok ? <p className="creative-notice" role="status">{data.notices.tikTok}</p> : null}
       {data?.notices.pinterest ? <p className="creative-notice" role="status">{data.notices.pinterest}</p> : null}
-      {error ? <div className="creative-error" role="alert">{error}</div> : null}
 
       <section className="creative-library" aria-labelledby="creative-library-title">
         <div className="creative-library-head">
           <div><h2 id="creative-library-title">Créations et résultats par campagne</h2>
-            <p>{data ? `${data.metrics.mediaCount} média(s) · ${data.metrics.launchedCampaigns} campagne(s) lancée(s) · ${formatPeriod(data.period.from, data.period.to)}` : "Aucune donnée fictive n’est affichée."}</p>
+            <p>{data ? `${data.metrics.mediaCount} média(s) · ${data.metrics.launchedCampaigns} campagne(s) lancée(s) · ${formatPeriod(data.period.from, data.period.to)}` : "Choisis une boutique pour voir les résultats de tes campagnes."}</p>
           </div>
           <button type="button" className="creative-refresh" onClick={() => setRefreshCount((current) => current + 1)} disabled={loading || !storeId} aria-label="Actualiser les performances"><RefreshCw size={15} /> Actualiser</button>
         </div>
@@ -241,33 +226,30 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
           <label className="creative-winner-filter"><input type="checkbox" checked={onlyWinners} onChange={(event) => setOnlyWinners(event.target.checked)} /> Produits/visuels gagnants uniquement</label>
           <label className="creative-platform-filter"><span>Plateforme</span><select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)}><option value="all">Toutes</option>{platforms.map((platform) => <option key={platform} value={platform}>{platformName(platform)}</option>)}</select></label>
         </div>
-        {products.some((product) => product.eligible) ? <div className="creative-ready-products"><div><strong>Produits promus · données analysées</strong><small>Les trois idées seront fondées sur la campagne lancée la plus pertinente. Aucun résultat n’est prédit.</small></div>
+        {products.some((product) => product.eligible) ? <div className="creative-ready-products"><div><strong>Produits disponibles dans Studio</strong></div>
           <div className="creative-ready-product-list">{products.filter((product) => product.eligible && (!onlyWinners || winningProducts.has(product.productId))).map((product) => {
             const key = `product:${product.productId}`;
             return <div className="creative-product-action" key={product.productId}><div><span>{product.productName}{winningProducts.has(product.productId) ? <em className="creative-badge winner">Produit gagnant</em> : null}</span><small>{product.analyzedCampaigns} campagne(s) analysée(s) · {product.launchedCampaigns} lancée(s)</small></div><button type="button" className="creative-studio-link" disabled={suggestionBusy === key} onClick={() => void propose(null, product.productId)}><Sparkles size={14} /> {suggestionBusy === key ? "Vérification…" : "Proposer des créatifs"}</button>{suggestionMessages[key] ? <small role="status" className="creative-suggestion-message">{suggestionMessages[key]}</small> : null}</div>;
           })}</div>
         </div> : null}
 
-        {loading ? <div className="creative-state" role="status">Chargement des rapports et des résultats attribués…</div>
+        {loading ? <div className="creative-state" role="status">Chargement des performances…</div>
           : !storeId ? <div className="creative-state">Choisis une boutique connectée pour consulter ses performances.</div>
-          : error ? <div className="creative-state">Aucun chiffre ne sera affiché tant que les données ou la migration nécessaires ne sont pas disponibles.</div>
+          : error ? <div className="creative-state">Les performances sont momentanément indisponibles. Réessaie plus tard.</div>
           : !data?.media.length ? <div className="creative-empty">
             <div className="creative-empty-icon"><ImageIcon size={22} aria-hidden="true" /></div>
-            <h3>Aucun média de campagne indexé sur cette période</h3>
-            <p>La bibliothèque se remplit lorsqu’une création est envoyée ou rattachée à une campagne. Les campagnes sans métriques fiables restent visibles comme non mesurées ; aucun chiffre de maquette ne remplace les rapports réels.</p>
-            <p>Les visuels des campagnes créées avant l’activation de la bibliothèque ne sont pas réindexés automatiquement : repasse-les par le flux d’envoi de média pour générer leurs empreintes et les rattacher.</p>
-            <p className="creative-empty-rule">Les trois idées Studio ne seront proposées qu’après promotion réelle du produit dans une campagne lancée et résultats analysés.</p>
+            <h3>Aucune création trouvée sur cette période</h3>
+            <p>Essaie une autre période ou vérifie les filtres de plateforme.</p>
           </div>
           : !visibleMedia.length ? <div className="creative-state">Aucune création ne correspond à ces filtres.</div>
           : <div className="creative-media-list">
             {visibleMedia.map((item) => {
               const productPlacements = [...new Map(item.campaigns.filter((campaign) => campaign.productId).map((campaign) => [campaign.productId!, campaign])).values()];
-              const duplicate = duplicateIds.has(item.id);
               return <article className="creative-media-card" key={item.id}>
                 <div className="creative-media-preview">{item.kind === "image" ? <img src={item.url} alt="Création publicitaire" loading="lazy" /> : <video src={item.url} controls playsInline preload="metadata" aria-label="Création vidéo publicitaire" />}</div>
                 <div className="creative-media-content">
-                  <div className="creative-media-title-row"><div><strong>{item.kind === "image" ? "Image" : <><Video size={13} /> Vidéo</>}</strong><small>SHA-256 · {item.sha256.slice(0, 12)}…</small></div>
-                    <div className="creative-badges">{item.winner ? <span className="creative-badge winner">Gagnant</span> : null}{duplicate ? <span className="creative-badge similar">Variante proche · non fusionnée</span> : null}</div>
+                  <div className="creative-media-title-row"><div><strong>{item.kind === "image" ? "Image" : <><Video size={13} /> Vidéo</>}</strong></div>
+                    <div className="creative-badges">{item.winner ? <span className="creative-badge winner">Gagnant</span> : null}</div>
                   </div>
                   <div className="creative-media-metrics" aria-label="Totaux pour cette création">
                     <span><small>Dépenses</small><strong>{item.spendByCurrency.length ? item.spendByCurrency.map((row) => money(row.amount, row.currency)).join(" · ") : "—"}</strong></span>
@@ -276,7 +258,6 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
                     <span><small>Coût / commande</small><strong>{money(item.costPerOrder, item.currency)}</strong></span>
                     <span><small>CA attribué</small><strong>{money(item.attributedRevenue, item.attributedCurrency)}</strong></span>
                   </div>
-                  {!item.metricsComplete ? <p className="creative-caveat">Certaines campagnes de ce média ne disposent pas de métriques propres au créatif. Les résultats de campagnes carrousel ne sont pas répartis entre les cartes.</p> : null}
                   <div className="creative-campaign-details">
                     <strong>Détail par campagne et plateforme</strong>
                     {item.campaigns.map((campaign) => <div className="creative-campaign-row" key={campaign.id}>
@@ -286,7 +267,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
                       <div><span>{campaign.metrics.available ? money(campaign.metrics.spend, campaign.metrics.currency) : "—"}</span><small>{campaign.metrics.available ? `${number(campaign.metrics.clicks)} clics` : campaign.isMultiMedia ? "métriques non ventilées" : "rapport indisponible"}</small></div>
                       <div><span>{number(campaign.metrics.attributedOrders)}</span><small>{money(campaign.metrics.attributedRevenue, campaign.metrics.attributedCurrency)} attribués</small></div>
                     </div>)}
-                    {data.notices.variant ? <small className="creative-variant-note">{data.notices.variant}</small> : null}
+
                   </div>
                   {productPlacements.length ? <div className="creative-studio-actions"><strong>Idées Studio</strong>{productPlacements.map((campaign) => {
                     const eligibility = products.find((product) => product.productId === campaign.productId);
@@ -307,13 +288,8 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
               </article>;
             })}
           </div>}
-        <footer className="creative-library-foot">
-          <span>Les performances agrégées ne sont pas additionnées deux fois entre campagnes.</span>
-          <span>Une conversion ou un CA non relié de façon fiable reste « — ».</span>
-        </footer>
       </section>
-      {data?.campaigns.length ? <details className="creative-all-campaigns"><summary>Voir aussi les campagnes sans média indexé ({data.campaigns.length})</summary><div>{data.campaigns.map((campaign) => <div className="creative-campaign-row" key={campaign.campaignId}><div><span>{campaign.name}</span><small>{platformName(campaign.platform)} · {campaign.productName || "Produit non renseigné"} · {campaign.status}</small></div><div><span>{campaign.metrics ? money(campaign.metrics.spend, campaign.metrics.currency) : "—"}</span><small>{campaign.metrics ? `${number(campaign.metrics.clicks)} clics` : "métriques non disponibles"}</small></div><div><span>{number(campaign.metrics?.attributedOrders)}</span><small>{money(campaign.metrics?.attributedRevenue ?? null, campaign.metrics?.attributedCurrency ?? null)} attribués</small></div></div>)}</div></details> : null}
-      <p className="creative-format-note">Image et diaporama sont disponibles dans Studio. La génération vidéo reste verrouillée par le produit et n’est pas lancée depuis Performance visuel.</p>
+      {campaignsWithoutMedia.length ? <details className="creative-all-campaigns"><summary>Voir aussi les campagnes sans visuel ({campaignsWithoutMedia.length})</summary><div>{campaignsWithoutMedia.map((campaign) => <div className="creative-campaign-row" key={campaign.campaignId}><div><span>{campaign.name}</span><small>{platformName(campaign.platform)} · {campaign.productName || "Produit non renseigné"} · {campaign.status}</small></div><div><span>{campaign.metrics ? money(campaign.metrics.spend, campaign.metrics.currency) : "—"}</span><small>{campaign.metrics ? `${number(campaign.metrics.clicks)} clics` : "résultats indisponibles"}</small></div><div><span>{number(campaign.metrics?.attributedOrders)}</span><small>{money(campaign.metrics?.attributedRevenue ?? null, campaign.metrics?.attributedCurrency ?? null)} attribués</small></div></div>)}</div></details> : null}
     </div>
   );
 }
