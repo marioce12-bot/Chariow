@@ -1,38 +1,67 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeft, ArrowRight, Check, PartyPopper, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { SubscriptionData } from "./shared";
+import {
+  DESKTOP_DASHBOARD_TOUR_STEPS,
+  MOBILE_DASHBOARD_TOUR_STEPS,
+  type DashboardTourStep,
+} from "./tour-steps";
 import "@/app/first-store-welcome.css";
 
-export const VENDEO_TOUR_STEPS = [
-  { target: "store", fr: "Ta boutique, toujours à portée de main", en: "Your store, always within reach", body: "Ce sélecteur permet de choisir la boutique dont tu consultes les données. Tu peux gérer tes connexions dans Boutiques.", english: "Use this selector to choose which store’s data you see. Manage your connections in Stores." },
-  { target: "Vue d'ensemble", fr: "Ton activité en un coup d’œil", en: "Your business at a glance", body: "La Vue d’ensemble rassemble tes ventes et tes indicateurs. Choisis une période pour comprendre l’évolution de ta boutique.", english: "Overview brings together your sales and key metrics. Choose a date range to understand your store’s performance." },
-  { target: "Vendeo AI", fr: "Pose tes questions à Vendeo AI", en: "Ask Vendeo AI", body: "L’assistant t’aide à comprendre tes données et à préparer tes prochaines actions. Commence par une question sur ta boutique.", english: "Your assistant helps you understand your data and plan your next steps. Start with a question about your store." },
-  { target: "Studio", fr: "Crée tes visuels dans le Studio", en: "Create in the Studio", body: "Retrouve ici les outils de création pour tes produits. Vérifie les crédits et le coût indiqué avant de lancer une génération : ils sont distincts de ton abonnement.", english: "Find creative tools for your products here. Check the credits and displayed cost before generating: these are separate from your subscription." },
-  { target: "Pub", fr: "Prépare et suis tes publicités", en: "Prepare and track your ads", body: "Pub te permet de préparer une campagne et de suivre tes publicités. Le bouton « Lancer une pub » ouvre le formulaire : vérifie toujours le budget avant de confirmer.", english: "Ads helps you prepare campaigns and track your ads. Launch ad opens the setup form: always review the budget before confirming." },
-  { target: "Radar marché", fr: "Trouve de nouvelles pistes", en: "Explore new ideas", body: "Le Radar marché t’aide à explorer des idées pour ton activité. Utilise ces pistes pour nourrir ta réflexion, sans les considérer comme une garantie de ventes.", english: "Market radar helps you explore ideas for your business. Use them as inspiration, not as a guarantee of sales." },
-  { target: "Bénéfices nets", fr: "Va au-delà du chiffre d’affaires", en: "Look beyond revenue", body: "Bénéfices nets t’aide à examiner la rentabilité avec les données disponibles. Sur mobile, retrouve cette section dans le menu à trois points.", english: "Net profit helps you review profitability using available data. On mobile, find this section in the three-dot menu." },
-  { target: "Relances WhatsApp", fr: "Retrouve tes opportunités de relance", en: "Find follow-up opportunities", body: "Cette section rassemble les outils de relance WhatsApp. Consulte les informations et vérifie les destinataires avant toute action. Sur mobile, ouvre le menu à trois points.", english: "This section brings together WhatsApp follow-up tools. Review the information and recipients before taking action. On mobile, use the three-dot menu." },
-  { target: "Rapports", fr: "Retrouve tes analyses dans Rapports", en: "Review your reports", body: "Rapports permet de consulter les analyses de ta boutique. Sur mobile, ouvre le menu à trois points pour y accéder.", english: "Reports lets you review your store’s analyses. On mobile, open the three-dot menu to find it." },
-  { target: "Suggestions et notes", fr: "Partage tes idées", en: "Share your ideas", body: "Suggestions et notes te permet de partager tes retours sur Vendeo. Tu peux aussi retrouver cette rubrique dans les Paramètres.", english: "Suggestions and feedback lets you share your ideas about Vendeo. You can also find it in Settings." },
-  { target: "Abonnement", fr: "Tes connexions et ton compte", en: "Your connections and account", body: "Boutiques et Comptes pub servent à gérer tes connexions. Abonnement affiche ton essai et ses dates réelles ; Paramètres permet de personnaliser Vendeo. Sur mobile, utilise le profil ou le menu à trois points. Tu peux relancer ce guide avec le bouton « Guide » en haut de l’espace.", english: "Stores and Ad accounts manage your connections. Subscription shows your trial and its actual dates; Settings personalizes Vendeo. On mobile, use your profile or the three-dot menu. Restart this tour using Guide at the top of your workspace." },
-] as const;
+export { VENDEO_TOUR_STEPS } from "./tour-steps";
 
-export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss }: {
+const MOBILE_QUERY = "(max-width: 760px)";
+
+function subscribeToViewport(onChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+  const media = window.matchMedia?.(MOBILE_QUERY);
+  if (media?.addEventListener) {
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }
+  if (media?.addListener) {
+    media.addListener(onChange);
+    return () => media.removeListener(onChange);
+  }
+  window.addEventListener("resize", onChange);
+  return () => window.removeEventListener("resize", onChange);
+}
+
+function getIsMobileSnapshot() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia ? window.matchMedia(MOBILE_QUERY).matches : window.innerWidth <= 760;
+}
+
+export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss, onTourStepChange }: {
   stage: "welcome" | "tour";
   subscription: SubscriptionData | null;
   onStart: () => void;
   onDismiss: () => void;
+  onTourStepChange: (step: DashboardTourStep | null) => void;
 }) {
   const { locale } = useI18n();
   const en = locale === "en";
+  const isMobile = useSyncExternalStore(subscribeToViewport, getIsMobileSnapshot, () => false);
+  const tourSteps = isMobile ? MOBILE_DASHBOARD_TOUR_STEPS : DESKTOP_DASHBOARD_TOUR_STEPS;
+  const [stepProfileMobile, setStepProfileMobile] = useState(isMobile);
+  const isSwitchingProfile = stepProfileMobile !== isMobile;
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const dialog = useRef<HTMLElement>(null);
-  const current = VENDEO_TOUR_STEPS[step];
+  const onTourStepChangeRef = useRef(onTourStepChange);
+  onTourStepChangeRef.current = onTourStepChange;
+  const safeStep = Math.min(isSwitchingProfile ? 0 : step, tourSteps.length - 1);
+  const current = tourSteps[safeStep];
+
+  useEffect(() => {
+    if (stepProfileMobile === isMobile) return;
+    setStep(0);
+    setStepProfileMobile(isMobile);
+  }, [isMobile, stepProfileMobile]);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
@@ -40,48 +69,91 @@ export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss }: {
     dialog.current?.focus({ preventScroll: true });
     return () => { document.body.style.overflow = overflow; previous?.focus(); };
   }, []);
-  useEffect(() => { dialog.current?.focus({ preventScroll: true }); }, [stage, step]);
+  useEffect(() => { dialog.current?.focus({ preventScroll: true }); }, [stage, safeStep]);
+  useEffect(() => {
+    if (stage !== "tour") return;
+    onTourStepChange(current);
+  }, [current, stage]);
+  useEffect(() => () => { onTourStepChangeRef.current(null); }, []);
+
   useEffect(() => {
     if (stage !== "tour") { setRect(null); setPosition(null); return; }
     function measure() {
       const candidates = Array.from(document.querySelectorAll<HTMLElement>("[data-onboarding]"));
-      let target = candidates.find(node => node.dataset.onboarding === current.target && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0);
-      if (!target) target = document.querySelector<HTMLElement>(".mobile-more-trigger") ?? undefined;
+      const target = candidates.find((node) => {
+        if (node.dataset.onboarding !== current.target) return false;
+        const box = node.getBoundingClientRect();
+        return box.width > 0 && box.height > 0;
+      });
       const box = target?.getBoundingClientRect();
       if (box && box.width && box.height && box.top >= 0 && box.bottom <= window.innerHeight) {
         setRect({ top: box.top, left: box.left, width: box.width, height: box.height });
         const card = dialog.current?.getBoundingClientRect();
         if (card) {
-          const gap = 18, edge = 16;
-          const below = window.innerHeight - box.bottom - edge - gap;
-          const above = box.top - edge - gap;
-          let top = card.height <= below ? box.bottom + gap : card.height <= above ? box.top - card.height - gap : edge;
+          const gap = 18;
+          const edge = 16;
+          let top: number;
           let left = (window.innerWidth - card.width) / 2;
-          // Wide layouts can place the card beside the navigation instead of over it.
-          if (window.innerWidth > 767 && box.right + gap + card.width <= window.innerWidth - edge) {
-            left = box.right + gap;
-            top = Math.max(edge, Math.min(box.top, window.innerHeight - card.height - edge));
+          if (isMobile && current.menuTarget) {
+            const dockClearance = 104;
+            const maxTop = window.innerHeight - card.height - dockClearance;
+            const belowTop = box.bottom + gap;
+            const aboveTop = box.top - card.height - gap;
+            if (belowTop <= maxTop) top = belowTop;
+            else if (aboveTop >= edge) top = aboveTop;
+            else top = Math.max(edge, maxTop);
+          } else {
+            const below = window.innerHeight - box.bottom - edge - gap;
+            const above = box.top - edge - gap;
+            top = card.height <= below ? box.bottom + gap : card.height <= above ? box.top - card.height - gap : edge;
+            if (!isMobile && box.right + gap + card.width <= window.innerWidth - edge) {
+              left = box.right + gap;
+              top = Math.max(edge, Math.min(box.top, window.innerHeight - card.height - edge));
+            }
           }
-          setPosition({ top: Math.max(edge, Math.min(top, window.innerHeight - card.height - edge)), left: Math.max(edge, left) });
+          setPosition({
+            top: Math.max(edge, Math.min(top, window.innerHeight - card.height - edge)),
+            left: Math.max(edge, left),
+          });
         }
       } else { setRect(null); setPosition(null); }
     }
     measure();
-    const frame = requestAnimationFrame(measure);
+    const frame = window.requestAnimationFrame(measure);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
-    const observer = new ResizeObserver(measure);
-    observer.observe(document.body);
-    if (dialog.current) observer.observe(dialog.current);
-    return () => { cancelAnimationFrame(frame); window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); observer.disconnect(); };
-  }, [current.target, stage]);
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    observer?.observe(document.body);
+    if (dialog.current) observer?.observe(dialog.current);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+      observer?.disconnect();
+    };
+  }, [current.target, current.menuTarget, isMobile, stage]);
+
   const trialEnd = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null;
   const validEnd = trialEnd && Number.isFinite(trialEnd.getTime()) ? trialEnd : null;
   const trialActive = subscription?.trial_active === true && (!validEnd || validEnd.getTime() > Date.now());
-  return <div className={`vendeo-welcome-layer ${stage === "tour" ? "vendeo-tour-layer" : ""}`}>
+  function goToStep(nextStep: number) {
+    const next = tourSteps[nextStep];
+    if (!next) return;
+    onTourStepChange(next);
+    setStep(nextStep);
+  }
+  const welcomeDescription = en
+    ? isMobile
+      ? "Your first store is connected. We’ll follow the five mobile tabs in order; the Assistant stays in its separate floating bubble."
+      : "Your first store is connected. Let’s follow the desktop sidebar and top navigation together."
+    : isMobile
+      ? "Ta première boutique est connectée. Le parcours suit les cinq onglets mobiles dans l’ordre; l’assistant reste dans sa bulle flottante à part."
+      : "Ta première boutique est connectée. Découvrons ensemble la navigation latérale et les outils en haut de l’écran.";
+
+  return <div className={`vendeo-welcome-layer ${stage === "tour" ? "vendeo-tour-layer" : ""} ${isMobile ? "vendeo-tour-mobile" : "vendeo-tour-desktop"} ${stage === "tour" && current.menuTarget ? "vendeo-tour-menu-step" : ""}`}>
     <div className={`vendeo-welcome-shade ${rect ? "has-spotlight" : ""}`} />
     {stage === "tour" && rect && <div className="vendeo-tour-spotlight" aria-hidden="true" style={{ top: rect.top - 5, left: rect.left - 5, width: rect.width + 10, height: rect.height + 10 }} />}
-    <section className="vendeo-welcome-card" style={stage === "tour" && position ? { position: "fixed", ...position, width: "min(460px, calc(100% - 32px))" } : undefined} role="dialog" aria-modal="true" aria-labelledby="vendeo-welcome-title" aria-describedby="vendeo-welcome-description" ref={dialog} tabIndex={-1} onKeyDown={event => {
+    <section className={`vendeo-welcome-card ${stage === "tour" && current.menuTarget ? "vendeo-tour-menu-card" : ""}`} style={stage === "tour" && position ? { position: "fixed", ...position, width: isMobile && current.menuTarget ? "min(380px, calc(100% - 32px))" : "min(460px, calc(100% - 32px))" } : undefined} role="dialog" aria-modal="true" aria-labelledby="vendeo-welcome-title" aria-describedby="vendeo-welcome-description" ref={dialog} tabIndex={-1} onKeyDown={event => {
       if (event.key === "Escape") { event.preventDefault(); onDismiss(); }
       if (event.key !== "Tab") return;
       const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
@@ -96,7 +168,7 @@ export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss }: {
         <span className="vendeo-welcome-symbol"><PartyPopper size={32} aria-hidden="true" /></span>
         <span className="vendeo-welcome-connected"><Check size={14} aria-hidden="true" />{en ? "Store connected" : "Boutique connectée"}</span>
         <h2 id="vendeo-welcome-title">{en ? "Congratulations, you’re all set!" : "Félicitations, tout est prêt !"}</h2>
-        <p id="vendeo-welcome-description">{en ? "Your first store is connected to Vendeo. Let’s explore your workspace together." : "Ta première boutique est connectée à Vendeo. Découvrons ensemble ton espace."}</p>
+        <p id="vendeo-welcome-description">{welcomeDescription}</p>
         <div className="vendeo-welcome-trial"><strong>{en ? "Your current free trial" : "Ton essai gratuit en cours"}</strong>
           <p>{trialActive ? (en ? "Enjoy your current free trial to discover Vendeo." : "Profite de ton essai gratuit en cours pour découvrir Vendeo.") : (en ? "New trials are 5 days. See Subscription for your current trial status." : "Les nouveaux essais durent 5 jours. Retrouve l’état actuel de ton essai dans Abonnement.")}</p>
           {validEnd && <small>{en ? "Trial end date: " : "Fin de l’essai : "}{validEnd.toLocaleDateString(en ? "en-GB" : "fr-FR", { day: "numeric", month: "long", year: "numeric" })}</small>}
@@ -105,12 +177,12 @@ export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss }: {
         <button className="btn btn-dark vendeo-welcome-primary" type="button" onClick={onStart}>{en ? "Show me around" : "Découvrir mon espace"}<ArrowRight size={17} aria-hidden="true" /></button>
         <button className="vendeo-welcome-skip" type="button" onClick={onDismiss}>{en ? "Explore on my own" : "Explorer par moi-même"}</button>
       </> : <>
-        <div className="vendeo-tour-progress" aria-label={en ? `Step ${step + 1} of ${VENDEO_TOUR_STEPS.length}` : `Étape ${step + 1} sur ${VENDEO_TOUR_STEPS.length}`}><span>{en ? "YOUR WORKSPACE" : "TON ESPACE"}</span><strong>{step + 1} / {VENDEO_TOUR_STEPS.length}</strong></div>
-        <div className="vendeo-tour-track" aria-hidden="true"><span style={{ width: `${(step + 1) / VENDEO_TOUR_STEPS.length * 100}%` }} /></div>
+        <div className="vendeo-tour-progress" aria-label={en ? `Step ${safeStep + 1} of ${tourSteps.length}` : `Étape ${safeStep + 1} sur ${tourSteps.length}`}><span>{en ? "YOUR WORKSPACE" : "TON ESPACE"}</span><strong>{safeStep + 1} / {tourSteps.length}</strong></div>
+        <div className="vendeo-tour-track" aria-hidden="true"><span style={{ width: `${(safeStep + 1) / tourSteps.length * 100}%` }} /></div>
         <h2 id="vendeo-welcome-title">{en ? current.en : current.fr}</h2>
         <p id="vendeo-welcome-description">{en ? current.english : current.body}</p>
-        <div className="vendeo-tour-actions"><button type="button" className="vendeo-tour-back" disabled={step === 0} onClick={() => setStep(value => value - 1)}><ArrowLeft size={16} />{en ? "Back" : "Précédent"}</button>
-          <button type="button" className="btn btn-dark" onClick={() => step === VENDEO_TOUR_STEPS.length - 1 ? onDismiss() : setStep(value => value + 1)}>{step === VENDEO_TOUR_STEPS.length - 1 ? (en ? "Let’s go!" : "C’est parti !") : (en ? "Next" : "Suivant")}<ArrowRight size={16} /></button></div>
+        <div className="vendeo-tour-actions"><button type="button" className="vendeo-tour-back" disabled={safeStep === 0} onClick={() => goToStep(safeStep - 1)}><ArrowLeft size={16} />{en ? "Back" : "Précédent"}</button>
+          <button type="button" className="btn btn-dark" onClick={() => safeStep === tourSteps.length - 1 ? onDismiss() : goToStep(safeStep + 1)}>{safeStep === tourSteps.length - 1 ? (en ? "Let’s go!" : "C’est parti !") : (en ? "Next" : "Suivant")}<ArrowRight size={16} /></button></div>
         <button className="vendeo-welcome-skip" type="button" onClick={onDismiss}>{en ? "Skip the tour" : "Passer le guide"}</button>
       </>}
     </section>

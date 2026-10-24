@@ -32,3 +32,24 @@ html[data-theme="dark"] .vendeo-welcome-trial strong,html[data-theme="dark"] .ve
 html[data-theme="dark"] .vendeo-welcome-connected { color:#86efac; }
 
 .vendeo-welcome-brand > img { width:112px; height:30px; object-fit:contain; flex-shrink:0; }
+
+.vendeo-tour-menu-card .vendeo-welcome-brand > img { height:24px; width:88px; }
+.vendeo-tour-menu-card .vendeo-tour-progress { margin-top:12px; }
+.vendeo-tour-menu-card .vendeo-tour-track { margin:8px 0 12px; }
+.vendeo-tour-menu-card h2 { font-size:22px; margin:8px 0; }
+.vendeo-tour-menu-card p { font-size:12px; line-height:1.5; }
+.vendeo-tour-menu-card .vendeo-tour-actions { margin-top:12px; }
+@media (max-width:760px) {
+  .vendeo-tour-menu-step { align-items:stretch; }
+  .vendeo-tour-menu-step .vendeo-tour-menu-card {
+    max-height:min(44dvh, 380px);
+    overflow:auto;
+    padding:16px 18px;
+  }
+  .vendeo-tour-menu-card .vendeo-welcome-brand > img { height:21px; width:76px; }
+  .vendeo-tour-menu-card .vendeo-welcome-brand > span { font-size:8px; }
+  .vendeo-tour-menu-card h2 { font-size:19px; }
+  .vendeo-tour-menu-card p { font-size:11px; line-height:1.45; }
+  .vendeo-tour-menu-card .vendeo-tour-actions { gap:6px; }
+  .vendeo-tour-menu-card .vendeo-welcome-skip { display:none; }
+}

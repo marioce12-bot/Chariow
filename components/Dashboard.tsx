@@ -54,6 +54,7 @@ import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
+import type { DashboardTourStep } from "./dashboard/tour-steps";
 import { CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, type CreativePerformanceStudioPrefill } from "@/lib/creative-performance/client";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
@@ -124,8 +125,10 @@ function DashboardWorkspace() {
   // Suivi anonyme du temps passé par section (alimente l'onglet « Usage de l'app » de la console admin).
   useUsageTracking(active);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [guideMenuTarget, setGuideMenuTarget] = useState<string | null>(null);
   useEffect(() => {
     if (!moreOpen) return;
+    if (document.querySelector(".vendeo-tour-layer")) return;
     const menu = document.querySelector<HTMLElement>(".mobile-more-menu");
     const items = Array.from(menu?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
     items[0]?.focus();
@@ -149,6 +152,9 @@ function DashboardWorkspace() {
   function backToAccountSettings() {
     setSettingsFocus("accounts");
     setActive("Paramètres");
+  }
+  function mobileMoreItemClass(section: string) {
+    return [active === section ? "active" : "", guideMenuTarget === section ? "guide-highlight" : ""].filter(Boolean).join(" ");
   }
   function openStudioWithPerformanceIdeas(prefill: CreativePerformanceStudioPrefill) {
     try {
@@ -407,7 +413,17 @@ function DashboardWorkspace() {
 
   const onboarding = useFirstStoreOnboarding({ userId: notificationUserId, stores, loading: loadingData, connected: !needsStoreConnection && !loadingData });
   const onboardingOpen = onboarding.stage !== "closed" && !needsStoreConnection && !loadingData;
-  function replayGuide() { setActive(DEFAULT_DASHBOARD_SECTION); setMoreOpen(false); onboarding.replay(); }
+  const handleTourStepChange = useCallback((step: DashboardTourStep | null) => {
+    if (!step) {
+      setMoreOpen(false);
+      setGuideMenuTarget(null);
+      return;
+    }
+    if (step.activeSection) setActive(step.activeSection);
+    setMoreOpen(Boolean(step.openMobileMenu));
+    setGuideMenuTarget(step.openMobileMenu ? step.menuTarget ?? null : null);
+  }, []);
+  function replayGuide() { setActive(DEFAULT_DASHBOARD_SECTION); setMoreOpen(false); setGuideMenuTarget(null); onboarding.replay(); }
   return (
     <>
     {notificationUserId && !needsStoreConnection && !loadingData && !onboardingOpen && <SaleCelebration key={notificationUserId} userId={notificationUserId} />}
@@ -423,7 +439,7 @@ function DashboardWorkspace() {
           <DashboardHeaderNavigation active={active} onChange={setActive} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
-             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Radar marché", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Performance publicitaire", "Paramètres"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
+             <button type="button" data-onboarding="mobile-more-trigger" className={`mobile-more-trigger ${moreOpen || ["Radar marché", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Performance publicitaire", "Paramètres"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
             <button type="button" className="vendeo-guide-replay" onClick={replayGuide} aria-label={locale === "en" ? "Replay the workspace guide" : "Revoir le guide de mon espace"}>{locale === "en" ? "Guide" : "Guide"}</button>
@@ -558,21 +574,21 @@ function DashboardWorkspace() {
             <button type="button" className="mobile-more-backdrop" aria-label={w("closeMenu")} onClick={() => setMoreOpen(false)} />
             <div className="mobile-more-menu" role="menu" aria-label={w("moreOptions")}>
               <span className="mobile-more-label">{w("myActivity")}</span>
-              <button type="button" role="menuitem" className={active === "Bénéfices nets" ? "active" : ""} onClick={() => { setActive("Bénéfices nets"); setMoreOpen(false); }}><BarChart3 size={16} /> {w("netProfit")}</button>
-              <button type="button" role="menuitem" className={active === "Relances WhatsApp" ? "active" : ""} onClick={() => { setActive("Relances WhatsApp"); setMoreOpen(false); }}><MessageSquare size={16} /> {w("whatsapp")}</button>
+              <button type="button" role="menuitem" data-onboarding="mobile-menu:Bénéfices nets" aria-current={active === "Bénéfices nets" ? "page" : undefined} className={mobileMoreItemClass("Bénéfices nets")} onClick={() => { setActive("Bénéfices nets"); setMoreOpen(false); }}><BarChart3 size={16} /> {w("netProfit")}</button>
+              <button type="button" role="menuitem" data-onboarding="mobile-menu:Relances WhatsApp" aria-current={active === "Relances WhatsApp" ? "page" : undefined} className={mobileMoreItemClass("Relances WhatsApp")} onClick={() => { setActive("Relances WhatsApp"); setMoreOpen(false); }}><MessageSquare size={16} /> {w("whatsapp")}</button>
               <span className="mobile-more-label">{w("analysis")}</span>
-              <button type="button" role="menuitem" className={active === "Radar marché" ? "active" : ""} onClick={() => { setActive("Radar marché"); setMoreOpen(false); }}><Lightbulb size={16} /> {locale === "en" ? "Market radar" : "Radar marché"}</button>
-              <button type="button" role="menuitem" className={active === "Performance publicitaire" ? "active" : ""} onClick={() => { setActive("Performance publicitaire"); setMoreOpen(false); }}><BarChart3 size={16} /> {t("nav.adPerformance")}</button>
-              <button type="button" role="menuitem" className={active === "Rapports" ? "active" : ""} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> {" "}{t("workspaceExtra.reports")}</button>
+              <button type="button" role="menuitem" data-onboarding="mobile-menu:Radar marché" aria-current={active === "Radar marché" ? "page" : undefined} className={mobileMoreItemClass("Radar marché")} onClick={() => { setActive("Radar marché"); setMoreOpen(false); }}><Lightbulb size={16} /> {locale === "en" ? "Market radar" : "Radar marché"}</button>
+              <button type="button" role="menuitem" data-onboarding="mobile-menu:Performance publicitaire" aria-current={active === "Performance publicitaire" ? "page" : undefined} className={mobileMoreItemClass("Performance publicitaire")} onClick={() => { setActive("Performance publicitaire"); setMoreOpen(false); }}><BarChart3 size={16} /> {t("nav.adPerformance")}</button>
+              <button type="button" role="menuitem" data-onboarding="mobile-menu:Rapports" aria-current={active === "Rapports" ? "page" : undefined} className={mobileMoreItemClass("Rapports")} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> {" "}{t("workspaceExtra.reports")}</button>
               <span className="mobile-more-label">{w("application")}</span>
-              <button type="button" role="menuitem" className={active === "Paramètres" ? "active" : ""} onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> {" "}{t("workspaceExtra.settings")}</button>
+              <button type="button" role="menuitem" data-onboarding="mobile-menu:Paramètres" aria-current={active === "Paramètres" ? "page" : undefined} className={mobileMoreItemClass("Paramètres")} onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> {" "}{t("workspaceExtra.settings")}</button>
             </div>
           </>
         ) : null}
       </div>
     </main>
     {needsStoreConnection && <StoreConnectionGate stores={stores} failed={["failed", "expired", "revoked"].includes(searchParams.get("chariow") ?? "")} onSignOut={signOut} onConnectStart={onboarding.beginConnection} />}
-    {onboardingOpen && <FirstStoreWelcome stage={onboarding.stage as "welcome" | "tour"} subscription={subscription} onStart={() => { setActive(DEFAULT_DASHBOARD_SECTION); onboarding.startTour(); }} onDismiss={onboarding.dismiss} />}
+    {onboardingOpen && <FirstStoreWelcome stage={onboarding.stage as "welcome" | "tour"} subscription={subscription} onStart={() => { setActive(DEFAULT_DASHBOARD_SECTION); setMoreOpen(false); setGuideMenuTarget(null); onboarding.startTour(); }} onDismiss={() => { handleTourStepChange(null); onboarding.dismiss(); }} onTourStepChange={handleTourStepChange} />}
     </>
   );
 }

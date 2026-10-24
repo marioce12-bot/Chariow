@@ -17,7 +17,7 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 const subscription = { trial_active: true, trial_ends_at: "2099-10-30T12:00:00Z" } as SubscriptionData;
 async function mount(stage: "welcome" | "tour", onDismiss = vi.fn(), onStart = vi.fn()) {
-  await act(async () => root.render(<FirstStoreWelcome stage={stage} subscription={subscription} onStart={onStart} onDismiss={onDismiss} />));
+  await act(async () => root.render(<FirstStoreWelcome stage={stage} subscription={subscription} onStart={onStart} onDismiss={onDismiss} onTourStepChange={vi.fn()} />));
   return { onDismiss, onStart };
 }
 function button(text: string) { return Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes(text))!; }
@@ -33,21 +33,22 @@ describe("first-store welcome", () => {
     expect(document.activeElement?.getAttribute("role")).toBe("dialog");
   });
   it("does not announce an expired trial as active", async () => {
-    await act(async () => root.render(<FirstStoreWelcome stage="welcome" subscription={{ ...subscription, trial_active: false, trial_ends_at: "2020-01-01" }} onStart={vi.fn()} onDismiss={vi.fn()} />));
+    await act(async () => root.render(<FirstStoreWelcome stage="welcome" subscription={{ ...subscription, trial_active: false, trial_ends_at: "2020-01-01" }} onStart={vi.fn()} onDismiss={vi.fn()} onTourStepChange={vi.fn()} />));
     expect(container.textContent).not.toContain("Profite de ton essai gratuit en cours");
     expect(container.textContent).toContain("Les nouveaux essais durent 5 jours");
     expect(container.textContent).toContain("état actuel de ton essai dans Abonnement");
   });
   it("supports every tour step, back, completion and Escape", async () => {
-    expect(VENDEO_TOUR_STEPS).toHaveLength(11);
+    expect(VENDEO_TOUR_STEPS).toHaveLength(16);
     expect(JSON.stringify(VENDEO_TOUR_STEPS)).not.toMatch(/pilotage auto|autopilot/i);
     const { onDismiss } = await mount("tour");
     expect(button("Précédent").disabled).toBe(true);
+    expect(container.textContent).toContain("Choisis ta boutique");
     await act(async () => button("Suivant").click());
-    expect(container.textContent).toContain("Ton activité en un coup d’œil");
+    expect(container.textContent).toContain("Vue d’ensemble : tes indicateurs clés");
     await act(async () => button("Précédent").click());
     for (let i = 1; i < VENDEO_TOUR_STEPS.length; i++) await act(async () => button("Suivant").click());
-    expect(container.textContent).toContain("Tes connexions et ton compte");
+    expect(container.textContent).toContain("Paramètres");
     await act(async () => button("C’est parti").click()); expect(onDismiss).toHaveBeenCalledOnce();
     await act(async () => container.querySelector("section")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
     expect(onDismiss).toHaveBeenCalledTimes(2);
