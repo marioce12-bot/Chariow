@@ -4,6 +4,7 @@ import { encryptSecret } from "@/lib/crypto";
 import { decryptSecret } from "@/lib/crypto";
 import { fetchMetaAccounts } from "@/lib/meta/api";
 import { syncMetaPixels } from "@/lib/meta/pixels";
+import { fetchMetaGraph } from "@/lib/meta/graph";
 
 export async function GET(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -30,11 +31,11 @@ export async function GET(request: Request) {
     tokenUrl.searchParams.set("client_secret", clientSecret);
     tokenUrl.searchParams.set("redirect_uri", redirectUri);
     tokenUrl.searchParams.set("code", code);
-    const tokenResponse = await fetch(tokenUrl, { cache: "no-store" });
+    const tokenResponse = await fetchMetaGraph(tokenUrl);
     const token = await tokenResponse.json().catch(() => ({}));
     if (!tokenResponse.ok || typeof token.access_token !== "string") return redirect("failed");
     const accounts = await fetchMetaAccounts(token.access_token);
-    const meResponse = await fetch(`https://graph.facebook.com/${process.env.META_GRAPH_VERSION ?? "v23.0"}/me?fields=id&access_token=${encodeURIComponent(token.access_token)}`, { cache: "no-store" });
+    const meResponse = await fetchMetaGraph(`https://graph.facebook.com/${process.env.META_GRAPH_VERSION ?? "v23.0"}/me?fields=id&access_token=${encodeURIComponent(token.access_token)}`);
     const me = await meResponse.json().catch(() => ({}));
     const integration = await supabase.from("meta_integrations").upsert({
       user_id: user.id,
@@ -61,6 +62,7 @@ export async function GET(request: Request) {
         token_expires_at: typeof token.expires_in === "number" ? new Date(Date.now() + token.expires_in * 1000).toISOString() : null,
         is_active: true,
         is_selected: true,
+        last_sync_error: null,
       }, { onConflict: "user_id,meta_account_id" }).select("id").single();
       if (saved.data?.id) savedAccounts.push({ id: saved.data.id, meta_account_id: cleanAccountId });
     }

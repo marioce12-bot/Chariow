@@ -162,6 +162,7 @@ export const en: Dict = {
       launch: "Launch an ad", overview: "Overview", meta: "Meta", tiktok: "TikTok",
       stats: "Stats", performance: "Ad performance", spend: "Spend", sales: "Sales", realRoas: "Verified profitability",
       unavailable: "Unavailable", connected: "Meta Ads connected", connectMeta: "Connect Meta Ads",
+      reconnectMetaRequired: "Reconnect your Meta Ads connection to resume syncing.", reconnectMeta: "Reconnect Meta Ads",
       noMeta: "No Meta Ads account connected", noMetaText: "Allow Vendeo to read your campaigns, ad sets and ads.",
       account: "Ad account", syncing: "Syncing…", sync: "Sync insights",
       synced: "Meta Ads data synced.", syncError: "Unable to sync.",

@@ -44,10 +44,10 @@ type CampaignStat = {
   conversions: number;
 };
 type DailyPoint = { date: string; spendUsd: number };
-type MetaAccountReading = { accountId: string; ok: boolean; spendUsd: number; clicks: number; conversions: number; campaigns: CampaignStat[]; stale: boolean };
+type MetaAccountReading = { accountId: string; ok: boolean; spendUsd: number; clicks: number; conversions: number; campaigns: CampaignStat[]; stale: boolean; reconnectRequired?: boolean };
 type AdSpendData = { stats: ChannelStat[]; campaigns: CampaignStat[]; readings: MetaAccountReading[]; daily: DailyPoint[] };
 type VendeoCampaign = { platform?: string; title?: string | null; product_name?: string | null; external_campaign_id?: string | null };
-type AccountRef = { id: string; currency?: string; is_selected?: boolean | null };
+type AccountRef = { id: string; currency?: string; is_selected?: boolean | null; needs_reconnect?: boolean };
 type DailyResponse = { currency?: string; days?: Array<{ date: string; spend: number }> } | null;
 
 const CHANNELS: Array<Pick<ChannelStat, "id" | "badge" | "label" | "color">> = [
@@ -192,7 +192,8 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
     const toDay = to.toISOString().slice(0, 10);
     const range = `from=${fromDay}&to=${toDay}`;
 
-    async function readMetaAccount(accountId: string): Promise<MetaAccountReading> {
+    async function readMetaAccount(accountId: string, reconnectRequired = false): Promise<MetaAccountReading> {
+      if (reconnectRequired) return { accountId, ok: false, spendUsd: 0, clicks: 0, conversions: 0, campaigns: [], stale: false, reconnectRequired: true };
       const perf = await getJson(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}&store_id=${encodeURIComponent(storeId ?? "")}&${range}`);
       if (!perf) return { accountId, ok: false, spendUsd: 0, clicks: 0, conversions: 0, campaigns: [], stale: false };
       const performances: Array<{ id?: string; name?: string; clicks?: number; impressions?: number; spend?: number; conversions?: number }> = perf.performances ?? [];
@@ -223,15 +224,16 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
       const vendeoCampaigns: VendeoCampaign[] = Array.isArray(campaignsData?.campaigns) ? campaignsData.campaigns : [];
       const accounts: AccountRef[] = accountsData?.accounts ?? [];
       if (!accounts.length) return { stat: emptyStat(CHANNELS[0]), campaigns: [] as CampaignStat[], readings: [] as MetaAccountReading[], daily: [] as DailyPoint[], vendeoCampaigns };
+      const syncableAccounts = accounts.filter((account) => !account.needs_reconnect);
       const [readings, activeLists, dailyLists] = await Promise.all([
-        Promise.all(accounts.map((account) => readMetaAccount(account.id))),
-        Promise.all(accounts.map((account) => getJson(`/api/meta/active-campaigns?account_id=${encodeURIComponent(account.id)}`))),
-        Promise.all(accounts.map((account) => getJson(`/api/meta/daily-spend?account_id=${encodeURIComponent(account.id)}&${range}`) as Promise<DailyResponse>)),
+        Promise.all(accounts.map((account) => readMetaAccount(account.id, Boolean(account.needs_reconnect)))),
+        Promise.all(syncableAccounts.map((account) => getJson(`/api/meta/active-campaigns?account_id=${encodeURIComponent(account.id)}`))),
+        Promise.all(syncableAccounts.map((account) => getJson(`/api/meta/daily-spend?account_id=${encodeURIComponent(account.id)}&${range}`) as Promise<DailyResponse>)),
       ]);
       const merged = mergeMeta(readings, vendeoCampaigns);
       // Seules les campagnes en cours chez Meta sont listées (les anciennes, en pause ou archivées, sont masquées).
       // Si le statut est illisible pour un compte, on ne filtre pas pour ne rien cacher à tort.
-      const statusKnown = activeLists.every((list) => Array.isArray(list?.activeIds));
+      const statusKnown = syncableAccounts.length > 0 && activeLists.length === syncableAccounts.length && activeLists.every((list) => Array.isArray(list?.activeIds));
       const activeIds = new Set<string>(activeLists.flatMap((list) => (Array.isArray(list?.activeIds) ? list.activeIds : [])));
       return {
         ...merged,
@@ -289,7 +291,7 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
 
       // Comptes Meta dont les données sont anciennes (ou jamais synchronisées) : on resynchronise en
       // arrière-plan, puis on relit les chiffres. Les données déjà affichées restent en place.
-      const staleIds = current.readings.filter((reading) => reading.ok && reading.stale).map((reading) => reading.accountId)
+      const staleIds = current.readings.filter((reading) => reading.ok && reading.stale && !reading.reconnectRequired).map((reading) => reading.accountId)
         .filter((accountId) => Date.now() - (lastAutoSync.get(accountId) ?? 0) >= AUTO_SYNC_COOLDOWN_MS);
       if (!staleIds.length) return;
       for (const accountId of staleIds) lastAutoSync.set(accountId, Date.now());
@@ -372,6 +374,7 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
         <BarChart3 size={18} />
       </div>
 
+      {cached.data?.readings.some((reading) => reading.reconnectRequired) ? <p className="meta-account-warning" role="alert">{tr(t("ads.reconnectMetaRequired"), "Reconnect your Meta Ads connection to resume syncing.")}</p> : null}
       {loading && !connected.length ? (
         <div style={{ marginTop: 12, display: "grid", gap: 12 }} role="status" aria-busy="true" aria-label={tr(t("sweep2.text136"), "Loading spend")}>
           <div style={{ display: "grid", gap: 6 }}>

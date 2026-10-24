@@ -1520,7 +1520,7 @@ type MetaPixelOption = { id: string; name: string; configured_on_chariow?: boole
 
 type AdsCache = {
   pinterestAccounts?: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; country: string | null }>;
-  metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>;
+  metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null; needs_reconnect?: boolean }>;
   selectedMetaAccount: string;
   metaPerformance: MetaPerformance | null;
   metaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null;
@@ -1591,7 +1591,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok" | "pinterest">("overview");
   const [message, setMessage] = useState<string | null>(null);
 
-  const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>>(cachedOnce?.metaAccounts ?? []);
+  const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null; needs_reconnect?: boolean }>>(cachedOnce?.metaAccounts ?? []);
   const [selectedMetaAccount, setSelectedMetaAccount] = useState(cachedOnce?.selectedMetaAccount ?? "");
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(cachedOnce?.metaPerformance ?? null);
   const [metaResources, setMetaResources] = useState<{ pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null>(cachedOnce?.metaResources ?? null);
@@ -1610,15 +1610,32 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const [tiktokLoading, setTiktokLoading] = useState(!cachedOnce);
 
   // Charge performances, pages/pixels et statut de restriction pour UN compte donné.
-  async function loadMetaAccountData(accountId: string, lastSyncedAt?: string | null, requestToken = ++metaRequestToken.current) {
+  async function loadMetaAccountData(accountId: string, lastSyncedAt?: string | null, needsReconnect = false, requestToken = ++metaRequestToken.current) {
     let perf: MetaPerformance | null = null;
     let resources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null = null;
     let restricted = false;
+    if (needsReconnect) {
+      setMetaPerformance(null);
+      setMetaResources(null);
+      setMetaAccountRestricted(false);
+      return { perf, resources, restricted, needsReconnect: true };
+    }
     const lastSyncTime = lastSyncedAt ? Date.parse(lastSyncedAt) : 0;
     if (!lastSyncTime || Date.now() - lastSyncTime > 3 * 60 * 60 * 1000) {
       setMetaSyncing(true);
       try {
         const syncResponse = await fetch("/api/meta/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: accountId }) });
+        const syncData = await syncResponse.json().catch(() => ({}));
+        if (syncResponse.status === 409 && syncData?.needs_reconnect) {
+          if (requestToken === metaRequestToken.current) {
+            setMetaAccounts((current) => current.map((item) => item.id === accountId ? { ...item, needs_reconnect: true } : item));
+            setMetaPerformance(null);
+            setMetaResources(null);
+            setMetaAccountRestricted(false);
+            setMessage(t("ads.reconnectMetaRequired"));
+          }
+          return { perf: null, resources: null, restricted: false, needsReconnect: true };
+        }
         if (!syncResponse.ok && requestToken === metaRequestToken.current) setMessage(t("ads.syncError"));
       } catch {
         if (requestToken === metaRequestToken.current) setMessage(t("ads.syncError"));
@@ -1634,11 +1651,11 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     const resourceData = await resourceResponse.json();
     resources = resourceData;
     restricted = Boolean(resourceData.account?.restricted);
-    if (requestToken !== metaRequestToken.current) return { perf: null, resources: null, restricted: false };
+    if (requestToken !== metaRequestToken.current) return { perf: null, resources: null, restricted: false, needsReconnect: false };
     setMetaPerformance(perf);
     setMetaResources(resources);
     setMetaAccountRestricted(restricted);
-    return { perf, resources, restricted };
+    return { perf, resources, restricted, needsReconnect: false };
   }
 
   async function load() {
@@ -1665,7 +1682,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     const metaResponse = await fetch("/api/integrations/meta/accounts");
     const metaData = metaResponse.ok ? await metaResponse.json() : { accounts: [] };
     if (requestToken !== metaRequestToken.current) return;
-    const nextMetaAccounts = (metaData.accounts ?? []) as Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>;
+    let nextMetaAccounts = (metaData.accounts ?? []) as Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null; needs_reconnect?: boolean }>;
     setMetaAccounts(nextMetaAccounts);
 
     // Conserve le compte déjà choisi (cache) s'il existe encore, sinon le compte
@@ -1690,7 +1707,11 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       }
       nextSelectedMetaAccount = chosenAccount.id;
       setSelectedMetaAccount(nextSelectedMetaAccount);
-      const loaded = await loadMetaAccountData(chosenAccount.id, chosenAccount.last_synced_at, requestToken);
+      const loaded = await loadMetaAccountData(chosenAccount.id, chosenAccount.last_synced_at, Boolean(chosenAccount.needs_reconnect), requestToken);
+      if (loaded.needsReconnect) {
+        nextMetaAccounts = nextMetaAccounts.map((item) => item.id === chosenAccount.id ? { ...item, needs_reconnect: true } : item);
+        setMetaAccounts(nextMetaAccounts);
+      }
       nextMetaPerformance = loaded.perf;
       nextMetaResources = loaded.resources;
       nextMetaAccountRestricted = loaded.restricted;
@@ -1719,11 +1740,14 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     setConfiguringPixel(null);
     setCopiedPixelId(null);
     try {
-      const loaded = await loadMetaAccountData(accountId, metaAccounts.find((account) => account.id === accountId)?.last_synced_at, requestToken);
+      const selectedAccount = metaAccounts.find((account) => account.id === accountId);
+      const loaded = await loadMetaAccountData(accountId, selectedAccount?.last_synced_at, Boolean(selectedAccount?.needs_reconnect), requestToken);
       if (requestToken !== metaRequestToken.current) return;
+      const nextMetaAccounts = loaded.needsReconnect ? metaAccounts.map((item) => item.id === accountId ? { ...item, needs_reconnect: true } : item) : metaAccounts;
+      if (loaded.needsReconnect) setMetaAccounts(nextMetaAccounts);
       await navigationCache.loadComputed(`${adsCacheKey}:account:${accountId}`, async () => ({ perf: loaded.perf, resources: loaded.resources, restricted: loaded.restricted }), campaignsVersion, true);
       navigationCache.invalidate();
-      void navigationCache.loadComputed(adsCacheKey, async () => ({ metaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts }), campaignsVersion, true);
+      void navigationCache.loadComputed(adsCacheKey, async () => ({ metaAccounts: nextMetaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts }), campaignsVersion, true);
     } catch {
       if (requestToken === metaRequestToken.current) {
         setMetaPerformance(null);
@@ -1768,7 +1792,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
 
   async function syncMeta() {
-    if (!selectedMetaAccount) return;
+    if (!selectedMetaAccount || metaAccounts.find((account) => account.id === selectedMetaAccount)?.needs_reconnect) return;
     const accountId = selectedMetaAccount;
     const requestToken = metaRequestToken.current;
     setMetaSyncing(true);
@@ -1777,8 +1801,15 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       const response = await fetch("/api/meta/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: accountId }) });
       const data = await response.json();
       if (requestToken !== metaRequestToken.current) return;
-      if (!response.ok) setMessage(data.error ?? t("ads.syncError"));
-      else {
+      if (!response.ok) {
+        if (data?.needs_reconnect) {
+          setMetaAccounts((current) => current.map((account) => account.id === accountId ? { ...account, needs_reconnect: true } : account));
+          setMetaPerformance(null);
+          setMetaResources(null);
+          setMetaAccountRestricted(false);
+        }
+        setMessage(data.error ?? t("ads.syncError"));
+      } else {
         setMessage(t("ads.synced"));
         navigationCache.invalidate();
         const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}`);
@@ -1826,6 +1857,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
   const tiktokAllowed = isAdPlatformAllowed(plan, "tiktok");
   const metaConnected = metaAccounts.length > 0;
+  const selectedMetaNeedsReconnect = Boolean(metaAccounts.find((account) => account.id === selectedMetaAccount)?.needs_reconnect);
   const tiktokConnected = tiktokAccounts.length > 0;
 
   const channels: Array<{ id: "overview" | "meta" | "tiktok" | "pinterest"; label: string }> = [{ id: "overview", label: t("ads.overview") }, { id: "meta", label: t("ads.meta") }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: t("ads.tiktok") }] : []), { id: "pinterest", label: "Pinterest" }];
@@ -1848,10 +1880,11 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{(metaPerformance ? formatMoneyInUSD(metaPerformance.overview.spend, metaPerformance.currency) : null) ?? t("ads.unavailable")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${(metaPerformance.overview.realRoas * 100).toFixed(1)} %`}</strong></div></div></section> : channel === "meta" ? (
         <>
           {metaConnected ? <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.connected")}</span></div> : null}
+          {selectedMetaNeedsReconnect ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>{t("ads.reconnectMetaRequired")}</strong><p><button type="button" className="btn btn-ghost" onClick={connectMeta}>{t("ads.reconnectMeta")}</button></p></div></div> : null}
           {!metaLoading && metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>{t("finalExtra.text45")}</strong><p>{t("sweep3.text302")}</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">{t("sweep1.text303")}</a></div></div> : null}
           {!metaLoading && metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">{t("sweep2.text304")}</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noMeta")}</strong><span>{t("ads.noMetaText")}</span><button className="btn btn-dark" onClick={connectMeta}>{t("ads.connectMeta")}</button></div> : <>
-            <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><span className="hint-line">{metaLoading ? t("adminExtra.notifications.loading") : <>{t("sweep3.text305")}{" "}{metaPerformance?.lastSyncedAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(metaPerformance.lastSyncedAt)) : t("adminComplete.never")}{metaPerformance?.lastSyncError ? ` · Erreur : ${metaPerformance.lastSyncError}` : ""}</>}</span><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing || metaLoading}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
+            <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><span className="hint-line">{metaLoading ? t("adminExtra.notifications.loading") : <>{t("sweep3.text305")}{" "}{metaPerformance?.lastSyncedAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(metaPerformance.lastSyncedAt)) : t("adminComplete.never")}{metaPerformance?.lastSyncError ? ` · Erreur : ${metaPerformance.lastSyncError}` : ""}</>}</span><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing || metaLoading || selectedMetaNeedsReconnect}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
             {metaLoading ? <MetaAccountSkeleton /> : metaLoadError ? <div className="empty-state" role="alert"><strong>{localizeSystemMessage(metaLoadError, locale)}</strong></div> : null}
             {!metaLoading && !metaLoadError && metaConnected && metaResources ? (
               <section className="app-card" style={{ marginBottom: 18 }}>

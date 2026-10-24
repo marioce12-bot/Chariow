@@ -2,6 +2,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { fetchMetaInsights, actionValue } from "./api";
 import { fetchMetaCampaignList } from "./campaign-list";
 import type { MetaInsight } from "./types";
+import { isMetaAuthenticationError } from "./graph";
 
 function number(value: unknown) {
   const parsed = Number(value ?? 0);
@@ -52,6 +53,7 @@ export async function syncMetaInsights(supabase: any, account: { id: string; met
         await upsertInsightRows(supabase, rows);
         results.push({ level, count: rows.length });
       } catch (error) {
+        if (isMetaAuthenticationError(error)) throw error;
         errors.push(`${level}: ${errorText(error)}`);
         results.push({ level, count: 0, error: errorText(error) });
       }
@@ -60,7 +62,10 @@ export async function syncMetaInsights(supabase: any, account: { id: string; met
     const targets = new Map<string, string | null>();
     try {
       for (const campaign of await fetchMetaCampaignList(`act_${account.meta_account_id}`, accessToken)) targets.set(campaign.id, campaign.name);
-    } catch (error) { errors.push(`liste des campagnes: ${errorText(error)}`); }
+    } catch (error) {
+      if (isMetaAuthenticationError(error)) throw error;
+      errors.push(`liste des campagnes: ${errorText(error)}`);
+    }
 
     try {
       const { data: launched, error: launchedError } = await supabase.from("ad_campaigns")
@@ -85,11 +90,15 @@ export async function syncMetaInsights(supabase: any, account: { id: string; met
           const rows = insights.map((insight: MetaInsight) => buildRow(account, "campaign", insight, from, to, { id: campaignId, name: campaignName })).filter(Boolean);
           await upsertInsightRows(supabase, rows);
           byIdCount += rows.length;
-        } catch (error) { errors.push(`${campaignId}: ${errorText(error)}`); }
+        } catch (error) {
+          if (isMetaAuthenticationError(error)) throw error;
+          errors.push(`${campaignId}: ${errorText(error)}`);
+        }
       }
     }));
     results.push({ level: "campaign_by_id", count: byIdCount, ...(errors.length ? { error: errors.join(" | ") } : {}) });
   } catch (error) {
+    if (isMetaAuthenticationError(error)) throw error;
     errors.push(`sync: ${errorText(error)}`);
   }
   if (campaignSpendMissing) errors.push("spend manquant dans les insights campagne");

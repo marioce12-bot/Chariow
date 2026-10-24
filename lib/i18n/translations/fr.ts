@@ -162,6 +162,7 @@ export const fr: Dict = {
       launch: "Lancer une pub", overview: "Vue générale", meta: "Meta", tiktok: "TikTok",
       stats: "Statistiques", performance: "Performance publicitaire", spend: "Dépenses", sales: "Ventes", realRoas: "Rentabilité vérifiée",
       unavailable: "Indisponible", connected: "Meta Ads connectée", connectMeta: "Connecter Meta Ads",
+      reconnectMetaRequired: "La connexion Meta Ads doit être refaite pour reprendre la synchronisation.", reconnectMeta: "Reconnecter Meta Ads",
       noMeta: "Aucun compte Meta Ads connecté", noMetaText: "Autorise Vendeo à lire tes campagnes, ensembles de publicités et publicités.",
       account: "Compte publicitaire", syncing: "Synchronisation…", sync: "Synchroniser les insights",
       synced: "Données Meta Ads synchronisées.", syncError: "Synchronisation impossible.",

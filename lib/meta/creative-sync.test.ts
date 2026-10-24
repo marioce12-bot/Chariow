@@ -39,11 +39,15 @@ describe("read-only Meta creative synchronization", () => {
     expect(await getMetaCreativePatch({ ...input, campaign: { ...input.campaign, carousel_urls: [] } })).toEqual({});
   });
   it("keeps local media on network, permission and malformed-response failures", async () => {
-    for (const response of [Response.json({ error: { code: 190 } }, { status: 400 }), new Response("not json")]) {
+    for (const response of [Response.json({ error: { code: 200, message: "Permission denied" } }, { status: 403 }), new Response("not json")]) {
       vi.stubGlobal("fetch", vi.fn(async () => response));
       expect(await getMetaCreativePatch(input)).toEqual({});
     }
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));
     expect(await getMetaCreativePatch(input)).toEqual({});
+  });
+  it("surfaces an explicit invalid-token response for reconnect handling", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: 190, message: "OAuth token expired" } }, { status: 400 })));
+    await expect(getMetaCreativePatch(input)).rejects.toMatchObject({ name: "MetaAuthenticationError", code: 190 });
   });
 });

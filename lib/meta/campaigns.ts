@@ -1,4 +1,5 @@
 import { describeMetaAccountStatus, isMetaAccountStatusBlocking, META_GRAPH_BASE_URL } from "./api";
+import { createMetaGraphError, fetchMetaGraph } from "./graph";
 import { isOwnCloudinaryUrl, prepareMetaPlacementImages } from "./ad-image";
 import { buildPlacementCreativeParams, placementVariantsEnabled } from "./placement-spec";
 import { LEGACY_META_CTA, normalizeMetaCta } from "./cta";
@@ -42,10 +43,10 @@ export function isMetaObjectMissingError(message: string): boolean {
 
 async function graphPost(path: string, accessToken: string, params: Record<string, string>) {
   const body = new URLSearchParams({ ...params, access_token: accessToken });
-  const response = await fetch(`${META_GRAPH_BASE_URL}/${path}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body, cache: "no-store" });
+  const response = await fetchMetaGraph(`${META_GRAPH_BASE_URL}/${path}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   const json = await response.json().catch(() => ({})) as GraphResponse;
   if (!response.ok || json.error || (typeof json.id !== "string" && json.success !== true)) {
-    throw new Error(describeGraphError(json, response.status));
+    throw createMetaGraphError(json.error, response.status, describeGraphError(json, response.status));
   }
   return json;
 }
@@ -54,10 +55,10 @@ async function graphGet(path: string, accessToken: string, fields: string) {
   const url = new URL(`${META_GRAPH_BASE_URL}/${path}`);
   url.searchParams.set("fields", fields);
   url.searchParams.set("access_token", accessToken);
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await fetchMetaGraph(url.toString());
   const json = await response.json().catch(() => ({})) as GraphResponse;
   if (!response.ok || json.error) {
-    throw new Error(describeGraphError(json, response.status));
+    throw createMetaGraphError(json.error, response.status, describeGraphError(json, response.status));
   }
   return json;
 }
@@ -71,10 +72,10 @@ async function graphGet(path: string, accessToken: string, fields: string) {
 async function graphDelete(path: string, accessToken: string) {
   const url = new URL(`${META_GRAPH_BASE_URL}/${path}`);
   url.searchParams.set("access_token", accessToken);
-  const response = await fetch(url.toString(), { method: "DELETE", cache: "no-store" });
+  const response = await fetchMetaGraph(url.toString(), { method: "DELETE" });
   const json = await response.json().catch(() => ({})) as GraphResponse;
   if (!response.ok || json.error || json.success !== true) {
-    throw new Error(describeGraphError(json, response.status));
+    throw createMetaGraphError(json.error, response.status, describeGraphError(json, response.status));
   }
   return json;
 }
@@ -412,7 +413,7 @@ async function previewMetaAdFeatures(input: { adId: string; accessToken: string 
         url.searchParams.set("ad_format", "MOBILE_FEED_STANDARD");
         url.searchParams.set("creative_feature", feature);
         url.searchParams.set("access_token", input.accessToken);
-        await fetch(url.toString(), { cache: "no-store" });
+        await fetchMetaGraph(url.toString());
       } catch {
         // l'aperçu est indicatif : on ignore
       }
@@ -502,7 +503,7 @@ export async function getMetaAdReviewStatus(input: { adId: string; accessToken: 
       insightsUrl.searchParams.set("date_preset", "maximum");
       insightsUrl.searchParams.set("limit", "100");
       insightsUrl.searchParams.set("access_token", input.accessToken);
-      const response = await fetch(insightsUrl, { cache: "no-store" });
+      const response = await fetchMetaGraph(insightsUrl);
       const insights = await response.json().catch(() => ({}));
       if (response.ok && !insights.error && !insights.paging?.next && Array.isArray(insights.data)) {
         let total = 0;

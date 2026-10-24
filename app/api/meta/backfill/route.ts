@@ -2,18 +2,22 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { syncMetaInsights } from "@/lib/meta/sync";
 import { dateOnly, initialBackfillDate, nextBackfillChunk } from "@/lib/meta/backfill";
+import { isMetaReconnectRequired, markMetaReconnectRequired } from "@/lib/meta/connection-state";
+import { isMetaAuthenticationError } from "@/lib/meta/graph";
 
 type BackfillAccount = {
   id: string;
+  meta_integration_id: string | null;
   meta_account_id: string;
   access_token_encrypted: string;
+  last_sync_error: string | null;
   last_backfill_at: string | null;
   backfill_status: "processing" | "in_progress" | "failed" | "complete" | null;
   backfill_next_from: string | null;
   backfill_started_at: string | null;
 };
 
-const ACCOUNT_COLUMNS = "id,meta_account_id,access_token_encrypted,last_backfill_at,backfill_status,backfill_next_from,backfill_started_at";
+const ACCOUNT_COLUMNS = "id,meta_integration_id,meta_account_id,access_token_encrypted,last_sync_error,last_backfill_at,backfill_status,backfill_next_from,backfill_started_at";
 const STALE_LOCK_MS = 10 * 60 * 1000;
 
 async function updateAccount(supabase: any, account: BackfillAccount, expectedStatus: BackfillAccount["backfill_status"], patch: Record<string, unknown>) {
@@ -47,6 +51,9 @@ export async function POST(request: Request) {
   if (!found) return NextResponse.json({ error: "Compte Meta introuvable" }, { status: 404 });
 
   let account = found as BackfillAccount;
+  if (isMetaReconnectRequired(account.last_sync_error)) {
+    return NextResponse.json({ status: "skipped", reason: "reauth_required", needs_reconnect: true }, { status: 409 });
+  }
   if (account.last_backfill_at || account.backfill_status === "complete") {
     return NextResponse.json({ status: "complete", lastBackfillAt: account.last_backfill_at });
   }
@@ -102,6 +109,12 @@ export async function POST(request: Request) {
     if (!saved) return NextResponse.json({ status: "in_progress", nextFrom: chunk.from });
     return NextResponse.json({ status: chunk.done ? "complete" : "in_progress", from: chunk.from, to: chunk.to, nextFrom: chunk.done ? null : chunk.nextFrom, synced });
   } catch (error) {
+    if (isMetaAuthenticationError(error)) {
+      await markMetaReconnectRequired(supabase, account, user.id);
+      await supabase.from("meta_ad_accounts").update({ backfill_status: "failed", backfill_started_at: null })
+        .eq("id", account.id).eq("backfill_status", "processing").eq("backfill_started_at", nowIso);
+      return NextResponse.json({ status: "failed", reason: "reauth_required", needs_reconnect: true }, { status: 409 });
+    }
     const message = error instanceof Error ? error.message.slice(0, 500) : "Meta backfill failed";
     await supabase.from("meta_ad_accounts").update({ backfill_status: "failed", backfill_started_at: null })
       .eq("id", account.id).eq("backfill_status", "processing").eq("backfill_started_at", nowIso);
