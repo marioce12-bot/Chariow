@@ -54,7 +54,12 @@ describe("PerformanceVisuelView visual comparison", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/creative-performance?store_id=store-1&days=30", { cache: "no-store" });
     expect(container.textContent).toContain("Résultats par création");
-    expect(container.textContent).toContain("Dépenses des campagnes suivies");
+    expect(container.textContent).not.toContain("Dépenses des campagnes suivies");
+    expect(container.textContent).toContain("Clics des campagnes suivies");
+    expect(container.textContent).toContain("Commandes attribuées");
+    expect(container.textContent).toContain("Coût / commande moyen");
+    expect(container.textContent).toContain("Chiffre d’affaires attribué");
+    expect(container.querySelectorAll(".creative-kpi-card")).toHaveLength(4);
     expect(container.textContent).toContain("Ces totaux couvrent uniquement les campagnes reliées à Vendeo");
     expect(container.textContent).not.toContain("Données partielles");
     expect(container.querySelectorAll(".creative-media-card")).toHaveLength(1);

@@ -8,6 +8,7 @@ describe("PerformanceVisuelView", () => {
     expect(html).toContain('class="performance-loading-skeleton performance-skeleton-visuals"');
     expect(html).toContain('aria-busy="true"');
     expect(html).not.toContain("Aucune donnée pour le moment");
+    expect(html.match(/class="performance-skeleton-kpi"/g)).toHaveLength(4);
   });
 
   it("is a separate visual comparison screen with an honest empty state", () => {

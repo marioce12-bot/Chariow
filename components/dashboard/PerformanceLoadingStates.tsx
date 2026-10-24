@@ -33,7 +33,7 @@ export function PerformanceLoadingSkeleton({
   return (
     <div className="performance-loading-skeleton performance-skeleton-visuals" role="status" aria-busy="true" aria-label={label}>
       <div className="performance-skeleton-kpis" aria-hidden="true">
-        {Array.from({ length: 5 }, (_, index) => <div className="performance-skeleton-kpi" key={index}><Skeleton width={42} height={42} radius={11} /><div><Skeleton width="62%" height={9} /><Skeleton width="48%" height={18} style={{ marginTop: 8 }} /><Skeleton width="72%" height={8} style={{ marginTop: 6 }} /></div></div>)}
+        {Array.from({ length: 4 }, (_, index) => <div className="performance-skeleton-kpi" key={index}><Skeleton width={42} height={42} radius={11} /><div><Skeleton width="62%" height={9} /><Skeleton width="48%" height={18} style={{ marginTop: 8 }} /><Skeleton width="72%" height={8} style={{ marginTop: 6 }} /></div></div>)}
       </div>
       <div className="performance-skeleton-insights" aria-hidden="true">
         {Array.from({ length: 2 }, (_, index) => <div className="performance-skeleton-insight" key={index}><Skeleton width={38} height={38} radius={10} /><div><Skeleton width="45%" height={8} /><Skeleton width="72%" height={11} style={{ marginTop: 7 }} /><Skeleton width="57%" height={8} style={{ marginTop: 6 }} /></div></div>)}

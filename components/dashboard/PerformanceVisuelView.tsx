@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ArrowDownToLine,
   BarChart3,
-  CircleDollarSign,
   ImageIcon,
   MousePointer2,
   PackageCheck,
@@ -151,7 +150,6 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
     ? eligibleProducts.find((product) => product.productId === visualCandidate.productId) ?? null
     : null;
   const totals = data?.metrics?.totals ?? [];
-  const totalSpend = formatTotals(totals, "spend", locale);
   const totalClicks = totals.length ? number(totals.reduce((sum, row) => sum + row.clicks, 0), locale) : "—";
   const unavailableCampaignMetrics = data?.metrics?.unavailableCampaignMetrics ?? 0;
   const partialCampaignMetrics = unavailableCampaignMetrics > 0 || totals.some((row) => !row.complete);
@@ -222,7 +220,6 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
                   {partialCampaignMetrics ? <span className="creative-kpi-scope-partial">{partialCampaignMetricsText}</span> : null}
                 </p>
                 <section className="creative-kpi-grid" aria-describedby="creative-kpi-scope-note" aria-label={en ? "Creative performance summary" : "Résumé des performances créatives"}>
-                  <article className="creative-kpi-card"><span className="creative-kpi-icon"><CircleDollarSign size={20} /></span><div><small>{en ? "Tracked campaign spend" : "Dépenses des campagnes suivies"}</small><strong>{totalSpend}</strong><span>{en ? "for the period" : "sur la période"}</span></div></article>
                   <article className="creative-kpi-card"><span className="creative-kpi-icon"><MousePointer2 size={20} /></span><div><small>{en ? "Tracked campaign clicks" : "Clics des campagnes suivies"}</small><strong>{totalClicks}</strong><span>{en ? "for the period" : "sur la période"}</span></div></article>
                   <article className="creative-kpi-card"><span className="creative-kpi-icon"><ShoppingBag size={20} /></span><div><small>{en ? "Attributed orders" : "Commandes attribuées"}</small><strong>{totalOrders}</strong><span>{en ? "for linked campaigns" : "sur les campagnes reliées"}</span></div></article>
                   <article className="creative-kpi-card"><span className="creative-kpi-icon"><BarChart3 size={20} /></span><div><small>{en ? "Average cost / order" : "Coût / commande moyen"}</small><strong>{totalCost}</strong><span>{en ? "spend ÷ attributed orders" : "dépenses ÷ commandes attribuées"}</span></div></article>
