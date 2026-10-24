@@ -3,7 +3,7 @@
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, Bot, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, Bell, Bot, CreditCard, Plus, Search, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages, ExternalLink } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { FeedbackView } from "@/components/FeedbackView";
@@ -1251,7 +1251,8 @@ type SettingsTab = "accounts" | "channels" | "appearance" | "language" | "feedba
 export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: SettingsTab | "preferences" }) {
   const connectionCache = useNavigationCache();
   const { locale, setLocale, t } = useI18n();
-  const [mobileSettingsSection, setMobileSettingsSection] = useState<SettingsTab>(focus === "preferences" ? "appearance" : focus ?? "appearance");
+  const [mobileSettingsSection, setMobileSettingsSection] = useState<SettingsTab | null>(focus === "preferences" ? "appearance" : focus ?? null);
+  const [settingsSearch, setSettingsSearch] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
@@ -1263,7 +1264,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    setMobileSettingsSection(focus === "preferences" ? "appearance" : focus ?? "appearance");
+    setMobileSettingsSection(focus === "preferences" ? "appearance" : focus ?? null);
   }, [focus]);
 
   useEffect(() => {
@@ -1337,50 +1338,66 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
     }
   }
 
-  const tabs: Array<{ id: SettingsTab; title: string; icon: React.ReactNode }> = [
-    { id: "appearance", title: t("settings.appearance"), icon: <Sun size={18} /> },
-    { id: "language", title: t("settings.language.title"), icon: <Languages size={18} /> },
-    { id: "accounts", title: t("settings.storesPlanTab"), icon: <Store size={18} /> },
-    { id: "channels", title: t("settings.connectedAccounts"), icon: <ExternalLink size={18} /> },
-    { id: "feedback", title: t("sweep3.text293"), icon: <MessageSquare size={18} /> },
-    { id: "about", title: t("settings.aboutLegal"), icon: <Lightbulb size={18} /> },
-    { id: "session", title: t("settings.session"), icon: <LogOut size={18} /> },
+  const settingsGroups: Array<{ title: string; items: Array<{ id: string; title: string; description: string; keywords: string; icon: React.ReactNode; onSelect: () => void }> }> = [
+    {
+      title: t("settings.appSection"),
+      items: [
+        { id: "appearance", title: t("settings.appearance"), description: t("settings.themeDescription"), keywords: "theme couleur clair sombre", icon: <Sun size={18} />, onSelect: () => setMobileSettingsSection("appearance") },
+        { id: "language", title: t("settings.language.title"), description: t("settings.language.subtitle"), keywords: "langue français anglais language", icon: <Languages size={18} />, onSelect: () => setMobileSettingsSection("language") },
+        { id: "notifications", title: t("notifications.title"), description: t("notifications.description"), keywords: "push alertes notifications", icon: <Bell size={18} />, onSelect: () => onNavigate("Notifications") },
+        { id: "feedback", title: t("sweep3.text293"), description: t("settings.feedbackDescription"), keywords: "suggestion avis feedback notes", icon: <MessageSquare size={18} />, onSelect: () => setMobileSettingsSection("feedback") },
+        { id: "about", title: t("settings.aboutLegal"), description: t("settings.aboutDescription"), keywords: "à propos légal conditions confidentialité about legal", icon: <Lightbulb size={18} />, onSelect: () => setMobileSettingsSection("about") },
+        { id: "session", title: t("settings.session"), description: t("settings.leaveOrDelete"), keywords: "déconnexion supprimer compte session sign out delete", icon: <LogOut size={18} />, onSelect: () => setMobileSettingsSection("session") },
+      ],
+    },
+    {
+      title: t("settings.shopSection"),
+      items: [
+        { id: "stores", title: t("settings.myStores"), description: t("settings.manageStores"), keywords: "boutique boutiques chariow stores", icon: <Store size={18} />, onSelect: () => onNavigate("Mes boutiques") },
+        { id: "channels", title: t("settings.connectedAccounts"), description: t("settings.connectedAccountsDescription"), keywords: "comptes publicitaires meta tiktok pinterest ads", icon: <ExternalLink size={18} />, onSelect: () => setMobileSettingsSection("channels") },
+        { id: "subscription", title: t("settings.subscription"), description: t("settings.manageSubscription"), keywords: "abonnement plan offre paiement subscription billing", icon: <CreditCard size={18} />, onSelect: () => onNavigate("Abonnement") },
+      ],
+    },
   ];
+  const normalizeSearch = (value: string) => value.toLocaleLowerCase(locale).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const query = normalizeSearch(settingsSearch.trim());
+  const filteredSettingsGroups = settingsGroups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !query || normalizeSearch(`${item.title} ${item.description} ${item.keywords} ${group.title}`).includes(query)),
+  })).filter((group) => group.items.length > 0);
 
   return (
-    <div className="settings-page" data-mobile-settings-section={mobileSettingsSection}>
+    <div className="settings-page" data-mobile-settings-section={mobileSettingsSection ?? "index"}>
       <div className="page-top settings-head">
         <div>
           <span className="eyebrow">{t("settings.account")}</span>
-          <h1>{t("settings.title")}</h1>
+          <h1 id="settings-title">{t("settings.title")}</h1>
           <p>{t("settings.preferencesSubtitle")}</p>
         </div>
       </div>
-      <div className="settings-tabs" role="tablist" aria-label={t("settings.sectionsLabel")}>
-        {tabs.map((tab, index) => <button
-          key={tab.id}
-          id={`settings-tab-${tab.id}`}
-          type="button"
-          role="tab"
-          className="settings-tab"
-          aria-selected={mobileSettingsSection === tab.id}
-          aria-controls={`settings-panel-${tab.id}`}
-          tabIndex={mobileSettingsSection === tab.id ? 0 : -1}
-          onClick={() => setMobileSettingsSection(tab.id)}
-          onKeyDown={(event) => {
-            let nextIndex: number;
-            if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
-            else if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
-            else if (event.key === "Home") nextIndex = 0;
-            else if (event.key === "End") nextIndex = tabs.length - 1;
-            else return;
-            event.preventDefault();
-            setMobileSettingsSection(tabs[nextIndex].id);
-            document.getElementById(`settings-tab-${tabs[nextIndex].id}`)?.focus();
-          }}
-        ><span aria-hidden="true">{tab.icon}</span><span>{tab.title}</span></button>)}
-      </div>
-      <div className="settings-tab-panel" role="tabpanel" id={`settings-panel-${mobileSettingsSection}`} aria-labelledby={`settings-tab-${mobileSettingsSection}`} tabIndex={0}>
+      {mobileSettingsSection === null ? (
+        <section className="settings-index" aria-label={t("settings.sectionsLabel")}>
+          <label className="settings-search">
+            <Search size={20} aria-hidden="true" />
+            <input type="search" value={settingsSearch} onChange={(event) => setSettingsSearch(event.target.value)} placeholder={t("settings.searchPlaceholder")} aria-label={t("settings.searchPlaceholder")} />
+          </label>
+          {filteredSettingsGroups.length ? filteredSettingsGroups.map((group) => (
+            <section className="settings-group" key={group.title} aria-label={group.title}>
+              <h2>{group.title}</h2>
+              <div className="settings-option-list">
+                {group.items.map((item) => <button type="button" className="settings-option-row" key={item.id} onClick={item.onSelect}>
+                  <span className="settings-option-icon" aria-hidden="true">{item.icon}</span>
+                  <span className="settings-option-copy"><strong>{item.title}</strong><small>{item.description}</small></span>
+                  <ArrowRight size={18} aria-hidden="true" />
+                </button>)}
+              </div>
+            </section>
+          )) : <p className="settings-search-empty" role="status">{t("settings.searchEmpty")}</p>}
+        </section>
+      ) : (
+      <>
+      <button type="button" className="settings-detail-back mobile-back-button" onClick={() => { setMobileSettingsSection(null); if (focus) onNavigate("Paramètres"); }}><ArrowLeft size={16} /> {t("settings.backToSettings")}</button>
+      <div className="settings-detail-panel" role="region" id={`settings-panel-${mobileSettingsSection}`} aria-labelledby="settings-title" tabIndex={0}>
       {mobileSettingsSection === "accounts" && <section className="settings-section settings-section-account" data-settings-panel="accounts" aria-label={t("settings.storesAndSubscription")}>
         <div className="mobile-settings-grid">
           <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
@@ -1532,6 +1549,8 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
       </section>}
       {mobileSettingsSection === "feedback" && <section className="settings-section settings-section-feedback" data-settings-panel="feedback"><FeedbackView /></section>}
       </div>
+      </>
+      )}
       {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label={t("wizardExtra.close")} onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>×</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">{t("settings.irreversible")}</span><h2 id="account-delete-title">{t("settings.deleteQuestion")}</h2><p>{t("sweep1.text297")}</p><div className="account-delete-warning">{t("settings.deleteWarning")}</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>{t("workspaceExtra.cancel")}</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? t("adminExtra.push.deleting") : t("settings.confirmDelete")}</button></div></section></div> : null}
     </div>
   );

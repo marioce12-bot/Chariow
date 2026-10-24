@@ -79,7 +79,11 @@ describe("dashboard desktop navigation", () => {
     expect(shortcut).toContain('aria-current={active === "Pilotage auto" ? "page" : undefined}');
     expect(shortcut).toContain('setActive("Pilotage auto"); setMoreOpen(false)');
     expect(menu).not.toContain('workspaceExtra.autopilot');
-    for (const item of ['w("netProfit")', 'w("whatsapp")', 'workspaceExtra.reports', 'workspaceExtra.subscription', 'workspaceExtra.settings']) expect(menu).toContain(item);
+    expect((menu.match(/role="menuitem"/g) ?? [])).toHaveLength(5);
+    for (const item of ['w("netProfit")', 'w("whatsapp")', 'Radar marché', 'workspaceExtra.reports', 'workspaceExtra.settings']) expect(menu).toContain(item);
+    expect(menu).not.toContain('workspaceExtra.subscription');
+    expect(menu).not.toContain('adminExtra.admin.logout');
+    expect(menu).not.toContain('setActive("Mes boutiques")');
     expect(css).toContain("@media (max-width: 760px)");
     expect(css).toContain("focus-visible");
     expect(css).toContain('aria-current="page"');

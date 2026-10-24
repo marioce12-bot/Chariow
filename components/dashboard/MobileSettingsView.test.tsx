@@ -23,46 +23,48 @@ function render(focus?: Parameters<typeof MobileSettingsView>[0]["focus"]) {
   return renderToStaticMarkup(<MobileSettingsView onNavigate={vi.fn()} onSignOut={vi.fn()} plan="starter" focus={focus} />);
 }
 
-describe("Settings tabs SSR", () => {
-  it.each(["fr", "en"] as const)("shows seven translated tabs and only Appearance by default (%s)", (locale) => {
+describe("Settings index SSR", () => {
+  it.each(["fr", "en"] as const)("shows searchable settings grouped by app and account/store (%s)", (locale) => {
     language.locale = locale;
     const html = render();
-    expect(html.match(/role="tab"/g)).toHaveLength(7);
-    expect(html.match(/role="tabpanel"/g)).toHaveLength(1);
-    expect(html.match(/data-settings-panel=/g)).toHaveLength(1);
-    expect(html).toContain('data-settings-panel="appearance"');
+    expect(html.match(/class="settings-group"/g)).toHaveLength(2);
+    expect(html.match(/class="settings-option-row"/g)).toHaveLength(9);
+    expect(html).toContain(`placeholder="${translate(locale, "settings.searchPlaceholder")}"`);
+    expect(html).toContain(translate(locale, "settings.appSection"));
+    expect(html).toContain(translate(locale, "settings.shopSection"));
     expect(html).toContain(translate(locale, "settings.appearance"));
     expect(html).toContain(translate(locale, "settings.language.title"));
-    expect(html).not.toContain('data-settings-panel="language"');
-    expect(html).not.toContain("mobile-settings-return");
-    expect(html).not.toContain("mobile-settings-index");
+    expect(html).toContain(translate(locale, "notifications.title"));
+    expect(html).not.toContain('data-settings-panel="appearance"');
+    expect(html).not.toContain('role="tab"');
   });
 
-  it.each(["accounts", "channels", "appearance", "language", "feedback", "about", "session"] as const)("opens %s directly, with no unrelated sections", (focus) => {
+  it.each(["accounts", "channels", "appearance", "language", "feedback", "about", "session"] as const)("opens %s as a focused detail with a return button", (focus) => {
     const html = render(focus);
     expect(html).toContain(`data-mobile-settings-section="${focus}"`);
     expect(html.match(/data-settings-panel=/g)).toHaveLength(1);
     expect(html).toContain(`data-settings-panel="${focus}"`);
     expect(html).toContain(`id="settings-panel-${focus}"`);
-    expect(html).toContain(`aria-labelledby="settings-tab-${focus}"`);
-    expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
-    expect(html).not.toContain("mobile-settings-return");
+    expect(html).toContain('aria-labelledby="settings-title"');
+    expect(html).toContain("settings-detail-back mobile-back-button");
+    expect(html).not.toContain('class="settings-index"');
   });
 
-  it("maps the legacy preferences focus to Appearance without stacking Language", () => {
+  it("maps the legacy preferences focus to Appearance", () => {
     expect(render("preferences")).toContain('data-mobile-settings-section="appearance"');
-    expect(render("preferences")).not.toContain('data-settings-panel="language"');
+    expect(render("preferences")).toContain('data-settings-panel="appearance"');
+    expect(render("preferences")).toContain("settings-detail-back");
   });
 
-  it("uses responsive tabs without CSS-only panel filtering", () => {
+  it("styles the search and grouped rows without CSS-only filtering", () => {
     const css = readFileSync(new URL("../../app/settings-mobile.css", import.meta.url), "utf8");
-    expect(css).toContain('.settings-tab[aria-selected="true"]');
-    expect(css).toContain("repeat(2, minmax(0, 1fr))");
-    expect(css).toContain("min-height: 44px");
+    expect(css).toContain(".settings-page .settings-search input");
+    expect(css).toContain(".settings-page .settings-option-row");
+    expect(css).toContain("grid-template-columns: 24px minmax(0, 1fr) 18px");
+    expect(css).toContain("min-height: 54px");
     expect(css).not.toContain("data-mobile-settings-section");
   });
 });
-
 
 describe("Settings detail back navigation", () => {
   it("places Back before the heading in stores and subscription details", () => {
