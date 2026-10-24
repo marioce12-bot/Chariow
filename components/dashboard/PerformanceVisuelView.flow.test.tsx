@@ -68,4 +68,63 @@ describe("PerformanceVisuelView visual comparison", () => {
 
     await act(async () => root.unmount());
   });
+
+  it("opens Studio with three measured ideas only after the user asks, without starting generation", async () => {
+    const body = {
+      period: { from: "2026-09-25", to: "2026-10-24" },
+      metrics: { mediaCount: 0 }, media: [], campaigns: [], duplicateCandidates: [], notices: {},
+      productEligibility: [
+        { productId: "product-1", productName: "Savon local", launchedCampaigns: 1, analyzedCampaigns: 1, eligible: true },
+        { productId: "product-2", productName: "Produit non éligible", launchedCampaigns: 0, analyzedCampaigns: 0, eligible: false },
+      ],
+    };
+    const ideas = [
+      { id: "idea-1", title: "Angle mesuré", format: "image", rationale: "Mesures historiques disponibles.", prompt: "Créer un visuel A." },
+      { id: "idea-2", title: "Composition alternative", format: "image", rationale: "Une hypothèse, pas une promesse.", prompt: "Créer un visuel B." },
+      { id: "idea-3", title: "Test comparatif", format: "image", rationale: "Une troisième piste.", prompt: "Créer un visuel C." },
+    ];
+    const ideasResponse = {
+      eligible: true,
+      source: { storeId: "store-1", productId: "product-1", productName: "Savon local", campaignId: "campaign-real" },
+      ideas,
+      capabilities: { image: true, slideshow: false, video: false },
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith("/api/creative-performance?")) return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
+      if (url === "/api/creative-performance/ideas?days=30" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify(ideasResponse), { status: 200, headers: { "Content-Type": "application/json" } }));
+      throw new Error(`Unexpected request ${url}`);
+    });
+    const onOpenStudio = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<PerformanceVisuelView storeId="store-1" onOpenStudio={onOpenStudio} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelectorAll(".creative-proposal-card")).toHaveLength(1);
+    expect(container.textContent).toContain("Savon local");
+    expect(container.textContent).not.toContain("Produit non éligible");
+    expect(onOpenStudio).not.toHaveBeenCalled();
+
+    const button = container.querySelector<HTMLButtonElement>(".creative-proposal-card button")!;
+    await act(async () => {
+      button.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/creative-performance/ideas?days=30", expect.objectContaining({
+      method: "POST", body: JSON.stringify({ storeId: "store-1", productId: "product-1" }),
+    }));
+    expect(onOpenStudio).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: "store-1", origin: "visual", source: ideasResponse.source, ideas, capabilities: ideasResponse.capabilities,
+    }));
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url) === "/api/studio/tasks" && init?.method === "POST")).toBe(false);
+
+    await act(async () => root.unmount());
+  });
 });

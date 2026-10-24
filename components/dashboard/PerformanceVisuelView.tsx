@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ImageIcon, RefreshCw, Video } from "lucide-react";
+import { ImageIcon, RefreshCw, Sparkles, Video } from "lucide-react";
+import { type CreativePerformanceStudioPrefill } from "@/lib/creative-performance/client";
 import "./performance-visuel.css";
 
 type CreativeMetric = {
@@ -58,7 +59,10 @@ function formatPeriod(from: string, to: string, locale: string) {
   return `${new Date(`${from}T00:00:00Z`).toLocaleDateString(language)} – ${new Date(`${to}T00:00:00Z`).toLocaleDateString(language)}`;
 }
 
-export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false }: { storeId: string | null; locale?: string; readOnly?: boolean }) {
+export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false, onOpenStudio }: {
+  storeId: string | null; locale?: string; readOnly?: boolean;
+  onOpenStudio?: (prefill: CreativePerformanceStudioPrefill) => void;
+}) {
   const en = locale === "en";
   const [period, setPeriod] = useState("30");
   const [data, setData] = useState<PerformanceData | null>(null);
@@ -67,6 +71,8 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
   const [onlyWinners, setOnlyWinners] = useState(false);
   const [platformFilter, setPlatformFilter] = useState("all");
   const [refreshCount, setRefreshCount] = useState(0);
+  const [suggestionBusy, setSuggestionBusy] = useState<string | null>(null);
+  const [suggestionMessages, setSuggestionMessages] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let alive = true;
@@ -92,13 +98,47 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
     (platformFilter === "all" || item.campaigns.some((placement) => placement.platform === platformFilter))),
   [data, onlyWinners, platformFilter]);
   const platforms = [...new Set((data?.media ?? []).flatMap((item) => item.campaigns.map((placement) => placement.platform)))];
+  const eligibleProducts = (data?.productEligibility ?? []).filter((product) => product.eligible);
+
+  async function proposeIdeas(product: PerformanceData["productEligibility"][number]) {
+    if (!storeId || !onOpenStudio || readOnly || suggestionBusy) return;
+    const key = product.productId;
+    setSuggestionBusy(key);
+    setSuggestionMessages((current) => ({ ...current, [key]: "" }));
+    try {
+      const query = new URLSearchParams({ days: period });
+      const response = await fetch(`/api/creative-performance/ideas?${query.toString()}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeId, productId: product.productId }),
+      });
+      const result = await response.json().catch(() => ({})) as {
+        eligible?: boolean; error?: string; message?: string;
+        source?: CreativePerformanceStudioPrefill["source"];
+        ideas?: CreativePerformanceStudioPrefill["ideas"];
+        capabilities?: CreativePerformanceStudioPrefill["capabilities"];
+      };
+      if (!response.ok) throw new Error(result.error || (en ? "Studio ideas are unavailable." : "Les idées Studio sont indisponibles."));
+      if (!result.eligible || !Array.isArray(result.ideas) || result.ideas.length !== 3) {
+        setSuggestionMessages((current) => ({ ...current, [key]: result.message || (en ? "More measured results are needed before proposing ideas." : "Il faut davantage de résultats mesurés avant de proposer des idées.") }));
+        return;
+      }
+      if (!result.source || result.source.productId !== product.productId || !result.capabilities) {
+        throw new Error(en ? "The Studio proposal could not be verified." : "La proposition Studio n’a pas pu être vérifiée.");
+      }
+      onOpenStudio({ storeId, origin: "visual", source: result.source, ideas: result.ideas, capabilities: result.capabilities });
+    } catch (ideaError) {
+      setSuggestionMessages((current) => ({ ...current, [key]: ideaError instanceof Error ? ideaError.message : (en ? "Studio ideas are unavailable." : "Les idées Studio sont indisponibles.") }));
+    } finally {
+      setSuggestionBusy(null);
+    }
+  }
 
   return (
     <div className="creative-performance">
       <header className="creative-performance-header">
         <div>
           <div className="creative-performance-breadcrumb">{en ? "Workspace" : "Espace de travail"} <span aria-hidden="true">›</span> {en ? "Creative performance" : "Performance visuel"}</div>
-          <h1>{en ? "Creative performance" : "Performance visuel"}</h1>
+          <h1>{en ? "Creatives" : "Créations"}</h1>
           <p>{en ? "Compare the measured results of your images and videos." : "Compare les résultats mesurés de tes images et vidéos."}</p>
         </div>
         <label className="creative-period"><span>{en ? "Period" : "Période"}</span>
@@ -113,6 +153,27 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
       {error ? <div className="creative-error" role="alert">{error}</div> : null}
       {data?.notices.tikTok ? <p className="creative-notice" role="status">{data.notices.tikTok}</p> : null}
       {data?.notices.pinterest ? <p className="creative-notice" role="status">{data.notices.pinterest}</p> : null}
+
+      {data && !readOnly && onOpenStudio ? <section className="creative-proposals" aria-labelledby="creative-proposals-title">
+        <div className="creative-proposals-head">
+          <div><span className="eyebrow">Studio</span>
+            <h2 id="creative-proposals-title">{en ? "Propose three creative variations" : "Proposer 3 variantes visuelles"}</h2>
+            <p>{en ? "Studio will suggest three ideas based on measured results. Nothing is generated until you choose an idea in Studio." : "Studio proposera trois idées à partir de résultats mesurés. Rien ne sera généré avant que tu choisisses une idée dans Studio."}</p>
+          </div>
+        </div>
+        {eligibleProducts.length ? <div className="creative-proposal-list">
+          {eligibleProducts.map((product) => <article className="creative-proposal-card" key={product.productId}>
+            <div><strong>{product.productName}</strong><small>{en ? "Ideas are hypotheses, not a promise of results." : "Des pistes fondées sur les mesures disponibles, sans promesse de résultat."}</small></div>
+            <button type="button" className="creative-studio-link" disabled={suggestionBusy !== null} onClick={() => void proposeIdeas(product)}>
+              {suggestionBusy === product.productId ? <RefreshCw className="creative-spin" size={15} /> : <Sparkles size={15} />}
+              {suggestionBusy === product.productId ? (en ? "Checking…" : "Vérification…") : (en ? "Propose 3 variations" : "Proposer 3 variantes")}
+            </button>
+            {suggestionMessages[product.productId] ? <small className="creative-suggestion-message" role="status">{suggestionMessages[product.productId]}</small> : null}
+          </article>)}
+        </div> : <p className="creative-proposals-empty" role="note">{en
+          ? "Studio ideas become available when a product has a genuinely launched campaign with measured results."
+          : "Les idées Studio seront disponibles lorsqu’un produit aura une campagne réellement lancée avec des résultats mesurés."}</p>}
+      </section> : null}
 
       <section className="creative-library" aria-labelledby="creative-library-title">
         <div className="creative-library-head">

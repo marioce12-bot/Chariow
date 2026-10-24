@@ -70,11 +70,16 @@ describe("CampaignPerformanceTab recommendation flow", () => {
     });
 
     expect(container.querySelector<HTMLSelectElement>(".ad-product-select select")?.value).toBe("product-1");
-    expect(container.textContent).toContain("Une proposition est prête");
+    expect(container.textContent).toContain("Recommandation de campagne");
+    expect(container.textContent).toContain("Meta Ads");
+    expect(container.textContent).toContain("Non recommandé : aucune attribution géographique fiable");
+    expect(container.textContent).toContain("Une image HD verticale · 9:16");
+    expect(container.textContent).toContain("Le titre, le texte, le budget et la durée proviennent du réglage de la campagne source");
     expect(container.textContent).toContain("Appliquer · 20 crédits");
     expect(container.textContent).not.toContain("Campagne historique");
     expect(container.textContent).not.toContain("ROAS");
     expect(container.textContent).not.toContain("Visites");
+    expect(container.textContent).not.toContain("55 900");
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/creative-performance/ideas"))).toBe(false);
     expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/studio/image")).toBe(false);
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/ad-performance/geography"))).toBe(false);
@@ -83,6 +88,8 @@ describe("CampaignPerformanceTab recommendation flow", () => {
     await act(async () => { button("Appliquer · 20 crédits").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/creative-performance/ideas"))).toHaveLength(1);
     expect(fetchMock.mock.calls.filter(([url]) => String(url) === "/api/studio/image")).toHaveLength(1);
+    const generationRequest = fetchMock.mock.calls.find(([url]) => String(url) === "/api/studio/image")?.[1] as RequestInit;
+    expect(JSON.parse(generationRequest.body as string)).toMatchObject({ quality: "medium", resolution: "hd", orientation: "portrait" });
     expect(container.textContent).toContain("temporary upload issue");
     expect(mocks.uploadCampaignMedia).toHaveBeenCalledOnce();
     expect(onApplyCampaign).not.toHaveBeenCalled();
@@ -95,7 +102,29 @@ describe("CampaignPerformanceTab recommendation flow", () => {
     expect(onApplyCampaign).toHaveBeenCalledWith(expect.objectContaining({
       id: "campaign-1", product_id: "product-1", product_name: "Carnet créatif", media_url: "https://cloudinary.example/generated.png",
       destination_url: "https://shop.example/product", countries: ["BJ"], daily_budget: 5, duration_days: 5,
+      geographyRecommendationUnavailable: true,
     }));
+    expect(container.textContent).toContain("Image générée · brouillon prêt");
+    expect(container.querySelector<HTMLImageElement>(".ad-visual-frame img")?.src).toBe("https://studio.example/image.png");
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/ad-campaigns/campaign-1/launch"))).toBe(false);
+  });
+
+  it("keeps the action unavailable for a product without verified campaign results", async () => {
+    await act(async () => {
+      root.render(<CampaignPerformanceTab storeId="store-1" periodDays="30" data={performanceData as any} loading={false} products={[otherProduct, product]} readOnly={false} onApplyCampaign={onApplyCampaign} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const select = container.querySelector<HTMLSelectElement>(".ad-product-select select");
+    expect(select).not.toBeNull();
+    act(() => {
+      select!.value = "product-2";
+      select!.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("Pas encore de proposition pour ce produit");
+    expect(container.querySelector(".ad-apply-button")).toBeNull();
+    expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/studio/image")).toBe(false);
+    expect(onApplyCampaign).not.toHaveBeenCalled();
   });
 });

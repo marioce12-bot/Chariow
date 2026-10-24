@@ -10,6 +10,7 @@ export type CreativePerformanceIdea = {
 
 export type CreativePerformanceStudioPrefill = {
   storeId: string;
+  origin?: "visual" | "ad";
   source: Record<string, unknown> & { productId: string; productName: string };
   ideas: CreativePerformanceIdea[];
   capabilities: { image: boolean; slideshow: boolean; video: boolean; videoMessage?: string };

@@ -53,6 +53,7 @@ import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
+import { CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, type CreativePerformanceStudioPrefill } from "@/lib/creative-performance/client";
 
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
 // Dernière boutique choisie dans le sélecteur : conservée dans localStorage (et non
@@ -147,6 +148,18 @@ function DashboardWorkspace() {
   function backToAccountSettings() {
     setSettingsFocus("accounts");
     setActive("Paramètres");
+  }
+  function openStudioWithPerformanceIdeas(prefill: CreativePerformanceStudioPrefill) {
+    try {
+      window.sessionStorage.setItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, JSON.stringify(prefill));
+      setActive("Studio");
+      window.setTimeout(() => {
+        const target = document.getElementById("studio-performance-ideas-title") ?? document.getElementById("studio-page-title");
+        target?.focus();
+      }, 0);
+    } catch {
+      // Keep the user on the comparison screen if this browser blocks session storage.
+    }
   }
   // Se souvient de la section affichée juste avant d'ouvrir "Vendeo AI", pour que
   // le bouton retour de la section IA ramène exactement là d'où l'utilisateur vient
@@ -434,7 +447,7 @@ function DashboardWorkspace() {
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Performance visuel" ? (
-            <PerformanceVisuelView storeId={activeStoreId} locale={locale} />
+            <PerformanceVisuelView storeId={activeStoreId} locale={locale} onOpenStudio={openStudioWithPerformanceIdeas} />
           ) : active === "Performance publicitaire" ? (
             <AdPerformanceView storeId={activeStoreId} onApplyCampaign={applyRecommendedCampaign} products={analytics?.products ?? []} locale={locale} />
           ) : active === "Pub" ? (

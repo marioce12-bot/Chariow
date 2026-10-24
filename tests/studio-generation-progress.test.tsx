@@ -3,6 +3,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StudioView } from "../components/dashboard/sections";
+import { CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY } from "../lib/creative-performance/client";
 
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string) => key }) }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -24,6 +25,7 @@ function selectProduct() {
   act(() => productButton.click());
 }
 beforeEach(() => {
+  window.sessionStorage.clear();
   container = document.createElement("div"); document.body.append(container);
   root = createRoot(container);
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
@@ -88,6 +90,32 @@ describe("Studio image generation progress", () => {
     });
     await act(async () => { insert.click(); });
     expect(fetchMock).toHaveBeenCalledWith("/api/studio/prompt", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("shows and lets the user choose all three visual-performance ideas without generating automatically", async () => {
+    const ideas = [
+      { id: "idea-1", title: "Angle mesuré", format: "image", rationale: "Résultats historiques disponibles.", prompt: "Créer une image A." },
+      { id: "idea-2", title: "Composition alternative", format: "image", rationale: "Hypothèse à tester.", prompt: "Créer une image B." },
+      { id: "idea-3", title: "Comparaison", format: "image", rationale: "Troisième piste.", prompt: "Créer une image C." },
+    ];
+    window.sessionStorage.setItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, JSON.stringify({
+      storeId: "store-1", origin: "visual", source: { productId: "p1", productName: "Sac", campaignId: "campaign-real" },
+      ideas, capabilities: { image: true, slideshow: false, video: false },
+    }));
+
+    render();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    expect(container.querySelectorAll(".studio-performance-idea")).toHaveLength(3);
+    expect(container.querySelector(".studio-performance-ideas")?.textContent).toContain("Performance visuel · Sac");
+    expect(container.querySelector(".studio-product-chip")?.textContent).toContain("Sac");
+    expect(fetchMock.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && init?.method === "POST")).toHaveLength(0);
+
+    const chooseIdea = container.querySelectorAll<HTMLButtonElement>(".studio-performance-idea .btn-dark")[1];
+    await act(async () => { chooseIdea.click(); });
+    expect(chooseIdea.textContent).toContain("Idée sélectionnée");
+    expect(container.querySelector<HTMLTextAreaElement>(".studio-prompt-box textarea")?.value).toBe(ideas[1].prompt);
+    expect(fetchMock.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && init?.method === "POST")).toHaveLength(0);
   });
 
   it("sends the selected product visual as a real image reference", async () => {

@@ -23,6 +23,16 @@ describe("mobile dashboard navigation", () => {
     expect(navMarkup).toContain("mobile-nav-hidden");
   });
 
+  it("hands eligible visual ideas to Studio through session storage without moving the visual section out of the dock", () => {
+    expect(dashboard).toContain("onOpenStudio={openStudioWithPerformanceIdeas}");
+    expect(dashboard).toContain("sessionStorage.setItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, JSON.stringify(prefill))");
+    expect(dashboard).toContain('setActive("Studio")');
+    expect(dashboard).toContain('document.getElementById("studio-performance-ideas-title") ?? document.getElementById("studio-page-title")');
+    expect(dashboard).toContain("target?.focus()");
+    expect(readFileSync(new URL("../components/dashboard/sections.tsx", import.meta.url), "utf8")).toContain('id="studio-performance-ideas-title" tabIndex={-1}');
+    expect(navMarkup).toContain('data-onboarding="Performance visuel"');
+  });
+
   it("styles a floating, softly bordered dock with a raised blue-violet assistant control", () => {
     expect(css).toContain("border-radius: 22px");
     expect(css).toContain("box-shadow:");

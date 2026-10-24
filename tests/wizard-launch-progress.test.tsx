@@ -19,8 +19,8 @@ let root: Root;
 let state: WizardState;
 let fetchMock: ReturnType<typeof vi.fn>;
 const response = (data: unknown, ok = true) => Promise.resolve({ ok, json: () => Promise.resolve(data) });
-function renderStep(platform: Platform = "meta", props: Partial<React.ComponentProps<typeof Step5Payment>> = {}) {
-  state = { ...DEFAULT_WIZARD_STATE, campaignId: "campaign-123", platform, objective: platform === "pinterest" ? "sales" : "traffic" };
+function renderStep(platform: Platform = "meta", props: Partial<React.ComponentProps<typeof Step5Payment>> = {}, objective?: WizardState["objective"]) {
+  state = { ...DEFAULT_WIZARD_STATE, campaignId: "campaign-123", platform, objective: objective ?? (platform === "pinterest" ? "sales" : "traffic") };
   act(() => root.render(<Step5Payment state={state} onLaunched={vi.fn()} onBack={vi.fn()} {...props} />));
 }
 function button(label: string, scope: ParentNode = container) {
@@ -129,6 +129,25 @@ describe("wizard launch progress", () => {
     await act(async () => { button("Oui, lancer en Trafic").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body as string).confirm_traffic_fallback).toBe(true);
+  });
+
+  it("stops a Meta Sales launch without a pixel and requires a separate Traffic confirmation", async () => {
+    fetchMock.mockImplementationOnce(() => response({ code: "META_PIXEL_REQUIRED_FOR_SALES", error: "No Meta pixel found", fallback_available: true }, false))
+      .mockImplementationOnce(() => response({ objective_fallback: true }));
+    renderStep("meta", { launchLabel: "Lancer maintenant" }, "sales");
+
+    act(() => button("Lancer maintenant").click());
+    await tick();
+
+    expect(container.textContent).toContain("Aucune campagne n’a été envoyée");
+    expect(button("Confirmer le lancement en Trafic")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).confirm_traffic_fallback).toBe(false);
+
+    await act(async () => { button("Confirmer le lancement en Trafic").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string).confirm_traffic_fallback).toBe(true);
+    expect(container.textContent).toContain("Campagne envoyée à Meta");
   });
 
   it("keeps ResumeCampaignModal open and its close callback blocked during an in-flight launch", async () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Sparkles } from "lucide-react";
 import type { EditableCampaign } from "../vendeo/wizard/types";
 import type { ProductData } from "./shared";
 import { CampaignPerformanceTab } from "./CampaignPerformanceTab";
@@ -61,10 +62,17 @@ export function AdPerformanceView({
           <div className="creative-performance-breadcrumb">{en ? "Workspace" : "Espace de travail"} <span aria-hidden="true">›</span> {en ? "Ad performance" : "Performance publicitaire"}</div>
           <h1>{en ? "Ad performance" : "Performance publicitaire"}</h1>
           <p>{en
-            ? "Choose a product to prepare a campaign. The image cost is shown before generation; review the draft before you launch."
-            : "Choisis un produit pour préparer une campagne. Le coût de l’image s’affiche avant la génération; relis le brouillon avant de lancer."}</p>
+            ? "A clear proposal when the available results are reliable enough. Review the draft before you launch."
+            : "Une proposition claire quand les résultats disponibles sont assez fiables. Relis le brouillon avant de lancer."}</p>
         </div>
       </header>
+
+      <div className="ad-analysis-note" role="note">
+        <span className="ad-analysis-icon"><Sparkles size={18} aria-hidden="true" /></span>
+        <p><strong>{en ? "Background analysis" : "Analyse en arrière-plan"}</strong>{en
+          ? " — Vendeo checks the available results and shows an action only when they support a reliable starting point. Raw campaign and visit tables stay out of this screen."
+          : " — Vendeo vérifie les résultats disponibles et n’affiche une action que s’ils étayent une base fiable. Les tableaux bruts de campagnes et de visites restent en arrière-plan."}</p>
+      </div>
 
       {!storeId ? <div className="creative-state">{en ? "Connect a store to prepare a campaign." : "Connecte une boutique pour préparer une campagne."}</div>
         : loading ? <div className="creative-state" role="status">{en ? "Preparing a recommendation…" : "Préparation de la proposition…"}</div>

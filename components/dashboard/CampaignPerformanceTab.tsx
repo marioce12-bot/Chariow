@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ImagePlus, Loader2, Sparkles } from "lucide-react";
+import { FileText, ImagePlus, Loader2, Sparkles } from "lucide-react";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import type { ProductData } from "./shared";
@@ -15,6 +15,29 @@ type ProductChoice = { id: string; name: string; description?: string | null; pr
 
 function cleanName(value: string) {
   return value.normalize("NFKD").replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 52) || "vendeo-image";
+}
+
+function platformLabel(platform: string, en: boolean) {
+  if (platform === "meta") return "Meta Ads";
+  if (platform === "tiktok") return "TikTok Ads";
+  if (platform === "pinterest") return "Pinterest Ads";
+  return en ? "Unavailable" : "Indisponible";
+}
+
+function objectiveLabel(objective: string | null | undefined, en: boolean) {
+  if (objective === "sales") return en ? "Sales" : "Ventes";
+  if (objective === "traffic") return en ? "Traffic" : "Trafic";
+  if (objective === "engagement") return en ? "Engagement" : "Interaction";
+  if (objective === "leads") return en ? "Leads" : "Prospects";
+  return en ? "Not set" : "Non défini";
+}
+
+function formatDailyBudget(value: number | string, locale: string) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return new Intl.NumberFormat(locale === "en" ? "en-US" : "fr-FR", {
+    style: "currency", currency: "USD", maximumFractionDigits: 2,
+  }).format(amount);
 }
 
 export function CampaignPerformanceTab({
@@ -44,6 +67,7 @@ export function CampaignPerformanceTab({
   const [selectedProductId, setSelectedProductId] = useState("");
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState("");
 
   useEffect(() => {
@@ -114,6 +138,8 @@ export function CampaignPerformanceTab({
   const recommendation = recommendations.get(selectedProductId) ?? null;
   const busy = busyProductId === selectedProductId;
   const pending = pendingImage?.productId === selectedProductId ? pendingImage : null;
+  const previewUrl = generatedImageUrl ?? (selectedProduct?.image?.startsWith("https://") ? selectedProduct.image : null);
+  const sourceDailyBudget = recommendation ? formatDailyBudget(recommendation.config.daily_budget, locale) : null;
 
   async function importGeneratedImage(image: PendingImage) {
     setBusyProductId(image.productId);
@@ -137,6 +163,7 @@ export function CampaignPerformanceTab({
         carousel_urls: [],
         product_id: image.productId,
         product_name: product?.name ?? source.campaign.productName ?? source.config.product_name,
+        geographyRecommendationUnavailable: true,
       });
       setPendingImage(null);
     } catch (error) {
@@ -150,6 +177,8 @@ export function CampaignPerformanceTab({
     if (readOnly || !storeId || !selectedProduct || !recommendation || busyProductId) return;
     setBusyProductId(selectedProduct.id);
     setActionMessage("");
+    setGeneratedImageUrl(null);
+    setPendingImage(null);
     try {
       const ideasResponse = await fetch(`/api/creative-performance/ideas?days=${encodeURIComponent(periodDays)}`, {
         method: "POST",
@@ -178,7 +207,7 @@ export function CampaignPerformanceTab({
           prompt: idea.prompt,
           quality: "medium",
           resolution: "hd",
-          orientation: "square",
+          orientation: "portrait",
           outputFormat: "png",
           ...(productLite.image && productLite.image.startsWith("https://") ? { referenceUrls: [productLite.image] } : {}),
           product: productLite,
@@ -192,6 +221,7 @@ export function CampaignPerformanceTab({
         throw new Error(`${error} ${en ? "Check Studio history before trying again." : "Vérifie l’historique Studio avant de réessayer."}`);
       }
       const image = { productId: selectedProduct.id, campaignId: recommendation.campaign.campaignId, imageUrl: imageBody.imageUrl };
+      setGeneratedImageUrl(image.imageUrl);
       setPendingImage(image);
       await importGeneratedImage(image);
     } catch (error) {
@@ -212,15 +242,15 @@ export function CampaignPerformanceTab({
 
       {loading ? <div className="creative-state" role="status">{en ? "Loading…" : "Chargement…"}</div>
         : !storeId ? <div className="creative-state">{en ? "Connect a store first." : "Connecte d’abord une boutique."}</div>
-          : !productOptions.length ? <div className="creative-empty">
+              : !productOptions.length ? <div className="creative-empty">
             <div className="creative-empty-icon"><Sparkles size={22} aria-hidden="true" /></div>
             <h3>{en ? "No products available" : "Aucun produit disponible"}</h3>
             <p>{en ? "Connect a store with products to prepare a campaign." : "Connecte une boutique avec des produits pour préparer une campagne."}</p>
-          </div>
+              </div>
             : <div className="ad-campaign-form">
               <label className="ad-product-select">
                 <span>{en ? "Product" : "Produit"}</span>
-                <select value={selectedProductId} onChange={(event) => { setSelectedProductId(event.target.value); setActionMessage(""); }} aria-label={en ? "Choose a product" : "Choisir un produit"}>
+                <select value={selectedProductId} onChange={(event) => { setSelectedProductId(event.target.value); setActionMessage(""); setPendingImage(null); setGeneratedImageUrl(null); }} aria-label={en ? "Choose a product" : "Choisir un produit"}>
                   {productOptions.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
                 </select>
               </label>
@@ -228,22 +258,72 @@ export function CampaignPerformanceTab({
               {recordsLoading ? <div className="ad-recommendation" role="status">{en ? "Checking for a proposal…" : "Recherche d’une proposition…"}</div>
                 : recordsError ? <div className="creative-error" role="alert">{en ? "A proposal could not be prepared right now. Try again later." : "Impossible de préparer une proposition pour le moment. Réessaie plus tard."}</div>
                   : recommendation ? <div className="ad-recommendation" aria-live="polite">
-                    <h3><Sparkles size={17} aria-hidden="true" /> {en ? "A proposal is ready" : "Une proposition est prête"}</h3>
-                    <p>{en
-                      ? `A starting setup is ready for ${selectedProduct?.name}. You can review and change the platform, audience, copy and budget in the draft.`
-                      : `Une configuration de départ est prête pour ${selectedProduct?.name}. Tu pourras vérifier et modifier la plateforme, le ciblage, le texte et le budget dans le brouillon.`}</p>
+                    <div className="ad-recommendation-layout">
+                      <div className="ad-recommendation-details">
+                        <div className="ad-recommendation-heading">
+                          <span className="ad-recommendation-icon"><Sparkles size={18} aria-hidden="true" /></span>
+                          <div>
+                            <h3>{en ? "Campaign recommendation" : "Recommandation de campagne"}</h3>
+                            <p>{en
+                              ? "A starting setup based on measured campaign results. It is editable and does not guarantee future performance."
+                              : "Une base de départ issue de résultats de campagne mesurés. Elle reste modifiable et ne garantit pas les performances futures."}</p>
+                          </div>
+                        </div>
+
+                        <dl className="ad-config-grid">
+                          <div><dt>{en ? "Product" : "Produit"}</dt><dd>{selectedProduct?.name || "—"}</dd></div>
+                          <div><dt>{en ? "Platform" : "Plateforme"}</dt><dd>{platformLabel(recommendation.config.platform, en)}</dd></div>
+                          <div><dt>{en ? "Objective" : "Objectif"}</dt><dd>{objectiveLabel(recommendation.config.objective, en)}</dd></div>
+                          <div><dt>{en ? "Geography / audience" : "Pays / audience"}</dt><dd>{en ? "Not recommended: reliable geographic attribution is unavailable." : "Non recommandé : aucune attribution géographique fiable ne permet de choisir un pays ou une audience."}</dd></div>
+                          <div><dt>{en ? "Creative format" : "Format créatif"}</dt><dd>{en ? "One HD vertical image · 9:16" : "Une image HD verticale · 9:16"}</dd></div>
+                          <div><dt>{en ? "Headline" : "Titre"}</dt><dd>{recommendation.config.title?.trim() || (en ? "To complete in the draft" : "À compléter dans le brouillon")}</dd></div>
+                          <div className="ad-config-wide"><dt>{en ? "Ad text" : "Texte"}</dt><dd>{recommendation.config.ad_text?.trim() || (en ? "To complete in the draft" : "À compléter dans le brouillon")}</dd></div>
+                          <div><dt>{en ? "Description" : "Description"}</dt><dd>{en ? "Not available in the source campaign settings." : "Non renseignée dans la configuration source."}</dd></div>
+                          <div><dt>{en ? "Daily budget · source setting" : "Budget quotidien · réglage source"}</dt><dd>{sourceDailyBudget ? `${sourceDailyBudget} / ${en ? "day" : "jour"}` : (en ? "Not available" : "Non disponible")}</dd></div>
+                          <div><dt>{en ? "Duration · source setting" : "Durée · réglage source"}</dt><dd>{Number(recommendation.config.duration_days) > 0 ? `${recommendation.config.duration_days} ${en ? "days" : "jours"}` : (en ? "Not available" : "Non disponible")}</dd></div>
+                        </dl>
+                        <p className="ad-source-note">{en
+                          ? "Headline, text, budget and duration are shown from the measured source campaign and can be reviewed or changed in the draft. Geography is not inferred from store locations or country sales."
+                          : "Le titre, le texte, le budget et la durée proviennent du réglage de la campagne source et restent modifiables dans le brouillon. Aucun pays gagnant n’est déduit des lieux de visite ou des ventes par pays."}</p>
+                      </div>
+
+                      <aside className="ad-visual-preview" aria-label={en ? "Creative preview" : "Aperçu du visuel"}>
+                        <div className="ad-preview-head"><strong>{en ? "Creative preview" : "Aperçu du visuel"}</strong><span>9:16</span></div>
+                        <div className="ad-visual-frame">
+                          {previewUrl
+                            ? <img src={previewUrl} alt={generatedImageUrl ? (en ? "Generated campaign image" : "Visuel de campagne généré") : (en ? "Product image reference" : "Image produit de référence")} />
+                            : <div className="ad-visual-placeholder">{en ? "The campaign image will appear here after you review the credit cost and apply." : "Le visuel de campagne apparaîtra ici après l’affichage du coût et ton clic sur Appliquer."}</div>}
+                        </div>
+                        <small>{generatedImageUrl
+                          ? (en ? "Generated image" : "Visuel généré")
+                          : selectedProduct?.image ? (en ? "Product image · reference only" : "Image du produit · référence uniquement") : (en ? "No sample visual is shown" : "Aucun visuel d’exemple n’est affiché")}</small>
+                      </aside>
+                    </div>
+
                     {actionMessage ? <p className="ad-action-message" role="alert">{actionMessage}</p> : null}
-                    {pending ? <div className="ad-pending-image" role="status">
-                      <span>{en ? "The image is ready. Retry the import without generating it again." : "L’image est prête. Réessaie l’import sans la générer à nouveau."}</span>
-                      <button type="button" className="creative-studio-link" disabled={busy || readOnly} onClick={() => void importGeneratedImage(pending)}>
-                        <ImagePlus size={14} /> {busy ? (en ? "Preparing…" : "Préparation…") : (en ? "Retry import" : "Réessayer l’import")}
-                      </button>
-                    </div> : <button type="button" className="ad-apply-button" disabled={busy || readOnly} onClick={() => void applyRecommendation()}>
-                      {busy ? <><Loader2 size={16} className="creative-spin" /> {en ? "Preparing…" : "Préparation…"}</> : <><ImagePlus size={16} /> {en ? `Apply · ${generationCost} credits` : `Appliquer · ${generationCost} crédits`}</>}
-                    </button>}
-                    <small className="ad-credit-note">{en
-                      ? `Generates one HD image for ${generationCost} Studio credits. The campaign remains a draft until you select “Launch now.”`
-                      : `Génère une image HD pour ${generationCost} crédits Studio. La campagne reste en brouillon jusqu’à « Lancer maintenant ».`}</small>
+                    <div className="ad-action-footer">
+                      <div className="ad-apply-area">
+                        {pending ? <div className="ad-pending-image" role="status">
+                          <span>{en ? "The image is ready. Retry the import without generating it again." : "L’image est prête. Réessaie l’import sans la générer à nouveau."}</span>
+                          <button type="button" className="creative-studio-link" disabled={busy || readOnly} onClick={() => void importGeneratedImage(pending)}>
+                            <ImagePlus size={14} /> {busy ? (en ? "Preparing…" : "Préparation…") : (en ? "Retry import" : "Réessayer l’import")}
+                          </button>
+                        </div> : <button type="button" className="ad-apply-button" disabled={busy || readOnly || Boolean(generatedImageUrl)} onClick={() => void applyRecommendation()}>
+                          {busy ? <><Loader2 size={16} className="creative-spin" /> {en ? "Preparing…" : "Préparation…"}</> : generatedImageUrl ? <><ImagePlus size={16} /> {en ? "Image generated · draft ready" : "Image générée · brouillon prêt"}</> : <><ImagePlus size={16} /> {en ? `Apply · ${generationCost} credits` : `Appliquer · ${generationCost} crédits`}</>}
+                        </button>}
+                        <small className="ad-credit-note">{en
+                          ? `The displayed action generates one HD portrait image for ${generationCost} Studio credits, then prepares a draft. Nothing is published automatically.`
+                          : `L’action affichée génère une image HD verticale pour ${generationCost} crédits Studio, puis prépare un brouillon. Rien n’est publié automatiquement.`}</small>
+                      </div>
+                      <div className="ad-review-step" role="note">
+                        <span className="ad-review-icon"><FileText size={18} aria-hidden="true" /></span>
+                        <div><strong>{en ? "Review the draft before launch" : "Relis le brouillon avant le lancement"}</strong>
+                          <p>{en
+                            ? "After generation, review the platform, audience, copy and total budget in the draft. The separate “Launch now” button is the only action that sends the campaign."
+                            : "Après génération, vérifie la plateforme, le ciblage, le texte et le budget total dans le brouillon. Seul le bouton distinct « Lancer maintenant » envoie la campagne."}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                     : <div className="ad-recommendation" role="status">
                       <h3>{en ? "No proposal for this product yet" : "Pas encore de proposition pour ce produit"}</h3>

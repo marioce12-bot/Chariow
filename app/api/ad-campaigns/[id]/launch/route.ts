@@ -12,6 +12,7 @@ import { launchTikTok } from "@/lib/tiktok/launch";
 import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
 import { launchPinterest } from "@/lib/pinterest/api";
 import { PINTEREST_TAG_REQUIRED_CODE, isPinterestConversionTagError, pinterestTagShortMessage } from "@/lib/pinterest/tag-help";
+import { META_PIXEL_REQUIRED_CODE } from "@/lib/meta/pixel-help";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -72,6 +73,9 @@ async function createCampaignCreative(input: {
 export async function POST(request: Request, context: Context) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
+  if (process.env.VERCEL_ENV === "preview") {
+    return NextResponse.json({ error: "Le lancement de campagnes est désactivé sur cette Preview. Aucune publicité n’a été envoyée." }, { status: 403 });
+  }
   const { id } = await context.params;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const { data: campaign, error: campaignError } = await supabase
@@ -159,9 +163,8 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   const accessToken = decryptSecret(account.access_token_encrypted);
   // Choix du pixel pour l'objectif Ventes : on prend d'abord celui marqué
   // "configuré sur Chariow", sinon le pixel le plus récemment actif du compte pub
-  // (même s'il n'a pas été coché à la main). Meta exige un pixel pour optimiser
-  // sur les achats : sans aucun pixel sur le compte, on lance quand même la
-  // campagne, mais en Trafic (vues de page), et on prévient l'utilisateur.
+  // (même s'il n'a pas été coché à la main). Sans pixel, la route bloque avant
+  // tout appel fournisseur et demande une confirmation séparée pour l’objectif Trafic.
   const { data: accountPixels } = await supabase
     .from("meta_pixels")
     .select("pixel_id,configured_on_chariow,last_fired_at")
@@ -172,7 +175,15 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     .limit(1);
   const pixelId = typeof accountPixels?.[0]?.pixel_id === "string" ? accountPixels[0].pixel_id : null;
   const pixelAutoSelected = Boolean(pixelId) && accountPixels?.[0]?.configured_on_chariow !== true;
-  const effectiveObjective = campaign.objective === "sales" && !pixelId ? "traffic" : campaign.objective;
+  const trafficFallbackConfirmed = campaign.objective === "sales" && !pixelId && body?.confirm_traffic_fallback === true;
+  if (campaign.objective === "sales" && !pixelId && !trafficFallbackConfirmed) {
+    return NextResponse.json({
+      error: "Aucun pixel Meta n’a été trouvé. La campagne n’a pas été lancée. Confirme explicitement si tu veux la lancer avec l’objectif Trafic.",
+      code: META_PIXEL_REQUIRED_CODE,
+      fallback_available: true,
+    }, { status: 409 });
+  }
+  const effectiveObjective = trafficFallbackConfirmed ? "traffic" : campaign.objective;
   const durationDays = Number(campaign.duration_days);
   const endTime = Number.isFinite(durationDays) && durationDays > 0 ? new Date(Date.now() + durationDays * 86400000).toISOString() : null;
   // Réglages Advantage+ du wizard. Campagne sans valeur enregistrée (antérieure au réglage) :
