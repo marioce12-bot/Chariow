@@ -45,13 +45,21 @@ export class ChariowMcpClient {
     };
     if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
     if (this.sessionId) headers["Mcp-Session-Id"] = this.sessionId;
-    const response = await fetch(this.endpoint, { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id: this.nextId++, method, params }), cache: "no-store", signal: AbortSignal.timeout(20_000) });
-    const sessionId = response.headers.get("mcp-session-id");
-    if (sessionId) this.sessionId = sessionId;
-    const raw = await response.text();
-    const json = this.extractJson(raw);
-    if (!response.ok) throw new Error(`Chariow MCP returned ${response.status}: ${typeof json === "string" ? json : JSON.stringify(json)}`);
-    return json as JsonRpcResponse;
+    const body = JSON.stringify({ jsonrpc: "2.0", id: this.nextId++, method, params });
+    let retries = 0;
+    while (true) {
+      const response = await fetch(this.endpoint, { method: "POST", headers, body, cache: "no-store", signal: AbortSignal.timeout(20_000) });
+      const sessionId = response.headers.get("mcp-session-id");
+      if (sessionId) this.sessionId = sessionId;
+      const raw = await response.text();
+      if (response.status === 429 && retries < MAX_RATE_LIMIT_RETRIES) {
+        await new Promise<void>((resolve) => setTimeout(resolve, rateLimitBackoffMs(response, retries++)));
+        continue;
+      }
+      const json = this.extractJson(raw);
+      if (!response.ok) throw new Error(`Chariow MCP returned ${response.status}: ${typeof json === "string" ? json : JSON.stringify(json)}`);
+      return json as JsonRpcResponse;
+    }
   }
 
   private extractJson(raw: string): JsonRpcResponse | string {
@@ -62,4 +70,19 @@ export class ChariowMcpClient {
     if (dataLine) { try { return JSON.parse(dataLine.slice(5).trim()); } catch { return dataLine.slice(5).trim(); } }
     return trimmed;
   }
+}
+const MAX_RATE_LIMIT_RETRIES = 2;
+const BASE_RATE_LIMIT_BACKOFF_MS = 250;
+const MAX_RATE_LIMIT_BACKOFF_MS = 5_000;
+
+function rateLimitBackoffMs(response: Response, retryIndex: number) {
+  const base = Math.min(MAX_RATE_LIMIT_BACKOFF_MS, BASE_RATE_LIMIT_BACKOFF_MS * 2 ** retryIndex);
+  const header = response.headers.get("retry-after");
+  if (!header) return base;
+  const seconds = Number(header);
+  const parsedDate = Date.parse(header);
+  const serverDelay = Number.isFinite(seconds) && header.trim() !== ""
+    ? seconds * 1_000
+    : Number.isFinite(parsedDate) ? Math.max(0, parsedDate - Date.now()) : base;
+  return Math.max(base, Math.min(MAX_RATE_LIMIT_BACKOFF_MS, serverDelay));
 }
