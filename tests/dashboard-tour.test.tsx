@@ -66,7 +66,12 @@ describe("responsive Vendeo dashboard guide", () => {
     expect(MOBILE_DASHBOARD_TOUR_STEPS.slice(0, 5).map((step) => step.activeSection)).toEqual([
       "Vue d'ensemble", "Pub", "Studio", "Vendeo AI", "Performance publicitaire",
     ]);
-    expect(MOBILE_DASHBOARD_TOUR_STEPS[3]).toMatchObject({ id: "assistant", target: "Vendeo AI", activeSection: "Vendeo AI" });
+    expect(MOBILE_DASHBOARD_TOUR_STEPS[3]).toMatchObject({
+      id: "assistant",
+      target: "Vendeo AI",
+      targetSelector: '.mobile-nav [data-onboarding="Vendeo AI"]',
+      activeSection: "Vendeo AI",
+    });
     expect(MOBILE_DASHBOARD_TOUR_STEPS[4].fr).toContain("Recommandation");
     expect(MOBILE_DASHBOARD_TOUR_STEPS.some((step) => /performance visuel|creative performance|bulle|bubble/i.test(`${step.fr} ${step.en} ${step.body} ${step.english}`))).toBe(false);
   });
@@ -82,7 +87,9 @@ describe("responsive Vendeo dashboard guide", () => {
       expect(step.activeSection).toBe(step.menuTarget);
     }
     const dashboard = readFileSync(`${process.cwd()}/components/Dashboard.tsx`, "utf8");
+    const welcome = readFileSync(`${process.cwd()}/components/dashboard/FirstStoreWelcome.tsx`, "utf8");
     expect(dashboard).toContain("setMoreOpen(Boolean(step.openMobileMenu))");
+    expect(welcome).toContain("current.targetSelector");
     expect(dashboard).toContain("if (step.settingsFocus) {");
     expect(dashboard).toContain("setSettingsFocus(step.settingsFocus);");
     expect(dashboard).toContain("setSettingsNavigationVersion((version) => version + 1);");
@@ -141,6 +148,8 @@ describe("responsive Vendeo dashboard guide", () => {
     expect(title()).toContain("Studio");
     await nextStep();
     expect(title()).toContain("Assistant");
+    expect(host?.querySelector(".vendeo-tour-assistant-icon svg")).toBeTruthy();
+    expect(host?.querySelector("#vendeo-welcome-title")?.classList.contains("vendeo-tour-assistant-title")).toBe(true);
     await nextStep();
     expect(title()).toContain("Recommandation");
     await nextStep();

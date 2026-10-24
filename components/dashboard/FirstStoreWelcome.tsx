@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, ArrowRight, Check, PartyPopper, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Brain, Check, PartyPopper, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { SubscriptionData } from "./shared";
 import {
@@ -80,7 +80,9 @@ export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss, onT
     if (stage !== "tour") { setRect(null); setPosition(null); return; }
     function measure() {
       const candidates = Array.from(document.querySelectorAll<HTMLElement>("[data-onboarding]"));
-      const target = candidates.find((node) => {
+      const target = current.targetSelector
+        ? document.querySelector<HTMLElement>(current.targetSelector)
+        : candidates.find((node) => {
         if (node.dataset.onboarding !== current.target) return false;
         const box = node.getBoundingClientRect();
         return box.width > 0 && box.height > 0;
@@ -131,7 +133,7 @@ export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss, onT
       window.removeEventListener("scroll", measure, true);
       observer?.disconnect();
     };
-  }, [current.target, current.menuTarget, isMobile, stage]);
+  }, [current.target, current.targetSelector, current.menuTarget, isMobile, stage]);
 
   const trialEnd = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null;
   const validEnd = trialEnd && Number.isFinite(trialEnd.getTime()) ? trialEnd : null;
@@ -144,11 +146,12 @@ export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss, onT
   }
   const welcomeDescription = en
     ? isMobile
-      ? "Your first store is connected. We’ll follow the five mobile tabs in order; the Assistant stays in its separate floating bubble."
+      ? "Your first store is connected. We’ll follow the five mobile tabs in order; open the Assistant from the bottom dock."
       : "Your first store is connected. Let’s follow the desktop sidebar and top navigation together."
     : isMobile
-      ? "Ta première boutique est connectée. Le parcours suit les cinq onglets mobiles dans l’ordre; l’assistant reste dans sa bulle flottante à part."
+      ? "Ta première boutique est connectée. Le parcours suit les cinq onglets mobiles dans l’ordre; l’Assistant est accessible depuis le dock du bas."
       : "Ta première boutique est connectée. Découvrons ensemble la navigation latérale et les outils en haut de l’écran.";
+  const showAssistantGuideIcon = isMobile && stage === "tour" && current.id === "assistant";
 
   return <div className={`vendeo-welcome-layer ${stage === "tour" ? "vendeo-tour-layer" : ""} ${isMobile ? "vendeo-tour-mobile" : "vendeo-tour-desktop"} ${stage === "tour" && current.menuTarget ? "vendeo-tour-menu-step" : ""}`}>
     <div className={`vendeo-welcome-shade ${rect ? "has-spotlight" : ""}`} />
@@ -179,7 +182,10 @@ export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss, onT
       </> : <>
         <div className="vendeo-tour-progress" aria-label={en ? `Step ${safeStep + 1} of ${tourSteps.length}` : `Étape ${safeStep + 1} sur ${tourSteps.length}`}><span>{en ? "YOUR WORKSPACE" : "TON ESPACE"}</span><strong>{safeStep + 1} / {tourSteps.length}</strong></div>
         <div className="vendeo-tour-track" aria-hidden="true"><span style={{ width: `${(safeStep + 1) / tourSteps.length * 100}%` }} /></div>
-        <h2 id="vendeo-welcome-title">{en ? current.en : current.fr}</h2>
+        <h2 id="vendeo-welcome-title" className={showAssistantGuideIcon ? "vendeo-tour-assistant-title" : undefined}>
+          {showAssistantGuideIcon && <span className="vendeo-tour-assistant-icon" aria-hidden="true"><Brain size={22} strokeWidth={2} /></span>}
+          <span>{en ? current.en : current.fr}</span>
+        </h2>
         <p id="vendeo-welcome-description">{en ? current.english : current.body}</p>
         <div className="vendeo-tour-actions"><button type="button" className="vendeo-tour-back" disabled={safeStep === 0} onClick={() => goToStep(safeStep - 1)}><ArrowLeft size={16} />{en ? "Back" : "Précédent"}</button>
           <button type="button" className="btn btn-dark" onClick={() => safeStep === tourSteps.length - 1 ? onDismiss() : goToStep(safeStep + 1)}>{safeStep === tourSteps.length - 1 ? (en ? "Let’s go!" : "C’est parti !") : (en ? "Next" : "Suivant")}<ArrowRight size={16} /></button></div>

@@ -64,6 +64,21 @@
     font-weight: 700;
   }
 
+  .dashboard-platform .mobile-nav .nav-btn.nav-btn-guide-highlight {
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 0 0 6px rgba(76, 33, 246, 0.2), 0 8px 22px rgba(60, 38, 170, 0.26);
+    color: #4c21f6;
+    font-weight: 700;
+    outline: 3px solid #6b45e8;
+    outline-offset: 1px;
+    z-index: 3;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn.nav-btn-guide-highlight svg {
+    color: #4c21f6;
+    stroke-width: 2.5;
+  }
+
   .dashboard-platform .mobile-nav .nav-btn-has-notification::after {
     background: #e11d48;
     border: 2px solid rgba(255, 255, 255, 0.96);

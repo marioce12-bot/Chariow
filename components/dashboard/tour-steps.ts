@@ -1,6 +1,7 @@
 export type DashboardTourStep = {
   id: string;
   target: string;
+  targetSelector?: string;
   fr: string;
   en: string;
   body: string;
@@ -42,6 +43,7 @@ export const MOBILE_DASHBOARD_TOUR_STEPS: readonly DashboardTourStep[] = [
   {
     id: "assistant",
     target: "Vendeo AI",
+    targetSelector: '.mobile-nav [data-onboarding="Vendeo AI"]',
     activeSection: "Vendeo AI",
     fr: "Assistant : pose tes questions",
     en: "Assistant: ask your questions",

@@ -123,6 +123,7 @@ function DashboardWorkspace() {
   useUsageTracking(active);
   const [moreOpen, setMoreOpen] = useState(false);
   const [guideMenuTarget, setGuideMenuTarget] = useState<string | null>(null);
+  const [guideAssistantHighlight, setGuideAssistantHighlight] = useState(false);
   useEffect(() => {
     if (!moreOpen) return;
     if (document.querySelector(".vendeo-tour-layer")) return;
@@ -414,8 +415,10 @@ function DashboardWorkspace() {
     if (!step) {
       setMoreOpen(false);
       setGuideMenuTarget(null);
+      setGuideAssistantHighlight(false);
       return;
     }
+    setGuideAssistantHighlight(step.id === "assistant");
     if (step.activeSection) setActive(step.activeSection);
     if (step.settingsFocus) {
       setSettingsFocus(step.settingsFocus);
@@ -548,7 +551,7 @@ function DashboardWorkspace() {
               <Palette size={26} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Studio" : "Studio"}</span>
             </button>
-            <button type="button" data-onboarding="Vendeo AI" aria-label={locale === "en" ? "Assistant" : "Assistant"} title={locale === "en" ? "Assistant" : "Assistant"} aria-current={active === "Vendeo AI" ? "page" : undefined} className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
+            <button type="button" data-onboarding="Vendeo AI" aria-label={locale === "en" ? "Assistant" : "Assistant"} title={locale === "en" ? "Assistant" : "Assistant"} aria-current={active === "Vendeo AI" ? "page" : undefined} className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}${guideAssistantHighlight ? " nav-btn-guide-highlight" : ""}`} onClick={() => setActive("Vendeo AI")}>
               <Brain size={24} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Assistant" : "Assistant"}</span>
             </button>

@@ -20,6 +20,16 @@ describe("mobile Assistant dock destination", () => {
     expect(mobileCss).not.toContain("linear-gradient(140deg, #398dff");
   });
 
+  it("highlights the actual dock button only while the Assistant guide step is active", () => {
+    const button = [...navMarkup.matchAll(/<button\b[\s\S]*?<\/button>/g)]
+      .map(([markup]) => markup)
+      .find((markup) => markup.includes('data-onboarding="Vendeo AI"'));
+    expect(button).toContain('guideAssistantHighlight ? " nav-btn-guide-highlight" : ""');
+    expect(dashboard).toContain('setGuideAssistantHighlight(step.id === "assistant")');
+    expect(mobileCss).toContain(".dashboard-platform .mobile-nav .nav-btn.nav-btn-guide-highlight");
+    expect(mobileCss).toContain("outline: 3px solid #6b45e8;");
+  });
+
   it("keeps normal dock destination colors and a raised Studio icon", () => {
     expect(mobileCss).toMatch(/\.dashboard-platform \.mobile-nav \.nav-btn\s*\{[\s\S]*?color:\s*#08090c;/);
     expect(mobileCss).toMatch(/\.dashboard-platform \.mobile-nav \.nav-btn\.active\s*\{[\s\S]*?color:\s*#103ef8;/);

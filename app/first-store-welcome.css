@@ -11,6 +11,9 @@
 .vendeo-welcome-card h2 { margin:12px 0; font-size:28px; line-height:1.16; letter-spacing:-.035em; }
 .vendeo-welcome-card p { margin:0; color:var(--muted,#667085); font-size:14px; line-height:1.7; }
 .vendeo-welcome-trial { margin:20px 0; padding:16px; border:1px solid #dcd4ff; border-radius:14px; background:rgba(115,80,246,.06); }
+.vendeo-welcome-card h2.vendeo-tour-assistant-title { display:flex; align-items:flex-start; gap:10px; }
+.vendeo-tour-assistant-title > span:last-child { flex:1; }
+.vendeo-tour-assistant-icon { display:inline-flex; flex:0 0 34px; align-items:center; justify-content:center; width:34px; height:34px; margin-top:1px; border-radius:11px; background:linear-gradient(135deg,#ede9fe,#e0f2fe); color:#4c21f6; }
 .vendeo-welcome-trial strong { font-size:16px; color:#6b48e8; }
 .vendeo-welcome-trial p { margin:6px 0; font-size:13px; }
 .vendeo-welcome-trial small { display:block; color:var(--muted,#667085); font-size:11px; line-height:1.6; margin-top:6px; }
