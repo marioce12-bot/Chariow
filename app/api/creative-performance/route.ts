@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { loadCreativePerformance, parseCreativePeriod } from "@/lib/creative-performance/service";
+import { buildVisualRecommendationCandidates, findVisualIdeaSourceCampaigns } from "@/lib/creative-performance/idea-candidates";
 
 export async function GET(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -15,7 +16,22 @@ export async function GET(request: Request) {
     const period = parseCreativePeriod(params);
     const readOnly = process.env.VERCEL_ENV === "preview" || params.get("read_only") === "1";
     const data = await loadCreativePerformance({ supabase, userId: user.id, storeId, period, persistSnapshots: !readOnly });
-    return NextResponse.json(data, { headers: { "Cache-Control": "private, no-store" } });
+    const sourceCampaigns = findVisualIdeaSourceCampaigns(data);
+    const sourceCampaignIds = [...new Set(sourceCampaigns.map(({ campaign }) => campaign.campaignId))];
+    let usableSnapshotCampaignIds = new Set<string>();
+    if (sourceCampaignIds.length) {
+      const { data: snapshots, error: snapshotError } = await supabase.from("creative_campaign_metric_snapshots")
+        .select("campaign_key,metric_scope")
+        .eq("user_id", user.id).eq("store_id", storeId)
+        .eq("period_from", data.period.from).eq("period_to", data.period.to)
+        .in("campaign_key", sourceCampaignIds);
+      if (snapshotError) throw snapshotError;
+      usableSnapshotCampaignIds = new Set((snapshots ?? [])
+        .filter((snapshot: { metric_scope: string | null }) => snapshot.metric_scope !== "unavailable")
+        .map((snapshot: { campaign_key: string }) => snapshot.campaign_key));
+    }
+    const visualRecommendations = buildVisualRecommendationCandidates(data, usableSnapshotCampaignIds);
+    return NextResponse.json({ ...data, visualRecommendations }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Performance visuel est temporairement indisponible.";
     const migrationMissing = /creative_media_(assets|placements|asset_urls)|creative_campaign_metric_snapshots/i.test(message);

@@ -24,6 +24,13 @@ describe("mobile dashboard navigation", () => {
     expect(buttons[2]).toContain('locale === "en" ? "Studio" : "Studio"');
     expect(buttons[3]).toContain('locale === "en" ? "Visuals" : "Visuels"');
     expect(buttons[4]).toContain('locale === "en" ? "Campaigns" : "Campagnes"');
+    expect(buttons[3]).toContain("hasNewVisualRecommendation");
+    expect(buttons[3]).toContain("nav-btn-has-notification");
+    expect(buttons[4]).toContain("hasNewCampaignRecommendation");
+    expect(buttons[4]).toContain("nav-btn-has-notification");
+    expect(buttons[0]).not.toContain("nav-btn-has-notification");
+    expect(buttons[1]).not.toContain("nav-btn-has-notification");
+    expect(buttons[2]).not.toContain("nav-btn-has-notification");
     expect(navMarkup).toContain('aria-label={w("mobileNav")}');
     expect(navMarkup.match(/type="button"/g)).toHaveLength(5);
     expect(navMarkup).toContain("mobile-nav-visible");
@@ -52,18 +59,22 @@ describe("mobile dashboard navigation", () => {
     expect(css).toContain("inset 0 1px 0 rgba(255, 255, 255, 0.98)");
     expect(css).toContain(".dashboard-platform .mobile-nav .nav-btn-studio svg");
     expect(css).toContain("linear-gradient(140deg, #398dff 0%, #5d55ee");
-    expect(css).toContain("top: -24px");
+    expect(css).toContain("top: -18px");
     expect(css).toContain("transform: translateX(-50%)");
     expect(css).toContain(".dashboard-platform .mobile-assistant-bubble");
   });
 
-  it("matches a consistent 24px icon size and weight across all five destinations", () => {
-    expect(navMarkup.match(/<(Grid2X2|Megaphone|Palette|ImageIcon|BarChart3) size=\{24\} strokeWidth=\{2\}/g)).toHaveLength(5);
+  it("keeps standard icons at 24px and enlarges the Studio palette slightly", () => {
+    expect(navMarkup.match(/<(Grid2X2|Megaphone|ImageIcon|BarChart3) size=\{24\} strokeWidth=\{2\}/g)).toHaveLength(4);
+    expect(navMarkup).toContain('<Palette size={26} strokeWidth={2}');
     expect(assistantMarkup).toContain("<Brain size={24} strokeWidth={2}");
     const iconsRule = css.match(/\.dashboard-platform \.mobile-nav \.nav-btn svg \{([^}]*)\}/)?.[1] ?? "";
     expect(iconsRule).toContain("height: 24px;");
     expect(iconsRule).toContain("width: 24px;");
     expect(iconsRule).toContain("stroke-width: 2;");
+    const studioIconRule = css.match(/\.dashboard-platform \.mobile-nav \.nav-btn-studio svg \{([^}]*)\}/)?.[1] ?? "";
+    expect(studioIconRule).toContain("height: 26px;");
+    expect(studioIconRule).toContain("width: 26px;");
     expect(css).not.toContain("nav-btn:nth-child(4) svg");
   });
 

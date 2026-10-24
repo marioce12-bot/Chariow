@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ uploadCampaignMedia: vi.fn() }));
@@ -86,6 +87,13 @@ afterEach(() => {
 });
 
 describe("CampaignPerformanceTab recommendation flow", () => {
+  it("shows a campaign skeleton while measured data is loading", () => {
+    const html = renderToStaticMarkup(<CampaignPerformanceTab storeId="store-1" periodDays="30" data={null} loading={true} products={[]} readOnly onApplyCampaign={onApplyCampaign} />);
+    expect(html).toContain('class="performance-loading-skeleton performance-skeleton-campaign"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).not.toContain("Aucune proposition pour le moment");
+  });
+
   it("auto-selects the only eligible product and acts only after an explicit apply", async () => {
     await act(async () => {
       root.render(<CampaignPerformanceTab storeId="store-1" periodDays="30" data={performanceData as any} loading={false} products={[otherProduct, product]} readOnly={false} onApplyCampaign={onApplyCampaign} />);
@@ -152,7 +160,9 @@ describe("CampaignPerformanceTab recommendation flow", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(container.textContent).toContain("Aucune recommandation fiable pour le moment.");
+    expect(container.textContent).toContain("Aucune proposition pour le moment");
+    expect(container.textContent).toContain("Vendeo vous informera dès qu’une nouvelle proposition sera disponible.");
+    expect(container.querySelector(".performance-empty-state")).not.toBeNull();
     expect(container.textContent).not.toContain("RECOMMANDATION FONDÉE SUR DES DONNÉES MESURÉES");
     expect(container.textContent).not.toContain("Pas encore de proposition pour ce produit");
     expect(container.querySelector(".ad-inline-product-select")).toBeNull();

@@ -35,7 +35,7 @@ describe("PerformanceVisuelView visual comparison", () => {
           productName: null, launched: true, analyzed: true, metrics: { currency: "USD", spend: 44, clicks: 40, impressions: 500,
             attributedOrders: null, attributedRevenue: null, attributedCurrency: null } },
       ],
-      productEligibility: [], duplicateCandidates: [], notices: { tikTok: null, pinterest: null },
+      productEligibility: [], visualRecommendations: [], duplicateCandidates: [], notices: { tikTok: null, pinterest: null },
     };
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
@@ -78,6 +78,7 @@ describe("PerformanceVisuelView visual comparison", () => {
         productName: "Product", launched: true, analyzed: true, metrics: { currency: "USD", spend: 10, clicks: 20, impressions: 100,
           attributedOrders: null, attributedRevenue: null, attributedCurrency: null } }],
       productEligibility: [{ productId: "product-1", productName: "Product", launchedCampaigns: 1, analyzedCampaigns: 1, eligible: true }],
+      visualRecommendations: [],
       duplicateCandidates: [], notices: { tikTok: null, pinterest: null },
     };
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -97,6 +98,35 @@ describe("PerformanceVisuelView visual comparison", () => {
     expect(container.textContent).toContain("Aucune création mesurée pour cette période.");
     expect(container.textContent).not.toContain("correspond aux filtres");
     expect(container.textContent).not.toContain("Change le filtre");
+    expect(container.querySelector(".performance-empty-state")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("shows the animated no-data notice only after a successful empty response", async () => {
+    const body = {
+      period: { from: "2026-09-25", to: "2026-10-24" },
+      metrics: { mediaCount: 0, campaigns: 0, launchedCampaigns: 0, unavailableCampaignMetrics: 0, totals: [] },
+      media: [], campaigns: [], productEligibility: [], visualRecommendations: [], duplicateCandidates: [],
+      notices: { tikTok: null, pinterest: null },
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/creative-performance?")) return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
+      throw new Error(`Unexpected request ${String(input)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<PerformanceVisuelView storeId="store-1" />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelector(".performance-empty-state")).not.toBeNull();
+    expect(container.textContent).toContain("Aucune donnée pour le moment");
+    expect(container.textContent).toContain("Vendeo vous informera dès que de nouveaux résultats mesurés seront disponibles.");
+    expect(container.textContent).not.toContain("Aucune création ne correspond aux filtres");
     await act(async () => root.unmount());
   });
 
@@ -108,6 +138,7 @@ describe("PerformanceVisuelView visual comparison", () => {
         { productId: "product-1", productName: "Savon local", launchedCampaigns: 1, analyzedCampaigns: 1, eligible: true },
         { productId: "product-2", productName: "Produit non éligible", launchedCampaigns: 0, analyzedCampaigns: 0, eligible: false },
       ],
+      visualRecommendations: [{ productId: "product-1", productName: "Savon local", campaignId: "campaign-real", platform: "meta", signature: "visual:campaign-real:2026-10" }],
     };
     const ideas = [
       { id: "idea-1", title: "Angle mesuré", format: "image", rationale: "Mesures historiques disponibles.", prompt: "Créer un visuel A." },

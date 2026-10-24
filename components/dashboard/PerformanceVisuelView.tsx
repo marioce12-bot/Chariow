@@ -15,6 +15,8 @@ import {
   Video,
 } from "lucide-react";
 import { type CreativePerformanceStudioPrefill } from "@/lib/creative-performance/client";
+import type { VisualRecommendationCandidate } from "@/lib/creative-performance/idea-candidates";
+import { PerformanceEmptyState, PerformanceLoadingSkeleton } from "./PerformanceLoadingStates";
 import "./performance-visuel.css";
 
 type CreativeMetric = {
@@ -48,6 +50,7 @@ export type PerformanceData = {
       costPerOrder: number | null; attributedRevenue: number | null; campaigns: number; complete: boolean }> };
   media: Media[]; campaigns: Campaign[];
   productEligibility: Array<{ productId: string; productName: string; launchedCampaigns: number; analyzedCampaigns: number; eligible: boolean }>;
+  visualRecommendations?: VisualRecommendationCandidate[];
   duplicateCandidates: Array<{ firstId: string; secondId: string; kind: string; distance: number }>;
   notices: { carousel?: string; tikTok?: string | null; pinterest?: string | null; variant?: string };
 };
@@ -107,14 +110,15 @@ function escapeCsv(value: string | number | null) {
   const text = String(value ?? "—");
   return `"${text.replaceAll('"', '""')}"`;
 }
-export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false, onOpenStudio }: {
+export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false, onOpenStudio, onRecommendationChange }: {
   storeId: string | null; locale?: string; readOnly?: boolean;
   onOpenStudio?: (prefill: CreativePerformanceStudioPrefill) => void;
+  onRecommendationChange?: (storeId: string, signature: string | null) => void;
 }) {
   const en = locale === "en";
   const [period, setPeriod] = useState("30");
   const [data, setData] = useState<PerformanceData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(storeId));
   const [error, setError] = useState("");
   const [resultFilter, setResultFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
@@ -142,7 +146,10 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
   const platforms = [...new Set((data?.media ?? []).flatMap((item) => (item.campaigns ?? []).map((placement) => placement.platform)))];
   const visibleRows = liveRows.filter((row) => (resultFilter === "all" || row.winner) && (platformFilter === "all" || row.platforms.includes(platformFilter)));
   const eligibleProducts = (data?.productEligibility ?? []).filter((product) => product.eligible);
-  const firstEligibleProduct = eligibleProducts[0];
+  const visualCandidate = data?.visualRecommendations?.[0] ?? null;
+  const firstEligibleProduct = visualCandidate
+    ? eligibleProducts.find((product) => product.productId === visualCandidate.productId) ?? null
+    : null;
   const totals = data?.metrics?.totals ?? [];
   const totalSpend = formatTotals(totals, "spend", locale);
   const totalClicks = totals.length ? number(totals.reduce((sum, row) => sum + row.clicks, 0), locale) : "—";
@@ -153,6 +160,10 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
   const liveWinner = (data?.media ?? []).filter((item) => item.winner).sort((a, b) => (b.attributedRevenue ?? 0) - (a.attributedRevenue ?? 0))[0];
   const liveWarning = (data?.media ?? []).filter((item) => item.clicks !== null && item.clicks > 0 && item.attributedOrders !== null)
     .sort((a, b) => (a.attributedOrders! / Math.max(a.clicks!, 1)) - (b.attributedOrders! / Math.max(b.clicks!, 1)))[0];
+  useEffect(() => {
+    if (!storeId || loading || error) return;
+    onRecommendationChange?.(storeId, visualCandidate?.signature ?? null);
+  }, [storeId, loading, error, visualCandidate?.signature, onRecommendationChange]);
   async function proposeIdeas(product: PerformanceData["productEligibility"][number]) {
     if (!storeId || !onOpenStudio || readOnly || suggestionBusy) return;
     const key = product.productId; setSuggestionBusy(key); setSuggestionMessages((current) => ({ ...current, [key]: "" }));
@@ -194,10 +205,10 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
       {error ? <div className="creative-error" role="alert">{error}</div> : null}
       {data?.notices.tikTok ? <p className="creative-notice" role="status">{data.notices.tikTok}</p> : null}
       {data?.notices.pinterest ? <p className="creative-notice" role="status">{data.notices.pinterest}</p> : null}
-      {loading ? <div className="creative-state" role="status">{en ? "Loading creative results…" : "Chargement des résultats des créations…"}</div>
+      {loading ? <PerformanceLoadingSkeleton variant="visuals" locale={locale} />
         : error ? <div className="creative-state">{en ? "Try refreshing the results later." : "Réessaie d’actualiser les résultats plus tard."}</div>
           : !storeId ? <div className="creative-state">{en ? "Choose a connected store to view its creatives." : "Choisis une boutique connectée pour consulter ses créations."}</div>
-            : !data?.media.length && (data?.metrics?.launchedCampaigns ?? 0) === 0 && !eligibleProducts.length ? <div className="creative-state">{en ? "No measured creatives are available yet." : "Aucune création mesurée n’est disponible pour le moment."}</div>
+            : !data?.media.length && (data?.metrics?.launchedCampaigns ?? 0) === 0 && !eligibleProducts.length ? <PerformanceEmptyState variant="visuals" locale={locale} />
               : <>
                 <section className="creative-kpi-grid" aria-label={en ? "Creative performance summary" : "Résumé des performances créatives"}>
                   <article className="creative-kpi-card"><span className="creative-kpi-icon"><CircleDollarSign size={20} /></span><div><small>{en ? "Ad spend" : "Dépenses publicitaires"}</small><strong>{totalSpend}</strong><span>{en ? "for the period" : "sur la période"}</span></div></article>

@@ -6,7 +6,7 @@ import { BarChart3, CreditCard, Settings, Store, MessageSquare, Grid2X2, Lightbu
 
 
 import { ChatView } from "@/components/ChatView";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useSearchParams } from "next/navigation";
 import { disablePushSubscription } from "@/lib/push/browser";
@@ -39,6 +39,7 @@ import { SESSION_STORAGE_PROMPT_KEY, MetricHelp, ChannelBadge, type StoreData, t
 import { StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
 import { PerformanceVisuelView } from "./dashboard/PerformanceVisuelView";
 import { AdPerformanceView } from "./dashboard/AdPerformanceView";
+import { usePerformanceRecommendationBadges } from "./dashboard/usePerformanceRecommendationBadges";
 import { OverviewHome } from "./dashboard/OverviewHome";
 import { DashboardSkeleton } from "./dashboard/Skeleton";
 import ProductProfitPanel from "./dashboard/ProductProfitPanel";
@@ -235,6 +236,17 @@ function DashboardWorkspace() {
   const [notificationUserId, setNotificationUserId] = useState<string | null>(null);
 
   const userFirstName = userName ? (userName.trim().split(/\s+/)[0] || "créateur") : null;
+  const {
+    hasNewVisualRecommendation,
+    hasNewCampaignRecommendation,
+    reportRecommendation,
+  } = usePerformanceRecommendationBadges({ userId: notificationUserId, storeId: activeStoreId, activeSection: active });
+  const reportVisualRecommendation = useCallback((storeId: string, signature: string | null) => {
+    reportRecommendation("visual", storeId, signature);
+  }, [reportRecommendation]);
+  const reportCampaignRecommendation = useCallback((storeId: string, signature: string | null) => {
+    reportRecommendation("campaign", storeId, signature);
+  }, [reportRecommendation]);
   // Plus de quota de messages IA : l'accès est illimité tant que l'essai de
   // 5 jours ou l'abonnement Vendeo est actif.
   const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
@@ -447,9 +459,9 @@ function DashboardWorkspace() {
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Performance visuel" ? (
-            <PerformanceVisuelView storeId={activeStoreId} locale={locale} onOpenStudio={openStudioWithPerformanceIdeas} />
+            <PerformanceVisuelView key={activeStoreId ?? "no-store"} storeId={activeStoreId} locale={locale} onOpenStudio={openStudioWithPerformanceIdeas} onRecommendationChange={reportVisualRecommendation} />
           ) : active === "Performance publicitaire" ? (
-            <AdPerformanceView storeId={activeStoreId} onApplyCampaign={applyRecommendedCampaign} products={analytics?.products ?? []} locale={locale} />
+            <AdPerformanceView key={activeStoreId ?? "no-store"} storeId={activeStoreId} onApplyCampaign={applyRecommendedCampaign} onRecommendationChange={reportCampaignRecommendation} products={analytics?.products ?? []} locale={locale} />
           ) : active === "Pub" ? (
              <AdsView key={activeStoreId} plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
@@ -517,14 +529,14 @@ function DashboardWorkspace() {
               <span>{locale === "en" ? "Ads" : "Pub"}</span>
             </button>
             <button type="button" data-onboarding="Studio" aria-current={active === "Studio" ? "page" : undefined} className={`nav-btn nav-btn-studio ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
-              <Palette size={24} strokeWidth={2} aria-hidden="true" />
+              <Palette size={26} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Studio" : "Studio"}</span>
             </button>
-            <button type="button" data-onboarding="Performance visuel" aria-current={active === "Performance visuel" ? "page" : undefined} className={`nav-btn ${active === "Performance visuel" ? "active" : ""}`} onClick={() => setActive("Performance visuel")}>
+            <button type="button" data-onboarding="Performance visuel" aria-label={hasNewVisualRecommendation ? (locale === "en" ? "Visuals, new recommendation" : "Visuels, nouvelle proposition") : undefined} aria-current={active === "Performance visuel" ? "page" : undefined} className={`nav-btn ${active === "Performance visuel" ? "active" : ""}${hasNewVisualRecommendation ? " nav-btn-has-notification" : ""}`} onClick={() => setActive("Performance visuel")}>
               <ImageIcon size={24} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Visuals" : "Visuels"}</span>
             </button>
-            <button type="button" data-onboarding="Performance publicitaire" aria-current={active === "Performance publicitaire" ? "page" : undefined} className={`nav-btn ${active === "Performance publicitaire" ? "active" : ""}`} onClick={() => setActive("Performance publicitaire")}>
+            <button type="button" data-onboarding="Performance publicitaire" aria-label={hasNewCampaignRecommendation ? (locale === "en" ? "Campaigns, new recommendation" : "Campagnes, nouvelle proposition") : undefined} aria-current={active === "Performance publicitaire" ? "page" : undefined} className={`nav-btn ${active === "Performance publicitaire" ? "active" : ""}${hasNewCampaignRecommendation ? " nav-btn-has-notification" : ""}`} onClick={() => setActive("Performance publicitaire")}>
               <BarChart3 size={24} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Campaigns" : "Campagnes"}</span>
             </button>

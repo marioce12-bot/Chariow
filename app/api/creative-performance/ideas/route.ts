@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { loadCreativePerformance, parseCreativePeriod } from "@/lib/creative-performance/service";
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
+import { selectVisualIdeaCampaign } from "@/lib/creative-performance/idea-candidates";
 
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -44,24 +45,14 @@ export async function POST(request: Request) {
         launchedCampaigns: eligibility.launchedCampaigns, analyzedCampaigns: eligibility.analyzedCampaigns, ideas: [],
       }, { headers: { "Cache-Control": "private, no-store" } });
     }
-    const analyzed = performance.campaigns.filter((campaign) =>
-      campaign.productId === body.productId && campaign.launched && campaign.analyzed && campaign.metrics &&
-      (!linkedCampaignIds || linkedCampaignIds.has(campaign.campaignId)),
-    );
-    if (!analyzed.length) {
+    const sourceCampaign = selectVisualIdeaCampaign(performance.campaigns, body.productId, linkedCampaignIds);
+    if (!sourceCampaign) {
       return NextResponse.json({
         eligible: false, reason: "need_more_data",
-        message: "Les résultats de ce média ne peuvent pas encore être distingués au niveau mesuré; aucune idée Studio n’a été générée.",
+        message: "Aucune idée fiable n’est disponible pour ce produit à partir des résultats mesurés.",
         launchedCampaigns: eligibility.launchedCampaigns, analyzedCampaigns: eligibility.analyzedCampaigns, ideas: [],
       }, { headers: { "Cache-Control": "private, no-store" } });
     }
-    analyzed.sort((left, right) => {
-      const leftOrders = left.metrics?.attributedOrders ?? -1;
-      const rightOrders = right.metrics?.attributedOrders ?? -1;
-      if (leftOrders !== rightOrders) return rightOrders - leftOrders;
-      return (right.metrics?.clicks ?? 0) - (left.metrics?.clicks ?? 0);
-    });
-    const sourceCampaign = analyzed[0];
     const metrics = sourceCampaign.metrics!;
     const { data: sourceSnapshot, error: sourceSnapshotError } = await supabase.from("creative_campaign_metric_snapshots")
       .select("metric_scope,spend,clicks,impressions,attributed_orders,attributed_revenue,attributed_currency,currency")
@@ -86,7 +77,7 @@ export async function POST(request: Request) {
       imageUrl: media?.kind === "image" ? media.url : null,
       campaignName, platform: sourceCampaign.platform, period,
       evidence: {
-        scope: metrics.scope, currency: metrics.currency, spend: metrics.spend,
+        scope: sourceSnapshot.metric_scope, currency: metrics.currency, spend: metrics.spend,
         clicks: metrics.clicks, impressions: metrics.impressions,
         attributedOrders: metrics.attributedOrders, attributedRevenue: metrics.attributedRevenue,
         attributedCurrency: metrics.attributedCurrency,

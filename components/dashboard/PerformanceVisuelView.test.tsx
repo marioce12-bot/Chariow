@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { PerformanceVisuelView } from "./PerformanceVisuelView";
 
 describe("PerformanceVisuelView", () => {
+  it("shows a skeleton for a connected store while measured results are loading", () => {
+    const html = renderToStaticMarkup(<PerformanceVisuelView storeId="store-1" />);
+    expect(html).toContain('class="performance-loading-skeleton performance-skeleton-visuals"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).not.toContain("Aucune donnée pour le moment");
+  });
+
   it("is a separate visual comparison screen with an honest empty state", () => {
     const html = renderToStaticMarkup(<PerformanceVisuelView storeId={null} />);
 

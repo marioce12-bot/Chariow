@@ -5,6 +5,7 @@ import type { EditableCampaign } from "../vendeo/wizard/types";
 import type { ProductData } from "./shared";
 import { CampaignPerformanceTab } from "./CampaignPerformanceTab";
 import type { PerformanceData } from "./PerformanceVisuelView";
+import { PerformanceEmptyState, PerformanceLoadingSkeleton } from "./PerformanceLoadingStates";
 import "./performance-visuel.css";
 
 const PERIOD_DAYS = "30";
@@ -13,18 +14,20 @@ export function AdPerformanceView({
   storeId,
   products,
   onApplyCampaign,
+  onRecommendationChange,
   readOnly = false,
   locale = "fr",
 }: {
   storeId: string | null;
   products: ProductData[];
   onApplyCampaign: (campaign: EditableCampaign) => void;
+  onRecommendationChange?: (storeId: string, signature: string | null) => void;
   readOnly?: boolean;
   locale?: string;
 }) {
   const en = locale === "en";
   const [data, setData] = useState<PerformanceData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(storeId));
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -69,7 +72,7 @@ export function AdPerformanceView({
       </header>
 
       {!storeId ? <div className="creative-state">{en ? "Connect a store to prepare a campaign." : "Connecte une boutique pour préparer une campagne."}</div>
-        : loading ? <div className="creative-state" role="status">{en ? "Preparing a recommendation…" : "Préparation de la proposition…"}</div>
+        : loading ? <PerformanceLoadingSkeleton variant="campaigns" locale={locale} />
           : error ? <div className="creative-error" role="alert">{error}</div>
             : data ? <CampaignPerformanceTab
               storeId={storeId}
@@ -79,9 +82,10 @@ export function AdPerformanceView({
               products={products}
               readOnly={readOnly}
               onApplyCampaign={onApplyCampaign}
+              onRecommendationChange={onRecommendationChange}
               locale={locale}
             />
-              : <div className="creative-state">{en ? "No recommendation is available yet." : "Aucune proposition n’est disponible pour le moment."}</div>}
+              : <PerformanceEmptyState variant="campaigns" locale={locale} />}
     </div>
   );
 }

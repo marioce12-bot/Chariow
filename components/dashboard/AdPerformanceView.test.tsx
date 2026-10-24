@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { AdPerformanceView } from "./AdPerformanceView";
 
 describe("AdPerformanceView", () => {
+  it("renders a skeleton for a connected store before the first read completes", () => {
+    const html = renderToStaticMarkup(<AdPerformanceView storeId="store-1" products={[]} onApplyCampaign={() => {}} />);
+    expect(html).toContain('class="performance-loading-skeleton performance-skeleton-campaign"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).not.toContain("Aucune proposition pour le moment");
+  });
+
   it("keeps the campaign entry point concise without exposing campaign or visitor tables", () => {
     const html = renderToStaticMarkup(<AdPerformanceView storeId={null} products={[]} onApplyCampaign={() => {}} />);
 

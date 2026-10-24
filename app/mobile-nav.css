@@ -59,6 +59,20 @@
     font-weight: 700;
   }
 
+  .dashboard-platform .mobile-nav .nav-btn-has-notification::after {
+    background: #e11d48;
+    border: 2px solid rgba(255, 255, 255, 0.96);
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(30, 41, 59, 0.18);
+    content: "";
+    height: 8px;
+    position: absolute;
+    right: calc(50% - 19px);
+    top: 7px;
+    width: 8px;
+    z-index: 4;
+  }
+
   .dashboard-platform .mobile-nav .nav-btn:focus-visible,
   .dashboard-platform .mobile-assistant-bubble:focus-visible {
     outline: 3px solid #6e91ff;
@@ -79,13 +93,13 @@
     box-shadow: 0 7px 18px rgba(40, 73, 166, 0.20), 0 0 0 4px rgba(255, 255, 255, 0.50), inset 0 1px 0 rgba(255, 255, 255, 1);
     box-sizing: content-box;
     color: #08090c;
-    height: 24px;
+    height: 26px;
     left: 50%;
-    padding: 12px;
+    padding: 13px;
     position: absolute;
-    top: -24px;
+    top: -18px;
     transform: translateX(-50%);
-    width: 24px;
+    width: 26px;
     z-index: 2;
   }
 

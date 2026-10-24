@@ -6,10 +6,10 @@ import { imageCreditCost } from "@/lib/studio/credits";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import type { ProductData } from "./shared";
 import type { EditableCampaign } from "../vendeo/wizard/types";
-import type { Campaign, PerformanceData } from "./PerformanceVisuelView";
+import type { PerformanceData } from "./PerformanceVisuelView";
+import { buildCampaignRecommendations, campaignRecommendationFingerprint, selectStrongestCampaignRecommendation, type CampaignRecord } from "./campaign-recommendations";
+import { PerformanceEmptyState, PerformanceLoadingSkeleton } from "./PerformanceLoadingStates";
 
-type CampaignRecord = EditableCampaign & { status?: string | null; external_campaign_id?: string | null };
-type Recommendation = { campaign: Campaign; config: CampaignRecord };
 type PendingImage = { productId: string; campaignId: string; imageUrl: string };
 type ProductChoice = { id: string; name: string; description?: string | null; price?: string | number | null; currency?: string | null; image?: string | null };
 
@@ -40,6 +40,7 @@ export function CampaignPerformanceTab({
   products,
   readOnly,
   onApplyCampaign,
+  onRecommendationChange,
   locale = "fr",
 }: {
   storeId: string | null;
@@ -49,6 +50,7 @@ export function CampaignPerformanceTab({
   products: ProductData[];
   readOnly: boolean;
   onApplyCampaign: (campaign: EditableCampaign) => void;
+  onRecommendationChange?: (storeId: string, signature: string | null) => void;
   locale?: string;
 }) {
   const en = locale === "en";
@@ -92,36 +94,8 @@ export function CampaignPerformanceTab({
     return [...choices.values()].sort((left, right) => left.name.localeCompare(right.name));
   }, [products, data?.productEligibility]);
 
-  const recordsById = useMemo(() => new Map(campaignRecords.map((campaign) => [campaign.id, campaign])), [campaignRecords]);
-  const recommendations = useMemo(() => {
-    const result = new Map<string, Recommendation>();
-    for (const product of data?.productEligibility ?? []) {
-      if (!product.eligible) continue;
-      const candidates = (data?.campaigns ?? []).flatMap((campaign) => {
-        const metrics = campaign.metrics;
-        if (campaign.productId !== product.productId || !campaign.launched || !campaign.analyzed || !metrics ||
-            !metrics.currency || !metrics.attributedCurrency || metrics.currency !== metrics.attributedCurrency ||
-            metrics.attributedOrders === null || metrics.attributedOrders <= 0 || metrics.attributedRevenue === null ||
-            metrics.spend <= 0 || metrics.attributedRevenue <= metrics.spend) return [];
-        const config = recordsById.get(campaign.campaignId);
-        return config ? [{ campaign, config }] : [];
-      }).sort((left, right) => {
-        const leftMetrics = left.campaign.metrics!;
-        const rightMetrics = right.campaign.metrics!;
-        return (rightMetrics.attributedRevenue! / rightMetrics.spend) - (leftMetrics.attributedRevenue! / leftMetrics.spend);
-      });
-      if (candidates[0]) result.set(product.productId, candidates[0]);
-    }
-    return result;
-  }, [data, recordsById]);
-
-  const recommendation = useMemo(() => [...recommendations.values()].sort((left, right) => {
-    const leftMetrics = left.campaign.metrics!;
-    const rightMetrics = right.campaign.metrics!;
-    const leftRoas = leftMetrics.attributedRevenue! / leftMetrics.spend;
-    const rightRoas = rightMetrics.attributedRevenue! / rightMetrics.spend;
-    return (rightRoas - leftRoas) || (rightMetrics.attributedOrders! - leftMetrics.attributedOrders!);
-  })[0] ?? null, [recommendations]);
+  const recommendations = useMemo(() => buildCampaignRecommendations(data, campaignRecords), [data, campaignRecords]);
+  const recommendation = useMemo(() => selectStrongestCampaignRecommendation(recommendations.values()), [recommendations]);
   const selectedProduct = useMemo(() => {
     if (!recommendation) return null;
     const productId = recommendation.campaign.productId ?? recommendation.config.product_id;
@@ -136,6 +110,12 @@ export function CampaignPerformanceTab({
   const pending = pendingImage?.productId === selectedProductId ? pendingImage : null;
   const previewUrl = generatedImageUrl ?? (selectedProduct?.image?.startsWith("https://") ? selectedProduct.image : null);
   const sourceDailyBudget = recommendation ? formatDailyBudget(recommendation.config.daily_budget, locale) : null;
+  const recommendationSignature = recommendation && data ? campaignRecommendationFingerprint(recommendation, data.period) : null;
+
+  useEffect(() => {
+    if (!storeId || loading || recordsLoading || recordsError) return;
+    onRecommendationChange?.(storeId, recommendationSignature);
+  }, [storeId, loading, recordsLoading, recordsError, recommendationSignature, onRecommendationChange]);
 
   async function importGeneratedImage(image: PendingImage) {
     setBusyProductId(image.productId);
@@ -229,10 +209,10 @@ export function CampaignPerformanceTab({
 
   return (
     <section className="creative-library ad-campaign-preparation" aria-labelledby="ad-campaign-title">
-      {loading ? <div className="creative-state" role="status">{en ? "Loading…" : "Chargement…"}</div>
+      {loading ? <PerformanceLoadingSkeleton variant="campaigns" locale={locale} />
         : !storeId ? <div className="creative-state">{en ? "Connect a store first." : "Connecte d’abord une boutique."}</div>
           : <div className="ad-campaign-form">
-              {recordsLoading ? <div className="ad-recommendation" role="status">{en ? "Checking for a proposal…" : "Recherche d’une proposition…"}</div>
+              {recordsLoading ? <PerformanceLoadingSkeleton variant="campaigns" locale={locale} compact />
                 : recordsError ? <div className="creative-error" role="alert">{en ? "A proposal could not be prepared right now. Try again later." : "Impossible de préparer une proposition pour le moment. Réessaie plus tard."}</div>
                   : recommendation && selectedProduct ? <div className="ad-recommendation" aria-live="polite">
                     <div className="ad-recommendation-layout">
@@ -306,7 +286,7 @@ export function CampaignPerformanceTab({
                       </div>
                     </div>
                   </div>
-                    : <div className="creative-state" role="status">{en ? "No reliable recommendation is available yet." : "Aucune recommandation fiable pour le moment."}</div>}
+                    : <PerformanceEmptyState variant="campaigns" locale={locale} />}
             </div>}
     </section>
   );
