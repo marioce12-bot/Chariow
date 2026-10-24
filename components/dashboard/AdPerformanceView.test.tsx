@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { AdPerformanceView } from "./AdPerformanceView";
 
 describe("AdPerformanceView", () => {
-  it("explains the campaign action without exposing campaign or visitor tables", () => {
+  it("keeps the campaign entry point concise without exposing campaign or visitor tables", () => {
     const html = renderToStaticMarkup(<AdPerformanceView storeId={null} products={[]} onApplyCampaign={() => {}} />);
 
     expect(html).toContain("Performance publicitaire");
     expect(html).toContain("Une stratégie claire, proposée à partir des données disponibles.");
-    expect(html).toContain("Analyse en arrière-plan");
+    expect(html).not.toContain("Analyse en arrière-plan");
     expect(html).toContain("Connecte une boutique pour préparer une campagne.");
     expect(html).not.toContain("Campagne historique");
     expect(html).not.toContain("Visites");

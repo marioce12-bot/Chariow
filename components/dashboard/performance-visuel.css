@@ -5,7 +5,7 @@
 .creative-performance-header p { color:#687793; font-size:14px; line-height:1.5; margin:7px 0 0; max-width:850px; }
 .creative-header-tools { align-items:flex-end; display:flex; flex:none; gap:12px; }
 .creative-period { color:#74819b; display:flex; flex-direction:column; flex:none; font-size:9px; font-weight:750; gap:5px; letter-spacing:.06em; text-transform:uppercase; }
-.creative-period select,.creative-platform-filter select,.creative-table-filter select,.ad-inline-product-select { background:#fff; border:1px solid #dce4f3; border-radius:10px; color:#25324a; font-size:12px; font-weight:650; letter-spacing:0; min-height:40px; padding:0 12px; text-transform:none; }
+.creative-period select,.creative-platform-filter select,.creative-table-filter select { background:#fff; border:1px solid #dce4f3; border-radius:10px; color:#25324a; font-size:12px; font-weight:650; letter-spacing:0; min-height:40px; padding:0 12px; text-transform:none; }
 .creative-period select { min-width:170px; }
 .creative-data-badge { align-items:center; background:#f5f0ff; border:1px solid #e7dcff; border-radius:999px; color:#6542c7; display:inline-flex; font-size:10px; font-weight:750; gap:6px; min-height:34px; padding:0 12px; white-space:nowrap; }
 .creative-data-badge::before { background:#7453e5; border-radius:50%; content:""; height:7px; width:7px; }
@@ -15,7 +15,7 @@
 .creative-state { align-items:center; background:#fff; border:1px solid #e1e7f0; border-radius:12px; color:#79849a; display:flex; font-size:12px; justify-content:center; min-height:160px; padding:24px; text-align:center; }
 .creative-kpi-grid { display:grid; gap:12px; grid-template-columns:repeat(5,minmax(0,1fr)); margin:0 0 16px; }
 .creative-kpi-card { align-items:center; background:#fff; border:1px solid #e2e7f0; border-radius:14px; box-shadow:0 5px 18px rgba(22,35,67,.035); display:flex; gap:12px; min-height:92px; min-width:0; padding:13px 15px; }
-.creative-kpi-icon,.creative-insight-icon,.ad-analysis-icon,.ad-recommendation-icon,.ad-review-icon { align-items:center; background:#f0edff; border-radius:11px; color:#5f45df; display:grid; flex:none; height:44px; place-items:center; width:44px; }
+.creative-kpi-icon,.creative-insight-icon,.ad-recommendation-icon,.ad-review-icon { align-items:center; background:#f0edff; border-radius:11px; color:#5f45df; display:grid; flex:none; height:44px; place-items:center; width:44px; }
 .creative-kpi-card>div { display:flex; flex-direction:column; min-width:0; }
 .creative-kpi-card small { color:#758199; font-size:10px; font-weight:600; line-height:1.3; }
 .creative-kpi-card strong { color:#111b3b; font-size:21px; letter-spacing:-.035em; line-height:1.2; margin:4px 0 2px; overflow-wrap:anywhere; }
@@ -86,16 +86,8 @@
 
 /* Performance publicitaire — même structure que le concept 1, alimentée par les données disponibles. */
 .ad-performance-view .creative-performance-header { margin-bottom:14px; }
-.ad-analysis-note { align-items:center; background:#fff; border:1px solid #e1e7f0; border-radius:13px; color:#687793; display:flex; gap:12px; margin:0 0 14px; padding:12px 15px; }
-.ad-analysis-note p { font-size:12px; line-height:1.55; margin:0; }
-.ad-analysis-note strong { color:#24304a; }
-.ad-analysis-icon,.ad-recommendation-icon,.ad-review-icon { height:42px; width:42px; }
+.ad-recommendation-icon,.ad-review-icon { height:42px; width:42px; }
 .ad-campaign-preparation { background:#fff; border:1px solid #e1e7f0; border-radius:14px; box-shadow:0 7px 22px rgba(22,35,67,.035); max-width:none; overflow:hidden; }
-.ad-data-disclaimer { align-items:flex-start; background:#f4f1ff; border:1px solid #e7e0ff; border-radius:10px; color:#6b53cb; display:flex; gap:10px; margin:12px 14px 0; padding:10px 13px; }
-.ad-data-disclaimer svg { flex:none; margin-top:1px; }
-.ad-data-disclaimer div { display:grid; gap:3px; }
-.ad-data-disclaimer strong { font-size:10px; font-weight:800; letter-spacing:.035em; }
-.ad-data-disclaimer span { color:#706a8d; font-size:10px; line-height:1.45; }
 .ad-recommendation { background:#fff; border-radius:0; padding:12px 15px 0; }
 .ad-recommendation-layout { display:grid; gap:20px; grid-template-columns:minmax(0,1.55fr) minmax(290px,.9fr); }
 .ad-recommendation-details { min-width:0; }
@@ -103,13 +95,11 @@
 .ad-recommendation-heading>div { min-width:0; }
 .ad-recommendation-heading h3 { color:#17213d; font-size:17px; letter-spacing:-.025em; margin:1px 0 0; }
 .ad-recommendation-heading p { color:#687793; font-size:11px; line-height:1.5; margin:5px 0 0; max-width:700px; }
-.ad-recommendation-heading .ad-product-select { margin-left:auto; max-width:260px; }
 .ad-config-grid { border-top:1px solid #e5e9f1; display:block; margin:13px 0 0; }
 .ad-config-grid>div { align-items:center; border-bottom:1px solid #e5e9f1; display:grid; gap:18px; grid-template-columns:minmax(135px,190px) minmax(0,1fr); min-width:0; padding:8px 6px; }
 .ad-config-grid .ad-config-wide { grid-column:auto; }
 .ad-config-grid dt { color:#394763; font-size:11px; font-weight:700; line-height:1.45; }
 .ad-config-grid dd { color:#293650; font-size:11px; line-height:1.45; margin:0; overflow-wrap:anywhere; }
-.ad-inline-product-select { min-height:30px; width:min(100%,340px); }
 .ad-source-note { color:#7b879d; font-size:9px; line-height:1.5; margin:9px 3px 0; }
 .ad-visual-preview { align-self:stretch; background:#fff; border:1px solid #e0e6f1; border-radius:13px; display:flex; flex-direction:column; min-width:0; padding:12px; }
 .ad-preview-head { align-items:center; display:flex; gap:8px; justify-content:space-between; }
@@ -186,7 +176,6 @@
   .creative-results-table th:first-child,.creative-results-table td:first-child { padding-left:12px; }
   .creative-library-foot { align-items:flex-start; flex-direction:column; padding:9px 13px; }
   .ad-campaign-preparation { border-radius:12px; }
-  .ad-data-disclaimer { margin:10px 10px 0; padding:9px; }
   .ad-recommendation { padding:11px 10px 0; }
   .ad-recommendation-layout { grid-template-columns:1fr; }
   .ad-recommendation-heading { flex-wrap:wrap; }
@@ -200,8 +189,6 @@
   .ad-review-step { align-items:flex-start; border-left:0; border-top:1px solid #e2e7f0; flex-wrap:wrap; padding:13px 0 0; }
   .ad-apply-button,.ad-review-step .ad-launch-button { flex:1; width:100%; }
   .ad-pending-image { flex-direction:column; }
-  .ad-analysis-note { align-items:flex-start; padding:11px 12px; }
-  .ad-analysis-icon { height:36px; width:36px; }
 }
 @media(max-width:390px) {
   .creative-kpi-card { align-items:flex-start; flex-direction:column; }
@@ -212,7 +199,7 @@
 html[data-theme="dark"] .creative-performance-header h1,html[data-theme="dark"] .creative-library-head h2,html[data-theme="dark"] .creative-empty h3,html[data-theme="dark"] .creative-item strong,html[data-theme="dark"] .creative-linkage strong,html[data-theme="dark"] .creative-kpi-card strong,html[data-theme="dark"] .creative-insight strong,html[data-theme="dark"] .ad-recommendation-heading h3 { color:#e6ecfa; }
 html[data-theme="dark"] .creative-performance-breadcrumb,html[data-theme="dark"] .creative-performance-header p,html[data-theme="dark"] .creative-period,html[data-theme="dark"] .creative-library-head p,html[data-theme="dark"] .creative-empty p,html[data-theme="dark"] .creative-library-foot,html[data-theme="dark"] .creative-linkage span,html[data-theme="dark"] .creative-linkage small,html[data-theme="dark"] .creative-kpi-card small,html[data-theme="dark"] .creative-kpi-card>div>span,html[data-theme="dark"] .creative-insight span:not(.creative-insight-icon):not(.creative-insight-chevron),html[data-theme="dark"] .ad-recommendation-heading p,html[data-theme="dark"] .ad-credit-note { color:#a8b5d1; }
 html[data-theme="dark"] .creative-library,html[data-theme="dark"] .creative-kpi-card,html[data-theme="dark"] .creative-period select,html[data-theme="dark"] .creative-platform-filter select,html[data-theme="dark"] .creative-table-filter,html[data-theme="dark"] .creative-export,html[data-theme="dark"] .creative-refresh,html[data-theme="dark"] .ad-campaign-preparation,html[data-theme="dark"] .ad-visual-preview { background:#0b1734; border-color:#223456; color:#e6ecfa; }
-html[data-theme="dark"] .creative-insight,html[data-theme="dark"] .ad-analysis-note { background:#0b1734; border-color:#223456; color:#a8b5d1; }
+html[data-theme="dark"] .creative-insight { background:#0b1734; border-color:#223456; color:#a8b5d1; }
 html[data-theme="dark"] .creative-insight.warning { background:#2d2616; border-color:#5b4a25; }
 html[data-theme="dark"] .creative-insight.winner { background:#102d2b; border-color:#20514a; }
 html[data-theme="dark"] .creative-results-table th,html[data-theme="dark"] .creative-results-table td { background:#0b1734; border-color:#223456; color:#c0cce1; }
@@ -226,13 +213,11 @@ html[data-theme="dark"] .creative-media-preview { background:#101e3c; border-col
 html[data-theme="dark"] .creative-error { background:#351c29; border-color:#683c4c; color:#ffb8bc; }
 html[data-theme="dark"] .creative-notice { background:#101e3c; border-color:#223456; color:#a8b5d1; }
 html[data-theme="dark"] .creative-badge.winner { background:#123b36; border-color:#276458; color:#a9ebd1; }
-html[data-theme="dark"] .ad-data-disclaimer { background:#211a3e; border-color:#42366e; color:#c2b7ff; }
-html[data-theme="dark"] .ad-data-disclaimer span,html[data-theme="dark"] .ad-source-note,html[data-theme="dark"] .ad-review-step p,html[data-theme="dark"] .ad-visual-preview>small { color:#a8b5d1; }
-html[data-theme="dark"] .ad-analysis-note strong,html[data-theme="dark"] .ad-preview-head strong,html[data-theme="dark"] .ad-review-step strong { color:#e6ecfa; }
+html[data-theme="dark"] .ad-source-note,html[data-theme="dark"] .ad-review-step p,html[data-theme="dark"] .ad-visual-preview>small { color:#a8b5d1; }
+html[data-theme="dark"] .ad-preview-head strong,html[data-theme="dark"] .ad-review-step strong { color:#e6ecfa; }
 html[data-theme="dark"] .ad-config-grid,html[data-theme="dark"] .ad-config-grid>div,html[data-theme="dark"] .ad-action-footer,html[data-theme="dark"] .ad-review-step { border-color:#223456; }
 html[data-theme="dark"] .ad-config-grid dt,html[data-theme="dark"] .ad-config-grid dd { color:#c0cce1; }
 html[data-theme="dark"] .ad-preview-head span,html[data-theme="dark"] .ad-visual-frame { background:#101e3c; border-color:#223456; color:#a8b5d1; }
-html[data-theme="dark"] .ad-inline-product-select { background:#0b1734; border-color:#223456; color:#e6ecfa; }
 html[data-theme="dark"] .ad-review-step .ad-launch-button { background:#181f41; border-color:#403a72; color:#c7bdff; }
 html[data-theme="dark"] .ad-action-message { background:#392f19; color:#f1d99f; }
 

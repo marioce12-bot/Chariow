@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
 import type { EditableCampaign } from "../vendeo/wizard/types";
 import type { ProductData } from "./shared";
 import { CampaignPerformanceTab } from "./CampaignPerformanceTab";
@@ -68,13 +67,6 @@ export function AdPerformanceView({
             : "Une stratégie claire, proposée à partir des données disponibles."}</p>
         </div>
       </header>
-
-      <div className="ad-analysis-note" role="note">
-        <span className="ad-analysis-icon"><Sparkles size={18} aria-hidden="true" /></span>
-        <p><strong>{en ? "Background analysis" : "Analyse en arrière-plan"}</strong>{en
-          ? " — historical campaigns · linked creatives · advertising reports · attributed Chariow sales when available"
-          : " — campagnes historiques · créations associées · rapports publicitaires · ventes attribuées Chariow lorsqu’elles sont disponibles"}</p>
-      </div>
 
       {!storeId ? <div className="creative-state">{en ? "Connect a store to prepare a campaign." : "Connecte une boutique pour préparer une campagne."}</div>
         : loading ? <div className="creative-state" role="status">{en ? "Preparing a recommendation…" : "Préparation de la proposition…"}</div>

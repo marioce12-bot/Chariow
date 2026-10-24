@@ -56,7 +56,6 @@ export function CampaignPerformanceTab({
   const [campaignRecords, setCampaignRecords] = useState<CampaignRecord[]>([]);
   const [recordsLoading, setRecordsLoading] = useState(Boolean(storeId));
   const [recordsError, setRecordsError] = useState("");
-  const [selectedProductId, setSelectedProductId] = useState("");
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
@@ -116,18 +115,23 @@ export function CampaignPerformanceTab({
     return result;
   }, [data, recordsById]);
 
-  useEffect(() => {
-    setSelectedProductId((current) => {
-      const firstRecommendedId = productOptions.find((product) => recommendations.has(product.id))?.id;
-      const currentExists = productOptions.some((product) => product.id === current);
-      if (!currentExists) return firstRecommendedId ?? productOptions[0]?.id ?? "";
-      if (!recommendations.has(current) && firstRecommendedId) return firstRecommendedId;
-      return current;
-    });
-  }, [productOptions, recommendations]);
-
-  const selectedProduct = productOptions.find((product) => product.id === selectedProductId) ?? null;
-  const recommendation = recommendations.get(selectedProductId) ?? null;
+  const recommendation = useMemo(() => [...recommendations.values()].sort((left, right) => {
+    const leftMetrics = left.campaign.metrics!;
+    const rightMetrics = right.campaign.metrics!;
+    const leftRoas = leftMetrics.attributedRevenue! / leftMetrics.spend;
+    const rightRoas = rightMetrics.attributedRevenue! / rightMetrics.spend;
+    return (rightRoas - leftRoas) || (rightMetrics.attributedOrders! - leftMetrics.attributedOrders!);
+  })[0] ?? null, [recommendations]);
+  const selectedProduct = useMemo(() => {
+    if (!recommendation) return null;
+    const productId = recommendation.campaign.productId ?? recommendation.config.product_id;
+    if (!productId) return null;
+    return productOptions.find((product) => product.id === productId) ?? {
+      id: productId,
+      name: recommendation.campaign.productName || recommendation.config.product_name || productId,
+    };
+  }, [productOptions, recommendation]);
+  const selectedProductId = selectedProduct?.id ?? "";
   const busy = busyProductId === selectedProductId;
   const pending = pendingImage?.productId === selectedProductId ? pendingImage : null;
   const previewUrl = generatedImageUrl ?? (selectedProduct?.image?.startsWith("https://") ? selectedProduct.image : null);
@@ -225,24 +229,12 @@ export function CampaignPerformanceTab({
 
   return (
     <section className="creative-library ad-campaign-preparation" aria-labelledby="ad-campaign-title">
-      <div className="ad-data-disclaimer" role="note">
-        <Sparkles size={18} aria-hidden="true" />
-        <div><strong>{en ? "RECOMMENDATION BASED ON MEASURED DATA" : "RECOMMANDATION FONDÉE SUR DES DONNÉES MESURÉES"}</strong>
-          <span>{en ? "Campaign history and linked ad results are used only when they support a reliable starting point." : "L’historique des campagnes et leurs résultats publicitaires sont utilisés uniquement lorsqu’ils fournissent une base fiable."}</span>
-        </div>
-      </div>
-
       {loading ? <div className="creative-state" role="status">{en ? "Loading…" : "Chargement…"}</div>
         : !storeId ? <div className="creative-state">{en ? "Connect a store first." : "Connecte d’abord une boutique."}</div>
-              : !productOptions.length ? <div className="creative-empty">
-            <div className="creative-empty-icon"><Sparkles size={22} aria-hidden="true" /></div>
-            <h3>{en ? "No products available" : "Aucun produit disponible"}</h3>
-            <p>{en ? "Connect a store with products to prepare a campaign." : "Connecte une boutique avec des produits pour préparer une campagne."}</p>
-              </div>
-            : <div className="ad-campaign-form">
+          : <div className="ad-campaign-form">
               {recordsLoading ? <div className="ad-recommendation" role="status">{en ? "Checking for a proposal…" : "Recherche d’une proposition…"}</div>
                 : recordsError ? <div className="creative-error" role="alert">{en ? "A proposal could not be prepared right now. Try again later." : "Impossible de préparer une proposition pour le moment. Réessaie plus tard."}</div>
-                  : recommendation ? <div className="ad-recommendation" aria-live="polite">
+                  : recommendation && selectedProduct ? <div className="ad-recommendation" aria-live="polite">
                     <div className="ad-recommendation-layout">
                       <div className="ad-recommendation-details">
                         <div className="ad-recommendation-heading">
@@ -256,7 +248,7 @@ export function CampaignPerformanceTab({
                         </div>
 
                         <dl className="ad-config-grid">
-                          <div><dt>{en ? "Product" : "Produit"}</dt><dd>{productOptions.length > 1 ? <select className="ad-inline-product-select" value={selectedProductId} onChange={(event) => { setSelectedProductId(event.target.value); setActionMessage(""); setPendingImage(null); setGeneratedImageUrl(null); }} aria-label={en ? "Choose a product" : "Choisir un produit"}>{productOptions.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select> : (selectedProduct?.name || "—")}</dd></div>
+                          <div><dt>{en ? "Automatically selected product" : "Produit retenu automatiquement"}</dt><dd>{selectedProduct.name}</dd></div>
                           <div><dt>{en ? "Platform" : "Plateforme"}</dt><dd>{platformLabel(recommendation.config.platform, en)}</dd></div>
                           <div><dt>{en ? "Geography / audience" : "Pays / audience"}</dt><dd>{en ? "Not recommended: reliable geographic attribution is unavailable." : "Non recommandé : aucune attribution géographique fiable ne permet de choisir un pays ou une audience."}</dd></div>
                           <div><dt>{en ? "Proposed format" : "Format proposé"}</dt><dd>{en ? "HD vertical image · 9:16 (proposed)" : "Image HD verticale · 9:16 (proposée)"}</dd></div>
@@ -314,10 +306,7 @@ export function CampaignPerformanceTab({
                       </div>
                     </div>
                   </div>
-                    : <div className="ad-recommendation" role="status">
-                      <h3>{en ? "No proposal for this product yet" : "Pas encore de proposition pour ce produit"}</h3>
-                      <p>{en ? "Vendeo will show an action here when the available results support a reliable recommendation." : "Vendeo affichera une action ici lorsque les résultats disponibles permettront une proposition fiable."}</p>
-                    </div>}
+                    : <div className="creative-state" role="status">{en ? "No reliable recommendation is available yet." : "Aucune recommandation fiable pour le moment."}</div>}
             </div>}
     </section>
   );

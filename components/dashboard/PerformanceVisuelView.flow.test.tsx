@@ -68,6 +68,38 @@ describe("PerformanceVisuelView visual comparison", () => {
     await act(async () => root.unmount());
   });
 
+  it("shows a measured-empty state when a campaign exists but no creative is linked", async () => {
+    const body = {
+      period: { from: "2026-09-25", to: "2026-10-24" },
+      metrics: { mediaCount: 0, campaigns: 1, launchedCampaigns: 1, unavailableCampaignMetrics: 0,
+        totals: [{ currency: "USD", spend: 10, clicks: 20, attributedOrders: null, costPerOrder: null, attributedRevenue: null, campaigns: 1, complete: true }] },
+      media: [],
+      campaigns: [{ campaignId: "campaign-1", name: "Campaign without linked creative", platform: "meta", status: "active", productId: "product-1",
+        productName: "Product", launched: true, analyzed: true, metrics: { currency: "USD", spend: 10, clicks: 20, impressions: 100,
+          attributedOrders: null, attributedRevenue: null, attributedCurrency: null } }],
+      productEligibility: [{ productId: "product-1", productName: "Product", launchedCampaigns: 1, analyzedCampaigns: 1, eligible: true }],
+      duplicateCandidates: [], notices: { tikTok: null, pinterest: null },
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/creative-performance?")) return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
+      throw new Error(`Unexpected request ${String(input)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<PerformanceVisuelView storeId="store-1" />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).toContain("Aucune création mesurée pour cette période.");
+    expect(container.textContent).not.toContain("correspond aux filtres");
+    expect(container.textContent).not.toContain("Change le filtre");
+    await act(async () => root.unmount());
+  });
+
   it("opens Studio with three measured ideas only after the user asks, without starting generation", async () => {
     const body = {
       period: { from: "2026-09-25", to: "2026-10-24" },
