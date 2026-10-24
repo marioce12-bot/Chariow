@@ -6,6 +6,7 @@ export type DashboardTourStep = {
   body: string;
   english: string;
   activeSection?: string;
+  settingsFocus?: "index" | "appearance" | "accounts";
   openMobileMenu?: boolean;
   menuTarget?: string;
 };
@@ -121,14 +122,13 @@ export const MOBILE_DASHBOARD_TOUR_STEPS: readonly DashboardTourStep[] = [
   },
   {
     id: "settings",
-    target: "mobile-menu:Paramètres",
+    target: "settings-index-search",
     activeSection: "Paramètres",
-    openMobileMenu: true,
-    menuTarget: "Paramètres",
-    fr: "Paramètres",
-    en: "Settings",
-    body: "Le menu « … » met Paramètres en évidence. Cette entrée ouvre les réglages de ton espace; le profil en haut donne aussi accès aux réglages du compte.",
-    english: "The “…” menu highlights Settings. This entry opens workspace settings; the profile button at the top also provides account settings.",
+    settingsFocus: "index",
+    fr: "Paramètres : retrouve tes rubriques",
+    en: "Settings: find your sections",
+    body: "Le menu « … » ouvre l’index général des paramètres. Utilise la recherche ou choisis une rubrique comme Apparence, Langue, Notifications, Suggestions et notes, À propos & légal ou Session. Le guide ne modifie aucun réglage.",
+    english: "The “…” menu opens the general Settings index. Use search or choose a section such as Appearance, Language, Notifications, Suggestions and feedback, About & legal, or Session. This guide does not change any settings.",
   },
 ];
 

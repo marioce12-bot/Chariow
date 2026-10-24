@@ -149,7 +149,15 @@ function DashboardWorkspace() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [moreOpen]);
-  const [settingsFocus, setSettingsFocus] = useState<"appearance" | "accounts">("appearance");
+  const [settingsFocus, setSettingsFocus] = useState<"index" | "appearance" | "accounts">("index");
+  const [settingsNavigationVersion, setSettingsNavigationVersion] = useState(0);
+  function openSettingsIndex() {
+    setSettingsFocus("index");
+    setSettingsNavigationVersion((version) => version + 1);
+    setMoreOpen(false);
+    setGuideMenuTarget(null);
+    setActive("Paramètres");
+  }
   function backToAccountSettings() {
     setSettingsFocus("accounts");
     setActive("Paramètres");
@@ -158,7 +166,7 @@ function DashboardWorkspace() {
     return [active === section ? "active" : "", guideMenuTarget === section ? "guide-highlight" : ""].filter(Boolean).join(" ");
   }
   function navigateFromAssistant(section: ChatNavigationSection) {
-    if (section === "Paramètres") setSettingsFocus("appearance");
+    if (section === "Paramètres") { openSettingsIndex(); return; }
     if (section === "Comptes publicitaires") setSettingsFocus("accounts");
     setMoreOpen(false);
     setGuideMenuTarget(null);
@@ -428,6 +436,10 @@ function DashboardWorkspace() {
       return;
     }
     if (step.activeSection) setActive(step.activeSection);
+    if (step.settingsFocus) {
+      setSettingsFocus(step.settingsFocus);
+      setSettingsNavigationVersion((version) => version + 1);
+    }
     setMoreOpen(Boolean(step.openMobileMenu));
     setGuideMenuTarget(step.openMobileMenu ? step.menuTarget ?? null : null);
   }, []);
@@ -444,7 +456,7 @@ function DashboardWorkspace() {
             <Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40} unoptimized />
           </Link>
           <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance visuel":"Creative performance","Performance publicitaire":"Ad performance","Bénéfices nets":"Net profit","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active}</strong></div>
-          <DashboardHeaderNavigation active={active} onChange={setActive} />
+          <DashboardHeaderNavigation active={active} onChange={(section) => section === "Paramètres" ? openSettingsIndex() : setActive(section)} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
              <button type="button" data-onboarding="mobile-more-trigger" className={`mobile-more-trigger ${moreOpen || ["Radar marché", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Performance publicitaire", "Paramètres"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
@@ -471,7 +483,7 @@ function DashboardWorkspace() {
           {loadingData || (snapshotView && storeDataLoading) ? (
             <DashboardSkeleton />
           ) : active === "Paramètres" ? (
-            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus={settingsFocus} />
+            <MobileSettingsView key={`${settingsFocus}-${settingsNavigationVersion}`} onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus={settingsFocus === "index" ? undefined : settingsFocus} />
           ) : active === "Vendeo AI" ? (
             <ChatView
               onGoToSubscription={() => setActive("Abonnement")}
@@ -590,7 +602,7 @@ function DashboardWorkspace() {
               <button type="button" role="menuitem" data-onboarding="mobile-menu:Performance publicitaire" aria-current={active === "Performance publicitaire" ? "page" : undefined} className={mobileMoreItemClass("Performance publicitaire")} onClick={() => { setActive("Performance publicitaire"); setMoreOpen(false); }}><BarChart3 size={16} /> {t("nav.adPerformance")}</button>
               <button type="button" role="menuitem" data-onboarding="mobile-menu:Rapports" aria-current={active === "Rapports" ? "page" : undefined} className={mobileMoreItemClass("Rapports")} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> {" "}{t("workspaceExtra.reports")}</button>
               <span className="mobile-more-label">{w("application")}</span>
-              <button type="button" role="menuitem" data-onboarding="mobile-menu:Paramètres" aria-current={active === "Paramètres" ? "page" : undefined} className={mobileMoreItemClass("Paramètres")} onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> {" "}{t("workspaceExtra.settings")}</button>
+              <button type="button" role="menuitem" data-onboarding="mobile-menu:Paramètres" aria-current={active === "Paramètres" ? "page" : undefined} className={mobileMoreItemClass("Paramètres")} onClick={openSettingsIndex}><Settings size={16} /> {" "}{t("workspaceExtra.settings")}</button>
             </div>
           </>
         ) : null}

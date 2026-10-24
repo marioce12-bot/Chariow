@@ -1377,7 +1377,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
       </div>
       {mobileSettingsSection === null ? (
         <section className="settings-index" aria-label={t("settings.sectionsLabel")}>
-          <label className="settings-search">
+          <label className="settings-search" data-onboarding="settings-index-search">
             <Search size={20} aria-hidden="true" />
             <input type="search" value={settingsSearch} onChange={(event) => setSettingsSearch(event.target.value)} placeholder={t("settings.searchPlaceholder")} aria-label={t("settings.searchPlaceholder")} />
           </label>

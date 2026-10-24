@@ -61,7 +61,7 @@ describe("dashboard desktop navigation", () => {
     const source = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
     const css = readFileSync(new URL("../app/dashboard-navigation.css", import.meta.url), "utf8");
     const mobileCss = readFileSync(new URL("../app/dashboard-autopilot-header.css", import.meta.url), "utf8");
-    expect(source).toContain('<DashboardHeaderNavigation active={active} onChange={setActive} />');
+    expect(source).toContain('<DashboardHeaderNavigation active={active} onChange={(section) => section === "Paramètres" ? openSettingsIndex() : setActive(section)} />');
     expect(source).toContain('<DashboardPrimaryNavigation active={active} onChange={setActive} />');
     expect(source).toContain('aria-label={w("mobileNav")}');
     expect(css).toContain('@media (min-width: 761px)');

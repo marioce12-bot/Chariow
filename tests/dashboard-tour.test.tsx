@@ -70,10 +70,10 @@ describe("responsive Vendeo dashboard guide", () => {
     expect(MOBILE_DASHBOARD_TOUR_STEPS[5].activeSection).toBeUndefined();
   });
 
-  it("opens the actual overflow menu and targets every real mobile menu entry before explaining it", () => {
+  it("opens the actual overflow menu for menu destinations and leaves settings for its general index", () => {
     const menuSteps = MOBILE_DASHBOARD_TOUR_STEPS.filter((step) => step.menuTarget);
     expect(menuSteps.map((step) => step.menuTarget)).toEqual([
-      "Bénéfices nets", "Relances WhatsApp", "Radar marché", "Performance publicitaire", "Rapports", "Paramètres",
+      "Bénéfices nets", "Relances WhatsApp", "Radar marché", "Performance publicitaire", "Rapports",
     ]);
     for (const step of menuSteps) {
       expect(step.openMobileMenu).toBe(true);
@@ -82,13 +82,37 @@ describe("responsive Vendeo dashboard guide", () => {
     }
     const dashboard = readFileSync(`${process.cwd()}/components/Dashboard.tsx`, "utf8");
     expect(dashboard).toContain("setMoreOpen(Boolean(step.openMobileMenu))");
-    expect(dashboard).toContain("guideMenuTarget === section ? \"guide-highlight\" : \"\"");
+    expect(dashboard).toContain("if (step.settingsFocus) {");
+    expect(dashboard).toContain("setSettingsFocus(step.settingsFocus);");
+    expect(dashboard).toContain("setSettingsNavigationVersion((version) => version + 1);");
+    expect(dashboard).toContain('key={`${settingsFocus}-${settingsNavigationVersion}`}');
+    expect(dashboard).toContain('focus={settingsFocus === "index" ? undefined : settingsFocus}');
+    expect(dashboard).toContain('if (section === "Paramètres") { openSettingsIndex(); return; }');
+    expect(dashboard).toContain("function openSettingsIndex()");
+    expect(dashboard).toContain('onClick={openSettingsIndex}');
+    expect(dashboard).toContain('guideMenuTarget === section ? "guide-highlight" : ""');
     expect(dashboard).toContain('onTourStepChange={handleTourStepChange}');
     for (const section of menuSteps.map((step) => step.menuTarget)) {
       expect(dashboard).toContain(`data-onboarding=\"mobile-menu:${section}\"`);
     }
     expect(dashboard).toContain('data-onboarding="mobile-more-trigger"');
     expect(dashboard).not.toContain('if (!target) target = document.querySelector<HTMLElement>(".mobile-more-trigger")');
+  });
+
+  it("opens the general Account Settings index and targets its real search control on mobile", () => {
+    const settingsStep = MOBILE_DASHBOARD_TOUR_STEPS.find((step) => step.id === "settings");
+    expect(settingsStep).toMatchObject({
+      target: "settings-index-search",
+      activeSection: "Paramètres",
+      settingsFocus: "index",
+    });
+    expect(settingsStep?.openMobileMenu).not.toBe(true);
+    expect(settingsStep?.menuTarget).toBeUndefined();
+    const settings = readFileSync(`${process.cwd()}/components/dashboard/sections.tsx`, "utf8");
+    expect(settings).toContain('data-onboarding="settings-index-search"');
+    expect(settings).toContain('className="settings-index"');
+    expect(settings).toContain('placeholder={t("settings.searchPlaceholder")}');
+    expect(settings).not.toContain('data-onboarding="settings-theme"');
   });
 
   it("uses an independent desktop sequence with desktop-specific overview refinements and navigation", () => {
@@ -98,6 +122,8 @@ describe("responsive Vendeo dashboard guide", () => {
     ]);
     expect(DESKTOP_DASHBOARD_TOUR_STEPS.find((step) => step.id === "home")?.body).toContain("graphique Meta est moins haut");
     expect(DESKTOP_DASHBOARD_TOUR_STEPS.map((step) => step.target)).toContain("Comptes publicitaires");
+    expect(DESKTOP_DASHBOARD_TOUR_STEPS.find((step) => step.id === "settings")).toMatchObject({ target: "Paramètres", activeSection: "Paramètres" });
+    expect(DESKTOP_DASHBOARD_TOUR_STEPS.find((step) => step.id === "settings")?.settingsFocus).toBeUndefined();
     expect(DESKTOP_DASHBOARD_TOUR_STEPS).not.toEqual(MOBILE_DASHBOARD_TOUR_STEPS);
   });
 
@@ -121,6 +147,20 @@ describe("responsive Vendeo dashboard guide", () => {
     await nextStep();
     expect(title()).toBe("Bénéfices nets");
     expect(transitions.at(-1)).toMatchObject({ openMobileMenu: true, menuTarget: "Bénéfices nets", target: "mobile-menu:Bénéfices nets" });
+  });
+
+  it("reaches the real general Settings index at the mobile Settings step", async () => {
+    setViewport(390);
+    await mountGuide();
+    for (let index = 0; index < 11; index += 1) await nextStep();
+    expect(title()).toContain("Paramètres");
+    expect(transitions.at(-1)).toMatchObject({
+      id: "settings",
+      target: "settings-index-search",
+      activeSection: "Paramètres",
+      settingsFocus: "index",
+    });
+    expect(transitions.at(-1)?.openMobileMenu).not.toBe(true);
   });
 
   it("switches to the desktop tour at desktop widths", async () => {
