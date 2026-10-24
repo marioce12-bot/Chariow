@@ -4,6 +4,7 @@ import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
 import { normalizeMetaCta } from "@/lib/meta/cta";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { getMetaCampaignLifecycle } from "@/lib/meta/status";
+import { linkCampaignMedia } from "@/lib/creative-performance/placements";
 
 const objectives = new Set(["sales", "traffic", "engagement", "leads"]);
 
@@ -101,7 +102,23 @@ export async function POST(request: Request) {
     console.error("Ad campaign insert failed", { userId: user.id, storeId: store.id, productId: body.product_id, code: error.code, message: error.message, details: error.details, hint: error.hint });
     return NextResponse.json({ error: "Impossible d’enregistrer la campagne", code: process.env.NODE_ENV === "development" ? error.code : undefined }, { status: 500 });
   }
-  return NextResponse.json({ campaign: data }, { status: 201 });
+  let mediaTracking: { linked: number; mediaCount: number } | null = null;
+  try {
+    mediaTracking = await linkCampaignMedia(supabase, {
+      userId: user.id,
+      storeId: store.id,
+      campaignId: data.id,
+      campaignName: (typeof body.title === "string" && body.title.trim()) || (typeof body.product_name === "string" && body.product_name.trim()) || body.product_id,
+      platform: body.platform,
+      productId: body.product_id,
+      productName: typeof body.product_name === "string" ? body.product_name.trim() || null : null,
+      variantLabel: typeof body.variant_label === "string" ? body.variant_label : null,
+      mediaUrls: [typeof body.media_url === "string" ? body.media_url : "", ...carouselUrls],
+    });
+  } catch (trackingError) {
+    console.warn("Campaign saved without creative-library links", trackingError instanceof Error ? trackingError.message : "unknown error");
+  }
+  return NextResponse.json({ campaign: data, mediaTracking }, { status: 201 });
 }
 
 export async function GET() {
@@ -123,7 +140,21 @@ export async function DELETE(request: Request) {
   if (!user) return response;
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Campagne requise" }, { status: 400 });
-  const { error } = await supabase.from("ad_campaigns").delete().eq("id", id).eq("user_id", user.id);
+  const { data: campaign, error: readError } = await supabase
+    .from("ad_campaigns")
+    .select("id,external_campaign_id,external_ad_id,title,product_name,product_id,status")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (readError || !campaign) return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
+  // Retain the campaign and its reporting history; only hide it from active lists.
+  const { error } = await supabase.from("ad_campaigns").update({ status: "deleted" }).eq("id", id).eq("user_id", user.id);
   if (error) return NextResponse.json({ error: "Impossible de supprimer la campagne" }, { status: 500 });
+  await supabase.from("creative_media_placements").update({
+    campaign_name_snapshot: campaign.title || campaign.product_name || campaign.product_id || "Campagne",
+    campaign_status_snapshot: "deleted",
+    external_campaign_id: campaign.external_campaign_id,
+    external_ad_id: campaign.external_ad_id,
+  }).eq("user_id", user.id).eq("campaign_key", campaign.id);
   return NextResponse.json({ ok: true });
 }

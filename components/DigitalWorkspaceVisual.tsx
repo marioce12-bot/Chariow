@@ -9,13 +9,15 @@ type StoryScene = {
   alt: string;
   screenshot: string;
   screenshotAlt: string;
+  mobileScreenshot?: string;
+  mobileScreenshotAlt?: string;
   title: string;
   description: string;
 };
 
 const SCENE_DURATION_MS = 4000;
 
-/** Parcours illustratif : captures réelles de l’interface, avec données de démonstration. */
+/** Parcours illustratif : captures réelles de l’interface, avec données de démonstration signalées. */
 export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: boolean }) {
   const en = isEnglish;
   const [activeIndex, setActiveIndex] = useState(0);
@@ -44,6 +46,16 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       title: "Review available data",
       description: "Check synced orders and received ad data. Sales attribution depends on tracking and platform data.",
     },
+    {
+      image: "/landing/flow-story-04.webp",
+      alt: "The same creator reviewing her store on her smartphone beside her laptop",
+      screenshot: "/landing/performance-visuel-desktop.webp",
+      screenshotAlt: "Authentic Creative Performance screen with no sample figures; platform metrics appear only when available",
+      mobileScreenshot: "/landing/performance-visuel-mobile.webp",
+      mobileScreenshotAlt: "Authentic mobile Creative Performance screen with no sample figures",
+      title: "Review creative performance",
+      description: "See the available campaign and creative data. Studio ideas unlock only after a launched campaign has real analyzed results.",
+    },
   ] : [
     {
       image: "/landing/flow-story-01.webp",
@@ -68,6 +80,16 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       screenshotAlt: "Vue d’ensemble Vendeo avec des données de démonstration",
       title: "Consulte les données disponibles",
       description: "Retrouve les commandes synchronisées et les données publicitaires reçues. L’attribution dépend du suivi et des données de la plateforme.",
+    },
+    {
+      image: "/landing/flow-story-04.webp",
+      alt: "La même créatrice consulte sa boutique sur son téléphone, près de son ordinateur",
+      screenshot: "/landing/performance-visuel-desktop.webp",
+      screenshotAlt: "Capture réelle de Performance visuel, sans chiffre d’exemple; les métriques s’affichent seulement lorsqu’elles sont disponibles",
+      mobileScreenshot: "/landing/performance-visuel-mobile.webp",
+      mobileScreenshotAlt: "Capture mobile réelle de Performance visuel, sans chiffre d’exemple",
+      title: "Analyse tes créations",
+      description: "Retrouve les données disponibles pour tes campagnes et créations. Les idées Studio sont proposées après l’analyse de résultats réels d’une campagne lancée.",
     },
   ];
   const sceneCount = scenes.length;
@@ -100,7 +122,7 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       </div>
     </div>
 
-    <div className="story-carousel" role="region" aria-roledescription={en ? "carousel" : "carrousel"} aria-label={en ? "Three-step workflow, advancing every four seconds" : "Parcours en trois étapes, défilement automatique toutes les 4 secondes"}>
+    <div className="story-carousel" role="region" aria-roledescription={en ? "carousel" : "carrousel"} aria-label={en ? "Four-step workflow, advancing every four seconds" : "Parcours en quatre étapes, défilement automatique toutes les 4 secondes"}>
       <article className="story-card" aria-live="off">
         <div className="story-photo">
           <Image key={currentScene.image} src={currentScene.image} alt={currentScene.alt} fill priority={activeIndex === 0} sizes="(max-width: 900px) 96vw, (max-width: 1250px) 58vw, 700px"/>
@@ -108,8 +130,11 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
           <div className="story-screenshot" role="img" aria-label={currentScene.screenshotAlt}>
             <Image key={currentScene.screenshot} src={currentScene.screenshot} alt="" fill sizes="(max-width: 620px) 70vw, (max-width: 900px) 62vw, 520px"/>
           </div>
+          {currentScene.mobileScreenshot && <div className="story-phone-capture" role="img" aria-label={currentScene.mobileScreenshotAlt}>
+            <Image key={currentScene.mobileScreenshot} src={currentScene.mobileScreenshot} alt="" fill sizes="(max-width: 620px) 14vw, 96px"/>
+          </div>}
           <div className="story-overlay">
-            <div className="story-meta"><span>{en ? "THE VENDEO WORKFLOW" : "LE PARCOURS VENDEO"}</span><span>{en ? `STEP ${activeIndex + 1} OF 3` : `ÉTAPE ${activeIndex + 1} SUR 3`}</span></div>
+            <div className="story-meta"><span>{en ? "THE VENDEO WORKFLOW" : "LE PARCOURS VENDEO"}</span><span>{en ? `STEP ${activeIndex + 1} OF ${sceneCount}` : `ÉTAPE ${activeIndex + 1} SUR ${sceneCount}`}</span></div>
             <h3>{currentScene.title}</h3>
             <p>{currentScene.description}</p>
           </div>
@@ -117,6 +142,6 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       </article>
       <div className="story-progress" aria-hidden="true"><span key={activeIndex}/></div>
     </div>
-    <p className="workspace-example-note" id="workspace-example-note">{en ? "Real Vendeo screens with demonstration data · illustrative photos, not customer results." : "Captures réelles de Vendeo avec des données de démonstration · photos illustratives, pas des résultats clients."}</p>
+    <p className="workspace-example-note" id="workspace-example-note">{en ? "Real Vendeo screenshots; some screens include demonstration data. Creative Performance shows the real interface without sample figures. Photos are illustrative, not customer results." : "Captures réelles de Vendeo; certains écrans montrent des données de démonstration. Performance visuel affiche sa véritable interface sans chiffre d’exemple. Photos illustratives, pas des résultats clients."}</p>
   </figure>;
 }

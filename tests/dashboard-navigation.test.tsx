@@ -10,9 +10,10 @@ vi.mock("@/lib/i18n/i18n", async () => {
 import { DashboardHeaderNavigation, DashboardPrimaryNavigation } from "@/components/dashboard/DesktopNavigation";
 
 describe("dashboard desktop navigation", () => {
-  it("keeps all ten primary destinations, including feedback", () => {
+  it("keeps all eleven primary destinations, including creative performance and feedback", () => {
     const html = renderToStaticMarkup(<DashboardPrimaryNavigation active="Accueil" onChange={() => {}} />);
-    expect((html.match(/<button/g) ?? []).length).toBe(10);
+    expect((html.match(/<button/g) ?? []).length).toBe(11);
+    expect(html).toContain("Performance visuel");
     expect(html).toContain("Suggestions et notes");
     expect(html).toContain("Accueil");
     expect(html).toContain("Bénéfices nets");

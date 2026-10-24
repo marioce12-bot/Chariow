@@ -8,6 +8,7 @@
 .mobile-nav .nav-btn-assistant.active,
 html[data-theme="dark"] .mobile-nav .nav-btn-assistant,
 html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { background:transparent; }
+.mobile-nav .nav-btn-performance span { font-size:8px; height:auto; line-height:1.05; max-width:66px; overflow:visible; text-overflow:clip; white-space:normal; }
 
 @media (max-width: 760px) {
   .dashboard-platform .mobile-nav {

@@ -31,6 +31,7 @@ import { useI18n } from "@/lib/i18n/i18n";
 import { MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY } from "./shared";
 import { useNavigationCache } from "./NavigationDataCache";
 import type { StoreData, SubscriptionData, ProductData, AnalyticsData } from "./shared";
+import { CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, type CreativePerformanceIdea, type CreativePerformanceStudioPrefill } from "@/lib/creative-performance/client";
 
 function sumInUSD(entries: Array<{ amount: number; currency: string }>): number | null {
   if (!entries.length) return null;
@@ -154,6 +155,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [recharging, setRecharging] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
+  const [performancePrefill, setPerformancePrefill] = useState<CreativePerformanceStudioPrefill | null>(null);
+  const [performanceSource, setPerformanceSource] = useState<Record<string, unknown> | null>(null);
+  const [selectedPerformanceIdea, setSelectedPerformanceIdea] = useState<CreativePerformanceIdea | null>(null);
+  const performancePrefillHandledRef = useRef(false);
   const [productSearch, setProductSearch] = useState("");
   const [history, setHistory] = useState<StudioHistoryItem[]>([]);
   const [historyKind, setHistoryKind] = useState("all");
@@ -165,6 +170,30 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const slideshowPanelRef = useRef<HTMLDivElement | null>(null);
   const historyViewerRef = useRef<HTMLElement | null>(null);
   const studioTabTouchedRef = useRef(false);
+  useEffect(() => {
+    if (performancePrefillHandledRef.current) return;
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY); } catch { return; }
+    if (!raw) return;
+    let prefill: CreativePerformanceStudioPrefill;
+    try { prefill = JSON.parse(raw); } catch { sessionStorage.removeItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY); return; }
+    const product = products.find((item) => item.id === prefill?.source?.productId);
+    if (!product) {
+      if (products.length) {
+        performancePrefillHandledRef.current = true;
+        sessionStorage.removeItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY);
+        setError("Le produit source n’est pas disponible dans la boutique sélectionnée. Retourne à Performance visuel pour choisir une autre idée.");
+      }
+      return;
+    }
+    performancePrefillHandledRef.current = true;
+    sessionStorage.removeItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY);
+    setSelectedProduct(product);
+    setPerformancePrefill(prefill);
+    setPerformanceSource(prefill.source);
+    setSelectedPerformanceIdea(null);
+    setStudioTab("photo"); setKind("image"); setError("");
+  }, [products]);
   useEffect(() => {
     if (!selectedHistoryId) return;
     historyViewerRef.current?.focus({ preventScroll: true });
@@ -450,13 +479,13 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     try {
       const uploadedReferenceUrls = kind === "image" ? await uploadReferenceFiles() : [];
       const referenceUrls = kind === "image"
-        ? Array.from(new Set([...(uploadedReferenceUrls.length < 3 && selectedProduct?.image ? [selectedProduct.image] : []), ...uploadedReferenceUrls])).slice(0, 3)
+        ? Array.from(new Set([...(performanceSource && typeof performanceSource.imageUrl === "string" ? [performanceSource.imageUrl] : []), ...(uploadedReferenceUrls.length < 3 && selectedProduct?.image ? [selectedProduct.image] : []), ...uploadedReferenceUrls])).slice(0, 3)
         : [];
       const response = await fetch(kind === "image" ? "/api/studio/tasks" : "/api/studio/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(kind === "image"
-          ? { id: crypto.randomUUID(), kind: "image", input: { prompt, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", referenceUrls } }
+          ? { id: crypto.randomUUID(), kind: "image", input: { prompt, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", referenceUrls, ...(selectedProduct ? { product: { id: selectedProduct.id, name: selectedProduct.name } } : {}), ...(performanceSource ? { creativePerformanceSource: performanceSource } : {}), ...(selectedPerformanceIdea ? { creativeIdea: selectedPerformanceIdea } : {}) } }
           : { prompt, duration, resolution: videoResolution, aspectRatio, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
       });
       const result = await response.json().catch(() => ({}));
@@ -589,7 +618,22 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   };
   const selectProduct = (product: typeof products[number] | null) => {
     setSelectedSlideshowTaskId(null);
+    if (product?.id !== performanceSource?.productId) {
+      setPerformancePrefill(null); setPerformanceSource(null); setSelectedPerformanceIdea(null);
+    }
     setSelectedProduct(product);
+  };
+  const choosePerformanceIdea = (idea: CreativePerformanceIdea) => {
+    if (!performancePrefill || performancePrefill.source.productId !== selectedProduct?.id) return;
+    setSelectedPerformanceIdea(idea);
+    setPerformanceSource(performancePrefill.source);
+    if (idea.format !== "slideshow") {
+      studioTabTouchedRef.current = true;
+      setStudioTab("photo"); setKind("image"); setPrompt(idea.prompt);
+    } else {
+      studioTabTouchedRef.current = true;
+      setStudioTab("slideshow");
+    }
   };
 
   return (
@@ -608,8 +652,17 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         <button type="button" role="tab" aria-selected={false} disabled aria-disabled="true" style={{ opacity: 0.45, cursor: "not-allowed" }} title={locale === "en" ? "Coming later — generation locked" : "À venir — génération verrouillée"}><Video size={17} /> {t("studio.video")}</button>
       </div>
       <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => selectProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => selectProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => selectProduct(null)} aria-label={t("sweep3.text206")}>×</button>{selectedProduct.image ? <em>{kind === "video" ? t("studio.coverRef") : t("studio.imageReferenceNote")}</em> : null}</div> : null}</section>
+      {performancePrefill ? <section className="studio-performance-ideas" aria-label="Idées depuis Performance visuel">
+        <div className="studio-performance-ideas-head"><div><span className="eyebrow">Performance visuel · {performancePrefill.source.productName}</span><h2>Choisis une idée créative</h2><p>{String((performancePrefill.source.evidence as { clicks?: number } | undefined)?.clicks ?? 0)} clics mesurés · résultats historiques, pas une promesse.</p></div><button type="button" className="btn btn-ghost" onClick={() => { setPerformancePrefill(null); setPerformanceSource(null); setSelectedPerformanceIdea(null); }}>Fermer</button></div>
+        <div className="studio-performance-idea-list">{performancePrefill.ideas.map((idea) => <article className={`studio-performance-idea${selectedPerformanceIdea?.id === idea.id ? " selected" : ""}`} key={idea.id}>
+          <div><span className="studio-performance-idea-format">{idea.format === "slideshow" ? "Diaporama" : idea.format === "video" ? "Vidéo" : "Image"}</span><h3>{idea.title}</h3><p>{idea.rationale}</p></div>
+          <button type="button" className="btn btn-dark" onClick={() => choosePerformanceIdea(idea)} disabled={idea.format === "video" && !performancePrefill.capabilities.video}>{selectedPerformanceIdea?.id === idea.id ? "Idée sélectionnée" : "Choisir cette idée"}</button>
+        </article>)}</div>
+        {!performancePrefill.capabilities.video ? <p className="studio-performance-lock-note">Les idées ci-dessus utilisent les formats disponibles. La génération vidéo est verrouillée dans cette version.</p> : null}
+      </section> : null}
+      {selectedPerformanceIdea ? <p className="studio-performance-source-note" role="status">Idée sélectionnée : <strong>{selectedPerformanceIdea.title}</strong>. Le produit et la campagne source seront enregistrés dans l’historique Studio.</p> : null}
       <div id="studio-slideshow-panel" ref={slideshowPanelRef} tabIndex={-1} role="tabpanel" aria-labelledby="studio-slideshow-tab" hidden={studioTab !== "slideshow"}>
-        <SlideshowStudio product={selectedProduct} locale={locale} selectedTaskId={selectedSlideshowTaskId} onComplete={() => void loadHistory(true)} />
+        <SlideshowStudio product={selectedProduct} locale={locale} selectedTaskId={selectedSlideshowTaskId} onComplete={() => void loadHistory(true)} creativePerformanceSource={performanceSource} creativeIdea={selectedPerformanceIdea} />
       </div>
       <div id="studio-photo-panel" role="tabpanel" aria-labelledby="studio-photo-tab" hidden={studioTab !== "photo"}>
       {kind === "video" ? (

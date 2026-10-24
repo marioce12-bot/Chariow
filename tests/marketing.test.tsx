@@ -50,7 +50,7 @@ describe("premium product landing", () => {
     expect(fr).toContain("La génération vidéo n’est pas disponible actuellement.");
     expect(fr).toContain("Les crédits Studio et le budget publicitaire sont distincts de l’abonnement.");
   });
-  it("renders an accessible three-scene carousel with verified store and campaign labels", () => {
+  it("renders an accessible four-scene carousel with verified store and campaign labels", () => {
     const html = renderToStaticMarkup(<Marketing />);
     const container = new JSDOM(html).window.document.body;
     const visual = container.querySelector(".digital-hero figure.digital-workspace[aria-labelledby][aria-describedby], .digital-hero .creator-stage[role='group'][aria-label]");
@@ -71,7 +71,7 @@ describe("premium product landing", () => {
     const overlay = visual!.querySelector(".story-photo .story-overlay");
     expect(overlay).not.toBeNull();
     expect(overlay!.textContent).toContain("LE PARCOURS VENDEO");
-    expect(overlay!.textContent).toContain("ÉTAPE 1 SUR 3");
+    expect(overlay!.textContent).toContain("ÉTAPE 1 SUR 4");
     expect(overlay!.querySelector("h3")?.textContent).toBe("Connecte ta boutique Chariow");
     expect(overlay!.querySelector("p")?.textContent).toContain("produits et commandes disponibles");
     expect(visual!.querySelector(".story-content")).toBeNull();
@@ -79,6 +79,9 @@ describe("premium product landing", () => {
     expect(visual!.querySelector(".story-photo img")?.getAttribute("alt")).toMatch(/même créatrice/i);
     const visualSource = source("components/DigitalWorkspaceVisual.tsx");
     expect(visualSource).toContain("flow-story-04.webp");
+    expect(visualSource).toContain("performance-visuel-desktop.webp");
+    expect(visualSource).toContain("performance-visuel-mobile.webp");
+    expect(visualSource).toContain("sans chiffre d’exemple");
     expect(visualSource).not.toMatch(/flow-story-05|assistant IA|video|vidéo|Shopify/i);
     expect(visualSource).toContain("window.setInterval");
     expect(visualSource).toContain("SCENE_DURATION_MS = 4000");

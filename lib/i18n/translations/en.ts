@@ -70,7 +70,7 @@ export const en: Dict = {
       language: { title: "Language", subtitle: "Choose the language of your Vendeo space.", french: "French", english: "English" },
     },
     nav: {
-      overview: "Home", pubs: "Ads", studio: "Studio", assistant: "Assistant", radar: "Radar", reports: "Reports", autopilot: "Autopilot", stores: "My stores", subscription: "Subscription", settings: "Settings", adAccounts: "Ad accounts",
+      overview: "Home", pubs: "Ads", studio: "Studio", assistant: "Assistant", radar: "Radar", creativePerformance: "Creative performance", reports: "Reports", autopilot: "Autopilot", stores: "My stores", subscription: "Subscription", settings: "Settings", adAccounts: "Ad accounts",
     },
     auth: {
       resetTitle: "Reset your password.", resetDesc: "Receive a secure link to choose a new password.",
