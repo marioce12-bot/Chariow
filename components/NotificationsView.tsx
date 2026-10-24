@@ -40,7 +40,7 @@ export function NotificationsView({ onBack }: { onBack: () => void }) {
   }
 
   return <div className="notifications-page">
-    <style>{`.mobile-nav{display:none !important}`}</style>
+    <style>{`.mobile-nav,.mobile-assistant-bubble{display:none !important}`}</style>
     <div className="page-top notifications-page-head">
       <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {t("adminExtra.notifications.back")}</button>
     </div>

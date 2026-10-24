@@ -1,28 +1,31 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+const dashboard = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
+const mobileCss = readFileSync(new URL("../app/mobile-nav.css", import.meta.url), "utf8");
+
 describe("mobile assistant navigation colors", () => {
-  it("keeps unrelated legacy styles from overriding navigation state colors", () => {
-    for (const file of ["../app/styles/notifications.css", "../app/dashboard-refinement.css"]) {
-      const css = readFileSync(new URL(file, import.meta.url), "utf8");
-      for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-        if (match[1].includes(".nav-btn-assistant")) expect(match[2]).not.toMatch(/(?:^|;)\s*color\s*:/);
-      }
-    }
+  it("keeps inactive destinations black and active destinations blue", () => {
     const css = readFileSync(new URL("../app/dashboard-refinement.css", import.meta.url), "utf8");
-    expect(css).toMatch(/\.mobile-nav\s+\.nav-btn\s*\{\s*color:/);
-    expect(css).toMatch(/\.mobile-nav\s+\.nav-btn\.active\s*\{\s*color:/);
+    expect(css).toMatch(/\.dashboard-platform \.mobile-nav \.nav-btn\s*\{\s*color:\s*#08090c;/);
+    expect(css).toMatch(/\.dashboard-platform \.mobile-nav \.nav-btn\.active\s*\{\s*color:\s*#103ef8;/);
+    expect(mobileCss).toContain("color: #08090c;");
+    expect(mobileCss).toContain("color: #103ef8;");
+    expect(mobileCss).not.toContain(".nav-btn-assistant");
+    const notificationsCss = readFileSync(new URL("../app/styles/notifications.css", import.meta.url), "utf8");
+    expect(notificationsCss).not.toContain(".nav-btn-assistant");
   });
 
-  it("uses the selected gradient circle while keeping the active Assistant label distinct", () => {
-    const css = readFileSync(new URL("../app/mobile-nav.css", import.meta.url), "utf8");
-    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
-    const icon = rules.find((rule) => rule[1].trim() === ".dashboard-platform .mobile-nav .nav-btn-assistant svg")?.[2];
-    const label = rules.find((rule) => rule[1].trim() === ".dashboard-platform .mobile-nav .nav-btn-assistant span")?.[2];
-    const activeLabel = rules.find((rule) => rule[1].trim() === ".dashboard-platform .mobile-nav .nav-btn-assistant.active span")?.[2];
-    expect(icon).toContain("linear-gradient(");
-    expect(icon).toContain("stroke: #fff");
-    expect(label).toContain("color: #53627c");
-    expect(activeLabel).toContain("color: #5944dc");
+  it("uses a standalone gradient brain bubble and a raised palette for Studio", () => {
+    const rules = [...mobileCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+    const bubbleRules = rules.filter((rule) => rule[1].trim() === ".dashboard-platform .mobile-assistant-bubble");
+    const bubble = bubbleRules[bubbleRules.length - 1]?.[2] ?? "";
+    expect(bubble).toContain("linear-gradient(140deg, #398dff");
+    expect(bubble).toContain("color: #fff;");
+    expect(dashboard).toContain('data-onboarding="Vendeo AI"');
+    expect(dashboard).toContain('<Brain size={24} strokeWidth={2}');
+    expect(dashboard).toContain("mobile-assistant-bubble");
+    expect(mobileCss).toContain(".dashboard-platform .mobile-nav .nav-btn-studio svg");
+    expect(mobileCss).toContain(".dashboard-platform .mobile-nav .nav-btn-studio.active svg");
   });
 });

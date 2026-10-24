@@ -736,14 +736,11 @@
     backdrop-filter: blur(12px);
   }
   .dashboard-platform .mobile-nav .nav-btn {
-    color: #7b8494;
+    color: #08090c;
   }
   .dashboard-platform .mobile-nav .nav-btn.active {
-    color: #2563eb;
+    color: #103ef8;
     font-weight: 700;
-  }
-  .dashboard-platform .mobile-nav .nav-btn-assistant {
-    transform: none;
   }
   .dashboard-platform .mobile-more-menu[role="menu"] {
     border-color: #e3e8ef;

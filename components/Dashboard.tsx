@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { BarChart3, CreditCard, Settings, Store, MessageSquare, LayoutDashboard, Lightbulb, Brain, Sparkles, LogOut, Megaphone, FileText, ImageIcon } from "lucide-react";
+import { BarChart3, CreditCard, Settings, Store, MessageSquare, Grid2X2, Lightbulb, Brain, Palette, LogOut, Megaphone, FileText, ImageIcon } from "lucide-react";
 
 
 import { ChatView } from "@/components/ChatView";
@@ -506,28 +506,40 @@ function DashboardWorkspace() {
 
 
         {active !== "Paramètres" ? (
-         <nav className={`mobile-nav${active === "Mes boutiques" ? " mobile-nav-hidden-on-stores" : ""}${mobileNavVisible ? " mobile-nav-visible" : " mobile-nav-hidden"}`} aria-label={w("mobileNav")}>
-         <button type="button" data-onboarding="Vue d'ensemble" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
-           <LayoutDashboard size={24} />
-            <span>{t("nav.overview")}</span>
-         </button>
-           <button type="button" data-onboarding="Pub" className={`nav-btn ${active === "Pub" ? "active" : ""}`} onClick={() => setActive("Pub")}>
-             <Megaphone size={24} />
-              <span>{t("nav.pubs")}</span>
+         <>
+          <nav className={`mobile-nav${active === "Mes boutiques" ? " mobile-nav-hidden-on-stores" : ""}${mobileNavVisible ? " mobile-nav-visible" : " mobile-nav-hidden"}`} aria-label={w("mobileNav")}>
+            <button type="button" data-onboarding="Vue d'ensemble" aria-current={active === "Vue d'ensemble" ? "page" : undefined} className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
+              <Grid2X2 size={24} strokeWidth={2} aria-hidden="true" />
+              <span>{locale === "en" ? "Home" : "Accueil"}</span>
+            </button>
+            <button type="button" data-onboarding="Pub" aria-current={active === "Pub" ? "page" : undefined} className={`nav-btn ${active === "Pub" ? "active" : ""}`} onClick={() => setActive("Pub")}>
+              <Megaphone size={24} strokeWidth={2} aria-hidden="true" />
+              <span>{locale === "en" ? "Ads" : "Pub"}</span>
+            </button>
+            <button type="button" data-onboarding="Studio" aria-current={active === "Studio" ? "page" : undefined} className={`nav-btn nav-btn-studio ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
+              <Palette size={24} strokeWidth={2} aria-hidden="true" />
+              <span>{locale === "en" ? "Studio" : "Studio"}</span>
+            </button>
+            <button type="button" data-onboarding="Performance visuel" aria-current={active === "Performance visuel" ? "page" : undefined} className={`nav-btn ${active === "Performance visuel" ? "active" : ""}`} onClick={() => setActive("Performance visuel")}>
+              <ImageIcon size={24} strokeWidth={2} aria-hidden="true" />
+              <span>{locale === "en" ? "Visuals" : "Visuels"}</span>
+            </button>
+            <button type="button" data-onboarding="Performance publicitaire" aria-current={active === "Performance publicitaire" ? "page" : undefined} className={`nav-btn ${active === "Performance publicitaire" ? "active" : ""}`} onClick={() => setActive("Performance publicitaire")}>
+              <BarChart3 size={24} strokeWidth={2} aria-hidden="true" />
+              <span>{locale === "en" ? "Campaigns" : "Campagnes"}</span>
+            </button>
+          </nav>
+          <button
+            type="button"
+            className={`mobile-assistant-bubble${active === "Mes boutiques" ? " mobile-assistant-hidden-on-stores" : ""}${mobileNavVisible ? " mobile-assistant-visible" : " mobile-assistant-hidden"}`}
+            data-onboarding="Vendeo AI"
+            aria-label={locale === "en" ? "Open Vendeo AI assistant" : "Ouvrir l’assistant Vendeo AI"}
+            title={locale === "en" ? "Assistant" : "Assistant"}
+            onClick={() => setActive("Vendeo AI")}
+          >
+            <Brain size={24} strokeWidth={2} aria-hidden="true" />
           </button>
-             <button type="button" data-onboarding="Vendeo AI" className={`nav-btn nav-btn-assistant ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
-               <Brain size={24} strokeWidth={2} />
-               <span>{t("nav.assistant")}</span>
-             </button>
-            <button type="button" data-onboarding="Studio" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
-              <Sparkles size={24} strokeWidth={2} />
-              <span>{t("nav.studio")}</span>
-            </button>
-            <button type="button" data-onboarding="Performance visuel" className={`nav-btn ${active === "Performance visuel" ? "active" : ""}`} onClick={() => setActive("Performance visuel")}>
-              <ImageIcon size={24} />
-              <span>{t("nav.creativePerformance")}</span>
-            </button>
-        </nav>
+         </>
         ) : null}
          {moreOpen ? (
           <>

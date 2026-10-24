@@ -1,18 +1,21 @@
-/* Dock mobile du tableau de bord : flottant, clair et compact. */
+/* Dock et bulle mobile, réservés au shell dashboard. */
+.dashboard-platform .mobile-assistant-bubble { display:none; }
+
 @media (max-width: 760px) {
   .dashboard-platform nav.mobile-nav {
     align-items: center;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(16px) saturate(160%);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
-    border: 1px solid rgba(210, 222, 245, 0.9);
-    border-radius: 22px;
-    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-    box-shadow: 0 8px 26px rgba(31, 49, 88, 0.14), 0 1px 3px rgba(31, 49, 88, 0.06);
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.94);
+    border-radius: 34px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 12px 32px rgba(34, 54, 105, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.98), inset 0 -1px 0 rgba(120, 148, 198, 0.24);
     box-sizing: border-box;
-    gap: 2px;
+    gap: 0;
     left: max(10px, env(safe-area-inset-left, 0px));
-    padding: 6px 6px;
+    overflow: visible;
+    padding: 6px 7px;
     right: max(10px, env(safe-area-inset-right, 0px));
     transition: transform 220ms ease, opacity 180ms ease;
     will-change: transform;
@@ -20,13 +23,17 @@
 
   .dashboard-platform .mobile-nav .nav-btn {
     align-self: stretch;
-    border-radius: 14px;
-    color: #62718b;
+    border-radius: 18px;
+    color: #08090c;
     flex: 1 1 0;
-    gap: 4px;
+    font-weight: 500;
+    gap: 5px;
     justify-content: center;
-    min-height: 52px;
-    padding: 5px 1px;
+    min-height: 66px;
+    overflow: visible;
+    padding: 5px 1px 6px;
+    position: relative;
+    transition: color 160ms ease;
   }
 
   .dashboard-platform .mobile-nav .nav-btn svg {
@@ -37,61 +44,106 @@
   }
 
   .dashboard-platform .mobile-nav .nav-btn span {
-    font-size: 9px;
-    line-height: 1.1;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.05;
     max-width: 100%;
     overflow: visible;
     text-align: center;
     text-overflow: clip;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
   }
 
   .dashboard-platform .mobile-nav .nav-btn.active {
-    color: #3159c9;
+    color: #103ef8;
+    font-weight: 700;
   }
 
-  .dashboard-platform .mobile-nav .nav-btn-assistant,
-  .dashboard-platform .mobile-nav .nav-btn-assistant.active {
-    align-self: stretch;
-    background: transparent;
+  .dashboard-platform .mobile-nav .nav-btn:focus-visible,
+  .dashboard-platform .mobile-assistant-bubble:focus-visible {
+    outline: 3px solid #6e91ff;
+    outline-offset: 3px;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-studio {
     flex: 1.08 1 0;
     justify-content: flex-end;
-    min-height: 52px;
     overflow: visible;
+    padding-bottom: 6px;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-studio svg {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.98);
+    border-radius: 50%;
+    box-shadow: 0 7px 18px rgba(40, 73, 166, 0.20), 0 0 0 4px rgba(255, 255, 255, 0.50), inset 0 1px 0 rgba(255, 255, 255, 1);
+    box-sizing: content-box;
+    color: #08090c;
+    height: 24px;
+    left: 50%;
+    padding: 12px;
+    position: absolute;
+    top: -24px;
+    transform: translateX(-50%);
+    width: 24px;
+    z-index: 2;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-studio.active svg {
+    border-color: rgba(16, 62, 248, 0.22);
+    color: #103ef8;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-studio span {
     position: relative;
   }
 
-  .dashboard-platform .mobile-nav .nav-btn-assistant svg {
-    background: linear-gradient(140deg, #4386ff 0%, #6559e8 55%, #8149d6 100%);
-    border: 3px solid rgba(255, 255, 255, 0.98);
+  .dashboard-platform .mobile-assistant-bubble {
+    align-items: center;
+    appearance: none;
+    background: linear-gradient(140deg, #398dff 0%, #5d55ee 52%, #892ee8 100%);
+    border: 1px solid rgba(255, 255, 255, 0.94);
     border-radius: 50%;
-    box-shadow: 0 4px 12px rgba(84, 91, 220, 0.32);
-    box-sizing: content-box;
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 9px 25px rgba(74, 70, 226, 0.40), 0 2px 7px rgba(25, 42, 94, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.44);
+    color: #fff;
+    display: grid;
+    height: 54px;
+    justify-content: center;
+    padding: 0;
+    place-items: center;
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right, 0px));
+    transition: transform 220ms ease, opacity 180ms ease;
+    width: 54px;
+    will-change: transform;
+    z-index: 1001;
+  }
+
+  .dashboard-platform .mobile-assistant-bubble svg {
     color: #fff;
     height: 24px;
-    left: 50%;
-    padding: 9px;
-    position: absolute;
-    stroke: #fff;
-    top: -22px;
-    transform: translateX(-50%);
+    stroke-width: 2;
     width: 24px;
   }
 
-  .dashboard-platform .mobile-nav .nav-btn-assistant span {
-    color: #53627c;
-    font-size: 9px;
-    font-weight: 700;
-    margin-bottom: 5px;
+  .dashboard-platform .mobile-assistant-bubble:active {
+    transform: scale(0.96);
   }
 
-  .dashboard-platform .mobile-nav .nav-btn-assistant.active span {
-    color: #5944dc;
+  .dashboard-platform .mobile-assistant-bubble.mobile-assistant-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(24px);
   }
 
-  .dashboard-platform .mobile-nav .nav-btn-performance span {
-    max-width: 64px;
+  .dashboard-platform .mobile-assistant-bubble.mobile-assistant-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .dashboard-platform .mobile-assistant-hidden-on-stores {
+    display: none !important;
   }
 
   .dashboard-platform .mobile-nav.mobile-nav-hidden {
@@ -101,6 +153,7 @@
   }
 
   .dashboard-platform .mobile-nav.mobile-nav-visible {
+    opacity: 1;
     transform: translateY(0);
   }
 }
@@ -113,10 +166,13 @@
   }
 
   .dashboard-platform .mobile-nav .nav-btn span {
-    font-size: 8px;
+    font-size: 9px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dashboard-platform .mobile-nav { transition: none !important; }
+  .dashboard-platform .mobile-nav,
+  .dashboard-platform .mobile-assistant-bubble {
+    transition: none !important;
+  }
 }
