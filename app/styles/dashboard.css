@@ -40,6 +40,25 @@
 .studio-product-list span { font-size:10px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.studio-product-list small { color:var(--muted); font-size:9px; }
 .studio-product-picker > small { color:var(--muted); font-size:11px; }.studio-product-chip { align-items:center; color:var(--green); display:flex; flex-wrap:wrap; font-size:11px; gap:7px; margin-top:9px; }.studio-product-chip button { background:transparent; border:0; color:inherit; font-size:17px; }.studio-product-chip em { color:var(--muted); font-size:10px; font-style:normal; width:100%; }
 .studio-suggestions { display:flex; flex-wrap:wrap; gap:5px; grid-column:1/-1; }.studio-suggestions button { background:transparent; border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:10px; padding:6px 8px; }
+.studio-performance-ideas { background:linear-gradient(135deg,#fbfbff,#f5f9ff); border:1px solid #dedff4; border-radius:12px; margin:0 0 16px; padding:14px; }
+.studio-performance-ideas-head { align-items:flex-start; display:flex; gap:12px; justify-content:space-between; }
+.studio-performance-ideas-head .eyebrow { color:#695acb; font-size:9px; font-weight:750; letter-spacing:.05em; text-transform:uppercase; }
+.studio-performance-ideas-head h2 { color:#27334c; font-size:15px; letter-spacing:-.02em; margin:4px 0; }
+.studio-performance-ideas-head p,.studio-performance-lock-note { color:#77839a; font-size:10px; line-height:1.5; margin:0; }
+.studio-performance-idea-list { display:grid; gap:9px; grid-template-columns:repeat(3,minmax(0,1fr)); margin-top:12px; }
+.studio-performance-idea { background:#fff; border:1px solid #e5e7f2; border-radius:10px; display:flex; flex-direction:column; gap:10px; justify-content:space-between; min-width:0; padding:11px; }
+.studio-performance-idea.selected { border-color:#8b7be0; box-shadow:0 0 0 2px rgba(105,90,203,.12); }
+.studio-performance-idea-format { background:#f0efff; border-radius:999px; color:#6253c5; display:inline-block; font-size:8px; font-weight:750; padding:4px 7px; }
+.studio-performance-idea h3 { color:#2b3750; font-size:11px; line-height:1.4; margin:6px 0 4px; }
+.studio-performance-idea p { color:#758198; font-size:9px; line-height:1.5; margin:0; }
+.studio-performance-idea .btn { font-size:10px; min-height:34px; width:100%; }
+.studio-performance-lock-note { margin-top:10px; }
+.studio-performance-source-note { background:#eef8f2; border:1px solid #d6eadc; border-radius:9px; color:#496751; font-size:10px; line-height:1.5; margin:0 0 12px; padding:9px 11px; }
+html[data-theme="dark"] .studio-performance-ideas { background:#0b1734; border-color:#31427a; }
+html[data-theme="dark"] .studio-performance-ideas-head h2,html[data-theme="dark"] .studio-performance-idea h3 { color:#e7edfb; }
+html[data-theme="dark"] .studio-performance-idea { background:#101f45; border-color:#31427a; }
+html[data-theme="dark"] .studio-performance-idea p,html[data-theme="dark"] .studio-performance-ideas-head p,html[data-theme="dark"] .studio-performance-lock-note { color:#a8b5d1; }
+html[data-theme="dark"] .studio-performance-source-note { background:#102b2b; border-color:#25514d; color:#c5e6d3; }
 html[data-theme="dark"] .studio-product-picker { background:#0b1734; border-color:#31427a; } html[data-theme="dark"] .studio-product-heading input { border-color:#31427a; color:#e7edfb; } html[data-theme="dark"] .studio-product-list button { background:#101f45; border-color:#31427a; color:#e7edfb; } html[data-theme="dark"] .studio-suggestions button { border-color:#31427a; color:#b8c9ff; }
 .studio-head { align-items:flex-end; }
 .studio-powered { background:#172b23; border-radius:999px; color:#dffb9b; font-size:11px; font-weight:700; letter-spacing:.04em; padding:9px 12px; white-space:nowrap; }
@@ -250,3 +269,9 @@ html[data-theme="dark"] .studio-product-picker { background:#0b1734; border-colo
 .onboarding-lead { color:var(--muted); font-size:14px; line-height:1.7; margin:0 0 28px; max-width:520px; }
 .field-help { color:#809087; display:block; font-size:11px; line-height:1.5; margin-top:6px; }
 .form-error { background:#fbe8e3; border-radius:7px; color:#a64635; font-size:12px; line-height:1.5; padding:10px; }
+
+@media (max-width:760px) {
+  .studio-performance-idea-list { grid-template-columns:1fr; }
+  .studio-performance-ideas-head { align-items:flex-start; flex-direction:column; }
+  .studio-performance-ideas-head > .btn { align-self:flex-end; }
+}

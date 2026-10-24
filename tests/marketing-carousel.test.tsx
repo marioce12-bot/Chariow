@@ -36,6 +36,10 @@ function find(node: ReactNode, className: string): Element {
   }
   return undefined as unknown as Element;
 }
+function countButtons(node: ReactNode): number {
+  if (!isValidElement<Record<string, any>>(node)) return 0;
+  return (node.type === "button" ? 1 : 0) + Children.toArray(node.props.children).reduce<number>((total, child) => total + countButtons(child), 0);
+}
 function render() {
   hooks.index = 0;
   hooks.effects = [];
@@ -66,42 +70,54 @@ afterEach(() => {
 });
 
 describe("landing carousel cadence and controls", () => {
-  it.each(["fr", "en"])("rotates every 2700 ms and wraps in %s", locale => {
+  it.each(["fr", "en"])("rotates every 4000 ms and wraps in %s", locale => {
     hooks.locale = locale;
-    const labels = locale === "en" ? ["Home", "Launch ads", "AI Studio"] : ["Accueil", "Lancement de publicités", "Studio IA"];
+    const labels = locale === "en" ? ["Home", "Launch ads", "AI Studio", "Creative performance"] : ["Accueil", "Lancement de publicités", "Studio IA", "Performance visuel"];
     render();
     cleanup = effect();
     expect(label()).toBe(labels[0]);
-    vi.advanceTimersByTime(2699);
+    vi.advanceTimersByTime(3999);
     expect(label()).toBe(labels[0]);
     vi.advanceTimersByTime(1);
     expect(label()).toBe(labels[1]);
     cleanup?.(); render(); cleanup = effect();
-    vi.advanceTimersByTime(2700);
+    vi.advanceTimersByTime(4000);
     expect(label()).toBe(labels[2]);
     cleanup?.(); render(); cleanup = effect();
-    vi.advanceTimersByTime(2700);
+    vi.advanceTimersByTime(4000);
+    expect(label()).toBe(labels[3]);
+    cleanup?.(); render(); cleanup = effect();
+    vi.advanceTimersByTime(4000);
     expect(label()).toBe(labels[0]);
     cleanup?.(); render(); cleanup = effect();
     expect(vi.getTimerCount()).toBe(1);
   });
-  it("keeps entrance animations plus rotation below the 3000 ms budget", () => {
+  it("keeps entrance animations plus rotation below the 4500 ms budget", () => {
     const css = readFileSync("app/landing-premium.css", "utf8");
     const animations = [...css.matchAll(/animation:lp(?:Slide|Screen)In ([.\d]+)s/g)];
     expect(animations.length).toBeGreaterThanOrEqual(2);
     for (const [, seconds] of animations) {
       expect(Number(seconds)).toBe(0.24);
-      expect(2700 + Number(seconds) * 1000).toBeLessThanOrEqual(3000);
+      expect(4000 + Number(seconds) * 1000).toBeLessThanOrEqual(4500);
     }
+  });
+  it("includes the actual dashboard capture, preserves the existing character and has no carousel buttons", () => {
+    hooks.states = [null, 3, false];
+    const tree = render();
+    const showcase = find(tree, "landing-showcase");
+    expect(find(tree, "showcase-performance-window")).toBeTruthy();
+    expect(find(tree, "showcase-performance-person")).toBeTruthy();
+    expect(find(tree, "showcase-phone-capture")).toBeTruthy();
+    expect(countButtons(showcase)).toBe(0);
   });
   it("supports immediate keyboard navigation and continues autoplay while focused", () => {
     render(); cleanup = effect();
     key("ArrowRight"); expect(label()).toBe("Lancement de publicités");
     cleanup?.(); render(); cleanup = effect();
-    key("End"); expect(label()).toBe("Studio IA");
+    key("End"); expect(label()).toBe("Performance visuel");
     key("Home"); expect(label()).toBe("Accueil");
-    key("ArrowLeft"); expect(label()).toBe("Studio IA");
-    vi.advanceTimersByTime(2700);
+    key("ArrowLeft"); expect(label()).toBe("Performance visuel");
+    vi.advanceTimersByTime(4000);
     expect(label()).toBe("Accueil");
   });
   it("supports swipe navigation and continues autoplay after touch", () => {
@@ -110,7 +126,7 @@ describe("landing carousel cadence and controls", () => {
     find(render(), "landing-showcase").props.onTouchEnd({ currentTarget, changedTouches: [{ clientX: 50 }] });
     expect(label()).toBe("Lancement de publicités");
     cleanup = effect();
-    vi.advanceTimersByTime(2699);
+    vi.advanceTimersByTime(3999);
     expect(label()).toBe("Lancement de publicités");
     vi.advanceTimersByTime(1);
     expect(label()).toBe("Studio IA");
@@ -120,7 +136,7 @@ describe("landing carousel cadence and controls", () => {
     const showcase = find(render(), "landing-showcase");
     expect(showcase.props.onMouseEnter).toBeUndefined();
     expect(showcase.props.onFocusCapture).toBeUndefined();
-    vi.advanceTimersByTime(2700);
+    vi.advanceTimersByTime(4000);
     expect(label()).toBe("Lancement de publicités");
   });
   it("disables autoplay for reduced motion but retains manual changes", () => {

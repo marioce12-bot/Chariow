@@ -64,9 +64,9 @@ async function ensurePrivateTrack(track: NonNullable<ReturnType<typeof getLicens
   if (uploaded.error && !/already exists/i.test(uploaded.error.message)) throw new Error("Unable to cache private music");
   const local = path.join(directory, `${randomUUID()}.mp3`); await writeFile(local, audio); return local;
 }
-export async function uploadAndInsert(userId: string, generationId: string, body: Buffer, images: string[], duration: number, musicId: string, attribution: string, thumbnailStoragePath: string, taskId?: string, voiceover?: Record<string, unknown>) {
+export async function uploadAndInsert(userId: string, generationId: string, body: Buffer, images: string[], duration: number, musicId: string, attribution: string, thumbnailStoragePath: string, taskId?: string, voiceover?: Record<string, unknown>, creativePerformanceSource?: Record<string, unknown>, creativeIdea?: Record<string, unknown>) {
   const storagePath = await storeStudioVideo({ body: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer, contentType: "video/mp4" }, userId, generationId);
-  const metadata = { type: "slideshow", imageGenerationIds: images, parentGenerationId: images[0], thumbnailStoragePath, ...(taskId ? { backgroundTaskId: taskId } : {}), musicId, duration, attribution, ...(voiceover ? { voiceover } : {}) };
+  const metadata = { type: "slideshow", imageGenerationIds: images, parentGenerationId: images[0], thumbnailStoragePath, ...(taskId ? { backgroundTaskId: taskId } : {}), musicId, duration, attribution, ...(voiceover ? { voiceover } : {}), ...(creativePerformanceSource ? { creativePerformanceSource } : {}), ...(creativeIdea ? { creativeIdea } : {}) };
   const { error } = await createAdminClient().from("studio_generations").insert({ id: generationId, user_id: userId, kind: "video", prompt: SLIDESHOW_PROMPT, options: { type: "slideshow", duration }, metadata, status: "completed", storage_path: storagePath, credits_cost: 0 });
   if (error) throw error;
   return { generationId, videoUrl: await signedStudioUrl(storagePath), attribution, creditsCost: 0 as const, imageGenerationIds: images, duration, musicId };
@@ -94,7 +94,7 @@ export async function preflightSlideshow(musicId: string) {
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-preflight-"));
   try { await ensurePrivateTrack(track, work); } finally { await rm(work, { recursive: true, force: true }); }
 }
-export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string, taskId?: string, voiceInput?: { product: { name: string; description?: string }; locale?: string; campaignGoal?: unknown }): Promise<SlideResult> {
+export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string, taskId?: string, voiceInput?: { product: { name: string; description?: string }; locale?: string; campaignGoal?: unknown }, creativePerformanceSource?: Record<string, unknown>, creativeIdea?: Record<string, unknown>): Promise<SlideResult> {
   if (ids.length < MIN_SLIDESHOW_IMAGES || ids.length > MAX_SLIDESHOW_IMAGES || new Set(ids).size !== ids.length) throw new Error("Invalid slideshow image count");
   if (!(SLIDESHOW_DURATIONS as readonly number[]).includes(duration)) throw new Error("Invalid slideshow duration");
   // Only newly created, explicitly opted-in background tasks use TTS. Legacy tasks remain unchanged.
@@ -136,7 +136,7 @@ export async function renderSlideshow(userId: string, ids: string[], duration: n
       const hex = createHash("sha256").update(`slideshow-final:${taskId}`).digest("hex");
       return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`;
     })() : randomUUID();
-    return await uploadAndInsert(userId, generationId, await readFile(output), ids, duration, musicId, finalAttribution, thumbnailStoragePath, taskId, voiceMetadata);
+    return await uploadAndInsert(userId, generationId, await readFile(output), ids, duration, musicId, finalAttribution, thumbnailStoragePath, taskId, voiceMetadata, creativePerformanceSource, creativeIdea);
   } finally { await rm(work, { recursive: true, force: true }); }
 }
 export async function remixSlideshow(userId: string, generationId: string, musicId: string): Promise<SlideResult> {

@@ -39,6 +39,7 @@ import { useUsageTracking } from "@/components/useUsageTracking";
 import { SESSION_STORAGE_PROMPT_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
 import { StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
 import { PerformanceVisuelView } from "./dashboard/PerformanceVisuelView";
+import { CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY } from "@/lib/creative-performance/client";
 import { OverviewHome } from "./dashboard/OverviewHome";
 import { DashboardSkeleton } from "./dashboard/Skeleton";
 import ProductProfitPanel from "./dashboard/ProductProfitPanel";
@@ -423,7 +424,10 @@ function DashboardWorkspace() {
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
           ) : active === "Performance visuel" ? (
-            <PerformanceVisuelView />
+            <PerformanceVisuelView storeId={activeStoreId} onOpenStudio={(prefill) => {
+              sessionStorage.setItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, JSON.stringify(prefill));
+              setActive("Studio");
+            }} />
           ) : active === "Pub" ? (
              <AdsView key={activeStoreId} plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (

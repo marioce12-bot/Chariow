@@ -12,6 +12,7 @@ import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
 import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { logPreparationFailure, type PreparationStage } from "@/lib/studio/preparation-diagnostics";
 import { resolveProductLanguage } from "@/lib/studio/product-language";
+import { validateCreativePerformanceStudioSource } from "@/lib/creative-performance/studio-source";
 import {
   TASK_TYPE,
   logTaskEvent,
@@ -72,6 +73,10 @@ export async function POST(request: Request) {
       );
     return NextResponse.json({ task: await publicTask(existing) }); // Never dispatch a repeated POST.
   }
+  const validatedSource = await validateCreativePerformanceStudioSource(admin, user.id, body.input);
+  if (validatedSource.error)
+    return NextResponse.json({ code: "CREATIVE_SOURCE_NOT_READY", error: validatedSource.error }, { status: 409 });
+  if (validatedSource.source) body.input.creativePerformanceSource = validatedSource.source;
   if (
     body.kind === "slideshow" &&
     slideshowVoiceAvailability().voiceoverEnabled &&
@@ -176,6 +181,23 @@ export async function POST(request: Request) {
         },
         { status: 402 },
       );
+  }
+  if (body.kind === "image") {
+    const resolutions = ["hd", "full_hd", "2k", "4k"] as const;
+    const qualities = ["medium", "high", "xhigh", "max"] as const;
+    const resolution = resolutions.includes(body.input.resolution) ? body.input.resolution : "hd";
+    const quality = qualities.includes(body.input.quality) ? body.input.quality : "medium";
+    const required = imageCreditCost(resolution, quality);
+    const { data: account, error: accountError } = await admin
+      .from("credit_accounts")
+      .select("balance,reserved")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (accountError)
+      return NextResponse.json({ error: "Impossible de vérifier ton solde de crédits. Réessaie dans un instant." }, { status: 503 });
+    const available = Math.max(0, (account?.balance ?? 0) - (account?.reserved ?? 0));
+    if (available < required)
+      return NextResponse.json({ code: "INSUFFICIENT_CREDITS", error: `Solde insuffisant : cette image coûte ${required} crédits Studio, il te reste ${available}. Recharge tes crédits avant de créer.`, required, balance: available }, { status: 402 });
   }
   const metadata: TaskMetadata = {
     type: TASK_TYPE,

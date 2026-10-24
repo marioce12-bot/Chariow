@@ -18,6 +18,7 @@ const demos = [
   { fr: "Accueil", en: "Home", frAlt: "Capture réelle de l’accueil Vendeo : tableau de bord avec les indicateurs et les raccourcis de gestion.", enAlt: "Authentic screenshot of the Vendeo home dashboard, showing its metrics and management shortcuts." },
   { fr: "Lancement de publicités", en: "Launch ads", frAlt: "Capture réelle de l’écran de lancement de publicités Vendeo, avec les options de configuration de campagne.", enAlt: "Authentic screenshot of the Vendeo ad launch screen, showing campaign setup options." },
   { fr: "Studio IA", en: "AI Studio", frAlt: "Capture réelle du Studio IA Vendeo, avec les outils de création de contenu publicitaire.", enAlt: "Authentic screenshot of Vendeo AI Studio, showing its advertising content creation tools." },
+  { fr: "Performance visuel", en: "Creative performance", frAlt: "Capture réelle de Performance visuel, sans chiffres d’exemple : métriques affichées seulement quand les rapports réels sont disponibles.", enAlt: "Authentic Creative Performance screen, with no sample figures; metrics appear only when real reports are available." },
 ];
 
 export function Marketing() {
@@ -28,9 +29,8 @@ export function Marketing() {
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // Continuous loop: never paused by hover, focus or touch. The timer restarts after each change
-    // (auto or manual swipe/keyboard) so a manual change always keeps its full display time.
-    const timer = window.setTimeout(() => setActiveDemo((current) => (current + 1) % demos.length), 2700);
+    // Continuous loop: never paused by hover, focus or touch. Four seconds per screen.
+    const timer = window.setTimeout(() => setActiveDemo((current) => (current + 1) % demos.length), 4000);
     return () => window.clearTimeout(timer);
   }, [activeDemo]);
   function demoKey(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -74,13 +74,17 @@ export function Marketing() {
           <div className="landing-hero-actions"><Link href="/register" className="btn btn-lime">{t("landing.hero.cta")} <ArrowRight size={17}/></Link><a className="landing-text-link" href="#apercu">{t("sweep2.text118")}{" "}<span>↓</span></a></div>
         </div>
         <div className="landing-showcase" id="apercu" tabIndex={0} role="region" aria-roledescription={isEnglish ? "carousel" : "carrousel"} aria-label={isEnglish ? "Vendeo product screenshots" : "Captures d’écran du produit Vendeo"} onKeyDown={demoKey} onTouchStart={(event) => { (event.currentTarget as HTMLDivElement).dataset.touchX = String(event.touches[0]?.clientX ?? 0); }} onTouchEnd={(event) => { const start = Number((event.currentTarget as HTMLDivElement).dataset.touchX ?? 0); const delta = (event.changedTouches[0]?.clientX ?? start) - start; if (Math.abs(delta) > 45) setActiveDemo((current) => (current + (delta < 0 ? 1 : demos.length - 1)) % demos.length); }}>
-          <p className="sr-only">{isEnglish ? "Screenshots rotate automatically in a loop. Use Left and Right Arrow keys to change screenshots, Home for the first, and End for the last. Swipe to change screenshots." : "Les captures défilent automatiquement en boucle. Utilisez les flèches gauche et droite pour changer de capture, Début pour la première et Fin pour la dernière. Balayez pour changer de capture."}</p>
+          <p className="sr-only">{isEnglish ? "Screenshots rotate automatically every four seconds. Use Left and Right Arrow keys to change screenshots, Home for the first, and End for the last. Swipe to change screenshots." : "Les captures défilent automatiquement toutes les quatre secondes. Utilisez les flèches gauche et droite pour changer de capture, Début pour la première et Fin pour la dernière. Balayez pour changer de capture."}</p>
           <div className="showcase-topline"><span className="showcase-dots" aria-hidden="true"><i/><i/><i/></span><span>Vendeo <b>•</b> {" "}{t("workspaceExtra.workspace")}</span><span className="showcase-live"><i/> Interface</span></div>
           <div className="showcase-screen" aria-live="off" aria-atomic="true" aria-roledescription={isEnglish ? "slide" : "diapositive"} aria-label={isEnglish ? demos[activeDemo].en : demos[activeDemo].fr}>
             <div key={activeDemo} className="showcase-transition">
-              <Image src={`/landing/actual-${["home", "ads", "studio"][activeDemo]}-${isEnglish ? "en" : "fr"}.webp`} alt={isEnglish ? demos[activeDemo].enAlt : demos[activeDemo].frAlt} width={1265} height={800} sizes="(max-width: 850px) 95vw, 650px" priority={activeDemo === 0} className="showcase-image" />
+              {activeDemo === 3 ? <div className="showcase-performance-slide" aria-label={isEnglish ? demos[3].enAlt : demos[3].frAlt}>
+                <div className="showcase-performance-copy"><span>Vendeo · Performance visuel</span><strong>{isEnglish ? "Measure every creative. Follow through to sales." : "Chaque création, suivie jusqu’aux ventes."}</strong><small>{isEnglish ? "Actual dashboard capture · real metrics only" : "Capture réelle du tableau · métriques réelles uniquement"}</small></div>
+                <div className="showcase-performance-window"><Image src="/landing/performance-visuel-desktop.webp" alt={isEnglish ? demos[3].enAlt : demos[3].frAlt} width={1500} height={918} sizes="(max-width: 850px) 92vw, 560px" className="showcase-performance-desktop" /></div>
+                <div className="showcase-performance-person" aria-hidden="true"><Image src="/vendeo-hero-app.jpeg" alt="" fill sizes="(max-width: 850px) 32vw, 240px" className="showcase-person-image" /><div className="showcase-phone-capture"><Image src="/landing/performance-visuel-mobile.webp" alt="" fill sizes="(max-width: 850px) 12vw, 100px" /></div></div>
+              </div> : <Image src={`/landing/actual-${["home", "ads", "studio"][activeDemo]}-${isEnglish ? "en" : "fr"}.webp`} alt={isEnglish ? demos[activeDemo].enAlt : demos[activeDemo].frAlt} width={1265} height={800} sizes="(max-width: 850px) 95vw, 650px" priority={activeDemo === 0} className="showcase-image" />}
             </div>
-            <div className="showcase-caption">{t("sweep1.text120")}</div>
+            <div className="showcase-caption">{activeDemo === 3 ? (isEnglish ? "Actual Performance visuel interface · no sample metrics" : "Interface Performance visuel · sans chiffre d’exemple") : t("sweep1.text120")}</div>
           </div>
           <div className="showcase-foot"><span>{t("sweep2.text121")}</span><span>Chariow <b>↗</b></span></div>
         </div>

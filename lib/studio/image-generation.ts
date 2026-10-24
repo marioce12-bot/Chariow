@@ -14,6 +14,7 @@ import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
 import { fetchReferenceImage } from "@/lib/studio/reference-image";
 import { buildPremiumImagePrompt } from "@/lib/studio/premium-prompt";
 import { validateSlideshowImageRequest } from "@/lib/studio/slideshow-image-request";
+import { validateCreativePerformanceStudioSource } from "@/lib/creative-performance/studio-source";
 
 const qualities = ["medium", "high", "xhigh", "max"] as const;
 const resolutions = ["hd", "full_hd", "2k", "4k"] as const;
@@ -56,6 +57,13 @@ export async function generateStudioImage(
   }
   const subscriptionBlock = await requireActiveSubscription(userId);
   if (subscriptionBlock) return subscriptionBlock;
+  const admin = createAdminClient();
+  if (body?.creativePerformanceSource) {
+    const validated = await validateCreativePerformanceStudioSource(admin, userId, body);
+    if (validated.error)
+      return NextResponse.json({ code: "CREATIVE_SOURCE_NOT_READY", error: validated.error }, { status: 409 });
+    body.creativePerformanceSource = validated.source;
+  }
 
   const userPrompt =
     slideshow?.prompt ?? (typeof body?.prompt === "string" ? body.prompt : "");
@@ -120,11 +128,12 @@ export async function generateStudioImage(
     options.quality ?? "medium",
   );
 
-  const admin = createAdminClient();
   const generationMetadata = {
     prompt: finalPrompt, originalPrompt: userPrompt,
     promptVersion: "premium-creative-director-v1", model,
     referenceCount: references.length,
+    ...(body?.creativePerformanceSource ? { creativePerformanceSource: body.creativePerformanceSource } : {}),
+    ...(body?.creativeIdea ? { creativeIdea: body.creativeIdea } : {}),
     ...(stage ? { taskId: stage.taskId, step: stage.step, creditState: "none" } : {}),
   };
   const { data: generation, error: generationError } = await admin

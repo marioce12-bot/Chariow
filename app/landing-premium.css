@@ -101,3 +101,19 @@
 @media (prefers-reduced-motion: reduce) {
   .landing-premium .hero-title-letter { animation:none; opacity:1; transform:none; }
 }
+
+/* Capture réelle Performance visuel, avec la même personne déjà présente dans le visuel Vendeo. */
+.landing-premium .showcase-performance-slide{aspect-ratio:1265/800;background:linear-gradient(135deg,#edf2ff 0%,#fff 53%,#e8efff 100%);color:#172344;min-height:clamp(290px,38vw,440px);overflow:hidden;position:relative}
+.landing-premium .showcase-performance-copy{left:4%;position:absolute;top:7%;width:62%;z-index:4}
+.landing-premium .showcase-performance-copy span{color:#4059c7;display:block;font-size:clamp(8px,.9vw,12px);font-weight:750;letter-spacing:.06em;margin-bottom:7px}
+.landing-premium .showcase-performance-copy strong{display:block;font-size:clamp(15px,2vw,27px);letter-spacing:-.045em;line-height:1.08;max-width:510px}
+.landing-premium .showcase-performance-copy small{color:#64708e;display:block;font-size:clamp(7px,.75vw,10px);margin-top:7px}
+.landing-premium .showcase-performance-window{background:white;border:1px solid #dce3f2;border-radius:12px;box-shadow:0 18px 42px rgba(35,54,111,.22);left:3%;line-height:0;overflow:hidden;position:absolute;top:34%;transform:rotate(-1deg);width:67%;z-index:2}
+.landing-premium .showcase-performance-desktop{aspect-ratio:1100/650;display:block;height:auto;object-fit:cover;width:100%}
+.landing-premium .showcase-performance-person{bottom:0;overflow:hidden;position:absolute;right:0;top:0;width:35%;z-index:1}
+.landing-premium .showcase-performance-person::before{background:linear-gradient(90deg,rgba(237,242,255,.98),rgba(237,242,255,.05) 48%,transparent);content:"";inset:0;pointer-events:none;position:absolute;z-index:1}
+.landing-premium .showcase-person-image{object-fit:cover;object-position:right 45%;transform:scale(1.5);transform-origin:right center}
+.landing-premium .showcase-phone-capture{border-radius:8%/4%;height:47%;left:18%;overflow:hidden;position:absolute;top:21%;transform:rotate(-1deg);width:35%;z-index:2}
+.landing-premium .showcase-phone-capture img{object-fit:cover;object-position:top;width:100%}
+@media(max-width:850px){.landing-premium .showcase-performance-slide{min-height:clamp(275px,57vw,390px)}.landing-premium .showcase-performance-copy{width:64%}.landing-premium .showcase-performance-window{left:2%;top:36%;width:71%}.landing-premium .showcase-performance-person{width:34%}}
+@media(max-width:560px){.landing-premium .showcase-performance-slide{min-height:clamp(265px,72vw,340px)}.landing-premium .showcase-performance-copy{left:4%;top:8%;width:70%}.landing-premium .showcase-performance-copy strong{font-size:clamp(14px,4vw,20px);max-width:250px}.landing-premium .showcase-performance-copy small{font-size:7px}.landing-premium .showcase-performance-window{left:2%;top:39%;width:73%}.landing-premium .showcase-performance-person{width:35%}.landing-premium .showcase-phone-capture{border-radius:5%;height:46%;left:18%;top:22%;width:35%}}
