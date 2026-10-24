@@ -14,6 +14,8 @@
 .creative-notice { background:#fbfcff; }
 .creative-state { align-items:center; background:#fff; border:1px solid #e1e7f0; border-radius:12px; color:#79849a; display:flex; font-size:12px; justify-content:center; min-height:160px; padding:24px; text-align:center; }
 .creative-kpi-grid { display:grid; gap:12px; grid-template-columns:repeat(5,minmax(0,1fr)); margin:0 0 16px; }
+.creative-kpi-scope-note { background:#fbfcff; border:1px solid #e3e8f1; border-radius:10px; color:#63718a; display:flex; flex-direction:column; font-size:10px; gap:3px; line-height:1.5; margin:0 0 12px; padding:9px 12px; }
+.creative-kpi-scope-partial { color:#8a5b16; font-weight:700; }
 .creative-kpi-card { align-items:center; background:#fff; border:1px solid #e2e7f0; border-radius:14px; box-shadow:0 5px 18px rgba(22,35,67,.035); display:flex; gap:12px; min-height:92px; min-width:0; padding:13px 15px; }
 .creative-kpi-icon,.creative-insight-icon,.ad-recommendation-icon,.ad-review-icon { align-items:center; background:#f0edff; border-radius:11px; color:#5f45df; display:grid; flex:none; height:44px; place-items:center; width:44px; }
 .creative-kpi-card>div { display:flex; flex-direction:column; min-width:0; }

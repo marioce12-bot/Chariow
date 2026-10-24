@@ -153,6 +153,13 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
   const totals = data?.metrics?.totals ?? [];
   const totalSpend = formatTotals(totals, "spend", locale);
   const totalClicks = totals.length ? number(totals.reduce((sum, row) => sum + row.clicks, 0), locale) : "—";
+  const unavailableCampaignMetrics = data?.metrics?.unavailableCampaignMetrics ?? 0;
+  const partialCampaignMetrics = unavailableCampaignMetrics > 0 || totals.some((row) => !row.complete);
+  const partialCampaignMetricsText = unavailableCampaignMetrics > 0
+    ? en
+      ? `Partial data: ${number(unavailableCampaignMetrics, locale)} launched campaign${unavailableCampaignMetrics === 1 ? " has" : "s have"} no usable metrics for this period.`
+      : `Données partielles : métriques indisponibles pour ${number(unavailableCampaignMetrics, locale)} campagne${unavailableCampaignMetrics === 1 ? " lancée" : "s lancées"} sur cette période.`
+    : en ? "Partial data: some launched campaigns have no usable metrics for this period." : "Données partielles : certaines campagnes lancées n’ont pas de métriques exploitables sur cette période.";
   const canShowOrderTotals = totals.length > 0 && totals.every((row) => row.attributedOrders !== null) && !(data?.metrics?.unavailableCampaignMetrics ?? 0);
   const totalOrders = canShowOrderTotals ? number(totals.reduce((sum, row) => sum + (row.attributedOrders ?? 0), 0), locale) : "—";
   const totalCost = formatTotals(totals, "costPerOrder", locale);
@@ -210,12 +217,16 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
           : !storeId ? <div className="creative-state">{en ? "Choose a connected store to view its creatives." : "Choisis une boutique connectée pour consulter ses créations."}</div>
             : !data?.media.length && (data?.metrics?.launchedCampaigns ?? 0) === 0 && !eligibleProducts.length ? <PerformanceEmptyState variant="visuals" locale={locale} />
               : <>
-                <section className="creative-kpi-grid" aria-label={en ? "Creative performance summary" : "Résumé des performances créatives"}>
-                  <article className="creative-kpi-card"><span className="creative-kpi-icon"><CircleDollarSign size={20} /></span><div><small>{en ? "Ad spend" : "Dépenses publicitaires"}</small><strong>{totalSpend}</strong><span>{en ? "for the period" : "sur la période"}</span></div></article>
-                  <article className="creative-kpi-card"><span className="creative-kpi-icon"><MousePointer2 size={20} /></span><div><small>{en ? "Clicks" : "Clics"}</small><strong>{totalClicks}</strong><span>{en ? "across tracked creatives" : "tous créatifs confondus"}</span></div></article>
-                  <article className="creative-kpi-card"><span className="creative-kpi-icon"><ShoppingBag size={20} /></span><div><small>{en ? "Attributed orders" : "Commandes attribuées"}</small><strong>{totalOrders}</strong><span>{en ? "for the period" : "sur la période"}</span></div></article>
+                <p id="creative-kpi-scope-note" className="creative-kpi-scope-note" role="note">
+                  <span>{en ? "Summary totals cover only campaigns linked in Vendeo; they are not the total spend across your advertising accounts." : "Ces totaux couvrent uniquement les campagnes reliées à Vendeo; ils ne représentent pas toutes les dépenses de vos comptes publicitaires."}</span>
+                  {partialCampaignMetrics ? <span className="creative-kpi-scope-partial">{partialCampaignMetricsText}</span> : null}
+                </p>
+                <section className="creative-kpi-grid" aria-describedby="creative-kpi-scope-note" aria-label={en ? "Creative performance summary" : "Résumé des performances créatives"}>
+                  <article className="creative-kpi-card"><span className="creative-kpi-icon"><CircleDollarSign size={20} /></span><div><small>{en ? "Tracked campaign spend" : "Dépenses des campagnes suivies"}</small><strong>{totalSpend}</strong><span>{en ? "for the period" : "sur la période"}</span></div></article>
+                  <article className="creative-kpi-card"><span className="creative-kpi-icon"><MousePointer2 size={20} /></span><div><small>{en ? "Tracked campaign clicks" : "Clics des campagnes suivies"}</small><strong>{totalClicks}</strong><span>{en ? "for the period" : "sur la période"}</span></div></article>
+                  <article className="creative-kpi-card"><span className="creative-kpi-icon"><ShoppingBag size={20} /></span><div><small>{en ? "Attributed orders" : "Commandes attribuées"}</small><strong>{totalOrders}</strong><span>{en ? "for linked campaigns" : "sur les campagnes reliées"}</span></div></article>
                   <article className="creative-kpi-card"><span className="creative-kpi-icon"><BarChart3 size={20} /></span><div><small>{en ? "Average cost / order" : "Coût / commande moyen"}</small><strong>{totalCost}</strong><span>{en ? "spend ÷ attributed orders" : "dépenses ÷ commandes attribuées"}</span></div></article>
-                  <article className="creative-kpi-card"><span className="creative-kpi-icon"><PackageCheck size={20} /></span><div><small>{en ? "Attributed revenue" : "Chiffre d’affaires attribué"}</small><strong>{totalRevenue}</strong><span>{en ? "from tracked creatives" : "lié aux créatifs suivis"}</span></div></article>
+                  <article className="creative-kpi-card"><span className="creative-kpi-icon"><PackageCheck size={20} /></span><div><small>{en ? "Attributed revenue" : "Chiffre d’affaires attribué"}</small><strong>{totalRevenue}</strong><span>{en ? "for linked campaigns" : "sur les campagnes reliées"}</span></div></article>
                 </section>
                 <section className="creative-insight-grid" aria-label={en ? "Creative insights" : "À retenir"}>
                   {liveWarning ? <article className="creative-insight warning"><span className="creative-insight-icon"><AlertTriangle size={20} /></span><div><small>{en ? "OPTIMIZE · MANY CLICKS, FEW CONVERSIONS" : "À OPTIMISER · BEAUCOUP DE CLICS, PEU DE CONVERSIONS"}</small><strong>{summarizeMedia(liveWarning, locale).title}</strong><span>{number(liveWarning.clicks, locale)} {en ? "clicks" : "clics"} · {number(liveWarning.attributedOrders, locale)} {en ? "attributed orders" : "commandes attribuées"}</span></div><span className="creative-insight-chevron">›</span></article>

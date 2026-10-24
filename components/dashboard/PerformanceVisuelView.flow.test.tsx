@@ -54,6 +54,9 @@ describe("PerformanceVisuelView visual comparison", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/creative-performance?store_id=store-1&days=30", { cache: "no-store" });
     expect(container.textContent).toContain("Résultats par création");
+    expect(container.textContent).toContain("Dépenses des campagnes suivies");
+    expect(container.textContent).toContain("Ces totaux couvrent uniquement les campagnes reliées à Vendeo");
+    expect(container.textContent).not.toContain("Données partielles");
     expect(container.querySelectorAll(".creative-media-card")).toHaveLength(1);
     const visual = container.querySelector(".creative-media-card")?.textContent ?? "";
     expect(visual).toContain("21,00");
@@ -64,6 +67,43 @@ describe("PerformanceVisuelView visual comparison", () => {
     expect(container.querySelector(".creative-results-table")).not.toBeNull();
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/ad-campaigns"))).toBe(false);
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/ad-performance/geography"))).toBe(false);
+
+    await act(async () => root.unmount());
+  });
+
+  it("makes partial campaign coverage visible instead of implying an account-wide total", async () => {
+    const body = {
+      period: { from: "2026-09-25", to: "2026-10-24" },
+      metrics: { mediaCount: 0, campaigns: 2, launchedCampaigns: 2, unavailableCampaignMetrics: 1,
+        totals: [{ currency: "USD", spend: 2.41, clicks: 6, attributedOrders: null, costPerOrder: null, attributedRevenue: null, campaigns: 1, complete: false }] },
+      media: [],
+      campaigns: [
+        { campaignId: "campaign-measured", name: "Measured", platform: "meta", status: "active", productId: null,
+          productName: null, launched: true, analyzed: true, metrics: { currency: "USD", spend: 2.41, clicks: 6, impressions: 100,
+            attributedOrders: null, attributedRevenue: null, attributedCurrency: null } },
+        { campaignId: "campaign-unavailable", name: "Unavailable", platform: "meta", status: "active", productId: null,
+          productName: null, launched: true, analyzed: false, metrics: null },
+      ],
+      productEligibility: [], visualRecommendations: [], duplicateCandidates: [], notices: { tikTok: null, pinterest: null },
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/creative-performance?")) return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
+      throw new Error(`Unexpected request ${String(input)}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<PerformanceVisuelView storeId="store-1" />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).toContain("Ces totaux couvrent uniquement les campagnes reliées à Vendeo");
+    expect(container.textContent).toContain("Données partielles : métriques indisponibles pour 1 campagne lancée");
+    expect(container.textContent).toContain("ils ne représentent pas toutes les dépenses de vos comptes publicitaires");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
     await act(async () => root.unmount());
   });
