@@ -7,18 +7,18 @@ const dashboardCss = readFileSync(new URL("../app/styles/navigation-mobile.css",
 const navMarkup = dashboard.slice(dashboard.indexOf('<nav className={`mobile-nav'), dashboard.indexOf("</nav>", dashboard.indexOf('<nav className={`mobile-nav')));
 
 describe("mobile dashboard navigation", () => {
-  it("keeps exactly the five current destinations, translated labels, and click handlers", () => {
+  it("keeps four primary destinations, translated labels, and click handlers", () => {
     const buttons = [...navMarkup.matchAll(/<button\b[\s\S]*?<\/button>/g)].map(([button]) => button);
-    expect(buttons).toHaveLength(5);
+    expect(buttons).toHaveLength(4);
     expect(buttons.map((button) => button.match(/data-onboarding="([^"]+)"/)?.[1])).toEqual([
-      "Vue d'ensemble", "Pub", "Vendeo AI", "Studio", "Performance visuel",
+      "Vue d'ensemble", "Pub", "Vendeo AI", "Studio",
     ]);
-    for (const [index, key] of ["nav.overview", "nav.pubs", "nav.assistant", "nav.studio", "nav.creativePerformance"].entries()) {
+    for (const [index, key] of ["nav.overview", "nav.pubs", "nav.assistant", "nav.studio"].entries()) {
       expect(buttons[index]).toContain(`t("${key}")`);
       expect(buttons[index]).toContain("onClick={() => setActive(");
     }
     expect(navMarkup).toContain('aria-label={w("mobileNav")}');
-    expect(navMarkup.match(/type="button"/g)).toHaveLength(5);
+    expect(navMarkup.match(/type="button"/g)).toHaveLength(4);
     expect(navMarkup).toContain("mobile-nav-visible");
     expect(navMarkup).toContain("mobile-nav-hidden");
   });
@@ -33,8 +33,8 @@ describe("mobile dashboard navigation", () => {
     expect(css).toContain("stroke: #fff");
   });
 
-  it("matches a consistent 24px, 2px icon size and weight across all five destinations", () => {
-    expect(navMarkup.match(/<(LayoutDashboard|Megaphone|Brain|Sparkles|ImageIcon) size=\{24\}/g)).toHaveLength(5);
+  it("matches a consistent 24px, 2px icon size and weight across all four destinations", () => {
+    expect(navMarkup.match(/<(LayoutDashboard|Megaphone|Brain|Sparkles) size=\{24\}/g)).toHaveLength(4);
     expect(navMarkup).toContain("<Brain size={24} strokeWidth={2} />");
     expect(navMarkup).toContain("<Sparkles size={24} strokeWidth={2} />");
     const iconsRule = css.match(/\.dashboard-platform \.mobile-nav \.nav-btn svg \{([^}]*)\}/)?.[1] ?? "";

@@ -62,7 +62,16 @@ describe("campaign detail actions", () => {
   it("preserves the reduced action eligibility for active campaigns", async () => {
     state.status = "active"; await open();
     expect(container.querySelectorAll(".ad-campaign-modal-actions button")).toHaveLength(2);
+    expect(container.textContent).not.toMatch(/pilotage auto|autopilot|budget limit/i);
     button("adsExtra.duplicate"); button("ads.correction.deleteCampaign"); noWrites();
+  });
+  it("keeps autopilot-paused campaigns readable as paused in both locales", async () => {
+    for (const locale of ["fr", "en"] as const) {
+      state.locale = locale; state.status = "autopilot_paused"; await open();
+      expect(container.querySelector(".ad-campaign-row")?.textContent).toContain(locale === "fr" ? "En pause" : "Paused");
+      expect(container.textContent).not.toMatch(/mise en pause par le pilote|paused by autopilot/i);
+      await act(async () => { const close = container.querySelector(".ad-campaign-detail button[aria-label]") as HTMLButtonElement; close.click(); });
+    }
   });
   it("keeps a mobile two-column grid and touch targets with stronger specificity than global buttons", () => {
     const css = readFileSync(new URL("./ad-campaigns-list.css", import.meta.url), "utf8");

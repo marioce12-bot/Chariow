@@ -85,9 +85,9 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       image: "/landing/flow-story-04.webp",
       alt: "La même créatrice consulte sa boutique sur son téléphone, près de son ordinateur",
       screenshot: "/landing/performance-visuel-desktop.webp",
-      screenshotAlt: "Capture réelle de Performance visuel, sans chiffre d’exemple; les métriques s’affichent seulement lorsqu’elles sont disponibles",
+      screenshotAlt: "Capture réelle de Performance publicitaire, sans chiffre d’exemple; les métriques s’affichent seulement lorsqu’elles sont disponibles",
       mobileScreenshot: "/landing/performance-visuel-mobile.webp",
-      mobileScreenshotAlt: "Capture mobile réelle de Performance visuel, sans chiffre d’exemple",
+      mobileScreenshotAlt: "Capture mobile réelle de Performance publicitaire, sans chiffre d’exemple",
       title: "Analyse tes créations",
       description: "Retrouve les données disponibles pour tes campagnes et créations. Les idées Studio sont proposées après l’analyse de résultats réels d’une campagne lancée.",
     },
@@ -142,6 +142,6 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       </article>
       <div className="story-progress" aria-hidden="true"><span key={activeIndex}/></div>
     </div>
-    <p className="workspace-example-note" id="workspace-example-note">{en ? "Real Vendeo screenshots; some screens include demonstration data. Creative Performance shows the real interface without sample figures. Photos are illustrative, not customer results." : "Captures réelles de Vendeo; certains écrans montrent des données de démonstration. Performance visuel affiche sa véritable interface sans chiffre d’exemple. Photos illustratives, pas des résultats clients."}</p>
+    <p className="workspace-example-note" id="workspace-example-note">{en ? "Real Vendeo screenshots; some screens include demonstration data. Ad Performance shows the real interface without sample figures. Photos are illustrative, not customer results." : "Captures réelles de Vendeo; certains écrans montrent des données de démonstration. Performance publicitaire affiche sa véritable interface sans chiffre d’exemple. Photos illustratives, pas des résultats clients."}</p>
   </figure>;
 }

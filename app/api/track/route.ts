@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const ALLOWED_SECTIONS = new Set([
   "Vue d'ensemble", "Vendeo AI", "Studio", "Pub", "Comptes publicitaires",
-  "Radar marché", "Mes boutiques", "Rapports", "Pilotage auto", "Abonnement",
+  "Radar marché", "Performance publicitaire", "Mes boutiques", "Rapports", "Abonnement",
   "Paramètres", "Notifications", "Bénéfices nets", "Relances WhatsApp",
 ]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

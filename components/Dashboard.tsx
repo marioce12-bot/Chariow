@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { BarChart3, Bot, CreditCard, Settings, Store, MessageSquare, LayoutDashboard, Lightbulb, Brain, Sparkles, LogOut, Megaphone, FileText, ImageIcon } from "lucide-react";
+import { BarChart3, CreditCard, Settings, Store, MessageSquare, LayoutDashboard, Lightbulb, Brain, Sparkles, LogOut, Megaphone, FileText } from "lucide-react";
 
 
 import { ChatView } from "@/components/ChatView";
@@ -13,7 +13,6 @@ import { disablePushSubscription } from "@/lib/push/browser";
 
 import "@/app/settings-mobile.css";
 import "@/app/dashboard-navigation.css";
-import "@/app/dashboard-autopilot-header.css";
 import { DashboardHeaderNavigation, DashboardPrimaryNavigation } from "./dashboard/DesktopNavigation";
 import { type PlanId } from "@/lib/plans";
 import {
@@ -31,9 +30,9 @@ import {
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
 
 
+import type { EditableCampaign } from "@/components/vendeo/wizard/types";
 import { useI18n } from "@/lib/i18n/i18n";
 import { NotificationCenter } from "@/components/NotificationCenter";
-import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { NotificationsView } from "@/components/NotificationsView";
 import { useUsageTracking } from "@/components/useUsageTracking";
 import { SESSION_STORAGE_PROMPT_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
@@ -66,14 +65,13 @@ const PERSISTED_DASHBOARD_SECTIONS = new Set([
   "Vendeo AI",
   "Studio",
   "Pub",
-  "Performance visuel",
+  "Performance publicitaire",
   "Comptes publicitaires",
   "Radar marché",
   "Mes boutiques",
   "Rapports",
   "Bénéfices nets",
   "Relances WhatsApp",
-  "Pilotage auto",
   "Abonnement",
   "Paramètres",
   "Notifications",
@@ -84,6 +82,7 @@ function getInitialDashboardSection() {
   if (typeof window === "undefined") return DEFAULT_DASHBOARD_SECTION;
   try {
     const savedSection = window.sessionStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
+    if (savedSection === "Performance visuel") return "Performance publicitaire";
     return savedSection && PERSISTED_DASHBOARD_SECTIONS.has(savedSection) ? savedSection : DEFAULT_DASHBOARD_SECTION;
   } catch {
     return DEFAULT_DASHBOARD_SECTION;
@@ -229,6 +228,7 @@ function DashboardWorkspace() {
   const [wizardOpen, setWizardOpen] = useState(false);
   // Produit choisi via le bouton « Promouvoir » du catalogue : le formulaire de pub saute alors l'étape « Produit ».
   const [wizardProduct, setWizardProduct] = useState<ProductData | null>(null);
+  const [wizardDuplicateCampaign, setWizardDuplicateCampaign] = useState<EditableCampaign | null>(null);
   const [campaignsVersion, setCampaignsVersion] = useState(0);
   const [overviewPeriodDays, setOverviewPeriodDays] = useState(30);
   // Le formulaire de création de pub (LaunchAdWizard) vit ici, au niveau de l'appli,
@@ -238,6 +238,7 @@ function DashboardWorkspace() {
   function changeStore(id: string | null) {
     setWizardOpen(false);
     setWizardProduct(null);
+    setWizardDuplicateCampaign(null);
     setSelectedStoreId(id);
   }
   function launchAd() {
@@ -247,6 +248,7 @@ function DashboardWorkspace() {
     }
     // Lancement classique (sans produit précis) : l'utilisateur choisit le produit à l'étape 1.
     setWizardProduct(null);
+    setWizardDuplicateCampaign(null);
     setWizardOpen(true);
   }
 
@@ -256,7 +258,18 @@ function DashboardWorkspace() {
       setActive("Mes boutiques");
       return;
     }
+    setWizardDuplicateCampaign(null);
     setWizardProduct(product);
+    setWizardOpen(true);
+  }
+
+  function applyRecommendedCampaign(campaign: EditableCampaign) {
+    if (!activeStoreId) {
+      setActive("Mes boutiques");
+      return;
+    }
+    setWizardProduct(null);
+    setWizardDuplicateCampaign(campaign);
     setWizardOpen(true);
   }
 
@@ -381,14 +394,11 @@ function DashboardWorkspace() {
           <Link href="/" className="brand">
             <Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40} unoptimized />
           </Link>
-          <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance visuel":"Creative performance","Bénéfices nets":"Net profit","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Pilotage auto":"Autopilot","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active}</strong></div>
+          <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance publicitaire":"Ad performance","Bénéfices nets":"Net profit","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active}</strong></div>
           <DashboardHeaderNavigation active={active} onChange={setActive} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
-            <button type="button" data-onboarding="Pilotage auto" className="mobile-autopilot-trigger" aria-label={t("workspaceExtra.autopilot")} title={t("workspaceExtra.autopilot")} aria-current={active === "Pilotage auto" ? "page" : undefined} onClick={() => { setActive("Pilotage auto"); setMoreOpen(false); }}>
-              <Bot size={18} aria-hidden="true" />
-            </button>
-             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Radar marché", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Paramètres"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
+             <button type="button" className={`mobile-more-trigger ${moreOpen || ["Radar marché", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Performance publicitaire", "Paramètres"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
             <button type="button" className="vendeo-guide-replay" onClick={replayGuide} aria-label={locale === "en" ? "Replay the workspace guide" : "Revoir le guide de mon espace"}>{locale === "en" ? "Guide" : "Guide"}</button>
@@ -423,11 +433,11 @@ function DashboardWorkspace() {
             />
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
-          ) : active === "Performance visuel" ? (
+          ) : active === "Performance publicitaire" ? (
             <PerformanceVisuelView storeId={activeStoreId} onOpenStudio={(prefill) => {
               sessionStorage.setItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, JSON.stringify(prefill));
               setActive("Studio");
-            }} />
+            }} onApplyCampaign={applyRecommendedCampaign} products={analytics?.products ?? []} locale={locale} />
           ) : active === "Pub" ? (
              <AdsView key={activeStoreId} plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
@@ -448,8 +458,6 @@ function DashboardWorkspace() {
             <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="feedback" />
           ) : active === "Notifications" ? (
             <NotificationsView onBack={() => setActive(previousSection)} />
-          ) : active === "Pilotage auto" ? (
-            <AutopilotView />
           ) : (
             <OverviewHome
               key={activeStoreId}
@@ -472,11 +480,13 @@ function DashboardWorkspace() {
          </section>
          {wizardOpen && activeStoreId ? (
            <LaunchAdWizard
-             key={`${activeStoreId}:${wizardProduct?.id ?? ""}`}
+             key={`${activeStoreId}:${wizardProduct?.id ?? ""}:${wizardDuplicateCampaign?.id ?? ""}`}
              storeId={activeStoreId}
              initialProduct={wizardProduct}
+             duplicateCampaign={wizardDuplicateCampaign ?? undefined}
+             launchImmediately={Boolean(wizardDuplicateCampaign)}
              plan={(subscription?.plan ?? "starter") as PlanId}
-             onClose={() => { setWizardOpen(false); setWizardProduct(null); }}
+             onClose={() => { setWizardOpen(false); setWizardProduct(null); setWizardDuplicateCampaign(null); }}
              onLaunched={() => { navigationCache.invalidate(); setCampaignsVersion((v) => v + 1); }}
            />
          ) : null}
@@ -501,10 +511,6 @@ function DashboardWorkspace() {
               <Sparkles size={24} strokeWidth={2} />
               <span>{t("nav.studio")}</span>
             </button>
-             <button type="button" data-onboarding="Performance visuel" className={`nav-btn nav-btn-performance ${active === "Performance visuel" ? "active" : ""}`} onClick={() => setActive("Performance visuel")}>
-               <ImageIcon size={24} />
-                <span>{t("nav.creativePerformance")}</span>
-             </button>
         </nav>
         ) : null}
          {moreOpen ? (
@@ -516,6 +522,7 @@ function DashboardWorkspace() {
               <button type="button" role="menuitem" className={active === "Relances WhatsApp" ? "active" : ""} onClick={() => { setActive("Relances WhatsApp"); setMoreOpen(false); }}><MessageSquare size={16} /> {w("whatsapp")}</button>
               <span className="mobile-more-label">{w("analysis")}</span>
               <button type="button" role="menuitem" className={active === "Radar marché" ? "active" : ""} onClick={() => { setActive("Radar marché"); setMoreOpen(false); }}><Lightbulb size={16} /> {locale === "en" ? "Market radar" : "Radar marché"}</button>
+              <button type="button" role="menuitem" className={active === "Performance publicitaire" ? "active" : ""} onClick={() => { setActive("Performance publicitaire"); setMoreOpen(false); }}><BarChart3 size={16} /> {t("nav.adPerformance")}</button>
               <button type="button" role="menuitem" className={active === "Rapports" ? "active" : ""} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> {" "}{t("workspaceExtra.reports")}</button>
               <span className="mobile-more-label">{w("application")}</span>
               <button type="button" role="menuitem" className={active === "Paramètres" ? "active" : ""} onClick={() => { setActive("Paramètres"); setMoreOpen(false); }}><Settings size={16} /> {" "}{t("workspaceExtra.settings")}</button>

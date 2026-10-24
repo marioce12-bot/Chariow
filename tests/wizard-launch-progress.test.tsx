@@ -46,6 +46,12 @@ afterEach(() => {
 });
 
 describe("wizard launch progress", () => {
+  it("shows the explicit launch label without launching on render", () => {
+    renderStep("meta", { launchLabel: "Lancer maintenant" });
+    expect(button("Lancer maintenant")).toBeDefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["fr", "meta", "Meta", "Envoi à Meta…"],
     ["en", "tiktok", "TikTok", "Sending to TikTok…"],
@@ -120,7 +126,7 @@ describe("wizard launch progress", () => {
     expect(container.textContent).toMatch(/Trafic|Traffic/);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).confirm_traffic_fallback).toBe(false);
-    act(() => button("Oui, lancer en Trafic").click());
+    await act(async () => { button("Oui, lancer en Trafic").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body as string).confirm_traffic_fallback).toBe(true);
   });

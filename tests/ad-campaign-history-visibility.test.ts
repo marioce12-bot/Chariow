@@ -19,7 +19,7 @@ describe("campaign history is hidden without deleting campaign records", () => {
     const history = Array.from({ length: 36 }, (_, i) => Object.freeze({ id: `history-${i}`, status: i % 2 ? "deleted" : "archived", external_error: null }));
     const rows = Object.freeze([...current, ...history]);
     const { query } = database(rows as unknown as any[]);
-    const response = await GET();
+    const response = await GET(new Request("https://app.example/api/ad-campaigns"));
     const body = await response.json();
     expect(body.campaigns).toEqual(current);
     // This is the grouping used by the previous production client: no drawer can render.
@@ -41,17 +41,24 @@ describe("campaign history is hidden without deleting campaign records", () => {
     ];
     const visible = [{ status: "paused", external_error: "META_UNAVAILABLE:état indisponible" }, { status: "active", external_error: "not archived" }];
     database([...hidden, ...visible]);
-    expect(await (await GET()).json()).toEqual({ campaigns: visible });
+    expect(await (await GET(new Request("https://app.example/api/ad-campaigns"))).json()).toEqual({ campaigns: visible });
   });
   it("returns an empty current list when every campaign is historical", async () => {
     database([{ status: "deleted", external_error: null }]);
-    expect(await (await GET()).json()).toEqual({ campaigns: [] });
+    expect(await (await GET(new Request("https://app.example/api/ad-campaigns"))).json()).toEqual({ campaigns: [] });
+  });
+  it("supports an owner-scoped store filter for recommendation settings", async () => {
+    const { query } = database([{ id: "campaign-1", status: "active", external_error: null }]);
+    const response = await GET(new Request("https://app.example/api/ad-campaigns?store_id=store-1"));
+    expect(response.status).toBe(200);
+    expect(query.eq).toHaveBeenCalledWith("user_id", "owner");
+    expect(query.eq).toHaveBeenCalledWith("store_id", "store-1");
   });
   it("preserves authentication and database error handling", async () => {
     requireUser.mockResolvedValue({ user: null, response: new Response("Unauthorized", { status: 401 }) });
-    expect((await GET()).status).toBe(401);
+    expect((await GET(new Request("https://app.example/api/ad-campaigns"))).status).toBe(401);
     database([], { message: "unavailable" });
-    expect((await GET()).status).toBe(500);
+    expect((await GET(new Request("https://app.example/api/ad-campaigns"))).status).toBe(500);
   });
   it("has no history JSX and defensively hides an older history tree", () => {
     const component = readFileSync("components/vendeo/AdCampaignsList.tsx", "utf8");

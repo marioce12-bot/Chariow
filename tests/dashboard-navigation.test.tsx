@@ -10,15 +10,15 @@ vi.mock("@/lib/i18n/i18n", async () => {
 import { DashboardHeaderNavigation, DashboardPrimaryNavigation } from "@/components/dashboard/DesktopNavigation";
 
 describe("dashboard desktop navigation", () => {
-  it("keeps all eleven primary destinations, including creative performance and feedback", () => {
+  it("keeps ten primary destinations, including ad performance and feedback", () => {
     const html = renderToStaticMarkup(<DashboardPrimaryNavigation active="Accueil" onChange={() => {}} />);
-    expect((html.match(/<button/g) ?? []).length).toBe(11);
-    expect(html).toContain("Performance visuel");
+    expect((html.match(/<button/g) ?? []).length).toBe(10);
+    expect(html).toContain("Performance publicitaire");
     expect(html).toContain("Suggestions et notes");
     expect(html).toContain("Accueil");
     expect(html).toContain("Bénéfices nets");
     expect(html).toContain("Relances WhatsApp");
-    expect(html).toContain("Pilotage auto");
+    expect(html).not.toContain("Pilotage auto");
     expect(html).not.toContain("nav.stores");
     expect(html).not.toContain("nav.adAccounts");
     expect(html).not.toContain("nav.subscription");
@@ -70,23 +70,15 @@ describe("dashboard desktop navigation", () => {
     expect(css).not.toContain('.admin-');
   });
 
-  it("provides a mobile autopilot header shortcut and keeps other overflow items", () => {
+  it("keeps useful secondary items in the mobile overflow menu and omits the Autopilot shortcut", () => {
     const source = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
     const menu = source.slice(source.indexOf('<div className="mobile-more-menu"'), source.indexOf("</div>", source.indexOf('<div className="mobile-more-menu"')));
-    const shortcut = source.slice(source.indexOf('className="mobile-autopilot-trigger"'), source.indexOf('</button>', source.indexOf('className="mobile-autopilot-trigger"')));
-    const css = readFileSync(new URL("../app/dashboard-autopilot-header.css", import.meta.url), "utf8");
-    expect(source).toContain('aria-label={t("workspaceExtra.autopilot")} title={t("workspaceExtra.autopilot")}');
-    expect(shortcut).toContain('aria-current={active === "Pilotage auto" ? "page" : undefined}');
-    expect(shortcut).toContain('setActive("Pilotage auto"); setMoreOpen(false)');
-    expect(menu).not.toContain('workspaceExtra.autopilot');
-    expect((menu.match(/role="menuitem"/g) ?? [])).toHaveLength(5);
-    for (const item of ['w("netProfit")', 'w("whatsapp")', 'Radar marché', 'workspaceExtra.reports', 'workspaceExtra.settings']) expect(menu).toContain(item);
+    expect(source).not.toContain('className="mobile-autopilot-trigger"');
+    expect(source).not.toContain('setActive("Pilotage auto")');
+    expect((menu.match(/role="menuitem"/g) ?? [])).toHaveLength(6);
+    for (const item of ['w("netProfit")', 'w("whatsapp")', 'Radar marché', 'Performance publicitaire', 'workspaceExtra.reports', 'workspaceExtra.settings']) expect(menu).toContain(item);
     expect(menu).not.toContain('workspaceExtra.subscription');
     expect(menu).not.toContain('adminExtra.admin.logout');
     expect(menu).not.toContain('setActive("Mes boutiques")');
-    expect(css).toContain("@media (max-width: 760px)");
-    expect(css).toContain("focus-visible");
-    expect(css).toContain('aria-current="page"');
-    expect(css).toContain("width: 36px");
   });
 });

@@ -84,7 +84,7 @@ export async function POST(request: Request) {
         const daily = live.daily_budget || adSet.daily_budget;
         const lifetime = live.lifetime_budget || adSet.lifetime_budget;
         const budget = daily ? `Budget Meta quotidien : ${daily} unités mineures ${account.currency || "(devise non vérifiée)"}.` : lifetime ? `Budget Meta total : ${lifetime} unités mineures ${account.currency || "(devise non vérifiée)"}.` : "Budget Meta non renseigné dans cette lecture; consulter Meta avant activation.";
-        warning = `Cible Meta : campagne ${campaign.external_campaign_id}, ensemble ${campaign.external_adset_id}, publicité ${campaign.external_ad_id}. Statut demandé sur les trois : ${action === "pause" ? "PAUSED" : "ACTIVE"}. ${budget} Autopilot sera désactivé. L’activation peut engager des dépenses et dépend de l’examen Meta.`;
+        warning = `Cible Meta : campagne ${campaign.external_campaign_id}, ensemble ${campaign.external_adset_id}, publicité ${campaign.external_ad_id}. Statut demandé sur les trois : ${action === "pause" ? "PAUSED" : "ACTIVE"}. ${budget} Les règles automatiques de budget associées seront désactivées.`;
       }
     } catch { return fail("Impossible de relire et vérifier l’état actuel et les entités chez Meta; aucune mutation envoyée.", 503); }
   }
@@ -139,10 +139,10 @@ export async function POST(request: Request) {
       ]);
       if (checked.some(row => row.status !== target)) throw new Error("État demandé non vérifié après envoi");
     }
-  } catch { return fail("L’action Meta a échoué ou son résultat n’est pas confirmé. Elle peut être partiellement appliquée; vérifie campagne, ensemble et publicité avant toute nouvelle action. Autopilot a été désactivé.", 502); }
+  } catch { return fail("L’action Meta a échoué ou son résultat n’est pas confirmé. Elle peut être partiellement appliquée; vérifie campagne, ensemble et publicité avant toute nouvelle action. Les règles automatiques de budget ont été désactivées.", 502); }
   const status = action === "delete" ? "deleted" : action === "pause" ? "paused" : "review";
   const updates = { status, autopilot_enabled: false, ...(action === "pause" ? { autopilot_paused_at: new Date().toISOString(), autopilot_pause_reason: "user_requested" } : {}) };
   const { data, error } = await supabase.from("ad_campaigns").update(updates).eq("id", campaign.id).eq("user_id", user.id).eq("updated_at", claimed.updated_at).select("id,title,status,platform").maybeSingle();
   if (error || !data) return fail("Meta a accepté l’action, mais l’état Vendeo n’a pas été enregistré. Vérifie la campagne avant toute nouvelle action.", 502);
-  return NextResponse.json({ message: action === "delete" ? "Suppression confirmée par Meta; campagne marquée supprimée dans Vendeo." : action === "pause" ? "Pause configurée et vérifiée chez Meta sur la campagne, l’ensemble et la publicité; Autopilot désactivé." : "Statut ACTIVE configuré et vérifié chez Meta. La diffusion reste soumise à l’examen et aux restrictions Meta; Autopilot désactivé.", campaign: data });
+  return NextResponse.json({ message: action === "delete" ? "Suppression confirmée par Meta; campagne marquée supprimée dans Vendeo." : action === "pause" ? "Pause configurée et vérifiée chez Meta sur la campagne, l’ensemble et la publicité; les règles automatiques de budget ont été désactivées." : "Statut ACTIVE configuré et vérifié chez Meta. La diffusion reste soumise à l’examen et aux restrictions Meta; les règles automatiques de budget ont été désactivées.", campaign: data });
 }

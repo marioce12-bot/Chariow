@@ -15,9 +15,10 @@ vi.mock("@/components/vendeo/AutopilotView", () => ({ AutopilotView: () => null 
 vi.mock("@/components/NotificationsView", () => ({ NotificationsView: () => null }));
 vi.mock("@/components/vendeo", () => ({ ImpactFinancierCard: () => null, LaunchAdBar: () => null, CampaignCrossTable: () => null, DiagnosticBoutique: () => null }));
 vi.mock("@/components/vendeo/wizard", () => ({ LaunchAdWizard: () => null }));
+vi.mock("@/components/dashboard/PerformanceVisuelView", () => ({ PerformanceVisuelView: () => null }));
 vi.mock("@/components/dashboard/DesktopNavigation", () => ({
   DashboardHeaderNavigation: () => null,
-  DashboardPrimaryNavigation: ({ onChange }: any) => createElement("nav", null, ...["Vue d'ensemble", "Vendeo AI", "Studio", "Pub", "Comptes publicitaires", "Radar marché", "Mes boutiques", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Pilotage auto", "Abonnement", "Paramètres", "Notifications", "Suggestions et notes"].map(section => createElement("button", { key: section, onClick: () => onChange(section) }, section))),
+  DashboardPrimaryNavigation: ({ onChange }: any) => createElement("nav", null, ...["Vue d'ensemble", "Vendeo AI", "Studio", "Pub", "Comptes publicitaires", "Radar marché", "Mes boutiques", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Performance publicitaire", "Abonnement", "Paramètres", "Notifications", "Suggestions et notes"].map(section => createElement("button", { key: section, onClick: () => onChange(section) }, section))),
 }));
 vi.mock("@/components/dashboard/sections", () => ({
   StoreOnboarding: () => null, StudioView: () => null, MarketRadarView: () => null,

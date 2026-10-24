@@ -37,7 +37,14 @@ describe("PerformanceVisuelView report rendering", () => {
       ],
       productEligibility: [], duplicateCandidates: [], notices: { tikTok: null, pinterest: null },
     };
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      const payload = url.startsWith("/api/creative-performance?") ? body
+        : url === "/api/ad-campaigns" ? { campaigns: [] }
+          : url.startsWith("/api/ad-performance/geography") ? { visitsByLocation: [], salesByCountry: [], conversionByCountry: [] }
+            : {};
+      return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }));
+    });
     vi.stubGlobal("fetch", fetchMock);
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
     const container = document.createElement("div");
@@ -47,6 +54,8 @@ describe("PerformanceVisuelView report rendering", () => {
       root.render(<PerformanceVisuelView storeId="store-1" onOpenStudio={vi.fn()} readOnly />);
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
+    const visualsTab = Array.from(container.querySelectorAll('[role="tab"]')).find((tab) => tab.textContent === "Visuels");
+    await act(async () => { visualsTab?.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/creative-performance?store_id=store-1&days=30", { cache: "no-store" });
     expect(container.textContent).toContain("Résultats par visuel");
@@ -61,7 +70,7 @@ describe("PerformanceVisuelView report rendering", () => {
     expect(container.querySelector(".creative-all-campaigns")).toBeNull();
     expect(container.querySelector(".creative-variant-editor")).toBeNull();
     expect(container.querySelector(".creative-studio-actions")).toBeNull();
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/ad-performance/geography"))).toBe(true);
 
     await act(async () => root.unmount());
   });

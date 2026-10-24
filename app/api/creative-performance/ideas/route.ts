@@ -138,7 +138,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "Suggestions indisponibles.";
     const migrationMissing = /creative_media_(assets|placements|asset_urls)|creative_campaign_metric_snapshots/i.test(message);
     return NextResponse.json({
-      error: migrationMissing ? "La migration Performance visuel n’est pas disponible. Aucune idée n’a été proposée." : message,
+      error: migrationMissing ? "La migration des visuels publicitaires n’est pas disponible. Aucune idée n’a été proposée." : message,
       code: migrationMissing ? "CREATIVE_LIBRARY_NOT_READY" : "CREATIVE_IDEAS_UNAVAILABLE",
     }, { status: migrationMissing ? 503 : 500, headers: { "Cache-Control": "private, no-store" } });
   }

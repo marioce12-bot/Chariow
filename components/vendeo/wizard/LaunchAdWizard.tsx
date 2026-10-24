@@ -10,6 +10,7 @@ import { Step1Product } from "./Step1Product";
 import { Step2NetworkCreative, type Step2FooterState } from "./Step2NetworkCreative";
 import { Step3Audience } from "./Step3Audience";
 import { Step4Budget } from "./Step4Budget";
+import { Step5Payment } from "./Step5Payment";
 import { useI18n } from "@/lib/i18n/i18n";
 
 interface LaunchAdWizardProps {
@@ -28,6 +29,8 @@ interface LaunchAdWizardProps {
   /** Mode duplication : campagne dont les valeurs pré-remplissent les étapes. Contrairement à
    *  `editCampaign`, le wizard crée un NOUVEAU brouillon et ne touche jamais à l'original. */
   duplicateCampaign?: EditableCampaign;
+  /** Affiche l’étape de publication explicite après création du brouillon recommandé. */
+  launchImmediately?: boolean;
 }
 
 type MetaPreview = { id: string; label: string; html: string };
@@ -66,7 +69,7 @@ const META_PREVIEW_CACHE_MS = 10 * 60 * 1000;
  * Step2NetworkCreative.tsx pour le détail. Les autres étapes gardent leur
  * propre pied de page interne (sticky bottom-0 dans leur zone de scroll).
  */
-export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProduct, editCampaign, editNotice, onEdited, duplicateCampaign }: LaunchAdWizardProps) {
+export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProduct, editCampaign, editNotice, onEdited, duplicateCampaign, launchImmediately = false }: LaunchAdWizardProps) {
   const { locale, t } = useI18n();
   const en = locale === "en";
   const stepLabels = [t("wizardExtra.step.product"), t("wizardExtra.step.creative"), t("wizardExtra.step.audience"), t("wizardExtra.step.budget"), t("wizardExtra.step.creation")];
@@ -340,7 +343,11 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
                   })()}
                 </div>
               )}
-              <button type="button" onClick={() => { if (editCampaign && onEdited) { onEdited(state.campaignId!); return; } onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">{editCampaign ? (en ? "Save and go back to launch" : "Enregistrer et revenir au lancement") : (en ? "View my campaign in Ads" : "Voir ma campagne dans Pub")}</button>
+              {launchImmediately ? <div className="space-y-3 rounded-2xl border border-[#DDE4F2] bg-[#F9FAFF] p-4">
+                <CampaignLaunchReview state={state} en={en} />
+                <Step5Payment state={state} onLaunched={(campaignId) => onLaunched?.(campaignId)} launchLabel={en ? "Launch now" : "Lancer maintenant"} />
+              </div> : null}
+              <button type="button" onClick={() => { if (editCampaign && onEdited) { onEdited(state.campaignId!); return; } onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">{editCampaign ? (en ? "Save and go back to launch" : "Enregistrer et revenir au lancement") : launchImmediately ? (en ? "Close" : "Fermer") : (en ? "View my campaign in Ads" : "Voir ma campagne dans Pub")}</button>
             </div>
           )}
         </div>
@@ -369,4 +376,25 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
     </div>,
     document.body,
   );
+}
+
+function CampaignLaunchReview({ state, en }: { state: WizardState; en: boolean }) {
+  const locations = state.locations.map((location) => location.name).filter(Boolean).join(", ") || state.countries.join(", ") || "—";
+  const totalBudget = state.dailyBudget * state.durationDays;
+  const objective = state.objective === "sales" ? (en ? "Sales" : "Ventes") : state.objective;
+  const platform = state.platform === "meta" ? "Meta" : state.platform === "tiktok" ? "TikTok" : "Pinterest";
+  return <section className="space-y-3" aria-label={en ? "Campaign settings" : "Paramètres de la campagne"}>
+    <div><h3 className="text-sm font-bold text-gray-900">{en ? "Review everything before launch" : "Vérifie la campagne avant le lancement"}</h3><p className="mt-1 text-xs text-gray-500">{en ? "The campaign is still a draft. Nothing is sent until you press Launch now." : "La campagne est encore un brouillon. Rien n’est envoyé avant ton clic sur « Lancer maintenant »."}</p></div>
+    <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+      <div><dt className="font-semibold text-gray-500">{en ? "Platform" : "Plateforme"}</dt><dd className="mt-0.5 text-gray-900">{platform}</dd></div>
+      <div><dt className="font-semibold text-gray-500">{en ? "Objective" : "Objectif"}</dt><dd className="mt-0.5 text-gray-900">{objective}</dd></div>
+      <div><dt className="font-semibold text-gray-500">{en ? "Targeted locations" : "Lieux ciblés"}</dt><dd className="mt-0.5 text-gray-900">{locations}</dd></div>
+      <div><dt className="font-semibold text-gray-500">{en ? "Audience age" : "Âge de l’audience"}</dt><dd className="mt-0.5 text-gray-900">{state.minAge}–{state.maxAge}</dd></div>
+      <div><dt className="font-semibold text-gray-500">{en ? "Daily budget · duration" : "Budget quotidien · durée"}</dt><dd className="mt-0.5 text-gray-900">${state.dailyBudget.toLocaleString("en-US")} × {state.durationDays} {en ? "days" : "jours"}</dd></div>
+      <div><dt className="font-semibold text-gray-500">{en ? "Total platform budget" : "Budget total sur la plateforme"}</dt><dd className="mt-0.5 font-bold text-gray-900">${totalBudget.toLocaleString("en-US")}</dd></div>
+      <div className="sm:col-span-2"><dt className="font-semibold text-gray-500">{en ? "Destination" : "Destination"}</dt><dd className="mt-0.5 break-all text-gray-900">{state.destinationUrl || "—"}</dd></div>
+      <div className="sm:col-span-2"><dt className="font-semibold text-gray-500">{en ? "Ad text" : "Texte de la publicité"}</dt><dd className="mt-0.5 whitespace-pre-wrap text-gray-900">{state.adText || "—"}</dd></div>
+      <div className="sm:col-span-2"><dt className="font-semibold text-gray-500">{en ? "Headline" : "Titre"}</dt><dd className="mt-0.5 text-gray-900">{state.title || state.product?.name || "—"}</dd></div>
+    </dl>
+  </section>;
 }

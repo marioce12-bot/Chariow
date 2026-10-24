@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, ImageIcon, Layers3, Link2, RefreshCw, ShieldCheck, Sparkles, Video } from "lucide-react";
 import type { CreativePerformanceStudioPrefill } from "@/lib/creative-performance/client";
+import type { EditableCampaign } from "../vendeo/wizard/types";
+import type { ProductData } from "./shared";
+import { CampaignPerformanceTab } from "./CampaignPerformanceTab";
 import "./performance-visuel.css";
 
 type CreativeMetric = {
@@ -23,13 +26,13 @@ type Media = {
   attributedCurrency: string | null; costPerOrder: number | null; winner: boolean;
   metricsComplete: boolean; campaigns: Placement[];
 };
-type Campaign = {
+export type Campaign = {
   campaignId: string; name: string; platform: string; status: string; productId: string | null;
   productName: string | null; launched: boolean; analyzed: boolean;
   metrics: { currency: string | null; spend: number; clicks: number; impressions: number;
     attributedOrders: number | null; attributedRevenue: number | null; attributedCurrency: string | null } | null;
 };
-type PerformanceData = {
+export type PerformanceData = {
   period: { from: string; to: string };
   metrics: { mediaCount: number; campaigns: number; launchedCampaigns: number; unavailableCampaignMetrics: number;
     totals: Array<{ currency: string; spend: number; clicks: number; attributedOrders: number | null;
@@ -63,10 +66,13 @@ function formatPeriod(from: string, to: string) {
   return `${new Date(`${from}T00:00:00Z`).toLocaleDateString("fr-FR")} – ${new Date(`${to}T00:00:00Z`).toLocaleDateString("fr-FR")}`;
 }
 
-export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false }: {
+export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false, products = [], onApplyCampaign, locale = "fr" }: {
   storeId: string | null; onOpenStudio: (prefill: CreativePerformanceStudioPrefill) => void; readOnly?: boolean;
+  products?: ProductData[]; onApplyCampaign?: (campaign: EditableCampaign) => void;
+  locale?: string;
 }) {
   const [period, setPeriod] = useState("30");
+  const [activeTab, setActiveTab] = useState<"campaigns" | "visuals">("campaigns");
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -86,7 +92,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
     fetch(`/api/creative-performance?store_id=${encodeURIComponent(storeId)}&days=${period}`, { cache: "no-store" })
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(body.error || "Performance visuel est temporairement indisponible.");
+        if (!response.ok) throw new Error(body.error || "Performance publicitaire est temporairement indisponible.");
         return body as PerformanceData;
       })
       .then((result) => { if (alive) setData(result); })
@@ -106,7 +112,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
   const totalOrders = allOrdersKnown ? number(totals.reduce((sum, row) => sum + (row.attributedOrders ?? 0), 0)) : "—";
   const costPerOrder = data?.metrics.unavailableCampaignMetrics ? "—" : totals.filter((row) => row.costPerOrder !== null).map((row) => money(row.costPerOrder, row.currency)).join(" · ") || "—";
   const totalRevenue = totals.map((row) => money(row.attributedRevenue, row.currency)).join(" · ") || "—";
-  const products = data?.productEligibility ?? [];
+  const eligibilityProducts = data?.productEligibility ?? [];
   const platforms = [...new Set((data?.media ?? []).flatMap((item) => item.campaigns.map((campaign) => campaign.platform)))];
   const variantRows = useMemo(() => {
     const grouped = new Map<string, { productName: string; variant: string; currency: string | null; spend: number; clicks: number; orders: number; revenue: number; count: number; complete: boolean; ordersKnown: boolean; revenueKnown: boolean }>();
@@ -173,9 +179,9 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
     <div className="creative-performance">
       <header className="creative-performance-header">
         <div>
-          <div className="creative-performance-breadcrumb">Espace de travail <span aria-hidden="true">›</span> Performance visuel</div>
-          <h1>Performance visuel</h1>
-          <p>Chaque image ou vidéo apparaît une seule fois. Ses résultats sont regroupés sur les campagnes où elle a été utilisée.</p>
+          <div className="creative-performance-breadcrumb">Espace de travail <span aria-hidden="true">›</span> Performance publicitaire</div>
+          <h1>Performance publicitaire</h1>
+          <p>Compare les résultats mesurés des campagnes, consulte les lieux de visite et de vente, puis retrouve les visuels reliés à chaque diffusion.</p>
         </div>
         <label className="creative-period"><span>Période</span>
           <select value={period} onChange={(event) => setPeriod(event.target.value)} aria-label="Période de performance">
@@ -193,7 +199,24 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
         })}
       </section>
 
-      {variantRows.length ? <details className="creative-variant-summary">
+      <div className="creative-performance-tabs" role="tablist" aria-label="Vues des performances publicitaires">
+        <button type="button" role="tab" aria-selected={activeTab === "campaigns"} className={activeTab === "campaigns" ? "active" : ""} onClick={() => setActiveTab("campaigns")}>Campagnes</button>
+        <button type="button" role="tab" aria-selected={activeTab === "visuals"} className={activeTab === "visuals" ? "active" : ""} onClick={() => setActiveTab("visuals")}>Visuels</button>
+      </div>
+
+      {activeTab === "campaigns" ? <CampaignPerformanceTab
+        storeId={storeId}
+        period={data?.period ?? null}
+        periodDays={period}
+        data={data}
+        loading={loading}
+        products={products}
+        locale={locale}
+        readOnly={readOnly || !onApplyCampaign}
+        onApplyCampaign={onApplyCampaign ?? (() => {})}
+      /> : null}
+
+      {activeTab === "visuals" && variantRows.length ? <details className="creative-variant-summary">
         <summary>Comparer les variantes renseignées ({variantRows.length})</summary>
         <p>Comparaison secondaire des performances par variante.</p>
         <div className="creative-variant-table">{variantRows.map((row) => <article className="creative-variant-summary-row" key={row.key}>
@@ -206,11 +229,11 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
         </article>)}</div>
       </details> : null}
 
-      {error ? <div className="creative-error" role="alert">{error}</div> : null}
-      {data?.notices.tikTok ? <p className="creative-notice" role="status">{data.notices.tikTok}</p> : null}
-      {data?.notices.pinterest ? <p className="creative-notice" role="status">{data.notices.pinterest}</p> : null}
+      {activeTab === "visuals" && error ? <div className="creative-error" role="alert">{error}</div> : null}
+      {activeTab === "visuals" && data?.notices.tikTok ? <p className="creative-notice" role="status">{data.notices.tikTok}</p> : null}
+      {activeTab === "visuals" && data?.notices.pinterest ? <p className="creative-notice" role="status">{data.notices.pinterest}</p> : null}
 
-      <section className="creative-library" aria-labelledby="creative-library-title">
+      {activeTab === "visuals" ? <section className="creative-library" aria-labelledby="creative-library-title">
         <div className="creative-library-head">
           <div><h2 id="creative-library-title">Résultats par visuel</h2>
             <p>{data ? `${data.metrics.mediaCount} visuel(s) · ${formatPeriod(data.period.from, data.period.to)}` : "Choisis une boutique pour consulter les performances de ses visuels."}</p>
@@ -259,7 +282,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
                     </div>)}</div>
                   </details>
                   {!readOnly && productPlacements.length ? <div className="creative-studio-actions"><strong>Idées Studio</strong>{productPlacements.map((campaign) => {
-                    const eligibility = products.find((product) => product.productId === campaign.productId);
+                    const eligibility = eligibilityProducts.find((product) => product.productId === campaign.productId);
                     const key = `${item.id}:${campaign.productId}`;
                     const busy = suggestionBusy === key;
                     const winningCreative = item.campaigns.some((placement) => placement.productId === campaign.productId && placement.metrics.available && placement.metrics.attributionReliable && placement.metrics.attributedRevenue !== null && placement.metrics.attributedCurrency === placement.metrics.currency && placement.metrics.attributedRevenue > (placement.metrics.spend ?? Infinity));
@@ -277,7 +300,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
               </article>;
             })}
           </div>}
-      </section>
+      </section> : null}
     </div>
   );
 }

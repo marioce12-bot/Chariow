@@ -371,8 +371,8 @@ export async function GET(request: Request) {
           {
             user_id: campaign.user_id,
             type: "autopilot",
-            title: `Le pilote IA a mis en pause ta campagne ${campaign.platform === "meta" ? "Meta" : "TikTok"}`,
-            body: `« ${title} » a été mise en pause automatiquement. ${decision.reasons.join(" ")}`,
+            title: `Ta campagne ${campaign.platform === "meta" ? "Meta" : "TikTok"} est en pause`,
+            body: `« ${title} » est en pause. ${decision.reasons.join(" ")}`,
             action_url: "/dashboard",
             dedupe_key: `autopilot_pause_${campaign.id}_${isoDay(new Date())}`,
             metadata: { campaign_id: campaign.id, platform: campaign.platform, roas: decision.roas, reason: decision.reasons },

@@ -16,6 +16,7 @@ interface StepProps {
   onLaunchingChange?: (launching: boolean) => void;
   initialStatus?: "draft" | "paused" | "autopilot_paused" | "paid";
   initialError?: string | null;
+  launchLabel?: string;
 }
 
 type Phase = "ready" | "launching" | "done" | "error" | "tag_required";
@@ -28,7 +29,7 @@ type Phase = "ready" | "launching" | "done" | "error" | "tag_required";
  * comment la récupérer et l'installer sur Chariow, et on ne lance en Trafic QUE si l'utilisateur
  * le confirme explicitement (confirm_traffic_fallback).
  */
-export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunchingChange, initialStatus, initialError }: StepProps) {
+export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunchingChange, initialStatus, initialError, launchLabel }: StepProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [error, setError] = useState<string | null>(null);
   const [objectiveFallback, setObjectiveFallback] = useState(false);
@@ -115,7 +116,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunch
           ) : null}
           {error && <p className="text-sm text-[#991B1B]">{campaignErrorMessage(error, locale, t, state.platform)}</p>}
           <button onClick={() => void launchCampaign()} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">
-            {t("ads.launchButton")}
+            {launchLabel ?? t("ads.launchButton")}
           </button>
         </div>
       )}

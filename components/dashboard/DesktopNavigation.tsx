@@ -2,7 +2,6 @@
 
 import {
   BarChart3,
-  Bot,
   CreditCard,
   FileText,
   LayoutDashboard,
@@ -15,7 +14,6 @@ import {
   ChartNoAxesCombined,
   MessageCircle,
   MessageSquareText,
-  ImageIcon,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import { dashboardCopy } from "@/lib/i18n/dashboard-copy";
@@ -56,7 +54,7 @@ export const dashboardPrimaryNavigation: readonly NavigationItem[] = [
   },
   { section: "Studio", navKey: "nav.studio", label: "Studio", Icon: Sparkles },
   { section: "Pub", navKey: "nav.pubs", label: "Pub", Icon: Megaphone },
-  { section: "Performance visuel", navKey: "nav.creativePerformance", label: "Performance visuel", Icon: ImageIcon },
+  { section: "Performance publicitaire", navKey: "nav.adPerformance", label: "Performance publicitaire", Icon: BarChart3 },
   {
     section: "Radar marché",
     navKey: "nav.radar",
@@ -73,12 +71,6 @@ export const dashboardPrimaryNavigation: readonly NavigationItem[] = [
     section: "Suggestions et notes",
     label: "Suggestions et notes",
     Icon: MessageSquareText,
-  },
-  {
-    section: "Pilotage auto",
-    navKey: "nav.autopilot",
-    label: "Pilotage auto",
-    Icon: Bot,
   },
 ];
 export const dashboardHeaderNavigation: readonly NavigationItem[] = [
