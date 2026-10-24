@@ -2,9 +2,8 @@ export const CHAT_NAVIGATION_TARGETS = [
   { section: "Vue d'ensemble", labelFr: "Accueil", labelEn: "Home", routeLabelFr: "Vue d’ensemble", routeLabelEn: "Overview" },
   { section: "Pub", labelFr: "Pub", labelEn: "Ads", routeLabelFr: "Pub", routeLabelEn: "Ads" },
   { section: "Studio", labelFr: "Studio", labelEn: "Studio", routeLabelFr: "Studio", routeLabelEn: "Studio" },
-  { section: "Performance visuel", labelFr: "Visuels", labelEn: "Visuals", routeLabelFr: "Performance visuel", routeLabelEn: "Creative performance" },
-  { section: "Performance publicitaire", labelFr: "Campagnes", labelEn: "Campaigns", routeLabelFr: "Performance publicitaire", routeLabelEn: "Ad performance" },
-  { section: "Vendeo AI", labelFr: "Assistant", labelEn: "Assistant", routeLabelFr: "Vendeo AI", routeLabelEn: "Vendeo AI" },
+  { section: "Performance publicitaire", labelFr: "Recommandation", labelEn: "Recommendations", routeLabelFr: "Recommandation", routeLabelEn: "Recommendations" },
+  { section: "Vendeo AI", labelFr: "Assistant", labelEn: "Assistant", routeLabelFr: "Assistant", routeLabelEn: "Assistant" },
   { section: "Bénéfices nets", labelFr: "Bénéfices nets", labelEn: "Net profit", routeLabelFr: "Bénéfices nets", routeLabelEn: "Net profit" },
   { section: "Relances WhatsApp", labelFr: "Relances WhatsApp", labelEn: "WhatsApp follow-ups", routeLabelFr: "Relances WhatsApp", routeLabelEn: "WhatsApp follow-ups" },
   { section: "Radar marché", labelFr: "Radar marché", labelEn: "Market radar", routeLabelFr: "Radar marché", routeLabelEn: "Market radar" },
@@ -54,13 +53,13 @@ export function resolveChatNavigationRequest(message: string): ChatNavigationTar
   if (/\b(?:boutiques?|stores?|shops?)\b/.test(query)) return target("Mes boutiques");
   if (/\b(?:suggestions?|feedback|notes?)\b/.test(query)) return target("Suggestions et notes");
   if (/\b(?:vendeo ai|assistant|chat)\b/.test(query)) return target("Vendeo AI");
-  if (/\b(?:visuels?|visuals?|creative performance|performance visuel|creations?|creatives?)\b/.test(query)) return target("Performance visuel");
+  if (/\b(?:recommandations?|recommendations?)\b/.test(query)) return target("Performance publicitaire");
   if (/\b(?:performance publicitaire|ad performance|performances publicitaires)\b/.test(query)) return target("Performance publicitaire");
   if (/\b(?:campagnes?|campaigns?)\b/.test(query)) {
     return target(CREATE_OR_LAUNCH_REQUEST.test(query) ? "Pub" : "Performance publicitaire");
   }
+  if (/\b(?:visuels?|visuals?|creations?|creatives?|studio|create|design)\b/.test(query)) return target("Studio");
   if (/\b(?:publicite|advertising|ads?)\b/.test(query)) return target("Pub");
-  if (/\b(?:studio|creation|create|design)\b/.test(query)) return target("Studio");
   if (/\b(?:accueil|home|overview|tableau de bord|dashboard)\b/.test(query)) return target("Vue d'ensemble");
   return null;
 }

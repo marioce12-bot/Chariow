@@ -59,15 +59,16 @@ beforeEach(() => {
 });
 
 describe("responsive Vendeo dashboard guide", () => {
-  it("follows the five mobile dock destinations in exact order, then describes the separate Assistant bubble", () => {
+  it("follows the five mobile dock destinations with Assistant and Recommendation in the dock", () => {
     expect(MOBILE_DASHBOARD_TOUR_STEPS.slice(0, 5).map((step) => step.target)).toEqual([
-      "Vue d'ensemble", "Pub", "Studio", "Performance visuel", "Performance publicitaire",
+      "Vue d'ensemble", "Pub", "Studio", "Vendeo AI", "Performance publicitaire",
     ]);
     expect(MOBILE_DASHBOARD_TOUR_STEPS.slice(0, 5).map((step) => step.activeSection)).toEqual([
-      "Vue d'ensemble", "Pub", "Studio", "Performance visuel", "Performance publicitaire",
+      "Vue d'ensemble", "Pub", "Studio", "Vendeo AI", "Performance publicitaire",
     ]);
-    expect(MOBILE_DASHBOARD_TOUR_STEPS[5]).toMatchObject({ id: "assistant-bubble", target: "Vendeo AI" });
-    expect(MOBILE_DASHBOARD_TOUR_STEPS[5].activeSection).toBeUndefined();
+    expect(MOBILE_DASHBOARD_TOUR_STEPS[3]).toMatchObject({ id: "assistant", target: "Vendeo AI", activeSection: "Vendeo AI" });
+    expect(MOBILE_DASHBOARD_TOUR_STEPS[4].fr).toContain("Recommandation");
+    expect(MOBILE_DASHBOARD_TOUR_STEPS.some((step) => /performance visuel|creative performance|bulle|bubble/i.test(`${step.fr} ${step.en} ${step.body} ${step.english}`))).toBe(false);
   });
 
   it("opens the actual overflow menu for menu destinations and leaves settings for its general index", () => {
@@ -118,7 +119,7 @@ describe("responsive Vendeo dashboard guide", () => {
   it("uses an independent desktop sequence with desktop-specific overview refinements and navigation", () => {
     expect(DESKTOP_DASHBOARD_TOUR_STEPS[0].target).toBe("store");
     expect(DESKTOP_DASHBOARD_TOUR_STEPS.slice(1, 8).map((step) => step.target)).toEqual([
-      "Vue d'ensemble", "Bénéfices nets", "Relances WhatsApp", "Vendeo AI", "Studio", "Pub", "Performance visuel",
+      "Vue d'ensemble", "Bénéfices nets", "Relances WhatsApp", "Vendeo AI", "Studio", "Pub", "Performance publicitaire",
     ]);
     expect(DESKTOP_DASHBOARD_TOUR_STEPS.find((step) => step.id === "home")?.body).toContain("graphique Meta est moins haut");
     expect(DESKTOP_DASHBOARD_TOUR_STEPS.map((step) => step.target)).toContain("Comptes publicitaires");
@@ -139,11 +140,9 @@ describe("responsive Vendeo dashboard guide", () => {
     await nextStep();
     expect(title()).toContain("Studio");
     await nextStep();
-    expect(title()).toContain("Visuels");
-    await nextStep();
-    expect(title()).toContain("Campagnes");
-    await nextStep();
     expect(title()).toContain("Assistant");
+    await nextStep();
+    expect(title()).toContain("Recommandation");
     await nextStep();
     expect(title()).toBe("Bénéfices nets");
     expect(transitions.at(-1)).toMatchObject({ openMobileMenu: true, menuTarget: "Bénéfices nets", target: "mobile-menu:Bénéfices nets" });
@@ -152,7 +151,7 @@ describe("responsive Vendeo dashboard guide", () => {
   it("reaches the real general Settings index at the mobile Settings step", async () => {
     setViewport(390);
     await mountGuide();
-    for (let index = 0; index < 11; index += 1) await nextStep();
+    for (let index = 0; index < 10; index += 1) await nextStep();
     expect(title()).toContain("Paramètres");
     expect(transitions.at(-1)).toMatchObject({
       id: "settings",

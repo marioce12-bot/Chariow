@@ -1,12 +1,5 @@
-import type { Campaign, PerformanceData } from "@/components/dashboard/PerformanceVisuelView";
-
-export type VisualRecommendationCandidate = {
-  productId: string;
-  productName: string;
-  campaignId: string;
-  platform: string;
-  signature: string;
-};
+import type { Campaign, PerformanceData, VisualRecommendationCandidate } from "./types";
+export type { VisualRecommendationCandidate } from "./types";
 
 type VisualCandidateData = Pick<PerformanceData, "campaigns" | "productEligibility" | "period">;
 

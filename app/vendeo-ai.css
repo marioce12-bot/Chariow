@@ -190,9 +190,8 @@ html[data-theme="dark"] .ai-page .chat-history-toggle:hover { background:rgba(25
 html[data-theme="dark"] .ai-page .chat-history-drawer { background:#071129; }
 html[data-theme="dark"] .ai-page .chat-history-list button.active { background:rgba(16,62,248,.22); }
 
-/* Section Assistant : ne pas couvrir la zone de saisie avec la barre ni sa bulle. */
-.app-layout-flush ~ .mobile-nav,
-.app-layout-flush ~ .mobile-assistant-bubble { display:none !important; }
+/* Section Assistant : ne pas couvrir la zone de saisie avec la barre. */
+.app-layout-flush ~ .mobile-nav { display:none !important; }
 
 /* Confort de lecture sur grand écran : les messages ne s'étirent plus sur toute la fenêtre. */
 @media (min-width: 761px) {

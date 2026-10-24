@@ -1,5 +1,5 @@
 import type { EditableCampaign } from "../vendeo/wizard/types";
-import type { Campaign, PerformanceData } from "./PerformanceVisuelView";
+import type { Campaign, PerformanceData } from "@/lib/creative-performance/types";
 
 export type CampaignRecord = EditableCampaign & {
   status?: string | null;

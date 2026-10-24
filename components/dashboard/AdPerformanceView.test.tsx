@@ -13,7 +13,7 @@ describe("AdPerformanceView", () => {
   it("keeps the campaign entry point concise without exposing campaign or visitor tables", () => {
     const html = renderToStaticMarkup(<AdPerformanceView storeId={null} products={[]} onApplyCampaign={() => {}} />);
 
-    expect(html).toContain("Performance publicitaire");
+    expect(html).toContain("Recommandation");
     expect(html).toContain("Une stratégie claire, proposée à partir des données disponibles.");
     expect(html).not.toContain("Analyse en arrière-plan");
     expect(html).toContain("Connecte une boutique pour préparer une campagne.");
@@ -21,6 +21,7 @@ describe("AdPerformanceView", () => {
     expect(html).not.toContain("Visites");
     expect(html).not.toContain("ROAS");
     expect(html).not.toContain("Performance visuel");
+    expect(html).not.toContain("Performance publicitaire");
     expect(html).not.toContain("Pilotage auto");
     expect(html).not.toContain("Sérum éclat");
   });

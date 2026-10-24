@@ -86,7 +86,6 @@
 /* Menu mobile « Plus » et règles propres aux petits écrans. */
 @media (max-width: 760px) {
   .mobile-nav-hidden-on-stores { display: none !important; }
-  .mobile-assistant-hidden-on-stores { display: none !important; }
   .mobile-more-backdrop {
     background: transparent;
     border: 0;

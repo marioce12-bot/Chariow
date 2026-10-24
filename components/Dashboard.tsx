@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { BarChart3, CreditCard, Settings, Store, MessageSquare, Grid2X2, Lightbulb, Brain, Palette, LogOut, Megaphone, FileText, ImageIcon } from "lucide-react";
+import { BarChart3, CreditCard, Settings, Store, MessageSquare, Grid2X2, Lightbulb, Brain, Palette, LogOut, Megaphone, FileText } from "lucide-react";
 
 
 import { ChatView } from "@/components/ChatView";
@@ -38,7 +38,6 @@ import { NotificationsView } from "@/components/NotificationsView";
 import { useUsageTracking } from "@/components/useUsageTracking";
 import { SESSION_STORAGE_PROMPT_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
 import { StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
-import { PerformanceVisuelView } from "./dashboard/PerformanceVisuelView";
 import { AdPerformanceView } from "./dashboard/AdPerformanceView";
 import { usePerformanceRecommendationBadges } from "./dashboard/usePerformanceRecommendationBadges";
 import { OverviewHome } from "./dashboard/OverviewHome";
@@ -56,8 +55,6 @@ import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
 import type { DashboardTourStep } from "./dashboard/tour-steps";
-import { CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, type CreativePerformanceStudioPrefill } from "@/lib/creative-performance/client";
-
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
 // Dernière boutique choisie dans le sélecteur : conservée dans localStorage (et non
 // sessionStorage) pour survivre à la fermeture de l'appli, quel que soit l'ordre
@@ -69,7 +66,6 @@ const PERSISTED_DASHBOARD_SECTIONS = new Set([
   "Vendeo AI",
   "Studio",
   "Pub",
-  "Performance visuel",
   "Performance publicitaire",
   "Comptes publicitaires",
   "Radar marché",
@@ -172,18 +168,6 @@ function DashboardWorkspace() {
     setGuideMenuTarget(null);
     setActive(section);
   }
-  function openStudioWithPerformanceIdeas(prefill: CreativePerformanceStudioPrefill) {
-    try {
-      window.sessionStorage.setItem(CREATIVE_PERFORMANCE_STUDIO_PREFILL_KEY, JSON.stringify(prefill));
-      setActive("Studio");
-      window.setTimeout(() => {
-        const target = document.getElementById("studio-performance-ideas-title") ?? document.getElementById("studio-page-title");
-        target?.focus();
-      }, 0);
-    } catch {
-      // Keep the user on the comparison screen if this browser blocks session storage.
-    }
-  }
   // Se souvient de la section affichée juste avant d'ouvrir "Vendeo AI", pour que
   // le bouton retour de la section IA ramène exactement là d'où l'utilisateur vient
   // (au lieu de toujours revenir à la Vue d'ensemble).
@@ -205,7 +189,8 @@ function DashboardWorkspace() {
   useEffect(() => {
     function handlePopState(event: PopStateEvent) {
       isPopStateNav.current = true;
-      setActive((event.state && event.state.vendeoView) || "Vue d'ensemble");
+      const requestedSection = event.state?.vendeoView;
+      setActive(typeof requestedSection === "string" && PERSISTED_DASHBOARD_SECTIONS.has(requestedSection) ? requestedSection : DEFAULT_DASHBOARD_SECTION);
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -259,13 +244,9 @@ function DashboardWorkspace() {
 
   const userFirstName = userName ? (userName.trim().split(/\s+/)[0] || "créateur") : null;
   const {
-    hasNewVisualRecommendation,
-    hasNewCampaignRecommendation,
+    hasNewRecommendation,
     reportRecommendation,
   } = usePerformanceRecommendationBadges({ userId: notificationUserId, storeId: activeStoreId, activeSection: active });
-  const reportVisualRecommendation = useCallback((storeId: string, signature: string | null) => {
-    reportRecommendation("visual", storeId, signature);
-  }, [reportRecommendation]);
   const reportCampaignRecommendation = useCallback((storeId: string, signature: string | null) => {
     reportRecommendation("campaign", storeId, signature);
   }, [reportRecommendation]);
@@ -455,7 +436,7 @@ function DashboardWorkspace() {
           <Link href="/" className="brand">
             <Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40} unoptimized />
           </Link>
-          <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance visuel":"Creative performance","Performance publicitaire":"Ad performance","Bénéfices nets":"Net profit","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active}</strong></div>
+          <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance publicitaire":"Recommendations","Bénéfices nets":"Net profit","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active === "Performance publicitaire" ? "Recommandation" : active}</strong></div>
           <DashboardHeaderNavigation active={active} onChange={(section) => section === "Paramètres" ? openSettingsIndex() : setActive(section)} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
@@ -479,7 +460,7 @@ function DashboardWorkspace() {
             <CreditCard size={16} aria-hidden="true" />
           </button>
         </aside>
-        <section className={`app-main${active === "Vendeo AI" ? " chat-page" : ""}${["Performance visuel", "Performance publicitaire"].includes(active) ? " app-performance-main" : ""}`}>
+        <section className={`app-main${active === "Vendeo AI" ? " chat-page" : ""}${active === "Performance publicitaire" ? " app-performance-main" : ""}`}>
           {loadingData || (snapshotView && storeDataLoading) ? (
             <DashboardSkeleton />
           ) : active === "Paramètres" ? (
@@ -495,8 +476,6 @@ function DashboardWorkspace() {
             />
           ) : active === "Studio" ? (
             <StudioView products={analytics?.products ?? []} />
-          ) : active === "Performance visuel" ? (
-            <PerformanceVisuelView key={activeStoreId ?? "no-store"} storeId={activeStoreId} locale={locale} onOpenStudio={openStudioWithPerformanceIdeas} onRecommendationChange={reportVisualRecommendation} />
           ) : active === "Performance publicitaire" ? (
             <AdPerformanceView key={activeStoreId ?? "no-store"} storeId={activeStoreId} onApplyCampaign={applyRecommendedCampaign} onRecommendationChange={reportCampaignRecommendation} products={analytics?.products ?? []} locale={locale} />
           ) : active === "Pub" ? (
@@ -569,25 +548,15 @@ function DashboardWorkspace() {
               <Palette size={26} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Studio" : "Studio"}</span>
             </button>
-            <button type="button" data-onboarding="Performance visuel" aria-label={hasNewVisualRecommendation ? (locale === "en" ? "Visuals, new recommendation" : "Visuels, nouvelle proposition") : undefined} aria-current={active === "Performance visuel" ? "page" : undefined} className={`nav-btn ${active === "Performance visuel" ? "active" : ""}${hasNewVisualRecommendation ? " nav-btn-has-notification" : ""}`} onClick={() => setActive("Performance visuel")}>
-              <ImageIcon size={24} strokeWidth={2} aria-hidden="true" />
-              <span>{locale === "en" ? "Visuals" : "Visuels"}</span>
+            <button type="button" data-onboarding="Vendeo AI" aria-label={locale === "en" ? "Assistant" : "Assistant"} title={locale === "en" ? "Assistant" : "Assistant"} aria-current={active === "Vendeo AI" ? "page" : undefined} className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
+              <Brain size={24} strokeWidth={2} aria-hidden="true" />
+              <span>{locale === "en" ? "Assistant" : "Assistant"}</span>
             </button>
-            <button type="button" data-onboarding="Performance publicitaire" aria-label={hasNewCampaignRecommendation ? (locale === "en" ? "Campaigns, new recommendation" : "Campagnes, nouvelle proposition") : undefined} aria-current={active === "Performance publicitaire" ? "page" : undefined} className={`nav-btn ${active === "Performance publicitaire" ? "active" : ""}${hasNewCampaignRecommendation ? " nav-btn-has-notification" : ""}`} onClick={() => setActive("Performance publicitaire")}>
+            <button type="button" data-onboarding="Performance publicitaire" aria-label={hasNewRecommendation ? (locale === "en" ? "Recommendation, new suggestion" : "Recommandation, nouvelle proposition") : undefined} title={locale === "en" ? "Recommendations" : "Recommandation"} aria-current={active === "Performance publicitaire" ? "page" : undefined} className={`nav-btn nav-btn-recommendation ${active === "Performance publicitaire" ? "active" : ""}${hasNewRecommendation ? " nav-btn-has-notification" : ""}`} onClick={() => setActive("Performance publicitaire")}>
               <BarChart3 size={24} strokeWidth={2} aria-hidden="true" />
-              <span>{locale === "en" ? "Campaigns" : "Campagnes"}</span>
+              <span>{locale === "en" ? "Recommendations" : "Recommandation"}</span>
             </button>
           </nav>
-          <button
-            type="button"
-            className={`mobile-assistant-bubble${active === "Mes boutiques" ? " mobile-assistant-hidden-on-stores" : ""}${mobileNavVisible ? " mobile-assistant-visible" : " mobile-assistant-hidden"}`}
-            data-onboarding="Vendeo AI"
-            aria-label={locale === "en" ? "Open Vendeo AI assistant" : "Ouvrir l’assistant Vendeo AI"}
-            title={locale === "en" ? "Assistant" : "Assistant"}
-            onClick={() => setActive("Vendeo AI")}
-          >
-            <Brain size={24} strokeWidth={2} aria-hidden="true" />
-          </button>
          </>
         ) : null}
          {moreOpen ? (

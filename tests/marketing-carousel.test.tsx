@@ -4,17 +4,18 @@ import { readFileSync } from "node:fs";
 const source = readFileSync("components/Marketing.tsx", "utf8");
 const visualSource = readFileSync("components/DigitalWorkspaceVisual.tsx", "utf8");
 
-describe("verified four-scene Vendeo workflow carousel", () => {
-  it("shows four real workflow scenes and advances automatically every four seconds", () => {
+describe("verified three-scene Vendeo workflow carousel", () => {
+  it("shows the three remaining workflow scenes and advances automatically every four seconds", () => {
     expect(visualSource).toContain('aria-roledescription={en ? "carousel" : "carrousel"}');
-    expect(visualSource).toContain("Parcours en quatre étapes");
-    expect(visualSource.match(/image: "\/landing\/flow-story-0[134]\.webp"/g)).toHaveLength(8);
+    expect(visualSource).toContain("Parcours en trois étapes");
+    expect(visualSource.match(/image: "\/landing\/flow-story-0[134]\.webp"/g)).toHaveLength(6);
     expect(visualSource.match(/screenshot: "\//g)).toHaveLength(6);
     expect(visualSource).not.toContain("/landing/performance-visuel-desktop.webp");
     expect(visualSource).not.toContain("/landing/performance-visuel-mobile.webp");
     expect(visualSource).not.toContain("story-phone-capture");
-    expect(visualSource).toContain("sans chiffre d’exemple");
-    expect(visualSource).toContain("no sample figures");
+    expect(visualSource).toContain("recommandations préparent un brouillon");
+    expect(visualSource).toContain("Recommendations prepare a draft");
+    expect(visualSource).not.toMatch(/Performance visuel|Creative performance|Compare tes visuels|Compare ad visuals/i);
     expect(visualSource).toContain("window.setInterval");
     expect(visualSource).toContain("SCENE_DURATION_MS = 4000");
     expect(visualSource).toContain("The Vendeo workflow");

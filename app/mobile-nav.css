@@ -1,6 +1,4 @@
-/* Dock et bulle mobile, réservés au shell dashboard. */
-.dashboard-platform .mobile-assistant-bubble { display:none; }
-
+/* Dock mobile du tableau de bord. */
 @media (max-width: 760px) {
   .dashboard-platform nav.mobile-nav {
     align-items: center;
@@ -30,6 +28,7 @@
     gap: 5px;
     justify-content: center;
     min-height: 66px;
+    min-width: 0;
     overflow: visible;
     padding: 5px 1px 6px;
     position: relative;
@@ -48,10 +47,16 @@
     font-weight: 500;
     line-height: 1.05;
     max-width: 100%;
-    overflow: visible;
+    min-width: 0;
+    overflow: hidden;
     text-align: center;
-    text-overflow: clip;
+    text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-recommendation span {
+    font-size: 9px;
+    letter-spacing: -0.25px;
   }
 
   .dashboard-platform .mobile-nav .nav-btn.active {
@@ -73,8 +78,7 @@
     z-index: 4;
   }
 
-  .dashboard-platform .mobile-nav .nav-btn:focus-visible,
-  .dashboard-platform .mobile-assistant-bubble:focus-visible {
+  .dashboard-platform .mobile-nav .nav-btn:focus-visible {
     outline: 3px solid #6e91ff;
     outline-offset: 3px;
   }
@@ -112,54 +116,6 @@
     position: relative;
   }
 
-  .dashboard-platform .mobile-assistant-bubble {
-    align-items: center;
-    appearance: none;
-    background: linear-gradient(140deg, #398dff 0%, #5d55ee 52%, #892ee8 100%);
-    border: 1px solid rgba(255, 255, 255, 0.94);
-    border-radius: 50%;
-    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-    box-shadow: 0 9px 25px rgba(74, 70, 226, 0.40), 0 2px 7px rgba(25, 42, 94, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.44);
-    color: #fff;
-    display: grid;
-    height: 54px;
-    justify-content: center;
-    padding: 0;
-    place-items: center;
-    position: fixed;
-    right: max(16px, env(safe-area-inset-right, 0px));
-    transition: transform 220ms ease, opacity 180ms ease;
-    width: 54px;
-    will-change: transform;
-    z-index: 1001;
-  }
-
-  .dashboard-platform .mobile-assistant-bubble svg {
-    color: #fff;
-    height: 24px;
-    stroke-width: 2;
-    width: 24px;
-  }
-
-  .dashboard-platform .mobile-assistant-bubble:active {
-    transform: scale(0.96);
-  }
-
-  .dashboard-platform .mobile-assistant-bubble.mobile-assistant-hidden {
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(24px);
-  }
-
-  .dashboard-platform .mobile-assistant-bubble.mobile-assistant-visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  .dashboard-platform .mobile-assistant-hidden-on-stores {
-    display: none !important;
-  }
-
   .dashboard-platform .mobile-nav.mobile-nav-hidden {
     opacity: 0;
     pointer-events: none;
@@ -182,11 +138,14 @@
   .dashboard-platform .mobile-nav .nav-btn span {
     font-size: 9px;
   }
+
+  .dashboard-platform .mobile-nav .nav-btn-recommendation span {
+    font-size: 8px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dashboard-platform .mobile-nav,
-  .dashboard-platform .mobile-assistant-bubble {
+  .dashboard-platform .mobile-nav {
     transition: none !important;
   }
 }

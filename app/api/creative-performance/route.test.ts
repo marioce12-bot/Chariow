@@ -10,7 +10,7 @@ beforeEach(() => {
   const query = { select() { return this; }, eq() { return this; }, maybeSingle: async () => ({ data: { id: "store-1" }, error: null }) };
   mocks.requireUser.mockResolvedValue({ user: { id: "user-1" }, supabase: { from: () => query } });
   mocks.parse.mockReturnValue({ from: "2026-09-25", to: "2026-10-24" });
-  mocks.load.mockResolvedValue({ media: [], campaigns: [] });
+  mocks.load.mockResolvedValue({ media: [], campaigns: [], productEligibility: [] });
 });
 afterEach(() => vi.unstubAllEnvs());
 

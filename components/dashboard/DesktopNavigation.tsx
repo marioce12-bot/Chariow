@@ -14,7 +14,6 @@ import {
   ChartNoAxesCombined,
   MessageCircle,
   MessageSquareText,
-  ImageIcon,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import { dashboardCopy } from "@/lib/i18n/dashboard-copy";
@@ -55,8 +54,7 @@ export const dashboardPrimaryNavigation: readonly NavigationItem[] = [
   },
   { section: "Studio", navKey: "nav.studio", label: "Studio", Icon: Sparkles },
   { section: "Pub", navKey: "nav.pubs", label: "Pub", Icon: Megaphone },
-  { section: "Performance visuel", navKey: "nav.creativePerformance", label: "Performance visuel", Icon: ImageIcon },
-  { section: "Performance publicitaire", navKey: "nav.adPerformance", label: "Performance publicitaire", Icon: BarChart3 },
+  { section: "Performance publicitaire", navKey: "nav.adPerformance", label: "Recommandation", Icon: BarChart3 },
   {
     section: "Radar marché",
     navKey: "nav.radar",
@@ -124,7 +122,7 @@ function DashboardNavigationItems({
     >
       {items.map(({ section, navKey, label, Icon }, index) => (
         <div className="dashboard-nav-item" key={section}>
-          {primary && (index === 0 || index === 3 || index === 7) ? (
+          {primary && (index === 0 || index === 3 || index === 6) ? (
             <span className="dashboard-nav-group">
               {index === 0
                 ? copy["dashboardExtra.myActivity"]

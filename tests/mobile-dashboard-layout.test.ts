@@ -29,6 +29,6 @@ describe("mobile dashboard shell layout", () => {
     expect(source).toContain('" app-layout-flush"');
     const aiCss = readFileSync(new URL("../app/vendeo-ai.css", import.meta.url), "utf8");
     expect(aiCss).toContain(".app-layout-flush ~ .mobile-nav");
-    expect(aiCss).toContain(".app-layout-flush ~ .mobile-assistant-bubble");
+    expect(aiCss).not.toContain("mobile-assistant-bubble");
   });
 });

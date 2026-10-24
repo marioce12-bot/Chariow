@@ -6,7 +6,7 @@ import { imageCreditCost } from "@/lib/studio/credits";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import type { ProductData } from "./shared";
 import type { EditableCampaign } from "../vendeo/wizard/types";
-import type { PerformanceData } from "./PerformanceVisuelView";
+import type { PerformanceData } from "@/lib/creative-performance/types";
 import { buildCampaignRecommendations, campaignRecommendationFingerprint, selectStrongestCampaignRecommendation, type CampaignRecord } from "./campaign-recommendations";
 import { PerformanceEmptyState, PerformanceLoadingSkeleton } from "./PerformanceLoadingStates";
 

@@ -3,28 +3,26 @@ import { describe, expect, it } from "vitest";
 
 const dashboard = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
 const mobileCss = readFileSync(new URL("../app/mobile-nav.css", import.meta.url), "utf8");
+const navStart = dashboard.indexOf('<nav className={`mobile-nav');
+const navMarkup = dashboard.slice(navStart, dashboard.indexOf("</nav>", navStart));
 
-describe("mobile assistant navigation colors", () => {
-  it("keeps inactive destinations black and active destinations blue", () => {
-    const css = readFileSync(new URL("../app/dashboard-refinement.css", import.meta.url), "utf8");
-    expect(css).toMatch(/\.dashboard-platform \.mobile-nav \.nav-btn\s*\{\s*color:\s*#08090c;/);
-    expect(css).toMatch(/\.dashboard-platform \.mobile-nav \.nav-btn\.active\s*\{\s*color:\s*#103ef8;/);
-    expect(mobileCss).toContain("color: #08090c;");
-    expect(mobileCss).toContain("color: #103ef8;");
-    expect(mobileCss).not.toContain(".nav-btn-assistant");
-    const notificationsCss = readFileSync(new URL("../app/styles/notifications.css", import.meta.url), "utf8");
-    expect(notificationsCss).not.toContain(".nav-btn-assistant");
+describe("mobile Assistant dock destination", () => {
+  it("uses the brain icon and opens the Assistant as a normal dock destination", () => {
+    const button = [...navMarkup.matchAll(/<button\b[\s\S]*?<\/button>/g)]
+      .map(([markup]) => markup)
+      .find((markup) => markup.includes('data-onboarding="Vendeo AI"'));
+    expect(button).toBeTruthy();
+    expect(button).toContain("<Brain size={24} strokeWidth={2}");
+    expect(button).toContain('setActive("Vendeo AI")');
+    expect(button).toContain('active === "Vendeo AI"');
+    expect(dashboard).not.toContain("mobile-assistant-bubble");
+    expect(mobileCss).not.toContain("mobile-assistant-bubble");
+    expect(mobileCss).not.toContain("linear-gradient(140deg, #398dff");
   });
 
-  it("uses a standalone gradient brain bubble and a raised palette for Studio", () => {
-    const rules = [...mobileCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
-    const bubbleRules = rules.filter((rule) => rule[1].trim() === ".dashboard-platform .mobile-assistant-bubble");
-    const bubble = bubbleRules[bubbleRules.length - 1]?.[2] ?? "";
-    expect(bubble).toContain("linear-gradient(140deg, #398dff");
-    expect(bubble).toContain("color: #fff;");
-    expect(dashboard).toContain('data-onboarding="Vendeo AI"');
-    expect(dashboard).toContain('<Brain size={24} strokeWidth={2}');
-    expect(dashboard).toContain("mobile-assistant-bubble");
+  it("keeps normal dock destination colors and a raised Studio icon", () => {
+    expect(mobileCss).toMatch(/\.dashboard-platform \.mobile-nav \.nav-btn\s*\{[\s\S]*?color:\s*#08090c;/);
+    expect(mobileCss).toMatch(/\.dashboard-platform \.mobile-nav \.nav-btn\.active\s*\{[\s\S]*?color:\s*#103ef8;/);
     expect(mobileCss).toContain(".dashboard-platform .mobile-nav .nav-btn-studio svg");
     expect(mobileCss).toContain(".dashboard-platform .mobile-nav .nav-btn-studio.active svg");
   });

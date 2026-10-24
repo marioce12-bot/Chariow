@@ -33,11 +33,11 @@ export async function GET(request: Request) {
     const visualRecommendations = buildVisualRecommendationCandidates(data, usableSnapshotCampaignIds);
     return NextResponse.json({ ...data, visualRecommendations }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Performance visuel est temporairement indisponible.";
+    const message = error instanceof Error ? error.message : "Les recommandations sont temporairement indisponibles.";
     const migrationMissing = /creative_media_(assets|placements|asset_urls)|creative_campaign_metric_snapshots/i.test(message);
     return NextResponse.json({
       error: migrationMissing
-        ? "La bibliothèque des visuels publicitaires attend sa migration de base de données. Aucun chiffre n’est affiché en attendant."
+        ? "Les données nécessaires aux recommandations publicitaires attendent une mise à jour de la base de données. Aucune recommandation n’est affichée en attendant."
         : message,
       code: migrationMissing ? "CREATIVE_LIBRARY_NOT_READY" : "CREATIVE_PERFORMANCE_UNAVAILABLE",
     }, { status: migrationMissing ? 503 : 500, headers: { "Cache-Control": "private, no-store" } });

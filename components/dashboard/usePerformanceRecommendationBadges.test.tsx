@@ -6,10 +6,9 @@ import { usePerformanceRecommendationBadges } from "./usePerformanceRecommendati
 import { buildCampaignRecommendations, campaignRecommendationFingerprint, selectStrongestCampaignRecommendation } from "./campaign-recommendations";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-const visualSignature = "visual-real-campaign-period-metrics";
 const measuredPerformance = {
   period: { from: "2026-09-25", to: "2026-10-24" },
-  visualRecommendations: [{ productId: "product-1", productName: "Carnet", campaignId: "campaign-1", platform: "meta", signature: visualSignature }],
+  visualRecommendations: [{ productId: "product-1", productName: "Carnet", campaignId: "campaign-1", platform: "meta", signature: "visual-only-signal" }],
   productEligibility: [{ productId: "product-1", productName: "Carnet", launchedCampaigns: 1, analyzedCampaigns: 1, eligible: true }],
   campaigns: [{
     campaignId: "campaign-1", name: "Measured campaign", platform: "meta", status: "active", productId: "product-1", productName: "Carnet",
@@ -30,10 +29,8 @@ let fetchMock: ReturnType<typeof vi.fn>;
 function Harness({ activeSection }: { activeSection: string }) {
   const badges = usePerformanceRecommendationBadges({ userId: "user-1", storeId: "store-1", activeSection });
   return <div>
-    <span id="visual-badge" data-unseen={badges.hasNewVisualRecommendation} />
-    <span id="campaign-badge" data-unseen={badges.hasNewCampaignRecommendation} />
-    <button type="button" id="view-visual" onClick={() => badges.reportRecommendation("visual", "store-1", visualSignature)}>Consult visuals</button>
-    <button type="button" id="view-campaign" onClick={() => badges.reportRecommendation("campaign", "store-1", campaignSignature)}>Consult campaigns</button>
+    <span id="recommendation-badge" data-unseen={badges.hasNewRecommendation} />
+    <button type="button" id="view-recommendation" onClick={() => badges.reportRecommendation("campaign", "store-1", campaignSignature)}>Consulter les recommandations</button>
   </div>;
 }
 
@@ -56,28 +53,22 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("performance recommendation badges", () => {
-  it("shows only read-only measured signals and clears them after the section reports it was viewed", async () => {
+describe("recommendation badge", () => {
+  it("keeps only the public-ad recommendation signal and clears it after the destination is viewed", async () => {
     await act(async () => {
       root.render(<Harness activeSection="Vue d'ensemble" />);
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(container.querySelector("#visual-badge")?.getAttribute("data-unseen")).toBe("true");
-    expect(container.querySelector("#campaign-badge")?.getAttribute("data-unseen")).toBe("true");
+    expect(container.querySelector("#recommendation-badge")?.getAttribute("data-unseen")).toBe("true");
+    expect(container.querySelector("#visual-badge")).toBeNull();
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("read_only=1"))).toBe(true);
     expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
     expect(fetchMock.mock.calls.some(([url]) => /ideas|studio\/image|ad-campaigns\/.*launch/.test(String(url)))).toBe(false);
 
-    await act(async () => root.render(<Harness activeSection="Performance visuel" />));
-    await act(async () => container.querySelector<HTMLButtonElement>("#view-visual")!.click());
-    await act(async () => root.render(<Harness activeSection="Vue d'ensemble" />));
-    expect(container.querySelector("#visual-badge")?.getAttribute("data-unseen")).toBe("false");
-    expect(container.querySelector("#campaign-badge")?.getAttribute("data-unseen")).toBe("true");
-
     await act(async () => root.render(<Harness activeSection="Performance publicitaire" />));
-    await act(async () => container.querySelector<HTMLButtonElement>("#view-campaign")!.click());
+    await act(async () => container.querySelector<HTMLButtonElement>("#view-recommendation")!.click());
     await act(async () => root.render(<Harness activeSection="Vue d'ensemble" />));
-    expect(container.querySelector("#campaign-badge")?.getAttribute("data-unseen")).toBe("false");
+    expect(container.querySelector("#recommendation-badge")?.getAttribute("data-unseen")).toBe("false");
   });
 });

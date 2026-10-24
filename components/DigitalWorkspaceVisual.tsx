@@ -44,12 +44,6 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       title: "Review available data",
       description: "Check synced orders and received ad data. Sales attribution depends on tracking and platform data.",
     },
-    {
-      image: "/landing/flow-story-04.webp",
-      alt: "The same creator reviewing her store on her smartphone beside her laptop",
-      title: "Compare ad visuals",
-      description: "Compare available results for each ad creative; attributed sales appear only when they can be matched.",
-    },
   ] : [
     {
       image: "/landing/flow-story-01.webp",
@@ -74,12 +68,6 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       screenshotAlt: "Vue d’ensemble Vendeo avec des données de démonstration",
       title: "Consulte les données disponibles",
       description: "Retrouve les commandes synchronisées et les données publicitaires reçues. L’attribution dépend du suivi et des données de la plateforme.",
-    },
-    {
-      image: "/landing/flow-story-04.webp",
-      alt: "La même créatrice consulte sa boutique sur son téléphone, près de son ordinateur",
-      title: "Compare tes visuels",
-      description: "Compare les résultats disponibles de chaque création publicitaire; les ventes attribuées s’affichent seulement quand elles peuvent être reliées.",
     },
   ];
   const sceneCount = scenes.length;
@@ -112,7 +100,7 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       </div>
     </div>
 
-    <div className="story-carousel" role="region" aria-roledescription={en ? "carousel" : "carrousel"} aria-label={en ? "Four-step workflow, advancing every four seconds" : "Parcours en quatre étapes, défilement automatique toutes les 4 secondes"}>
+    <div className="story-carousel" role="region" aria-roledescription={en ? "carousel" : "carrousel"} aria-label={en ? "Three-step workflow, advancing every four seconds" : "Parcours en trois étapes, défilement automatique toutes les 4 secondes"}>
       <article className="story-card" aria-live="off">
         <div className="story-photo">
           <Image key={currentScene.image} src={currentScene.image} alt={currentScene.alt} fill priority={activeIndex === 0} sizes="(max-width: 900px) 96vw, (max-width: 1250px) 58vw, 700px"/>
@@ -129,6 +117,6 @@ export function DigitalWorkspaceVisual({ isEnglish = false }: { isEnglish?: bool
       </article>
       <div className="story-progress" aria-hidden="true"><span key={activeIndex}/></div>
     </div>
-    <p className="workspace-example-note" id="workspace-example-note">{en ? "Real Vendeo screenshots; some screens include demonstration data. Creative performance compares visuals with no sample figures and can suggest three variants for eligible products to choose in Studio. Ad performance prepares a draft to review; generation and launch remain separate explicit actions. Photos are illustrative, not customer results." : "Captures réelles de Vendeo; certains écrans montrent des données de démonstration. Performance visuel compare les créations, sans chiffre d’exemple, et peut proposer trois variantes pour un produit éligible, à choisir dans Studio. Performance publicitaire prépare un brouillon à relire; génération et lancement restent des actions explicites distinctes. Photos illustratives, pas des résultats clients."}</p>
+    <p className="workspace-example-note" id="workspace-example-note">{en ? "Real Vendeo screenshots; some screens include demonstration data. Recommendations prepare a draft to review; image generation and campaign launch remain separate explicit actions. Photos are illustrative, not customer results." : "Captures réelles de Vendeo; certains écrans montrent des données de démonstration. Les recommandations préparent un brouillon à relire; la génération d’image et le lancement de la campagne restent des actions explicites distinctes. Photos illustratives, pas des résultats clients."}</p>
   </figure>;
 }
