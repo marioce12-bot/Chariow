@@ -35,7 +35,7 @@ import type { EditableCampaign } from "@/components/vendeo/wizard/types";
 import { useI18n } from "@/lib/i18n/i18n";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { NotificationsView } from "@/components/NotificationsView";
-import { useUsageTracking } from "@/components/useUsageTracking";
+import { clearUsageSessionStorage, useUsageTracking } from "@/components/useUsageTracking";
 import { SESSION_STORAGE_PROMPT_KEY, MetricHelp, ChannelBadge, type StoreData, type SubscriptionData, type ProductData, type AnalyticsData } from "./dashboard/shared";
 import { StudioView, MarketRadarView, AdsView, MobileSettingsView, StoresView, SubscriptionView, Reports } from "./dashboard/sections";
 import { AdPerformanceView } from "./dashboard/AdPerformanceView";
@@ -105,7 +105,10 @@ export function Dashboard() {
     let knownUser: string | null | undefined;
     const result = auth.onAuthStateChange?.((_event, session) => {
       const nextUser = session?.user?.id ?? null;
-      if (knownUser !== undefined && knownUser !== nextUser) setIdentity(nextUser ?? "signed-out");
+      if (knownUser !== undefined && knownUser !== nextUser) {
+        clearUsageSessionStorage();
+        setIdentity(nextUser ?? "signed-out");
+      }
       knownUser = nextUser;
     });
     return () => result?.data.subscription.unsubscribe();

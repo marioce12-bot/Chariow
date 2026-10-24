@@ -22,11 +22,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
 
+  // Le RPC autorise les sections canoniques. Les deux vues de performance sont des sous-sections de Pub.
+  const section = body.section === "Performance publicitaire" || body.section === "Performance visuel" ? "Pub" : body.section;
   // Identité issue uniquement de la session authentifiée ; la clé admin reste serveur.
   const { error } = await createAdminClient().rpc("track_usage_heartbeat", {
     p_user_id: user.id,
     p_session_id: body.session_id,
-    p_section: body.section,
+    p_section: section,
     p_seconds: Math.floor(body.seconds),
     p_new_visit: body.new_visit,
   });

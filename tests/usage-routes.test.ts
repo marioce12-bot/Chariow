@@ -35,6 +35,7 @@ describe("POST /api/track", () => {
       expect(response.status).toBe(200);
     }
     expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    expect(mocks.rpc.mock.calls.map(([, args]) => args.p_section)).toEqual(["Pub", "Pub"]);
   });
 
   it.each([
