@@ -1,6 +1,6 @@
 /* Dock mobile du tableau de bord : flottant, clair et compact. */
 @media (max-width: 760px) {
-  .dashboard-platform .mobile-nav {
+  .dashboard-platform nav.mobile-nav {
     align-items: center;
     background: rgba(255, 255, 255, 0.96);
     backdrop-filter: blur(16px) saturate(160%);
@@ -109,7 +109,7 @@
 }
 
 @media (max-width: 360px) {
-  .dashboard-platform .mobile-nav {
+  .dashboard-platform nav.mobile-nav {
     gap: 0;
     padding-left: 4px;
     padding-right: 4px;
