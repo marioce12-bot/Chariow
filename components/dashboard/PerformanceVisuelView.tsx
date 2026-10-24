@@ -95,16 +95,10 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
     return () => { alive = false; };
   }, [storeId, period, refreshCount]);
 
-  const winningCampaigns = useMemo(() => new Set((data?.campaigns ?? []).filter((campaign) =>
-    campaign.metrics && campaign.metrics.attributedRevenue !== null && campaign.metrics.attributedCurrency === campaign.metrics.currency && campaign.metrics.attributedRevenue > campaign.metrics.spend,
-  ).map((campaign) => campaign.campaignId)), [data]);
-  const winningProducts = useMemo(() => new Set((data?.campaigns ?? []).filter((campaign) => campaign.productId && winningCampaigns.has(campaign.campaignId)).map((campaign) => campaign.productId!)), [data, winningCampaigns]);
   const visibleMedia = useMemo(() => (data?.media ?? []).filter((item) =>
     (!onlyWinners || item.winner) &&
     (platformFilter === "all" || item.campaigns.some((campaign) => campaign.platform === platformFilter))),
-  [data, onlyWinners, platformFilter, winningCampaigns]);
-  const campaignsWithMedia = new Set((data?.media ?? []).flatMap((item) => item.campaigns.map((placement) => placement.campaignId)));
-  const campaignsWithoutMedia = (data?.campaigns ?? []).filter((campaign) => !campaignsWithMedia.has(campaign.campaignId));
+  [data, onlyWinners, platformFilter]);
   const totals = data?.metrics.totals ?? [];
   const totalSpend = totals.length ? totals.map((row) => `${money(row.spend, row.currency)}${row.complete ? "" : " · partiel"}`).join(" · ") : "—";
   const totalClicks = totals.length ? number(totals.reduce((sum, row) => sum + row.clicks, 0)) : "—";
@@ -181,7 +175,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
         <div>
           <div className="creative-performance-breadcrumb">Espace de travail <span aria-hidden="true">›</span> Performance visuel</div>
           <h1>Performance visuel</h1>
-          <p>Compare les résultats des images et vidéos de tes campagnes publicitaires. Retrouve les dépenses, clics et, quand elles peuvent être reliées, les commandes et le chiffre d’affaires.</p>
+          <p>Chaque image ou vidéo apparaît une seule fois. Ses résultats sont regroupés sur les campagnes où elle a été utilisée.</p>
         </div>
         <label className="creative-period"><span>Période</span>
           <select value={period} onChange={(event) => setPeriod(event.target.value)} aria-label="Période de performance">
@@ -190,7 +184,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
         </label>
       </header>
 
-      <section className="creative-kpis" aria-label="Indicateurs réels des campagnes">
+      <section className="creative-kpis" aria-label="Indicateurs publicitaires globaux">
         {kpis.map(({ label, icon: Icon }, index) => {
           const values = [totalSpend, totalClicks, totalOrders, costPerOrder, totalRevenue];
           return <article className="creative-kpi" key={label}><span className="creative-kpi-icon"><Icon size={17} aria-hidden="true" /></span><div>
@@ -199,8 +193,9 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
         })}
       </section>
 
-      {variantRows.length ? <section className="creative-variant-summary" aria-label="Comparaison des variantes renseignées">
-        <div><h2>Comparaison par variante</h2><p>Consulte les résultats des variantes renseignées.</p></div>
+      {variantRows.length ? <details className="creative-variant-summary">
+        <summary>Comparer les variantes renseignées ({variantRows.length})</summary>
+        <p>Comparaison secondaire des performances par variante.</p>
         <div className="creative-variant-table">{variantRows.map((row) => <article className="creative-variant-summary-row" key={row.key}>
           <div><strong>{row.productName}</strong><small>{row.variant} · {row.count} rattachement(s)</small></div>
           <span><small>Dépenses</small><strong>{row.complete ? money(row.spend, row.currency) : `${money(row.spend, row.currency)} · partiel`}</strong></span>
@@ -209,7 +204,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
           <span><small>Coût/commande</small><strong>{row.ordersKnown && row.complete && row.orders > 0 ? money(row.spend / row.orders, row.currency) : "—"}</strong></span>
           <span><small>CA attribué</small><strong>{row.revenueKnown && row.complete ? money(row.revenue, row.currency) : "—"}</strong></span>
         </article>)}</div>
-      </section> : null}
+      </details> : null}
 
       {error ? <div className="creative-error" role="alert">{error}</div> : null}
       {data?.notices.tikTok ? <p className="creative-notice" role="status">{data.notices.tikTok}</p> : null}
@@ -217,58 +212,52 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
 
       <section className="creative-library" aria-labelledby="creative-library-title">
         <div className="creative-library-head">
-          <div><h2 id="creative-library-title">Créations et résultats par campagne</h2>
-            <p>{data ? `${data.metrics.mediaCount} média(s) · ${data.metrics.launchedCampaigns} campagne(s) lancée(s) · ${formatPeriod(data.period.from, data.period.to)}` : "Choisis une boutique pour voir les résultats de tes campagnes."}</p>
+          <div><h2 id="creative-library-title">Résultats par visuel</h2>
+            <p>{data ? `${data.metrics.mediaCount} visuel(s) · ${formatPeriod(data.period.from, data.period.to)}` : "Choisis une boutique pour consulter les performances de ses visuels."}</p>
           </div>
           <button type="button" className="creative-refresh" onClick={() => setRefreshCount((current) => current + 1)} disabled={loading || !storeId} aria-label="Actualiser les performances"><RefreshCw size={15} /> Actualiser</button>
         </div>
         <div className="creative-filters">
-          <label className="creative-winner-filter"><input type="checkbox" checked={onlyWinners} onChange={(event) => setOnlyWinners(event.target.checked)} /> Produits/visuels gagnants uniquement</label>
+          <label className="creative-winner-filter"><input type="checkbox" checked={onlyWinners} onChange={(event) => setOnlyWinners(event.target.checked)} /> Visuels gagnants uniquement</label>
           <label className="creative-platform-filter"><span>Plateforme</span><select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)}><option value="all">Toutes</option>{platforms.map((platform) => <option key={platform} value={platform}>{platformName(platform)}</option>)}</select></label>
         </div>
-        {!readOnly && products.some((product) => product.eligible) ? <div className="creative-ready-products"><div><strong>Produits disponibles dans Studio</strong></div>
-          <div className="creative-ready-product-list">{products.filter((product) => product.eligible && (!onlyWinners || winningProducts.has(product.productId))).map((product) => {
-            const key = `product:${product.productId}`;
-            return <div className="creative-product-action" key={product.productId}><div><span>{product.productName}{winningProducts.has(product.productId) ? <em className="creative-badge winner">Produit gagnant</em> : null}</span><small>{product.analyzedCampaigns} campagne(s) analysée(s) · {product.launchedCampaigns} lancée(s)</small></div><button type="button" className="creative-studio-link" disabled={suggestionBusy === key} onClick={() => void propose(null, product.productId)}><Sparkles size={14} /> {suggestionBusy === key ? "Vérification…" : "Proposer des créatifs"}</button>{suggestionMessages[key] ? <small role="status" className="creative-suggestion-message">{suggestionMessages[key]}</small> : null}</div>;
-          })}</div>
-        </div> : null}
-
         {loading ? <div className="creative-state" role="status">Chargement des performances…</div>
           : !storeId ? <div className="creative-state">Choisis une boutique connectée pour consulter ses performances.</div>
           : error ? <div className="creative-state">Les performances sont momentanément indisponibles. Réessaie plus tard.</div>
           : !data?.media.length ? <div className="creative-empty">
             <div className="creative-empty-icon"><ImageIcon size={22} aria-hidden="true" /></div>
-            <h3>Aucune création trouvée sur cette période</h3>
-            <p>Essaie une autre période ou vérifie les filtres de plateforme.</p>
+            <h3>Aucun visuel relié aux annonces sur cette période</h3>
+            <p>Les campagnes seules ne permettent pas d’identifier un visuel. Vérifie la période ou l’association des médias.</p>
           </div>
           : !visibleMedia.length ? <div className="creative-state">Aucune création ne correspond à ces filtres.</div>
           : <div className="creative-media-list">
             {visibleMedia.map((item) => {
               const productPlacements = [...new Map(item.campaigns.filter((campaign) => campaign.productId).map((campaign) => [campaign.productId!, campaign])).values()];
+              const campaignCount = new Set(item.campaigns.map((campaign) => campaign.campaignId)).size;
+              const placementPlatforms = [...new Set(item.campaigns.map((campaign) => campaign.platform))].map(platformName).join(" · ");
               return <article className="creative-media-card" key={item.id}>
                 <div className="creative-media-preview">{item.kind === "image" ? <img src={item.url} alt="Création publicitaire" loading="lazy" /> : <video src={item.url} controls playsInline preload="metadata" aria-label="Création vidéo publicitaire" />}</div>
                 <div className="creative-media-content">
-                  <div className="creative-media-title-row"><div><strong>{item.kind === "image" ? "Image" : <><Video size={13} /> Vidéo</>}</strong></div>
+                  <div className="creative-media-title-row"><div><strong>{item.kind === "image" ? "Image" : <><Video size={13} /> Vidéo</>}</strong><small>{placementPlatforms}{item.campaigns.length ? ` · ${item.campaigns.length} diffusion(s)` : ""}</small></div>
                     <div className="creative-badges">{item.winner ? <span className="creative-badge winner">Gagnant</span> : null}</div>
                   </div>
                   <div className="creative-media-metrics" aria-label="Totaux pour cette création">
-                    <span><small>Dépenses</small><strong>{item.spendByCurrency.length ? item.spendByCurrency.map((row) => money(row.amount, row.currency)).join(" · ") : "—"}</strong></span>
+                    <span><small>Dépenses</small><strong>{item.spendByCurrency.length ? `${item.spendByCurrency.map((row) => money(row.amount, row.currency)).join(" · ")}${item.metricsComplete ? "" : " · partiel"}` : "—"}</strong></span>
                     <span><small>Clics</small><strong>{number(item.clicks)}</strong></span>
                     <span><small>Commandes attribuées</small><strong>{number(item.attributedOrders)}</strong></span>
                     <span><small>Coût / commande</small><strong>{money(item.costPerOrder, item.currency)}</strong></span>
                     <span><small>CA attribué</small><strong>{money(item.attributedRevenue, item.attributedCurrency)}</strong></span>
                   </div>
-                  <div className="creative-campaign-details">
-                    <strong>Détail par campagne et plateforme</strong>
-                    {item.campaigns.map((campaign) => <div className="creative-campaign-row" key={campaign.id}>
+                  <details className="creative-campaign-details">
+                    <summary>Détail des diffusions · {campaignCount} campagne(s)</summary>
+                    <div className="creative-campaign-rows">{item.campaigns.map((campaign) => <div className="creative-campaign-row" key={campaign.id}>
                       <div><span>{campaign.campaignName}</span><small>{platformName(campaign.platform)} · {campaign.productName || "Produit non renseigné"}{campaign.variantLabel ? ` · ${campaign.variantLabel}` : " · variante non renseignée"} · {campaign.status}</small>
                         {!readOnly ? <div className="creative-variant-editor"><input maxLength={120} value={variantDrafts[campaign.id] ?? campaign.variantLabel ?? ""} onChange={(event) => setVariantDrafts((current) => ({ ...current, [campaign.id]: event.target.value }))} placeholder="Variante (facultatif)" aria-label={`Variante pour ${campaign.campaignName}`} /><button type="button" disabled={Boolean(variantSaving)} onClick={() => void saveVariant(campaign)}>{variantSaving === campaign.id ? "Enregistrement…" : "Enregistrer"}</button>{variantMessages[campaign.id] ? <small role="status">{variantMessages[campaign.id]}</small> : null}</div> : null}
                       </div>
                       <div><span>{campaign.metrics.available ? money(campaign.metrics.spend, campaign.metrics.currency) : "—"}</span><small>{campaign.metrics.available ? `${number(campaign.metrics.clicks)} clics` : campaign.isMultiMedia ? "métriques non ventilées" : "rapport indisponible"}</small></div>
                       <div><span>{number(campaign.metrics.attributedOrders)}</span><small>{money(campaign.metrics.attributedRevenue, campaign.metrics.attributedCurrency)} attribués</small></div>
-                    </div>)}
-
-                  </div>
+                    </div>)}</div>
+                  </details>
                   {!readOnly && productPlacements.length ? <div className="creative-studio-actions"><strong>Idées Studio</strong>{productPlacements.map((campaign) => {
                     const eligibility = products.find((product) => product.productId === campaign.productId);
                     const key = `${item.id}:${campaign.productId}`;
@@ -289,7 +278,6 @@ export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false 
             })}
           </div>}
       </section>
-      {campaignsWithoutMedia.length ? <details className="creative-all-campaigns"><summary>Voir aussi les campagnes sans visuel ({campaignsWithoutMedia.length})</summary><div>{campaignsWithoutMedia.map((campaign) => <div className="creative-campaign-row" key={campaign.campaignId}><div><span>{campaign.name}</span><small>{platformName(campaign.platform)} · {campaign.productName || "Produit non renseigné"} · {campaign.status}</small></div><div><span>{campaign.metrics ? money(campaign.metrics.spend, campaign.metrics.currency) : "—"}</span><small>{campaign.metrics ? `${number(campaign.metrics.clicks)} clics` : "résultats indisponibles"}</small></div><div><span>{number(campaign.metrics?.attributedOrders)}</span><small>{money(campaign.metrics?.attributedRevenue ?? null, campaign.metrics?.attributedCurrency ?? null)} attribués</small></div></div>)}</div></details> : null}
     </div>
   );
 }

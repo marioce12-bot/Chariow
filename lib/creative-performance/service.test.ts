@@ -214,4 +214,57 @@ describe("loadCreativePerformance provider flow", () => {
     expect(result.campaigns[0].metrics?.spend).toBe(99);
     expect(result.media.every((item: any) => item.campaigns[0].metrics.available === false)).toBe(true);
   });
+
+  it("aggregates a reused asset once across campaigns when each ad is uniquely identified", async () => {
+    vi.mocked(fetchTikTokAdReport).mockResolvedValue([
+      { id: "native-ad-1", name: "TikTok ad 1", spend: 17.25, impressions: 150, clicks: 14, conversions: 2, cpa: 8.625 },
+      { id: "native-ad-2", name: "TikTok ad 2", spend: 8.5, impressions: 90, clicks: 9, conversions: 1, cpa: 8.5 },
+    ]);
+    const rows = fixtures({
+      ad_campaigns: [
+        campaign(),
+        campaign({ id: "campaign-2", title: "Campagne 2", external_campaign_id: "native-campaign-2", external_ad_id: "native-ad-2" }),
+      ],
+      creative_media_placements: [
+        placement(),
+        placement({ id: "placement-asset-reused", ad_campaign_id: "campaign-2", campaign_key: "campaign-2", campaign_name_snapshot: "Campagne 2", external_campaign_id: "native-campaign-2", external_ad_id: "native-ad-2" }),
+      ],
+      creative_media_assets: [asset("asset-1")],
+    });
+
+    const result = await loadCreativePerformance({ supabase: supabase(rows), userId: "user-1", storeId: "store-1", period });
+
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0]).toMatchObject({
+      id: "asset-1", spend: 25.75, spendByCurrency: [{ currency: "USD", amount: 25.75 }],
+      clicks: 23, metricsComplete: true, winner: false,
+    });
+    expect(result.media[0].campaigns.map((row: any) => row.campaignId)).toEqual(["campaign-1", "campaign-2"]);
+    expect(fetchTikTokAdReport).toHaveBeenCalledWith("advertiser-1", "access-token", period.from, period.to);
+  });
+
+  it("marks reused-asset totals partial when one campaign has no creative-level report", async () => {
+    vi.mocked(fetchTikTokAdReport).mockResolvedValue([
+      { id: "native-ad-1", name: "TikTok ad 1", spend: 17.25, impressions: 150, clicks: 14, conversions: 2, cpa: 8.625 },
+    ]);
+    const rows = fixtures({
+      ad_campaigns: [
+        campaign(),
+        campaign({ id: "campaign-2", title: "Campagne 2", external_campaign_id: "native-campaign-2", external_ad_id: "native-ad-2" }),
+      ],
+      creative_media_placements: [
+        placement(),
+        placement({ id: "placement-asset-reused", ad_campaign_id: "campaign-2", campaign_key: "campaign-2", campaign_name_snapshot: "Campagne 2", external_campaign_id: "native-campaign-2", external_ad_id: "native-ad-2" }),
+      ],
+      creative_media_assets: [asset("asset-1")],
+    });
+
+    const result = await loadCreativePerformance({ supabase: supabase(rows), userId: "user-1", storeId: "store-1", period });
+
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0]).toMatchObject({
+      spend: null, spendByCurrency: [{ currency: "USD", amount: 17.25 }], clicks: null,
+      attributedOrders: null, attributedRevenue: null, metricsComplete: false, winner: false,
+    });
+  });
 });

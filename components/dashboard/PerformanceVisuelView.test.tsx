@@ -7,7 +7,10 @@ describe("PerformanceVisuelView", () => {
     const html = renderToStaticMarkup(<PerformanceVisuelView storeId={null} onOpenStudio={vi.fn()} />);
 
     expect(html).toContain("Performance visuel");
-    expect(html).toContain("Compare les résultats des images et vidéos de tes campagnes publicitaires.");
+    expect(html).toContain("Résultats par visuel");
+    expect(html).toContain("Chaque image ou vidéo apparaît une seule fois.");
+    expect(html).not.toContain("Créations et résultats par campagne");
+    expect(html).not.toContain("Voir aussi les campagnes sans visuel");
     expect(html).toContain("Choisis une boutique connectée pour consulter ses performances.");
     expect(html).toContain("Dépenses publicitaires");
     expect(html).toContain("Chiffre d’affaires attribué");

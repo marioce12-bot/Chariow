@@ -609,28 +609,31 @@ export async function loadCreativePerformance(input: {
   const media = [...assetGroups.entries()].map(([assetId, campaignPlacements]) => {
     const asset = assetById.get(assetId)!;
     const measured = campaignPlacements.filter((placement) => placement.metrics.available);
+    const metricsComplete = measured.length === campaignPlacements.length && measured.length > 0;
     const currencies = [...new Set(measured.map((placement) => placement.metrics.currency).filter(Boolean))] as string[];
-    const allAttributionsReliable = measured.length > 0 && measured.every((placement) => placement.metrics.attributionReliable);
+    const allAttributionsReliable = metricsComplete && measured.every((placement) => placement.metrics.attributionReliable);
     const spend = currencies.length === 1 && measured.length === campaignPlacements.length
       ? cents(measured.reduce((total, placement) => total + (placement.metrics.spend ?? 0), 0)) : null;
-    const clicks = measured.length === campaignPlacements.length
+    const clicks = metricsComplete
       ? measured.reduce((total, placement) => total + (placement.metrics.clicks ?? 0), 0) : null;
     const orders = allAttributionsReliable
       ? measured.reduce((total, placement) => total + (placement.metrics.attributedOrders ?? 0), 0) : null;
     const revenueCurrencies = [...new Set(measured.map((placement) => placement.metrics.attributedCurrency).filter(Boolean))] as string[];
     const revenue = allAttributionsReliable && revenueCurrencies.length === 1
       ? cents(measured.reduce((total, placement) => total + (placement.metrics.attributedRevenue ?? 0), 0)) : null;
-    const winners = campaignPlacements.some((placement) => placement.metrics.available && placement.metrics.attributionReliable && placement.metrics.attributedRevenue !== null && placement.metrics.spend !== null && placement.metrics.attributedCurrency === placement.metrics.currency && placement.metrics.attributedRevenue > placement.metrics.spend);
+    const attributedCurrency = revenueCurrencies.length === 1 ? revenueCurrencies[0] : null;
+    const winner = metricsComplete && allAttributionsReliable && spend !== null && revenue !== null &&
+      currencies.length === 1 && attributedCurrency === currencies[0] && revenue > spend;
     return {
       id: asset.id, kind: asset.kind, url: asset.delivery_url, sha256: asset.sha256,
       exactMatchKey: asset.sha256, createdAt: asset.created_at,
       spend: currencies.length === 1 ? spend : null, currency: currencies.length === 1 ? currencies[0] : null,
       spendByCurrency: currencies.map((currency) => ({ currency, amount: cents(measured.filter((placement) => placement.metrics.currency === currency).reduce((total, placement) => total + (placement.metrics.spend ?? 0), 0)) })),
       clicks, attributedOrders: orders, attributedRevenue: revenue,
-      attributedCurrency: revenueCurrencies.length === 1 ? revenueCurrencies[0] : null,
+      attributedCurrency,
       costPerOrder: orders && orders > 0 && spend !== null ? cents(spend / orders) : null,
-      winner: winners,
-      metricsComplete: measured.length === campaignPlacements.length && measured.length > 0,
+      winner,
+      metricsComplete,
       campaigns: campaignPlacements,
     };
   });
