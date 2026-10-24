@@ -24,7 +24,6 @@ export function AdPerformanceView({
   locale?: string;
 }) {
   const en = locale === "en";
-  const previewExamples = readOnly || process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "preview";
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -41,7 +40,9 @@ export function AdPerformanceView({
     setData(null);
     setError("");
     setLoading(true);
-    fetch(`/api/creative-performance?store_id=${encodeURIComponent(storeId)}&days=${PERIOD_DAYS}`, { cache: "no-store" })
+    const query = new URLSearchParams({ store_id: storeId, days: PERIOD_DAYS });
+    if (readOnly) query.set("read_only", "1");
+    fetch(`/api/creative-performance?${query.toString()}`, { cache: "no-store" })
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(body.error || (en ? "Campaign suggestions are temporarily unavailable." : "Les propositions de campagne sont momentanément indisponibles."));
@@ -54,7 +55,7 @@ export function AdPerformanceView({
       .finally(() => { if (alive) setLoading(false); });
 
     return () => { alive = false; };
-  }, [storeId, en]);
+  }, [storeId, en, readOnly]);
 
   return (
     <div className="creative-performance ad-performance-view">
@@ -75,7 +76,7 @@ export function AdPerformanceView({
           : " — campagnes historiques · créations associées · rapports publicitaires · ventes attribuées Chariow lorsqu’elles sont disponibles"}</p>
       </div>
 
-      {!storeId ? previewExamples ? <CampaignPerformanceTab storeId={null} periodDays={PERIOD_DAYS} data={null} loading={false} products={products} readOnly={readOnly} onApplyCampaign={onApplyCampaign} locale={locale} /> : <div className="creative-state">{en ? "Connect a store to prepare a campaign." : "Connecte une boutique pour préparer une campagne."}</div>
+      {!storeId ? <div className="creative-state">{en ? "Connect a store to prepare a campaign." : "Connecte une boutique pour préparer une campagne."}</div>
         : loading ? <div className="creative-state" role="status">{en ? "Preparing a recommendation…" : "Préparation de la proposition…"}</div>
           : error ? <div className="creative-error" role="alert">{error}</div>
             : data ? <CampaignPerformanceTab

@@ -73,7 +73,7 @@ describe("CampaignPerformanceTab recommendation flow", () => {
     expect(container.textContent).toContain("Recommandation de campagne");
     expect(container.textContent).toContain("Meta Ads");
     expect(container.textContent).toContain("Non recommandé : aucune attribution géographique fiable");
-    expect(container.textContent).toContain("Une image HD verticale · 9:16");
+    expect(container.textContent).toContain("Image HD verticale · 9:16 (proposée)");
     expect(container.textContent).toContain("Le titre, le texte, le budget et la durée proviennent du réglage de la campagne source");
     expect(container.textContent).toContain("Appliquer · 20 crédits");
     expect(container.textContent).not.toContain("Campagne historique");

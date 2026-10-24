@@ -56,7 +56,6 @@ const globalSecurityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  env: { NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV ?? "development" },
   serverExternalPackages: ["ffmpeg-static", "ffprobe-static"],
   outputFileTracingExcludes: {
     "/.well-known/workflow/**": ["./node_modules/ffprobe-static/bin/darwin/**", "./node_modules/ffprobe-static/bin/win32/**", "./node_modules/ffprobe-static/bin/linux/ia32/**", "./node_modules/ffprobe-static/bin/linux/arm64/**"],

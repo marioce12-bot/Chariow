@@ -18,16 +18,16 @@ describe("AdPerformanceView", () => {
     expect(html).not.toContain("Sérum éclat");
   });
 
-  it("shows the approved advertising example in Preview and labels it as illustrative", () => {
+  it("keeps the Preview in an honest empty state without a connected store", () => {
     const previousEnvironment = process.env.VERCEL_ENV;
     process.env.VERCEL_ENV = "preview";
     try {
       const html = renderToStaticMarkup(<AdPerformanceView storeId={null} products={[]} onApplyCampaign={() => {}} />);
-      expect(html).toContain("MAQUETTE — EXEMPLE, NON BASÉ SUR DES DONNÉES RÉELLES");
-      expect(html).toContain("Recommandation de campagne");
-      expect(html).toContain("Aperçu du visuel (exemple)");
-      expect(html).toContain("Lancer maintenant");
-      expect(html).toContain("disabled");
+      expect(html).toContain("Connecte une boutique pour préparer une campagne.");
+      expect(html).not.toContain("MAQUETTE");
+      expect(html).not.toContain("Sérum éclat");
+      expect(html).not.toContain("Appliquer");
+      expect(html).not.toContain("Lancer maintenant");
     } finally {
       if (previousEnvironment === undefined) delete process.env.VERCEL_ENV;
       else process.env.VERCEL_ENV = previousEnvironment;

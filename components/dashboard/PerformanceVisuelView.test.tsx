@@ -9,6 +9,7 @@ describe("PerformanceVisuelView", () => {
     expect(html).toContain("<h1>Suivi des créations</h1>");
     expect(html).toContain("Pub");
     expect(html).toContain("Analyse des créations");
+    expect(html).toContain("Données réelles uniquement");
     expect(html).toContain("Choisis une boutique connectée pour consulter ses créations.");
     expect(html).not.toContain("Performance publicitaire");
     expect(html).not.toContain("Résultats des campagnes");
@@ -18,5 +19,6 @@ describe("PerformanceVisuelView", () => {
     expect(html).not.toContain("55 900");
     expect(html).not.toContain("2 870");
     expect(html).not.toContain("354 000");
+    expect(html).not.toContain("Sérum éclat");
   });
 });

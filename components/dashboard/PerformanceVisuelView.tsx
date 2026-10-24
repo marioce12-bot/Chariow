@@ -57,18 +57,6 @@ type DisplayRow = {
   spend: string; clicks: number | null; orders: number | null; cost: string; revenue: string;
   winner: boolean;
 };
-const demoRows: DisplayRow[] = [
-  { id: "demo-before-after", kind: "video", url: "/demo/creative-serum.jpg", title: "Vidéo avant / après", product: "Sérum éclat", campaign: "Routine 7 jours", variant: "Variante A · Hook avant / après", platforms: ["tiktok"], spend: "17 500 FCFA", clicks: 1240, orders: 8, cost: "2 188 FCFA", revenue: "96 000 FCFA", winner: false },
-  { id: "demo-ugc", kind: "video", url: "/demo/creative-soap.jpg", title: "UGC témoignage", product: "Savon noir", campaign: "Prospection", variant: "Variante B · Avis client", platforms: ["meta"], spend: "12 000 FCFA", clicks: 430, orders: 24, cost: "500 FCFA", revenue: "144 000 FCFA", winner: true },
-  { id: "demo-product", kind: "video", url: "/demo/creative-oil.jpg", title: "Démo produit", product: "Huile de pousse", campaign: "Test produit", variant: "Variante A · Démo 15 s", platforms: ["tiktok"], spend: "16 800 FCFA", clicks: 890, orders: 6, cost: "2 800 FCFA", revenue: "36 000 FCFA", winner: false },
-  { id: "demo-carousel", kind: "image", url: "/demo/creative-brush.jpg", title: "Carrousel promo", product: "Pack cheveux", campaign: "Promo week-end", variant: "Variante B · Prix barré", platforms: ["meta"], spend: "9 600 FCFA", clicks: 310, orders: 13, cost: "738 FCFA", revenue: "78 000 FCFA", winner: true },
-];
-const demoRowsEn: DisplayRow[] = [
-  { ...demoRows[0], title: "Before / after video", product: "Glow serum", campaign: "7-day routine", variant: "Variant A · Before / after hook" },
-  { ...demoRows[1], title: "Customer testimonial", product: "Black soap", campaign: "Prospecting", variant: "Variant B · Customer review" },
-  { ...demoRows[2], title: "Product demo", product: "Hair growth oil", campaign: "Product test", variant: "Variant A · 15-second demo" },
-  { ...demoRows[3], title: "Promo carousel", product: "Hair care pack", campaign: "Weekend promo", variant: "Variant B · Strikethrough price" },
-];
 function money(value: number | null, currency: string | null, locale: string) {
   if (value === null || !currency) return "—";
   if (currency === "XOF" && locale !== "en") return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value)} FCFA`;
@@ -150,21 +138,18 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [storeId, period, refreshCount, en, readOnly]);
-  const previewEnvironment = readOnly || process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "preview";
-  const demoMode = previewEnvironment && !loading && !error && !(data?.media?.length) && (data?.metrics?.launchedCampaigns ?? 0) === 0;
   const liveRows = useMemo(() => (data?.media ?? []).map((item) => summarizeMedia(item, locale)), [data, locale]);
-  const allRows = demoMode ? (en ? demoRowsEn : demoRows) : liveRows;
-  const platforms = demoMode ? ["meta", "tiktok"] : [...new Set((data?.media ?? []).flatMap((item) => (item.campaigns ?? []).map((placement) => placement.platform)))];
-  const visibleRows = allRows.filter((row) => (resultFilter === "all" || row.winner) && (platformFilter === "all" || row.platforms.includes(platformFilter)));
+  const platforms = [...new Set((data?.media ?? []).flatMap((item) => (item.campaigns ?? []).map((placement) => placement.platform)))];
+  const visibleRows = liveRows.filter((row) => (resultFilter === "all" || row.winner) && (platformFilter === "all" || row.platforms.includes(platformFilter)));
   const eligibleProducts = (data?.productEligibility ?? []).filter((product) => product.eligible);
   const firstEligibleProduct = eligibleProducts[0];
   const totals = data?.metrics?.totals ?? [];
-  const totalSpend = demoMode ? "55 900 FCFA" : formatTotals(totals, "spend", locale);
-  const totalClicks = demoMode ? "2 870" : totals.length ? number(totals.reduce((sum, row) => sum + row.clicks, 0), locale) : "—";
+  const totalSpend = formatTotals(totals, "spend", locale);
+  const totalClicks = totals.length ? number(totals.reduce((sum, row) => sum + row.clicks, 0), locale) : "—";
   const canShowOrderTotals = totals.length > 0 && totals.every((row) => row.attributedOrders !== null) && !(data?.metrics?.unavailableCampaignMetrics ?? 0);
-  const totalOrders = demoMode ? "51" : canShowOrderTotals ? number(totals.reduce((sum, row) => sum + (row.attributedOrders ?? 0), 0), locale) : "—";
-  const totalCost = demoMode ? "1 096 FCFA" : formatTotals(totals, "costPerOrder", locale);
-  const totalRevenue = demoMode ? "354 000 FCFA" : formatTotals(totals, "attributedRevenue", locale);
+  const totalOrders = canShowOrderTotals ? number(totals.reduce((sum, row) => sum + (row.attributedOrders ?? 0), 0), locale) : "—";
+  const totalCost = formatTotals(totals, "costPerOrder", locale);
+  const totalRevenue = formatTotals(totals, "attributedRevenue", locale);
   const liveWinner = (data?.media ?? []).filter((item) => item.winner).sort((a, b) => (b.attributedRevenue ?? 0) - (a.attributedRevenue ?? 0))[0];
   const liveWarning = (data?.media ?? []).filter((item) => item.clicks !== null && item.clicks > 0 && item.attributedOrders !== null)
     .sort((a, b) => (a.attributedOrders! / Math.max(a.clicks!, 1)) - (b.attributedOrders! / Math.max(b.clicks!, 1)))[0];
@@ -203,7 +188,7 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
           <label className="creative-period"><span>{en ? "Period" : "Période"}</span><select value={period} onChange={(event) => setPeriod(event.target.value)} aria-label={en ? "Performance period" : "Période de performance"}>
             <option value="7">{en ? "Last 7 days" : "7 derniers jours"}</option><option value="30">{en ? "Last 30 days" : "30 derniers jours"}</option><option value="90">{en ? "Last 90 days" : "90 derniers jours"}</option>
           </select></label>
-          <span className={`creative-data-badge${demoMode ? " demo" : ""}`}>{demoMode ? (en ? "Example data" : "Données d’exemple") : (en ? "Measured data" : "Données mesurées")}</span>
+          <span className="creative-data-badge">{data ? (en ? "Measured data" : "Données mesurées") : (en ? "Real data only" : "Données réelles uniquement")}</span>
         </div>
       </header>
       {error ? <div className="creative-error" role="alert">{error}</div> : null}
@@ -211,8 +196,8 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
       {data?.notices.pinterest ? <p className="creative-notice" role="status">{data.notices.pinterest}</p> : null}
       {loading ? <div className="creative-state" role="status">{en ? "Loading creative results…" : "Chargement des résultats des créations…"}</div>
         : error ? <div className="creative-state">{en ? "Try refreshing the results later." : "Réessaie d’actualiser les résultats plus tard."}</div>
-          : !storeId && !demoMode ? <div className="creative-state">{en ? "Choose a connected store to view its creatives." : "Choisis une boutique connectée pour consulter ses créations."}</div>
-            : !data?.media.length && !demoMode && (data?.metrics?.launchedCampaigns ?? 0) === 0 && !eligibleProducts.length ? <div className="creative-state">{en ? "No measured creatives are available yet." : "Aucune création mesurée n’est disponible pour le moment."}</div>
+          : !storeId ? <div className="creative-state">{en ? "Choose a connected store to view its creatives." : "Choisis une boutique connectée pour consulter ses créations."}</div>
+            : !data?.media.length && (data?.metrics?.launchedCampaigns ?? 0) === 0 && !eligibleProducts.length ? <div className="creative-state">{en ? "No measured creatives are available yet." : "Aucune création mesurée n’est disponible pour le moment."}</div>
               : <>
                 <section className="creative-kpi-grid" aria-label={en ? "Creative performance summary" : "Résumé des performances créatives"}>
                   <article className="creative-kpi-card"><span className="creative-kpi-icon"><CircleDollarSign size={20} /></span><div><small>{en ? "Ad spend" : "Dépenses publicitaires"}</small><strong>{totalSpend}</strong><span>{en ? "for the period" : "sur la période"}</span></div></article>
@@ -222,16 +207,16 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
                   <article className="creative-kpi-card"><span className="creative-kpi-icon"><PackageCheck size={20} /></span><div><small>{en ? "Attributed revenue" : "Chiffre d’affaires attribué"}</small><strong>{totalRevenue}</strong><span>{en ? "from tracked creatives" : "lié aux créatifs suivis"}</span></div></article>
                 </section>
                 <section className="creative-insight-grid" aria-label={en ? "Creative insights" : "À retenir"}>
-                  {demoMode || liveWarning ? <article className="creative-insight warning"><span className="creative-insight-icon"><AlertTriangle size={20} /></span><div><small>{en ? "OPTIMIZE · MANY CLICKS, FEW CONVERSIONS" : "À OPTIMISER · BEAUCOUP DE CLICS, PEU DE CONVERSIONS"}</small><strong>{demoMode ? (en ? "Before / after video" : "Vidéo avant / après") : liveWarning ? summarizeMedia(liveWarning, locale).title : ""}</strong><span>{demoMode ? (en ? "1,240 clicks · 8 orders · 0.6% conversion rate" : "1 240 clics · 8 commandes · taux de conversion de 0,6 %") : liveWarning ? `${number(liveWarning.clicks, locale)} ${en ? "clicks" : "clics"} · ${number(liveWarning.attributedOrders, locale)} ${en ? "attributed orders" : "commandes attribuées"}` : ""}</span></div><span className="creative-insight-chevron">›</span></article>
+                  {liveWarning ? <article className="creative-insight warning"><span className="creative-insight-icon"><AlertTriangle size={20} /></span><div><small>{en ? "OPTIMIZE · MANY CLICKS, FEW CONVERSIONS" : "À OPTIMISER · BEAUCOUP DE CLICS, PEU DE CONVERSIONS"}</small><strong>{summarizeMedia(liveWarning, locale).title}</strong><span>{number(liveWarning.clicks, locale)} {en ? "clicks" : "clics"} · {number(liveWarning.attributedOrders, locale)} {en ? "attributed orders" : "commandes attribuées"}</span></div><span className="creative-insight-chevron">›</span></article>
                     : <article className="creative-insight neutral"><span className="creative-insight-icon"><AlertTriangle size={20} /></span><div><small>{en ? "OPTIMIZATION" : "OPTIMISATION"}</small><strong>{en ? "No reliable low-conversion signal" : "Aucun signal fiable de faible conversion"}</strong><span>{en ? "More complete attribution is needed." : "Une attribution plus complète est nécessaire."}</span></div></article>}
-                  {demoMode || liveWinner ? <article className="creative-insight winner"><span className="creative-insight-icon"><Star size={20} /></span><div><small>{en ? "WINNING CREATIVE" : "CRÉATIF GAGNANT"}</small><strong>{demoMode ? (en ? "Customer testimonial" : "UGC témoignage") : liveWinner ? summarizeMedia(liveWinner, locale).title : ""}</strong><span>{demoMode ? (en ? "24 orders · 500 FCFA / order · 144,000 FCFA attributed" : "24 commandes · 500 FCFA / commande · 144 000 FCFA attribués") : liveWinner ? `${number(liveWinner.attributedOrders, locale)} ${en ? "orders" : "commandes"} · ${money(liveWinner.costPerOrder, liveWinner.currency, locale)} / ${en ? "order" : "commande"} · ${money(liveWinner.attributedRevenue, liveWinner.attributedCurrency, locale)} ${en ? "attributed" : "attribués"}` : ""}</span></div><span className="creative-insight-chevron">›</span></article>
+                  {liveWinner ? <article className="creative-insight winner"><span className="creative-insight-icon"><Star size={20} /></span><div><small>{en ? "WINNING CREATIVE" : "CRÉATIF GAGNANT"}</small><strong>{summarizeMedia(liveWinner, locale).title}</strong><span>{number(liveWinner.attributedOrders, locale)} {en ? "orders" : "commandes"} · {money(liveWinner.costPerOrder, liveWinner.currency, locale)} / {en ? "order" : "commande"} · {money(liveWinner.attributedRevenue, liveWinner.attributedCurrency, locale)} {en ? "attributed" : "attribués"}</span></div><span className="creative-insight-chevron">›</span></article>
                     : <article className="creative-insight neutral"><span className="creative-insight-icon"><Star size={20} /></span><div><small>{en ? "WINNING CREATIVE" : "CRÉATIF GAGNANT"}</small><strong>{en ? "No winner identified yet" : "Aucun gagnant identifié pour le moment"}</strong><span>{en ? "Reliable attributed revenue is required." : "Un chiffre d’affaires attribué fiable est nécessaire."}</span></div></article>}
                 </section>
                 <section className="creative-library" aria-labelledby="creative-library-title">
                   <div className="creative-library-head">
                     <div><h2 id="creative-library-title">{en ? "Results by creative" : "Résultats par création"}</h2><p>{en ? "Each row links the creative to its product, campaign and variant." : "Chaque ligne relie le contenu diffusé à son produit, sa campagne et sa variante."}</p></div>
                     <div className="creative-table-actions">
-                      {!demoMode && firstEligibleProduct && onOpenStudio && !readOnly ? <div className="creative-proposal-card"><button type="button" className="creative-studio-link" disabled={suggestionBusy !== null} onClick={() => void proposeIdeas(firstEligibleProduct)}>
+                      {firstEligibleProduct && onOpenStudio && !readOnly ? <div className="creative-proposal-card"><button type="button" className="creative-studio-link" disabled={suggestionBusy !== null} onClick={() => void proposeIdeas(firstEligibleProduct)}>
                         {suggestionBusy === firstEligibleProduct.productId ? <RefreshCw className="creative-spin" size={15} /> : <Sparkles size={15} />}{suggestionBusy === firstEligibleProduct.productId ? (en ? "Checking…" : "Vérification…") : (en ? `3 Studio ideas · ${firstEligibleProduct.productName}` : `3 idées Studio · ${firstEligibleProduct.productName}`)}
                       </button>{suggestionMessages[firstEligibleProduct.productId] ? <small role="status">{suggestionMessages[firstEligibleProduct.productId]}</small> : null}</div> : null}
                       <label className="creative-table-filter"><span><ImageIcon size={14} />{en ? "Filter" : "Filtrer"}</span><select value={resultFilter} onChange={(event) => setResultFilter(event.target.value)} aria-label={en ? "Creative filter" : "Filtre des créations"}><option value="all">{en ? "All creatives" : "Tous les créatifs"}</option><option value="winners">{en ? "Winners only" : "Meilleurs résultats"}</option></select></label>
@@ -247,7 +232,7 @@ export function PerformanceVisuelView({ storeId, locale = "fr", readOnly = false
                       <td><div className="creative-linkage"><strong>{row.product}</strong><span>{row.campaign}{row.platforms.length === 1 ? ` · ${platformName(row.platforms[0], locale)}` : ""}</span><small>{row.variant}</small></div></td>
                       <td className="numeric-cell">{row.spend}</td><td className="numeric-cell">{number(row.clicks, locale)}</td><td className="numeric-cell">{number(row.orders, locale)}</td><td className={`numeric-cell ${row.winner ? "positive" : ""}`}>{row.cost}</td><td className={`numeric-cell ${row.winner ? "positive" : ""}`}>{row.revenue}</td>
                     </tr>)}</tbody></table></div>}
-                  <div className="creative-library-foot"><span>{demoMode ? (en ? "Example figures for interface preview · not real customer results." : "Chiffres d’exemple pour la maquette · aucun résultat client réel.") : (en ? "Orders and revenue appear only when attribution is reliable; unknown values stay blank." : "Les commandes et le chiffre d’affaires ne s’affichent que lorsque l’attribution est fiable; les valeurs inconnues restent vides.")}</span><span>{data ? `${data.metrics.mediaCount} ${en ? "tracked creatives" : "créations suivies"} · ${formatPeriod(data.period.from, data.period.to, locale)}` : demoMode ? (en ? "4 example creatives · FCFA" : "4 créations d’exemple · FCFA") : ""}</span></div>
+                  <div className="creative-library-foot"><span>{en ? "Orders and revenue appear only when attribution is reliable; unknown values stay blank." : "Les commandes et le chiffre d’affaires ne s’affichent que lorsque l’attribution est fiable; les valeurs inconnues restent vides."}</span><span>{data ? `${data.metrics.mediaCount} ${en ? "tracked creatives" : "créations suivies"} · ${formatPeriod(data.period.from, data.period.to, locale)}` : ""}</span></div>
                 </section>
                 {data?.notices.carousel ? <p className="creative-footnote">{data.notices.carousel}</p> : null}
               </>}
