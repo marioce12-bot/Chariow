@@ -31,6 +31,9 @@
 
   .dashboard-platform .mobile-nav .nav-btn svg {
     flex: 0 0 auto;
+    height: 24px;
+    stroke-width: 2;
+    width: 24px;
   }
 
   .dashboard-platform .mobile-nav .nav-btn span {
@@ -66,14 +69,14 @@
     box-shadow: 0 4px 12px rgba(84, 91, 220, 0.32);
     box-sizing: content-box;
     color: #fff;
-    height: 23px;
+    height: 24px;
     left: 50%;
     padding: 9px;
     position: absolute;
     stroke: #fff;
     top: -22px;
     transform: translateX(-50%);
-    width: 23px;
+    width: 24px;
   }
 
   .dashboard-platform .mobile-nav .nav-btn-assistant span {
@@ -85,12 +88,6 @@
 
   .dashboard-platform .mobile-nav .nav-btn-assistant.active span {
     color: #5944dc;
-  }
-
-  .dashboard-platform .mobile-nav .nav-btn:nth-child(4) svg {
-    height: 18px;
-    stroke-width: 2;
-    width: 18px;
   }
 
   .dashboard-platform .mobile-nav .nav-btn-performance span {

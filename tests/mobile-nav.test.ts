@@ -33,6 +33,17 @@ describe("mobile dashboard navigation", () => {
     expect(css).toContain("stroke: #fff");
   });
 
+  it("matches a consistent 24px, 2px icon size and weight across all five destinations", () => {
+    expect(navMarkup.match(/<(LayoutDashboard|Megaphone|Brain|Sparkles|ImageIcon) size=\{24\}/g)).toHaveLength(5);
+    expect(navMarkup).toContain("<Brain size={24} strokeWidth={2} />");
+    expect(navMarkup).toContain("<Sparkles size={24} strokeWidth={2} />");
+    const iconsRule = css.match(/\.dashboard-platform \.mobile-nav \.nav-btn svg \{([^}]*)\}/)?.[1] ?? "";
+    expect(iconsRule).toContain("height: 24px;");
+    expect(iconsRule).toContain("width: 24px;");
+    expect(iconsRule).toContain("stroke-width: 2;");
+    expect(css).not.toContain("nav-btn:nth-child(4) svg");
+  });
+
   it("keeps safe-area clearance and usable targets at narrow, standard, and tablet mobile widths", () => {
     const mobileWidths = [320, 360, 375, 390, 760];
     for (const width of mobileWidths) expect(width).toBeLessThanOrEqual(760);

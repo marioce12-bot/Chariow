@@ -486,23 +486,23 @@ function DashboardWorkspace() {
         {active !== "Paramètres" ? (
          <nav className={`mobile-nav${active === "Mes boutiques" ? " mobile-nav-hidden-on-stores" : ""}${mobileNavVisible ? " mobile-nav-visible" : " mobile-nav-hidden"}`} aria-label={w("mobileNav")}>
          <button type="button" data-onboarding="Vue d'ensemble" className={`nav-btn ${active === "Vue d'ensemble" ? "active" : ""}`} onClick={() => setActive("Vue d'ensemble")}>
-           <LayoutDashboard size={18} />
+           <LayoutDashboard size={24} />
             <span>{t("nav.overview")}</span>
          </button>
            <button type="button" data-onboarding="Pub" className={`nav-btn ${active === "Pub" ? "active" : ""}`} onClick={() => setActive("Pub")}>
-             <Megaphone size={18} />
+             <Megaphone size={24} />
               <span>{t("nav.pubs")}</span>
           </button>
              <button type="button" data-onboarding="Vendeo AI" className={`nav-btn nav-btn-assistant ${active === "Vendeo AI" ? "active" : ""}`} onClick={() => setActive("Vendeo AI")}>
-               <Brain size={23} strokeWidth={2.2} />
+               <Brain size={24} strokeWidth={2} />
                <span>{t("nav.assistant")}</span>
              </button>
             <button type="button" data-onboarding="Studio" className={`nav-btn ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
-              <Sparkles size={21} strokeWidth={2.5} />
+              <Sparkles size={24} strokeWidth={2} />
               <span>{t("nav.studio")}</span>
             </button>
              <button type="button" data-onboarding="Performance visuel" className={`nav-btn nav-btn-performance ${active === "Performance visuel" ? "active" : ""}`} onClick={() => setActive("Performance visuel")}>
-               <ImageIcon size={18} />
+               <ImageIcon size={24} />
                 <span>{t("nav.creativePerformance")}</span>
              </button>
         </nav>
