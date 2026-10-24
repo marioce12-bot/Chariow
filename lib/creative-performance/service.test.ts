@@ -47,7 +47,7 @@ function asset(id: string) {
 }
 
 class QueryBuilder {
-  constructor(private readonly rowsByTable: Record<string, unknown[]>, private readonly table: string) {}
+  constructor(private readonly rowsByTable: Record<string, unknown[]>, private readonly table: string, private readonly onUpsert?: (table: string) => void) {}
   select() { return this; }
   eq() { return this; }
   in() { return this; }
@@ -56,14 +56,14 @@ class QueryBuilder {
   not() { return this; }
   order() { return this; }
   range() { return this; }
-  upsert() { return Promise.resolve({ error: null }); }
+  upsert() { this.onUpsert?.(this.table); return Promise.resolve({ error: null }); }
   then(resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) {
     return Promise.resolve({ data: this.rowsByTable[this.table] ?? [], error: null }).then(resolve, reject);
   }
 }
 
-function supabase(rowsByTable: Record<string, unknown[]>) {
-  return { from: (table: string) => new QueryBuilder(rowsByTable, table) };
+function supabase(rowsByTable: Record<string, unknown[]>, onUpsert?: (table: string) => void) {
+  return { from: (table: string) => new QueryBuilder(rowsByTable, table, onUpsert) };
 }
 
 function fixtures(overrides: Record<string, unknown[]> = {}) {
@@ -130,6 +130,21 @@ describe("loadCreativePerformance provider flow", () => {
     expect(fetchTikTokAdReport).toHaveBeenCalledWith("advertiser-1", "access-token", period.from, period.to);
     expect(fetchPinterestCampaignReport).toHaveBeenCalledWith("pinterest-ad-account", "access-token", period.from, period.to);
     expect(fetchPinterestAdReport).toHaveBeenCalledWith("pinterest-ad-account", "access-token", ["p-ad-1"], period.from, period.to);
+  });
+
+  it("reads provider metrics without writing snapshots in read-only mode", async () => {
+    vi.mocked(fetchTikTokCampaignReport).mockResolvedValue([
+      { id: "native-campaign-1", name: "TikTok campaign", spend: 99, impressions: 900, clicks: 90, conversions: 9, cpa: 11 },
+    ]);
+    const onUpsert = vi.fn();
+    const database = supabase(fixtures(), onUpsert);
+    const result = await loadCreativePerformance({ supabase: database, userId: "user-1", storeId: "store-1", period, persistSnapshots: false });
+    expect(result.campaigns[0].metrics?.spend).toBe(99);
+    expect(onUpsert).not.toHaveBeenCalled();
+
+    await loadCreativePerformance({ supabase: database, userId: "user-1", storeId: "store-1", period });
+    expect(onUpsert).toHaveBeenCalledOnce();
+    expect(onUpsert).toHaveBeenCalledWith("creative_campaign_metric_snapshots");
   });
 
   it("explains a missing TikTok connection and returns no invented metrics", async () => {

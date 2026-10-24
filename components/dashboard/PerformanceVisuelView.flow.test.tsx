@@ -33,7 +33,7 @@ describe("PerformanceVisuelView report rendering", () => {
     const root = createRoot(container);
 
     await act(async () => {
-      root.render(<PerformanceVisuelView storeId="store-1" onOpenStudio={vi.fn()} />);
+      root.render(<PerformanceVisuelView storeId="store-1" onOpenStudio={vi.fn()} readOnly />);
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
@@ -43,6 +43,9 @@ describe("PerformanceVisuelView report rendering", () => {
     expect(container.textContent).toContain("12,50");
     expect(container.textContent).toContain("18");
     expect(container.querySelector(".creative-media-card")?.textContent).not.toContain("99,00");
+    expect(container.querySelector(".creative-variant-editor")).toBeNull();
+    expect(container.querySelector(".creative-studio-actions")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledOnce();
 
     await act(async () => root.unmount());
   });

@@ -301,6 +301,7 @@ async function readTikTokAttribution(
 
 export async function loadCreativePerformance(input: {
   supabase: any; userId: string; storeId: string; period: CreativePeriod;
+  persistSnapshots?: boolean;
 }) {
   const { supabase, userId, storeId, period } = input;
   const campaigns = await readPages<CampaignRow>((start, end) => supabase.from("ad_campaigns")
@@ -550,7 +551,7 @@ export async function loadCreativePerformance(input: {
       metric_scope: metric.scope,
     }];
   });
-  if (snapshotRows.length) {
+  if (input.persistSnapshots !== false && snapshotRows.length) {
     const { error } = await supabase.from("creative_campaign_metric_snapshots").upsert(snapshotRows, {
       onConflict: "user_id,store_id,platform,external_campaign_id,period_from,period_to",
     });

@@ -63,8 +63,8 @@ function formatPeriod(from: string, to: string) {
   return `${new Date(`${from}T00:00:00Z`).toLocaleDateString("fr-FR")} – ${new Date(`${to}T00:00:00Z`).toLocaleDateString("fr-FR")}`;
 }
 
-export function PerformanceVisuelView({ storeId, onOpenStudio }: {
-  storeId: string | null; onOpenStudio: (prefill: CreativePerformanceStudioPrefill) => void;
+export function PerformanceVisuelView({ storeId, onOpenStudio, readOnly = false }: {
+  storeId: string | null; onOpenStudio: (prefill: CreativePerformanceStudioPrefill) => void; readOnly?: boolean;
 }) {
   const [period, setPeriod] = useState("30");
   const [data, setData] = useState<PerformanceData | null>(null);
@@ -135,7 +135,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
   }, [data]);
 
   async function propose(media: Media | null, productId: string) {
-    if (!storeId) return;
+    if (readOnly || !storeId) return;
     const key = `${media?.id ?? "product"}:${productId}`;
     setSuggestionBusy(key); setSuggestionMessages((current) => ({ ...current, [key]: "" }));
     try {
@@ -156,7 +156,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
   }
 
   async function saveVariant(placement: Placement) {
-    if (variantSaving) return;
+    if (readOnly || variantSaving) return;
     const id = placement.id;
     setVariantSaving(id); setVariantMessages((current) => ({ ...current, [id]: "" }));
     try {
@@ -226,7 +226,7 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
           <label className="creative-winner-filter"><input type="checkbox" checked={onlyWinners} onChange={(event) => setOnlyWinners(event.target.checked)} /> Produits/visuels gagnants uniquement</label>
           <label className="creative-platform-filter"><span>Plateforme</span><select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)}><option value="all">Toutes</option>{platforms.map((platform) => <option key={platform} value={platform}>{platformName(platform)}</option>)}</select></label>
         </div>
-        {products.some((product) => product.eligible) ? <div className="creative-ready-products"><div><strong>Produits disponibles dans Studio</strong></div>
+        {!readOnly && products.some((product) => product.eligible) ? <div className="creative-ready-products"><div><strong>Produits disponibles dans Studio</strong></div>
           <div className="creative-ready-product-list">{products.filter((product) => product.eligible && (!onlyWinners || winningProducts.has(product.productId))).map((product) => {
             const key = `product:${product.productId}`;
             return <div className="creative-product-action" key={product.productId}><div><span>{product.productName}{winningProducts.has(product.productId) ? <em className="creative-badge winner">Produit gagnant</em> : null}</span><small>{product.analyzedCampaigns} campagne(s) analysée(s) · {product.launchedCampaigns} lancée(s)</small></div><button type="button" className="creative-studio-link" disabled={suggestionBusy === key} onClick={() => void propose(null, product.productId)}><Sparkles size={14} /> {suggestionBusy === key ? "Vérification…" : "Proposer des créatifs"}</button>{suggestionMessages[key] ? <small role="status" className="creative-suggestion-message">{suggestionMessages[key]}</small> : null}</div>;
@@ -262,14 +262,14 @@ export function PerformanceVisuelView({ storeId, onOpenStudio }: {
                     <strong>Détail par campagne et plateforme</strong>
                     {item.campaigns.map((campaign) => <div className="creative-campaign-row" key={campaign.id}>
                       <div><span>{campaign.campaignName}</span><small>{platformName(campaign.platform)} · {campaign.productName || "Produit non renseigné"}{campaign.variantLabel ? ` · ${campaign.variantLabel}` : " · variante non renseignée"} · {campaign.status}</small>
-                        <div className="creative-variant-editor"><input maxLength={120} value={variantDrafts[campaign.id] ?? campaign.variantLabel ?? ""} onChange={(event) => setVariantDrafts((current) => ({ ...current, [campaign.id]: event.target.value }))} placeholder="Variante (facultatif)" aria-label={`Variante pour ${campaign.campaignName}`} /><button type="button" disabled={Boolean(variantSaving)} onClick={() => void saveVariant(campaign)}>{variantSaving === campaign.id ? "Enregistrement…" : "Enregistrer"}</button>{variantMessages[campaign.id] ? <small role="status">{variantMessages[campaign.id]}</small> : null}</div>
+                        {!readOnly ? <div className="creative-variant-editor"><input maxLength={120} value={variantDrafts[campaign.id] ?? campaign.variantLabel ?? ""} onChange={(event) => setVariantDrafts((current) => ({ ...current, [campaign.id]: event.target.value }))} placeholder="Variante (facultatif)" aria-label={`Variante pour ${campaign.campaignName}`} /><button type="button" disabled={Boolean(variantSaving)} onClick={() => void saveVariant(campaign)}>{variantSaving === campaign.id ? "Enregistrement…" : "Enregistrer"}</button>{variantMessages[campaign.id] ? <small role="status">{variantMessages[campaign.id]}</small> : null}</div> : null}
                       </div>
                       <div><span>{campaign.metrics.available ? money(campaign.metrics.spend, campaign.metrics.currency) : "—"}</span><small>{campaign.metrics.available ? `${number(campaign.metrics.clicks)} clics` : campaign.isMultiMedia ? "métriques non ventilées" : "rapport indisponible"}</small></div>
                       <div><span>{number(campaign.metrics.attributedOrders)}</span><small>{money(campaign.metrics.attributedRevenue, campaign.metrics.attributedCurrency)} attribués</small></div>
                     </div>)}
 
                   </div>
-                  {productPlacements.length ? <div className="creative-studio-actions"><strong>Idées Studio</strong>{productPlacements.map((campaign) => {
+                  {!readOnly && productPlacements.length ? <div className="creative-studio-actions"><strong>Idées Studio</strong>{productPlacements.map((campaign) => {
                     const eligibility = products.find((product) => product.productId === campaign.productId);
                     const key = `${item.id}:${campaign.productId}`;
                     const busy = suggestionBusy === key;
