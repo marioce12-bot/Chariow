@@ -353,14 +353,29 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
   useEffect(() => {
     if (!videoJob || ["completed", "failed", "cancelled"].includes(videoJob.status)) return;
-    const timer = window.setInterval(async () => {
-      const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`);
-      const result = await response.json().catch(() => ({}));
-      if (response.ok) setVideoJob(result);
-      else if (result.error) setError(result.error);
-    }, 4_000);
-    return () => window.clearInterval(timer);
-  }, [videoJob]);
+    let active = true;
+    let timer: number | null = null;
+    const controller = new AbortController();
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`, { signal: controller.signal });
+        const result = await response.json().catch(() => ({}));
+        if (!active) return;
+        if (response.ok && typeof result?.status === "string") setVideoJob(result);
+        else if (result.error) setError(result.error);
+      } catch {
+        // Retry after the current request settles; cleanup aborts any in-flight read.
+      } finally {
+        if (active && !controller.signal.aborted) timer = window.setTimeout(() => void poll(), 4_000);
+      }
+    };
+    timer = window.setTimeout(() => void poll(), 4_000);
+    return () => {
+      active = false;
+      if (timer !== null) window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [videoJob?.id, videoJob?.status]);
 
   async function uploadReferenceFiles() {
     if (!referenceFiles.length) return [];
