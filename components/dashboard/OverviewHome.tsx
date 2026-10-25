@@ -13,7 +13,8 @@ import { AdSpendByChannel } from "./AdSpendByChannel";
 import { Skeleton, SkeletonRows } from "./Skeleton";
 import type { AnalyticsData, ProductData, StoreData, SubscriptionData } from "./shared";
 import "@/app/dashboard-overview.css";
-import { useNavigationData, useNavigationCache } from "./NavigationDataCache";
+import { useNavigationData } from "./NavigationDataCache";
+import { getDashboardAnalyticsRange } from "@/lib/dashboard-analytics-periods";
 
 /**
  * Nouvelle "Vue d'ensemble" : simple, accueillante et multi-canaux.
@@ -64,6 +65,9 @@ export function OverviewHome({
   stores,
   subscription,
   analytics,
+  rolling30Analytics,
+  selectedPeriodAnalytics,
+  selectedPeriodLoading = false,
   userFirstName,
   plan,
   selectedStoreId,
@@ -79,6 +83,9 @@ export function OverviewHome({
   stores: StoreData[];
   subscription: SubscriptionData | null;
   analytics: AnalyticsData;
+  rolling30Analytics: AnalyticsData;
+  selectedPeriodAnalytics: AnalyticsData;
+  selectedPeriodLoading?: boolean;
   userFirstName: string | null;
   plan: PlanId;
   selectedStoreId: string | null;
@@ -101,17 +108,18 @@ export function OverviewHome({
   const [localPeriodDays, setLocalPeriodDays] = useState(30);
   const periodDays = selectedPeriodDays ?? localPeriodDays;
   const setPeriodDays = onPeriodDaysChange ?? setLocalPeriodDays;
-  const cache = useNavigationCache();
-  const toDay = new Date().toISOString().slice(0, 10);
-  const from = new Date();
-  from.setDate(from.getDate() - periodDays + 1);
-  const period = useNavigationData<{ snapshot: AnalyticsData }>(selectedStoreId ? `/api/analytics?store_id=${encodeURIComponent(selectedStoreId)}&from=${from.toISOString().slice(0, 10)}&to=${toDay}` : null);
+  const selectedRange = periodDays === 30 ? null : getDashboardAnalyticsRange(periodDays);
+  const selectedPeriodMatches = Boolean(
+    selectedRange
+      && selectedPeriodAnalytics?.kpis.period.from === selectedRange.from
+      && selectedPeriodAnalytics?.kpis.period.to === selectedRange.to,
+  );
   const campaignReading = useNavigationData<{ campaigns: CampaignSummary[] }>("/api/ad-campaigns", { version: campaignsVersion });
   const alertReading = useNavigationData<{ alerts: PersistentAlert[] }>("/api/alerts");
-  const data = period.data?.snapshot ?? analytics;
+  const data = (periodDays === 30 ? rolling30Analytics : selectedPeriodMatches ? selectedPeriodAnalytics : null) ?? analytics;
   const campaigns = campaignReading.data?.campaigns ?? [];
   const campaignsReady = !campaignReading.loading;
-  const periodLoading = period.loading && periodDays !== 30;
+  const periodLoading = selectedPeriodLoading && periodDays !== 30;
   const alerts = alertReading.data?.alerts ?? [];
   const [selectedSale, setSelectedSale] = useState<SaleRow | null>(null);
   const saleTriggerRef = useRef<HTMLButtonElement | null>(null);

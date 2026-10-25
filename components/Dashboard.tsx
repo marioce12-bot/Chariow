@@ -54,7 +54,10 @@ import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
+import { DASHBOARD_ANALYTICS_REFRESH_MS, getDashboardAnalyticsUrl } from "@/lib/dashboard-analytics-periods";
 import type { DashboardTourStep } from "./dashboard/tour-steps";
+type DashboardAnalyticsResponse = { snapshot: AnalyticsData; rolling30Snapshot: AnalyticsData; periodSnapshot: AnalyticsData };
+type StoredDashboardAnalyticsResponse = { storeId: string; data: DashboardAnalyticsResponse };
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
 // Dernière boutique choisie dans le sélecteur : conservée dans localStorage (et non
 // sessionStorage) pour survivre à la fermeture de l'appli, quel que soit l'ordre
@@ -242,6 +245,7 @@ function DashboardWorkspace() {
   const [analyticsStoreId, setAnalyticsStoreId] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsData>(null);
+  const [lastAnalyticsResponse, setLastAnalyticsResponse] = useState<StoredDashboardAnalyticsResponse | null>(null);
   // null tant que le nom n'est pas connu : la salutation reste en skeleton (pas de « Bonjour créateur » provisoire).
   const [userName, setUserName] = useState<string | null>(null);
   const [notificationUserId, setNotificationUserId] = useState<string | null>(null);
@@ -388,7 +392,22 @@ function DashboardWorkspace() {
     }
   }, [selectedStoreId]);
 
-  const analyticsReading = useNavigationData<{ snapshot: AnalyticsData }>(activeStoreId ? `/api/analytics?store_id=${encodeURIComponent(activeStoreId)}` : null);
+  const analyticsUrl = activeStoreId ? getDashboardAnalyticsUrl(activeStoreId, overviewPeriodDays) : null;
+  const analyticsReading = useNavigationData<DashboardAnalyticsResponse>(analyticsUrl, {
+    freshMs: DASHBOARD_ANALYTICS_REFRESH_MS,
+    refreshIntervalMs: DASHBOARD_ANALYTICS_REFRESH_MS,
+    visibleOnly: true,
+    refreshOnVisibilityReturn: true,
+    completionAnchoredRefresh: true,
+  });
+  const dashboardAnalyticsData = analyticsReading.data
+    ?? (lastAnalyticsResponse?.storeId === activeStoreId ? lastAnalyticsResponse.data : undefined);
+  useEffect(() => {
+    if (!activeStoreId || !analyticsReading.data) return;
+    setLastAnalyticsResponse((previous) => previous?.storeId === activeStoreId && previous.data === analyticsReading.data
+      ? previous
+      : { storeId: activeStoreId, data: analyticsReading.data! });
+  }, [activeStoreId, analyticsReading.data]);
   useEffect(() => {
     if (!activeStoreId) {
       setAnalytics(null);
@@ -397,14 +416,14 @@ function DashboardWorkspace() {
       return;
     }
     if (analyticsReading.loading) {
-      setOverviewLoading(true);
+      setOverviewLoading(lastAnalyticsResponse?.storeId !== activeStoreId && analyticsStoreId !== activeStoreId);
       return;
     }
-    const nextAnalytics = analyticsReading.data?.snapshot ?? null;
+    const nextAnalytics = dashboardAnalyticsData?.snapshot ?? null;
     setAnalytics(nextAnalytics);
     setAnalyticsStoreId(activeStoreId);
     setOverviewLoading(false);
-  }, [activeStoreId, analyticsReading.data, analyticsReading.loading]);
+  }, [activeStoreId, analyticsReading.loading, analyticsStoreId, dashboardAnalyticsData, lastAnalyticsResponse?.storeId]);
 
   // The identity check hides previous-store figures in the very first render,
   // before the effect has had a chance to set its loading flag.
@@ -510,6 +529,9 @@ function DashboardWorkspace() {
               stores={stores}
               subscription={subscription}
               analytics={analytics}
+              rolling30Analytics={dashboardAnalyticsData?.rolling30Snapshot ?? null}
+              selectedPeriodAnalytics={dashboardAnalyticsData?.periodSnapshot ?? null}
+              selectedPeriodLoading={analyticsReading.loading && overviewPeriodDays !== 30}
               userFirstName={userFirstName}
               plan={(subscription?.plan ?? "starter") as PlanId}
               selectedStoreId={selectedStoreId}

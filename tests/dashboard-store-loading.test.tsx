@@ -6,6 +6,7 @@ import { translate } from "@/lib/i18n/translate";
 import { DashboardSkeleton, SkeletonRows } from "@/components/dashboard/Skeleton";
 
 const dashboard = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
+const overview = readFileSync(new URL("../components/dashboard/OverviewHome.tsx", import.meta.url), "utf8");
 
 describe("store loading skeletons", () => {
   it("renders accessible placeholders instead of fake numbers", () => {
@@ -25,11 +26,19 @@ describe("store loading skeletons", () => {
   it("hides the previous snapshot immediately and isolates cached store identities", () => {
     expect(dashboard).toContain("analyticsStoreId !== activeStoreId");
     expect(dashboard).toContain("snapshotView && storeDataLoading");
-    expect(dashboard).toContain("useNavigationData<{ snapshot: AnalyticsData }>");
-    expect(dashboard).toContain("encodeURIComponent(activeStoreId)");
+    expect(dashboard).toContain("useNavigationData<DashboardAnalyticsResponse>(analyticsUrl");
+    expect(dashboard).toContain("getDashboardAnalyticsUrl(activeStoreId, overviewPeriodDays)");
+    expect(dashboard).toContain("selectedPeriodAnalytics={dashboardAnalyticsData?.periodSnapshot ?? null}");
     expect(dashboard).not.toContain("readCache<");
     expect(dashboard).toContain("setAnalytics(nextAnalytics)");
     expect(dashboard).not.toContain("nextAnalytics ?? cached?.analytics ?? analytics");
+  });
+
+  it("keeps 7/90-day analytics on the single shared dashboard URL", () => {
+    expect(dashboard.match(/useNavigationData<DashboardAnalyticsResponse>\(/g)).toHaveLength(1);
+    expect(dashboard).toContain("getDashboardAnalyticsUrl(activeStoreId, overviewPeriodDays)");
+    expect(overview).toContain("selectedPeriodAnalytics");
+    expect(overview).not.toContain("`/api/analytics?");
   });
 
   it("keeps reduced-motion users free of shimmer animations", () => {
