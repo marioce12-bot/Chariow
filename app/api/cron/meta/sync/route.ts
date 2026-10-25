@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncMetaInsights } from "@/lib/meta/sync";
@@ -10,6 +11,10 @@ import { isMetaAuthenticationError } from "@/lib/meta/graph";
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET;
   return Boolean(secret && request.headers.get("authorization") === `Bearer ${secret}`);
+}
+
+function accountAlias(accountId: string) {
+  return createHash("sha256").update(accountId).digest("hex").slice(0, 16);
 }
 
 export async function GET(request: Request) {
@@ -26,8 +31,15 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const results: Array<{ id: string; ok: boolean; skipped?: boolean; reason?: string; error?: string; levels?: unknown; campaignStatus?: unknown }> = [];
+  let skippedAccounts = 0;
+  const logSkippedAccount = (accountId: string) => {
+    skippedAccounts += 1;
+    console.info("Meta cron account skipped", { accountAlias: accountAlias(accountId), skippedAccounts: 1 });
+  };
+
   for (const account of accounts ?? []) {
     if (isMetaReconnectRequired(account.last_sync_error)) {
+      logSkippedAccount(account.id);
       results.push({ id: account.id, ok: false, skipped: true, reason: "reauth_required" });
       continue;
     }
@@ -39,6 +51,7 @@ export async function GET(request: Request) {
     } catch (error) {
       if (isMetaAuthenticationError(error)) {
         await markMetaReconnectRequired(supabase, account);
+        logSkippedAccount(account.id);
         results.push({ id: account.id, ok: false, skipped: true, reason: "reauth_required", error: "Meta Ads doit être reconnecté." });
         continue;
       }
@@ -57,6 +70,7 @@ export async function GET(request: Request) {
     } catch (error) {
       if (isMetaAuthenticationError(error)) {
         await markMetaReconnectRequired(supabase, account);
+        logSkippedAccount(account.id);
         results.push({ id: account.id, ok: false, skipped: true, reason: "reauth_required", error: "Meta Ads doit être reconnecté." });
         continue;
       }
@@ -72,5 +86,6 @@ export async function GET(request: Request) {
     });
   }
 
+  console.info("Meta cron counters", { skippedAccounts });
   return NextResponse.json({ from, to, results });
 }

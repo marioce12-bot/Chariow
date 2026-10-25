@@ -83,13 +83,16 @@ export async function fetchMetaInsights(accountId: string, accessToken: string, 
   const url = graphUrl(`${accountId}/insights`, { fields, level, time_range: JSON.stringify({ since: from, until: to }), time_increment: "1", limit: "500", access_token: accessToken });
   const rows: MetaInsight[] = [];
   let next: string | null = url.toString();
+  let graphPages = 0;
   while (next) {
     const response: Response = await fetchMetaGraph(next, { cache: "no-store" });
+    graphPages += 1;
     const json = await response.json().catch(() => ({}));
     if (!response.ok) throw createMetaGraphError(json?.error, response.status, `Meta insights request failed (${response.status})`);
     if (Array.isArray(json.data)) rows.push(...json.data as MetaInsight[]);
     next = typeof json?.paging?.next === "string" ? json.paging.next : null;
   }
+  console.info("Meta Graph page counters", { graphPages });
   return rows;
 }
 

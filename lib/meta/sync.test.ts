@@ -47,4 +47,22 @@ describe("syncMetaInsights coverage", () => {
     await syncMetaInsights(supabase, account, "2026-10-01", "2026-10-17");
     expect(updates[0]).toMatchObject({ insights_sync_complete: false, last_sync_error: expect.stringContaining("limitée à 200") });
   });
+
+  it("counts campaign-ID insight requests without logging their IDs or names", async () => {
+    fetchMetaCampaignList.mockResolvedValue([
+      { id: "campaign-1", name: "Campaign One" },
+      { id: "campaign-2", name: "Campaign Two" },
+    ]);
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const { supabase } = setup();
+
+    await syncMetaInsights(supabase, account, "2026-10-01", "2026-10-17");
+
+    expect(fetchMetaInsights).toHaveBeenCalledTimes(5);
+    expect(info).toHaveBeenCalledWith("Meta campaign ID counters", { campaignByIdRequests: 2 });
+    const counterLog = info.mock.calls.find(([message]) => message === "Meta campaign ID counters");
+    expect(counterLog).toEqual(["Meta campaign ID counters", { campaignByIdRequests: 2 }]);
+    expect(JSON.stringify(counterLog)).not.toContain("Campaign One");
+    expect(JSON.stringify(counterLog)).not.toContain("campaign-1");
+  });
 });

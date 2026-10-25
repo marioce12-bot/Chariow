@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
@@ -14,6 +15,8 @@ vi.mock("@/lib/crypto", () => ({ decryptSecret: mocks.decryptSecret }));
 
 import { GET } from "./route";
 
+afterEach(() => vi.restoreAllMocks());
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("CRON_SECRET", "cron-test-secret");
@@ -28,7 +31,8 @@ beforeEach(() => {
 });
 
 describe("GET /api/cron/meta/sync", () => {
-  it("returns 200 skipped without calling Meta for an account requiring reconnection", async () => {
+  it("returns 200 skipped without calling Meta and logs only a hashed account alias and counters", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const response = await GET(new Request("https://preview.example/api/cron/meta/sync", {
       headers: { authorization: "Bearer cron-test-secret" },
     }));
@@ -40,5 +44,15 @@ describe("GET /api/cron/meta/sync", () => {
     expect(mocks.syncMetaInsights).not.toHaveBeenCalled();
     expect(mocks.syncMetaCampaignStatuses).not.toHaveBeenCalled();
     expect(mocks.decryptSecret).not.toHaveBeenCalled();
+
+    const accountAlias = createHash("sha256").update("account-1").digest("hex").slice(0, 16);
+    expect(info).toHaveBeenCalledWith("Meta cron account skipped", { accountAlias, skippedAccounts: 1 });
+    expect(info).toHaveBeenCalledWith("Meta cron counters", { skippedAccounts: 1 });
+    const logs = JSON.stringify(info.mock.calls);
+    expect(logs).not.toContain("account-1");
+    expect(logs).not.toContain("user-1");
+    expect(logs).not.toContain("integration-1");
+    expect(logs).not.toContain("123");
+    expect(logs).not.toContain("encrypted");
   });
 });

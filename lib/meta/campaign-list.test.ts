@@ -6,12 +6,15 @@ afterEach(() => vi.restoreAllMocks());
 describe("fetchMetaCampaignList", () => {
   it("follows every page by default, without the former silent 300-campaign cap", async () => {
     const fetch = vi.spyOn(globalThis, "fetch");
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
     fetch.mockImplementationOnce(async () => new Response(JSON.stringify({ data: Array.from({ length: 100 }, (_, i) => ({ id: `a${i}` })), paging: { next: "https://graph.facebook.com/page2" } })));
     fetch.mockImplementationOnce(async () => new Response(JSON.stringify({ data: Array.from({ length: 100 }, (_, i) => ({ id: `b${i}` })), paging: { next: "https://graph.facebook.com/page3" } })));
     fetch.mockImplementationOnce(async () => new Response(JSON.stringify({ data: Array.from({ length: 101 }, (_, i) => ({ id: `c${i}` })) })));
     const result = await fetchMetaCampaignList("act_1", "token");
     expect(result).toHaveLength(301);
     expect(fetch).toHaveBeenCalledTimes(3);
+    expect(info).toHaveBeenCalledWith("Meta campaign inventory counters", { campaigns: 301, graphPages: 3 });
+    expect(JSON.stringify(info.mock.calls)).not.toContain("token");
   });
 
   it("throws rather than returning a partial inventory when a later page fails", async () => {
