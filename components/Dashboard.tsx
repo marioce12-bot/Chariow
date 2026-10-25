@@ -54,6 +54,7 @@ import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
+import { DASHBOARD_ANALYTICS_REFRESH_MS } from "@/lib/dashboard-analytics-periods";
 import type { DashboardTourStep } from "./dashboard/tour-steps";
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
 // Dernière boutique choisie dans le sélecteur : conservée dans localStorage (et non
@@ -388,7 +389,12 @@ function DashboardWorkspace() {
     }
   }, [selectedStoreId]);
 
-  const analyticsReading = useNavigationData<{ snapshot: AnalyticsData }>(activeStoreId ? `/api/analytics?store_id=${encodeURIComponent(activeStoreId)}` : null);
+  const analyticsReading = useNavigationData<{ snapshot: AnalyticsData; rolling30Snapshot: AnalyticsData | null }>(activeStoreId ? `/api/analytics?store_id=${encodeURIComponent(activeStoreId)}&dashboard_periods=1` : null, {
+    freshMs: DASHBOARD_ANALYTICS_REFRESH_MS,
+    refreshIntervalMs: DASHBOARD_ANALYTICS_REFRESH_MS,
+    visibleOnly: true,
+    refreshOnVisibilityReturn: true,
+  });
   useEffect(() => {
     if (!activeStoreId) {
       setAnalytics(null);
@@ -510,6 +516,7 @@ function DashboardWorkspace() {
               stores={stores}
               subscription={subscription}
               analytics={analytics}
+              rolling30Analytics={analyticsReading.data?.rolling30Snapshot ?? null}
               userFirstName={userFirstName}
               plan={(subscription?.plan ?? "starter") as PlanId}
               selectedStoreId={selectedStoreId}

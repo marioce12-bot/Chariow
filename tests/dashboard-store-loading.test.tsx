@@ -25,7 +25,7 @@ describe("store loading skeletons", () => {
   it("hides the previous snapshot immediately and isolates cached store identities", () => {
     expect(dashboard).toContain("analyticsStoreId !== activeStoreId");
     expect(dashboard).toContain("snapshotView && storeDataLoading");
-    expect(dashboard).toContain("useNavigationData<{ snapshot: AnalyticsData }>");
+    expect(dashboard).toContain("useNavigationData<{ snapshot: AnalyticsData; rolling30Snapshot: AnalyticsData | null }>");
     expect(dashboard).toContain("encodeURIComponent(activeStoreId)");
     expect(dashboard).not.toContain("readCache<");
     expect(dashboard).toContain("setAnalytics(nextAnalytics)");

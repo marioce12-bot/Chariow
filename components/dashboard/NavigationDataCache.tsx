@@ -3,6 +3,28 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 export const NAVIGATION_FRESH_MS = 60_000;
+type RefreshEventTarget = Pick<Window, "addEventListener" | "removeEventListener">;
+type VisibilityEventTarget = Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener">;
+export function scheduleNavigationRefresh(
+  refresh: () => void,
+  intervalMs: number,
+  documentTarget: VisibilityEventTarget,
+  windowTarget: RefreshEventTarget,
+  refreshOnVisibilityReturn = false,
+) {
+  const refreshWhenVisible = () => { if (documentTarget.visibilityState !== "hidden") refresh(); };
+  const onVisibilityChange = () => { if (documentTarget.visibilityState !== "hidden") refresh(); };
+  const timer = setInterval(refreshWhenVisible, intervalMs);
+  windowTarget.addEventListener("focus", refreshWhenVisible);
+  windowTarget.addEventListener("online", refreshWhenVisible);
+  if (refreshOnVisibilityReturn) documentTarget.addEventListener("visibilitychange", onVisibilityChange);
+  return () => {
+    clearInterval(timer);
+    windowTarget.removeEventListener("focus", refreshWhenVisible);
+    windowTarget.removeEventListener("online", refreshWhenVisible);
+    if (refreshOnVisibilityReturn) documentTarget.removeEventListener("visibilitychange", onVisibilityChange);
+  };
+}
 type Snapshot<T = unknown> = { data: T | undefined; loading: boolean; refreshing: boolean; error: boolean };
 type Entry = { snapshot: Snapshot; updated: number; version: number; generation: number; pending?: Promise<void> };
 const EMPTY: Snapshot = { data: undefined, loading: true, refreshing: false, error: false };
@@ -14,21 +36,21 @@ export class NavigationCache {
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private emit() { this.listeners.forEach((listener) => listener()); }
   snapshot = (url: string | null): Snapshot => url ? this.entries.get(url)?.snapshot ?? EMPTY : EMPTY;
-  async load(url: string, version = 0, force = false) {
+  async load(url: string, version = 0, force = false, freshMs = NAVIGATION_FRESH_MS) {
     return this.loadComputed(url, async () => {
       const response = await fetch(url);
       if (!response.ok) throw new Error("Data request failed");
       return response.json();
-    }, version, force);
+    }, version, force, freshMs);
   }
-  async loadComputed<T>(url: string, loader: () => Promise<T>, version = 0, force = false) {
+  async loadComputed<T>(url: string, loader: () => Promise<T>, version = 0, force = false, freshMs = NAVIGATION_FRESH_MS) {
     let entry = this.entries.get(url);
     if (!entry) {
       entry = { snapshot: EMPTY, updated: 0, version, generation: 0 };
       this.entries.set(url, entry);
     }
     if (entry.pending) return entry.pending;
-    if (!force && entry.updated && entry.version === version && Date.now() - entry.updated < NAVIGATION_FRESH_MS) return;
+    if (!force && entry.updated && entry.version === version && Date.now() - entry.updated < freshMs) return;
     const current = entry;
     const generation = current.generation;
     current.version = version;
@@ -83,25 +105,31 @@ export function useNavigationCache() {
   const [fallback] = useState(() => new NavigationCache());
   return shared ?? fallback;
 }
-export function useNavigationData<T>(url: string | null, options: { version?: number } = {}) {
+export function useNavigationData<T>(url: string | null, options: { version?: number; freshMs?: number; refreshIntervalMs?: number; visibleOnly?: boolean; refreshOnVisibilityReturn?: boolean } = {}) {
   const cache = useNavigationCache();
   const version = options.version ?? 0;
+  const freshMs = options.freshMs ?? NAVIGATION_FRESH_MS;
+  const refreshIntervalMs = options.refreshIntervalMs ?? NAVIGATION_FRESH_MS;
+  const visibleOnly = options.visibleOnly ?? false;
+  const refreshOnVisibilityReturn = options.refreshOnVisibilityReturn ?? false;
   const snapshot = useSyncExternalStore(cache.subscribe, () => cache.snapshot(url), () => EMPTY) as Snapshot<T>;
   const mounted = useRef(false);
   useEffect(() => {
     mounted.current = true;
-    if (url) void cache.load(url, version);
+    if (url && (!visibleOnly || document.visibilityState !== "hidden")) void cache.load(url, version, false, freshMs);
     return () => { mounted.current = false; };
-  }, [cache, url, version]);
+  }, [cache, freshMs, url, version, visibleOnly]);
   // Invalidations trigger this effect for mounted readers; freshness/pending deduplicate reads.
-  useEffect(() => { if (url && mounted.current) void cache.load(url, version); }, [cache, url, version, snapshot]);
+  useEffect(() => { if (url && mounted.current && (!visibleOnly || document.visibilityState !== "hidden")) void cache.load(url, version, false, freshMs); }, [cache, freshMs, url, version, snapshot, visibleOnly]);
   useEffect(() => {
     if (!url) return;
-    const refreshStale = () => { if (document.visibilityState !== "hidden") void cache.load(url, version); };
-    const timer = window.setInterval(refreshStale, NAVIGATION_FRESH_MS);
-    window.addEventListener("focus", refreshStale);
-    window.addEventListener("online", refreshStale);
-    return () => { clearInterval(timer); window.removeEventListener("focus", refreshStale); window.removeEventListener("online", refreshStale); };
-  }, [cache, url, version]);
-  return { ...snapshot, refresh: () => { if (url) void cache.load(url, version, true); } };
+    return scheduleNavigationRefresh(
+      () => { void cache.load(url, version, false, freshMs); },
+      refreshIntervalMs,
+      document,
+      window,
+      refreshOnVisibilityReturn,
+    );
+  }, [cache, freshMs, refreshIntervalMs, refreshOnVisibilityReturn, url, version]);
+  return { ...snapshot, refresh: () => { if (url) void cache.load(url, version, true, freshMs); } };
 }

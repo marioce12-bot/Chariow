@@ -9,6 +9,7 @@ import { addDays, buildOverviewFromPages, buildProductPerformance, daysBetween, 
 import { fetchAllPages } from "@/lib/paginated-query";
 import { DEFAULT_TARGET_MARGIN } from "@/lib/unit-economics";
 import { notifyChariowSales } from "@/lib/chariow/sale-notifications";
+import { getDashboardAnalyticsPeriods, shareDashboardAnalyticsSnapshots } from "@/lib/dashboard-analytics-periods";
 
 type AnalyticsSaleRow = SaleRow & { amount: number | string | null; product_id: string | null };
 
@@ -26,7 +27,7 @@ function isChariowDown(message: string) {
   return /timeout|timed out|aborted|fetch failed|ECONN|ENOTFOUND|returned 5\d\d/i.test(message);
 }
 
-export async function GET(request: Request) {
+async function analyticsResponse(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
   const params = new URL(request.url).searchParams;
@@ -150,4 +151,51 @@ export async function GET(request: Request) {
     }
     return withStatus(NextResponse.json({ error: "Les données Chariow sont momentanément indisponibles", code: "CHARIOW_UNAVAILABLE" }, { status: 502 }), "unavailable");
   }
+}
+
+async function responseBody(response: Response) {
+  try { return await response.json() as Record<string, unknown>; }
+  catch { return null; }
+}
+function chariowStatus(body: Record<string, unknown> | null): "unavailable" | "expired" | null {
+  if (body?.code === "CHARIOW_EXPIRED") return "expired";
+  if (body?.code === "CHARIOW_UNAVAILABLE") return "unavailable";
+  return null;
+}
+function requestWithUrl(request: Request, url: URL) {
+  return new Request(url, { method: "GET", headers: request.headers });
+}
+
+export async function GET(request: Request) {
+  const params = new URL(request.url).searchParams;
+  if (params.get("dashboard_periods") !== "1") return analyticsResponse(request);
+
+  const ranges = getDashboardAnalyticsPeriods(new Date());
+  const monthUrl = new URL(request.url);
+  monthUrl.searchParams.delete("dashboard_periods");
+  monthUrl.searchParams.delete("from");
+  monthUrl.searchParams.delete("to");
+  const rolling30Url = new URL(monthUrl);
+  rolling30Url.searchParams.set("from", ranges.rolling30Days.from);
+  rolling30Url.searchParams.set("to", ranges.rolling30Days.to);
+  const [monthResponse, rolling30Response] = await Promise.all([
+    analyticsResponse(requestWithUrl(request, monthUrl)),
+    analyticsResponse(requestWithUrl(request, rolling30Url)),
+  ]);
+  const [monthBody, rolling30Body] = await Promise.all([responseBody(monthResponse), responseBody(rolling30Response)]);
+  if (!monthResponse.ok && !rolling30Response.ok) return monthResponse;
+
+  const primaryBody = monthResponse.ok ? monthBody : rolling30Body;
+  const payload = shareDashboardAnalyticsSnapshots(
+    monthResponse.ok ? monthBody as { snapshot?: unknown } | null : null,
+    rolling30Response.ok ? rolling30Body as { snapshot?: unknown } | null : null,
+  );
+  const combined = NextResponse.json({
+    ...(primaryBody ?? {}),
+    ...payload,
+    periodError: rolling30Response.ok ? null : rolling30Body?.error ?? "La période glissante est indisponible.",
+  });
+  if ((primaryBody?.store as { platform?: string } | undefined)?.platform === "shopify") return combined;
+  const status = chariowStatus(!monthResponse.ok ? monthBody : !rolling30Response.ok ? rolling30Body : null);
+  return withStatus(combined, status);
 }
