@@ -37,18 +37,18 @@ async function open() {
 }
 function button(key: string) {
   const label = translate(state.locale, key);
-  const found = [...container.querySelectorAll<HTMLButtonElement>(".ad-campaign-modal-actions button")].find(b => b.textContent?.trim() === label);
+  const found = [...document.body.querySelectorAll<HTMLButtonElement>(".ad-campaign-modal-actions button")].find(b => b.textContent?.trim() === label);
   expect(found, label).toBeDefined(); return found!;
 }
 function noWrites() { expect(fetchMock.mock.calls.some(([, options]) => options?.method && options.method !== "GET")).toBe(false); }
 describe("campaign detail actions", () => {
   it.each(["fr", "en"] as const)("preserves four readable %s labels and delete cancellation", async locale => {
     state.locale = locale; await open();
-    expect(container.querySelectorAll(".ad-campaign-modal-actions button")).toHaveLength(4);
+    expect(document.body.querySelectorAll(".ad-campaign-modal-actions button")).toHaveLength(4);
     for (const key of ["ads.correction.edit", "adsExtra.duplicate", "adsExtra.resume", "ads.correction.deleteCampaign"]) button(key);
     await act(async () => button("ads.correction.deleteCampaign").click());
     expect(confirmMock).toHaveBeenCalledWith("Supprimer cette campagne ?"); noWrites();
-    expect(container.querySelector(".ad-campaign-detail")).not.toBeNull();
+    expect(document.body.querySelector(".ad-campaign-detail")).not.toBeNull();
   });
   it.each(["draft", "paid", "paused", "autopilot_paused"])("opens resume/launch for %s without operations", async status => {
     state.status = status; await open();
@@ -61,7 +61,7 @@ describe("campaign detail actions", () => {
   });
   it("preserves the reduced action eligibility for active campaigns", async () => {
     state.status = "active"; await open();
-    expect(container.querySelectorAll(".ad-campaign-modal-actions button")).toHaveLength(2);
+    expect(document.body.querySelectorAll(".ad-campaign-modal-actions button")).toHaveLength(2);
     expect(container.textContent).not.toMatch(/pilotage auto|autopilot|budget limit/i);
     button("adsExtra.duplicate"); button("ads.correction.deleteCampaign"); noWrites();
   });
@@ -70,12 +70,39 @@ describe("campaign detail actions", () => {
       state.locale = locale; state.status = "autopilot_paused"; await open();
       expect(container.querySelector(".ad-campaign-row")?.textContent).toContain(locale === "fr" ? "En pause" : "Paused");
       expect(container.textContent).not.toMatch(/mise en pause par le pilote|paused by autopilot/i);
-      await act(async () => { const close = container.querySelector(".ad-campaign-detail button[aria-label]") as HTMLButtonElement; close.click(); });
+      await act(async () => { const close = document.body.querySelector(".ad-campaign-detail button[aria-label]") as HTMLButtonElement; close.click(); });
     }
+  });
+  it("renders above the app shell, locks background scrolling and closes with Escape", async () => {
+    await open();
+    const dialog = document.body.querySelector(".ad-campaign-detail") as HTMLElement;
+    expect(dialog.getAttribute("role")).toBe("dialog");
+    expect(container.contains(dialog)).toBe(false);
+    expect(document.body.style.overflow).toBe("hidden");
+    await act(async () => window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.body.querySelector(".ad-campaign-detail")).toBeNull();
+    expect(document.body.style.overflow).toBe("");
+  });
+  it("closes when the backdrop is tapped", async () => {
+    await open();
+    await act(async () => (document.body.querySelector(".ad-campaign-detail-backdrop") as HTMLElement).click());
+    expect(document.body.querySelector(".ad-campaign-detail")).toBeNull();
+  });
+
+  it("closes when browser Back is pressed", async () => {
+    await open();
+    await act(async () => window.dispatchEvent(new dom.window.PopStateEvent("popstate")));
+    expect(document.body.querySelector(".ad-campaign-detail")).toBeNull();
   });
   it("keeps a mobile two-column grid and touch targets with stronger specificity than global buttons", () => {
     const css = readFileSync(new URL("./ad-campaigns-list.css", import.meta.url), "utf8");
     expect(css).toMatch(/@media\s*\(max-width:\s*640px\)[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
     expect(css).toMatch(/\.ad-campaign-modal-actions\s*>\s*button\.btn\s*\{[^}]*min-height:\s*44px[^}]*white-space:\s*nowrap/);
+    expect(css).toMatch(/height:\s*100dvh/);
+    expect(css).not.toMatch(/\b\d+vh\b/);
+    expect(css).toMatch(/env\(safe-area-inset-top/);
+    expect(css).toMatch(/env\(safe-area-inset-bottom/);
+    expect(css).toMatch(/\.ad-campaign-detail-header\s*\{[^}]*position:\s*sticky/);
+    expect(css).toMatch(/\.ad-campaign-detail-header\s*>\s*button\s*\{[^}]*min-height:\s*44px/);
   });
 });

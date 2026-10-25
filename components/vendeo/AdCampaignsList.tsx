@@ -3,6 +3,7 @@
 import "./ad-campaigns-list.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CopyPlus, PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
 import { LaunchAdWizard } from "./wizard/LaunchAdWizard";
@@ -117,6 +118,61 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const refreshInFlight = useRef(false);
+  const detailHistoryEntry = useRef(false);
+  const openDetail = useCallback((campaign: AdCampaign) => {
+    if (!detailHistoryEntry.current) {
+      const currentHistoryState = window.history.state;
+      window.history.pushState({ ...(currentHistoryState ?? {}), __vendeoCampaignDetail: true }, "");
+      detailHistoryEntry.current = true;
+    }
+    setSelected(campaign);
+  }, []);
+  const closeDetail = useCallback(() => {
+    setSelected(null);
+    if (detailHistoryEntry.current) {
+      detailHistoryEntry.current = false;
+      window.history.back();
+    }
+  }, []);
+  useEffect(() => {
+    if (!selected) return;
+    const body = document.body;
+    const root = document.documentElement;
+    const previousBodyOverflow = body.style.overflow;
+    const previousRootOverflow = root.style.overflow;
+    const previousOverscrollBehavior = body.style.overscrollBehavior;
+
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+    root.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDetail();
+      }
+    };
+    const onPopState = () => {
+      detailHistoryEntry.current = false;
+      setSelected(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("popstate", onPopState);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("popstate", onPopState);
+      body.style.overflow = previousBodyOverflow;
+      body.style.overscrollBehavior = previousOverscrollBehavior;
+      root.style.overflow = previousRootOverflow;
+    };
+  }, [selected?.id, closeDetail]);
+  useEffect(() => () => {
+    if (detailHistoryEntry.current) {
+      detailHistoryEntry.current = false;
+      window.history.back();
+    }
+  }, []);
   useEffect(() => {
     if (!selected) return;
     const latest = campaigns.find((campaign) => campaign.id === selected.id);
@@ -200,11 +256,11 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                 key={c.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => setSelected(c)}
+                onClick={() => openDetail(c)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    setSelected(c);
+                    openDetail(c);
                   }
                 }}
                 className="ad-campaign-row"
@@ -302,7 +358,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
           onClose={() => {
             const campaign = correcting;
             setCorrecting(null);
-            if (correctionFromDetail && campaign) setSelected(campaign);
+            if (correctionFromDetail && campaign) openDetail(campaign);
             setCorrectionFromDetail(false);
           }}
           onEdited={() => {
@@ -311,14 +367,15 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
             setCorrectionFromDetail(false);
             void load();
             if (["draft", "paid", "paused", "autopilot_paused", "rejected"].includes(edited.status)) setResuming({ ...edited, external_error: null });
-            else setSelected({ ...edited, external_error: null });
+            else openDetail({ ...edited, external_error: null });
           }}
         />
       ) : null}
-      {selected ? (
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4" onClick={() => setSelected(null)}>
-          <div className="app-card ad-campaign-detail" style={{ maxWidth: 620, width: "100%", maxHeight: "90vh", overflowY: "auto" }} onClick={(event) => event.stopPropagation()}>
-            <div className="card-head campaign-modal-head"><div><span className="eyebrow">{t("campaigns.detail")}</span><h2>{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="compact-icon-button" onClick={() => setSelected(null)} aria-label={t("campaigns.close")}><X size={16} /></button></div>
+      {selected ? createPortal(
+        <div className="ad-campaign-detail-backdrop" onClick={closeDetail}>
+          <div className="app-card ad-campaign-detail" role="dialog" aria-modal="true" aria-labelledby="campaign-detail-title" onClick={(event) => event.stopPropagation()}>
+            <div className="card-head campaign-modal-head ad-campaign-detail-header"><div><span className="eyebrow">{t("campaigns.detail")}</span><h2 id="campaign-detail-title">{selected.title || selected.product_name || selected.product_id}</h2></div><button type="button" className="compact-icon-button" onClick={closeDetail} aria-label={t("campaigns.close")}><X size={16} /></button></div>
+            <div className="ad-campaign-detail-content">
             {selected.media_url ? <CampaignMedia src={selected.media_url} alt={t("campaigns.preview")} unavailableLabel={locale === "en" ? "Preview unavailable" : "Aperçu indisponible"} controls onUnavailable={() => recoverMedia(selected)} style={{ width: "100%", maxHeight: 260, borderRadius: 10, marginBottom: 14 }} /> : null}
             {editing ? <EditCampaignForm campaign={selected} saving={saving} onCancel={() => setEditing(false)} onSave={async (updates) => { setSaving(true); const response = await fetch(`/api/ad-campaigns/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await response.json().catch(() => null); setSaving(false); if (!response.ok) return; navigationCache.invalidate(); setSelected((current) => current ? { ...current, ...updates, external_error: current.external_error } : current); setEditing(false); void load(); }} /> : <div style={{ display: "grid", gap: 8, fontSize: 13 }}><div><strong>{t("campaigns.text")}</strong> {selected.ad_text || "Non renseigné"}</div><div><strong>{t("campaigns.network")}</strong> {selected.platform === "meta" ? "Facebook / Instagram" : selected.platform === "pinterest" ? "Pinterest" : "TikTok"}</div><div><strong>{t("campaigns.objective")}</strong> {selected.objective}</div><div><strong>{t("campaigns.audience")}</strong> {(selected.countries || []).join(", ") || "Non renseignée"} · {selected.min_age || 18}-{selected.max_age || 65} {" "}{t("finalExtra.text68")}</div><div><strong>{t("campaigns.budget")}</strong> {Number(selected.daily_budget).toLocaleString("fr-FR")} {" "}{t("finalExtra.text69")}{" "}{selected.duration_days} {" "}{t("sweep1.text330")}</div>{selected.destination_url ? <div><strong>{t("campaigns.link")}</strong> {selected.destination_url}</div> : null}</div>}
             {selected.external_error ? (
@@ -330,9 +387,11 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                 </span>
               </div>
             ) : null}
-            <div className="ad-campaign-modal-actions">{!getMetaCampaignLifecycle(selected.status, selected.external_error) && !["review", "preparing", "unknown", "active"].includes(selected.status) ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); setSelected(null); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => { setEditing(false); setDuplicating(selected); setSelected(null); }}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button>{!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { setSelected(null); setResuming(selected); }}>{selected.status === "draft" ? t("ads.launchButton") : t("adsExtra.resume")}</button> : null}{!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { navigationCache.invalidate(); setSelected(null); void load(); } }}>{t("ads.correction.deleteCampaign")}</button> : null}</div>
+            <div className="ad-campaign-modal-actions">{!getMetaCampaignLifecycle(selected.status, selected.external_error) && !["review", "preparing", "unknown", "active"].includes(selected.status) ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); closeDetail(); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => { setEditing(false); setDuplicating(selected); closeDetail(); }}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button>{!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { closeDetail(); setResuming(selected); }}>{selected.status === "draft" ? t("ads.launchButton") : t("adsExtra.resume")}</button> : null}{!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { navigationCache.invalidate(); closeDetail(); void load(); } }}>{t("ads.correction.deleteCampaign")}</button> : null}</div>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </section>
     </>
