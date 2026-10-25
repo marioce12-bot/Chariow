@@ -25,6 +25,58 @@ export function scheduleNavigationRefresh(
     if (refreshOnVisibilityReturn) documentTarget.removeEventListener("visibilitychange", onVisibilityChange);
   };
 }
+export function scheduleNavigationRefreshFromCompletion(
+  refresh: () => Promise<unknown> | void,
+  delayUntilRefresh: () => number,
+  documentTarget: VisibilityEventTarget,
+  windowTarget: RefreshEventTarget,
+  initialRefresh?: Promise<unknown> | void,
+) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let inFlight = false;
+  let stopped = false;
+  const clearTimer = () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  };
+  const schedule = () => {
+    clearTimer();
+    if (stopped || documentTarget.visibilityState === "hidden") return;
+    timer = setTimeout(() => {
+      timer = null;
+      void run();
+    }, Math.max(0, delayUntilRefresh()));
+  };
+  const run = async () => {
+    if (stopped || inFlight || documentTarget.visibilityState === "hidden") return;
+    inFlight = true;
+    try {
+      await refresh();
+    } finally {
+      inFlight = false;
+      schedule();
+    }
+  };
+  const onVisibilityChange = () => {
+    if (documentTarget.visibilityState === "hidden") clearTimer();
+    else void run();
+  };
+  const refreshWhenVisible = () => {
+    if (documentTarget.visibilityState !== "hidden") void run();
+  };
+  documentTarget.addEventListener("visibilitychange", onVisibilityChange);
+  windowTarget.addEventListener("focus", refreshWhenVisible);
+  windowTarget.addEventListener("online", refreshWhenVisible);
+  if (initialRefresh !== undefined) void Promise.resolve(initialRefresh).then(schedule, schedule);
+  else schedule();
+  return () => {
+    stopped = true;
+    clearTimer();
+    documentTarget.removeEventListener("visibilitychange", onVisibilityChange);
+    windowTarget.removeEventListener("focus", refreshWhenVisible);
+    windowTarget.removeEventListener("online", refreshWhenVisible);
+  };
+}
 type Snapshot<T = unknown> = { data: T | undefined; loading: boolean; refreshing: boolean; error: boolean };
 type Entry = { snapshot: Snapshot; updated: number; version: number; generation: number; pending?: Promise<void> };
 const EMPTY: Snapshot = { data: undefined, loading: true, refreshing: false, error: false };
@@ -36,6 +88,10 @@ export class NavigationCache {
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private emit() { this.listeners.forEach((listener) => listener()); }
   snapshot = (url: string | null): Snapshot => url ? this.entries.get(url)?.snapshot ?? EMPTY : EMPTY;
+  millisecondsUntilRefresh(url: string, intervalMs: number) {
+    const updated = this.entries.get(url)?.updated ?? 0;
+    return updated ? Math.max(0, updated + intervalMs - Date.now()) : intervalMs;
+  }
   async load(url: string, version = 0, force = false, freshMs = NAVIGATION_FRESH_MS) {
     return this.loadComputed(url, async () => {
       const response = await fetch(url);
@@ -105,13 +161,14 @@ export function useNavigationCache() {
   const [fallback] = useState(() => new NavigationCache());
   return shared ?? fallback;
 }
-export function useNavigationData<T>(url: string | null, options: { version?: number; freshMs?: number; refreshIntervalMs?: number; visibleOnly?: boolean; refreshOnVisibilityReturn?: boolean } = {}) {
+export function useNavigationData<T>(url: string | null, options: { version?: number; freshMs?: number; refreshIntervalMs?: number; visibleOnly?: boolean; refreshOnVisibilityReturn?: boolean; completionAnchoredRefresh?: boolean } = {}) {
   const cache = useNavigationCache();
   const version = options.version ?? 0;
   const freshMs = options.freshMs ?? NAVIGATION_FRESH_MS;
   const refreshIntervalMs = options.refreshIntervalMs ?? NAVIGATION_FRESH_MS;
   const visibleOnly = options.visibleOnly ?? false;
   const refreshOnVisibilityReturn = options.refreshOnVisibilityReturn ?? false;
+  const completionAnchoredRefresh = options.completionAnchoredRefresh ?? false;
   const snapshot = useSyncExternalStore(cache.subscribe, () => cache.snapshot(url), () => EMPTY) as Snapshot<T>;
   const mounted = useRef(false);
   useEffect(() => {
@@ -123,6 +180,20 @@ export function useNavigationData<T>(url: string | null, options: { version?: nu
   useEffect(() => { if (url && mounted.current && (!visibleOnly || document.visibilityState !== "hidden")) void cache.load(url, version, false, freshMs); }, [cache, freshMs, url, version, snapshot, visibleOnly]);
   useEffect(() => {
     if (!url) return;
+    if (completionAnchoredRefresh) {
+      const refresh = () => {
+        if (visibleOnly && document.visibilityState === "hidden") return;
+        return cache.load(url, version, false, freshMs);
+      };
+      const initialRefresh = refresh();
+      return scheduleNavigationRefreshFromCompletion(
+        refresh,
+        () => cache.millisecondsUntilRefresh(url, Math.max(refreshIntervalMs, freshMs)),
+        document,
+        window,
+        initialRefresh,
+      );
+    }
     return scheduleNavigationRefresh(
       () => { void cache.load(url, version, false, freshMs); },
       refreshIntervalMs,
@@ -130,6 +201,6 @@ export function useNavigationData<T>(url: string | null, options: { version?: nu
       window,
       refreshOnVisibilityReturn,
     );
-  }, [cache, freshMs, refreshIntervalMs, refreshOnVisibilityReturn, url, version]);
+  }, [cache, completionAnchoredRefresh, freshMs, refreshIntervalMs, refreshOnVisibilityReturn, url, version, visibleOnly]);
   return { ...snapshot, refresh: () => { if (url) void cache.load(url, version, true, freshMs); } };
 }

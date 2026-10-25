@@ -178,24 +178,38 @@ export async function GET(request: Request) {
   const rolling30Url = new URL(monthUrl);
   rolling30Url.searchParams.set("from", ranges.rolling30Days.from);
   rolling30Url.searchParams.set("to", ranges.rolling30Days.to);
-  const [monthResponse, rolling30Response] = await Promise.all([
+  const selectedFrom = params.get("from");
+  const selectedTo = params.get("to");
+  const selectedPeriodUrl = selectedFrom && selectedTo ? new URL(monthUrl) : null;
+  if (selectedPeriodUrl) {
+    selectedPeriodUrl.searchParams.set("from", selectedFrom!);
+    selectedPeriodUrl.searchParams.set("to", selectedTo!);
+  }
+  const [monthResponse, rolling30Response, selectedPeriodResponse] = await Promise.all([
     analyticsResponse(requestWithUrl(request, monthUrl)),
     analyticsResponse(requestWithUrl(request, rolling30Url)),
+    selectedPeriodUrl ? analyticsResponse(requestWithUrl(request, selectedPeriodUrl)) : Promise.resolve(null),
   ]);
-  const [monthBody, rolling30Body] = await Promise.all([responseBody(monthResponse), responseBody(rolling30Response)]);
+  const [monthBody, rolling30Body, selectedPeriodBody] = await Promise.all([
+    responseBody(monthResponse),
+    responseBody(rolling30Response),
+    selectedPeriodResponse ? responseBody(selectedPeriodResponse) : Promise.resolve(null),
+  ]);
   if (!monthResponse.ok && !rolling30Response.ok) return monthResponse;
 
   const primaryBody = monthResponse.ok ? monthBody : rolling30Body;
   const payload = shareDashboardAnalyticsSnapshots(
     monthResponse.ok ? monthBody as { snapshot?: unknown } | null : null,
     rolling30Response.ok ? rolling30Body as { snapshot?: unknown } | null : null,
+    selectedPeriodResponse?.ok ? selectedPeriodBody as { snapshot?: unknown } | null : null,
   );
   const combined = NextResponse.json({
     ...(primaryBody ?? {}),
     ...payload,
     periodError: rolling30Response.ok ? null : rolling30Body?.error ?? "La période glissante est indisponible.",
+    selectedPeriodError: !selectedPeriodResponse || selectedPeriodResponse.ok ? null : selectedPeriodBody?.error ?? "La période sélectionnée est indisponible.",
   });
   if ((primaryBody?.store as { platform?: string } | undefined)?.platform === "shopify") return combined;
-  const status = chariowStatus(!monthResponse.ok ? monthBody : !rolling30Response.ok ? rolling30Body : null);
+  const status = chariowStatus(!monthResponse.ok ? monthBody : !rolling30Response.ok ? rolling30Body : selectedPeriodResponse && !selectedPeriodResponse.ok ? selectedPeriodBody : null);
   return withStatus(combined, status);
 }
