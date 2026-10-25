@@ -11,6 +11,9 @@
 .vendeo-welcome-card h2 { margin:12px 0; font-size:28px; line-height:1.16; letter-spacing:-.035em; }
 .vendeo-welcome-card p { margin:0; color:var(--muted,#667085); font-size:14px; line-height:1.7; }
 .vendeo-welcome-trial { margin:20px 0; padding:16px; border:1px solid #dcd4ff; border-radius:14px; background:rgba(115,80,246,.06); }
+.vendeo-welcome-card h2.vendeo-tour-assistant-title { display:flex; align-items:flex-start; gap:10px; }
+.vendeo-tour-assistant-title > span:last-child { flex:1; }
+.vendeo-tour-assistant-icon { display:inline-flex; flex:0 0 34px; align-items:center; justify-content:center; width:34px; height:34px; margin-top:1px; border-radius:11px; background:linear-gradient(135deg,#ede9fe,#e0f2fe); color:#4c21f6; }
 .vendeo-welcome-trial strong { font-size:16px; color:#6b48e8; }
 .vendeo-welcome-trial p { margin:6px 0; font-size:13px; }
 .vendeo-welcome-trial small { display:block; color:var(--muted,#667085); font-size:11px; line-height:1.6; margin-top:6px; }
@@ -32,3 +35,24 @@ html[data-theme="dark"] .vendeo-welcome-trial strong,html[data-theme="dark"] .ve
 html[data-theme="dark"] .vendeo-welcome-connected { color:#86efac; }
 
 .vendeo-welcome-brand > img { width:112px; height:30px; object-fit:contain; flex-shrink:0; }
+
+.vendeo-tour-menu-card .vendeo-welcome-brand > img { height:24px; width:88px; }
+.vendeo-tour-menu-card .vendeo-tour-progress { margin-top:12px; }
+.vendeo-tour-menu-card .vendeo-tour-track { margin:8px 0 12px; }
+.vendeo-tour-menu-card h2 { font-size:22px; margin:8px 0; }
+.vendeo-tour-menu-card p { font-size:12px; line-height:1.5; }
+.vendeo-tour-menu-card .vendeo-tour-actions { margin-top:12px; }
+@media (max-width:760px) {
+  .vendeo-tour-menu-step { align-items:stretch; }
+  .vendeo-tour-menu-step .vendeo-tour-menu-card {
+    max-height:min(44dvh, 380px);
+    overflow:auto;
+    padding:16px 18px;
+  }
+  .vendeo-tour-menu-card .vendeo-welcome-brand > img { height:21px; width:76px; }
+  .vendeo-tour-menu-card .vendeo-welcome-brand > span { font-size:8px; }
+  .vendeo-tour-menu-card h2 { font-size:19px; }
+  .vendeo-tour-menu-card p { font-size:11px; line-height:1.45; }
+  .vendeo-tour-menu-card .vendeo-tour-actions { gap:6px; }
+  .vendeo-tour-menu-card .vendeo-welcome-skip { display:none; }
+}

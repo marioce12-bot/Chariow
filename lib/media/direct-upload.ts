@@ -1,5 +1,6 @@
 // Envoi direct navigateur → Cloudinary (signature fournie par /api/uploads/campaign-media/sign),
 // puis validation/recadrage côté serveur via /api/uploads/campaign-media (JSON, sans le fichier).
+import { computeMediaPerceptualFingerprint } from "@/lib/media/perceptual-fingerprint";
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
@@ -49,6 +50,7 @@ export async function uploadCampaignMedia(file: File, onProgress?: (percent: num
   form.append("folder", sign.folder);
   form.append("signature", sign.signature);
   const uploaded = await xhrUpload(`https://api.cloudinary.com/v1_1/${sign.cloudName}/${resourceType}/upload`, form, onProgress);
+  const perceptual = await computeMediaPerceptualFingerprint(file);
 
   const response = await fetch("/api/uploads/campaign-media", {
     method: "POST",
@@ -61,6 +63,9 @@ export async function uploadCampaignMedia(file: File, onProgress?: (percent: num
       height: uploaded.height,
       format: uploaded.format,
       original_filename: uploaded.original_filename ?? file.name,
+      perceptual_hash: perceptual.perceptualHash,
+      keyframe_hashes: perceptual.keyframeHashes,
+      file_size: file.size,
     }),
   });
   const data = await response.json().catch(() => null);

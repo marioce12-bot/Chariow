@@ -250,3 +250,6 @@ html[data-theme="dark"] .studio-product-picker { background:#0b1734; border-colo
 .onboarding-lead { color:var(--muted); font-size:14px; line-height:1.7; margin:0 0 28px; max-width:520px; }
 .field-help { color:#809087; display:block; font-size:11px; line-height:1.5; margin-top:6px; }
 .form-error { background:#fbe8e3; border-radius:7px; color:#a64635; font-size:12px; line-height:1.5; padding:10px; }
+
+@media (max-width:760px) {
+}

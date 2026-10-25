@@ -8,7 +8,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/lib/i18n/i18n";
 
-export function Auth({ mode, configurationError = false }: { mode: "login" | "register" | "forgot"; configurationError?: boolean }) {
+export function Auth({ mode, configurationError = false, successRedirect = "/dashboard" }: { mode: "login" | "register" | "forgot"; configurationError?: boolean; successRedirect?: string }) {
   const { t , locale } = useI18n();
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -85,7 +85,8 @@ export function Auth({ mode, configurationError = false }: { mode: "login" | "re
         setSubmitted(true);
         return;
       }
-      window.location.href = "/dashboard";
+      const localRedirect = successRedirect.startsWith("/") && !successRedirect.startsWith("//") ? successRedirect : "/dashboard";
+      window.location.href = localRedirect;
     } finally {
       setSendingEmail(false);
     }

@@ -115,6 +115,8 @@ export interface EditableCampaign {
   meta_page_id?: string | null;
   tiktok_ad_account_id?: string | null;
   pinterest_ad_account_id?: string | null;
+  /** Marqueur d’interface : les lieux copiés d’une source historique ne sont pas des pays/audiences gagnants vérifiés. */
+  geographyRecommendationUnavailable?: boolean;
 }
 
 const DEFAULT_LOCATION: GeoLocation = { key: "BJ", name: "Bénin", type: "country", countryCode: "BJ" };

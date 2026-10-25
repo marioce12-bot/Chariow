@@ -15,7 +15,7 @@ describe("mobile dashboard shell layout", () => {
     expect(sidebarStore).toBeLessThan(source.indexOf("<DashboardPrimaryNavigation", sidebar));
     expect(source.slice(header, layout)).not.toContain("DashboardStoreSelector");
     expect(source).not.toContain('{w("sidebar")}');
-    expect(source).toContain('className="dashboard-overview-mobile-store"><DashboardStoreSelector mobile');
+    expect(source).toContain('className="dashboard-overview-mobile-store" data-onboarding="store"><DashboardStoreSelector mobile');
     expect(source.indexOf('storeSelector={<div')).toBeGreaterThan(source.indexOf('<OverviewHome'));
     expect(css).toContain('.dashboard-sidebar-store { display: none; }');
     expect(css).toContain('.dashboard-overview-mobile-store { display: none; }');
@@ -29,5 +29,6 @@ describe("mobile dashboard shell layout", () => {
     expect(source).toContain('" app-layout-flush"');
     const aiCss = readFileSync(new URL("../app/vendeo-ai.css", import.meta.url), "utf8");
     expect(aiCss).toContain(".app-layout-flush ~ .mobile-nav");
+    expect(aiCss).not.toContain("mobile-assistant-bubble");
   });
 });

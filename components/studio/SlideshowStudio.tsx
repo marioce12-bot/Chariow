@@ -5,6 +5,7 @@ import type { CampaignGoal } from "@/lib/studio/slideshow-plan";
 import { LaunchProgress } from "@/components/chat/LaunchProgress";
 import { SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { imageCreditCost } from "@/lib/studio/credits";
+import type { CreativePerformanceIdea } from "@/lib/creative-performance/client";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
 import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
@@ -132,11 +133,15 @@ export function SlideshowStudio({
   locale,
   onComplete,
   selectedTaskId = null,
+  creativePerformanceSource = null,
+  creativeIdea = null,
 }: {
   product: Product | null;
   locale: string;
   onComplete?: () => void;
   selectedTaskId?: string | null;
+  creativePerformanceSource?: Record<string, unknown> | null;
+  creativeIdea?: CreativePerformanceIdea | null;
 }) {
   const fr = locale !== "en",
     [enabled, setEnabled] = useState(false),
@@ -416,7 +421,7 @@ export function SlideshowStudio({
     }
     setStatus(fr ? "Lancement de la génération…" : "Starting generation…");
     try {
-      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId: "", voiceover: true, variationId: variationIdRef.current } });
+      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId: "", voiceover: true, variationId: variationIdRef.current, ...(creativePerformanceSource ? { creativePerformanceSource } : {}), ...(creativeIdea ? { creativeIdea } : {}) } });
       const task = response.task as Task;
       if (!task) throw new Error("Réponse de tâche invalide.");
       try { localStorage.removeItem(key); } catch { /* ignore */ }

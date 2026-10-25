@@ -21,49 +21,49 @@ afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlo
 async function mount(focus?: Parameters<typeof MobileSettingsView>[0]["focus"]) {
   await act(async () => root.render(<MobileSettingsView onNavigate={navigate} onSignOut={signOut} plan="starter" focus={focus} />));
 }
-async function tab(id: string) {
-  await act(async () => (container.querySelector(`#settings-tab-${id}`) as HTMLButtonElement).click());
-}
 function button(text: string) {
-  return Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tabpanel"] button')).find((b) => b.textContent?.includes(text))!;
+  const result = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((candidate) => candidate.textContent?.includes(text));
+  if (!result) throw new Error(`Button not found: ${text}`);
+  return result;
 }
 
-describe("settings navigation", () => {
-  it("opens feedback inside its own tab, not as a card before preferences", async () => {
-    await mount("preferences");
+ describe("settings navigation", () => {
+  it("opens feedback from the app settings list and keeps the return path", async () => {
+    await mount();
     expect(fetch).not.toHaveBeenCalled();
-    await tab("feedback");
+    await act(async () => button(translate("fr", "sweep3.text293")).click());
     expect(container.querySelectorAll("[data-settings-panel]")).toHaveLength(1);
     expect(container.querySelector("#feedback-message")).toBeTruthy();
     expect(fetch).toHaveBeenCalledWith("/api/feedback", { cache: "no-store" });
     expect(navigate).not.toHaveBeenCalled();
-    expect(container.querySelector(".mobile-settings-return")).toBeNull();
+    expect(container.querySelector(".settings-detail-back")).toBeTruthy();
   });
 
-  it("separates appearance and language, and preserves both language actions", async () => {
+  it("opens appearance and language from their grouped rows and preserves both language actions", async () => {
     await mount();
+    await act(async () => button(translate("fr", "settings.appearance")).click());
     expect(container.querySelector("[data-settings-panel=appearance]")).toBeTruthy();
-    await tab("language");
-    expect(container.querySelector("[data-settings-panel=appearance]")).toBeNull();
+    await act(async () => button(translate("fr", "settings.backToSettings")).click());
+    await act(async () => button(translate("fr", "settings.language.title")).click());
+    expect(container.querySelector("[data-settings-panel=language]")).toBeTruthy();
     await act(async () => button(translate("fr", "settings.language.english")).click());
     expect(i18n.setLocale).toHaveBeenCalledWith("en");
     i18n.locale = "en";
-    await mount();
-    expect(container.querySelector("[role=tabpanel]")?.textContent).toContain(translate("en", "settings.language.subtitle"));
+    await mount("language");
+    expect(container.querySelector("[role=region]")?.textContent).toContain(translate("en", "settings.language.subtitle"));
     await act(async () => button(translate("en", "settings.language.french")).click());
     expect(i18n.setLocale).toHaveBeenCalledWith("fr");
   });
 
-  it("supports arrow keys, Home and End with roving focus", async () => {
+  it("filters the settings list by search text", async () => {
     await mount();
-    const first = container.querySelector<HTMLButtonElement>("#settings-tab-appearance")!;
-    await act(async () => first.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
-    expect(document.activeElement?.id).toBe("settings-tab-language");
-    expect(container.querySelector("[role=tabpanel]")?.id).toBe("settings-panel-language");
-    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })));
-    expect(document.activeElement?.id).toBe("settings-tab-session");
-    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })));
-    expect(document.activeElement?.id).toBe("settings-tab-appearance");
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "language");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.querySelectorAll(".settings-option-row")).toHaveLength(1);
+    expect(container.querySelector(".settings-option-row")?.textContent).toContain(translate("fr", "settings.language.title"));
   });
 
   it("keeps stores, subscription, legal links, sign out and delete confirmation", async () => {
@@ -72,9 +72,9 @@ describe("settings navigation", () => {
     expect(navigate).toHaveBeenCalledWith("Mes boutiques");
     await act(async () => button(translate("fr", "settings.subscription")).click());
     expect(navigate).toHaveBeenCalledWith("Abonnement");
-    await tab("about");
-    expect(Array.from(container.querySelectorAll("[role=tabpanel] a")).map(a => a.getAttribute("href"))).toEqual(["/about", "/terms", "/privacy"]);
-    await tab("session");
+    await mount("about");
+    expect(Array.from(container.querySelectorAll('[role="region"] a')).map(a => a.getAttribute("href"))).toEqual(["/about", "/terms", "/privacy"]);
+    await mount("session");
     await act(async () => button(translate("fr", "settings.signout")).click());
     expect(signOut).toHaveBeenCalledOnce();
     await act(async () => button(translate("fr", "settings.deleteAccount")).click());
@@ -92,11 +92,18 @@ describe("settings navigation", () => {
     expect(fetch).toHaveBeenCalledWith("/api/integrations/meta/disconnect", { method: "POST" });
   });
 
-  it("updates the selected panel when dashboard entry changes", async () => {
+  it("updates the selected detail when the dashboard entry changes", async () => {
     await mount("channels");
     await mount("feedback");
-    expect(container.querySelector('[role=tab][aria-selected=true]')?.id).toBe("settings-tab-feedback");
+    expect(container.querySelector("[data-settings-panel=feedback]")).toBeTruthy();
     await mount();
-    expect(container.querySelector('[role=tab][aria-selected=true]')?.id).toBe("settings-tab-appearance");
+    expect(container.querySelector('[data-mobile-settings-section="index"]')).toBeTruthy();
+    expect(container.querySelector(".settings-index")).toBeTruthy();
+  });
+
+  it("routes notifications from the app settings group", async () => {
+    await mount();
+    await act(async () => button(translate("fr", "notifications.title")).click());
+    expect(navigate).toHaveBeenCalledWith("Notifications");
   });
 });

@@ -190,10 +190,7 @@ html[data-theme="dark"] .ai-page .chat-history-toggle:hover { background:rgba(25
 html[data-theme="dark"] .ai-page .chat-history-drawer { background:#071129; }
 html[data-theme="dark"] .ai-page .chat-history-list button.active { background:rgba(16,62,248,.22); }
 
-/* Section Assistant : pas de barre de navigation du bas.
-   La barre (.mobile-nav, position:fixed) recouvrait la zone de saisie et empêchait
-   de rédiger. Elle est le frère suivant du conteneur .app-layout ; quand l'Assistant
-   est actif, ce conteneur porte .app-layout-flush, on masque donc la barre. */
+/* Section Assistant : ne pas couvrir la zone de saisie avec la barre. */
 .app-layout-flush ~ .mobile-nav { display:none !important; }
 
 /* Confort de lecture sur grand écran : les messages ne s'étirent plus sur toute la fenêtre. */
@@ -216,3 +213,18 @@ html[data-theme="dark"] .ai-page .chat-history-list button.active { background:r
 .ai-page .campaign-action-card button:focus-visible,.ai-page .campaign-action-card input:focus-visible { outline:3px solid #98b8ff; outline-offset:2px; }
 .ai-page .campaign-action-card [role="alert"] { background:#fff4e8; border-radius:8px; color:#7d3e0a; padding:9px; }
 .ai-page .campaign-action-card [role="status"] { color:#21633e; }
+
+/* Carte d'orientation dans une réponse Assistant : seule l'activation du bouton navigue. */
+.ai-page .chat-navigation-card { align-items:center; background:#f7f9ff; border:1px solid #dbe4f5; border-radius:12px; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; margin-top:12px; padding:12px; white-space:normal; }
+.ai-page .chat-navigation-card-copy { display:flex; flex:1; flex-direction:column; gap:3px; min-width:150px; }
+.ai-page .chat-navigation-card-copy > span { color:#596a85; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+.ai-page .chat-navigation-card-copy strong { color:var(--ink); font-size:14px; font-weight:650; line-height:1.3; }
+.ai-page .chat-navigation-card-copy small { color:var(--muted); font-size:11px; line-height:1.35; }
+.ai-page .chat-navigation-card-action { align-items:center; background:var(--vendeo-gradient); border:0; border-radius:9px; color:#fff; cursor:pointer; display:inline-flex; flex:none; font:inherit; font-size:12px; font-weight:650; gap:8px; justify-content:center; min-height:44px; padding:9px 13px; }
+.ai-page .chat-navigation-card-action:hover { filter:brightness(1.04); }
+.ai-page .chat-navigation-card-action:focus-visible { outline:3px solid #98b8ff; outline-offset:2px; }
+@media (max-width:760px) {
+  .ai-page .chat-navigation-card { align-items:stretch; flex-direction:column; gap:10px; padding:12px; }
+  .ai-page .chat-navigation-card-copy { min-width:0; }
+  .ai-page .chat-navigation-card-action { width:100%; }
+}

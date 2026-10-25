@@ -20,10 +20,11 @@ vi.mock("@/lib/tiktok/launch", () => ({ launchTikTok: provider }));
 vi.mock("@/lib/plans", () => ({ metaPublisherPlatforms: () => [], isPlanId: () => false }));
 vi.mock("@/lib/pinterest/api", () => ({ launchPinterest: provider }));
 vi.mock("@/lib/pinterest/tag-help", () => ({ PINTEREST_TAG_REQUIRED_CODE: "tag", isPinterestConversionTagError: () => false, pinterestTagShortMessage: () => "" }));
+vi.mock("@/lib/meta/pixel-help", () => ({ META_PIXEL_REQUIRED_CODE: "META_PIXEL_REQUIRED_FOR_SALES" }));
 
 import { POST } from "./route";
 
-const request = () => new Request("http://localhost/api/ad-campaigns/campaign-1/launch", { method: "POST", body: "{}" });
+const request = (body: Record<string, unknown> = {}) => new Request("http://localhost/api/ad-campaigns/campaign-1/launch", { method: "POST", body: JSON.stringify(body) });
 const context = () => ({ params: Promise.resolve({ id: "campaign-1" }) });
 
 beforeEach(() => {
@@ -31,7 +32,22 @@ beforeEach(() => {
   // Any accidental real HTTP request must fail: all launch providers below are mocked.
   vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Real network forbidden in launch tests"); }));
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+describe("preview launch guard", () => {
+  it("blocks campaign publication before reading campaign data or calling providers", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const from = vi.fn(() => { throw new Error("Campaign data must not be read in Preview"); });
+    requireUser.mockResolvedValue({ supabase: { from }, user: { id: "user-1" }, response: null });
+
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining("désactivé sur cette Preview") });
+    expect(from).not.toHaveBeenCalled();
+    for (const mock of [provider, pageToken, createCampaign, createAdSet, createCreative, createCarousel, createVideo, prepareVideo, createAd, publishAd, funding, prepareImage]) expect(mock).not.toHaveBeenCalled();
+  });
+});
 
 describe("launch lifecycle guard", () => {
   it("returns 409 for a legacy archived row without invoking any provider", async () => {
@@ -87,6 +103,27 @@ function setupDraft(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Meta launch without Page-token dependency (mock providers only)", () => {
+  it("blocks a Sales campaign without a pixel before any provider call until Traffic is explicitly confirmed", async () => {
+    setupDraft({ objective: "sales" });
+
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "META_PIXEL_REQUIRED_FOR_SALES", fallback_available: true });
+    expect(funding).not.toHaveBeenCalled();
+    for (const mock of [provider, createCampaign, createAdSet, createCreative, createAd, publishAd]) expect(mock).not.toHaveBeenCalled();
+  });
+
+  it("uses Traffic only after an explicit fallback confirmation", async () => {
+    setupDraft({ objective: "sales" });
+
+    const response = await POST(request({ confirm_traffic_fallback: true }), context());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ effective_objective: "traffic", objective_fallback: true });
+    expect(createCampaign).toHaveBeenCalledWith(expect.objectContaining({ objective: "traffic", dailyBudget: 2 }));
+  });
+
   it.each([
     ["image", {}, createCreative],
     ["carousel", { carousel_urls: ["https://example.invalid/second.png"] }, createCarousel],

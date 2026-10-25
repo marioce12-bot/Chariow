@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FEED_TRANSFORM, VERTICAL_TRANSFORM, feedTransformFor, readImageSize, withCloudinaryTransform } from "@/lib/media/creative-format";
 import { META_GRAPH_BASE_URL } from "./api";
+import { createMetaGraphError, fetchMetaGraph } from "./graph";
 
 // Meta ne sait pas toujours télécharger une image depuis une URL signée de stockage privé
 // (« Image non téléchargée … subcode 3 »). Ici, Vendeo récupère lui-même l'image et l'envoie
@@ -107,12 +108,12 @@ export async function uploadMetaAdImage(input: { accountId: string; accessToken:
   const form = new FormData();
   form.append("access_token", input.accessToken);
   form.append("filename", new Blob([input.bytes as unknown as BlobPart], { type }), input.filename ?? (type === "image/png" ? "creative.png" : "creative.jpg"));
-  const response = await fetch(`${META_GRAPH_BASE_URL}/${input.accountId}/adimages`, { method: "POST", body: form, cache: "no-store" });
+  const response = await fetchMetaGraph(`${META_GRAPH_BASE_URL}/${input.accountId}/adimages`, { method: "POST", body: form });
   const json = await response.json().catch(() => ({}));
   const hash = extractAdImageHash(json);
   if (!response.ok || !hash) {
     const message = (json as { error?: { message?: string; error_user_msg?: string } })?.error;
-    throw new Error(message?.error_user_msg || message?.message || `Envoi de l'image à Meta refusé (${response.status})`);
+    throw createMetaGraphError(message, response.status, message?.error_user_msg || message?.message || `Envoi de l'image à Meta refusé (${response.status})`);
   }
   return hash;
 }

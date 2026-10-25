@@ -44,10 +44,10 @@ type CampaignStat = {
   conversions: number;
 };
 type DailyPoint = { date: string; spendUsd: number };
-type MetaAccountReading = { accountId: string; ok: boolean; spendUsd: number; clicks: number; conversions: number; campaigns: CampaignStat[]; stale: boolean };
+type MetaAccountReading = { accountId: string; ok: boolean; spendUsd: number; clicks: number; conversions: number; campaigns: CampaignStat[]; stale: boolean; reconnectRequired?: boolean };
 type AdSpendData = { stats: ChannelStat[]; campaigns: CampaignStat[]; readings: MetaAccountReading[]; daily: DailyPoint[] };
 type VendeoCampaign = { platform?: string; title?: string | null; product_name?: string | null; external_campaign_id?: string | null };
-type AccountRef = { id: string; currency?: string; is_selected?: boolean | null };
+type AccountRef = { id: string; currency?: string; is_selected?: boolean | null; needs_reconnect?: boolean };
 type DailyResponse = { currency?: string; days?: Array<{ date: string; spend: number }> } | null;
 
 const CHANNELS: Array<Pick<ChannelStat, "id" | "badge" | "label" | "color">> = [
@@ -62,15 +62,30 @@ const REST_COLOR = "#CBD5E1";
 
 // Géométrie des graphiques (viewBox : le SVG s'adapte à la largeur de l'écran).
 const BAR_W = 320;
-const BAR_H = 210;
+const BAR_H_MOBILE = 210;
+const BAR_H_DESKTOP = 130;
 const BAR_TOP = 24;
 const BAR_BOTTOM = 40;
-const BAR_BASE = BAR_H - BAR_BOTTOM;
-const BAR_PLOT = BAR_BASE - BAR_TOP;
 const BAR_WIDTH = 64;
 const LINE_W = 320;
-const LINE_H = 140;
+const LINE_H_MOBILE = 140;
+const LINE_H_DESKTOP = 88;
 const LINE_PAD = { top: 14, bottom: 24, left: 8, right: 8 };
+
+const DESKTOP_CHART_QUERY = "(min-width: 761px)";
+function subscribeToDesktopChartViewport(onChange: () => void) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
+  const media = window.matchMedia(DESKTOP_CHART_QUERY);
+  if (media.addEventListener) media.addEventListener("change", onChange);
+  else media.addListener(onChange);
+  return () => {
+    if (media.removeEventListener) media.removeEventListener("change", onChange);
+    else media.removeListener(onChange);
+  };
+}
+function getDesktopChartViewport() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(DESKTOP_CHART_QUERY).matches;
+}
 
 const STALE_MS = 15 * 60 * 1000;
 const AUTO_SYNC_COOLDOWN_MS = 2 * 60 * 1000;
@@ -154,6 +169,11 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
   // Identity includes store, period and plan; mutations refresh the same usable reading.
   const cacheKey = useMemo(() => `/__computed/ad-spend/${JSON.stringify([storeId, periodDays, plan])}`, [storeId, periodDays, plan]);
   const cached = useSyncExternalStore(cache.subscribe, () => cache.snapshot(cacheKey), () => cache.snapshot(null)) as { data?: AdSpendData; loading: boolean; refreshing: boolean; error: boolean };
+  const isDesktopCharts = useSyncExternalStore(subscribeToDesktopChartViewport, getDesktopChartViewport, () => false);
+  const BAR_H = isDesktopCharts ? BAR_H_DESKTOP : BAR_H_MOBILE;
+  const BAR_BASE = BAR_H - BAR_BOTTOM;
+  const BAR_PLOT = BAR_BASE - BAR_TOP;
+  const LINE_H = isDesktopCharts ? LINE_H_DESKTOP : LINE_H_MOBILE;
   const [metaSyncing, setMetaSyncing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -172,7 +192,8 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
     const toDay = to.toISOString().slice(0, 10);
     const range = `from=${fromDay}&to=${toDay}`;
 
-    async function readMetaAccount(accountId: string): Promise<MetaAccountReading> {
+    async function readMetaAccount(accountId: string, reconnectRequired = false): Promise<MetaAccountReading> {
+      if (reconnectRequired) return { accountId, ok: false, spendUsd: 0, clicks: 0, conversions: 0, campaigns: [], stale: false, reconnectRequired: true };
       const perf = await getJson(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}&store_id=${encodeURIComponent(storeId ?? "")}&${range}`);
       if (!perf) return { accountId, ok: false, spendUsd: 0, clicks: 0, conversions: 0, campaigns: [], stale: false };
       const performances: Array<{ id?: string; name?: string; clicks?: number; impressions?: number; spend?: number; conversions?: number }> = perf.performances ?? [];
@@ -203,15 +224,16 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
       const vendeoCampaigns: VendeoCampaign[] = Array.isArray(campaignsData?.campaigns) ? campaignsData.campaigns : [];
       const accounts: AccountRef[] = accountsData?.accounts ?? [];
       if (!accounts.length) return { stat: emptyStat(CHANNELS[0]), campaigns: [] as CampaignStat[], readings: [] as MetaAccountReading[], daily: [] as DailyPoint[], vendeoCampaigns };
+      const syncableAccounts = accounts.filter((account) => !account.needs_reconnect);
       const [readings, activeLists, dailyLists] = await Promise.all([
-        Promise.all(accounts.map((account) => readMetaAccount(account.id))),
-        Promise.all(accounts.map((account) => getJson(`/api/meta/active-campaigns?account_id=${encodeURIComponent(account.id)}`))),
-        Promise.all(accounts.map((account) => getJson(`/api/meta/daily-spend?account_id=${encodeURIComponent(account.id)}&${range}`) as Promise<DailyResponse>)),
+        Promise.all(accounts.map((account) => readMetaAccount(account.id, Boolean(account.needs_reconnect)))),
+        Promise.all(syncableAccounts.map((account) => getJson(`/api/meta/active-campaigns?account_id=${encodeURIComponent(account.id)}`))),
+        Promise.all(syncableAccounts.map((account) => getJson(`/api/meta/daily-spend?account_id=${encodeURIComponent(account.id)}&${range}`) as Promise<DailyResponse>)),
       ]);
       const merged = mergeMeta(readings, vendeoCampaigns);
       // Seules les campagnes en cours chez Meta sont listées (les anciennes, en pause ou archivées, sont masquées).
       // Si le statut est illisible pour un compte, on ne filtre pas pour ne rien cacher à tort.
-      const statusKnown = activeLists.every((list) => Array.isArray(list?.activeIds));
+      const statusKnown = syncableAccounts.length > 0 && activeLists.length === syncableAccounts.length && activeLists.every((list) => Array.isArray(list?.activeIds));
       const activeIds = new Set<string>(activeLists.flatMap((list) => (Array.isArray(list?.activeIds) ? list.activeIds : [])));
       return {
         ...merged,
@@ -269,7 +291,7 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
 
       // Comptes Meta dont les données sont anciennes (ou jamais synchronisées) : on resynchronise en
       // arrière-plan, puis on relit les chiffres. Les données déjà affichées restent en place.
-      const staleIds = current.readings.filter((reading) => reading.ok && reading.stale).map((reading) => reading.accountId)
+      const staleIds = current.readings.filter((reading) => reading.ok && reading.stale && !reading.reconnectRequired).map((reading) => reading.accountId)
         .filter((accountId) => Date.now() - (lastAutoSync.get(accountId) ?? 0) >= AUTO_SYNC_COOLDOWN_MS);
       if (!staleIds.length) return;
       for (const accountId of staleIds) lastAutoSync.set(accountId, Date.now());
@@ -352,6 +374,7 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
         <BarChart3 size={18} />
       </div>
 
+      {cached.data?.readings.some((reading) => reading.reconnectRequired) ? <p className="meta-account-warning" role="alert">{tr(t("ads.reconnectMetaRequired"), "Reconnect your Meta Ads connection to resume syncing.")}</p> : null}
       {loading && !connected.length ? (
         <div style={{ marginTop: 12, display: "grid", gap: 12 }} role="status" aria-busy="true" aria-label={tr(t("sweep2.text136"), "Loading spend")}>
           <div style={{ display: "grid", gap: 6 }}>

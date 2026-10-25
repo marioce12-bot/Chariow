@@ -3,7 +3,7 @@
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, BarChart3, Bot, CreditCard, Plus, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, Bell, Bot, CreditCard, Plus, Search, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages, ExternalLink } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { FeedbackView } from "@/components/FeedbackView";
@@ -353,14 +353,29 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
   useEffect(() => {
     if (!videoJob || ["completed", "failed", "cancelled"].includes(videoJob.status)) return;
-    const timer = window.setInterval(async () => {
-      const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`);
-      const result = await response.json().catch(() => ({}));
-      if (response.ok) setVideoJob(result);
-      else if (result.error) setError(result.error);
-    }, 4_000);
-    return () => window.clearInterval(timer);
-  }, [videoJob]);
+    let active = true;
+    let timer: number | null = null;
+    const controller = new AbortController();
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`, { signal: controller.signal });
+        const result = await response.json().catch(() => ({}));
+        if (!active) return;
+        if (response.ok && typeof result?.status === "string") setVideoJob(result);
+        else if (result.error) setError(result.error);
+      } catch {
+        // Retry after the current request settles; cleanup aborts any in-flight read.
+      } finally {
+        if (active && !controller.signal.aborted) timer = window.setTimeout(() => void poll(), 4_000);
+      }
+    };
+    timer = window.setTimeout(() => void poll(), 4_000);
+    return () => {
+      active = false;
+      if (timer !== null) window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [videoJob?.id, videoJob?.status]);
 
   async function uploadReferenceFiles() {
     if (!referenceFiles.length) return [];
@@ -456,7 +471,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(kind === "image"
-          ? { id: crypto.randomUUID(), kind: "image", input: { prompt, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", referenceUrls } }
+          ? { id: crypto.randomUUID(), kind: "image", input: { prompt, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", referenceUrls, ...(selectedProduct ? { product: { id: selectedProduct.id, name: selectedProduct.name } } : {}) } }
           : { prompt, duration, resolution: videoResolution, aspectRatio, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
       });
       const result = await response.json().catch(() => ({}));
@@ -597,7 +612,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       <div className="page-top studio-head">
         <div>
           <span className="eyebrow">{t("studio.eyebrow")}</span>
-          <h1>{t("studio.title")}</h1>
+          <h1 id="studio-page-title" tabIndex={-1}>{t("studio.title")}</h1>
           <p>{t("studio.subtitle")}</p>
         </div>
       </div>
@@ -1198,7 +1213,8 @@ type SettingsTab = "accounts" | "channels" | "appearance" | "language" | "feedba
 export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: SettingsTab | "preferences" }) {
   const connectionCache = useNavigationCache();
   const { locale, setLocale, t } = useI18n();
-  const [mobileSettingsSection, setMobileSettingsSection] = useState<SettingsTab>(focus === "preferences" ? "appearance" : focus ?? "appearance");
+  const [mobileSettingsSection, setMobileSettingsSection] = useState<SettingsTab | null>(focus === "preferences" ? "appearance" : focus ?? null);
+  const [settingsSearch, setSettingsSearch] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
@@ -1210,7 +1226,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    setMobileSettingsSection(focus === "preferences" ? "appearance" : focus ?? "appearance");
+    setMobileSettingsSection(focus === "preferences" ? "appearance" : focus ?? null);
   }, [focus]);
 
   useEffect(() => {
@@ -1284,50 +1300,66 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
     }
   }
 
-  const tabs: Array<{ id: SettingsTab; title: string; icon: React.ReactNode }> = [
-    { id: "appearance", title: t("settings.appearance"), icon: <Sun size={18} /> },
-    { id: "language", title: t("settings.language.title"), icon: <Languages size={18} /> },
-    { id: "accounts", title: t("settings.storesPlanTab"), icon: <Store size={18} /> },
-    { id: "channels", title: t("settings.connectedAccounts"), icon: <ExternalLink size={18} /> },
-    { id: "feedback", title: t("sweep3.text293"), icon: <MessageSquare size={18} /> },
-    { id: "about", title: t("settings.aboutLegal"), icon: <Lightbulb size={18} /> },
-    { id: "session", title: t("settings.session"), icon: <LogOut size={18} /> },
+  const settingsGroups: Array<{ title: string; items: Array<{ id: string; title: string; description: string; keywords: string; icon: React.ReactNode; onSelect: () => void }> }> = [
+    {
+      title: t("settings.appSection"),
+      items: [
+        { id: "appearance", title: t("settings.appearance"), description: t("settings.themeDescription"), keywords: "theme couleur clair sombre", icon: <Sun size={18} />, onSelect: () => setMobileSettingsSection("appearance") },
+        { id: "language", title: t("settings.language.title"), description: t("settings.language.subtitle"), keywords: "langue français anglais language", icon: <Languages size={18} />, onSelect: () => setMobileSettingsSection("language") },
+        { id: "notifications", title: t("notifications.title"), description: t("notifications.description"), keywords: "push alertes notifications", icon: <Bell size={18} />, onSelect: () => onNavigate("Notifications") },
+        { id: "feedback", title: t("sweep3.text293"), description: t("settings.feedbackDescription"), keywords: "suggestion avis feedback notes", icon: <MessageSquare size={18} />, onSelect: () => setMobileSettingsSection("feedback") },
+        { id: "about", title: t("settings.aboutLegal"), description: t("settings.aboutDescription"), keywords: "à propos légal conditions confidentialité about legal", icon: <Lightbulb size={18} />, onSelect: () => setMobileSettingsSection("about") },
+        { id: "session", title: t("settings.session"), description: t("settings.leaveOrDelete"), keywords: "déconnexion supprimer compte session sign out delete", icon: <LogOut size={18} />, onSelect: () => setMobileSettingsSection("session") },
+      ],
+    },
+    {
+      title: t("settings.shopSection"),
+      items: [
+        { id: "stores", title: t("settings.myStores"), description: t("settings.manageStores"), keywords: "boutique boutiques chariow stores", icon: <Store size={18} />, onSelect: () => onNavigate("Mes boutiques") },
+        { id: "channels", title: t("settings.connectedAccounts"), description: t("settings.connectedAccountsDescription"), keywords: "comptes publicitaires meta tiktok pinterest ads", icon: <ExternalLink size={18} />, onSelect: () => setMobileSettingsSection("channels") },
+        { id: "subscription", title: t("settings.subscription"), description: t("settings.manageSubscription"), keywords: "abonnement plan offre paiement subscription billing", icon: <CreditCard size={18} />, onSelect: () => onNavigate("Abonnement") },
+      ],
+    },
   ];
+  const normalizeSearch = (value: string) => value.toLocaleLowerCase(locale).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const query = normalizeSearch(settingsSearch.trim());
+  const filteredSettingsGroups = settingsGroups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !query || normalizeSearch(`${item.title} ${item.description} ${item.keywords} ${group.title}`).includes(query)),
+  })).filter((group) => group.items.length > 0);
 
   return (
-    <div className="settings-page" data-mobile-settings-section={mobileSettingsSection}>
+    <div className="settings-page" data-mobile-settings-section={mobileSettingsSection ?? "index"}>
       <div className="page-top settings-head">
         <div>
           <span className="eyebrow">{t("settings.account")}</span>
-          <h1>{t("settings.title")}</h1>
+          <h1 id="settings-title">{t("settings.title")}</h1>
           <p>{t("settings.preferencesSubtitle")}</p>
         </div>
       </div>
-      <div className="settings-tabs" role="tablist" aria-label={t("settings.sectionsLabel")}>
-        {tabs.map((tab, index) => <button
-          key={tab.id}
-          id={`settings-tab-${tab.id}`}
-          type="button"
-          role="tab"
-          className="settings-tab"
-          aria-selected={mobileSettingsSection === tab.id}
-          aria-controls={`settings-panel-${tab.id}`}
-          tabIndex={mobileSettingsSection === tab.id ? 0 : -1}
-          onClick={() => setMobileSettingsSection(tab.id)}
-          onKeyDown={(event) => {
-            let nextIndex: number;
-            if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
-            else if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
-            else if (event.key === "Home") nextIndex = 0;
-            else if (event.key === "End") nextIndex = tabs.length - 1;
-            else return;
-            event.preventDefault();
-            setMobileSettingsSection(tabs[nextIndex].id);
-            document.getElementById(`settings-tab-${tabs[nextIndex].id}`)?.focus();
-          }}
-        ><span aria-hidden="true">{tab.icon}</span><span>{tab.title}</span></button>)}
-      </div>
-      <div className="settings-tab-panel" role="tabpanel" id={`settings-panel-${mobileSettingsSection}`} aria-labelledby={`settings-tab-${mobileSettingsSection}`} tabIndex={0}>
+      {mobileSettingsSection === null ? (
+        <section className="settings-index" aria-label={t("settings.sectionsLabel")}>
+          <label className="settings-search" data-onboarding="settings-index-search">
+            <Search size={20} aria-hidden="true" />
+            <input type="search" value={settingsSearch} onChange={(event) => setSettingsSearch(event.target.value)} placeholder={t("settings.searchPlaceholder")} aria-label={t("settings.searchPlaceholder")} />
+          </label>
+          {filteredSettingsGroups.length ? filteredSettingsGroups.map((group) => (
+            <section className="settings-group" key={group.title} aria-label={group.title}>
+              <h2>{group.title}</h2>
+              <div className="settings-option-list">
+                {group.items.map((item) => <button type="button" className="settings-option-row" key={item.id} onClick={item.onSelect}>
+                  <span className="settings-option-icon" aria-hidden="true">{item.icon}</span>
+                  <span className="settings-option-copy"><strong>{item.title}</strong><small>{item.description}</small></span>
+                  <ArrowRight size={18} aria-hidden="true" />
+                </button>)}
+              </div>
+            </section>
+          )) : <p className="settings-search-empty" role="status">{t("settings.searchEmpty")}</p>}
+        </section>
+      ) : (
+      <>
+      <button type="button" className="settings-detail-back mobile-back-button" onClick={() => { setMobileSettingsSection(null); if (focus) onNavigate("Paramètres"); }}><ArrowLeft size={16} /> {t("settings.backToSettings")}</button>
+      <div className="settings-detail-panel" role="region" id={`settings-panel-${mobileSettingsSection}`} aria-labelledby="settings-title" tabIndex={0}>
       {mobileSettingsSection === "accounts" && <section className="settings-section settings-section-account" data-settings-panel="accounts" aria-label={t("settings.storesAndSubscription")}>
         <div className="mobile-settings-grid">
           <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
@@ -1479,6 +1511,8 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
       </section>}
       {mobileSettingsSection === "feedback" && <section className="settings-section settings-section-feedback" data-settings-panel="feedback"><FeedbackView /></section>}
       </div>
+      </>
+      )}
       {showDeleteAccountModal ? <div className="account-delete-backdrop" role="presentation" onClick={() => !deletingAccount && setShowDeleteAccountModal(false)}><section className="account-delete-modal" role="dialog" aria-modal="true" aria-labelledby="account-delete-title" onClick={(event) => event.stopPropagation()}><button type="button" className="account-delete-close" aria-label={t("wizardExtra.close")} onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>×</button><div className="account-delete-icon"><Trash2 size={22} /></div><span className="eyebrow">{t("settings.irreversible")}</span><h2 id="account-delete-title">{t("settings.deleteQuestion")}</h2><p>{t("sweep1.text297")}</p><div className="account-delete-warning">{t("settings.deleteWarning")}</div><div className="account-delete-actions"><button type="button" className="btn btn-ghost" onClick={() => setShowDeleteAccountModal(false)} disabled={deletingAccount}>{t("workspaceExtra.cancel")}</button><button type="button" className="btn account-delete-confirm" onClick={() => void deleteAccount()} disabled={deletingAccount}>{deletingAccount ? t("adminExtra.push.deleting") : t("settings.confirmDelete")}</button></div></section></div> : null}
     </div>
   );
@@ -1501,7 +1535,7 @@ type MetaPixelOption = { id: string; name: string; configured_on_chariow?: boole
 
 type AdsCache = {
   pinterestAccounts?: Array<{ id: string; advertiser_id: string; name: string | null; currency: string; country: string | null }>;
-  metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>;
+  metaAccounts: Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null; needs_reconnect?: boolean }>;
   selectedMetaAccount: string;
   metaPerformance: MetaPerformance | null;
   metaResources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null;
@@ -1572,7 +1606,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const [channel, setChannel] = useState<"overview" | "meta" | "tiktok" | "pinterest">("overview");
   const [message, setMessage] = useState<string | null>(null);
 
-  const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>>(cachedOnce?.metaAccounts ?? []);
+  const [metaAccounts, setMetaAccounts] = useState<Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null; needs_reconnect?: boolean }>>(cachedOnce?.metaAccounts ?? []);
   const [selectedMetaAccount, setSelectedMetaAccount] = useState(cachedOnce?.selectedMetaAccount ?? "");
   const [metaPerformance, setMetaPerformance] = useState<MetaPerformance | null>(cachedOnce?.metaPerformance ?? null);
   const [metaResources, setMetaResources] = useState<{ pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null>(cachedOnce?.metaResources ?? null);
@@ -1591,15 +1625,32 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
   const [tiktokLoading, setTiktokLoading] = useState(!cachedOnce);
 
   // Charge performances, pages/pixels et statut de restriction pour UN compte donné.
-  async function loadMetaAccountData(accountId: string, lastSyncedAt?: string | null, requestToken = ++metaRequestToken.current) {
+  async function loadMetaAccountData(accountId: string, lastSyncedAt?: string | null, needsReconnect = false, requestToken = ++metaRequestToken.current) {
     let perf: MetaPerformance | null = null;
     let resources: { pages: Array<{ id: string; name: string }>; pixels: Array<MetaPixelOption> } | null = null;
     let restricted = false;
+    if (needsReconnect) {
+      setMetaPerformance(null);
+      setMetaResources(null);
+      setMetaAccountRestricted(false);
+      return { perf, resources, restricted, needsReconnect: true };
+    }
     const lastSyncTime = lastSyncedAt ? Date.parse(lastSyncedAt) : 0;
     if (!lastSyncTime || Date.now() - lastSyncTime > 3 * 60 * 60 * 1000) {
       setMetaSyncing(true);
       try {
         const syncResponse = await fetch("/api/meta/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: accountId }) });
+        const syncData = await syncResponse.json().catch(() => ({}));
+        if (syncResponse.status === 409 && syncData?.needs_reconnect) {
+          if (requestToken === metaRequestToken.current) {
+            setMetaAccounts((current) => current.map((item) => item.id === accountId ? { ...item, needs_reconnect: true } : item));
+            setMetaPerformance(null);
+            setMetaResources(null);
+            setMetaAccountRestricted(false);
+            setMessage(t("ads.reconnectMetaRequired"));
+          }
+          return { perf: null, resources: null, restricted: false, needsReconnect: true };
+        }
         if (!syncResponse.ok && requestToken === metaRequestToken.current) setMessage(t("ads.syncError"));
       } catch {
         if (requestToken === metaRequestToken.current) setMessage(t("ads.syncError"));
@@ -1615,11 +1666,11 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     const resourceData = await resourceResponse.json();
     resources = resourceData;
     restricted = Boolean(resourceData.account?.restricted);
-    if (requestToken !== metaRequestToken.current) return { perf: null, resources: null, restricted: false };
+    if (requestToken !== metaRequestToken.current) return { perf: null, resources: null, restricted: false, needsReconnect: false };
     setMetaPerformance(perf);
     setMetaResources(resources);
     setMetaAccountRestricted(restricted);
-    return { perf, resources, restricted };
+    return { perf, resources, restricted, needsReconnect: false };
   }
 
   async function load() {
@@ -1646,7 +1697,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     const metaResponse = await fetch("/api/integrations/meta/accounts");
     const metaData = metaResponse.ok ? await metaResponse.json() : { accounts: [] };
     if (requestToken !== metaRequestToken.current) return;
-    const nextMetaAccounts = (metaData.accounts ?? []) as Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null }>;
+    let nextMetaAccounts = (metaData.accounts ?? []) as Array<{ id: string; name: string | null; currency: string; account_status?: number | null; is_selected?: boolean | null; last_synced_at?: string | null; needs_reconnect?: boolean }>;
     setMetaAccounts(nextMetaAccounts);
 
     // Conserve le compte déjà choisi (cache) s'il existe encore, sinon le compte
@@ -1671,7 +1722,11 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       }
       nextSelectedMetaAccount = chosenAccount.id;
       setSelectedMetaAccount(nextSelectedMetaAccount);
-      const loaded = await loadMetaAccountData(chosenAccount.id, chosenAccount.last_synced_at, requestToken);
+      const loaded = await loadMetaAccountData(chosenAccount.id, chosenAccount.last_synced_at, Boolean(chosenAccount.needs_reconnect), requestToken);
+      if (loaded.needsReconnect) {
+        nextMetaAccounts = nextMetaAccounts.map((item) => item.id === chosenAccount.id ? { ...item, needs_reconnect: true } : item);
+        setMetaAccounts(nextMetaAccounts);
+      }
       nextMetaPerformance = loaded.perf;
       nextMetaResources = loaded.resources;
       nextMetaAccountRestricted = loaded.restricted;
@@ -1700,11 +1755,14 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     setConfiguringPixel(null);
     setCopiedPixelId(null);
     try {
-      const loaded = await loadMetaAccountData(accountId, metaAccounts.find((account) => account.id === accountId)?.last_synced_at, requestToken);
+      const selectedAccount = metaAccounts.find((account) => account.id === accountId);
+      const loaded = await loadMetaAccountData(accountId, selectedAccount?.last_synced_at, Boolean(selectedAccount?.needs_reconnect), requestToken);
       if (requestToken !== metaRequestToken.current) return;
+      const nextMetaAccounts = loaded.needsReconnect ? metaAccounts.map((item) => item.id === accountId ? { ...item, needs_reconnect: true } : item) : metaAccounts;
+      if (loaded.needsReconnect) setMetaAccounts(nextMetaAccounts);
       await navigationCache.loadComputed(`${adsCacheKey}:account:${accountId}`, async () => ({ perf: loaded.perf, resources: loaded.resources, restricted: loaded.restricted }), campaignsVersion, true);
       navigationCache.invalidate();
-      void navigationCache.loadComputed(adsCacheKey, async () => ({ metaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts }), campaignsVersion, true);
+      void navigationCache.loadComputed(adsCacheKey, async () => ({ metaAccounts: nextMetaAccounts, selectedMetaAccount: accountId, metaPerformance: loaded.perf, metaResources: loaded.resources, metaAccountRestricted: loaded.restricted, tiktokAccounts }), campaignsVersion, true);
     } catch {
       if (requestToken === metaRequestToken.current) {
         setMetaPerformance(null);
@@ -1749,7 +1807,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
 
   async function syncMeta() {
-    if (!selectedMetaAccount) return;
+    if (!selectedMetaAccount || metaAccounts.find((account) => account.id === selectedMetaAccount)?.needs_reconnect) return;
     const accountId = selectedMetaAccount;
     const requestToken = metaRequestToken.current;
     setMetaSyncing(true);
@@ -1758,8 +1816,15 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       const response = await fetch("/api/meta/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: accountId }) });
       const data = await response.json();
       if (requestToken !== metaRequestToken.current) return;
-      if (!response.ok) setMessage(data.error ?? t("ads.syncError"));
-      else {
+      if (!response.ok) {
+        if (data?.needs_reconnect) {
+          setMetaAccounts((current) => current.map((account) => account.id === accountId ? { ...account, needs_reconnect: true } : account));
+          setMetaPerformance(null);
+          setMetaResources(null);
+          setMetaAccountRestricted(false);
+        }
+        setMessage(data.error ?? t("ads.syncError"));
+      } else {
         setMessage(t("ads.synced"));
         navigationCache.invalidate();
         const metrics = await fetch(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}`);
@@ -1807,6 +1872,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
   const tiktokAllowed = isAdPlatformAllowed(plan, "tiktok");
   const metaConnected = metaAccounts.length > 0;
+  const selectedMetaNeedsReconnect = Boolean(metaAccounts.find((account) => account.id === selectedMetaAccount)?.needs_reconnect);
   const tiktokConnected = tiktokAccounts.length > 0;
 
   const channels: Array<{ id: "overview" | "meta" | "tiktok" | "pinterest"; label: string }> = [{ id: "overview", label: t("ads.overview") }, { id: "meta", label: t("ads.meta") }, ...(tiktokAllowed ? [{ id: "tiktok" as const, label: t("ads.tiktok") }] : []), { id: "pinterest", label: "Pinterest" }];
@@ -1829,10 +1895,11 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
       {channel === "overview" ? <section className="app-card"><div className="card-head"><div><span className="eyebrow">{t("ads.stats")}</span><h2>{t("ads.performance")}</h2></div><Activity size={18} /></div><div className="vendeo-kpi-grid"><div className="vendeo-kpi"><span className="metric-label">{t("ads.spend")}</span><strong>{(metaPerformance ? formatMoneyInUSD(metaPerformance.overview.spend, metaPerformance.currency) : null) ?? t("ads.unavailable")}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.sales")}</span><strong>{metaPerformance?.overview.sales ?? 0}</strong></div><div className="vendeo-kpi"><span className="metric-label">{t("ads.realRoas")}</span><strong>{metaPerformance?.overview.realRoas === null || metaPerformance?.overview.realRoas === undefined ? t("ads.unavailable") : `${(metaPerformance.overview.realRoas * 100).toFixed(1)} %`}</strong></div></div></section> : channel === "meta" ? (
         <>
           {metaConnected ? <div className="app-card" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span className="status-positive meta-connected-badge"><CheckCircle2 size={14} /> {t("ads.connected")}</span></div> : null}
+          {selectedMetaNeedsReconnect ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>{t("ads.reconnectMetaRequired")}</strong><p><button type="button" className="btn btn-ghost" onClick={connectMeta}>{t("ads.reconnectMeta")}</button></p></div></div> : null}
           {!metaLoading && metaAccountRestricted ? <div className="meta-account-warning" role="alert"><AlertTriangle size={18} /><div><strong>{t("finalExtra.text45")}</strong><p>{t("sweep3.text302")}</p><a href="https://www.facebook.com/accountquality" target="_blank" rel="noreferrer" className="btn btn-ghost">{t("sweep1.text303")}</a></div></div> : null}
           {!metaLoading && metaConnected && metaResources && !metaResources.pages.length ? <div className="meta-conversion-info">{t("sweep2.text304")}</div> : null}
           {!metaConnected ? <div className="empty-state"><BarChart3 size={24} /><strong>{t("ads.noMeta")}</strong><span>{t("ads.noMetaText")}</span><button className="btn btn-dark" onClick={connectMeta}>{t("ads.connectMeta")}</button></div> : <>
-            <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><span className="hint-line">{metaLoading ? t("adminExtra.notifications.loading") : <>{t("sweep3.text305")}{" "}{metaPerformance?.lastSyncedAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(metaPerformance.lastSyncedAt)) : t("adminComplete.never")}{metaPerformance?.lastSyncError ? ` · Erreur : ${metaPerformance.lastSyncError}` : ""}</>}</span><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing || metaLoading}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
+            <div className="app-card meta-toolbar"><label>{t("ads.account")}<select value={selectedMetaAccount} onChange={(event) => void selectMetaAccount(event.target.value)}>{metaAccounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label><span className="hint-line">{metaLoading ? t("adminExtra.notifications.loading") : <>{t("sweep3.text305")}{" "}{metaPerformance?.lastSyncedAt ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(metaPerformance.lastSyncedAt)) : t("adminComplete.never")}{metaPerformance?.lastSyncError ? ` · Erreur : ${metaPerformance.lastSyncError}` : ""}</>}</span><button className="btn btn-ghost" onClick={syncMeta} disabled={metaSyncing || metaLoading || selectedMetaNeedsReconnect}>{metaSyncing ? t("ads.syncing") : t("ads.sync")}</button></div>
             {metaLoading ? <MetaAccountSkeleton /> : metaLoadError ? <div className="empty-state" role="alert"><strong>{localizeSystemMessage(metaLoadError, locale)}</strong></div> : null}
             {!metaLoading && !metaLoadError && metaConnected && metaResources ? (
               <section className="app-card" style={{ marginBottom: 18 }}>
@@ -2168,7 +2235,8 @@ export function SubscriptionView({ subscription, onBackToSettings }: { subscript
         <article className="price-card">
           <span className="eyebrow">{trial ? t("landing.pricing.pill") : t("optionsExtra.text61")}</span>
           <h3>Vendeo</h3>
-          <div className="price">2 000 XOF <small>{t("landing.pricing.perMonth")}</small></div>
+          <div className="price">{t("landing.pricing.price")} <small>{t("landing.pricing.perMonth")}</small></div>
+          <p className="pricing-billing-note">{t("landing.pricing.billingNote")}</p>
           <ul>
             <li>{t("sweep2.text325")}</li>
             <li>{t("sweep3.text326")}</li>

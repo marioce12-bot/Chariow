@@ -4,6 +4,7 @@ import { getMetaAdReviewStatus, mapMetaEffectiveStatus } from "@/lib/meta/campai
 import { getMetaCampaignLifecycle, markMetaPausedReason } from "@/lib/meta/status";
 import { fetchMetaCampaignList } from "@/lib/meta/campaign-list";
 import { getMetaCreativePatch } from "@/lib/meta/creative-sync";
+import { isMetaAuthenticationError } from "@/lib/meta/graph";
 
 type CampaignRow = {
   id: string;
@@ -50,6 +51,7 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
     if (error) throw error;
     result.accountStatusSaved = true;
   } catch (error) {
+    if (isMetaAuthenticationError(error)) throw error;
     result.errors += 1;
     console.error("Meta account status sync failed", error instanceof Error ? error.message : "unknown error");
   }
@@ -87,6 +89,7 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   try {
     inventory = await fetchMetaCampaignList(graphAccountId(input.metaAccountId), input.accessToken);
   } catch (error) {
+    if (isMetaAuthenticationError(error)) throw error;
     result.errors += 1;
     console.error("Meta campaign inventory incomplete; skipping reconciliation", error instanceof Error ? error.message : "unknown error");
     for (const campaign of campaigns.filter((row) => ["active", "review", "preparing"].includes(row.status))) {
@@ -186,6 +189,7 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
         if (updateError) throw updateError;
         result.updated += 1;
       } catch (error) {
+        if (isMetaAuthenticationError(error)) throw error;
         // Meta error #100 can mean missing object OR missing permissions. An
         // inconclusive lookup (including network/permission failures) is not a
         // deletion signal: keep the row and its existing status untouched.

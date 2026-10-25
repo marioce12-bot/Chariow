@@ -4,6 +4,8 @@ import { encryptSecret } from "@/lib/crypto";
 import { decryptSecret } from "@/lib/crypto";
 import { fetchMetaAccounts } from "@/lib/meta/api";
 import { syncMetaPixels } from "@/lib/meta/pixels";
+import { fetchMetaGraph } from "@/lib/meta/graph";
+import { recoverUnlistedMetaAccountReconnects } from "@/lib/meta/reauth-recovery";
 
 export async function GET(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -30,17 +32,18 @@ export async function GET(request: Request) {
     tokenUrl.searchParams.set("client_secret", clientSecret);
     tokenUrl.searchParams.set("redirect_uri", redirectUri);
     tokenUrl.searchParams.set("code", code);
-    const tokenResponse = await fetch(tokenUrl, { cache: "no-store" });
+    const tokenResponse = await fetchMetaGraph(tokenUrl);
     const token = await tokenResponse.json().catch(() => ({}));
     if (!tokenResponse.ok || typeof token.access_token !== "string") return redirect("failed");
     const accounts = await fetchMetaAccounts(token.access_token);
-    const meResponse = await fetch(`https://graph.facebook.com/${process.env.META_GRAPH_VERSION ?? "v23.0"}/me?fields=id&access_token=${encodeURIComponent(token.access_token)}`, { cache: "no-store" });
+    const meResponse = await fetchMetaGraph(`https://graph.facebook.com/${process.env.META_GRAPH_VERSION ?? "v23.0"}/me?fields=id&access_token=${encodeURIComponent(token.access_token)}`);
     const me = await meResponse.json().catch(() => ({}));
+    const tokenExpiresAt = typeof token.expires_in === "number" ? new Date(Date.now() + token.expires_in * 1000).toISOString() : null;
     const integration = await supabase.from("meta_integrations").upsert({
       user_id: user.id,
       meta_user_id: typeof me?.id === "string" ? me.id : user.id,
       access_token_encrypted: encryptSecret(token.access_token),
-      token_expires_at: typeof token.expires_in === "number" ? new Date(Date.now() + token.expires_in * 1000).toISOString() : null,
+      token_expires_at: tokenExpiresAt,
        granted_scopes: ["ads_read", "ads_management", "business_management"],
       is_active: true,
       last_error: null,
@@ -58,11 +61,30 @@ export async function GET(request: Request) {
         name: typeof account.name === "string" ? account.name : `Compte ${metaAccountId}`,
         currency: typeof account.currency === "string" ? account.currency : "XOF",
         access_token_encrypted: encryptSecret(token.access_token),
-        token_expires_at: typeof token.expires_in === "number" ? new Date(Date.now() + token.expires_in * 1000).toISOString() : null,
+        token_expires_at: tokenExpiresAt,
         is_active: true,
         is_selected: true,
+        last_sync_error: null,
       }, { onConflict: "user_id,meta_account_id" }).select("id").single();
       if (saved.data?.id) savedAccounts.push({ id: saved.data.id, meta_account_id: cleanAccountId });
+    }
+    let recoveredLegacyAccounts = 0;
+    try {
+      const recovery = await recoverUnlistedMetaAccountReconnects({
+        supabase,
+        userId: user.id,
+        integrationId: integration.data.id,
+        returnedAccountIds: accounts.map((account) => String(account.id ?? "")),
+        accessToken: token.access_token,
+        tokenExpiresAt,
+      });
+      recoveredLegacyAccounts = recovery.verified;
+      if (recovery.failed > 0) {
+        console.warn("Meta OAuth: certains anciens comptes restent à reconnecter", { userId: user.id, count: recovery.failed });
+      }
+    } catch (recoveryError) {
+      // A cleanup read failure must not undo the newly established OAuth connection.
+      console.warn("Meta OAuth: vérification des anciens comptes indisponible", recoveryError instanceof Error ? recoveryError.message : recoveryError);
     }
     // Récupération des pixels Meta de chaque compte publicitaire dès la connexion,
     // pour que le wizard "Lancer une pub" les ait déjà sous la main. On utilise
@@ -80,7 +102,7 @@ export async function GET(request: Request) {
     // l'impression trompeuse d'une connexion réussie, alors que le wizard
     // "Lancer une pub" et Paramètres affichaient ensuite "aucun compte publicitaire" —
     // sans que rien n'explique pourquoi vu que l'écran venait de dire "connecté".
-    if (accounts.length === 0) {
+    if (accounts.length === 0 && recoveredLegacyAccounts === 0) {
       console.warn("Meta OAuth: token obtenu mais aucun compte publicitaire renvoyé par l'API Graph", { userId: user.id });
       return redirect("no_ad_account");
     }

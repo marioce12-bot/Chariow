@@ -35,7 +35,7 @@ export async function middleware(request: NextRequest) {
     },
   });
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error) console.error("Supabase middleware auth error", error.message);
+  if (error && error.name !== "AuthSessionMissingError") console.error("Supabase middleware auth error", error.message);
   const isAdminPath = request.nextUrl.pathname.startsWith("/admin");
   const isAdminLogin = request.nextUrl.pathname === "/admin/login";
   if (!user && request.nextUrl.pathname.startsWith("/dashboard")) return NextResponse.redirect(new URL("/login", request.url));

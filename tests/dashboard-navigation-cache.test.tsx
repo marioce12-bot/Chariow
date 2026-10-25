@@ -11,7 +11,7 @@ vi.mock("@/lib/supabase/browser", () => ({ createClient: () => ({ auth: {
   getUser: async () => ({ data: { user: { user_metadata: { name: "Test" } } } }), signOut: async () => ({}),
   onAuthStateChange: (listener: any) => { authentication.listener = listener; listener("INITIAL_SESSION", { user: { id: "user-a" } }); return { data: { subscription: { unsubscribe() {} } } }; },
 } }) }));
-vi.mock("@/components/useUsageTracking", () => ({ useUsageTracking: () => {} }));
+vi.mock("@/components/useUsageTracking", () => ({ useUsageTracking: () => {}, clearUsageSessionStorage: vi.fn() }));
 const language = vi.hoisted(() => ({ locale: "fr" }));
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: language.locale, t: (key: string) => key }) }));
 vi.mock("@/components/ChatView", () => ({ ChatView: () => null }));

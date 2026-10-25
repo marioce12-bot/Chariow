@@ -4,6 +4,11 @@ import { decryptSecret } from "@/lib/crypto";
 import { syncMetaCampaignStatuses } from "@/lib/meta/campaign-status-sync";
 import { syncMetaInsights } from "@/lib/meta/sync";
 
+import { isMetaReconnectRequired, markMetaReconnectRequired } from "@/lib/meta/connection-state";
+import { isMetaAuthenticationError } from "@/lib/meta/graph";
+
+const RECONNECT_RESPONSE = { error: "La connexion Meta Ads doit être refaite.", needs_reconnect: true };
+
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
@@ -11,10 +16,11 @@ export async function POST(request: Request) {
   const accountId = typeof body?.account_id === "string" ? body.account_id : null;
   const from = typeof body?.from === "string" ? body.from : new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const to = typeof body?.to === "string" ? body.to : new Date().toISOString().slice(0, 10);
-  const query = supabase.from("meta_ad_accounts").select("id,meta_account_id,access_token_encrypted").eq("user_id", user.id).eq("is_active", true);
+  const query = supabase.from("meta_ad_accounts").select("id,meta_integration_id,meta_account_id,access_token_encrypted,last_sync_error").eq("user_id", user.id).eq("is_active", true);
   const { data: account, error } = await (accountId ? query.eq("id", accountId).maybeSingle() : query.limit(1).maybeSingle());
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!account) return NextResponse.json({ error: "Aucun compte Meta Ads connecté" }, { status: 404 });
+  if (isMetaReconnectRequired(account.last_sync_error)) return NextResponse.json(RECONNECT_RESPONSE, { status: 409 });
 
   let campaignStatus: unknown;
   try {
@@ -26,6 +32,10 @@ export async function POST(request: Request) {
       userId: user.id,
     });
   } catch (statusError) {
+    if (isMetaAuthenticationError(statusError)) {
+      await markMetaReconnectRequired(supabase, account, user.id);
+      return NextResponse.json(RECONNECT_RESPONSE, { status: 409 });
+    }
     campaignStatus = { errors: 1 };
     console.error("Meta status sync failed", statusError instanceof Error ? statusError.message : "unknown error");
   }
@@ -35,6 +45,10 @@ export async function POST(request: Request) {
     await supabase.from("meta_ad_accounts").update({ last_sync_error: null }).eq("id", account.id).eq("user_id", user.id);
     return NextResponse.json({ synced, campaignStatus, from, to });
   } catch (syncError) {
+    if (isMetaAuthenticationError(syncError)) {
+      await markMetaReconnectRequired(supabase, account, user.id);
+      return NextResponse.json(RECONNECT_RESPONSE, { status: 409 });
+    }
     const message = syncError instanceof Error ? syncError.message.slice(0, 500) : "Meta sync failed";
     await supabase.from("meta_ad_accounts").update({ last_sync_error: message }).eq("id", account.id).eq("user_id", user.id);
     console.error("Meta insights sync failed", message);

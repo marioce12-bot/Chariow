@@ -1,4 +1,5 @@
 import type { MetaInsight } from "./types";
+import { createMetaGraphError, fetchMetaGraph } from "./graph";
 
 export const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION ?? "v23.0";
 export const META_GRAPH_BASE_URL = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
@@ -10,16 +11,16 @@ function graphUrl(path: string, params: Record<string, string>) {
 }
 
 export async function fetchMetaAccounts(accessToken: string) {
-  const response = await fetch(graphUrl("me/adaccounts", { fields: "id,name,currency,account_status", limit: "100", access_token: accessToken }), { cache: "no-store" });
+  const response = await fetchMetaGraph(graphUrl("me/adaccounts", { fields: "id,name,currency,account_status", limit: "100", access_token: accessToken }), { cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof json?.error?.message === "string" ? json.error.message : `Meta accounts request failed (${response.status})`);
+  if (!response.ok) throw createMetaGraphError(json?.error, response.status, `Meta accounts request failed (${response.status})`);
   return Array.isArray(json.data) ? json.data as Array<Record<string, unknown>> : [];
 }
 
 export async function fetchMetaAccountStatus(accountId: string, accessToken: string): Promise<number> {
-  const response = await fetch(graphUrl(accountId, { fields: "account_status", access_token: accessToken }), { cache: "no-store" });
+  const response = await fetchMetaGraph(graphUrl(accountId, { fields: "account_status", access_token: accessToken }), { cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof json?.error?.message === "string" ? json.error.message : `Meta account status request failed (${response.status})`);
+  if (!response.ok) throw createMetaGraphError(json?.error, response.status, `Meta account status request failed (${response.status})`);
   const status = Number(json.account_status);
   if (!Number.isInteger(status) || status <= 0) throw new Error("Meta n’a pas renvoyé un account_status valide");
   return status;
@@ -41,9 +42,9 @@ export async function fetchMetaResources(accountId: string, accessToken: string)
   const pixels = graphUrl(`${accountId}/adspixels`, { fields: "id,name", limit: "100", access_token: accessToken });
 
   const [accountResult, pagesResult, pixelsResult] = await Promise.all([
-    fetch(account, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) })),
-    fetch(pages, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) })),
-    fetch(pixels, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) })),
+    fetchMetaGraph(account, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) })),
+    fetchMetaGraph(pages, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) })),
+    fetchMetaGraph(pixels, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) })),
   ]);
 
   const errorMessage = (result: { ok: boolean; json: Record<string, unknown> }) =>
@@ -61,9 +62,9 @@ export async function fetchMetaResources(accountId: string, accessToken: string)
 }
 
 export async function fetchMetaPageAccessToken(pageId: string, accessToken: string) {
-  const response = await fetch(graphUrl(pageId, { fields: "id,access_token", access_token: accessToken }), { cache: "no-store" });
+  const response = await fetchMetaGraph(graphUrl(pageId, { fields: "id,access_token", access_token: accessToken }), { cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || typeof json.access_token !== "string") throw new Error(typeof json?.error?.message === "string" ? json.error.message : "Impossible d’accéder à la page Facebook sélectionnée");
+  if (!response.ok || typeof json.access_token !== "string") throw createMetaGraphError(json?.error, response.status, "Impossible d’accéder à la page Facebook sélectionnée");
   return json.access_token;
 }
 
@@ -83,9 +84,9 @@ export async function fetchMetaInsights(accountId: string, accessToken: string, 
   const rows: MetaInsight[] = [];
   let next: string | null = url.toString();
   while (next) {
-    const response: Response = await fetch(next, { cache: "no-store" });
+    const response: Response = await fetchMetaGraph(next, { cache: "no-store" });
     const json = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(typeof json?.error?.message === "string" ? json.error.message : `Meta insights request failed (${response.status})`);
+    if (!response.ok) throw createMetaGraphError(json?.error, response.status, `Meta insights request failed (${response.status})`);
     if (Array.isArray(json.data)) rows.push(...json.data as MetaInsight[]);
     next = typeof json?.paging?.next === "string" ? json.paging.next : null;
   }
@@ -104,9 +105,9 @@ export function actionValue(actions: unknown, types: string[]) {
 }
 
 export async function getMetaAccountFunding(accountId: string, accessToken: string) {
-  const response = await fetch(graphUrl(accountId, { fields: "account_status,disable_reason,balance,amount_spent,spend_cap,currency,is_prepay_account,funding_source_details", access_token: accessToken }), { cache: "no-store" });
+  const response = await fetchMetaGraph(graphUrl(accountId, { fields: "account_status,disable_reason,balance,amount_spent,spend_cap,currency,is_prepay_account,funding_source_details", access_token: accessToken }), { cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof json?.error?.message === "string" ? json.error.message : "Impossible de vérifier le compte Meta");
+  if (!response.ok) throw createMetaGraphError(json?.error, response.status, "Impossible de vérifier le compte Meta");
   return {
     accountStatus: Number(json.account_status ?? 0),
     hasFundingSource: json.funding_source_details != null,
@@ -180,9 +181,9 @@ export async function searchMetaGeoLocations(query: string, accessToken: string)
     limit: "10",
     access_token: accessToken,
   });
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetchMetaGraph(url, { cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof json?.error?.message === "string" ? json.error.message : "Recherche de lieu Meta indisponible");
+  if (!response.ok) throw createMetaGraphError(json?.error, response.status, "Recherche de lieu Meta indisponible");
   const rows = Array.isArray(json.data) ? json.data as Array<Record<string, unknown>> : [];
   return rows
     .map((row) => {

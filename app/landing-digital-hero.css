@@ -1,0 +1,109 @@
+/* Hero parcours flow-led uniquement : navigation et sections suivantes inchangées. */
+.landing-premium .hero.digital-hero {
+  padding: 42px 0 44px;
+  background: radial-gradient(ellipse at 86% 35%, #e7e5ff 0%, transparent 46%), radial-gradient(ellipse at 4% 82%, #e1f8fc 0%, transparent 42%), linear-gradient(180deg, #f8faff, #fff);
+  color: #18213b;
+}
+.landing-premium .digital-hero .landing-hero-inner { display: grid; grid-template-columns: minmax(0, .76fr) minmax(0, 1.24fr); gap: 36px; align-items: center; }
+.landing-premium .digital-hero .landing-hero-copy { max-width: 500px; margin: 0; text-align: left; }
+.landing-premium .digital-hero .landing-kicker { color: #465784; font-size: 10px; letter-spacing: .09em; margin-bottom: 19px; gap: 9px; }
+.landing-premium .digital-hero-title { color: #111a36; font-size: clamp(38px, 4vw, 57px); font-weight: 650; letter-spacing: -.052em; line-height: 1.07; margin: 0 0 20px; }
+.landing-premium .digital-hero-title > span { display: block; padding: 5px 0 4px; background: linear-gradient(110deg, #5841da, #2d5cf4 64%, #078fa6); background-clip: text; -webkit-background-clip: text; color: transparent; }
+.landing-premium .digital-hero .landing-intro { color: #58627b; font-size: 15px; line-height: 1.75; max-width: 470px; margin: 0; }
+.landing-premium .digital-hero .landing-hero-actions { margin-top: 25px; gap: 15px; flex-direction: column; align-items: flex-start; }
+.landing-premium .digital-hero .btn-lime { background: linear-gradient(105deg, #172444, #263985); border-radius: 50px; min-height: 52px; padding: 0 24px; gap: 16px; box-shadow: 0 8px 22px #1f327b17; font-size: 14px; }
+.landing-premium .digital-hero .btn-lime svg { color: #75e3ec; }
+.landing-premium .digital-hero .landing-text-link { color: #3e4d75; font-size: 12px; }
+.landing-premium .digital-trial { display: flex; align-items: center; gap: 7px; font-size: 11px; color: #56617b; margin: 14px 0 0; }
+.landing-premium .digital-trial svg { color: #477e8c; flex-shrink: 0; }
+.landing-premium .digital-benefits { display: flex; gap: 12px; list-style: none; padding: 18px 0 0; border-top: 1px solid #dde4f1; margin: 22px 0 0; max-width: 470px; }
+.landing-premium .digital-benefits li { display: flex; flex-direction: column; gap: 8px; flex: 1; color: #3e4b6b; font-size: 10px; line-height: 1.5; }
+.landing-premium .digital-benefits svg { color: #5654c6; box-sizing: content-box; background: #efedff; padding: 7px; border: 1px solid #e2def9; border-radius: 9px; }
+.landing-premium .digital-benefits li:nth-child(2) svg { background: #edf1ff; color: #3a60da; border-color: #dfe6ff; }
+.landing-premium .digital-benefits li:nth-child(3) svg { background: #eaf8fb; color: #168599; border-color: #d7eff4; }
+.landing-premium .hero.digital-hero .digital-workspace { min-width: 0; width: 100%; margin: 0; scroll-margin-top: 112px; }
+.landing-premium .digital-workspace .workspace-visual-heading { color: #263456; font-size: 17px; font-weight: 650; letter-spacing: -.02em; line-height: 1.3; text-align: center; margin: 0 0 13px; }
+
+/* Les logos distinguent la boutique connectée des canaux de campagne. */
+.landing-premium .digital-workspace .workspace-brand-rows { display: flex; flex-direction: column; align-items: center; gap: 7px; margin: 0 auto 14px; }
+.landing-premium .digital-workspace .workspace-brand-group,
+.landing-premium .digital-workspace .workspace-ad-platforms { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 7px; }
+.landing-premium .digital-workspace .workspace-brand-label { color: #8991a5; font-size: 8px; font-weight: 750; letter-spacing: .09em; margin-right: 2px; }
+.landing-premium .digital-workspace .integration-logo,
+.landing-premium .digital-workspace .ad-platform-logo { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 27px; padding: 4px 9px; border: 1px solid #e6e9f2; border-radius: 8px; background: #fff; white-space: nowrap; }
+.landing-premium .digital-workspace .chariow-logo img { width: 63px; height: 17px; object-fit: contain; }
+.landing-premium .digital-workspace .integration-vendeo { display: inline-flex; align-items: center; gap: 5px; color: #8a91a5; font-size: 11px; }
+.landing-premium .digital-workspace .integration-vendeo img { width: 63px; height: auto; }
+.landing-premium .digital-workspace .ad-platform-logo { color: #35415f; font-size: 9px; font-weight: 650; }
+.landing-premium .digital-workspace .ad-platform-logo svg { width: 14px; height: 14px; }
+.landing-premium .digital-workspace .ad-platform-meta svg { color: #0866ff; }
+.landing-premium .digital-workspace .ad-platform-pinterest svg { color: #bd081c; }
+.landing-premium .digital-workspace .ad-platform-tiktok svg { color: #111; }
+
+/* Quatre scènes automatiques : photo agrandie et vraie capture Vendeo incrustée. */
+.landing-premium .digital-workspace .story-carousel { overflow: hidden; border: 1px solid #e1e7f3; border-radius: 18px; background: #fff; box-shadow: 0 18px 44px #273c7212; }
+.landing-premium .digital-workspace .story-card { display: block; }
+.landing-premium .digital-workspace .story-photo { position: relative; width: 100%; aspect-ratio: 1.52 / 1; min-height: 350px; overflow: hidden; background: #e9eaf3; }
+.landing-premium .digital-workspace .story-photo > img { object-fit: cover; object-position: center 38%; transform: translateX(-15%) scale(1.32); transition: transform .45s ease; }
+.landing-premium .digital-workspace .story-photo-shade { position: absolute; z-index: 1; inset: 0; pointer-events: none; background: linear-gradient(180deg, #17213b18 0%, transparent 30%, transparent 54%, #111a354d 100%); }
+.landing-premium .digital-workspace .story-screenshot { position: absolute; z-index: 2; top: clamp(14px, 2.4vw, 24px); right: clamp(14px, 2.4vw, 24px); width: min(62%, 520px); aspect-ratio: 1265 / 800; overflow: hidden; border: 4px solid #fff; border-radius: 14px; background: #fff; box-shadow: 0 18px 42px #111a3666; }
+.landing-premium .digital-workspace .story-screenshot img { object-fit: contain; object-position: center; }
+.landing-premium .digital-workspace .story-overlay { position: absolute; z-index: 3; left: clamp(14px, 2.4vw, 24px); bottom: clamp(14px, 2.4vw, 24px); display: flex; width: min(58%, 520px); min-width: 0; flex-direction: column; padding: 16px 18px; border: 1px solid #ffffff42; border-radius: 14px; background: linear-gradient(135deg, #172343ed, #171c35df); box-shadow: 0 15px 36px #111a3650; color: #fff; backdrop-filter: blur(10px); }
+.landing-premium .digital-workspace .story-meta { display: flex; justify-content: space-between; align-items: center; gap: 7px; color: #e4e9f6; font-size: 8px; font-weight: 750; letter-spacing: .055em; }
+.landing-premium .digital-workspace .story-meta span:last-child { color: #c3beff; white-space: nowrap; }
+.landing-premium .digital-workspace .story-overlay h3 { margin: 9px 0 6px; color: #fff; font-size: clamp(21px, 2.25vw, 29px); font-weight: 750; letter-spacing: -.035em; line-height: 1.15; }
+.landing-premium .digital-workspace .story-overlay > p { margin: 0; color: #e2e7f2; font-size: 12px; line-height: 1.5; }
+.landing-premium .digital-workspace .story-progress { height: 4px; background: #f0f2f8; }
+.landing-premium .digital-workspace .story-progress span { display: block; width: 100%; height: 100%; transform: scaleX(0); transform-origin: left center; background: linear-gradient(90deg, #6253d5, #2d9bae); animation: story-progress-fill 4s linear forwards; }
+@keyframes story-progress-fill { to { transform: scaleX(1); } }
+.landing-premium .digital-workspace .workspace-example-note { max-width: 700px; margin: 10px auto 0; color: #79829b; font-size: 9px; line-height: 1.5; text-align: center; }
+
+@media (max-width: 1100px) and (min-width: 901px) {
+  .landing-premium .digital-hero .landing-hero-inner { gap: 25px; }
+  .landing-premium .digital-workspace .workspace-brand-label { font-size: 7px; }
+}
+@media (max-width: 900px) {
+  .landing-premium .hero.digital-hero { padding-top: 34px; }
+  .landing-premium .digital-hero .landing-hero-inner { grid-template-columns: minmax(0, 1fr); gap: 34px; }
+  .landing-premium .digital-hero .landing-hero-copy { max-width: 650px; margin-inline: auto; width: 100%; }
+  .landing-premium .digital-hero-title { font-size: clamp(38px, 6.5vw, 56px); }
+  .landing-premium .digital-hero .landing-intro { max-width: 580px; }
+  .landing-premium .hero.digital-hero .digital-workspace { max-width: 800px; margin-inline: auto; }
+  .landing-premium .digital-workspace .story-photo { min-height: 390px; }
+}
+@media (max-width: 620px) {
+  .landing-premium .hero.digital-hero { padding: 28px 0; }
+  .landing-premium .digital-hero .landing-kicker { font-size: 8px; letter-spacing: .065em; margin-bottom: 15px; }
+  .landing-premium .digital-hero-title { font-size: clamp(33px, 9vw, 47px); letter-spacing: -.045em; line-height: 1.1; margin-bottom: 17px; }
+  .landing-premium .digital-hero .landing-intro { font-size: 14px; line-height: 1.7; }
+  .landing-premium .digital-hero .landing-hero-actions { margin-top: 20px; }
+  .landing-premium .digital-hero .btn-lime { min-height: 50px; font-size: 13px; padding-inline: 21px; }
+  .landing-premium .digital-benefits { gap: 9px; padding-top: 15px; }
+  .landing-premium .digital-benefits li { font-size: 9px; }
+  .landing-premium .digital-workspace .workspace-visual-heading { font-size: 15px; }
+  .landing-premium .digital-workspace .workspace-brand-rows { gap: 8px; }
+  .landing-premium .digital-workspace .workspace-brand-group,
+  .landing-premium .digital-workspace .workspace-ad-platforms { gap: 5px; }
+  .landing-premium .digital-workspace .workspace-brand-label { width: 100%; margin: 0; text-align: center; }
+  .landing-premium .digital-workspace .integration-logo,
+  .landing-premium .digital-workspace .ad-platform-logo { min-height: 26px; padding-inline: 7px; }
+  .landing-premium .digital-workspace .ad-platform-logo { font-size: 8px; }
+  .landing-premium .digital-workspace .story-photo { aspect-ratio: 1 / 1; min-height: 0; }
+  .landing-premium .digital-workspace .story-photo > img { object-position: center 38%; transform: translateX(-14%) scale(1.3); }
+  .landing-premium .digital-workspace .story-screenshot { top: 10px; right: 10px; width: min(70%, 370px); border-width: 3px; border-radius: 10px; }
+  .landing-premium .digital-workspace .story-overlay { left: 10px; right: 10px; bottom: 10px; width: auto; padding: 12px; border-radius: 11px; }
+  .landing-premium .digital-workspace .story-meta { font-size: 7px; }
+  .landing-premium .digital-workspace .story-overlay h3 { margin: 8px 0 4px; font-size: 18px; }
+  .landing-premium .digital-workspace .story-overlay > p { font-size: 10px; line-height: 1.45; }
+  .landing-premium .digital-workspace .workspace-example-note { font-size: 8px; }
+}
+@media (max-width: 350px) {
+  .landing-premium .digital-workspace .workspace-brand-group,
+  .landing-premium .digital-workspace .workspace-ad-platforms { gap: 4px; }
+  .landing-premium .digital-workspace .integration-logo,
+  .landing-premium .digital-workspace .ad-platform-logo { padding-inline: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-premium .digital-workspace .story-photo > img { transition: none; }
+  .landing-premium .digital-workspace .story-progress span { animation-duration: .01ms; }
+}

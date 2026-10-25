@@ -276,20 +276,20 @@ export function OverviewHome({
 
         {/* Indicateurs clés de la boutique active */}
         <div className="ov-kpi-grid" aria-busy={statsLoading || !campaignsReady}>
-          <div className="ov-kpi">
+          <div className="ov-kpi ov-kpi--revenue">
             <span className="hint-line">{tr(t("overview.netRevenue"), "Net revenue")}</span>
             {statsLoading ? <Skeleton width="50%" height={24} style={{ marginTop: 6 }} /> : <strong>{money(overview?.revenueNet)}</strong>}
             {!statsLoading && overview?.revenueChangePct !== null && overview?.revenueChangePct !== undefined ? <small className="hint-line">{overview.revenueChangePct >= 0 ? "+" : ""}{overview.revenueChangePct.toFixed(1)} %</small> : null}
           </div>
-          <div className="ov-kpi">
+          <div className="ov-kpi ov-kpi--sales">
             <span className="hint-line">{tr(t("dashboard.sales"), "Sales")}</span>
             {statsLoading ? <Skeleton width="30%" height={24} style={{ marginTop: 6 }} /> : <strong>{salesCount}</strong>}
           </div>
-          <div className="ov-kpi">
+          <div className="ov-kpi ov-kpi--basket">
             <span className="hint-line">{tr(t("overview.averageBasket"), "Average basket")}</span>
             {statsLoading ? <Skeleton width="40%" height={24} style={{ marginTop: 6 }} /> : <strong>{money(overview?.averageBasket)}</strong>}
           </div>
-          <div className="ov-kpi">
+          <div className="ov-kpi ov-kpi--campaigns">
             <span className="hint-line">{tr(t("optionsExtra.text14"), "Running campaigns")}</span>
             {!campaignsReady ? <Skeleton width="25%" height={24} style={{ marginTop: 6 }} /> : <strong>{activeCampaigns.length}</strong>}
           </div>

@@ -4,6 +4,8 @@ import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { Activity, ArrowRight, Camera, Copy, FileText, History, Megaphone, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
+import { NavigationCard } from "@/components/chat/NavigationCard";
+import { resolveChatNavigationForAssistantReply, type ChatNavigationSection } from "@/components/chat/navigation-intent";
 import { LaunchProgress } from "@/components/chat/LaunchProgress";
 import { CampaignAction, type CampaignActionData } from "@/components/chat/CampaignAction";
 import { LinkifiedText } from "@/components/LinkifiedText";
@@ -240,7 +242,7 @@ function AttachmentPreview({ attachment }: { attachment: ChatAttachment }) {
   );
 }
 
-export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoToSubscription: () => void; onUsageChange: (patch: UsagePatch) => void; onBack?: () => void }) {
+export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigateSection }: { onGoToSubscription: () => void; onUsageChange: (patch: UsagePatch) => void; onBack?: () => void; onNavigateSection?: (section: ChatNavigationSection) => void }) {
   const { t, locale } = useI18n();
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [input, setInput] = useState("");
@@ -767,6 +769,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
 
           {messages.map((message, index) => {
             const isAssistant = message.role !== "user";
+            const navigationTarget = isAssistant ? resolveChatNavigationForAssistantReply(messages, index) : null;
             const { content, launchPayload, campaignAction } = isAssistant
               ? parseAssistantMessage(message.content)
               : { content: message.content, launchPayload: null as LaunchPayload | null, campaignAction: null as CampaignActionData | null };
@@ -815,6 +818,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack }: { onGoTo
                     <Rocket size={15} /> {t("chat.launchNow")}
                   </button>
                 ) : null}
+                {navigationTarget && onNavigateSection ? <NavigationCard target={navigationTarget} locale={locale} onNavigate={onNavigateSection} /> : null}
                 {(isLong || (isAssistant && content)) && (
                   <div className="chat-bubble-actions">
                     {isLong && (

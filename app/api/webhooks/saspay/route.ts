@@ -80,5 +80,5 @@ export async function POST(request: Request) {
 }
 
 function planLabelForEmail(plan: PlanId): string {
-  return plan === "starter" ? "2 000 XOF/mois" : String(plan);
+  return plan === "starter" ? "3,50 $/mois (équivalent approximatif, paiement en XOF)" : String(plan);
 }

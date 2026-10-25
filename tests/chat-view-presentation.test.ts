@@ -13,6 +13,14 @@ describe("ChatView presentation affordances", () => {
     expect(styles).toContain(".chat-bubble.assistant .chat-copy");
   });
 
+  it("adds a destination card to the assistant reply and routes only through the Dashboard callback", () => {
+    const dashboard = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
+    expect(component).toContain("const navigationTarget = isAssistant ? resolveChatNavigationForAssistantReply(messages, index) : null;");
+    expect(component).toContain("navigationTarget && onNavigateSection ? <NavigationCard target={navigationTarget} locale={locale} onNavigate={onNavigateSection} /> : null");
+    expect(dashboard).toContain("onNavigateSection={navigateFromAssistant}");
+    expect(dashboard).toContain("setActive(section)");
+  });
+
   it("uses a single grouped add control while preserving camera, gallery, and document inputs", () => {
     expect(component).toContain('className="chat-attach-menu"');
     expect(component).toContain("cameraInputRef.current?.click()");

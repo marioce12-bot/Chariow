@@ -101,3 +101,32 @@
 @media (prefers-reduced-motion: reduce) {
   .landing-premium .hero-title-letter { animation:none; opacity:1; transform:none; }
 }
+
+
+/* Parcours et preuve produit vérifiés : captures réelles, données de démonstration. */
+.landing-premium .how-grid { align-items:stretch; gap:14px; grid-template-columns:repeat(4,minmax(0,1fr)); }
+.landing-premium .how-line { display:none; }
+.landing-premium .step-card { min-height:300px; padding:20px; }
+.landing-premium .step-card h3 { font-size:clamp(17px,1.55vw,20px); line-height:1.2; margin:16px 0 8px; }
+.landing-premium .step-card .journey-screenshot { aspect-ratio:1265/800; border:1px solid #e1e8f4; border-radius:10px; box-shadow:0 8px 22px rgba(35,54,111,.08); display:block; height:auto; margin:15px 0 0; object-fit:cover; width:100%; }
+.landing-premium .journey-disclaimer,.landing-premium .product-proof-note { color:var(--lp-muted); font-size:12px; line-height:1.65; margin:20px auto 0; max-width:760px; text-align:center; }
+.landing-premium .features-section { background:linear-gradient(180deg,#f3f6ff 0%,#eaf8fb 100%); }
+.landing-premium .feature-card.dark { background:linear-gradient(145deg,#172650,#263f87); color:#fff; }
+.landing-premium .feature-card.dark svg { color:#74dce9; }
+.landing-premium .feature-card.accent { background:linear-gradient(145deg,#eaf1ff,#e7f9fc); border-color:#dfe8f5; color:#172241; }
+.landing-premium .feature-card.accent h3,.landing-premium .feature-card.accent svg { color:#304ec1; }
+.landing-premium .feature-card.accent p { color:#5b6681; }
+.landing-premium .feature-card.light { background:#fff; border-color:#e1e7f3; color:#172241; }
+.landing-premium .feature-card.light svg { color:#138ea5; }
+.landing-premium .price-card.pro .check { color:#138ea5; }
+.landing-premium .price-card .pill { background:#e9f8fb; color:#147d91; }
+@media(max-width:1000px) {
+  .landing-premium .how-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .landing-premium .step-card { min-height:260px; }
+}
+@media(max-width:560px) {
+  .landing-premium .how-grid { grid-template-columns:minmax(0,1fr); }
+  .landing-premium .step-card { min-height:0; padding:18px; }
+  .landing-premium .step-card h3 { font-size:19px; }
+  .landing-premium .journey-disclaimer,.landing-premium .product-proof-note { font-size:11px; margin-top:16px; text-align:left; }
+}

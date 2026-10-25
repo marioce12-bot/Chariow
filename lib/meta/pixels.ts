@@ -1,4 +1,5 @@
 import { META_GRAPH_BASE_URL } from "./api";
+import { createMetaGraphError, fetchMetaGraph } from "./graph";
 
 export interface MetaPixel {
   id: string;
@@ -23,10 +24,10 @@ export async function fetchMetaAdPixels(accountId: string, accessToken: string):
   let pages = 0;
   try {
     while (next && pages < MAX_PIXEL_PAGES) {
-      const response: Response = await fetch(next, { cache: "no-store" });
+      const response: Response = await fetchMetaGraph(next);
       const json = await response.json().catch(() => ({}));
       if (!response.ok) {
-        return { pixels, error: typeof json?.error?.message === "string" ? json.error.message : `Lecture des pixels Meta impossible (${response.status})` };
+        return { pixels, error: createMetaGraphError(json?.error, response.status, `Lecture des pixels Meta impossible (${response.status})`).message };
       }
       if (Array.isArray(json.data)) {
         for (const row of json.data as Array<Record<string, unknown>>) {

@@ -119,6 +119,8 @@
 .price { font-size:43px; font-weight:700; letter-spacing:-.07em; }
 .price small { color:var(--muted); font-size:12px; font-weight:400; letter-spacing:0; }
 .pro .price small { color:#b9cdc0; }
+.price-card .pricing-billing-note { color:var(--muted); font-size:12px; line-height:1.5; margin:5px 0 0; }
+.price-card.pro .pricing-billing-note { color:#c6d5cc; }
 .price-card ul { list-style:none; padding:20px 0; margin:0; }
 .price-card li { border-top:1px solid var(--line); font-size:13px; padding:11px 0; }
 .pro li { border-color:rgba(255,255,255,.14); color:#d1e0d5; }

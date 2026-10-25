@@ -1,4 +1,5 @@
 import { META_GRAPH_BASE_URL } from "./api";
+import { createMetaGraphError, fetchMetaGraph, isMetaAuthenticationError } from "./graph";
 import { LEGACY_META_CTA, normalizeMetaCta } from "./cta";
 
 // Créatives vidéo Meta. Contrairement aux images (image_hash via /adimages), une vidéo suit ce parcours :
@@ -40,7 +41,7 @@ function describeGraphError(json: GraphResponse, status: number): string {
 export async function uploadMetaAdVideo(input: { accountId: string; accessToken: string; videoUrl: string; name?: string }): Promise<string> {
   const body = new URLSearchParams({ file_url: input.videoUrl, access_token: input.accessToken });
   if (input.name) body.set("name", input.name.slice(0, 100));
-  const response = await fetch(`${META_GRAPH_BASE_URL}/${input.accountId}/advideos`, {
+  const response = await fetchMetaGraph(`${META_GRAPH_BASE_URL}/${input.accountId}/advideos`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -48,7 +49,7 @@ export async function uploadMetaAdVideo(input: { accountId: string; accessToken:
   });
   const json = (await response.json().catch(() => ({}))) as GraphResponse;
   if (!response.ok || typeof json.id !== "string") {
-    throw new Error(`Envoi de la vidéo à Meta refusé : ${describeGraphError(json, response.status)}`);
+    throw createMetaGraphError(json.error, response.status, `Envoi de la vidéo à Meta refusé : ${describeGraphError(json, response.status)}`);
   }
   return json.id;
 }
@@ -57,8 +58,12 @@ async function graphGet(path: string, accessToken: string, fields: string): Prom
   const url = new URL(`${META_GRAPH_BASE_URL}/${path}`);
   url.searchParams.set("fields", fields);
   url.searchParams.set("access_token", accessToken);
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await fetchMetaGraph(url.toString());
   const json = (await response.json().catch(() => ({}))) as GraphResponse;
+  if (!response.ok) {
+    const error = createMetaGraphError(json.error, response.status, describeGraphError(json, response.status));
+    if (isMetaAuthenticationError(error)) throw error;
+  }
   return { ok: response.ok, json, status: response.status };
 }
 
@@ -124,7 +129,7 @@ export async function createMetaVideoCreative(input: {
     }),
     access_token: input.accessToken,
   });
-  const response = await fetch(`${META_GRAPH_BASE_URL}/${input.accountId}/adcreatives`, {
+  const response = await fetchMetaGraph(`${META_GRAPH_BASE_URL}/${input.accountId}/adcreatives`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -132,7 +137,7 @@ export async function createMetaVideoCreative(input: {
   });
   const json = (await response.json().catch(() => ({}))) as GraphResponse;
   if (!response.ok || typeof json.id !== "string") {
-    throw new Error(describeGraphError(json, response.status));
+    throw createMetaGraphError(json.error, response.status, describeGraphError(json, response.status));
   }
   return { id: json.id };
 }

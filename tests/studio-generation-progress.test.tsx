@@ -24,6 +24,7 @@ function selectProduct() {
   act(() => productButton.click());
 }
 beforeEach(() => {
+  window.sessionStorage.clear();
   container = document.createElement("div"); document.body.append(container);
   root = createRoot(container);
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
@@ -211,6 +212,39 @@ describe("Studio image generation progress", () => {
     root = createRoot(container);
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     expect(polls).toBe(1);
+  });
+
+  it("does not overlap slow Studio video status polls", async () => {
+    vi.useFakeTimers();
+    let resolveRead: (value: any) => void = () => {};
+    let pollSignal: AbortSignal | null | undefined;
+    let videoReads = 0;
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/studio/history?")) return response({ items: [{ id: "video-history", kind: "video", prompt: "", options: {}, status: "processing", credits_cost: 1, video_job_id: "slow-video", created_at: "2026-10-24T12:00:00Z" }], nextCursor: null });
+      if (url === "/api/studio/video/slow-video") {
+        videoReads++;
+        if (videoReads === 1) return response({ id: "slow-video", status: "processing" });
+        pollSignal = init?.signal;
+        return new Promise(resolve => { resolveRead = resolve; });
+      }
+      return original(url, init);
+    });
+
+    await act(async () => {
+      render();
+      for (let i = 0; i < 10 && videoReads === 0; i++) await Promise.resolve();
+    });
+    expect(videoReads).toBe(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    expect(videoReads).toBe(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(videoReads).toBe(2);
+
+    act(() => root.unmount());
+    expect(pollSignal?.aborted).toBe(true);
+    root = createRoot(container);
+    await act(async () => { resolveRead(response({ id: "slow-video", status: "processing" })); });
   });
 
   it("treats an isolated task read error as unavailable tracking, not as a failed generation", async () => {

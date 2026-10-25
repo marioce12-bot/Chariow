@@ -113,10 +113,11 @@ describe("device-local user sign-out", () => {
     await click('[data-testid="mobile-settings-signout"]');
     expectOnlyThisDeviceSignedOut();
   });
-  it("the mobile more-menu logout preserves the other device session", async () => {
+  it("the mobile more-menu settings route preserves the other device session on sign-out", async () => {
     await act(async () => root!.render(createElement(Dashboard)));
     await click(".mobile-more-trigger");
-    await click('.mobile-more-menu button.danger');
+    await click('.mobile-more-menu button[role="menuitem"]:last-of-type');
+    await click('[data-testid="mobile-settings-signout"]');
     expectOnlyThisDeviceSignedOut();
   });
   it("push cleanup failure never falls back to a global logout", async () => {

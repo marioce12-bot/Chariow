@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
 import { normalizeMetaCta } from "@/lib/meta/cta";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
+import { linkCampaignMedia } from "@/lib/creative-performance/placements";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -58,7 +59,9 @@ export async function PATCH(request: Request, context: Context) {
   if (!Object.keys(updates).length) return NextResponse.json({ error: "Aucune modification" }, { status: 400 });
 
   // Une campagne déjà diffusée ou en cours d'examen ne se modifie pas ici.
-  const { data: current } = await supabase.from("ad_campaigns").select("status").eq("id", id).eq("user_id", user.id).maybeSingle();
+  const { data: current } = await supabase.from("ad_campaigns")
+    .select("id,store_id,product_id,product_name,platform,status,title,media_url,carousel_urls,external_campaign_id")
+    .eq("id", id).eq("user_id", user.id).maybeSingle();
   if (!current) return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
   if (["submitting", "review", "active"].includes(current.status)) {
     return NextResponse.json({ error: "Cette campagne ne peut plus être modifiée" }, { status: 409 });
@@ -68,5 +71,33 @@ export async function PATCH(request: Request, context: Context) {
   const { data, error } = await supabase.from("ad_campaigns").update(updates).eq("id", id).eq("user_id", user.id).select("id,status,external_error").maybeSingle();
   if (error) return NextResponse.json({ error: "Impossible de modifier la campagne" }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
-  return NextResponse.json({ campaign: data });
+  let mediaTracking: { linked: number; mediaCount: number } | null = null;
+  if (current.status === "draft" && !current.external_campaign_id && ("media_url" in updates || "carousel_urls" in updates || "product_id" in updates || "product_name" in updates || "title" in updates)) {
+    try {
+      const { data: previousPlacements } = await supabase.from("creative_media_placements")
+        .select("variant_label").eq("user_id", user.id).eq("campaign_key", id);
+      const labels = [...new Set((previousPlacements ?? []).map((row: { variant_label: string | null }) => row.variant_label).filter((value: string | null): value is string => Boolean(value)))];
+      const variantLabel = body.variant_label === null ? null : typeof body.variant_label === "string" ? body.variant_label : labels.length === 1 ? labels[0] : null;
+      const finalMediaUrl = "media_url" in updates ? String(updates.media_url ?? "") : current.media_url ?? "";
+      const finalCarouselUrls = "carousel_urls" in updates
+        ? (Array.isArray(updates.carousel_urls) ? updates.carousel_urls as string[] : [])
+        : (Array.isArray(current.carousel_urls) ? current.carousel_urls : []);
+      const finalProductId = typeof updates.product_id === "string" ? updates.product_id : current.product_id ?? "";
+      if (!finalProductId) throw new Error("Le produit de la campagne n’est plus disponible.");
+      const { error: clearError } = await supabase.from("creative_media_placements").delete().eq("user_id", user.id).eq("campaign_key", id);
+      if (clearError) throw clearError;
+      mediaTracking = await linkCampaignMedia(supabase, {
+        userId: user.id, storeId: current.store_id, campaignId: id,
+        campaignName: (typeof updates.title === "string" ? updates.title : current.title) || (typeof updates.product_name === "string" ? updates.product_name : current.product_name) || finalProductId,
+        platform: current.platform,
+        productId: finalProductId,
+        productName: "product_name" in updates ? (typeof updates.product_name === "string" ? updates.product_name : null) : current.product_name,
+        variantLabel,
+        mediaUrls: [finalMediaUrl, ...finalCarouselUrls],
+      });
+    } catch (trackingError) {
+      console.warn("Draft campaign saved without refreshed creative-library links", trackingError instanceof Error ? trackingError.message : "unknown error");
+    }
+  }
+  return NextResponse.json({ campaign: data, mediaTracking });
 }

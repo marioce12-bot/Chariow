@@ -401,7 +401,10 @@ export async function runTaskStep(id: string, revision: number) {
         resolution: "hd",
         orientation: "portrait",
         background: "opaque",
-        referenceUrls: product.image ? [product.image] : [],
+        product,
+        referenceUrls: [product.image, meta.input.creativePerformanceSource?.imageUrl].filter((url): url is string => typeof url === "string").slice(0, 3),
+        creativePerformanceSource: meta.input.creativePerformanceSource,
+        creativeIdea: meta.input.creativeIdea,
         slideshow: {
           product,
           duration,
@@ -420,8 +423,8 @@ export async function runTaskStep(id: string, revision: number) {
     } else {
       const ids = images.map((image) => image.id);
       result = meta.input.voiceover === true
-        ? await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id, { product: meta.input.product, locale: meta.input.locale, campaignGoal: meta.input.campaignGoal })
-        : await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id);
+        ? await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id, { product: meta.input.product, locale: meta.input.locale, campaignGoal: meta.input.campaignGoal }, meta.input.creativePerformanceSource, meta.input.creativeIdea)
+        : await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id, undefined, meta.input.creativePerformanceSource, meta.input.creativeIdea);
     }
     if (meta.taskKind === "slideshow" && result && (!result.videoUrl || !result.generationId))
       throw new StudioTaskError("STUDIO_MP4_NOT_READY");

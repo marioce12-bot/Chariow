@@ -7,6 +7,7 @@ import type { WizardState } from "./types";
 import { useI18n } from "@/lib/i18n/i18n";
 import { campaignErrorMessage } from "@/lib/i18n/campaign-errors";
 import { PINTEREST_TAG_REQUIRED_CODE, isPinterestConversionTagError, pinterestTagCopy } from "@/lib/pinterest/tag-help";
+import { META_PIXEL_REQUIRED_CODE } from "@/lib/meta/pixel-help";
 
 interface StepProps {
   state: WizardState;
@@ -16,9 +17,10 @@ interface StepProps {
   onLaunchingChange?: (launching: boolean) => void;
   initialStatus?: "draft" | "paused" | "autopilot_paused" | "paid";
   initialError?: string | null;
+  launchLabel?: string;
 }
 
-type Phase = "ready" | "launching" | "done" | "error" | "tag_required";
+type Phase = "ready" | "launching" | "done" | "error" | "tag_required" | "meta_pixel_required";
 
 /**
  * Envoi de la campagne à Meta, TikTok ou Pinterest : la plateforme facture directement le
@@ -28,7 +30,7 @@ type Phase = "ready" | "launching" | "done" | "error" | "tag_required";
  * comment la récupérer et l'installer sur Chariow, et on ne lance en Trafic QUE si l'utilisateur
  * le confirme explicitement (confirm_traffic_fallback).
  */
-export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunchingChange, initialStatus, initialError }: StepProps) {
+export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunchingChange, initialStatus, initialError, launchLabel }: StepProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [error, setError] = useState<string | null>(null);
   const [objectiveFallback, setObjectiveFallback] = useState(false);
@@ -60,7 +62,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunch
     try {
       const body =
         state.platform === "meta"
-          ? { meta_ad_account_id: state.metaAdAccountId, page_id: state.metaPageId }
+          ? { meta_ad_account_id: state.metaAdAccountId, page_id: state.metaPageId, confirm_traffic_fallback: options?.confirmTraffic === true }
           : state.platform === "pinterest"
             ? { pinterest_ad_account_id: state.pinterestAdAccountId, confirm_traffic_fallback: options?.confirmTraffic === true }
             : { tiktok_ad_account_id: state.tiktokAdAccountId, identity_id: state.tiktokIdentityId, identity_type: state.tiktokIdentityType };
@@ -73,6 +75,10 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunch
       if (!res.ok) {
         if (data?.code === PINTEREST_TAG_REQUIRED_CODE) {
           setPhase("tag_required");
+          return;
+        }
+        if (state.platform === "meta" && data?.code === META_PIXEL_REQUIRED_CODE) {
+          setPhase("meta_pixel_required");
           return;
         }
         throw new Error(data?.error || t("dynamicExtra.platformRejected", { platform: (platformLabel) }));
@@ -103,7 +109,7 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunch
           {state.platform === "meta" && state.objective === "sales" ? (
             <div className="space-y-1 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
               <p className="font-semibold">{locale === "en" ? "Your campaign will be optimized for sales." : "Ta campagne sera optimisée pour les ventes."}</p>
-              <p>{locale === "en" ? "Meta needs the pixel from your ad account for this. If no pixel is configured on this account, the campaign will still launch with the Traffic objective (page views), which may reduce results." : "Pour cela, Meta a besoin du pixel de ton compte publicitaire. Si aucun pixel n’est configuré sur ce compte, la campagne sera quand même lancée, mais avec l’objectif Trafic (vues de page). Les résultats seront alors moins bons."}</p>
+              <p>{locale === "en" ? "Meta needs a pixel from your ad account for this. If none is found, Vendeo will stop and ask you to confirm before switching the objective to Traffic." : "Pour cela, Meta a besoin du pixel de ton compte publicitaire. Si aucun pixel n’est trouvé, Vendeo arrêtera le lancement et te demandera de confirmer avant de passer l’objectif en Trafic."}</p>
               <p>{locale === "en" ? "For better results: copy the pixel from your Meta ad account and add it to your Chariow store." : "Pour de meilleurs résultats : prends le pixel de ton compte publicitaire Meta et ajoute-le dans ta boutique Chariow."}</p>
             </div>
           ) : null}
@@ -115,13 +121,30 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunch
           ) : null}
           {error && <p className="text-sm text-[#991B1B]">{campaignErrorMessage(error, locale, t, state.platform)}</p>}
           <button onClick={() => void launchCampaign()} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">
-            {t("ads.launchButton")}
+            {launchLabel ?? t("ads.launchButton")}
           </button>
         </div>
       )}
 
       {phase === "launching" && (
         <LaunchProgress label={t("ads.launching", { platform: platformLabel })} />
+      )}
+
+      {phase === "meta_pixel_required" && (
+        <div className="space-y-3 rounded-xl bg-[#FFFBEB] p-4 text-sm text-[#92400E]" role="alert">
+          <p className="font-semibold">{locale === "en" ? "Meta can’t optimize this campaign for sales without a pixel." : "Meta ne peut pas optimiser cette campagne pour les ventes sans pixel."}</p>
+          <p>{locale === "en"
+            ? "No campaign was sent. You can install and configure a pixel, then retry with Sales, or explicitly choose to launch with Traffic instead."
+            : "Aucune campagne n’a été envoyée. Tu peux installer et configurer un pixel puis réessayer en Ventes, ou confirmer explicitement un lancement en Trafic."}</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button type="button" onClick={() => void launchCampaign({ confirmTraffic: true })} className="rounded-lg bg-[#6366F1] px-4 py-2 text-xs font-semibold text-white">
+              {locale === "en" ? "Confirm launch with Traffic" : "Confirmer le lancement en Trafic"}
+            </button>
+            <button type="button" onClick={() => { setPhase("ready"); setError(null); }} className="rounded-lg border border-[#6366F1] bg-white px-4 py-2 text-xs font-semibold text-[#3730A3]" style={whiteButtonStyle}>
+              {locale === "en" ? "Cancel; don’t launch" : "Annuler, ne rien lancer"}
+            </button>
+          </div>
+        </div>
       )}
 
       {phase === "done" && (

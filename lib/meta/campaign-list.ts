@@ -1,4 +1,5 @@
 import { META_GRAPH_BASE_URL } from "./api";
+import { createMetaGraphError, fetchMetaGraph } from "./graph";
 
 export type MetaCampaignRef = { id: string; name: string | null; effectiveStatus: string | null };
 
@@ -28,9 +29,9 @@ export async function fetchMetaCampaignList(accountId: string, accessToken: stri
   while (next && campaigns.length < maxCampaigns) {
     if (visited.has(next)) throw new Error("Meta campaigns pagination did not advance");
     visited.add(next);
-    const response: Response = await fetch(next, { cache: "no-store" });
+    const response: Response = await fetchMetaGraph(next);
     const json = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(typeof json?.error?.message === "string" ? json.error.message : `Meta campaigns request failed (${response.status})`);
+    if (!response.ok) throw createMetaGraphError(json?.error, response.status, `Meta campaigns request failed (${response.status})`);
     if (json.error || !Array.isArray(json.data)) throw new Error("Meta campaigns inventory response is incomplete");
     for (const row of json.data as Array<Record<string, unknown>>) {
       if (!row || typeof row.id !== "string" || !row.id) throw new Error("Meta campaigns inventory contains an invalid entry");

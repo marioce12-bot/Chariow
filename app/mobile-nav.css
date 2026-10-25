@@ -1,27 +1,166 @@
-/* Barre de navigation mobile — ajustements des icônes.
-   - Studio : même taille et même épaisseur de trait que Accueil / Pub / Radar
-     (le JSX le rendait en 21px avec un trait de 2.5, d'où l'aspect plus gras).
-   - Assistant : on garde l'icône plus grande, mais on retire le fond
-     (pastille) qui donnait l'impression que le bouton était déjà appuyé. */
-.mobile-nav .nav-btn:nth-child(4) svg { height:18px; stroke-width:2; width:18px; }
-.mobile-nav .nav-btn-assistant,
-.mobile-nav .nav-btn-assistant.active,
-html[data-theme="dark"] .mobile-nav .nav-btn-assistant,
-html[data-theme="dark"] .mobile-nav .nav-btn-assistant.active { background:transparent; }
-
+/* Dock mobile du tableau de bord. */
 @media (max-width: 760px) {
-  .dashboard-platform .mobile-nav {
+  .dashboard-platform nav.mobile-nav {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.94);
+    border-radius: 34px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 12px 32px rgba(34, 54, 105, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.98), inset 0 -1px 0 rgba(120, 148, 198, 0.24);
+    box-sizing: border-box;
+    gap: 0;
+    left: max(10px, env(safe-area-inset-left, 0px));
+    overflow: visible;
+    padding: 6px 7px;
+    right: max(10px, env(safe-area-inset-right, 0px));
     transition: transform 220ms ease, opacity 180ms ease;
     will-change: transform;
   }
+
+  .dashboard-platform .mobile-nav .nav-btn {
+    align-self: stretch;
+    border-radius: 18px;
+    color: #08090c;
+    flex: 1 1 0;
+    font-weight: 500;
+    gap: 5px;
+    justify-content: center;
+    min-height: 66px;
+    min-width: 0;
+    overflow: visible;
+    padding: 5px 1px 6px;
+    position: relative;
+    transition: color 160ms ease;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn svg {
+    flex: 0 0 auto;
+    height: 24px;
+    stroke-width: 2;
+    width: 24px;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn span {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.05;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-recommendation span {
+    font-size: 9px;
+    letter-spacing: -0.25px;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn.active {
+    color: #103ef8;
+    font-weight: 700;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn.nav-btn-guide-highlight {
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 0 0 6px rgba(76, 33, 246, 0.2), 0 8px 22px rgba(60, 38, 170, 0.26);
+    color: #4c21f6;
+    font-weight: 700;
+    outline: 3px solid #6b45e8;
+    outline-offset: 1px;
+    z-index: 3;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn.nav-btn-guide-highlight svg {
+    color: #4c21f6;
+    stroke-width: 2.5;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-has-notification::after {
+    background: #e11d48;
+    border: 2px solid rgba(255, 255, 255, 0.96);
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(30, 41, 59, 0.18);
+    content: "";
+    height: 8px;
+    position: absolute;
+    right: calc(50% - 19px);
+    top: 7px;
+    width: 8px;
+    z-index: 4;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn:focus-visible {
+    outline: 3px solid #6e91ff;
+    outline-offset: 3px;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-studio {
+    flex: 1.08 1 0;
+    justify-content: flex-end;
+    overflow: visible;
+    padding-bottom: 6px;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-studio svg {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.98);
+    border-radius: 50%;
+    box-shadow: 0 7px 18px rgba(40, 73, 166, 0.20), 0 0 0 4px rgba(255, 255, 255, 0.50), inset 0 1px 0 rgba(255, 255, 255, 1);
+    box-sizing: content-box;
+    color: #08090c;
+    height: 26px;
+    left: 50%;
+    padding: 13px;
+    position: absolute;
+    top: -18px;
+    transform: translateX(-50%);
+    width: 26px;
+    z-index: 2;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-studio.active svg {
+    border-color: rgba(16, 62, 248, 0.22);
+    color: #103ef8;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-studio span {
+    position: relative;
+  }
+
   .dashboard-platform .mobile-nav.mobile-nav-hidden {
     opacity: 0;
     pointer-events: none;
-    transform: translateY(calc(100% + env(safe-area-inset-bottom)));
+    transform: translateY(calc(100% + env(safe-area-inset-bottom, 0px) + 16px));
   }
-  .dashboard-platform .mobile-nav.mobile-nav-visible { transform: translateY(0); }
+
+  .dashboard-platform .mobile-nav.mobile-nav-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 360px) {
+  .dashboard-platform nav.mobile-nav {
+    gap: 0;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn span {
+    font-size: 9px;
+  }
+
+  .dashboard-platform .mobile-nav .nav-btn-recommendation span {
+    font-size: 8px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dashboard-platform .mobile-nav { transition: none !important; }
+  .dashboard-platform .mobile-nav {
+    transition: none !important;
+  }
 }

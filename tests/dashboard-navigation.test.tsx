@@ -10,14 +10,16 @@ vi.mock("@/lib/i18n/i18n", async () => {
 import { DashboardHeaderNavigation, DashboardPrimaryNavigation } from "@/components/dashboard/DesktopNavigation";
 
 describe("dashboard desktop navigation", () => {
-  it("keeps all ten primary destinations, including feedback", () => {
+  it("keeps ten primary destinations and replaces the visual section with Recommendation", () => {
     const html = renderToStaticMarkup(<DashboardPrimaryNavigation active="Accueil" onChange={() => {}} />);
     expect((html.match(/<button/g) ?? []).length).toBe(10);
+    expect(html).toContain("Recommandation");
+    expect(html).not.toContain("Performance visuel");
     expect(html).toContain("Suggestions et notes");
     expect(html).toContain("Accueil");
     expect(html).toContain("Bénéfices nets");
     expect(html).toContain("Relances WhatsApp");
-    expect(html).toContain("Pilotage auto");
+    expect(html).not.toContain("Pilotage auto");
     expect(html).not.toContain("nav.stores");
     expect(html).not.toContain("nav.adAccounts");
     expect(html).not.toContain("nav.subscription");
@@ -59,7 +61,7 @@ describe("dashboard desktop navigation", () => {
     const source = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
     const css = readFileSync(new URL("../app/dashboard-navigation.css", import.meta.url), "utf8");
     const mobileCss = readFileSync(new URL("../app/dashboard-autopilot-header.css", import.meta.url), "utf8");
-    expect(source).toContain('<DashboardHeaderNavigation active={active} onChange={setActive} />');
+    expect(source).toContain('<DashboardHeaderNavigation active={active} onChange={(section) => section === "Paramètres" ? openSettingsIndex() : setActive(section)} />');
     expect(source).toContain('<DashboardPrimaryNavigation active={active} onChange={setActive} />');
     expect(source).toContain('aria-label={w("mobileNav")}');
     expect(css).toContain('@media (min-width: 761px)');
@@ -69,19 +71,16 @@ describe("dashboard desktop navigation", () => {
     expect(css).not.toContain('.admin-');
   });
 
-  it("provides a mobile autopilot header shortcut and keeps other overflow items", () => {
+  it("keeps useful secondary items in the mobile overflow menu and omits the Autopilot shortcut", () => {
     const source = readFileSync(new URL("../components/Dashboard.tsx", import.meta.url), "utf8");
     const menu = source.slice(source.indexOf('<div className="mobile-more-menu"'), source.indexOf("</div>", source.indexOf('<div className="mobile-more-menu"')));
-    const shortcut = source.slice(source.indexOf('className="mobile-autopilot-trigger"'), source.indexOf('</button>', source.indexOf('className="mobile-autopilot-trigger"')));
-    const css = readFileSync(new URL("../app/dashboard-autopilot-header.css", import.meta.url), "utf8");
-    expect(source).toContain('aria-label={t("workspaceExtra.autopilot")} title={t("workspaceExtra.autopilot")}');
-    expect(shortcut).toContain('aria-current={active === "Pilotage auto" ? "page" : undefined}');
-    expect(shortcut).toContain('setActive("Pilotage auto"); setMoreOpen(false)');
-    expect(menu).not.toContain('workspaceExtra.autopilot');
-    for (const item of ['w("netProfit")', 'w("whatsapp")', 'workspaceExtra.reports', 'workspaceExtra.subscription', 'workspaceExtra.settings']) expect(menu).toContain(item);
-    expect(css).toContain("@media (max-width: 760px)");
-    expect(css).toContain("focus-visible");
-    expect(css).toContain('aria-current="page"');
-    expect(css).toContain("width: 36px");
+    expect(source).not.toContain('className="mobile-autopilot-trigger"');
+    expect(source).not.toContain('setActive("Pilotage auto")');
+    expect((menu.match(/role="menuitem"/g) ?? [])).toHaveLength(6);
+    for (const item of ['w("netProfit")', 'w("whatsapp")', 'Radar marché', 'Performance publicitaire', 'workspaceExtra.reports', 'workspaceExtra.settings']) expect(menu).toContain(item);
+    expect(menu).not.toContain("Performance visuel");
+    expect(menu).not.toContain('workspaceExtra.subscription');
+    expect(menu).not.toContain('adminExtra.admin.logout');
+    expect(menu).not.toContain('setActive("Mes boutiques")');
   });
 });

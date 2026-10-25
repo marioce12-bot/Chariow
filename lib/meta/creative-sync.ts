@@ -1,4 +1,5 @@
 import { META_GRAPH_BASE_URL } from "./api";
+import { createMetaGraphError, fetchMetaGraph, isMetaAuthenticationError } from "./graph";
 
 type CreativeRow = { external_creative_id?: string | null; media_url?: string | null; carousel_urls?: string[] | null };
 type CreativePatch = { external_creative_id?: string; media_url?: string; carousel_urls?: string[] };
@@ -12,9 +13,9 @@ async function graphRead(path: string, fields: string, accessToken: string) {
   const url = new URL(`${META_GRAPH_BASE_URL}/${encodeURIComponent(path)}`);
   url.searchParams.set("fields", fields);
   url.searchParams.set("access_token", accessToken);
-  const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+  const response = await fetchMetaGraph(url, { signal: AbortSignal.timeout(10_000) });
   const json = await response.json();
-  if (!response.ok || json.error) throw new Error("Meta creative read unavailable");
+  if (!response.ok || json.error) throw createMetaGraphError(json.error, response.status, "Meta creative read unavailable");
   return json;
 }
 
@@ -52,8 +53,9 @@ export async function getMetaCreativePatch(input: { adId: string; accessToken: s
     if (mediaUrl !== input.campaign.media_url) patch.media_url = mediaUrl;
     if (JSON.stringify(carouselUrls) !== JSON.stringify(input.campaign.carousel_urls ?? [])) patch.carousel_urls = carouselUrls;
     return patch;
-  } catch {
+  } catch (error) {
     // Status verification remains independent of creative permissions/network failures.
+    if (isMetaAuthenticationError(error)) throw error;
     return {};
   }
 }
