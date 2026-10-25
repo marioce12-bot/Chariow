@@ -81,21 +81,27 @@ export async function syncMetaInsights(supabase: any, account: { id: string; met
     const entries = [...targets.entries()];
     let byIdCount = 0;
     let nextIndex = 0;
-    await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT_CAMPAIGN_REQUESTS, entries.length) }, async () => {
-      while (nextIndex < entries.length) {
-        const [campaignId, campaignName] = entries[nextIndex++];
-        try {
-          const insights = await fetchMetaInsights(campaignId, accessToken, from, to, "campaign");
-          if (insights.some((insight: MetaInsight) => insight.spend === null || insight.spend === undefined || insight.spend === "")) campaignSpendMissing = true;
-          const rows = insights.map((insight: MetaInsight) => buildRow(account, "campaign", insight, from, to, { id: campaignId, name: campaignName })).filter(Boolean);
-          await upsertInsightRows(supabase, rows);
-          byIdCount += rows.length;
-        } catch (error) {
-          if (isMetaAuthenticationError(error)) throw error;
-          errors.push(`${campaignId}: ${errorText(error)}`);
+    let campaignByIdRequests = 0;
+    try {
+      await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT_CAMPAIGN_REQUESTS, entries.length) }, async () => {
+        while (nextIndex < entries.length) {
+          const [campaignId, campaignName] = entries[nextIndex++];
+          campaignByIdRequests += 1;
+          try {
+            const insights = await fetchMetaInsights(campaignId, accessToken, from, to, "campaign");
+            if (insights.some((insight: MetaInsight) => insight.spend === null || insight.spend === undefined || insight.spend === "")) campaignSpendMissing = true;
+            const rows = insights.map((insight: MetaInsight) => buildRow(account, "campaign", insight, from, to, { id: campaignId, name: campaignName })).filter(Boolean);
+            await upsertInsightRows(supabase, rows);
+            byIdCount += rows.length;
+          } catch (error) {
+            if (isMetaAuthenticationError(error)) throw error;
+            errors.push(`${campaignId}: ${errorText(error)}`);
+          }
         }
-      }
-    }));
+      }));
+    } finally {
+      console.info("Meta campaign ID counters", { campaignByIdRequests });
+    }
     results.push({ level: "campaign_by_id", count: byIdCount, ...(errors.length ? { error: errors.join(" | ") } : {}) });
   } catch (error) {
     if (isMetaAuthenticationError(error)) throw error;
