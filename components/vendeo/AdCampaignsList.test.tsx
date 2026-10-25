@@ -64,7 +64,7 @@ describe("AdCampaignsList lifecycle UI", () => {
     await act(async () => {
       container.querySelector<HTMLElement>(".ad-campaign-row")!.click();
     });
-    expect(container.textContent).toContain("Texte actualisé");
+    expect(document.body.textContent).toContain("Texte actualisé");
 
     backendCampaigns = backendCampaigns.map((item) => item.id === "active"
       ? { ...item, media_url: "https://example.test/refreshed.jpg", ad_text: "Texte après refresh" }
@@ -74,8 +74,8 @@ describe("AdCampaignsList lifecycle UI", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(container.querySelector<HTMLImageElement>(".ad-campaign-detail img")?.src).toBe("https://example.test/refreshed.jpg");
-    expect(container.querySelector(".ad-campaign-detail")?.textContent).toContain("Texte après refresh");
+    expect(document.body.querySelector<HTMLImageElement>(".ad-campaign-detail img")?.src).toBe("https://example.test/refreshed.jpg");
+    expect(document.body.querySelector(".ad-campaign-detail")?.textContent).toContain("Texte après refresh");
   });
   it("revalidates a linked Meta media failure without launching or editing the provider campaign", async () => {
     backendCampaigns = fixtures.map((item) => item.id === "active"
@@ -110,6 +110,6 @@ describe("AdCampaignsList lifecycle UI", () => {
     expect(css).toContain("flex-wrap: wrap");
     expect(css).toContain("min-width: 0");
     expect(css).toContain("flex: 0 0 42px");
-    expect(css).not.toContain("overflow: hidden");
+    expect(css).toMatch(/\.ad-campaign-detail-content\s*\{[^}]*overflow-y:\s*auto/);
   });
 });

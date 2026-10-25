@@ -49,9 +49,86 @@
 .ad-campaign-modal-actions > button.btn svg {
   flex-shrink: 0;
 }
+.ad-campaign-detail-backdrop {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  padding: 16px;
+  position: fixed;
+  z-index: 10050;
+}
 .ad-campaign-detail {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  max-height: min(90dvh, 760px);
+  max-width: 620px;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  padding: 0;
+  width: 100%;
+}
+.ad-campaign-detail-header {
+  align-items: flex-start;
+  background: var(--surface, #fff);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+  gap: 12px;
+  margin: 0;
+  padding: 16px 18px 14px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.ad-campaign-detail-header > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.ad-campaign-detail-header h2 {
+  overflow-wrap: anywhere;
+}
+.ad-campaign-detail-header > button {
+  flex: none;
+  height: 44px;
+  min-height: 44px;
+  min-width: 44px;
+  width: 44px;
+}
+.ad-campaign-detail-content {
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 18px calc(22px + env(safe-area-inset-bottom, 0px));
+  scrollbar-gutter: stable;
+}
+@media (max-width: 760px) {
+  .ad-campaign-detail-backdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+  .ad-campaign-detail {
+    border: 0;
+    border-radius: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    max-width: none;
+    width: 100%;
+  }
+  .ad-campaign-detail-header {
+    padding: max(8px, env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) 12px max(14px, env(safe-area-inset-left, 0px));
+  }
+  .ad-campaign-detail-content {
+    padding: 14px max(14px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+  }
 }
 @media (max-width: 640px) {
   .ad-campaign-modal-actions {
