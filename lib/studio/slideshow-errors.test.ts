@@ -17,4 +17,18 @@ describe("public slideshow errors", () => {
     expect(publicSlideshowError("Ajoute une description du produit.", "fr")).toBe(slideshowPublicFailure("fr"));
     expect(publicSlideshowError(null, "en")).toBe("The slideshow could not be created. Check your history before trying again.");
   });
+
+  it("explains a retryable Gemini refusal without exposing provider details", () => {
+    expect(publicSlideshowError("Gemini voice request refused (HTTP 400).", "fr", "SLIDESHOW_VOICE_RETRYABLE"))
+      .toBe("Le service vocal a refusé la demande avant de produire l’audio. Les visuels déjà créés sont conservés ; tu peux relancer sans les recréer.");
+    expect(publicSlideshowError("Gemini voice request refused (HTTP 400).", "en", "SLIDESHOW_VOICE_RETRYABLE"))
+      .toContain("before producing audio");
+  });
+
+  it("explains that uncertain Gemini results stay blocked", () => {
+    expect(publicSlideshowError("Gemini voice request outcome is uncertain.", "fr", "SLIDESHOW_VOICE_UNCERTAIN"))
+      .toContain("la reprise est bloquée");
+    expect(publicSlideshowError("Gemini voice request outcome is uncertain.", "en", "SLIDESHOW_VOICE_UNCERTAIN"))
+      .toContain("resuming is blocked");
+  });
 });

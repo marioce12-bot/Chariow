@@ -28,6 +28,20 @@ beforeEach(() => {
   mocks.user.mockResolvedValue({ user: { id: "owner" } }); mocks.subscription.mockResolvedValue(null);
 });
 describe("pré-vérification du solde avant lancement d’un diaporama", () => {
+  it("refuse une description de 54 mots avant lecture du solde, toute image et tout lancement", async () => {
+    const insert = configureDb({ balance: 100, reserved: 0 });
+    const shortInput = { ...input, product: { name: "Guide Atlas", description: "Le guide est disponible en PDF. Il présente les bases du jardinage. Chaque chapitre décrit une étape du potager. Les fiches expliquent la préparation du sol. Des exercices aident à organiser les plantations. Un calendrier accompagne le suivi des cultures. Les illustrations montrent des plantes en pots. Le téléchargement permet une lecture hors connexion." } };
+    const response = await POST(request(shortInput));
+    const body = await response.json();
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({ code: "INSUFFICIENT_PRODUCT_DETAILS" });
+    expect(body.error).toMatch(/trop courte.*25 s.*aucune image.*aucun crédit/i);
+    expect(mocks.from.mock.calls.map(([table]) => table)).toEqual(["studio_generations"]);
+    expect(insert).not.toHaveBeenCalled();
+    expect(mocks.after).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.render).not.toHaveBeenCalled();
+  });
   it("refuse avec 402 INSUFFICIENT_CREDITS quand le solde disponible est inférieur à 100, sans insertion ni dispatch", async () => {
     const insert = configureDb({ balance: 60, reserved: 0 });
     const response = await POST(request());

@@ -44,6 +44,16 @@ export function assertSlideshowVoiceAllowed(): void {
 }
 
 export type SlideshowVoicePlan = { script: string; language: string; musicId: string; model: typeof SLIDESHOW_VOICE_MODEL; voice: string; duration: number; tone: string };
+export type GeminiVoiceDisposition = "retryable" | "uncertain";
+export class GeminiVoiceError extends Error {
+  constructor(readonly disposition: GeminiVoiceDisposition, readonly status: number | null) {
+    super(disposition === "retryable" ? `Gemini voice request refused (HTTP ${status}).` : "Gemini voice request outcome is uncertain.");
+    this.name = "GeminiVoiceError";
+  }
+}
+export function classifyGeminiVoiceStatus(status: number): GeminiVoiceDisposition {
+  return status >= 400 && status < 500 && status !== 408 ? "retryable" : "uncertain";
+}
 function category(name: string, description: string): string {
   const text = `${name} ${description}`.toLowerCase();
   if (/livre|book|roman|journal|album/.test(text)) return "books";
@@ -65,18 +75,24 @@ function score(tags: string[], prefs: string[]) { return (tags.includes("instrum
 export function buildSlideshowVoicePlan(product: { name: string; description?: string }, duration: number, locale = "fr", goal: unknown = "discover", measuredBudget?: { minimumWords: number; maxWords: number }): SlideshowVoicePlan {
   const name = product.name?.trim().slice(0, 200);
   const description = typeof product.description === "string" ? product.description : "";
-  const evidence = slideshowEvidence(description, name, 60);
   const language = resolveProductLanguage({ name: product.name, description }, locale).code;
   // Estimate natural delivery at 2.0–2.6 words/sec across the required 95% voice window.
-  // This estimate is not a guarantee: actual rendered audio is measured before success.
+  // Require 20% extra source material so a short rendered clip does not fail after images are paid for.
   const speakingWindow = duration * 0.95;
-  const minimumWords = measuredBudget?.minimumWords ?? Math.ceil(speakingWindow * 2.0);
+  const baseMinimumWords = Math.ceil(speakingWindow * 2.0);
+  const minimumSourceWords = Math.ceil(baseMinimumWords * 1.2);
+  const minimumWords = measuredBudget?.minimumWords ?? baseMinimumWords;
   const maxWords = measuredBudget?.maxWords ?? Math.floor(speakingWindow * 2.6);
   if (!Number.isFinite(minimumWords) || !Number.isFinite(maxWords) || minimumWords <= 0 || maxWords < minimumWords) throw new Error("Invalid narration word budget");
   const wordCount = (part: string) => part.trim().split(/\s+/).filter(Boolean).length;
   if (wordCount(name) > maxWords) throw new Error("Nom du produit trop long pour le budget vocal de cette durée; TTS non lancé.");
   // Reuse slideshow validator, with inferred locale and its required complete, distinct evidence.
   buildSlideshowPlan({ name, description, duration, aspectRatio: "1:1", locale, hasReference: false, character: "auto" });
+  const sourceWords = slideshowSourceCandidates(description)
+    .reduce((count, sentence) => count + wordCount(sentence), 0);
+  if (sourceWords < minimumSourceWords) throw new InsufficientProductDetailsError(
+    `Description insuffisante pour une narration de ${duration}s : ${sourceWords} mots source exploitables, ${minimumSourceWords} requis avec marge. Aucune image ni aucun crédit consommé.`,
+  );
   // Keep complete evidence sentences only; never clip a fact.
   const cta = language === "fr" || language === "en" ? buildSlideshowCta(name, slideshowSourceCandidates(description), campaignGoal(goal), language === "en") : (neutralProductCta(language) ?? name);
   if (wordCount(name) + wordCount(cta) > maxWords) throw new Error("Nom et CTA complet dépassent le budget vocal; TTS non lancé.");
@@ -86,7 +102,7 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   // density. Evidence is used once, in source order; no invented/repeated filler.
   // Keep source-backed speech dense enough to approach the selected runtime;
   // actual rendered audio is independently checked for terminal silence.
-  for (const part of evidence) {
+  for (const part of slideshowEvidence(description, name, Number.MAX_SAFE_INTEGER)) {
     const count = part.trim().split(/\s+/).filter(Boolean).length;
     if (words + count > maxWords) continue;
     if (measuredBudget && words >= minimumWords) break;
@@ -112,10 +128,7 @@ export async function synthesizeSlideshowVoice(plan: SlideshowVoicePlan, fetcher
       // Gemini 3.8 reads text verbatim; delivery directions belong in speech_metadata.
       body: JSON.stringify({ contents: [{ parts: [{ text: plan.script, speech_metadata: { style: plan.tone } }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: plan.voice } } } } }),
     });
-    if (!response.ok) {
-      if (response.status === 429 || response.status === 403) throw new Error("Quota ou accès Gemini gratuit indisponible; aucune relance ni bascule vers une offre payante n'est effectuée.");
-      throw new Error(`Gemini TTS a répondu HTTP ${response.status}; aucun retry n'est effectué.`);
-    }
+    if (!response.ok) throw new GeminiVoiceError(classifyGeminiVoiceStatus(response.status), response.status);
     const data: any = await response.json();
     const inline = data?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
     if (inline?.mimeType !== "audio/wav" && inline?.mimeType !== "audio/x-wav" && inline?.mimeType !== "audio/L16;codec=pcm;rate=24000") throw new Error("Réponse Gemini absente ou non PCM 24 kHz mono.");
@@ -136,7 +149,7 @@ export async function synthesizeSlideshowVoice(plan: SlideshowVoicePlan, fetcher
     if (wav.length > MAX_RESPONSE_BYTES || wav.readUInt16LE(22) !== 1 || wav.readUInt32LE(24) !== 24_000 || wav.readUInt16LE(20) !== 1) throw new Error("WAV reçu invalide : attendu PCM mono 24 kHz.");
     return wav;
   } catch (error: any) {
-    if (error?.name === "AbortError") throw new Error("Délai d'attente Gemini TTS dépassé; aucune relance car le résultat de la requête est incertain.");
-    throw error;
+    if (error instanceof GeminiVoiceError) throw error;
+    throw new GeminiVoiceError("uncertain", null);
   } finally { clearTimeout(timer); }
 }

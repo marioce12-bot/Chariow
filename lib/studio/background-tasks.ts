@@ -6,7 +6,7 @@ import {
   preflightSlideshow,
   renderSlideshow,
 } from "@/lib/studio/slideshow-server";
-import { assertSlideshowVoiceAllowed } from "@/lib/studio/slideshow-voice";
+import { assertSlideshowVoiceAllowed, GeminiVoiceError } from "@/lib/studio/slideshow-voice";
 import { signedStudioUrl } from "@/lib/studio/media";
 import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 
@@ -21,9 +21,9 @@ export type StageRecord = {
   startedAt: string;
   completedAt?: string;
 };
-// Refusals returned BEFORE any credit reservation or provider call: nothing was charged,
-// so the step is safe to retry after the user tops up / renews.
-export const NO_CHARGE_ERROR_CODES = ["STUDIO_INSUFFICIENT_CREDITS", "STUDIO_PLANS_REQUIRED"];
+// Known no-charge outcomes: credit/subscription preflight refusal or an explicit Gemini
+// 4xx refusal before audio. The render stage can be retried without regenerating images.
+export const NO_CHARGE_ERROR_CODES = ["STUDIO_INSUFFICIENT_CREDITS", "STUDIO_PLANS_REQUIRED", "SLIDESHOW_VOICE_RETRYABLE"];
 export class StudioTaskError extends Error {
   constructor(public code: string, public status: number | null = null, message?: string) {
     super(message ?? "Le suivi serveur n’a pas pu continuer. Les étapes terminées sont conservées ; aucune étape payante n’est relancée.");
@@ -229,7 +229,7 @@ export async function publicTask(row: any): Promise<PublicTask> {
       ? slideshowPublicFailure(metadata.input?.locale) : metadata.message,
     error: recoveredFinal ? undefined : stale
       ? "Le suivi de cette génération a été interrompu. Consulte l’historique : aucune nouvelle génération n’a été lancée automatiquement."
-      : row.status === "failed" ? (metadata.taskKind === "slideshow" ? publicSlideshowError(metadata.error, metadata.input?.locale) : metadata.error) : undefined,
+      : row.status === "failed" ? (metadata.taskKind === "slideshow" ? publicSlideshowError(metadata.error, metadata.input?.locale, metadata.errorCode) : metadata.error) : undefined,
     images, sourceImagesConfirmed, ...(input ? { input } : {}), result,
     ...(mediaPending ? { mediaPending: true } : {}), createdAt: row.created_at,
   };
@@ -270,6 +270,9 @@ export async function failTask(
   error: unknown,
   expected?: { revision: number; phase: string },
 ) {
+  if (error instanceof GeminiVoiceError) {
+    error = new StudioTaskError(error.disposition === "retryable" ? "SLIDESHOW_VOICE_RETRYABLE" : "SLIDESHOW_VOICE_UNCERTAIN", error.status);
+  }
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("studio_generations")
@@ -286,8 +289,8 @@ export async function failTask(
   const message =
     error instanceof Error ? error.message : "Génération interrompue.";
   const code = error instanceof StudioTaskError ? error.code : "STUDIO_STEP_FAILED";
-  // A refusal returned before any reservation (insufficient credits, subscription) charged nothing:
-  // the running step is dropped instead of being marked uncertain, so it can be resumed after a top-up.
+  // A known no-charge refusal (credit/subscription preflight or explicit Gemini 4xx before audio)
+  // drops the render stage instead of marking it uncertain; previously completed images remain intact.
   const noCharge = error instanceof StudioTaskError && NO_CHARGE_ERROR_CODES.includes(error.code);
   const uncertain = row.metadata.phase === "running" && !noCharge;
   logTaskEvent("task_failed", id, row.metadata.revision, { ...row.metadata, creditState: uncertain ? "uncertain" : row.metadata.creditState }, error);

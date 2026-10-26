@@ -41,7 +41,7 @@ export class InsufficientProductDetailsError extends Error {
 }
 // Preserve HTML blocks and exact wording, including explicit coordinated facts.
 export function slideshowSourceCandidates(description: string): string[] {
-  const text = description.slice(0, 3000)
+  const text = description
     .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "")
     .replace(/<\/?(?:p|div|h[1-6]|li|ul|ol|br)\b[^>]*>/gi, "\n")
     .replace(/<[^>]*>/g, " ")
@@ -54,7 +54,7 @@ export function slideshowSourceCandidates(description: string): string[] {
       ? sentence.split(/;\s*|,\s*(?=à\s+)|\s+et\s+(?=à\s+)/u)
       : [sentence];
     return parts.map(part => part.replace(/^\s*[-•*«»]\s*/, "").replace(/[«»]\s*$/g, "").trim());
-  }).filter(line => line.length >= 8 && line.length <= 140).slice(0, 60);
+  }).filter(line => line.length >= 8 && line.length <= 140);
 }
 /** Select distinct explicit facts. Missing facts never authorize invented claims. */
 export function slideshowEvidence(description: string, name: string, maxFacts = 12): string[] {
@@ -62,7 +62,9 @@ export function slideshowEvidence(description: string, name: string, maxFacts = 
   const title = normalize(name);
   const accepted: string[] = [];
   const tokens = (text: string) => new Set(normalize(text).split(" ").filter(word => word.length >= 3));
-  for (const line of slideshowSourceCandidates(description)) {
+  const candidates = slideshowSourceCandidates(description);
+  const limit = Number.isFinite(maxFacts) ? Math.max(1, Math.floor(maxFacts)) : candidates.length;
+  for (const line of candidates) {
     if (line.length > 140 || normalize(line) === title || tokens(line).size < 2 || nearDuplicate(line, name)) continue;
     // Exclude instructions, testimonials, unverified outcomes, boilerplate and urgency.
     if (/https?:|ignore|instructions?|prompt|system|garanti|guarantee|témoign|testimonial|avis client|customer review|étoiles|stars|aucun fait|no product facts|écris un avis|write a review|\b\d+\s*%|résultat|results?|miracle|derni[eè]re chance|offre limit|stock|cookie|copyright|tous droits|politique de|conditions générales/i.test(line)) continue;
@@ -72,7 +74,7 @@ export function slideshowEvidence(description: string, name: string, maxFacts = 
       return nearDuplicate(other, line) || normalize(other) === normalize(line) || overlap / Math.min(words.size, old.size) >= 0.75;
     })) continue;
     accepted.push(line);
-    if (accepted.length >= Math.min(60, Math.max(1, maxFacts))) break;
+    if (accepted.length >= limit) break;
   }
   return accepted;
 }

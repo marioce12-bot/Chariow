@@ -15,7 +15,8 @@ vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/lib/subscription/access", () => ({ requireActiveSubscription: mocks.subscription }));
 vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit: mocks.rateLimit }));
 
-import { publicTask, runTaskStep, TASK_TYPE, stageGenerationId, taskToken } from "@/lib/studio/background-tasks";
+import { continuationQuote, publicTask, runTaskStep, TASK_TYPE, stageGenerationId, taskToken } from "@/lib/studio/background-tasks";
+import { GeminiVoiceError } from "@/lib/studio/slideshow-voice";
 import { studioTaskWorkflow } from "@/lib/studio/task-workflow";
 import { GET, POST as createTask } from "@/app/api/studio/tasks/route";
 import { POST as workerPost } from "@/app/api/studio/tasks/worker/route";
@@ -151,6 +152,39 @@ describe("runTaskStep", () => {
     expect(row.status).toBe("failed"); expect(row.metadata.progress).not.toBe(100);
     expect(row.metadata.errorCode).toBe("STUDIO_MP4_NOT_READY");
     expect(mocks.generate).not.toHaveBeenCalled();
+  });
+  it("keeps completed images and permits a zero-cost retry after an explicit Gemini 4xx refusal", async () => {
+    const images = Array.from({ length: 5 }, (_, i) => ({ id: `g${i}`, url: `u${i}` }));
+    const stages = images.map((image, i) => ({ step: i + 1, kind: "image", state: "completed", generationId: image.id, cost: 20, creditState: "confirmed", startedAt: "2026-01-01" }));
+    const input = { product: { name: "Guide", description: "Disponible en PDF. Il présente plusieurs chapitres. Chaque partie décrit une méthode. Des exercices accompagnent la lecture." }, duration: 25, musicId: "", locale: "fr", voiceover: true };
+    const row = rowFor(metadata("slideshow", { input, revision: 6, phase: "queued", images, creditsConsumed: 100, creditState: "confirmed", stages }));
+    const updates = configureDb(row);
+    mocks.render.mockRejectedValue(new GeminiVoiceError("retryable", 400));
+    await runTaskStep(id, 6);
+    expect(row.status).toBe("failed");
+    expect(row.metadata.errorCode).toBe("SLIDESHOW_VOICE_RETRYABLE");
+    expect(row.metadata.creditState).toBe("confirmed");
+    expect(row.metadata.images).toEqual(images);
+    expect(row.metadata.creditsConsumed).toBe(100);
+    expect(row.metadata.stages).toHaveLength(5);
+    expect(continuationQuote(row, { status: "failed", errorCode: row.metadata.errorCode, images, sourceImagesConfirmed: true }))
+      .toMatchObject({ allowed: true, cost: 0, nextStep: "render" });
+    expect(updates.at(-1).metadata.stages.some((stage: any) => stage.state === "uncertain")).toBe(false);
+  });
+  it("blocks an uncertain Gemini 5xx outcome and preserves uncertainty on the render stage", async () => {
+    const images = Array.from({ length: 5 }, (_, i) => ({ id: `g${i}`, url: `u${i}` }));
+    const stages = images.map((image, i) => ({ step: i + 1, kind: "image", state: "completed", generationId: image.id, cost: 20, creditState: "confirmed", startedAt: "2026-01-01" }));
+    const input = { product: { name: "Guide", description: "Disponible en PDF. Il présente plusieurs chapitres. Chaque partie décrit une méthode. Des exercices accompagnent la lecture." }, duration: 25, musicId: "", locale: "fr", voiceover: true };
+    const row = rowFor(metadata("slideshow", { input, revision: 6, phase: "queued", images, creditsConsumed: 100, creditState: "confirmed", stages }));
+    configureDb(row);
+    mocks.render.mockRejectedValue(new GeminiVoiceError("uncertain", 503));
+    await runTaskStep(id, 6);
+    expect(row.status).toBe("failed");
+    expect(row.metadata.errorCode).toBe("SLIDESHOW_VOICE_UNCERTAIN");
+    expect(row.metadata.creditState).toBe("uncertain");
+    expect(row.metadata.stages.at(-1)).toMatchObject({ kind: "render", state: "uncertain" });
+    expect(continuationQuote(row, { status: "failed", errorCode: row.metadata.errorCode, images, sourceImagesConfirmed: true }))
+      .toMatchObject({ allowed: false, reason: "STAGE_UNCERTAIN" });
   });
   it("le workflow complète réellement les cinq checkpoints et le MP4 sans réseau ni récursion", async () => {
     const row = rowFor(metadata("slideshow"));
