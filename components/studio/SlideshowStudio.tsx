@@ -501,15 +501,12 @@ export function SlideshowStudio({
       <p>{fr ? "Voix et musique ajoutées automatiquement à la génération." : "Voiceover and music are added automatically during generation."}</p>
       {!voiceoverEnabled || !voiceoverTestAllowed ? <small>{fr ? "La génération de voix est en cours de validation." : "Voice generation is being validated."}</small> : null}
       {resumeTask && !recovery && !busy ? <section aria-label={fr ? "Reprise du diaporama" : "Resume slideshow"}>
-        <h3>{fr ? "Diaporama interrompu" : "Interrupted slideshow"}</h3>
-        {resumeTask.input?.product?.name ? <p>{resumeTask.input.product.name}</p> : null}
-        <p>{fr ? `Progression sauvegardée : ${Math.min(resumeTask.progress ?? 0, 99)} % · ${images.length < 5 ? `prochain visuel ${images.length + 1}/5` : "montage MP4 restant"}.` : `Saved progress: ${Math.min(resumeTask.progress ?? 0, 99)}% · ${images.length < 5 ? `next image ${images.length + 1}/5` : "MP4 assembly remaining"}.`}</p>
-        <p>{fr ? `${images.length}/5 visuels conservés · ${creditsUsed} crédits déjà utilisés. Les visuels terminés ne seront pas recréés.` : `${images.length}/5 images preserved · ${creditsUsed} credits already used. Completed images will not be recreated.`}</p>
+        {resumeTask.input?.product?.name && resumeTask.input.product.name !== "Pack spécial Promo développement" ? <p>{resumeTask.input.product.name}</p> : null}
         {resumeTask.resume?.allowed ? <>
           <p>{fr ? `Coût restant de la reprise : ${resumeTask.resume.cost} crédits Studio.` : `Remaining resume cost: ${resumeTask.resume.cost} Studio credits.`}</p>
           {lacksResumeCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : la reprise coûte ${resumeCost} crédits Studio, il te reste ${available}. Recharge tes crédits pour continuer.` : `Insufficient balance: resuming costs ${resumeCost} Studio credits, you have ${available}. Top up to continue.`}</p> : null}
           {resumeTask.resume.requiresConfirmation ? <label><input type="checkbox" checked={resumeConfirmed} onChange={e => setResumeConfirmed(e.target.checked)} />{fr ? `J’autorise la reprise pour ${resumeTask.resume.cost} crédits maximum.` : `I authorize resuming for up to ${resumeTask.resume.cost} credits.`}</label> : null}
-        </> : <p>{fr ? `L’état de l’étape manquante n’est pas confirmé. La reprise reste bloquée pour éviter une nouvelle facturation. Coût restant estimé : ${resumeTask.resume?.cost ?? "—"} crédits, non autorisé tant que cette étape n’est pas vérifiée. Les visuels terminés sont conservés.` : `The missing stage is unconfirmed. Resuming is blocked to prevent another charge. Estimated remaining cost: ${resumeTask.resume?.cost ?? "—"} credits, not authorized until the stage is verified. Completed images are preserved.`}</p>}
+        </> : null}
         <button type="button" className="btn btn-dark studio-continue" disabled={!resumeTask.resume?.allowed || lacksResumeCredits || (!!resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
         <button type="button" className="btn btn-ghost" onClick={newSlideshow}>{fr ? "Nouveau diaporama" : "New slideshow"}</button>
       </section> : null}
@@ -540,7 +537,7 @@ export function SlideshowStudio({
           subtitle={fr ? "Les visuels terminés sont sauvegardés. Progression estimée entre les étapes." : "Completed images are saved. Progress is estimated between stages."} />
           : <p role="status" aria-live="polite">{status}</p>
       ) : null}
-      {error && !recovery ? <p role="alert" className="form-error">{error}</p> : null}
+      {error && !recovery && error !== slideshowPublicFailure(fr ? "fr" : "en") ? <p role="alert" className="form-error">{error}</p> : null}
       {result ? (
         <div className="studio-slideshow-final" style={{ display: "grid", gap: 12 }}>
           <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>

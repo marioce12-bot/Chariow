@@ -1,7 +1,7 @@
 export function slideshowPublicFailure(locale?: string | null) {
   return locale === "en"
-    ? "The slideshow could not be created. Check your history before trying again."
-    : "Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.";
+    ? "Creation interrupted"
+    : "Création interrompue";
 }
 /** Preserve only known user-actionable public errors; never echo provider/runtime diagnostics. */
 export function publicSlideshowError(message: unknown, locale?: string | null) {

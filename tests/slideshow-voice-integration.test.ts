@@ -59,7 +59,7 @@ describe("nouveaux diaporamas avec voix", () => {
     const diagnostic = "Narration duration 20.09s exceeds 25s limit (95%)";
     const task = await publicTask({ id, user_id: "owner", status: "failed", metadata: { type: TASK_TYPE, taskKind: "slideshow", input: { voiceover: true, locale: "fr" }, revision: 3, phase: "failed", progress: 95, updatedAt: new Date().toISOString(), images: [], error: diagnostic, message: diagnostic, details: diagnostic } });
     expect(task.status).toBe("failed");
-    expect(task.message).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(task.message).toBe("Création interrompue");
     expect(task.error).toBe(task.message);
     expect(JSON.stringify(task)).not.toMatch(/20\.09|25s|95%|details/i);
   });

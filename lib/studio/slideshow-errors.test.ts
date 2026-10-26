@@ -10,11 +10,11 @@ describe("public slideshow errors", () => {
   it("sanitizes legacy diagnostics already stored on failed tasks", () => {
     const legacy = { error: "Voiceover render failed: expected 25s, got 20.09s (95%)" };
     expect(publicSlideshowError(legacy.error, "fr")).not.toContain("20.09");
-    expect(publicSlideshowError(legacy.error, "fr")).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(publicSlideshowError(legacy.error, "fr")).toBe("Création interrompue");
   });
 
   it("does not pass through unverified text and never returns empty diagnostics", () => {
     expect(publicSlideshowError("Ajoute une description du produit.", "fr")).toBe(slideshowPublicFailure("fr"));
-    expect(publicSlideshowError(null, "en")).toBe("The slideshow could not be created. Check your history before trying again.");
+    expect(publicSlideshowError(null, "en")).toBe("Creation interrupted");
   });
 });

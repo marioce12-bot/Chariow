@@ -205,16 +205,17 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(container.textContent).toContain("visuel 2/5"); expect(calls("POST")).toHaveLength(0);
   });
   it("affiche l'erreur de worker une seule fois et conserve les quatre images", async () => {
-    const message = "Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.";
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, status: "failed", images: images.slice(0, 4), message: "Technical worker trace", error: "Technical worker trace", details: "raw details", creditsConsumed: 80 }] }));
     await mount();
-    expect(container.textContent?.split(message)).toHaveLength(2);
+    expect(container.textContent).toContain("Création interrompue");
+    expect(container.textContent).not.toContain("Le diaporama n’a pas pu être créé.");
     expect(container.textContent).not.toContain("Technical worker trace");
     expect(container.querySelector("pre")).toBeNull();
     expect(container.querySelector("details")).toBeNull();
     expect(container.querySelectorAll("img")).toHaveLength(4);
     expect(container.textContent).toContain("80 crédits Studio utilisés");
     expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(calls("POST")).toHaveLength(0);
   });
   it("affiche un seul bloc bref pour un ancien échec et garde le blocage après doublons", async () => {
@@ -226,7 +227,8 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     });
     await mount();
     expect(container.querySelector('[role="status"]')).toBeNull();
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.textContent).toContain("Création interrompue");
     expect(container.querySelectorAll("details")).toHaveLength(0);
     expect(container.querySelectorAll("pre")).toHaveLength(0);
     expect(container.textContent).not.toContain(long);
@@ -267,13 +269,27 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(container.textContent).toContain("visuel 5/5"); expect(container.querySelectorAll("img")).toHaveLength(4);
     expect(container.querySelector(".chat-launch-progress-ring")).not.toBeNull();
   });
-  it("an uncertain stage shows a readable block and never submits any paid request", async () => {
+  it("an uncertain stage keeps the paid request blocked without the removed copy", async () => {
+    const old = { ...processing, id: "exact-copy", status: "failed", revision: 5, progress: 90, images, creditsConsumed: 100, error: "Suivi interrompu.", input: { product: { name: "Pack spécial Promo développement" } }, resume: { allowed: false, reason: "STAGE_UNCERTAIN", cost: 0, requiresConfirmation: true } };
+    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ task: old }));
+    await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={null} selectedTaskId="exact-copy" /></I18nProvider>));
+    expect(container.textContent).not.toContain("Diaporama interrompu");
+    expect(container.textContent).not.toContain("Pack spécial Promo développement");
+    expect(container.textContent).not.toContain("Progression sauvegardée : 90 % · montage MP4 restant");
+    expect(container.textContent).not.toContain("5/5 visuels conservés · 100 crédits déjà utilisés. Les visuels terminés ne seront pas recréés");
+    expect(container.textContent).not.toContain("L’état de l’étape manquante n’est pas confirmé.");
+    expect(container.textContent).not.toContain("Le diaporama n’a pas pu être créé.");
+    expect(container.querySelector<HTMLButtonElement>(".studio-continue")?.disabled).toBe(true);
+    expect(calls("POST")).toHaveLength(0);
+  });
+
+  it("keeps continuation blocked when the missing stage is uncertain", async () => {
     const old = { ...processing, id: "unknown", status: "failed", revision: 5, images: images.slice(0, 4), creditsConsumed: 80, error: "Suivi interrompu.", resume: { allowed: false, reason: "STAGE_UNCERTAIN", cost: 20, requiresConfirmation: true } };
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ task: old }));
     await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={null} selectedTaskId="unknown" /></I18nProvider>));
     expect(container.querySelector<HTMLButtonElement>(".studio-continue")?.disabled).toBe(true);
-    expect(container.textContent).toContain("éviter une nouvelle facturation"); expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(container.textContent).not.toContain("éviter une nouvelle facturation"); expect(container.querySelectorAll('[role="alert"]')).toHaveLength(0);
+    expect(container.textContent).toContain("Création interrompue");
     expect(container.querySelectorAll("details, pre")).toHaveLength(0); expect(calls("POST")).toHaveLength(0);
   });
 
