@@ -46,8 +46,8 @@ export function assertSlideshowVoiceAllowed(): void {
 export type SlideshowVoicePlan = { script: string; language: string; musicId: string; model: typeof SLIDESHOW_VOICE_MODEL; voice: string; duration: number; tone: string };
 export type GeminiVoiceDisposition = "retryable" | "uncertain";
 export class GeminiVoiceError extends Error {
-  constructor(readonly disposition: GeminiVoiceDisposition, readonly status: number | null) {
-    super(disposition === "retryable" ? `Gemini voice request refused (HTTP ${status}).` : "Gemini voice request outcome is uncertain.");
+  constructor(readonly disposition: GeminiVoiceDisposition, readonly status: number | null, cause?: unknown) {
+    super(disposition === "retryable" ? `Gemini voice request refused (HTTP ${status}).` : "Gemini voice request outcome is uncertain.", { cause });
     this.name = "GeminiVoiceError";
   }
 }
@@ -88,8 +88,8 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   if (wordCount(name) > maxWords) throw new Error("Nom du produit trop long pour le budget vocal de cette durée; TTS non lancé.");
   // Reuse slideshow validator, with inferred locale and its required complete, distinct evidence.
   buildSlideshowPlan({ name, description, duration, aspectRatio: "1:1", locale, hasReference: false, character: "auto" });
-  const sourceWords = slideshowSourceCandidates(description)
-    .reduce((count, sentence) => count + wordCount(sentence), 0);
+  const narrationFacts = slideshowEvidence(description, name, Number.MAX_SAFE_INTEGER);
+  const sourceWords = narrationFacts.reduce((count, sentence) => count + wordCount(sentence), 0);
   if (sourceWords < minimumSourceWords) throw new InsufficientProductDetailsError(
     `Description insuffisante pour une narration de ${duration}s : ${sourceWords} mots source exploitables, ${minimumSourceWords} requis avec marge. Aucune image ni aucun crédit consommé.`,
   );
@@ -102,7 +102,7 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   // density. Evidence is used once, in source order; no invented/repeated filler.
   // Keep source-backed speech dense enough to approach the selected runtime;
   // actual rendered audio is independently checked for terminal silence.
-  for (const part of slideshowEvidence(description, name, Number.MAX_SAFE_INTEGER)) {
+  for (const part of narrationFacts) {
     const count = part.trim().split(/\s+/).filter(Boolean).length;
     if (words + count > maxWords) continue;
     if (measuredBudget && words >= minimumWords) break;
@@ -150,6 +150,8 @@ export async function synthesizeSlideshowVoice(plan: SlideshowVoicePlan, fetcher
     return wav;
   } catch (error: any) {
     if (error instanceof GeminiVoiceError) throw error;
-    throw new GeminiVoiceError("uncertain", null);
+    const errorType = error instanceof Error ? error.constructor?.name || error.name || "Error" : error === null ? "null" : typeof error;
+    console.warn("[studio] Gemini voice request outcome is uncertain", { errorType });
+    throw new GeminiVoiceError("uncertain", null, error);
   } finally { clearTimeout(timer); }
 }
