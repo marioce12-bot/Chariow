@@ -400,6 +400,17 @@ function DashboardWorkspace() {
     refreshOnVisibilityReturn: true,
     completionAnchoredRefresh: true,
   });
+  const refreshStudioProduct = useCallback(async (productId: string): Promise<Pick<ProductData, "id" | "name" | "description" | "image"> | null> => {
+    if (!activeStoreId) return null;
+    try {
+      const response = await fetch(`/api/stores/${encodeURIComponent(activeStoreId)}/products`, { cache: "no-store" });
+      if (!response.ok) return null;
+      const payload = await response.json() as { products?: Array<Pick<ProductData, "id" | "name" | "description" | "image">> };
+      return payload.products?.find((product) => product.id === productId) ?? null;
+    } catch {
+      return null;
+    }
+  }, [activeStoreId]);
   const dashboardAnalyticsData = analyticsReading.data
     ?? (lastAnalyticsResponse?.storeId === activeStoreId ? lastAnalyticsResponse.data : undefined);
   useEffect(() => {
@@ -500,7 +511,7 @@ function DashboardWorkspace() {
               onBack={() => setActive(previousSection)}
             />
           ) : active === "Studio" ? (
-            <StudioView products={analytics?.products ?? []} />
+            <StudioView products={analytics?.products ?? []} onRefreshProduct={refreshStudioProduct} />
           ) : active === "Performance publicitaire" ? (
             <AdPerformanceView key={activeStoreId ?? "no-store"} storeId={activeStoreId} onApplyCampaign={applyRecommendedCampaign} onRecommendationChange={reportCampaignRecommendation} products={analytics?.products ?? []} locale={locale} />
           ) : active === "Pub" ? (

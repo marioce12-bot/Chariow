@@ -34,13 +34,34 @@ describe("pré-vérification du solde avant lancement d’un diaporama", () => {
     const response = await POST(request(shortInput));
     const body = await response.json();
     expect(response.status).toBe(400);
-    expect(body).toMatchObject({ code: "INSUFFICIENT_PRODUCT_DETAILS" });
-    expect(body.error).toMatch(/trop courte.*25 s.*aucune image.*aucun crédit/i);
+    expect(body).toMatchObject({ code: "INSUFFICIENT_PRODUCT_DETAILS", duration: 25, requiredWords: 58 });
+    expect(body.wordCount).toBeLessThan(body.requiredWords);
+    expect(body.missingWords).toBe(body.requiredWords - body.wordCount);
+    expect(body.error).toContain("La description de ce produit dans ta boutique est trop courte pour une voix off de 25 secondes.");
+    expect(body.error).toContain(`il en manque environ ${body.missingWords}`);
+    expect(body.error).toContain("Aucune image n'a été générée et aucun crédit n'a été consommé.");
     expect(mocks.from.mock.calls.map(([table]) => table)).toEqual(["studio_generations"]);
     expect(insert).not.toHaveBeenCalled();
     expect(mocks.after).not.toHaveBeenCalled();
     expect(mocks.generate).not.toHaveBeenCalled();
     expect(mocks.render).not.toHaveBeenCalled();
+  });
+  it("ne transforme pas un refus storyboard en erreur de précontrôle vocal au stage voice_plan", async () => {
+    const insert = configureDb({ balance: 100, reserved: 0 });
+    const duplicateInput = { ...input, product: { name: "Guide Atlas", description: "Disponible au format PDF. Disponible au format PDF. Disponible au format PDF." } };
+    const response = await POST(request(duplicateInput));
+    const body = await response.json();
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({ code: "INSUFFICIENT_PRODUCT_DETAILS" });
+    expect(body.error).toContain("informations distinctes");
+    expect(body.error).not.toContain("voix off");
+    expect(body).not.toHaveProperty("duration");
+    expect(body).not.toHaveProperty("requiredWords");
+    expect(body).not.toHaveProperty("missingWords");
+    expect(body).not.toHaveProperty("wordCount");
+    expect(mocks.from.mock.calls.map(([table]) => table)).toEqual(["studio_generations"]);
+    expect(insert).not.toHaveBeenCalled();
+    expect(mocks.after).not.toHaveBeenCalled();
   });
   it("refuse avec 402 INSUFFICIENT_CREDITS quand le solde disponible est inférieur à 100, sans insertion ni dispatch", async () => {
     const insert = configureDb({ balance: 60, reserved: 0 });
@@ -68,6 +89,22 @@ describe("pré-vérification du solde avant lancement d’un diaporama", () => {
     const response = await POST(request());
     expect(response.status).toBe(202);
     expect(insert).toHaveBeenCalledOnce(); expect(mocks.after).toHaveBeenCalledOnce();
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+  it("retourne un 409 explicite quand un conflit d’ID correspond à une tâche déjà acceptée", async () => {
+    const lookups = vi.fn()
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: insertedRow, error: null });
+    const insert = vi.fn(() => ({ select: () => ({ single: async () => ({ data: null, error: { code: "23505" } }) }) }));
+    mocks.from.mockImplementation((table: string) => table === "credit_accounts"
+      ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { balance: 100, reserved: 0 }, error: null }) }) }) }
+      : { select: () => ({ eq: () => ({ maybeSingle: lookups }) }), insert });
+    const response = await POST(request());
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "TASK_ALREADY_ACCEPTED" });
+    expect(lookups).toHaveBeenCalledTimes(2);
+    expect(insert).toHaveBeenCalledOnce();
+    expect(mocks.after).not.toHaveBeenCalled();
     expect(mocks.generate).not.toHaveBeenCalled();
   });
   it("conserve l’interface française et persiste la création anglaise sans génération réelle", async () => {

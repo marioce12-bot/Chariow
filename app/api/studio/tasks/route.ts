@@ -7,9 +7,9 @@ import { requireActiveSubscription } from "@/lib/subscription/access";
 import { rateLimit } from "@/lib/shop/rate-limit";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
-import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, slideshowVoiceAvailability } from "@/lib/studio/slideshow-voice";
+import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, slideshowVoiceAvailability, slideshowVoiceSourceRequirements } from "@/lib/studio/slideshow-voice";
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
-import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { slideshowDescriptionTooShortMessage, slideshowPublicFailure, slideshowStoryboardDetailsMessage } from "@/lib/studio/slideshow-errors";
 import { logPreparationFailure, type PreparationStage } from "@/lib/studio/preparation-diagnostics";
 import { resolveProductLanguage } from "@/lib/studio/product-language";
 import { validateCreativePerformanceStudioSource } from "@/lib/creative-performance/studio-source";
@@ -148,15 +148,19 @@ export async function POST(request: Request) {
     } catch (error) {
       logPreparationFailure(body.id, preparationStage, error);
       const insufficient = error instanceof InsufficientProductDetailsError;
+      const voiceNarrationRefusal = insufficient && body.input.voiceover === true && preparationStage === "voice_plan" &&
+        /^(Description insuffisante pour une narration|Source insuffisante pour une narration)/.test(error.message);
+      const voiceRequirements = voiceNarrationRefusal
+        ? slideshowVoiceSourceRequirements(product.name, product.description, body.input.duration)
+        : null;
       return NextResponse.json({
-        error: insufficient
-          ? preparationStage === "voice_plan"
-            ? (body.input.locale === "en"
-              ? `The description is too short for a ${body.input.duration}-second narration. Add product details; no images were generated and no credits were consumed.`
-              : `La description est trop courte pour une narration de ${body.input.duration} s. Ajoute des phrases décrivant le produit ; aucune image n’a été générée et aucun crédit n’a été consommé.`)
-            : (body.input.locale === "en" ? "Add product details below, then click Retry." : "Complète la description ci-dessous, puis appuie sur Relancer.")
-          : slideshowPublicFailure(body.input.locale),
+        error: voiceNarrationRefusal
+          ? slideshowDescriptionTooShortMessage(voiceRequirements, body.input.locale)
+          : insufficient
+            ? slideshowStoryboardDetailsMessage(body.input.locale)
+            : slideshowPublicFailure(body.input.locale),
         ...(insufficient ? { code: error.code } : {}),
+        ...(voiceRequirements ?? {}),
       }, { status: 400 });
     }
     // Credit pre-check: the whole slideshow (5 images) must be affordable BEFORE the task is
@@ -231,14 +235,22 @@ export async function POST(request: Request) {
     })
     .select("id,user_id,status,metadata,created_at")
     .single();
-  if (inserted.error || !inserted.data)
-    return NextResponse.json(
-      {
-        error:
-          "Le lancement n’a pas été confirmé. Consulte le suivi sans relancer la génération.",
-      },
-      { status: 409 },
-    );
+  if (inserted.error || !inserted.data) {
+    const launchUnconfirmed = "Le lancement n’a pas été confirmé. Consulte le suivi sans relancer la génération.";
+    if (inserted.error?.code === "23505") {
+      const { data: conflictingTask, error: conflictReadError } = await admin
+        .from("studio_generations")
+        .select("id,user_id,status,metadata,created_at")
+        .eq("id", body.id)
+        .maybeSingle();
+      if (conflictReadError || !conflictingTask)
+        return NextResponse.json({ code: "TASK_ACCEPTANCE_UNCERTAIN", error: launchUnconfirmed }, { status: 500 });
+      if (conflictingTask.user_id === user.id && conflictingTask.metadata?.type === TASK_TYPE)
+        return NextResponse.json({ code: "TASK_ALREADY_ACCEPTED", error: launchUnconfirmed }, { status: 409, headers: { "Cache-Control": "no-store" } });
+      return NextResponse.json({ code: "TASK_ID_CONFLICT", error: "Demande indisponible." }, { status: 409 });
+    }
+    return NextResponse.json({ code: "TASK_ACCEPTANCE_UNCERTAIN", error: launchUnconfirmed }, { status: 500 });
+  }
   logTaskEvent("task_created", body.id, 0, metadata);
   after(async () => {
     try { await start(studioTaskWorkflow, [body.id, 0]); }

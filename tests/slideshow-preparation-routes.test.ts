@@ -19,7 +19,18 @@ describe("free slideshow preparation routes", () => {
   it("returns one short explanation with technical details, with no AI call or database write", async () => {
     const response = await prepare(request(input("")));
     expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ code: "INSUFFICIENT_PRODUCT_DETAILS", error: "Complète la description ci-dessous, puis appuie sur Relancer.", details: expect.stringContaining("insuffisantes") });
+    const body = await response.json();
+    expect(body).toMatchObject({
+      code: "INSUFFICIENT_PRODUCT_DETAILS",
+      error: expect.stringContaining("dans ta boutique"),
+      details: expect.stringContaining("insuffisantes"),
+    });
+    expect(body.error).toContain("Réessayer");
+    expect(body.error).not.toContain("voix off");
+    expect(body).not.toHaveProperty("duration");
+    expect(body).not.toHaveProperty("requiredWords");
+    expect(body).not.toHaveProperty("missingWords");
+    expect(body).not.toHaveProperty("wordCount");
     expect(mocks.ask).not.toHaveBeenCalled(); expect(mocks.from).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.worker).not.toHaveBeenCalled();
   });
   it("replans supplemented text without creating a task, calling AI or spending credits", async () => {
@@ -33,7 +44,10 @@ describe("free slideshow preparation routes", () => {
     const description = "Disponible au format PDF. Disponible au format PDF. Disponible au format PDF.";
     const response = await createTask(request({ id: "123e4567-e89b-42d3-a456-426614174000", kind: "slideshow", input: input(description) }));
     expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ code: "INSUFFICIENT_PRODUCT_DETAILS" });
+    const body = await response.json();
+    expect(body).toMatchObject({ code: "INSUFFICIENT_PRODUCT_DETAILS", error: expect.stringContaining("distinctes") });
+    expect(body).not.toHaveProperty("requiredWords");
+    expect(body.error).not.toContain("voix off");
     expect(mocks.insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.worker).not.toHaveBeenCalled(); expect(mocks.ask).not.toHaveBeenCalled();
   });
 });

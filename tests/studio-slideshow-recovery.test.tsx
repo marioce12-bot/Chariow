@@ -10,13 +10,14 @@ const images = Array.from({ length: 5 }, (_, i) => ({ id: `image-${i}`, url: `ht
 const result = { generationId: "video-1", videoUrl: "https://placeholder.invalid/video.mp4", attribution: "Crédits", duration: 25, musicId: "", imageGenerationIds: images.map((image) => image.id) };
 const processing = { id: "task-1", kind: "slideshow", status: "processing", progress: 60, message: "Génération en cours…", images };
 const completed = { ...processing, status: "completed", progress: 100, message: "Diaporama prêt.", result };
-const response = (body: unknown, ok = true) => ({ ok, json: async () => body }) as Response;
+const response = (body: unknown, ok = true, status = ok ? 200 : 400) => ({ ok, status, json: async () => body }) as Response;
 const config = () => response({ enabled: true, voiceoverEnabled: true, voiceoverTestAllowed: true, tracks: [] });
 
 let container: HTMLDivElement;
 let root: Root;
 let fetcher: ReturnType<typeof vi.fn>;
-const mount = async (callback?: () => void) => act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={product} onComplete={callback} /></I18nProvider>));
+const defaultRefresh = async (productId: string) => productId === product.id ? product : null;
+const mount = async (callback?: () => void, refreshProduct: (id: string) => Promise<typeof product | null> = defaultRefresh) => act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={product} onComplete={callback} onRefreshProduct={refreshProduct} /></I18nProvider>));
 const remount = async (callback?: () => void) => { root = createRoot(container); await mount(callback); };
 const calls = (method: string) => fetcher.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === method);
 
@@ -123,50 +124,242 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(oldHandler).not.toHaveBeenCalled();
   });
 
-  it("récupère les détails via prompt seul, puis n'envoie tasks qu'après Créer", async () => {
+  it("sur un 400 INSUFFICIENT_PRODUCT_DETAILS affiche les chiffres serveur sans champ et libère le marqueur", async () => {
+    const details = { code: "INSUFFICIENT_PRODUCT_DETAILS", duration: 25, requiredWords: 58, missingWords: 4, wordCount: 54 };
+    const message = "La description de ce produit dans ta boutique est trop courte pour une voix off de 25 secondes. Il faut environ 58 mots décrivant le produit (ce qu'il contient, à quoi il sert, pour qui) ; il en manque environ 4. Complète la description dans ta boutique, puis reviens ici et appuie sur « Réessayer ». Aucune image n'a été générée et aucun crédit n'a été consommé.";
     fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url.endsWith("/config")) return config();
-      if (url === "/api/studio/prompt") {
-        const body = JSON.parse(String(init?.body));
-        return body.product.description === "Description existante\nDétails ajoutés"
-          ? response({ plan: {} })
-          : response({ code: "INSUFFICIENT_PRODUCT_DETAILS", message: "Ajoute une précision produit.", details: "Diagnostics techniques longs" }, false);
-      }
-      if (url === "/api/studio/tasks" && init?.method === "POST") return response({ task: processing });
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST") return response({ ...details, error: message }, false, 400);
       return response({ tasks: [] });
     });
     await mount();
-    expect(container.textContent).toContain("Voix et musique ajoutées automatiquement");
-    expect(container.querySelector('[aria-label="Musique"]')).toBeNull();
-    expect(container.textContent).not.toContain("Remplacer la musique");
+    await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); await Promise.resolve(); });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(message);
+    expect(container.querySelector("textarea")).toBeNull();
+    expect([...container.querySelectorAll("button")].some((button) => button.textContent?.trim() === "Réessayer et créer (100 crédits)")).toBe(true);
+    expect(localStorage.getItem("vendeo-slideshow-request:p1")).toBeNull();
+    expect(container.textContent).not.toContain("Lancement à vérifier");
+  });
+
+  it("Réessayer recharge la description boutique, relance la vérification et permet la création si elle est suffisante", async () => {
+    const updated = { ...product, description: "Description détaillée mise à jour dans la boutique pour présenter le produit." };
+    const refresh = vi.fn(async (productId: string) => productId === product.id ? updated : null);
+    let taskPosts = 0;
+    const taskBodies: Array<Record<string, any>> = [];
+    const details = { code: "INSUFFICIENT_PRODUCT_DETAILS", duration: 25, requiredWords: 58, missingWords: 4, wordCount: 54 };
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST") {
+        taskBodies.push(JSON.parse(String(init.body)));
+        taskPosts++;
+        return taskPosts === 1 ? response({ ...details, error: "short" }, false, 400) : response({ task: processing }, true, 202);
+      }
+      return response({ tasks: [] });
+    });
+    await mount(undefined, refresh);
     const click = async (name: string) => act(async () => {
-      const button = [...container.querySelectorAll("button")].find((item) => item.textContent?.trim() === name)!;
+      const button = [...container.querySelectorAll("button")].find((item) => name === "Réessayer" ? item.textContent?.trim().startsWith("Réessayer et créer") : item.textContent?.trim() === name)!;
       button.click(); await Promise.resolve();
     });
     await click("Créer");
-    expect(container.textContent).toContain("Ajoute une précision utile");
-    expect(container.querySelectorAll("details")).toHaveLength(0);
-    const textarea = container.querySelector("textarea")!;
-    expect((textarea as HTMLTextAreaElement).value).toBe("Description existante");
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "Détails ajoutés");
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await click("Relancer");
-    expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(0);
-    expect(container.textContent).toContain("Plan prêt");
-    await click("Créer");
-    expect(container.textContent).toContain("100 crédits Studio");
-    expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(1);
-    const prompt = fetcher.mock.calls.filter(([url]) => url === "/api/studio/prompt").at(-1)!;
-    expect(JSON.parse(String(prompt[1]?.body))).toMatchObject({
-      product: { description: "Description existante\nDétails ajoutés" }, mediaType: "video", videoMode: "slideshow", duration: 25,
-      aspectRatio: "9:16", campaignGoal: "discover", locale: "fr", musicId: "", voiceover: true,
-    });
-    const launch = fetcher.mock.calls.find(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")!;
-    expect(JSON.parse(String(launch[1]?.body))).toMatchObject({ input: { musicId: "", voiceover: true } });
-    expect([...container.querySelectorAll("button")].some((item) => item.textContent?.trim() === "Créer")).toBe(false);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Complète la description dans ta boutique");
+    await click("Réessayer");
+    expect(refresh).toHaveBeenCalledWith("p1");
+    expect(taskPosts).toBe(2);
+    expect(taskBodies[1].input.product.description).toBe(updated.description);
+    const promptBodies = fetcher.mock.calls.filter(([url]) => url === "/api/studio/prompt").map(([, init]) => JSON.parse(String((init as RequestInit).body)));
+    expect(promptBodies).toHaveLength(2);
+    expect(promptBodies[1].product.description).toBe(updated.description);
+    expect(container.querySelector("textarea")).toBeNull();
+    expect(container.textContent).toContain("Génération en cours");
   });
+
+  it("continue avec le produit courant si aucun callback de refresh n’est fourni", async () => {
+    const promptBodies: Array<Record<string, any>> = [];
+    let taskPosts = 0;
+    const insufficient = { code: "INSUFFICIENT_PRODUCT_DETAILS", duration: 25, requiredWords: 58, missingWords: 4, wordCount: 54, error: "short" };
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") {
+        promptBodies.push(JSON.parse(String(init?.body)));
+        return response({ plan: {} });
+      }
+      if (url === "/api/studio/tasks" && init?.method === "POST") { taskPosts++; return response(insufficient, false, 400); }
+      return response({ tasks: [] });
+    });
+    await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={product} /></I18nProvider>));
+    const click = async (matches: (button: HTMLButtonElement) => boolean) => act(async () => {
+      const button = [...container.querySelectorAll<HTMLButtonElement>("button")].find(matches)!;
+      button.click(); await Promise.resolve();
+    });
+    await click((button) => button.textContent?.trim() === "Créer");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("La description de ce produit");
+    await click((button) => button.textContent?.trim().startsWith("Réessayer et créer") === true);
+    expect(taskPosts).toBe(2);
+    expect(promptBodies).toHaveLength(2);
+    expect(promptBodies[1].product.description).toBe(product.description);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("La description de ce produit");
+    expect(container.textContent).not.toContain("Impossible de recharger le produit");
+    expect(localStorage.getItem("vendeo-slideshow-request:p1")).toBeNull();
+  });
+
+  it("si la description rafraîchie reste courte, affiche les nouveaux chiffres sans créer de tâche", async () => {
+    const updated = { ...product, description: "Description boutique complétée mais toujours trop courte." };
+    const refresh = vi.fn(async () => updated);
+    let taskPosts = 0;
+    const first = { code: "INSUFFICIENT_PRODUCT_DETAILS", duration: 25, requiredWords: 58, missingWords: 4, wordCount: 54, error: "short" };
+    const second = { code: "INSUFFICIENT_PRODUCT_DETAILS", duration: 25, requiredWords: 58, missingWords: 2, wordCount: 56, error: "shorter" };
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST") {
+        taskPosts++;
+        return response(taskPosts === 1 ? first : second, false, 400);
+      }
+      return response({ tasks: [] });
+    });
+    await mount(undefined, refresh);
+    const click = async (name: string) => act(async () => {
+      const button = [...container.querySelectorAll("button")].find((item) => name === "Réessayer" ? item.textContent?.trim().startsWith("Réessayer et créer") : item.textContent?.trim() === name)!;
+      button.click(); await Promise.resolve();
+    });
+    await click("Créer");
+    await click("Réessayer");
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(taskPosts).toBe(2);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("il en manque environ 2");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Il faut environ 58 mots");
+    expect(localStorage.getItem("vendeo-slideshow-request:p1")).toBeNull();
+    expect(container.querySelector("textarea")).toBeNull();
+    expect([...container.querySelectorAll("button")].some((button) => button.textContent?.trim() === "Réessayer et créer (100 crédits)")).toBe(true);
+  });
+
+  it("conserve le marqueur pour le 409 idempotent TASK_ALREADY_ACCEPTED", async () => {
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST")
+        return response({ code: "TASK_ALREADY_ACCEPTED", error: "Le lancement n’a pas été confirmé." }, false, 409);
+      return response({ tasks: [] });
+    });
+    await mount();
+    await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); await Promise.resolve(); });
+    const marker = localStorage.getItem("vendeo-slideshow-request:p1");
+    expect(marker).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(container.textContent).toContain("Lancement à vérifier");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Lancement non confirmé");
+    expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(1);
+  });
+
+  it("la reprise après vérification d’historique réutilise exactement le même ID", async () => {
+    const requestId = "123e4567-e89b-42d3-a456-426614174999";
+    localStorage.setItem("vendeo-slideshow-request:p1", requestId);
+    const postedBodies: Array<Record<string, any>> = [];
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST") {
+        postedBodies.push(JSON.parse(String(init.body)));
+        return response({ task: { ...processing, id: requestId } }, true, 202);
+      }
+      return response({ tasks: [] });
+    });
+    await mount();
+    expect(container.textContent).toContain("Lancement à vérifier");
+    const retry = [...container.querySelectorAll("button")].find((button) => button.textContent?.trim() === "J’ai vérifié l’historique, réessayer") as HTMLButtonElement;
+    expect(retry).toBeTruthy();
+    expect(container.textContent).toContain("le serveur est idempotent");
+    expect(calls("POST")).toHaveLength(0);
+    await act(async () => { retry.click(); await Promise.resolve(); });
+    expect(postedBodies[0]?.id).toBe(requestId);
+    expect(calls("POST")).toHaveLength(2);
+  });
+
+  it("suspend le polling onglet masqué puis le borne à 15 vérifications", async () => {
+    vi.useFakeTimers();
+    const originalVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    localStorage.setItem("vendeo-slideshow-request:p1", "123e4567-e89b-42d3-a456-426614174998");
+    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [] }));
+    const pendingGets = () => fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && !(init as RequestInit | undefined)?.method).length;
+    try {
+      await mount();
+      await act(async () => { await vi.advanceTimersByTimeAsync(80_000); });
+      expect(pendingGets()).toBe(0);
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      await act(async () => { document.dispatchEvent(new Event("visibilitychange")); await Promise.resolve(); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(4_000 * 20); });
+      expect(pendingGets()).toBe(15);
+      expect(container.textContent).toContain("Lancement à vérifier");
+      expect(calls("POST")).toHaveLength(0);
+    } finally {
+      if (originalVisibility) Object.defineProperty(document, "visibilityState", originalVisibility);
+      else delete (document as unknown as { visibilityState?: DocumentVisibilityState }).visibilityState;
+    }
+  });
+
+  it("tout 4xx JSON définitif retire le marqueur et laisse remonter le message public d’origine", async () => {
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST") return response({ error: "Paramètres de diaporama invalides." }, false, 422);
+      return response({ tasks: [] });
+    });
+    await mount();
+    await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); await Promise.resolve(); });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Paramètres de diaporama invalides.");
+    expect(localStorage.getItem("vendeo-slideshow-request:p1")).toBeNull();
+    expect(container.textContent).not.toContain("Lancement à vérifier");
+    expect([...container.querySelectorAll("button")].some((button) => button.textContent?.trim() === "Créer")).toBe(true);
+  });
+
+  it("un 5xx après le POST reste incertain et conserve l’identifiant", async () => {
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST") return response({ error: "backend failure" }, false, 500);
+      return response({ tasks: [] });
+    });
+    await mount();
+    await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); await Promise.resolve(); });
+    expect(container.textContent).toContain("Lancement à vérifier");
+    expect(localStorage.getItem("vendeo-slideshow-request:p1")).toBeTruthy();
+    expect(calls("POST").filter(([url]) => url === "/api/studio/tasks")).toHaveLength(1);
+  });
+
+  it("une réponse JSON illisible après le POST reste incertaine même avec un status 400", async () => {
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST") return ({ ok: false, status: 400, json: async () => { throw new SyntaxError("bad json"); } }) as unknown as Response;
+      return response({ tasks: [] });
+    });
+    await mount();
+    await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); await Promise.resolve(); });
+    expect(container.textContent).toContain("Lancement à vérifier");
+    expect(localStorage.getItem("vendeo-slideshow-request:p1")).toBeTruthy();
+  });
+
+  it("un changement de produit réévalue son marqueur et libère le bouton Créer", async () => {
+    vi.useFakeTimers();
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST") throw new Error("network disconnected");
+      return response({ tasks: [] });
+    });
+    await mount();
+    await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); await Promise.resolve(); });
+    expect(container.textContent).toContain("Lancement à vérifier");
+    expect(localStorage.getItem("vendeo-slideshow-request:p1")).toBeTruthy();
+    const secondProduct = { id: "p2", name: "Autre produit", description: "Autre description complète." };
+    await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={secondProduct} onRefreshProduct={async () => secondProduct} /></I18nProvider>));
+    expect(localStorage.getItem("vendeo-slideshow-request:p2")).toBeNull();
+    expect([...container.querySelectorAll("button")].some((button) => button.textContent?.trim() === "Créer" && !button.disabled)).toBe(true);
+  });
+
   it("fait progresser l’indicateur sous 100% pendant les étapes images 1 à n", async () => {
     vi.useFakeTimers();
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, progress: 14, phase: "running", images: images.slice(0, 1), message: "Image 1/5" }] }));
