@@ -46,7 +46,7 @@ type Task = {
 const jsonResponse = async (response: Response) => {
   const data = await response.json();
   if (!response.ok) {
-    const error = new Error(publicSlideshowError(data.message || data.error, data.locale || "fr")) as Error & { code?: string; details?: unknown };
+    const error = new Error(publicSlideshowError(data.message || data.error, data.locale || "fr", data.code)) as Error & { code?: string; details?: unknown };
     error.code = data.code; error.details = data.details; throw error;
   }
   return data;
@@ -248,6 +248,7 @@ export function SlideshowStudio({
         ? publicSlideshowError(task.error || task.message || slideshowPublicFailure(fr ? "fr" : "en"), fr ? "fr" : "en")
         : "",
     );
+    if (insufficient) setError(task.error || task.message || "");
     if (task.status === "completed" && task.result) {
       setResult(task.result);
       if (changedTask || wasProcessing) {
@@ -403,7 +404,7 @@ export function SlideshowStudio({
       if (insufficient) {
         setRecovery(true); setStatus("");
         setTechnicalDetails(typeof failure.details === "string" ? failure.details : failure.details ? JSON.stringify(failure.details, null, 2) : "");
-        setError(""); setReady(true); return;
+        setError(failure.message); setReady(true); return;
       }
       if (failure.message === "Lancement non confirmé") return;
       setBusy(false); setStatus("");
@@ -515,7 +516,7 @@ export function SlideshowStudio({
       </section> : null}
       {(!resumeTask || recovery) && (!pendingRequest && (!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed" || recovery)) && !busy && ready ? (
         <>
-          {recovery ? <><p>{fr ? "Ajoute une précision utile sur le produit pour préparer le diaporama." : "Add a useful product detail to prepare the slideshow."}</p><label>{fr ? "Description temporaire" : "Temporary description"}<textarea aria-label={fr ? "Description temporaire" : "Temporary description"} rows={4} value={temporaryDescription} disabled={busy} onChange={e => setTemporaryDescription(e.target.value)} /></label></> : null}
+          {recovery ? <><p>{fr ? "Ajoute une précision utile sur le produit pour préparer le diaporama." : "Add a useful product detail to prepare the slideshow."}</p>{error ? <p role="alert" className="form-error">{error}</p> : null}<label>{fr ? "Description temporaire" : "Temporary description"}<textarea aria-label={fr ? "Description temporaire" : "Temporary description"} rows={4} value={temporaryDescription} disabled={busy} onChange={e => setTemporaryDescription(e.target.value)} /></label></> : null}
           <p className="studio-cost">{fr ? `Coût : ${slideshowCost} crédits Studio` : `Cost: ${slideshowCost} Studio credits`}{available !== null ? (fr ? ` · Solde disponible : ${available}` : ` · Available balance: ${available}`) : null}</p>
           {lacksCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : ce diaporama coûte ${slideshowCost} crédits Studio, il te reste ${available}. Recharge tes crédits avant de créer.` : `Insufficient balance: this slideshow costs ${slideshowCost} Studio credits, you have ${available}. Top up before creating.`}</p> : null}
           <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready || lacksCredits} onClick={() => void generate()}>{recovery ? (fr ? "Relancer" : "Retry") : (fr ? "Créer" : "Create")}</button>

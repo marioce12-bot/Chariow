@@ -76,7 +76,7 @@ describe("nouveaux diaporamas avec voix", () => {
     expect(body).not.toHaveProperty("details");
     expect(JSON.stringify(body)).not.toMatch(/20\.09|25s|95%|technical|stack/i);
     expect(body.code).toBe("INSUFFICIENT_PRODUCT_DETAILS");
-    expect(body.error).toMatch(/description ci-dessous/i);
+    expect(body.error).toMatch(/description est trop courte.*25 s.*aucune image.*aucun crédit/i);
     expect(insert).not.toHaveBeenCalled();
     expect(mocks.after).not.toHaveBeenCalled();
   });

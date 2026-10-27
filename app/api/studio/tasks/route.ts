@@ -150,7 +150,11 @@ export async function POST(request: Request) {
       const insufficient = error instanceof InsufficientProductDetailsError;
       return NextResponse.json({
         error: insufficient
-          ? (body.input.locale === "en" ? "Add product details below, then click Retry." : "Complète la description ci-dessous, puis appuie sur Relancer.")
+          ? preparationStage === "voice_plan"
+            ? (body.input.locale === "en"
+              ? `The description is too short for a ${body.input.duration}-second narration. Add product details; no images were generated and no credits were consumed.`
+              : `La description est trop courte pour une narration de ${body.input.duration} s. Ajoute des phrases décrivant le produit ; aucune image n’a été générée et aucun crédit n’a été consommé.`)
+            : (body.input.locale === "en" ? "Add product details below, then click Retry." : "Complète la description ci-dessous, puis appuie sur Relancer.")
           : slideshowPublicFailure(body.input.locale),
         ...(insufficient ? { code: error.code } : {}),
       }, { status: 400 });

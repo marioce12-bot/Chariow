@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, SLIDESHOW_MUSIC_METADATA, slideshowVoiceAvailability, synthesizeSlideshowVoice } from "@/lib/studio/slideshow-voice";
+import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, classifyGeminiVoiceStatus, SLIDESHOW_MUSIC_METADATA, slideshowVoiceAvailability, synthesizeSlideshowVoice } from "@/lib/studio/slideshow-voice";
+import { slideshowEvidence, slideshowSourceCandidates } from "@/lib/studio/slideshow-plan";
 
-afterEach(() => { delete process.env.VERCEL_ENV; delete process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED; delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED; delete process.env.GEMINI_API_KEY; delete process.env.VENDEO_SLIDESHOW_TTS_ENABLED; });
+afterEach(() => { vi.restoreAllMocks(); delete process.env.VERCEL_ENV; delete process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED; delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED; delete process.env.GEMINI_API_KEY; delete process.env.VENDEO_SLIDESHOW_TTS_ENABLED; });
 const product = { name: "Carnet créatif", description: "Livre illustré avec 120 pages. Papier recyclé certifié. Reliure cousue durable. Format compact pour le voyage. Chaque page accueille des notes et des dessins. Le format permet de glisser le carnet dans un sac. Les pages sont organisées pour accompagner les idées au quotidien. Une couverture souple protège les pages pendant le transport. Les pages épaisses accueillent des crayons et stylos. Le carnet comprend une table des matières pour retrouver les thèmes. Le papier sans acide conserve les dessins plus longtemps. Les sections sont séparées par des pages de garde colorées. Une pochette intérieure permet de ranger de petits souvenirs." };
 describe("slideshow voice", () => {
   it("blocks before the network unless preview and both explicit gates are true", async () => {
@@ -42,6 +43,49 @@ describe("slideshow voice", () => {
     expect(words).toBeLessThanOrEqual(Math.floor(duration * 0.95 * 2.6));
     expect(plan.duration).toBe(duration);
   });
+  it.each([25, 30, 40])("accepts a realistic 100-word product description for %ss", (duration) => {
+    expect(product.description.trim().split(/\s+/)).toHaveLength(100);
+    expect(() => buildSlideshowVoicePlan(product, duration)).not.toThrow();
+  });
+  it("rejects the 54-word case before a narration can be synthesized", () => {
+    const short = { name: "Guide Atlas", description: "Le guide est disponible en PDF. Il présente les bases du jardinage. Chaque chapitre décrit une étape du potager. Les fiches expliquent la préparation du sol. Des exercices aident à organiser les plantations. Un calendrier accompagne le suivi des cultures. Les illustrations montrent des plantes en pots. Le téléchargement permet une lecture hors connexion." };
+    expect(short.description.trim().split(/\s+/)).toHaveLength(54);
+    expect(() => buildSlideshowVoicePlan(short, 25)).toThrow(/54 mots source exploitables, 58 requis avec marge/);
+  });
+  it.each([[25, 58], [30, 69], [40, 92]])("rejects a 100-word description with half its words unusable at %ss", (duration, required) => {
+    const usable = [
+      "Le guide présente huit chapitres consacrés aux bases du jardinage.",
+      "Chaque chapitre explique la préparation du sol et les semis.",
+      "Les fiches proposent des exercices pratiques pour organiser les cultures.",
+      "Un calendrier saisonnier accompagne le suivi des plantations du potager.",
+      "Illustrations montrent toutes les plantes cultivées en pots ou terre.",
+    ];
+    const filtered = [
+      "Garantie commerciale propose une réparation complète pendant deux années entières.",
+      "Les résultats apparaissent dès la première semaine selon nos tests.",
+      "Gagnez 80% davantage de ventes pendant la première semaine annoncée.",
+      "Témoignage client voir https://example.com le produit a changé votre vie.",
+      usable[0],
+    ];
+    const description = [...usable, ...filtered].join(" ");
+    expect(description.trim().split(/\s+/)).toHaveLength(100);
+    expect(slideshowEvidence(description, "Guide Atlas", Number.MAX_SAFE_INTEGER)
+      .reduce((count, phrase) => count + phrase.trim().split(/\s+/).filter(Boolean).length, 0)).toBe(50);
+    expect(() => buildSlideshowVoicePlan({ name: "Guide Atlas", description }, duration))
+      .toThrow(new RegExp(`50 mots source exploitables, ${required} requis avec marge`));
+  });
+  it("counts usable source phrases beyond the former 3000-character cutoff", () => {
+    const finalPhrase = "Des informations complémentaires peuvent être lues séparément.";
+    const description = `${"Disponible au format PDF. ".repeat(130)} ${finalPhrase}`;
+    expect(description.length).toBeGreaterThan(3000);
+    expect(slideshowSourceCandidates(description)).toContain(finalPhrase);
+  });
+  it.each([
+    [400, "retryable"], [401, "retryable"], [403, "retryable"], [429, "retryable"], [499, "retryable"],
+    [408, "uncertain"], [500, "uncertain"], [503, "uncertain"], [599, "uncertain"],
+  ] as const)("classifies Gemini HTTP %s as %s", (status, disposition) => {
+    expect(classifyGeminiVoiceStatus(status)).toBe(disposition);
+  });
   it("makes one mock Gemini request and returns valid bounded WAV bytes", async () => {
     process.env.VERCEL_ENV = "preview";
     process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED = "true";
@@ -80,15 +124,38 @@ describe("slideshow voice", () => {
     expect(request.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName).toBe(plan.voice);
     expect(request.generationConfig.responseModalities).toEqual(["AUDIO"]);
   });
-  it.each([403, 429])("stops on free-tier HTTP %s without retry or fallback", async (status) => {
+  it.each([403, 429])("marks explicit Gemini HTTP %s as retryable without an automatic retry or paid fallback", async (status) => {
     process.env.VERCEL_ENV = "preview";
     process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED = "true";
     process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED = "true";
     process.env.GEMINI_API_KEY = "test-only";
     const fetcher = vi.fn().mockResolvedValue({ ok: false, status });
-    await expect(synthesizeSlideshowVoice(buildSlideshowVoicePlan(product, 25), fetcher as any)).rejects.toThrow(/gratuit.*aucune relance/);
+    await expect(synthesizeSlideshowVoice(buildSlideshowVoicePlan(product, 25), fetcher as any)).rejects.toMatchObject({ name: "GeminiVoiceError", disposition: "retryable", status });
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(fetcher.mock.calls[0][1].headers["x-goog-api-key"]).toBe("test-only");
     expect(String(fetcher.mock.calls[0][0])).not.toContain("test-only");
+  });
+  it.each([408, 500, 503])("marks Gemini HTTP %s as uncertain", async (status) => {
+    process.env.VERCEL_ENV = "preview";
+    process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED = "true";
+    process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED = "true";
+    process.env.GEMINI_API_KEY = "test-only";
+    const fetcher = vi.fn().mockResolvedValue({ ok: false, status });
+    await expect(synthesizeSlideshowVoice(buildSlideshowVoicePlan(product, 25), fetcher as any)).rejects.toMatchObject({ name: "GeminiVoiceError", disposition: "uncertain", status });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+  it("logs only the error type and retains a non-HTTP failure as the cause", async () => {
+    process.env.VERCEL_ENV = "preview";
+    process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED = "true";
+    process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED = "true";
+    process.env.GEMINI_API_KEY = "test-key-must-not-be-logged";
+    const cause = new TypeError("PRIVATE failure details and key=test-key-must-not-be-logged");
+    const fetcher = vi.fn().mockRejectedValue(cause);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(synthesizeSlideshowVoice(buildSlideshowVoicePlan(product, 25), fetcher as any))
+      .rejects.toMatchObject({ name: "GeminiVoiceError", disposition: "uncertain", status: null, cause });
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith("[studio] Gemini voice request outcome is uncertain", { errorType: "TypeError" });
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/PRIVATE|test-key-must-not-be-logged/);
   });
 });
