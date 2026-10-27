@@ -70,13 +70,13 @@ describe("nouveaux diaporamas avec voix", () => {
     mocks.from.mockImplementation((table) => table === "credit_accounts"
       ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { balance: 500, reserved: 0 }, error: null }) }) }) }
       : { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
-    const response = await POST(request({ ...slideshowInput(true), product: { name: "Guide", description: "Bref." } }));
+    const response = await POST(request({ ...slideshowInput(true), product: { name: "Guide", description: "Le guide est disponible en PDF. Il présente les bases du jardinage. Chaque chapitre décrit une étape du potager. Les fiches expliquent la préparation du sol." } }));
     const body = await response.json();
     expect(response.status).toBe(400);
     expect(body).not.toHaveProperty("details");
     expect(JSON.stringify(body)).not.toMatch(/20\.09|25s|95%|technical|stack/i);
     expect(body.code).toBe("INSUFFICIENT_PRODUCT_DETAILS");
-    expect(body.error).toMatch(/description est trop courte.*25 s.*aucune image.*aucun crédit/i);
+    expect(body.error).toMatch(/description.*trop courte.*25 secondes.*aucune image.*aucun crédit/i);
     expect(insert).not.toHaveBeenCalled();
     expect(mocks.after).not.toHaveBeenCalled();
   });

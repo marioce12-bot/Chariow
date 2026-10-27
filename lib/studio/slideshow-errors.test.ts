@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { publicSlideshowError, slideshowPublicFailure, slideshowStoryboardDetailsMessage } from "@/lib/studio/slideshow-errors";
 
 describe("public slideshow errors", () => {
   it("returns plain localized copy for narration-duration diagnostics", () => {
@@ -16,6 +16,19 @@ describe("public slideshow errors", () => {
   it("does not pass through unverified text and never returns empty diagnostics", () => {
     expect(publicSlideshowError("Ajoute une description du produit.", "fr")).toBe(slideshowPublicFailure("fr"));
     expect(publicSlideshowError(null, "en")).toBe("The slideshow could not be created. Check your history before trying again.");
+  });
+
+  it("builds the short-description message only from validated structured server fields", () => {
+    const requirements = { duration: 25, requiredWords: 58, missingWords: 4, wordCount: 54 };
+    expect(publicSlideshowError("private server detail", "fr", "INSUFFICIENT_PRODUCT_DETAILS", requirements)).toBe(
+      "La description de ce produit dans ta boutique est trop courte pour une voix off de 25 secondes. Il faut environ 58 mots décrivant le produit (ce qu'il contient, à quoi il sert, pour qui) ; il en manque environ 4. Complète la description dans ta boutique, puis reviens ici et appuie sur « Réessayer ». Aucune image n'a été générée et aucun crédit n'a été consommé.",
+    );
+    expect(publicSlideshowError("private server detail", "en", "INSUFFICIENT_PRODUCT_DETAILS", requirements)).toContain("click “Retry”");
+    expect(publicSlideshowError("storyboard detail", "fr", "INSUFFICIENT_PRODUCT_DETAILS")).toBe(slideshowStoryboardDetailsMessage("fr"));
+    expect(publicSlideshowError("Add product details below", "fr", "INSUFFICIENT_PRODUCT_DETAILS", { duration: 25, requiredWords: "58", missingWords: -1 }))
+      .toBe(slideshowStoryboardDetailsMessage("fr"));
+    expect(publicSlideshowError("private server detail", "fr", "INSUFFICIENT_PRODUCT_DETAILS", { duration: 25, requiredWords: 58, missingWords: 0, wordCount: 58 }))
+      .toBe(slideshowStoryboardDetailsMessage("fr"));
   });
 
   it("explains a retryable Gemini refusal without exposing provider details", () => {

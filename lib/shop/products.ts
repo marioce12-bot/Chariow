@@ -21,7 +21,8 @@ export type ShopProduct = {
 
 // Lecture légère du catalogue Chariow (get_store + list_products seulement, contrairement à getChariowSnapshot
 // qui appelle aussi les ventes et les analytics). Le stockage des identifiants reste côté serveur.
-export async function fetchStoreProducts(storeId: string): Promise<ShopProduct[]> {
+export async function fetchStoreProducts(storeId: string, descriptionLimit = 600): Promise<ShopProduct[]> {
+  const safeDescriptionLimit = Number.isFinite(descriptionLimit) ? Math.max(0, Math.min(3_000, Math.floor(descriptionLimit))) : 600;
   const admin = createAdminClient();
   const { data: store } = await admin
     .from("stores")
@@ -41,7 +42,7 @@ export async function fetchStoreProducts(storeId: string): Promise<ShopProduct[]
       if (!name) return [];
       const price = product.priceRangeV2?.minVariantPrice?.amount ?? product.price ?? null;
       const currency = product.priceRangeV2?.minVariantPrice?.currencyCode ?? product.currencyCode ?? product.currency ?? null;
-      return [{ id, name, description: product.description ? clip(sanitizePlainText(String(product.description)), 600) || null : null, price,
+      return [{ id, name, description: product.description ? clip(sanitizePlainText(String(product.description)), safeDescriptionLimit) || null : null, price,
         currency: currency ? String(currency).slice(0, 8) : null, image: safeHttpsUrl(product.featuredImage?.url ?? product.image), url: safeHttpsUrl(product.onlineStoreUrl) }];
     });
   }
@@ -58,7 +59,7 @@ export async function fetchStoreProducts(storeId: string): Promise<ShopProduct[]
     if (!isProductId(product.id)) continue;
     const name = clip(sanitizePlainText(product.name), 120);
     if (!name) continue;
-    const description = product.description ? clip(sanitizePlainText(product.description), 600) : null;
+    const description = product.description ? clip(sanitizePlainText(product.description), safeDescriptionLimit) : null;
     const price = typeof product.price === "string" ? clip(sanitizePlainText(product.price), 40) : product.price;
     result.push({
       id: product.id,

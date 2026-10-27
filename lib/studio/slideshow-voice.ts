@@ -72,6 +72,18 @@ function chooseMusic(categoryName: string): string {
 }
 function score(tags: string[], prefs: string[]) { return (tags.includes("instrumental") ? 5 : 0) + prefs.reduce((n, tag, i) => n + (tags.includes(tag) ? (prefs.length - i) * 8 : 0), 0) - (tags.includes("drums") || tags.includes("percussion") ? 4 : 0); }
 
+export type SlideshowVoiceSourceRequirements = { duration: number; requiredWords: number; missingWords: number; wordCount: number };
+export function slideshowVoiceMinimumSourceWords(duration: number): number {
+  const speakingWindow = duration * 0.95;
+  return Math.ceil(Math.ceil(speakingWindow * 2.0) * 1.2);
+}
+export function slideshowVoiceSourceRequirements(name: string, description: string, duration: number): SlideshowVoiceSourceRequirements {
+  const requiredWords = slideshowVoiceMinimumSourceWords(duration);
+  const wordCount = slideshowEvidence(description, name, Number.MAX_SAFE_INTEGER)
+    .reduce((count, sentence) => count + sentence.trim().split(/\s+/).filter(Boolean).length, 0);
+  return { duration, requiredWords, missingWords: Math.max(0, requiredWords - wordCount), wordCount };
+}
+
 export function buildSlideshowVoicePlan(product: { name: string; description?: string }, duration: number, locale = "fr", goal: unknown = "discover", measuredBudget?: { minimumWords: number; maxWords: number }): SlideshowVoicePlan {
   const name = product.name?.trim().slice(0, 200);
   const description = typeof product.description === "string" ? product.description : "";
@@ -80,7 +92,7 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   // Require 20% extra source material so a short rendered clip does not fail after images are paid for.
   const speakingWindow = duration * 0.95;
   const baseMinimumWords = Math.ceil(speakingWindow * 2.0);
-  const minimumSourceWords = Math.ceil(baseMinimumWords * 1.2);
+  const minimumSourceWords = slideshowVoiceMinimumSourceWords(duration);
   const minimumWords = measuredBudget?.minimumWords ?? baseMinimumWords;
   const maxWords = measuredBudget?.maxWords ?? Math.floor(speakingWindow * 2.6);
   if (!Number.isFinite(minimumWords) || !Number.isFinite(maxWords) || minimumWords <= 0 || maxWords < minimumWords) throw new Error("Invalid narration word budget");

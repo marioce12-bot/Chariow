@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, classifyGeminiVoiceStatus, SLIDESHOW_MUSIC_METADATA, slideshowVoiceAvailability, synthesizeSlideshowVoice } from "@/lib/studio/slideshow-voice";
+import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, classifyGeminiVoiceStatus, SLIDESHOW_MUSIC_METADATA, slideshowVoiceAvailability, slideshowVoiceMinimumSourceWords, slideshowVoiceSourceRequirements, synthesizeSlideshowVoice } from "@/lib/studio/slideshow-voice";
 import { slideshowEvidence, slideshowSourceCandidates } from "@/lib/studio/slideshow-plan";
 
 afterEach(() => { vi.restoreAllMocks(); delete process.env.VERCEL_ENV; delete process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED; delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED; delete process.env.GEMINI_API_KEY; delete process.env.VENDEO_SLIDESHOW_TTS_ENABLED; });
@@ -42,6 +42,10 @@ describe("slideshow voice", () => {
     expect(words).toBeGreaterThanOrEqual(Math.ceil(duration * 0.95 * 2.0));
     expect(words).toBeLessThanOrEqual(Math.floor(duration * 0.95 * 2.6));
     expect(plan.duration).toBe(duration);
+  });
+  it.each([[25, 58], [30, 69], [40, 92]])("shares the same source-word minimum for validation and error fields at %ss", (duration, required) => {
+    expect(slideshowVoiceMinimumSourceWords(duration)).toBe(required);
+    expect(slideshowVoiceSourceRequirements(product.name, product.description, duration).requiredWords).toBe(required);
   });
   it.each([25, 30, 40])("accepts a realistic 100-word product description for %ss", (duration) => {
     expect(product.description.trim().split(/\s+/)).toHaveLength(100);
