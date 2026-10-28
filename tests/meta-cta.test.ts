@@ -114,6 +114,23 @@ describe("createMetaAdSet — audience Advantage+", () => {
     expect(params.get("destination_type")).toBe("WEBSITE");
   });
 
+  it("laisse la route interne faire son readback strict sans nettoyage implicite", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "as_1" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await createMetaAdSet({ ...base, objective: "sales", pixelId: "pixel_1", status: "PAUSED", deferPostCreateValidation: true, publisherPlatforms: ["instagram", "whatsapp"], whatsappStatusTestPlacement: true });
+    const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+    const params = new URLSearchParams(String(init.body));
+    const targeting = JSON.parse(params.get("targeting") ?? "{}");
+    expect(params.get("status")).toBe("PAUSED");
+    expect(params.get("destination_type")).toBe("WEBSITE");
+    expect(params.get("optimization_goal")).toBe("OFFSITE_CONVERSIONS");
+    expect(targeting.publisher_platforms).toEqual(["instagram", "whatsapp"]);
+    expect(targeting.whatsapp_positions).toEqual(["status"]);
+    expect(targeting.instagram_positions).toEqual(["story"]);
+    expect(targeting.user_age_unknown).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("n'enlève jamais destination_type WEBSITE si Meta le refuse", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: { message: "Website destination unavailable" } }), { status: 400 }));
     vi.stubGlobal("fetch", fetchMock);

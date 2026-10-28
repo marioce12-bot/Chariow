@@ -218,6 +218,11 @@ export async function createMetaAdSet(input: {
   /** Audience Advantage+ : Meta peut élargir l'audience au-delà du ciblage (âge, centres d'intérêt).
    *  Désactivée par défaut pour garder exactement l'âge et les lieux choisis. */
   advantageAudience?: boolean;
+  /** Uniquement pour la route interne de test PAUSED, qui relit ensuite strictement les objets.
+   *  Les parcours de lancement ne doivent pas activer cette option. */
+  deferPostCreateValidation?: boolean;
+  /** Preset réservé au test Meta : WhatsApp Status + Instagram Stories uniquement. */
+  whatsappStatusTestPlacement?: boolean;
 }) {
   const hasPreciseTargeting = !!(input.geoTargeting && ((input.geoTargeting.regions?.length ?? 0) > 0 || (input.geoTargeting.cities?.length ?? 0) > 0));
   const geoLocations: Record<string, unknown> = hasPreciseTargeting
@@ -245,10 +250,18 @@ export async function createMetaAdSet(input: {
     // créative — voir ADVANTAGE_CREATIVE_FEATURES plus bas.)
     targeting_automation: { advantage_audience: input.advantageAudience ? 1 : 0 },
   };
-  // Meta placements: keep every supported platform available. WhatsApp Status
-  // is explicit in the API and requires Instagram Stories; marketing messages
-  // are intentionally excluded. Other channels keep their default positions.
-  if (input.publisherPlatforms?.length) {
+  if (input.whatsappStatusTestPlacement) {
+    const platforms = input.publisherPlatforms ?? [];
+    if (platforms.length !== 2 || !platforms.includes("instagram") || !platforms.includes("whatsapp")) {
+      throw new Error("Le test WhatsApp Status exige uniquement Instagram et WhatsApp comme plateformes.");
+    }
+    targeting.publisher_platforms = ["instagram", "whatsapp"];
+    targeting.instagram_positions = ["story"];
+    targeting.whatsapp_positions = ["status"];
+    targeting.user_age_unknown = false;
+  } else if (input.publisherPlatforms?.length) {
+    // Launch flows may keep every supported platform available; marketing
+    // messages remain intentionally excluded.
     targeting.publisher_platforms = input.publisherPlatforms;
     if (input.publisherPlatforms.includes("whatsapp")) {
       targeting.instagram_positions = ["stream", "story", "explore", "explore_home", "reels", "profile_feed", "ig_search", "profile_reels"];
@@ -297,11 +310,13 @@ export async function createMetaAdSet(input: {
   const adsetsPath = `${input.accountId}/adsets`;
   const adSet = await graphPost(adsetsPath, input.accessToken, { ...params, destination_type: "WEBSITE" });
 
-  // Ventes : contrôle après création que l'ad set optimise bien sur l'achat du site.
-  if (objective === "sales") {
-    await assertSalesAdSetOnPurchase({ adSetId: String(adSet.id), campaignId: input.campaignId, accessToken: input.accessToken });
-  } else {
-    await assertAdSetOnWebsite({ adSetId: String(adSet.id), campaignId: input.campaignId, accessToken: input.accessToken });
+  if (!input.deferPostCreateValidation) {
+    // Ventes : contrôle après création que l'ad set optimise bien sur l'achat du site.
+    if (objective === "sales") {
+      await assertSalesAdSetOnPurchase({ adSetId: String(adSet.id), campaignId: input.campaignId, accessToken: input.accessToken });
+    } else {
+      await assertAdSetOnWebsite({ adSetId: String(adSet.id), campaignId: input.campaignId, accessToken: input.accessToken });
+    }
   }
   return adSet;
 }
