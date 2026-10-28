@@ -7,14 +7,14 @@ import { fetchMetaGraph } from "@/lib/meta/graph";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const ACCOUNT_NAME = "Marioce Atin";
 const CAMPAIGN_ID = "120254598064950655";
 const AD_SET_ID = "120254598065610655";
-const OBJECT_FIELDS = "id,status,effective_status,objective,targeting,optimization_goal,destination_type,promoted_object";
-const RESPONSE_FIELDS = [
+const CAMPAIGN_FIELDS = ["id", "status", "effective_status", "objective"] as const;
+const AD_SET_FIELDS = [
   "id",
   "status",
   "effective_status",
-  "objective",
   "targeting",
   "optimization_goal",
   "destination_type",
@@ -22,6 +22,12 @@ const RESPONSE_FIELDS = [
 ] as const;
 
 type MetaObject = Record<string, unknown>;
+type AccountMetadata = {
+  id?: unknown;
+  name?: unknown;
+  meta_account_id?: unknown;
+  is_active?: unknown;
+};
 
 function errorResponse(status: number) {
   return NextResponse.json({ error: "Lecture Meta indisponible" }, {
@@ -30,9 +36,9 @@ function errorResponse(status: number) {
   });
 }
 
-async function readMetaObject(id: string, accessToken: string): Promise<MetaObject> {
+async function readMetaObject(id: string, fields: readonly string[], accessToken: string): Promise<MetaObject> {
   const url = new URL(`${META_GRAPH_BASE_URL}/${encodeURIComponent(id)}`);
-  url.searchParams.set("fields", OBJECT_FIELDS);
+  url.searchParams.set("fields", fields.join(","));
   url.searchParams.set("access_token", accessToken);
 
   // One bounded GET per fixed object ID. No write methods and no retry path.
@@ -44,9 +50,9 @@ async function readMetaObject(id: string, accessToken: string): Promise<MetaObje
   return json;
 }
 
-function onlyRequestedFields(object: MetaObject, expectedId: string) {
+function onlyRequestedFields(object: MetaObject, expectedId: string, fields: readonly string[]) {
   if (String(object.id ?? "") !== expectedId) throw new Error("Unexpected Meta object ID");
-  return Object.fromEntries(RESPONSE_FIELDS.map((field) => [field, object[field] ?? null]));
+  return Object.fromEntries(fields.map((field) => [field, object[field] ?? null]));
 }
 
 export async function GET(_request: Request) {
@@ -60,23 +66,42 @@ export async function GET(_request: Request) {
   if (user.id !== allowedUserId) return errorResponse(403);
 
   try {
-    const { data: account, error } = await supabase.from("meta_ad_accounts")
-      .select("access_token_encrypted")
+    // Inspect only the four permitted metadata columns before deciding whether
+    // exactly one account belongs to this test. Never read tokens during matching.
+    const { data: accounts, error: metadataError } = await supabase.from("meta_ad_accounts")
+      .select("id,name,meta_account_id,is_active")
       .eq("user_id", user.id)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-    if (error || typeof account?.access_token_encrypted !== "string") return errorResponse(503);
+      .eq("name", ACCOUNT_NAME)
+      .limit(2);
+    if (metadataError || !Array.isArray(accounts)) return errorResponse(503);
 
-    const accessToken = decryptSecret(account.access_token_encrypted);
+    const matches = (accounts as AccountMetadata[]).filter((account) => account?.name === ACCOUNT_NAME);
+    if (matches.length !== 1) return errorResponse(503);
+
+    const account = matches[0];
+    if (account.is_active !== true || typeof account.id !== "string" || !account.id ||
+        typeof account.meta_account_id !== "string" || !account.meta_account_id.trim()) {
+      return errorResponse(503);
+    }
+
+    // A second, row-scoped query reads the encrypted token only after a unique
+    // metadata match; neither the token nor the selected account is returned.
+    const { data: credentials, error: credentialError } = await supabase.from("meta_ad_accounts")
+      .select("access_token_encrypted")
+      .eq("id", account.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (credentialError || typeof credentials?.access_token_encrypted !== "string") return errorResponse(503);
+
+    const accessToken = decryptSecret(credentials.access_token_encrypted);
     const [campaign, adSet] = await Promise.all([
-      readMetaObject(CAMPAIGN_ID, accessToken),
-      readMetaObject(AD_SET_ID, accessToken),
+      readMetaObject(CAMPAIGN_ID, CAMPAIGN_FIELDS, accessToken),
+      readMetaObject(AD_SET_ID, AD_SET_FIELDS, accessToken),
     ]);
 
     return NextResponse.json({
-      campaign: onlyRequestedFields(campaign, CAMPAIGN_ID),
-      ad_set: onlyRequestedFields(adSet, AD_SET_ID),
+      campaign: onlyRequestedFields(campaign, CAMPAIGN_ID, CAMPAIGN_FIELDS),
+      ad_set: onlyRequestedFields(adSet, AD_SET_ID, AD_SET_FIELDS),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     // Do not return or log tokens, Graph error payloads, or unrelated fields.
