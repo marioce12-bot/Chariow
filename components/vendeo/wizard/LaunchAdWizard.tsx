@@ -69,7 +69,7 @@ const META_PREVIEW_CACHE_MS = 10 * 60 * 1000;
  * Step2NetworkCreative.tsx pour le détail. Les autres étapes gardent leur
  * propre pied de page interne (sticky bottom-0 dans leur zone de scroll).
  */
-export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProduct, editCampaign, editNotice, onEdited, duplicateCampaign, launchImmediately = false }: LaunchAdWizardProps) {
+export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, editCampaign, editNotice, onEdited, duplicateCampaign, launchImmediately = false }: LaunchAdWizardProps) {
   const { locale, t } = useI18n();
   const en = locale === "en";
   const stepLabels = [t("wizardExtra.step.product"), t("wizardExtra.step.creative"), t("wizardExtra.step.audience"), t("wizardExtra.step.budget"), t("wizardExtra.step.creation")];
@@ -104,9 +104,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
     setMounted(true);
   }, []);
 
-  const metaFormats = (state.placement === "whatsapp_status"
-    ? META_PREVIEW_FORMATS.filter((format) => format.id === "INSTAGRAM_STORY" || format.id === "WHATSAPP_STATUS_MEDIA")
-    : META_PREVIEW_FORMATS).map((format) => ({
+  const metaFormats = META_PREVIEW_FORMATS.map((format) => ({
       ...format,
       label: format.id === "WHATSAPP_STATUS_MEDIA" ? (en ? "WhatsApp Status" : "Statut WhatsApp") : format.label,
     }));
@@ -192,7 +190,7 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
     if (step !== 5 || state.platform !== "meta" || !state.metaAdAccountId || !state.metaPageId || !state.mediaUrl) return;
     let cancelled = false;
     const isCancelled = () => cancelled;
-    const firstFormat = state.placement === "whatsapp_status" ? "INSTAGRAM_STORY" : "MOBILE_FEED_STANDARD";
+    const firstFormat = "MOBILE_FEED_STANDARD";
     const ids = [firstFormat, ...metaFormats.map((format) => format.id).filter((id) => id !== firstFormat)];
     setMetaPreviews({});
     setMetaPreviewErrors({});
@@ -292,7 +290,6 @@ export function LaunchAdWizard({ storeId, plan, onClose, onLaunched, initialProd
               onFooterChange={setStep2Footer}
               onBackToStep1={back}
               onAdvanceToStep3={next}
-              plan={plan}
             />
           )}
           {step === 3 && <Step3Audience state={state} patch={patch} onNext={next} onBack={back} />}

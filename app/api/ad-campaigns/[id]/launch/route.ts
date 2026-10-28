@@ -9,7 +9,6 @@ import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { withVendeoCampaignTracking } from "@/lib/meta/tracking";
 import { getMetaCampaignLifecycle } from "@/lib/meta/status";
 import { launchTikTok } from "@/lib/tiktok/launch";
-import { metaPublisherPlatforms, isPlanId } from "@/lib/plans";
 import { launchPinterest } from "@/lib/pinterest/api";
 import { PINTEREST_TAG_REQUIRED_CODE, isPinterestConversionTagError, pinterestTagShortMessage } from "@/lib/pinterest/tag-help";
 import { META_PIXEL_REQUIRED_CODE } from "@/lib/meta/pixel-help";
@@ -248,9 +247,6 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     // le lancement pour autant — Meta refusera de toute façon la création si besoin.
   }
 
-  const { data: subscription } = await supabase.from("subscriptions").select("plan").eq("user_id", userId).maybeSingle();
-  const plan = isPlanId(subscription?.plan) ? subscription.plan : "starter";
-  const publisherPlatforms = metaPublisherPlatforms(plan);
   await supabase.from("ad_campaigns").update({ meta_ad_account_id: account.id, external_error: null }).eq("id", campaign.id).eq("user_id", userId);
   try {
     const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
@@ -272,7 +268,6 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
       geoTargeting: campaign.geo_targeting ?? null,
       minAge: Number(campaign.min_age),
       maxAge: Number(campaign.max_age),
-      publisherPlatforms,
       objective: effectiveObjective,
       pixelId: effectiveObjective === "sales" ? pixelId : null,
       endTime,

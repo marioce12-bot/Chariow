@@ -53,7 +53,7 @@ export async function resolveUserMaxStores(supabase: any, userId: string): Promi
   return planMaxStores(plan);
 }
 
-  // Le forfait unique inclut actuellement tous les réseaux pub : cette
+// Le forfait unique inclut actuellement tous les réseaux pub : cette
 // fonction est conservée pour l'UI de verrouillage par plateforme, au cas où
 // un plan futur restreindrait certains réseaux.
 export function isAdPlatformAllowed(plan: PlanId, platform: AdPlatform) {
@@ -66,11 +66,4 @@ export function isAdPlatformAllowed(plan: PlanId, platform: AdPlatform) {
 export function computePeriodEnd(plan: PlanId, now: Date): string {
   const end = new Date(now.getTime() + PLAN_CONFIG[plan].periodDays * 24 * 60 * 60 * 1000);
   return end.toISOString().slice(0, 10);
-}
-
-// Pour le lancement d'une campagne Meta : quelles plateformes Meta
-// ("publisher_platforms") transmettre à l'API. Le plan unique inclut
-// Facebook et Instagram.
-export function metaPublisherPlatforms(_plan: PlanId): string[] {
-  return ["facebook", "instagram"];
 }

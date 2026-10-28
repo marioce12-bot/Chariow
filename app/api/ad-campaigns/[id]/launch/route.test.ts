@@ -17,7 +17,6 @@ vi.mock("@/lib/meta/ad-video", () => ({ createMetaVideoCreative: createVideo, is
 vi.mock("@/lib/meta/carousel", () => ({ parseCarouselUrls: (urls: unknown) => Array.isArray(urls) ? urls : [] }));
 vi.mock("@/lib/meta/tracking", () => ({ withVendeoCampaignTracking: (url: string) => url }));
 vi.mock("@/lib/tiktok/launch", () => ({ launchTikTok: provider }));
-vi.mock("@/lib/plans", () => ({ metaPublisherPlatforms: () => [], isPlanId: () => false }));
 vi.mock("@/lib/pinterest/api", () => ({ launchPinterest: provider }));
 vi.mock("@/lib/pinterest/tag-help", () => ({ PINTEREST_TAG_REQUIRED_CODE: "tag", isPinterestConversionTagError: () => false, pinterestTagShortMessage: () => "" }));
 vi.mock("@/lib/meta/pixel-help", () => ({ META_PIXEL_REQUIRED_CODE: "META_PIXEL_REQUIRED_FOR_SALES" }));
@@ -136,7 +135,16 @@ describe("Meta launch without Page-token dependency (mock providers only)", () =
     expect(pageToken).not.toHaveBeenCalled();
     expect(createCampaign).toHaveBeenCalledWith(expect.objectContaining({ accountId: "act_123", accessToken: "account-access-token" }));
     expect(createAdSet).toHaveBeenCalledWith(expect.objectContaining({ accessToken: "account-access-token" }));
+    expect(createAdSet.mock.calls[0][0]).not.toHaveProperty("publisherPlatforms");
     expect(creative).toHaveBeenCalledWith(expect.objectContaining({ accountId: "act_123", accessToken: "account-access-token", pageId: "page-1" }));
+    if (_kind === "video") {
+      expect(createAd).toHaveBeenCalledWith(expect.objectContaining({ status: "ACTIVE" }));
+      expect(publishAd).not.toHaveBeenCalled();
+    } else {
+      expect(createAd).not.toHaveBeenCalled();
+      expect(publishAd).toHaveBeenCalled();
+    }
+    if (_kind === "image") expect(createCreative).toHaveBeenCalledWith(expect.objectContaining({ advantageCreative: true }));
     expect(fetch).not.toHaveBeenCalled();
   });
 

@@ -82,23 +82,40 @@ describe("createMetaCreative — bouton et Advantage+", () => {
 describe("createMetaAdSet — audience Advantage+", () => {
   const base = { accountId: "act_1", accessToken: "tok", campaignId: "c1", name: "Audience", dailyBudget: 5, countries: ["BJ"], minAge: 18, maxAge: 45, advertiserName: "Boutique" };
 
-  async function sentTargeting(extra: { advantageAudience?: boolean }) {
+  async function sentAdSet(extra: { advantageAudience?: boolean } = {}) {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "as_1" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await createMetaAdSet({ ...base, ...extra });
     const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
-    return JSON.parse(new URLSearchParams(String(init.body)).get("targeting") ?? "{}");
+    const params = new URLSearchParams(String(init.body));
+    return { targeting: JSON.parse(params.get("targeting") ?? "{}"), params };
   }
 
   it("désactive l'audience Advantage+ par défaut", async () => {
-    const targeting = await sentTargeting({});
+    const { targeting } = await sentAdSet();
     expect(targeting.targeting_automation).toEqual({ advantage_audience: 0 });
     expect(targeting.age_min).toBe(18);
     expect(targeting.age_max).toBe(45);
   });
 
   it("l'active quand demandé", async () => {
-    const targeting = await sentTargeting({ advantageAudience: true });
+    const { targeting } = await sentAdSet({ advantageAudience: true });
     expect(targeting.targeting_automation).toEqual({ advantage_audience: 1 });
+  });
+
+  it("laisse Meta choisir automatiquement les placements tout en conservant la destination Web", async () => {
+    const { targeting, params } = await sentAdSet();
+    expect(targeting).not.toHaveProperty("publisher_platforms");
+    expect(targeting).not.toHaveProperty("instagram_positions");
+    expect(targeting).not.toHaveProperty("whatsapp_positions");
+    expect(targeting).not.toHaveProperty("user_age_unknown");
+    expect(params.get("destination_type")).toBe("WEBSITE");
+  });
+
+  it("n'enlève jamais destination_type WEBSITE si Meta le refuse", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: { message: "Website destination unavailable" } }), { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(createMetaAdSet(base)).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

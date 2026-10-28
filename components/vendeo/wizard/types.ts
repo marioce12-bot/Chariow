@@ -6,10 +6,8 @@ import { stripVendeoCampaignTracking } from "@/lib/meta/tracking";
 
 export type Platform = "meta" | "tiktok" | "pinterest";
 export type Objective = "sales" | "traffic" | "engagement" | "leads";
-// "whatsapp_status" n'est valable que pour platform === "meta" : les pubs dans
-// le Statut WhatsApp sont un placement de Meta Ads, pas un réseau à part (pas
-// de compte à connecter en plus — voir Step2NetworkCreative pour le détail).
-export type Placement = "auto" | "whatsapp_status";
+// Le wizard ne choisit pas les placements : Meta optimise automatiquement la diffusion.
+export type Placement = "auto";
 
 export interface ChariowProductLite {
   id: string;
