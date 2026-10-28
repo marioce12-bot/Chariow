@@ -17,7 +17,7 @@ vi.mock("@/lib/meta/ad-video", () => ({ createMetaVideoCreative: createVideo, is
 vi.mock("@/lib/meta/carousel", () => ({ parseCarouselUrls: (urls: unknown) => Array.isArray(urls) ? urls : [] }));
 vi.mock("@/lib/meta/tracking", () => ({ withVendeoCampaignTracking: (url: string) => url }));
 vi.mock("@/lib/tiktok/launch", () => ({ launchTikTok: provider }));
-vi.mock("@/lib/plans", () => ({ metaPublisherPlatforms: () => [], isPlanId: () => false }));
+vi.mock("@/lib/plans", () => ({ metaPublisherPlatforms: () => ["facebook", "instagram", "threads", "messenger", "audience_network", "whatsapp"], isPlanId: () => false }));
 vi.mock("@/lib/pinterest/api", () => ({ launchPinterest: provider }));
 vi.mock("@/lib/pinterest/tag-help", () => ({ PINTEREST_TAG_REQUIRED_CODE: "tag", isPinterestConversionTagError: () => false, pinterestTagShortMessage: () => "" }));
 vi.mock("@/lib/meta/pixel-help", () => ({ META_PIXEL_REQUIRED_CODE: "META_PIXEL_REQUIRED_FOR_SALES" }));
@@ -135,8 +135,14 @@ describe("Meta launch without Page-token dependency (mock providers only)", () =
     expect(await response.json()).toMatchObject({ campaign: { status: "review" } });
     expect(pageToken).not.toHaveBeenCalled();
     expect(createCampaign).toHaveBeenCalledWith(expect.objectContaining({ accountId: "act_123", accessToken: "account-access-token" }));
-    expect(createAdSet).toHaveBeenCalledWith(expect.objectContaining({ accessToken: "account-access-token" }));
+    expect(createAdSet).toHaveBeenCalledWith(expect.objectContaining({
+      accessToken: "account-access-token",
+      publisherPlatforms: ["facebook", "instagram", "threads", "messenger", "audience_network", "whatsapp"],
+    }));
     expect(creative).toHaveBeenCalledWith(expect.objectContaining({ accountId: "act_123", accessToken: "account-access-token", pageId: "page-1" }));
+    expect(createAd).toHaveBeenCalledWith(expect.objectContaining({ status: "ACTIVE" }));
+    expect(publishAd).not.toHaveBeenCalled();
+    if (_kind === "image") expect(createCreative).toHaveBeenCalledWith(expect.objectContaining({ advantageCreative: false }));
     expect(fetch).not.toHaveBeenCalled();
   });
 

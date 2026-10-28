@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_META_CTA, LEGACY_META_CTA, META_CTA_TYPES, normalizeMetaCta } from "@/lib/meta/cta";
 import { buildPlacementCreativeParams } from "@/lib/meta/placement-spec";
 import { createMetaAdSet, createMetaCreative } from "@/lib/meta/campaigns";
+import { metaPublisherPlatforms } from "@/lib/plans";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -82,23 +83,41 @@ describe("createMetaCreative — bouton et Advantage+", () => {
 describe("createMetaAdSet — audience Advantage+", () => {
   const base = { accountId: "act_1", accessToken: "tok", campaignId: "c1", name: "Audience", dailyBudget: 5, countries: ["BJ"], minAge: 18, maxAge: 45, advertiserName: "Boutique" };
 
-  async function sentTargeting(extra: { advantageAudience?: boolean }) {
+  async function sentAdSet(extra: { advantageAudience?: boolean; publisherPlatforms?: string[] } = {}) {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "as_1" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await createMetaAdSet({ ...base, ...extra });
     const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
-    return JSON.parse(new URLSearchParams(String(init.body)).get("targeting") ?? "{}");
+    const params = new URLSearchParams(String(init.body));
+    return { targeting: JSON.parse(params.get("targeting") ?? "{}"), params };
   }
 
   it("désactive l'audience Advantage+ par défaut", async () => {
-    const targeting = await sentTargeting({});
+    const { targeting } = await sentAdSet();
     expect(targeting.targeting_automation).toEqual({ advantage_audience: 0 });
     expect(targeting.age_min).toBe(18);
     expect(targeting.age_max).toBe(45);
   });
 
   it("l'active quand demandé", async () => {
-    const targeting = await sentTargeting({ advantageAudience: true });
+    const { targeting } = await sentAdSet({ advantageAudience: true });
     expect(targeting.targeting_automation).toEqual({ advantage_audience: 1 });
+  });
+
+  it("inclut WhatsApp Status, Instagram Stories et les autres canaux sans changer la destination site", async () => {
+    const { targeting, params } = await sentAdSet({ publisherPlatforms: metaPublisherPlatforms("starter") });
+    expect(targeting.publisher_platforms).toEqual(["facebook", "instagram", "threads", "messenger", "audience_network", "whatsapp"]);
+    expect(targeting.instagram_positions).toContain("story");
+    expect(targeting.whatsapp_positions).toEqual(["status"]);
+    expect(targeting.user_age_unknown).toBe(false);
+    expect(JSON.stringify(targeting)).not.toContain("marketing_messages");
+    expect(params.get("destination_type")).toBe("WEBSITE");
+  });
+
+  it("n'enlève jamais destination_type WEBSITE si Meta le refuse", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: { message: "Website destination unavailable" } }), { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(createMetaAdSet(base)).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

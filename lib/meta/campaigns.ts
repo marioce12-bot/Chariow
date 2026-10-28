@@ -175,6 +175,25 @@ async function assertSalesAdSetOnPurchase(input: { adSetId: string; campaignId: 
   );
 }
 
+async function assertAdSetOnWebsite(input: { adSetId: string; campaignId: string; accessToken: string }) {
+  let json: GraphResponse;
+  try {
+    json = await graphGet(input.adSetId, input.accessToken, "destination_type");
+  } catch (error) {
+    console.error("createMetaAdSet: relecture de la destination impossible, contrôle ignoré", error instanceof Error ? error.message : error);
+    return;
+  }
+  const destination = typeof json.destination_type === "string" ? json.destination_type : "";
+  if (!destination || destination === "WEBSITE") return;
+  console.error("createMetaAdSet: l'ad set n'est pas réglé sur le site", { adSetId: input.adSetId, destination });
+  try {
+    await graphDelete(input.campaignId, input.accessToken);
+  } catch (cleanupError) {
+    console.error("createMetaAdSet: suppression de la campagne mal réglée impossible", cleanupError instanceof Error ? cleanupError.message : cleanupError);
+  }
+  throw new Error(`Meta a réglé la destination sur « ${destination} » au lieu du site web. La campagne a été annulée : rien n'est diffusé ni dépensé.`);
+}
+
 export async function createMetaAdSet(input: {
   accountId: string;
   accessToken: string;
@@ -226,9 +245,19 @@ export async function createMetaAdSet(input: {
     // créative — voir ADVANTAGE_CREATIVE_FEATURES plus bas.)
     targeting_automation: { advantage_audience: input.advantageAudience ? 1 : 0 },
   };
-  // Plan Éco : diffusion restreinte à Facebook uniquement (pas Instagram).
-  // Sans ce champ, Meta diffuse automatiquement sur tous les emplacements disponibles.
-  if (input.publisherPlatforms?.length) targeting.publisher_platforms = input.publisherPlatforms;
+  // Meta placements: keep every supported platform available. WhatsApp Status
+  // is explicit in the API and requires Instagram Stories; marketing messages
+  // are intentionally excluded. Other channels keep their default positions.
+  if (input.publisherPlatforms?.length) {
+    targeting.publisher_platforms = input.publisherPlatforms;
+    if (input.publisherPlatforms.includes("whatsapp")) {
+      targeting.instagram_positions = ["stream", "story", "explore", "explore_home", "reels", "profile_feed", "ig_search", "profile_reels"];
+      targeting.whatsapp_positions = ["status"];
+      // Preserve the minimum age selected in Vendeo; WhatsApp otherwise
+      // includes people whose age is unknown by default.
+      targeting.user_age_unknown = false;
+    }
+  }
 
   const objective = input.objective ?? "traffic";
   if (objective === "sales" && !input.pixelId) throw new Error("Un pixel Meta configuré sur Chariow est requis pour optimiser une campagne de ventes.");
@@ -262,25 +291,17 @@ export async function createMetaAdSet(input: {
     params.dsa_payor = advertiserName;
   }
 
-  // Emplacement de conversion explicite : le site web. Sans destination_type, c'est Meta qui choisit
-  // l'emplacement par défaut (risque de « messagerie / conversations » au lieu des achats sur le site).
-  // Si Meta refuse ce champ, on retente sans (et le contrôle ci-dessous vérifie le résultat).
+  // Destination explicite : le site web. Ne jamais retenter sans ce champ, car
+  // Meta pourrait alors interpréter une publicité WhatsApp comme une annonce de
+  // conversation au lieu d'un lien vers la boutique.
   const adsetsPath = `${input.accountId}/adsets`;
-  let adSet: GraphResponse;
-  if (objective === "sales" || objective === "traffic") {
-    try {
-      adSet = await graphPost(adsetsPath, input.accessToken, { ...params, destination_type: "WEBSITE" });
-    } catch (error) {
-      console.error("createMetaAdSet: destination_type WEBSITE refusé par Meta, nouvel essai sans", error instanceof Error ? error.message : error);
-      adSet = await graphPost(adsetsPath, input.accessToken, params);
-    }
-  } else {
-    adSet = await graphPost(adsetsPath, input.accessToken, params);
-  }
+  const adSet = await graphPost(adsetsPath, input.accessToken, { ...params, destination_type: "WEBSITE" });
 
   // Ventes : contrôle après création que l'ad set optimise bien sur l'achat du site.
   if (objective === "sales") {
     await assertSalesAdSetOnPurchase({ adSetId: String(adSet.id), campaignId: input.campaignId, accessToken: input.accessToken });
+  } else {
+    await assertAdSetOnWebsite({ adSetId: String(adSet.id), campaignId: input.campaignId, accessToken: input.accessToken });
   }
   return adSet;
 }

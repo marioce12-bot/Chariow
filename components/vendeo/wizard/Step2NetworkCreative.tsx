@@ -3,8 +3,7 @@
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, ImagePlus, Loader2, Pencil, Sparkles, X } from "lucide-react";
-import type { Placement, Platform, WizardState } from "./types";
-import { isAdPlatformAllowed, type PlanId } from "@/lib/plans";
+import type { Platform, WizardState } from "./types";
 import { useI18n } from "@/lib/i18n/i18n";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import { MAX_CAROUSEL_EXTRA_IMAGES } from "@/lib/meta/carousel";
@@ -24,10 +23,9 @@ interface StepProps {
   onFooterChange: (footer: Step2FooterState) => void;
   onBackToStep1: () => void;
   onAdvanceToStep3: () => void;
-  plan: PlanId;
 }
 
-type FieldId = "adSetName" | "network" | "account" | "placement" | "adName" | "media" | "content" | "identity";
+type FieldId = "adSetName" | "network" | "account" | "adName" | "media" | "content" | "identity";
 
 function stripHtml(html: string): string {
   return html
@@ -64,7 +62,7 @@ type PinterestAccountOption = { id: string; name: string | null };
  *   n'apportait rien et créait de la confusion ("pourquoi c'est affiché mais
  *   pas modifiable ici ?").
  */
-export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToStep1, onAdvanceToStep3, plan }: StepProps) {
+export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToStep1, onAdvanceToStep3 }: StepProps) {
   const { locale , t } = useI18n();
   const en = locale === "en";
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -450,11 +448,17 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           />
           <Row label={en ? "Conversion" : "Conversion"} value={en ? "Sales on your store (fixed)" : "Ventes sur ta boutique (fixé)"} />
           {state.platform === "meta" && (
-            <Row
-              label={en ? "Placements" : "Placements"}
-              value={state.placement === "auto" ? (en ? "Automatic" : "Automatique") : (en ? "WhatsApp Status" : "Statut WhatsApp")}
-              onEdit={() => setEditingField("placement")}
-            />
+            <>
+              <Row
+                label={en ? "Placements" : "Placements"}
+                value={en ? "Automatic — all eligible Meta placements" : "Automatique — placements Meta admissibles"}
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                {en
+                  ? "Meta may use Facebook, Instagram, WhatsApp Status and other eligible placements. Clicks open your website link, never a WhatsApp conversation."
+                  : "Meta peut diffuser sur Facebook, Instagram, le Statut WhatsApp et les autres placements admissibles. Les clics ouvrent le lien de ton site, jamais une conversation WhatsApp."}
+              </p>
+            </>
           )}
         </div>
       </div>
@@ -582,39 +586,6 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
     );
   }
 
-  if (editingField === "placement") {
-    return (
-      <div>
-        <EditorHeader label={en ? "Placements" : "Placements"} />
-        <div className="flex gap-2">
-          {(["auto", "whatsapp_status"] as Placement[]).map((p) => {
-            const allowed = p === "auto" || isAdPlatformAllowed(plan, "whatsapp");
-            const active = state.placement === p;
-            return (
-              <button
-                key={p}
-                type="button"
-                disabled={!allowed}
-                onClick={() => allowed && patch({ placement: p })}
-                className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm font-medium transition ${
-                  active ? "border-[#6366F1] bg-[#EEF2FF] text-[#3730A3]" : allowed ? "border-gray-200 text-gray-600" : "border-gray-100 text-gray-300"
-                }`}
-              >
-                {p === "auto" ? (en ? "Automatic" : "Automatique") : (en ? "WhatsApp Status" : "Statut WhatsApp")}
-                {p === "whatsapp_status" && !allowed && <span className="ml-1 text-[10px] font-normal text-gray-400">{en ? "(not included in your plan)" : "(non inclus dans ton plan)"}</span>}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-1 text-xs text-gray-400">
-          {state.placement === "whatsapp_status"
-            ? (en ? "Delivered in WhatsApp Status, in addition to Instagram Stories — Meta requires this pair. Clicks open your destination link, not a WhatsApp conversation." : "Diffusée dans l'onglet Actualités de WhatsApp (Statuts), en plus des Stories Instagram — Meta impose ce duo. Le clic ouvre ton lien de destination, pas une conversation WhatsApp.")
-            : (en ? "Meta automatically chooses the best placements (Facebook, Instagram)." : "Meta choisit automatiquement les meilleurs emplacements (Facebook, Instagram).")}
-        </p>
-      </div>
-    );
-  }
-
   if (editingField === "adName") {
     return (
       <div>
@@ -721,19 +692,19 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           </div>
         )}
         {state.platform === "meta" && (
-          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3">
+          <label className="mt-5 flex cursor-not-allowed items-start gap-3 rounded-lg border border-gray-200 p-3 opacity-75">
             <input
               type="checkbox"
-              checked={state.advantageCreative}
-              onChange={(e) => patch({ advantageCreative: e.target.checked })}
+              checked={false}
+              disabled
               className="mt-0.5 h-4 w-4 shrink-0"
             />
             <span>
               <span className="block text-sm font-semibold text-gray-700">{en ? "Advantage+ creative" : "Créative Advantage+"}</span>
               <span className="block text-xs text-gray-500">
                 {en
-                  ? "Meta can automatically touch up your image (crop, brightness), improve your text and add overlays to boost results. Turn off to keep your ad exactly as written."
-                  : "Meta peut retoucher ton image (recadrage, luminosité), améliorer ton texte et ajouter des superpositions pour de meilleurs résultats. Désactive pour garder ta publicité exactement telle quelle."}
+                  ? "Unavailable with WhatsApp Status. Vendeo disables these enhancements so the ad can use this placement."
+                  : "Non disponible avec le Statut WhatsApp. Vendeo désactive ces améliorations pour permettre ce placement."}
               </span>
             </span>
           </label>

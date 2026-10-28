@@ -6,10 +6,9 @@ import { stripVendeoCampaignTracking } from "@/lib/meta/tracking";
 
 export type Platform = "meta" | "tiktok" | "pinterest";
 export type Objective = "sales" | "traffic" | "engagement" | "leads";
-// "whatsapp_status" n'est valable que pour platform === "meta" : les pubs dans
-// le Statut WhatsApp sont un placement de Meta Ads, pas un réseau à part (pas
-// de compte à connecter en plus — voir Step2NetworkCreative pour le détail).
-export type Placement = "auto" | "whatsapp_status";
+// Vendeo laisse Meta diffuser automatiquement sur les placements admissibles,
+// avec WhatsApp Status et Instagram Stories activés côté ciblage.
+export type Placement = "auto";
 
 export interface ChariowProductLite {
   id: string;
@@ -136,7 +135,7 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   title: "",
   destinationUrl: "",
   callToAction: DEFAULT_META_CTA,
-  advantageCreative: true,
+  advantageCreative: false,
   advantageAudience: false, // désactivé : on garde exactement l'âge et les lieux choisis
   locations: [DEFAULT_LOCATION],
   countries: ["BJ"],
@@ -215,7 +214,8 @@ export function wizardStateFromCampaign(campaign: EditableCampaign, storeId: str
     destinationUrl: campaign.destination_url ?? "",
     // Campagne créée avant ce réglage (colonne vide) : elle partait avec LEARN_MORE, on le garde.
     callToAction: normalizeMetaCta(campaign.call_to_action) ?? LEGACY_META_CTA,
-    advantageCreative: campaign.advantage_creative ?? DEFAULT_WIZARD_STATE.advantageCreative,
+    // Meta ne prend pas en charge Advantage+ créative sur WhatsApp Status.
+    advantageCreative: false,
     advantageAudience: campaign.advantage_audience ?? DEFAULT_WIZARD_STATE.advantageAudience,
     metaAdAccountId: campaign.meta_ad_account_id ?? undefined,
     tiktokAdAccountId: campaign.tiktok_ad_account_id ?? undefined,

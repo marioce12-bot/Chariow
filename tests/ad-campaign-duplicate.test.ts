@@ -71,7 +71,7 @@ describe("wizardStateForDuplicate", () => {
   it("applique les valeurs par défaut aux campagnes antérieures aux réglages", () => {
     const legacy = wizardStateForDuplicate({ ...original, call_to_action: null, advantage_creative: null, advantage_audience: null }, "store-1");
     expect(legacy.callToAction).toBe("LEARN_MORE");
-    expect(legacy.advantageCreative).toBe(true);
+    expect(legacy.advantageCreative).toBe(false);
     expect(legacy.advantageAudience).toBe(false);
   });
 });

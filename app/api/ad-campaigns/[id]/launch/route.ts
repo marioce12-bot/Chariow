@@ -251,6 +251,10 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   const { data: subscription } = await supabase.from("subscriptions").select("plan").eq("user_id", userId).maybeSingle();
   const plan = isPlanId(subscription?.plan) ? subscription.plan : "starter";
   const publisherPlatforms = metaPublisherPlatforms(plan);
+  // WhatsApp Status is not compatible with Advantage+ creative enhancements.
+  // Keep the user's setting for relaunches, but disable it for new ad sets that
+  // explicitly include the WhatsApp Status placement.
+  const useAdvantageCreative = advantageCreative && !publisherPlatforms.includes("whatsapp");
   await supabase.from("ad_campaigns").update({ meta_ad_account_id: account.id, external_error: null }).eq("id", campaign.id).eq("user_id", userId);
   try {
     const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
@@ -279,12 +283,12 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
       advantageAudience,
       status: "ACTIVE",
     });
-    const creative = await createCampaignCreative({ userId, accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), headline: campaignName, advantageCreative, campaign, preparedVideo });
+    const creative = await createCampaignCreative({ userId, accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Creative`, pageId, link: withVendeoCampaignTracking(campaign.destination_url, campaign.id), headline: campaignName, advantageCreative: useAdvantageCreative, campaign, preparedVideo });
     // Advantage+ créative activé : Meta impose le parcours création en PAUSED → aperçu des
     // fonctions → activation (publishMetaAdWithAdvantage). Désactivé (ou vidéo, sans fonction Advantage+) :
     // annonce créée ACTIVE directement.
     const adInput = { accountId: `act_${account.meta_account_id}`, accessToken, name: `${campaignName} - Ad`, adsetId: String(adSet.id), creativeId: String(creative.id) };
-    const ad = advantageCreative && !isVideo ? await publishMetaAdWithAdvantage(adInput) : await createMetaAd({ ...adInput, status: "ACTIVE" });
+    const ad = useAdvantageCreative && !isVideo ? await publishMetaAdWithAdvantage(adInput) : await createMetaAd({ ...adInput, status: "ACTIVE" });
     const { data: updated, error: updateError } = await supabase.from("ad_campaigns").update({ status: "review", meta_ad_account_id: account.id, effective_objective: effectiveObjective, external_campaign_id: external.id, external_adset_id: String(adSet.id), external_creative_id: String(creative.id), external_ad_id: String(ad.id), external_error: null, destination_url: withVendeoCampaignTracking(campaign.destination_url, campaign.id) }).eq("id", campaign.id).eq("user_id", userId).select("id,status,external_campaign_id,external_adset_id,external_creative_id,external_ad_id,effective_objective").single();
     if (updateError) return NextResponse.json({ error: "Campagne Meta créée mais statut Vendeo non enregistré" }, { status: 502 });
     await supabase.from("meta_campaigns").upsert({ ad_account_id: account.id, meta_campaign_id: external.id, name: campaign.title || "Campagne Vendeo", status: "ACTIVE", objective: external.objective }, { onConflict: "ad_account_id,meta_campaign_id" });

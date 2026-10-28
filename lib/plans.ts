@@ -68,9 +68,9 @@ export function computePeriodEnd(plan: PlanId, now: Date): string {
   return end.toISOString().slice(0, 10);
 }
 
-// Pour le lancement d'une campagne Meta : quelles plateformes Meta
-// ("publisher_platforms") transmettre à l'API. Le plan unique inclut
-// Facebook et Instagram.
+// Pour le lancement Meta : plateformes laissées disponibles dans le ciblage.
+// WhatsApp Status est explicitement ajouté, car Meta ne l'inclut pas dans la
+// liste générique de placements automatiques. Les autres canaux restent ouverts.
 export function metaPublisherPlatforms(_plan: PlanId): string[] {
-  return ["facebook", "instagram"];
+  return ["facebook", "instagram", "threads", "messenger", "audience_network", "whatsapp"];
 }
