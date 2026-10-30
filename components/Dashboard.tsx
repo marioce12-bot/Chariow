@@ -572,12 +572,12 @@ function DashboardWorkspace() {
               <Megaphone size={24} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Ads" : "Pub"}</span>
             </button>
-            <button type="button" data-onboarding="Vendeo AI" aria-label={locale === "en" ? "Assistant" : "Assistant"} title={locale === "en" ? "Assistant" : "Assistant"} aria-current={active === "Vendeo AI" ? "page" : undefined} className={`nav-btn ${active === "Vendeo AI" ? "active" : ""}${guideAssistantHighlight ? " nav-btn-guide-highlight" : ""}`} onClick={() => setActive("Vendeo AI")}>
-              <Brain size={24} strokeWidth={2} aria-hidden="true" />
+            <button type="button" data-onboarding="Vendeo AI" aria-label={locale === "en" ? "Assistant" : "Assistant"} title={locale === "en" ? "Assistant" : "Assistant"} aria-current={active === "Vendeo AI" ? "page" : undefined} className={`nav-btn nav-btn-assistant ${active === "Vendeo AI" ? "active" : ""}${guideAssistantHighlight ? " nav-btn-guide-highlight" : ""}`} onClick={() => setActive("Vendeo AI")}>
+              <Brain size={26} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Assistant" : "Assistant"}</span>
             </button>
             <button type="button" data-onboarding="Studio" aria-current={active === "Studio" ? "page" : undefined} className={`nav-btn nav-btn-studio ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
-              <Palette size={26} strokeWidth={2} aria-hidden="true" />
+              <Palette size={24} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Studio" : "Studio"}</span>
             </button>
             <button type="button" data-onboarding="Performance publicitaire" aria-label={hasNewRecommendation ? (locale === "en" ? "Recommendation, new suggestion" : "Recommandation, nouvelle proposition") : undefined} title={locale === "en" ? "Recommendations" : "Recommandation"} aria-current={active === "Performance publicitaire" ? "page" : undefined} className={`nav-btn nav-btn-recommendation ${active === "Performance publicitaire" ? "active" : ""}${hasNewRecommendation ? " nav-btn-has-notification" : ""}`} onClick={() => setActive("Performance publicitaire")}>
