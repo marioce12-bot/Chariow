@@ -638,7 +638,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           </article>
           <article className="studio-mobile-choice" data-studio-format="slideshow">
             <div className="studio-mobile-choice-preview" data-example-slot="slideshow" aria-hidden="true">
-              <video src="/studio-format-previews/slideshow-lonae.mp4" autoPlay muted loop playsInline controls={false} preload="metadata" aria-hidden="true" tabIndex={-1} />
+              <video src="/studio-format-previews/video-linkedin.mp4" autoPlay muted loop playsInline controls={false} preload="metadata" aria-hidden="true" tabIndex={-1} />
             </div>
             <div className="studio-mobile-choice-footer">
               <strong className="studio-mobile-choice-title">{locale === "en" ? "Slideshow" : "Diaporama"}</strong>
@@ -648,7 +648,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           </article>
           <article className="studio-mobile-choice" data-studio-format="video">
             <div className="studio-mobile-choice-preview" data-example-slot="video" aria-hidden="true">
-              <video src="/studio-format-previews/video-linkedin.mp4" autoPlay muted loop playsInline controls={false} preload="metadata" aria-hidden="true" tabIndex={-1} />
+              <video src="/studio-format-previews/slideshow-lonae.mp4" autoPlay muted loop playsInline controls={false} preload="metadata" aria-hidden="true" tabIndex={-1} />
             </div>
             <div className="studio-mobile-choice-footer">
               <strong className="studio-mobile-choice-title">{locale === "en" ? "Video" : "Vidéo"}</strong>

@@ -14,12 +14,12 @@ describe("mobile Studio format cards", () => {
     expect(image).toContain('"Sélectionner"');
   });
 
-  it("uses the product presentation loop for Slideshow and the LinkedIn ad for Video", () => {
+  it("uses the LinkedIn slideshow for Slideshow and the product presentation loop for Video", () => {
     const slideshow = card("slideshow");
     const video = card("video");
     for (const [markup, src, frenchDescription, mode] of [
-      [slideshow, "/studio-format-previews/slideshow-lonae.mp4", "Une suite d’images pour présenter un produit", "slideshow"],
-      [video, "/studio-format-previews/video-linkedin.mp4", "Une courte vidéo publicitaire", "video"],
+      [slideshow, "/studio-format-previews/video-linkedin.mp4", "Une suite d’images pour présenter un produit", "slideshow"],
+      [video, "/studio-format-previews/slideshow-lonae.mp4", "Une courte vidéo publicitaire", "video"],
     ]) {
       expect(markup).toContain(`src="${src}" autoPlay muted loop playsInline controls={false}`);
       expect(markup).toContain(`"${frenchDescription}"`);
