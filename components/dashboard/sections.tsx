@@ -3,7 +3,7 @@
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, BarChart3, Bell, Bot, CreditCard, Plus, Search, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Video, Languages, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, Bell, Bot, CreditCard, Plus, Search, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Layers, Video, Languages, ExternalLink } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { FeedbackView } from "@/components/FeedbackView";
@@ -126,6 +126,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [promptGenerating, setPromptGenerating] = useState(false);
   const [kind, setKind] = useState<"image" | "video">("image");
   const [studioTab, setStudioTab] = useState<"photo" | "slideshow">("photo");
+  const [mobileStudioMode, setMobileStudioMode] = useState<"image" | "slideshow" | "video" | null>(null);
   const [prompt, setPrompt] = useState("");
   const videoMode = "slideshow";
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
@@ -606,9 +607,17 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     setSelectedSlideshowTaskId(null);
     setSelectedProduct(product);
   };
+  const openStudioMode = (mode: "image" | "slideshow" | "video") => {
+    setMobileStudioMode(mode);
+    studioTabTouchedRef.current = true;
+    setSelectedHistoryId(null);
+    setSelectedSlideshowTaskId(null);
+    setKind(mode === "video" ? "video" : "image");
+    setStudioTab(mode === "slideshow" ? "slideshow" : "photo");
+  };
 
   return (
-    <div className="studio-page">
+    <div className={`studio-page${mobileStudioMode ? " is-open" : ""}`}>
       <div className="page-top studio-head">
         <div>
           <span className="eyebrow">{t("studio.eyebrow")}</span>
@@ -616,6 +625,31 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           <p>{t("studio.subtitle")}</p>
         </div>
       </div>
+      <section className="studio-mobile-start" aria-labelledby="studio-mobile-start-title">
+        <div className="studio-mobile-start-heading">
+          <span className="eyebrow">{locale === "en" ? "YOUR CREATIVE SPACE" : "TON ESPACE CRÉATIF"}</span>
+          <h2 id="studio-mobile-start-title">{locale === "en" ? "What would you like to create today?" : "Qu’est-ce que tu veux créer aujourd’hui ?"}</h2>
+          <p>{locale === "en" ? "Choose a format to open the right creation space." : "Choisis un format pour ouvrir l’espace de création adapté."}</p>
+        </div>
+        <div className="studio-mobile-choice-list">
+          <button type="button" className="studio-mobile-choice" onClick={() => openStudioMode("image")}>
+            <span className="studio-mobile-choice-icon"><ImageIcon size={21} /></span>
+            <span className="studio-mobile-choice-copy"><span className="studio-mobile-choice-title"><strong>Image</strong></span><small>{locale === "en" ? "Create a visual for your ads." : "Crée un visuel pour tes publicités."}</small></span>
+            <ArrowRight className="studio-mobile-choice-arrow" size={18} aria-hidden="true" />
+          </button>
+          <button type="button" className="studio-mobile-choice" onClick={() => openStudioMode("slideshow")}>
+            <span className="studio-mobile-choice-icon"><Layers size={21} /></span>
+            <span className="studio-mobile-choice-copy"><span className="studio-mobile-choice-title"><strong>{locale === "en" ? "Slideshow" : "Diaporama"}</strong></span><small>{locale === "en" ? "Turn several visuals into a story." : "Raconte une histoire en plusieurs visuels."}</small></span>
+            <ArrowRight className="studio-mobile-choice-arrow" size={18} aria-hidden="true" />
+          </button>
+          <button type="button" className="studio-mobile-choice" onClick={() => openStudioMode("video")}>
+            <span className="studio-mobile-choice-icon"><Video size={21} /></span>
+            <span className="studio-mobile-choice-copy"><span className="studio-mobile-choice-title"><strong>{locale === "en" ? "Video" : "Vidéo"}</strong><small className="studio-mobile-choice-badge">{locale === "en" ? "Coming soon" : "Bientôt disponible"}</small></span><small>{locale === "en" ? "Video creation is not available yet." : "La création vidéo n’est pas encore disponible."}</small></span>
+            <ArrowRight className="studio-mobile-choice-arrow" size={18} aria-hidden="true" />
+          </button>
+        </div>
+      </section>
+      <button type="button" className="studio-mobile-back" onClick={() => setMobileStudioMode(null)}><ArrowLeft size={16} aria-hidden="true" /> {locale === "en" ? "Choose another format" : "Choisir un autre format"}</button>
 
       <div className="studio-tabs" role="tablist" aria-label={t("sweep2.text205")}>
         <button type="button" role="tab" id="studio-photo-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo"} className={studioTab === "photo" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("photo"); setKind("image"); }}><ImageIcon size={17} /> Photo</button>

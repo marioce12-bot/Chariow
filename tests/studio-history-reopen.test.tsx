@@ -28,6 +28,20 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 describe("Studio history reopening", () => {
+  it("offers image, slideshow and video choices and opens the matching workspace", async () => {
+    render(); await settle();
+    const choices = container.querySelectorAll<HTMLButtonElement>(".studio-mobile-choice");
+    expect(choices).toHaveLength(3);
+    expect(container.querySelector("#studio-mobile-start-title")?.textContent).toBe("Qu’est-ce que tu veux créer aujourd’hui ?");
+    expect(container.querySelector(".studio-page")?.classList.contains("is-open")).toBe(false);
+    await act(async () => choices[1].click());
+    expect(container.querySelector(".studio-page")?.classList.contains("is-open")).toBe(true);
+    expect(container.querySelector("#studio-slideshow-panel")?.hasAttribute("hidden")).toBe(false);
+    await act(async () => container.querySelector<HTMLButtonElement>(".studio-mobile-back")!.click());
+    expect(container.querySelector(".studio-page")?.classList.contains("is-open")).toBe(false);
+    await act(async () => container.querySelectorAll<HTMLButtonElement>(".studio-mobile-choice")[2].click());
+    expect(container.querySelector(".studio-coming-soon")?.textContent).toContain("studio.videoComingSoonText");
+  });
   it("switches between two history videos, independent of video_job_id", async () => {
     render(); await settle();
     const cards = container.querySelectorAll<HTMLElement>(".studio-history-card");
