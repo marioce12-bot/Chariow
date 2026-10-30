@@ -83,6 +83,18 @@
   .studio-mobile-choice-select { font-size: 13px; min-height: 48px; }
 }
 
+@media (min-width: 1024px) {
+  .studio-mobile-choice-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: 1360px;
+  }
+  .studio-mobile-choice:last-child {
+    grid-column: auto;
+    justify-self: stretch;
+    width: auto;
+  }
+}
+
 @media (min-width: 801px) {
   /* Keep the portrait result from dictating the height of the desktop workspace.
      These overrides are scoped to slideshows; mobile and other Studio tabs retain
