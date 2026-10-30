@@ -32,6 +32,55 @@
   .studio-form, .studio-result { min-width: 0; }
   .studio-result { min-height: 360px; }
   .studio-empty { flex: initial; min-height: 230px; }
+
+  /* Reuse the mobile format chooser on desktop while keeping its small-screen
+     layout and all existing media / selection behavior unchanged. */
+  .studio-page:not(.is-open) > :not(.page-top):not(.studio-mobile-start) { display: none; }
+  .studio-page:not(.is-open) > .studio-mobile-start { display: grid; }
+  .studio-page.is-open > .studio-mobile-start { display: none; }
+  .studio-page.is-open > .studio-mobile-back {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: var(--green);
+    display: inline-flex;
+    font-size: 13px;
+    font-weight: 700;
+    gap: 7px;
+    margin: 0 0 18px;
+    padding: 6px 0;
+  }
+  .studio-mobile-choice-list {
+    --studio-choice-gap: clamp(20px, 2.1vw, 32px);
+    align-items: stretch;
+    gap: var(--studio-choice-gap);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-inline: auto;
+    max-width: 1280px;
+  }
+  .studio-mobile-choice {
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    padding: clamp(12px, 1.25vw, 18px);
+  }
+  .studio-mobile-choice:last-child {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: min(100%, calc((100% - var(--studio-choice-gap)) / 2));
+  }
+  .studio-mobile-choice-preview {
+    aspect-ratio: 16 / 10;
+    min-height: clamp(280px, 38vh, 420px);
+  }
+  .studio-mobile-choice-footer {
+    flex: 1;
+    gap: 11px;
+    padding: 16px 4px 4px;
+  }
+  .studio-mobile-choice-title { font-size: 18px; }
+  .studio-mobile-choice-description { font-size: 13px; min-height: 2.8em; }
+  .studio-mobile-choice-select { font-size: 13px; min-height: 48px; }
 }
 
 @media (min-width: 801px) {
