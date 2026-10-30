@@ -628,31 +628,31 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         <div className="studio-mobile-choice-list">
           <article className="studio-mobile-choice" data-studio-format="image">
             <div className="studio-mobile-choice-preview" data-example-slot="image" aria-hidden="true">
-              <ImageIcon size={30} strokeWidth={1.5} />
-              <span>{locale === "en" ? "Example coming soon" : "Exemple à ajouter"}</span>
+              <img src="/studio-format-previews/image-poster.jpeg" alt="" loading="lazy" decoding="async" />
             </div>
             <div className="studio-mobile-choice-footer">
               <strong className="studio-mobile-choice-title">Image</strong>
+              <p className="studio-mobile-choice-description">{locale === "en" ? "Promotional poster" : "Affiche promotionnelle"}</p>
               <button type="button" className="studio-mobile-choice-select" onClick={() => openStudioMode("image")}>{locale === "en" ? "Select" : "Sélectionner"}</button>
             </div>
           </article>
           <article className="studio-mobile-choice" data-studio-format="slideshow">
             <div className="studio-mobile-choice-preview" data-example-slot="slideshow" aria-hidden="true">
-              <Layers size={30} strokeWidth={1.5} />
-              <span>{locale === "en" ? "Example coming soon" : "Exemple à ajouter"}</span>
+              <video src="/studio-format-previews/slideshow-lonae.mp4" autoPlay muted loop playsInline controls={false} preload="metadata" aria-hidden="true" tabIndex={-1} />
             </div>
             <div className="studio-mobile-choice-footer">
               <strong className="studio-mobile-choice-title">{locale === "en" ? "Slideshow" : "Diaporama"}</strong>
+              <p className="studio-mobile-choice-description">{locale === "en" ? "A sequence of images to showcase a product" : "Une suite d’images pour présenter un produit"}</p>
               <button type="button" className="studio-mobile-choice-select" onClick={() => openStudioMode("slideshow")}>{locale === "en" ? "Select" : "Sélectionner"}</button>
             </div>
           </article>
           <article className="studio-mobile-choice" data-studio-format="video">
             <div className="studio-mobile-choice-preview" data-example-slot="video" aria-hidden="true">
-              <Video size={30} strokeWidth={1.5} />
-              <span>{locale === "en" ? "Example coming soon" : "Exemple à ajouter"}</span>
+              <video src="/studio-format-previews/video-linkedin.mp4" autoPlay muted loop playsInline controls={false} preload="metadata" aria-hidden="true" tabIndex={-1} />
             </div>
             <div className="studio-mobile-choice-footer">
               <strong className="studio-mobile-choice-title">{locale === "en" ? "Video" : "Vidéo"}</strong>
+              <p className="studio-mobile-choice-description">{locale === "en" ? "A short promotional video" : "Une courte vidéo publicitaire"}</p>
               <button type="button" className="studio-mobile-choice-select" onClick={() => openStudioMode("video")}>{locale === "en" ? "Select" : "Sélectionner"}</button>
             </div>
           </article>
