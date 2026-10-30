@@ -30,16 +30,23 @@ afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlo
 describe("Studio history reopening", () => {
   it("offers image, slideshow and video choices and opens the matching workspace", async () => {
     render(); await settle();
-    const choices = container.querySelectorAll<HTMLButtonElement>(".studio-mobile-choice");
+    const frames = container.querySelectorAll<HTMLElement>(".studio-mobile-choice");
+    const choices = container.querySelectorAll<HTMLButtonElement>(".studio-mobile-choice-select");
+    expect(frames).toHaveLength(3);
+    expect([...frames].map((frame) => frame.getAttribute("data-studio-format"))).toEqual(["image", "slideshow", "video"]);
+    expect([...frames].every((frame) => frame.querySelector(".studio-mobile-choice-preview")?.getAttribute("aria-hidden") === "true")).toBe(true);
     expect(choices).toHaveLength(3);
-    expect(container.querySelector("#studio-mobile-start-title")?.textContent).toBe("Qu’est-ce que tu veux créer aujourd’hui ?");
+    expect([...choices].map((button) => button.textContent)).toEqual(["Sélectionner", "Sélectionner", "Sélectionner"]);
+    expect(container.querySelector("#studio-mobile-start-title")).toBeNull();
+    expect(container.textContent).not.toContain("TON ESPACE CRÉATIF");
+    expect(container.textContent).not.toContain("studio.subtitle");
     expect(container.querySelector(".studio-page")?.classList.contains("is-open")).toBe(false);
     await act(async () => choices[1].click());
     expect(container.querySelector(".studio-page")?.classList.contains("is-open")).toBe(true);
     expect(container.querySelector("#studio-slideshow-panel")?.hasAttribute("hidden")).toBe(false);
     await act(async () => container.querySelector<HTMLButtonElement>(".studio-mobile-back")!.click());
     expect(container.querySelector(".studio-page")?.classList.contains("is-open")).toBe(false);
-    await act(async () => container.querySelectorAll<HTMLButtonElement>(".studio-mobile-choice")[2].click());
+    await act(async () => container.querySelectorAll<HTMLButtonElement>(".studio-mobile-choice-select")[2].click());
     expect(container.querySelector(".studio-coming-soon")?.textContent).toContain("studio.videoComingSoonText");
   });
   it("switches between two history videos, independent of video_job_id", async () => {

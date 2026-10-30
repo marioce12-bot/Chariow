@@ -617,36 +617,45 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   };
 
   return (
-    <div className={`studio-page${mobileStudioMode ? " is-open" : ""}`}>
-      <div className="page-top studio-head">
-        <div>
-          <span className="eyebrow">{t("studio.eyebrow")}</span>
-          <h1 id="studio-page-title" tabIndex={-1}>{t("studio.title")}</h1>
-          <p>{t("studio.subtitle")}</p>
+      <div className={`studio-page${mobileStudioMode ? " is-open" : ""}`}>
+        <div className="page-top studio-head">
+          <div>
+            <span className="eyebrow">{t("studio.eyebrow")}</span>
+            <h1 id="studio-page-title" tabIndex={-1}>{t("studio.title")}</h1>
+          </div>
         </div>
-      </div>
-      <section className="studio-mobile-start" aria-labelledby="studio-mobile-start-title">
-        <div className="studio-mobile-start-heading">
-          <span className="eyebrow">{locale === "en" ? "YOUR CREATIVE SPACE" : "TON ESPACE CRÉATIF"}</span>
-          <h2 id="studio-mobile-start-title">{locale === "en" ? "What would you like to create today?" : "Qu’est-ce que tu veux créer aujourd’hui ?"}</h2>
-          <p>{locale === "en" ? "Choose a format to open the right creation space." : "Choisis un format pour ouvrir l’espace de création adapté."}</p>
-        </div>
+      <section className="studio-mobile-start" aria-label={locale === "en" ? "Choose a creation format" : "Choisir un format de création"}>
         <div className="studio-mobile-choice-list">
-          <button type="button" className="studio-mobile-choice" onClick={() => openStudioMode("image")}>
-            <span className="studio-mobile-choice-icon"><ImageIcon size={21} /></span>
-            <span className="studio-mobile-choice-copy"><span className="studio-mobile-choice-title"><strong>Image</strong></span><small>{locale === "en" ? "Create a visual for your ads." : "Crée un visuel pour tes publicités."}</small></span>
-            <ArrowRight className="studio-mobile-choice-arrow" size={18} aria-hidden="true" />
-          </button>
-          <button type="button" className="studio-mobile-choice" onClick={() => openStudioMode("slideshow")}>
-            <span className="studio-mobile-choice-icon"><Layers size={21} /></span>
-            <span className="studio-mobile-choice-copy"><span className="studio-mobile-choice-title"><strong>{locale === "en" ? "Slideshow" : "Diaporama"}</strong></span><small>{locale === "en" ? "Turn several visuals into a story." : "Raconte une histoire en plusieurs visuels."}</small></span>
-            <ArrowRight className="studio-mobile-choice-arrow" size={18} aria-hidden="true" />
-          </button>
-          <button type="button" className="studio-mobile-choice" onClick={() => openStudioMode("video")}>
-            <span className="studio-mobile-choice-icon"><Video size={21} /></span>
-            <span className="studio-mobile-choice-copy"><span className="studio-mobile-choice-title"><strong>{locale === "en" ? "Video" : "Vidéo"}</strong><small className="studio-mobile-choice-badge">{locale === "en" ? "Coming soon" : "Bientôt disponible"}</small></span><small>{locale === "en" ? "Video creation is not available yet." : "La création vidéo n’est pas encore disponible."}</small></span>
-            <ArrowRight className="studio-mobile-choice-arrow" size={18} aria-hidden="true" />
-          </button>
+          <article className="studio-mobile-choice" data-studio-format="image">
+            <div className="studio-mobile-choice-preview" data-example-slot="image" aria-hidden="true">
+              <ImageIcon size={30} strokeWidth={1.5} />
+              <span>{locale === "en" ? "Example coming soon" : "Exemple à ajouter"}</span>
+            </div>
+            <div className="studio-mobile-choice-footer">
+              <strong className="studio-mobile-choice-title">Image</strong>
+              <button type="button" className="studio-mobile-choice-select" onClick={() => openStudioMode("image")}>{locale === "en" ? "Select" : "Sélectionner"}</button>
+            </div>
+          </article>
+          <article className="studio-mobile-choice" data-studio-format="slideshow">
+            <div className="studio-mobile-choice-preview" data-example-slot="slideshow" aria-hidden="true">
+              <Layers size={30} strokeWidth={1.5} />
+              <span>{locale === "en" ? "Example coming soon" : "Exemple à ajouter"}</span>
+            </div>
+            <div className="studio-mobile-choice-footer">
+              <strong className="studio-mobile-choice-title">{locale === "en" ? "Slideshow" : "Diaporama"}</strong>
+              <button type="button" className="studio-mobile-choice-select" onClick={() => openStudioMode("slideshow")}>{locale === "en" ? "Select" : "Sélectionner"}</button>
+            </div>
+          </article>
+          <article className="studio-mobile-choice" data-studio-format="video">
+            <div className="studio-mobile-choice-preview" data-example-slot="video" aria-hidden="true">
+              <Video size={30} strokeWidth={1.5} />
+              <span>{locale === "en" ? "Example coming soon" : "Exemple à ajouter"}</span>
+            </div>
+            <div className="studio-mobile-choice-footer">
+              <strong className="studio-mobile-choice-title">{locale === "en" ? "Video" : "Vidéo"}</strong>
+              <button type="button" className="studio-mobile-choice-select" onClick={() => openStudioMode("video")}>{locale === "en" ? "Select" : "Sélectionner"}</button>
+            </div>
+          </article>
         </div>
       </section>
       <button type="button" className="studio-mobile-back" onClick={() => setMobileStudioMode(null)}><ArrowLeft size={16} aria-hidden="true" /> {locale === "en" ? "Choose another format" : "Choisir un autre format"}</button>
