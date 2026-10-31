@@ -30,14 +30,14 @@ const creative = (name = "Guide Excel Facile", location = "Cour ombragée à Cot
 });
 
 describe("generateUgcCreative", () => {
-  beforeEach(() => { askText.mockReset(); vi.stubEnv("STUDIO_UGC_TEXT_PROVIDER", "imole"); });
+  beforeEach(() => { askText.mockReset(); vi.stubEnv("STUDIO_UGC_TEXT_PROVIDER", "groq"); });
 
   it("fait exactement deux appels askText avec les données, options, références et le provider unique", async () => {
     askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative()));
     const result = await generateUgcCreative(input());
     expect(askText).toHaveBeenCalledTimes(2);
     for (const [messages, options] of askText.mock.calls) {
-      expect(options.order).toEqual(["imole"]);
+      expect(options.order).toEqual(["openrouter"]);
       expect(options.responseSchema).toBeDefined();
       const payload = messages.map((m: { content: string }) => m.content).join(" ");
       expect(payload).toContain("Guide Excel Facile");
@@ -52,13 +52,13 @@ describe("generateUgcCreative", () => {
     expect(askText.mock.calls[1][0][0].content).toContain("Product fingerprint anti-répétition");
   });
 
-  it("uses Groq by default and lets the model choose one or two adult Black or mixed-race characters", async () => {
+  it("uses OpenRouter and lets the model choose one or two adult Black or mixed-race characters", async () => {
     vi.stubEnv("STUDIO_UGC_TEXT_PROVIDER", "");
     askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative()));
     await generateUgcCreative(input());
     expect(askText).toHaveBeenCalledTimes(2);
-    expect(askText.mock.calls[0][1].order).toEqual(["groq"]);
-    expect(askText.mock.calls[1][1].order).toEqual(["groq"]);
+    expect(askText.mock.calls[0][1].order).toEqual(["openrouter"]);
+    expect(askText.mock.calls[1][1].order).toEqual(["openrouter"]);
     expect(askText.mock.calls[0][1].responseSchema.name).toBe("ugc_product_analysis");
     expect(askText.mock.calls[1][1].responseSchema.name).toBe("ugc_creative_direction");
     const creativeSystemPrompt = askText.mock.calls[1][0][0].content as string;
@@ -85,6 +85,43 @@ describe("generateUgcCreative", () => {
       message: "Le fournisseur texte a échoué pendant la préparation UGC.",
     });
     expect(askText).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for a 35-word target and clearly rejects exactly 47 words without truncation or a third call", async () => {
+    const overlong = creative();
+    const mandatoryWords = `${overlong.hook.text} ${overlong.cta}`.trim().split(/\s+/).length;
+    const fillers = 47 - mandatoryWords;
+    const baseMiddleCount = Math.floor(fillers / 3);
+    const perMiddleShot = [baseMiddleCount, baseMiddleCount, fillers - 2 * baseMiddleCount];
+    overlong.shots = overlong.shots.map((shot, index) => ({
+      ...shot,
+      dialogue: index === 0 ? overlong.hook.text : index === 4 ? overlong.cta : Array(perMiddleShot[index - 1]).fill("mot").join(" "),
+    }));
+    expect(overlong.shots.map(shot => shot.dialogue.trim()).join(" ").split(/\s+/)).toHaveLength(47);
+    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(overlong));
+
+    await expect(generateUgcCreative(input())).rejects.toMatchObject({
+      stage: "creative_direction_validation",
+      details: { type: "dialogue_word_budget", path: "shots", expected: "<= 45 mots", received: "47 mots" },
+      message: expect.stringContaining("47 mots, limite stricte 45"),
+    });
+
+    expect(askText).toHaveBeenCalledTimes(2);
+    const creativePrompt = askText.mock.calls[1][0].map((message: { content: string }) => message.content).join(" ");
+    expect(creativePrompt).toContain("vise au plus 35 mots");
+    expect(creativePrompt).toContain("idéalement 30–32");
+  });
+
+  it("classifies OpenRouter 429 and Retry-After without retrying the provider", async () => {
+    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockRejectedValueOnce(Object.assign(new Error("rate limited"), { status: 429, retryAfter: "60" }));
+
+    await expect(generateUgcCreative(input())).rejects.toMatchObject({
+      stage: "creative_direction_provider",
+      details: { type: "provider_rate_limited", httpStatus: 429, retryAfter: "60" },
+    });
+
+    expect(askText).toHaveBeenCalledTimes(2);
+    expect(askText.mock.calls[1][1].order).toEqual(["openrouter"]);
   });
 
   it("adapte réellement hook et décor à deux produits distincts", async () => {

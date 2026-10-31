@@ -28,7 +28,7 @@ export const ugcFixtureResponse = (messages: Array<{ content: string }>) => {
   const content = messages.map(message => message.content).join(" ");
   let name = "Guide pratique";
   try {
-    const payload = JSON.parse(messages[1]?.content ?? "{}") as { product?: { name?: string; product?: { name?: string } } };
+    const payload = JSON.parse(messages[messages.length - 1]?.content ?? "{}") as { product?: { name?: string; product?: { name?: string } } };
     name = payload.product?.product?.name ?? payload.product?.name ?? name;
   } catch {
     name = content.match(/\"productName\":\"([^\"]+)\"/)?.[1] ?? name;

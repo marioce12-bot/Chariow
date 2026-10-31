@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { askOpenRouter, getOpenRouterModel, OpenRouterApiError } from "@/lib/ai/openrouter";
+import { askText } from "@/lib/ai/text";
 
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 const messages = [
   { role: "system" as const, content: "Tu es un assistant utile." },
@@ -28,6 +29,21 @@ const failure = (status = 503) => new Response(JSON.stringify({ error: { message
     expect(payload).toMatchObject({ model: "google/gemini-2.5-flash-lite", temperature: 0.4, stream: false });
     expect(payload.messages).toEqual(messages);
     expect(String(url)).not.toContain("test-key");
+  });
+
+  it("forwards a strict structured JSON Schema without changing the configured model", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubEnv("OPENROUTER_MODEL", "google/gemini-2.5-flash-lite");
+    const fetchMock = vi.fn().mockResolvedValue(success(JSON.stringify({ ok: true })));
+    vi.stubGlobal("fetch", fetchMock);
+    const schema = { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false };
+
+    await askOpenRouter(messages, { responseSchema: { name: "ugc_test", schema } });
+
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(payload.model).toBe("google/gemini-2.5-flash-lite");
+    expect(payload.response_format).toEqual({ type: "json_schema", json_schema: { name: "ugc_test", strict: true, schema } });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("passes image attachments as OpenAI-compatible image_url parts", async () => {
@@ -80,9 +96,11 @@ const failure = (status = 503) => new Response(JSON.stringify({ error: { message
 
   it("does not retry other HTTP errors or ambiguous network failures", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-key");
-    const fetchMock = vi.fn().mockResolvedValue(failure(429));
+    const rateLimited = failure(429);
+    rateLimited.headers.set("retry-after", "60");
+    const fetchMock = vi.fn().mockResolvedValue(rateLimited);
     vi.stubGlobal("fetch", fetchMock);
-    await expect(askOpenRouter(messages, { overloadRetries: 2 })).rejects.toMatchObject({ status: 429 });
+    await expect(askOpenRouter(messages, { overloadRetries: 2 })).rejects.toMatchObject({ status: 429, retryAfter: "60" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const networkError = new TypeError("fetch failed");
@@ -90,6 +108,19 @@ const failure = (status = 503) => new Response(JSON.stringify({ error: { message
     vi.stubGlobal("fetch", networkFetch);
     await expect(askOpenRouter(messages, { overloadRetries: 2 })).rejects.toBe(networkError);
     expect(networkFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves an OpenRouter 429 and Retry-After through askText without provider fallback", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    const rateLimited = failure(429);
+    rateLimited.headers.set("retry-after", "45");
+    const fetchMock = vi.fn().mockResolvedValue(rateLimited);
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(askText(messages, { order: ["openrouter"], responseSchema: { name: "test", schema: { type: "object" } } }))
+      .rejects.toMatchObject({ status: 429, retryAfter: "45", failedProviders: ["openrouter"] });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("rejects empty successful responses and requires an API key", async () => {

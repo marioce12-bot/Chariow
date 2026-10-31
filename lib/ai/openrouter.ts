@@ -9,6 +9,7 @@ type OpenRouterResponse = {
 };
 type OpenRouterPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 type OpenRouterRequestMessage = { role: ChatMessage["role"]; content: string | OpenRouterPart[] };
+type StructuredJsonSchema = { name: string; schema: Record<string, unknown> };
 
 const OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
@@ -16,7 +17,7 @@ const DEFAULT_TIMEOUT_MS = 25_000;
 const MAX_IMAGES_PER_MESSAGE = 2;
 
 export class OpenRouterApiError extends Error {
-  constructor(public readonly status: number) {
+  constructor(public readonly status: number, public readonly retryAfter?: string) {
     super(`OpenRouter API returned ${status}`);
     this.name = "OpenRouterApiError";
   }
@@ -63,7 +64,7 @@ function waitForRetry(delayMs: number, signal: AbortSignal) {
 
 export async function askOpenRouter(
   messages: ChatMessage[],
-  options: { timeoutMs?: number; model?: string; overloadRetries?: number } = {}
+  options: { timeoutMs?: number; model?: string; overloadRetries?: number; responseSchema?: StructuredJsonSchema } = {}
 ) {
   const apiKey = getApiKey();
   const model = options.model?.trim() || getOpenRouterModel();
@@ -75,6 +76,16 @@ export async function askOpenRouter(
     messages: toOpenRouterMessages(messages),
     temperature: 0.4,
     stream: false,
+    ...(options.responseSchema ? {
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: options.responseSchema.name,
+          strict: true,
+          schema: options.responseSchema.schema,
+        },
+      },
+    } : {}),
   });
 
   try {
@@ -95,7 +106,7 @@ export async function askOpenRouter(
           await waitForRetry(1000 * 2 ** attempt, controller.signal);
           continue;
         }
-        throw new OpenRouterApiError(response.status);
+        throw new OpenRouterApiError(response.status, response.headers.get("retry-after") ?? undefined);
       }
       const data = (await response.json().catch(() => ({}))) as OpenRouterResponse;
       const content = data.choices?.[0]?.message?.content;

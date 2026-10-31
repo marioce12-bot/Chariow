@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ugcFixtureResponse } from "@/tests/fixtures/ugc";
+import { ugcAnalysis, ugcCreative, ugcFixtureResponse } from "@/tests/fixtures/ugc";
 
 type Row = Record<string, any>;
 const mocks = vi.hoisted(() => ({
@@ -259,6 +259,73 @@ describe("Studio video Preview generation", () => {
     const render = await generateVideo(request({ ...baseBody, prompt: prepared.prompt, preparedUgc: prepared.preparedUgc }));
     expect(render.status).toBe(202);
     expect(mocks.askText).not.toHaveBeenCalled();
+  });
+
+  it("returns the exact 47/45 dialogue failure before quota or rendering and makes no extra model call", async () => {
+    enablePreview();
+    const longCreative = ugcCreative("Tasse en céramique");
+    const mandatoryWords = `${longCreative.hook.text} ${longCreative.cta}`.trim().split(/\s+/).length;
+    const fillers = 47 - mandatoryWords;
+    const middleCounts = [Math.floor(fillers / 3), Math.floor(fillers / 3), fillers - 2 * Math.floor(fillers / 3)];
+    longCreative.shots = longCreative.shots.map((shot, index) => ({
+      ...shot,
+      dialogue: index === 0 ? longCreative.hook.text : index === 4 ? longCreative.cta : Array(middleCounts[index - 1]).fill("mot").join(" "),
+    }));
+    expect(longCreative.shots.map(shot => shot.dialogue.trim()).join(" ").split(/\s+/)).toHaveLength(47);
+    mocks.askText.mockResolvedValueOnce(JSON.stringify(ugcAnalysis("Tasse en céramique"))).mockResolvedValueOnce(JSON.stringify(longCreative));
+
+    const response = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
+    const result = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(result).toMatchObject({ code: "analyse_invalide", keyPath: "shots", expected: "<= 45 mots", received: "47 mots" });
+    expect(result.error).toContain("47 mots");
+    expect(mocks.askText).toHaveBeenCalledTimes(2);
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(insertedRows).toHaveLength(0);
+    expect(mocks.afterCallbacks).toHaveLength(0);
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
+  it("returns provider 429 and Retry-After without retrying, reserving credits, or starting a render", async () => {
+    enablePreview();
+    mocks.askText.mockResolvedValueOnce(JSON.stringify(ugcAnalysis("Tasse en céramique")))
+      .mockRejectedValueOnce(Object.assign(new Error("simulated provider rate limit"), { status: 429, retryAfter: "45" }));
+
+    const response = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
+    const result = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("45");
+    expect(result).toMatchObject({ code: "STUDIO_UGC_PROVIDER_RATE_LIMITED", httpStatus: 429, retryAfter: "45" });
+    expect(result.error).toContain("Attends au moins 45 secondes");
+    expect(result.error).toContain("Aucune relance automatique");
+    expect(mocks.askText).toHaveBeenCalledTimes(2);
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(insertedRows).toHaveLength(0);
+    expect(mocks.afterCallbacks).toHaveLength(0);
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
+  it("keeps a provider 429 distinct on the direct render route before quota or workflow dispatch", async () => {
+    enablePreview();
+    mocks.askText.mockResolvedValueOnce(JSON.stringify(ugcAnalysis("Tasse en céramique")))
+      .mockRejectedValueOnce(Object.assign(new Error("simulated provider rate limit"), { status: 429, retryAfter: "30" }));
+
+    const response = await generateVideo(request(baseBody));
+    const result = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("30");
+    expect(result).toMatchObject({ code: "STUDIO_UGC_PROVIDER_RATE_LIMITED", httpStatus: 429, retryAfter: "30" });
+    expect(mocks.askText).toHaveBeenCalledTimes(2);
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(insertedRows).toHaveLength(0);
+    expect(mocks.afterCallbacks).toHaveLength(0);
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
   it.each(["tampered-token", "edited-prompt"] as const)("regenerates with exactly two mocked LLM calls for %s", async mode => {

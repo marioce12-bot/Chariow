@@ -9,7 +9,8 @@ import { STUDIO_VIDEO_RESOLUTIONS, inferProductType, isSupportedStudioVideoResol
 import { isStudioVideoRenderEnabledForPreview } from "@/lib/studio/video-feature";
 import { videoModelCapability } from "@/lib/studio/video-plan";
 import { assertFalVideoPromptWithinSafeLimit, isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
-import { generateUgcCreative } from "@/lib/studio/ugc-prompt-generator";
+import { generateUgcCreative, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
+import { ugcProviderRateLimitResponse } from "@/lib/studio/ugc-provider-errors";
 import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
 import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
 import { readPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
@@ -98,6 +99,8 @@ export async function POST(request: Request) {
     // Fail closed before reserving credits if a future compiler change exceeds the safe provider budget.
     for (const segment of plan.segments) assertFalVideoPromptWithinSafeLimit(segment.prompt);
   } catch (error) {
+    const rateLimit = error instanceof UgcPromptGenerationError ? ugcProviderRateLimitResponse(error, body?.locale) : null;
+    if (rateLimit) return NextResponse.json(rateLimit.body, { status: 429, headers: rateLimit.headers });
     if (isFalVideoInputRejectedError(error)) {
       return NextResponse.json({ error: "Le prompt vidéo dépasse la limite sûre du fournisseur. Aucun crédit n’a été réservé.", code: error.code }, { status: 400 });
     }

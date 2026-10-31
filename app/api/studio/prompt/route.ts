@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
 import { generateUgcCreative, missingUgcProductInfoFields, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
+import { ugcProviderRateLimitResponse } from "@/lib/studio/ugc-provider-errors";
 import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
 import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
 import { signPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
@@ -106,6 +107,8 @@ export async function POST(request: Request) {
         }, { status: 400 });
       }
       if (error instanceof UgcPromptGenerationError && error.stage.endsWith("_provider")) {
+        const rateLimit = ugcProviderRateLimitResponse(error, body?.locale);
+        if (rateLimit) return NextResponse.json(rateLimit.body, { status: 429, headers: rateLimit.headers });
         const httpStatus = error.details.httpStatus ?? null;
         return NextResponse.json({
           error: body?.locale === "en"
