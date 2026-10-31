@@ -4,9 +4,7 @@
 // jamais afficher une option qui serait ensuite transformée silencieusement
 // côté serveur.
 //
-// IMPORTANT : ces valeurs reflètent Grok Imagine 1.5 (xai/grok-imagine-video/v1.5)
-// qui produit 480p/720p/1080p et jusqu'à ~15 s. Ne pas ajouter une valeur non
-// supportée.
+// Contrat de l'endpoint Seedance 2.5 reference-to-video vérifié dans son schéma Fal.
 
 export const VIDEO_RESOLUTIONS = ["480p", "720p", "1080p"] as const;
 export type VideoResolution = (typeof VIDEO_RESOLUTIONS)[number];
@@ -14,19 +12,16 @@ export type VideoResolution = (typeof VIDEO_RESOLUTIONS)[number];
 export const VIDEO_ASPECT_RATIOS = ["16:9", "9:16", "1:1"] as const;
 export type VideoAspectRatio = (typeof VIDEO_ASPECT_RATIOS)[number];
 
-// Durées (en secondes) produites par Grok Imagine 1.5 (jusqu'à 15 s).
-export const VIDEO_DURATIONS = [5, 10, 15] as const;
+// Seedance 2.5 accepte des vidéos native audio de 4 à 30 secondes.
+export const VIDEO_DURATIONS = [20, 25, 30] as const;
 export type VideoDuration = (typeof VIDEO_DURATIONS)[number];
 
 export const VIDEO_CAPABILITIES = {
   resolutions: VIDEO_RESOLUTIONS,
   aspectRatios: VIDEO_ASPECT_RATIOS,
   durations: VIDEO_DURATIONS,
-  // Le modèle image-to-video de ltx-2.3 utilise l'image d'entrée comme PREMIER
-  // FRAME (point de départ). Il n'a pas de mode "référence" distinct qui
-  // reconstruirait la scène en gardant seulement l'identité du produit.
   referenceModes: ["image"] as const,
-  maxDurationSeconds: 15,
+  maxDurationSeconds: 30,
 } as const;
 
 export function isSupportedVideoResolution(value: string): value is VideoResolution {

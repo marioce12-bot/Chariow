@@ -5,10 +5,10 @@ import { imageCreditCost } from "./credits";
 
 describe("creative-workflows", () => {
   it("valide uniquement les capacités réellement supportées (pas de mapping silencieux)", () => {
-    expect(isSupportedVideoDuration(5)).toBe(true);
-    expect(isSupportedVideoDuration(10)).toBe(true);
-    expect(isSupportedVideoDuration(15)).toBe(true);
-    expect(isSupportedVideoDuration(30)).toBe(false);
+    expect(isSupportedVideoDuration(20)).toBe(true);
+    expect(isSupportedVideoDuration(25)).toBe(true);
+    expect(isSupportedVideoDuration(30)).toBe(true);
+    expect(isSupportedVideoDuration(15)).toBe(false);
     expect(isSupportedVideoDuration(40)).toBe(false);
 
     expect(isSupportedVideoResolution("1080p")).toBe(true);
@@ -22,7 +22,7 @@ describe("creative-workflows", () => {
   });
 
   it("expose des listes cohérentes pour l'interface", () => {
-    expect(VIDEO_DURATIONS).toEqual([5, 10, 15]);
+    expect(VIDEO_DURATIONS).toEqual([20, 25, 30]);
     expect(VIDEO_RESOLUTIONS).toEqual(["480p", "720p", "1080p"]);
     expect(VIDEO_ASPECT_RATIOS).toEqual(["16:9", "9:16", "1:1"]);
   });
