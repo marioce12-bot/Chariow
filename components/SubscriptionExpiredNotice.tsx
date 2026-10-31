@@ -12,7 +12,7 @@ const COPY = {
     bannerText: "Réactive ton abonnement pour continuer à utiliser l’Assistant, les publicités et Studio.",
     bannerAction: "Réactiver",
     dialogTitle: "Ton abonnement Vendeo a expiré",
-    dialogText: "Réactive ton abonnement pour continuer à utiliser l’Assistant, les publicités et Studio. Tu peux le faire depuis la section Abonnement.",
+    dialogText: "Réactive ton abonnement pour continuer.",
     dialogAction: "Aller à Abonnement",
     close: "Fermer",
   },

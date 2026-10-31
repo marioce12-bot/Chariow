@@ -41,6 +41,8 @@ describe("Vendeo subscription expiry notice", () => {
 
     await act(async () => window.dispatchEvent(new Event(SUBSCRIPTION_EXPIRED_MODAL_EVENT)));
     expect(host.querySelector('[role="alertdialog"]')?.textContent).toContain("Ton abonnement Vendeo a expiré");
+    expect(host.querySelector("#vendeo-expired-description")?.textContent).toBe("Réactive ton abonnement pour continuer.");
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain("l’Assistant, les publicités et Studio");
     const action = [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("Aller à Abonnement"));
     expect(action).toBeTruthy();
     await act(async () => action!.click());
