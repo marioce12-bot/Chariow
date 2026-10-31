@@ -51,7 +51,11 @@ const PROVIDER_PREFIXES = ["segment0", "segment1", "continuityFrame", "merge"] a
 
 /** Resolve a Vendeo task UUID, legacy video_job_id, or a Fal composite/request_id to its owner-scoped row. */
 export async function findStudioVideoRowForUser(admin: any, userId: string, jobReference: string, select: string) {
-  for (const column of ["video_job_id", "id"] as const) {
+  // Postgres rejects endpoint::request_id (or an opaque request_id) against a
+  // UUID column with 22P02. Only query id when the supplied value is a UUID.
+  const columns = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(jobReference)
+    ? ["video_job_id", "id"] : ["video_job_id"];
+  for (const column of columns) {
     const result = await admin.from("studio_generations").select(select).eq("user_id", userId).eq(column, jobReference).maybeSingle();
     if (result.error || result.data) return result;
   }

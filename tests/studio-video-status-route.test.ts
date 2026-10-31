@@ -48,7 +48,10 @@ beforeEach(() => {
       select: vi.fn(() => {
         const filters: Record<string, unknown> = {};
         const query = {
-          eq(column: string, value: unknown) { filters[column] = value; return query; },
+          eq(column: string, value: unknown) {
+            if (column === "id" && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(String(value))) throw new Error("22P02: invalid input syntax for type uuid");
+            filters[column] = value; return query;
+          },
           like(column: string, value: unknown) { filters[`like:${column}`] = value; return query; },
           maybeSingle: async () => {
             if (table === "credit_transactions") return { data: { status: transactionStatus }, error: null };
