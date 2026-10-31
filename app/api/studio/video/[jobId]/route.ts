@@ -18,14 +18,14 @@ export async function GET(_request: Request, { params }: Context) {
   const admin = createAdminClient();
   let { data: row, error } = await admin
     .from("studio_generations")
-    .select("id,user_id,video_job_id,status,storage_path,metadata,credits_cost,created_at,error")
+    .select("id,user_id,video_job_id,status,storage_path,metadata,credits_cost,credit_transaction_id,created_at,error")
     .eq("user_id", user.id)
     .eq("video_job_id", jobId)
     .maybeSingle();
   if (!error && !row) {
     const fallback = await admin
       .from("studio_generations")
-      .select("id,user_id,video_job_id,status,storage_path,metadata,credits_cost,created_at,error")
+      .select("id,user_id,video_job_id,status,storage_path,metadata,credits_cost,credit_transaction_id,created_at,error")
       .eq("user_id", user.id)
       .eq("id", jobId)
       .maybeSingle();
@@ -37,6 +37,19 @@ export async function GET(_request: Request, { params }: Context) {
 
   let status = row.status as string;
   let metadata = (row.metadata ?? {}) as Record<string, any>;
+  let creditState = typeof metadata.creditState === "string" ? metadata.creditState : undefined;
+  if (row.credit_transaction_id) {
+    const transaction = await admin
+      .from("credit_transactions")
+      .select("status")
+      .eq("id", row.credit_transaction_id)
+      .maybeSingle();
+    if (!transaction.error) {
+      if (transaction.data?.status === "pending") creditState = "reserved";
+      else if (transaction.data?.status === "completed") creditState = "consumed";
+      else if (transaction.data?.status === "refunded") creditState = "refunded";
+    }
+  }
   if (status === "processing") {
     const updatedAt = typeof metadata.updatedAt === "string" ? Date.parse(metadata.updatedAt) : NaN;
     if (Number.isFinite(updatedAt) && Date.now() - updatedAt > STALE_AFTER_MS) {
@@ -67,14 +80,19 @@ export async function GET(_request: Request, { params }: Context) {
     try { contentUrl = await signedStudioUrl(row.storage_path); }
     catch { return NextResponse.json({ error: "La vidéo terminée est momentanément indisponible." }, { status: 503, headers: { "Cache-Control": "no-store" } }); }
   }
-  const errorMessage = status === "failed" ? (metadata.userMessage ?? row.error ?? "La vidéo n’a pas pu être finalisée.") : undefined;
+  let errorMessage = status === "failed" ? (metadata.userMessage ?? row.error ?? "La vidéo n’a pas pu être finalisée.") : undefined;
+  if (status === "failed" && creditState === "refunded" && errorMessage) {
+    errorMessage = errorMessage
+      .replace(/crédits restent réservés/gi, "crédits ont été libérés")
+      .replace(/credits remain reserved/gi, "credits were released");
+  }
   return NextResponse.json({
     jobId,
     status,
     phase: metadata.phase ?? status,
     progress: Math.max(0, Math.min(100, Number(metadata.progress) || (status === "completed" ? 100 : 0))),
     cost: row.credits_cost,
-    creditState: metadata.creditState,
+    creditState,
     contentUrl,
     error: errorMessage,
     errorCode: typeof metadata.errorCode === "string" ? metadata.errorCode : null,

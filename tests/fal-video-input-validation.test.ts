@@ -68,11 +68,35 @@ describe("Fal video input validation", () => {
   it("does not classify HTTP 422 from result retrieval after submission as input rejection", async () => {
     mocks.result.mockRejectedValueOnce(Object.assign(new Error("Unprocessable Entity"), {
       status: 422,
-      body: { detail: "String should have at most 4096 characters" },
+      body: { detail: "Result metadata is temporarily unavailable" },
     }));
     const error = await getFalVideoUrl(providerJobId).catch((value: unknown) => value as Error & { status?: number });
     expect(error).toMatchObject({ status: 422 });
     expect(error).not.toBeInstanceOf(FalVideoInputRejectedError);
+  });
+
+  it("logs safe validation details for a result GET 422 without logging input values", async () => {
+    const privateInput = "PRIVATE VIDEO PROMPT MUST NOT BE LOGGED";
+    const logger = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.result.mockRejectedValueOnce(Object.assign(new Error("Unprocessable Entity"), {
+      status: 422,
+      requestId: "fal-response-id",
+      body: { detail: [{ loc: ["body", "prompt"], msg: `Provider rejected ${privateInput}`, type: "value_error", input: privateInput }] },
+    }));
+
+    await expect(getFalVideoUrl(providerJobId)).rejects.toMatchObject({ status: 422 });
+
+    expect(mocks.result).toHaveBeenCalledWith("xai/grok-imagine-video/v1.5/text-to-video", { requestId: "request-id" });
+    expect(logger).toHaveBeenCalledWith("[studio-video] Fal queue result GET failed", expect.objectContaining({
+      stage: "fal_queue_result_get",
+      model: "xai/grok-imagine-video/v1.5/text-to-video",
+      requestId: "request-id",
+      providerStatus: 422,
+      providerRequestId: "fal-response-id",
+      validationDetail: [{ location: ["body", "prompt"], type: "value_error" }],
+    }));
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(privateInput);
+    logger.mockRestore();
   });
 
   it("does not classify unknown network failures as deterministic validation", async () => {

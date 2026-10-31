@@ -21,7 +21,23 @@ export async function storeStudioVideoArtifact(
   const { error } = await createAdminClient()
     .storage.from("studio-media")
     .upload(path, body, { contentType, upsert: true });
-  if (error) throw new Error("Impossible d’enregistrer une étape vidéo.");
+  if (error) {
+    const details = error as { name?: unknown; message?: unknown; status?: unknown; statusCode?: unknown; code?: unknown };
+    const rawMessage = typeof details.message === "string" ? details.message.slice(0, 200) : "Storage upload rejected";
+    console.error("[studio-video] Supabase artifact upload failed", {
+      stage: "supabase_storage_upload",
+      filename,
+      sizeBytes: body.byteLength,
+      contentType,
+      errorName: typeof details.name === "string" ? details.name.slice(0, 80) : "StorageError",
+      status: details.statusCode ?? details.status,
+      code: typeof details.code === "string" ? details.code.slice(0, 80) : undefined,
+      message: rawMessage.split(userId).join("[redacted]").split(generationId).join("[redacted]"),
+    });
+    const wrapped = new Error("Impossible d’enregistrer une étape vidéo.");
+    (wrapped as Error & { cause?: unknown }).cause = error;
+    throw wrapped;
+  }
   return path;
 }
 

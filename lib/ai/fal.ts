@@ -220,10 +220,51 @@ export async function getFalVideoJob(jobId: string) {
 
 type FalVideoResult = { data?: { video?: { url?: string } } };
 
+function summarizeFalVideoResultError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return { providerErrorName: "Error" };
+  }
+  const value = error as {
+    name?: unknown;
+    message?: unknown;
+    status?: unknown;
+    requestId?: unknown;
+    body?: { detail?: unknown };
+  };
+  const detail = value.body?.detail;
+  const validationDetail = Array.isArray(detail)
+    ? detail.slice(0, 5).map((entry) => {
+        if (!entry || typeof entry !== "object") return { kind: typeof entry };
+        const item = entry as { loc?: unknown; msg?: unknown; type?: unknown };
+        return {
+          location: Array.isArray(item.loc) ? item.loc.slice(0, 8).map((part) => String(part).slice(0, 80)) : undefined,
+          type: typeof item.type === "string" ? item.type.slice(0, 80) : undefined,
+        };
+      })
+    : typeof detail === "string" ? { kind: "string", length: detail.length } : undefined;
+  return {
+    providerErrorName: typeof value.name === "string" ? value.name.slice(0, 80) : "Error",
+    providerStatus: typeof value.status === "number" || typeof value.status === "string" ? value.status : undefined,
+    providerRequestId: typeof value.requestId === "string" ? value.requestId.slice(0, 100) : undefined,
+    validationDetail,
+  };
+}
+
 export async function getFalVideoUrl(jobId: string) {
   ensureConfigured();
   const { model, requestId } = decodeJobId(jobId);
-  const result = (await fal.queue.result(model, { requestId })) as FalVideoResult;
+  let result: FalVideoResult;
+  try {
+    result = (await fal.queue.result(model, { requestId })) as FalVideoResult;
+  } catch (error) {
+    console.error("[studio-video] Fal queue result GET failed", {
+      stage: "fal_queue_result_get",
+      model,
+      requestId,
+      ...summarizeFalVideoResultError(error),
+    });
+    throw error;
+  }
   const videoUrl = result?.data?.video?.url;
   if (!videoUrl) throw new Error("fal.ai n'a renvoyé aucune vidéo");
   return videoUrl;

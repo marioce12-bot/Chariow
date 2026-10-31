@@ -222,17 +222,17 @@ describe("durable Studio video workflow claims", () => {
     expect(row.metadata.userMessage).toContain("ont été libérés");
   });
 
-  it("does not refund if a 422 occurs while storing a result after provider acceptance", async () => {
+  it("does not refund if a result GET returns 422 after provider acceptance", async () => {
     const row = rows.get(generationId)!;
     row.metadata.phase = "queued";
-    mocks.storeStudioVideoArtifact.mockRejectedValueOnce(Object.assign(new Error("Storage HTTP 422"), { status: 422 }));
+    mocks.downloadFalVideo.mockRejectedValueOnce(Object.assign(new Error("Unprocessable Entity"), { status: 422 }));
 
     await studioVideoWorkflow(generationId);
 
     expect(mocks.createFalVideo).toHaveBeenCalledOnce();
     expect(mocks.getFalVideoJob).toHaveBeenCalledOnce();
     expect(mocks.downloadFalVideo).toHaveBeenCalledOnce();
-    expect(mocks.storeStudioVideoArtifact).toHaveBeenCalledOnce();
+    expect(mocks.storeStudioVideoArtifact).not.toHaveBeenCalled();
     expect(admin.rpc).not.toHaveBeenCalled();
     expect(row.status).toBe("failed");
     expect(row.metadata.segment0State).toBe("submitted");
