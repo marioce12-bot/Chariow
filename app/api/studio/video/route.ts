@@ -18,6 +18,17 @@ export const maxDuration = 60;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export async function GET() {
+  if (!isStudioVideoRenderEnabledForPreview()) {
+    return NextResponse.json({ ready: false, locked: true, code: "STUDIO_VIDEO_LOCKED" }, { status: 423, headers: { "Cache-Control": "no-store" } });
+  }
+  const binaries = packagedVideoBinaries();
+  if (!binaries) {
+    return NextResponse.json({ ready: false, binaries: { ffmpeg: false, ffprobe: false } }, { status: 503, headers: { "Cache-Control": "no-store" } });
+  }
+  return NextResponse.json({ ready: true, binaries: { ffmpeg: true, ffprobe: true }, duration: 25, segmentDurations: [15, 10] }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function POST(request: Request) {
   const { user, response } = await requireUser();
   if (!user) return response;

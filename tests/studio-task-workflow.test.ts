@@ -44,11 +44,15 @@ describe("durable Studio orchestration (fixtures only)", () => {
     const config = readFileSync("next.config.ts", "utf8");
     const includes = config.split("outputFileTracingIncludes: {")[1]?.split("async headers()")[0] ?? "";
     const excludes = config.split("outputFileTracingExcludes: {")[1]?.split("outputFileTracingIncludes:")[0] ?? "";
+    const runtimeFiles = config.split("const videoRuntimeFiles = [")[1]?.split("];", 1)[0] ?? "";
     expect(workflow).toContain('"use workflow"'); expect(workflow).toContain('"use step"');
     expect(includes).toContain('"/.well-known/workflow/v1/step"');
     expect(includes).not.toContain('"/.well-known/workflow/**"');
-    expect(includes).toContain("./node_modules/ffmpeg-static/ffmpeg");
-    expect(includes).toContain("./node_modules/ffprobe-static/bin/linux/x64/ffprobe");
+    expect(includes).toContain('"/.well-known/workflow/v1/step": [...videoRuntimeFiles');
+    expect(runtimeFiles).toContain("./node_modules/ffmpeg-static/index.js");
+    expect(runtimeFiles).toContain("./node_modules/ffmpeg-static/ffmpeg");
+    expect(runtimeFiles).toContain("./node_modules/ffprobe-static/index.js");
+    expect(runtimeFiles).toContain("./node_modules/ffprobe-static/bin/linux/x64/ffprobe");
     expect(excludes).toContain('"/.well-known/workflow/v1/step"');
     expect(readFileSync("lib/studio/background-tasks.ts", "utf8")).not.toContain("/api/studio/tasks/worker");
   });

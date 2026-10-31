@@ -37,7 +37,7 @@ vi.mock("@/lib/studio/video-workflow", () => ({
   failQueuedVideoDispatchStep: mocks.failQueuedVideoDispatchStep,
 }));
 
-import { POST as generateVideo } from "@/app/api/studio/video/route";
+import { GET as videoReadiness, POST as generateVideo } from "@/app/api/studio/video/route";
 
 const originalVercelEnv = process.env.VERCEL_ENV;
 const originalRenderFlag = process.env.STUDIO_VIDEO_RENDER_ENABLED;
@@ -129,6 +129,26 @@ afterEach(() => {
 });
 
 describe("Studio video Preview generation", () => {
+  it("reports bundled runtime readiness without reserving credits or calling the provider", async () => {
+    enablePreview();
+    const response = await videoReadiness();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ready: true, binaries: { ffmpeg: true, ffprobe: true }, duration: 25, segmentDurations: [15, 10] });
+    expect(admin.from).not.toHaveBeenCalled();
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
+  it("keeps runtime readiness locked in Production", async () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.STUDIO_VIDEO_RENDER_ENABLED = "true";
+    const response = await videoReadiness();
+    expect(response.status).toBe(423);
+    expect(admin.from).not.toHaveBeenCalled();
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
   it("remains locked outside Preview, even if the server flag is present", async () => {
     process.env.VERCEL_ENV = "production";
     process.env.STUDIO_VIDEO_RENDER_ENABLED = "true";

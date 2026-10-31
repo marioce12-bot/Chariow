@@ -54,6 +54,15 @@ const globalSecurityHeaders = [
   { key: "Content-Security-Policy-Report-Only", value: appCspReportOnly },
 ];
 
+const videoRuntimeFiles = [
+  "./node_modules/ffmpeg-static/index.js",
+  "./node_modules/ffmpeg-static/package.json",
+  "./node_modules/ffmpeg-static/ffmpeg",
+  "./node_modules/ffprobe-static/index.js",
+  "./node_modules/ffprobe-static/package.json",
+  "./node_modules/ffprobe-static/bin/linux/x64/ffprobe",
+];
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["ffmpeg-static", "ffprobe-static"],
@@ -64,14 +73,14 @@ const nextConfig: NextConfig = {
     "/api/studio/slideshow/**": ["./node_modules/ffprobe-static/bin/darwin/**", "./node_modules/ffprobe-static/bin/win32/**", "./node_modules/ffprobe-static/bin/linux/ia32/**", "./node_modules/ffprobe-static/bin/linux/arm64/**"],
   },
   outputFileTracingIncludes: {
-    "/api/studio/video": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
-    "/api/studio/video/*": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
-    "/api/studio/video/*/content": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
-    "/.well-known/workflow/v1/step": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe", "./public/vendeo-logo.webp"],
-    "/api/studio/tasks": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
-    "/api/studio/tasks/*": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
-    "/api/studio/slideshow/*": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe", "./public/vendeo-logo.webp"],
-    "/api/studio/slideshow/music/*": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe", "./public/vendeo-logo.webp"],
+    "/api/studio/video": videoRuntimeFiles,
+    "/api/studio/video/*": videoRuntimeFiles,
+    "/api/studio/video/*/content": videoRuntimeFiles,
+    "/.well-known/workflow/v1/step": [...videoRuntimeFiles, "./public/vendeo-logo.webp"],
+    "/api/studio/tasks": videoRuntimeFiles,
+    "/api/studio/tasks/*": videoRuntimeFiles,
+    "/api/studio/slideshow/*": [...videoRuntimeFiles, "./public/vendeo-logo.webp"],
+    "/api/studio/slideshow/music/*": [...videoRuntimeFiles, "./public/vendeo-logo.webp"],
   },
   async headers() {
     return [
