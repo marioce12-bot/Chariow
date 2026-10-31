@@ -511,18 +511,18 @@ export function SlideshowStudio({
             ))}
           </select>
         </label>
-        <div className="studio-field studio-desktop-session-control studio-desktop-session-format">
+        <label className="studio-field studio-desktop-session-control studio-desktop-session-format">
           <span>Format</span>
           <output>Vertical · 9:16</output>
-        </div>
-        <div className="studio-field studio-desktop-session-control studio-desktop-session-voice">
+        </label>
+        <label className="studio-field studio-desktop-session-control studio-desktop-session-voice">
           <span>{fr ? "Voix off" : "Voice-over"}</span>
-          <output>{fr ? "Ajoutée automatiquement" : "Added automatically"}</output>
-        </div>
-        <div className="studio-field studio-desktop-session-control studio-desktop-session-music">
+          <output>{fr ? "Féminine, chaleureuse" : "Warm, feminine"}</output>
+        </label>
+        <label className="studio-field studio-desktop-session-control studio-desktop-session-music">
           <span>{fr ? "Musique" : "Music"}</span>
-          <output>{fr ? "Ajoutée automatiquement" : "Added automatically"}</output>
-        </div>
+          <output>{fr ? "Dynamique, moderne" : "Dynamic, modern"}</output>
+        </label>
       </div>
       <p>{fr ? "Voix et musique ajoutées automatiquement à la génération." : "Voiceover and music are added automatically during generation."}</p>
       {!voiceoverEnabled || !voiceoverTestAllowed ? <small>{fr ? "La génération de voix est en cours de validation." : "Voice generation is being validated."}</small> : null}
@@ -621,6 +621,16 @@ export function SlideshowStudio({
         </div>
       ) : null}
       </div>
+      {!images.length && !busy && !result ? (
+        <div className="studio-desktop-sample-strip" aria-label={fr ? "Exemples de visuels" : "Visual examples"}>
+          {[1, 2, 3, 4, 5].map((index) => (
+            <div className={`studio-desktop-sample-thumb${index === 1 ? " is-selected" : ""}`} key={index}>
+              <img src={`/studio-format-previews/desktop-slideshow-thumb-${index}.jpg`} alt="" />
+              <span>{index}/5</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {images.length ? (
         <div
           aria-label={fr ? "Visuels générés" : "Generated images"}

@@ -27,7 +27,7 @@ export function StudioDesktopProductFields({
       className={`studio-desktop-product studio-desktop-product--${mode}`}
       aria-label={en ? "Your product" : "Votre produit"}
     >
-      {slideshow ? <h2>{en ? "Your product" : "Votre produit"}</h2> : null}
+      <h2>{en ? "Your product" : "Votre produit"}</h2>
       <label className="studio-field">
         <span>
           {slideshow
