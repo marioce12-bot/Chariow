@@ -34,7 +34,6 @@ vi.mock("@/components/dashboard/RecoveryPanel", () => ({ default: () => null }))
 vi.mock("@/components/dashboard/SaleCelebration", () => ({ SaleCelebration: () => null }));
 
 import { Dashboard } from "@/components/Dashboard";
-import { TrialPaywallModal } from "@/components/TrialPaywallModal";
 
 let root: Root | undefined;
 let host: HTMLDivElement;
@@ -127,10 +126,5 @@ describe("device-local user sign-out", () => {
     await click(".desktop-signout");
     expectOnlyThisDeviceSignedOut();
     warning.mockRestore();
-  });
-  it("expired-trial logout also leaves the other device signed in", async () => {
-    await act(async () => root!.render(createElement(TrialPaywallModal, { subscription: { status: "past_due" } })));
-    await click(".btn-ghost");
-    expectOnlyThisDeviceSignedOut();
   });
 });

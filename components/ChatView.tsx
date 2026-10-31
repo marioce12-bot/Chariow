@@ -15,6 +15,7 @@ import { META_CTA_TYPES, META_CTA_LABELS, normalizeMetaCta, type MetaCtaType } f
 import { useI18n } from "@/lib/i18n/i18n";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import { SERVER_UPLOAD_LIMIT, prepareChatImage } from "@/lib/media/chat-attachment";
+import { SUBSCRIPTION_EXPIRED_MODAL_EVENT } from "@/lib/subscription/ui";
 import "../app/vendeo-ai.css";
 import "../app/dashboard-fullwidth.css";
 
@@ -515,6 +516,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
         }
       } else if (data.code === "PLANS_REQUIRED") {
         setPlansRequired(true);
+        onUsageChange({ status: "past_due", trial_active: false });
+        window.dispatchEvent(new Event(SUBSCRIPTION_EXPIRED_MODAL_EVENT));
         setMessages((current) => [...current, { role: "assistant", content: t("chat.trialEndedMessage") }]);
       } else {
         setMessages((current) => [...current, { role: "assistant", content: data.error ?? t("chat.error") }]);

@@ -6,8 +6,8 @@ import { SubscriptionPaywallGate } from "@/components/SubscriptionPaywallGate";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      {children}
       <SubscriptionPaywallGate />
+      {children}
       <ChariowStatusNotice />
     </>
   );

@@ -16,13 +16,14 @@ describe("mobile dashboard navigation", () => {
     expect(buttons.map((button) => button.match(/data-onboarding="([^"]+)"/)?.[1])).toEqual([
       "Vue d'ensemble", "Pub", "Vendeo AI", "Studio", "Performance publicitaire",
     ]);
-    for (const button of buttons) expect(button).toContain("onClick={() => setActive(");
+    expect(buttons[0]).toContain('onClick={() => setActive("Vue d\'ensemble")');
+    for (const button of buttons.slice(1)) expect(button).toContain("onClick={() => navigateToSection(");
     expect(buttons[0]).toContain('locale === "en" ? "Home" : "Accueil"');
     expect(buttons[1]).toContain('locale === "en" ? "Ads" : "Pub"');
     expect(buttons[2]).toContain('locale === "en" ? "Assistant" : "Assistant"');
     expect(buttons[2]).toContain("nav-btn-assistant");
     expect(buttons[2]).toContain("<Brain size={26} strokeWidth={2}");
-    expect(buttons[2]).toContain('setActive("Vendeo AI")');
+    expect(buttons[2]).toContain('navigateToSection("Vendeo AI")');
     expect(buttons[3]).toContain('className={`nav-btn nav-btn-studio');
     expect(buttons[3]).toContain('<Palette size={24} strokeWidth={2}');
     expect(buttons[3]).toContain('locale === "en" ? "Studio" : "Studio"');
@@ -30,7 +31,7 @@ describe("mobile dashboard navigation", () => {
     expect(buttons[4]).toContain("hasNewRecommendation");
     expect(buttons[4]).toContain("nav-btn-has-notification");
     expect(buttons.slice(0, 4).every((button) => !button.includes("nav-btn-has-notification"))).toBe(true);
-    expect(buttons[4]).toContain('setActive("Performance publicitaire")');
+    expect(buttons[4]).toContain('navigateToSection("Performance publicitaire")');
     expect(navMarkup).toContain('aria-label={w("mobileNav")}');
     expect(navMarkup.match(/type="button"/g)).toHaveLength(5);
     expect(navMarkup).toContain("mobile-nav-visible");

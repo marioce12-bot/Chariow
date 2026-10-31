@@ -55,6 +55,7 @@ import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
 import { DASHBOARD_ANALYTICS_REFRESH_MS, getDashboardAnalyticsUrl } from "@/lib/dashboard-analytics-periods";
+import { isVendeoSubscriptionExpired, OPEN_SUBSCRIPTION_SECTION_EVENT, SUBSCRIPTION_EXPIRED_MODAL_EVENT, SUBSCRIPTION_GATED_SECTIONS } from "@/lib/subscription/ui";
 import type { DashboardTourStep } from "./dashboard/tour-steps";
 type DashboardAnalyticsResponse = { snapshot: AnalyticsData; rolling30Snapshot: AnalyticsData; periodSnapshot: AnalyticsData };
 type StoredDashboardAnalyticsResponse = { storeId: string; data: DashboardAnalyticsResponse };
@@ -168,13 +169,6 @@ function DashboardWorkspace() {
   function mobileMoreItemClass(section: string) {
     return [active === section ? "active" : "", guideMenuTarget === section ? "guide-highlight" : ""].filter(Boolean).join(" ");
   }
-  function navigateFromAssistant(section: ChatNavigationSection) {
-    if (section === "Paramètres") { openSettingsIndex(); return; }
-    if (section === "Comptes publicitaires") setSettingsFocus("accounts");
-    setMoreOpen(false);
-    setGuideMenuTarget(null);
-    setActive(section);
-  }
   // Se souvient de la section affichée juste avant d'ouvrir "Vendeo AI", pour que
   // le bouton retour de la section IA ramène exactement là d'où l'utilisateur vient
   // (au lieu de toujours revenir à la Vue d'ensemble).
@@ -261,6 +255,33 @@ function DashboardWorkspace() {
   // Plus de quota de messages IA : l'accès est illimité tant que l'essai de
   // 5 jours ou l'abonnement Vendeo est actif.
   const isActivePlan = subscription?.status === "active" && subscription?.trial_active === false;
+  const subscriptionExpired = isVendeoSubscriptionExpired(subscription);
+  function showExpiredSubscriptionModal() {
+    window.dispatchEvent(new Event(SUBSCRIPTION_EXPIRED_MODAL_EVENT));
+  }
+  function navigateToSection(section: string) {
+    if (subscriptionExpired && SUBSCRIPTION_GATED_SECTIONS.has(section)) {
+      showExpiredSubscriptionModal();
+      return;
+    }
+    setActive(section);
+  }
+  function navigateFromAssistant(section: ChatNavigationSection) {
+    if (section === "Paramètres") { openSettingsIndex(); return; }
+    if (section === "Comptes publicitaires") setSettingsFocus("accounts");
+    setMoreOpen(false);
+    setGuideMenuTarget(null);
+    navigateToSection(section);
+  }
+  useEffect(() => {
+    const openSubscription = () => {
+      setMoreOpen(false);
+      setGuideMenuTarget(null);
+      setActive("Abonnement");
+    };
+    window.addEventListener(OPEN_SUBSCRIPTION_SECTION_EVENT, openSubscription);
+    return () => window.removeEventListener(OPEN_SUBSCRIPTION_SECTION_EVENT, openSubscription);
+  }, []);
   const [wizardOpen, setWizardOpen] = useState(false);
   // Produit choisi via le bouton « Promouvoir » du catalogue : le formulaire de pub saute alors l'étape « Produit ».
   const [wizardProduct, setWizardProduct] = useState<ProductData | null>(null);
@@ -278,6 +299,10 @@ function DashboardWorkspace() {
     setSelectedStoreId(id);
   }
   function launchAd() {
+    if (subscriptionExpired) {
+      showExpiredSubscriptionModal();
+      return;
+    }
     if (!activeStoreId) {
       setActive("Mes boutiques");
       return;
@@ -290,6 +315,10 @@ function DashboardWorkspace() {
 
   // Bouton « Promouvoir » d'un produit du catalogue : on ouvre le même formulaire, produit déjà choisi.
   function promoteProduct(product: ProductData) {
+    if (subscriptionExpired) {
+      showExpiredSubscriptionModal();
+      return;
+    }
     if (!activeStoreId) {
       setActive("Mes boutiques");
       return;
@@ -300,6 +329,10 @@ function DashboardWorkspace() {
   }
 
   function applyRecommendedCampaign(campaign: EditableCampaign) {
+    if (subscriptionExpired) {
+      showExpiredSubscriptionModal();
+      return;
+    }
     if (!activeStoreId) {
       setActive("Mes boutiques");
       return;
@@ -351,7 +384,10 @@ function DashboardWorkspace() {
 
     async function loadDashboard() {
       const preferredStoreId = readSavedStoreId();
-      const storeResponse = await fetch("/api/stores");
+      const [storeResponse, subscriptionResponse] = await Promise.all([
+        fetch("/api/stores"),
+        fetch("/api/subscription"),
+      ]);
       const storeResult = storeResponse.ok ? await storeResponse.json() : { stores: [] };
       if (cancelled) return;
       const nextStores = storeResult.stores ?? [];
@@ -363,14 +399,11 @@ function DashboardWorkspace() {
         : nextStores.find((store: StoreData) => store.platform === "chariow" && store.connection_status === "connected")?.id ?? nextStores[0]?.id ?? null;
       setSelectedStoreId(nextSelected);
 
-      setLoadingData(false);
-
-      const subscriptionResponse = await fetch("/api/subscription");
       const subscriptionResult = subscriptionResponse.ok ? await subscriptionResponse.json() : { subscription: null };
       if (cancelled) return;
       const nextSubscription = subscriptionResult.subscription ?? null;
       setSubscription(nextSubscription);
-
+      setLoadingData(false);
     }
 
     loadDashboard().catch(() => {
@@ -429,10 +462,10 @@ function DashboardWorkspace() {
   // before the effect has had a chance to set its loading flag.
   const storeDataLoading = overviewLoading || analyticsStoreId !== activeStoreId;
   const snapshotView = ["Vue d'ensemble", "Rapports", "Studio"].includes(active);
-  const needsStoreConnection = !loadingData && !hasConnectedCommerceStore(stores);
+  const needsStoreConnection = !loadingData && !subscriptionExpired && !hasConnectedCommerceStore(stores);
 
-  const onboarding = useFirstStoreOnboarding({ userId: notificationUserId, stores, loading: loadingData, connected: !needsStoreConnection && !loadingData });
-  const onboardingOpen = onboarding.stage !== "closed" && !needsStoreConnection && !loadingData;
+  const onboarding = useFirstStoreOnboarding({ userId: notificationUserId, stores, loading: loadingData, connected: !subscriptionExpired && !needsStoreConnection && !loadingData });
+  const onboardingOpen = onboarding.stage !== "closed" && !needsStoreConnection && !loadingData && !subscriptionExpired;
   const handleTourStepChange = useCallback((step: DashboardTourStep | null) => {
     if (!step) {
       setMoreOpen(false);
@@ -462,7 +495,7 @@ function DashboardWorkspace() {
             <Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40} unoptimized />
           </Link>
           <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance publicitaire":"Recommendations","Bénéfices nets":"Net profit","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active === "Performance publicitaire" ? "Recommandation" : active}</strong></div>
-          <DashboardHeaderNavigation active={active} onChange={(section) => section === "Paramètres" ? openSettingsIndex() : setActive(section)} />
+          <DashboardHeaderNavigation active={active} onChange={(section) => section === "Paramètres" ? openSettingsIndex() : navigateToSection(section)} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
              <button type="button" data-onboarding="mobile-more-trigger" className={`mobile-more-trigger ${moreOpen || ["Radar marché", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Performance publicitaire", "Paramètres"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
@@ -478,18 +511,32 @@ function DashboardWorkspace() {
           <div className="dashboard-sidebar-store" data-onboarding="store">
             <DashboardStoreSelector stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} />
           </div>
-          <DashboardPrimaryNavigation active={active} onChange={setActive} />
+          <DashboardPrimaryNavigation active={active} onChange={navigateToSection} />
           <button type="button" className="dashboard-plan-status" onClick={() => setActive("Abonnement")}>
             <span className="dashboard-plan-dot" aria-hidden="true" />
             <span><strong>{isActivePlan ? w("planActive") : subscription?.status === "past_due" ? w("planExpired") : w("freeTrial")}</strong><small>{isActivePlan ? w("managePlan") : w("viewPlan")}</small></span>
             <CreditCard size={16} aria-hidden="true" />
           </button>
         </aside>
-        <section className={`app-main${active === "Vendeo AI" ? " chat-page" : ""}${active === "Performance publicitaire" ? " app-performance-main" : ""}`}>
+        <section
+          className={`app-main${active === "Vendeo AI" ? " chat-page" : ""}${active === "Performance publicitaire" ? " app-performance-main" : ""}`}
+          onClickCapture={(event) => {
+            if (!subscriptionExpired || !SUBSCRIPTION_GATED_SECTIONS.has(active)) return;
+            const target = event.target;
+            if (!(target instanceof Element)) return;
+            const action = target.closest("button, a[href], [role='button'], input[type='submit'], form");
+            if (!action || action.hasAttribute("data-subscription-gate-allow")) return;
+            const label = `${action.getAttribute("aria-label") ?? ""} ${action.getAttribute("title") ?? ""} ${action.textContent ?? ""}`.toLowerCase();
+            if (/(^|\s)(back|retour|close|fermer|cancel|annuler)(\s|$)/.test(label)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            showExpiredSubscriptionModal();
+          }}
+        >
           {loadingData || (snapshotView && storeDataLoading) ? (
             <DashboardSkeleton />
           ) : active === "Paramètres" ? (
-            <MobileSettingsView key={`${settingsFocus}-${settingsNavigationVersion}`} onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus={settingsFocus === "index" ? undefined : settingsFocus} />
+            <MobileSettingsView key={`${settingsFocus}-${settingsNavigationVersion}`} onNavigate={navigateToSection} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus={settingsFocus === "index" ? undefined : settingsFocus} />
           ) : active === "Vendeo AI" ? (
             <ChatView
               onGoToSubscription={() => setActive("Abonnement")}
@@ -504,11 +551,11 @@ function DashboardWorkspace() {
           ) : active === "Performance publicitaire" ? (
             <AdPerformanceView key={activeStoreId ?? "no-store"} storeId={activeStoreId} onApplyCampaign={applyRecommendedCampaign} onRecommendationChange={reportCampaignRecommendation} products={analytics?.products ?? []} locale={locale} />
           ) : active === "Pub" ? (
-             <AdsView key={activeStoreId} plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => setActive("Vendeo AI")} onGoToAccounts={() => setActive("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
+             <AdsView key={activeStoreId} plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => navigateToSection("Vendeo AI")} onGoToAccounts={() => navigateToSection("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
-            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" />
-          ) : active === "Radar marché" ? (
-             <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); setActive("Vendeo AI"); }} />
+            <MobileSettingsView onNavigate={navigateToSection} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" />
+           ) : active === "Radar marché" ? (
+             <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); navigateToSection("Vendeo AI"); }} />
            ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={backToAccountSettings} />
           ) : active === "Abonnement" ? (
@@ -520,7 +567,7 @@ function DashboardWorkspace() {
           ) : active === "Rapports" ? (
             <Reports stores={stores} analytics={analytics} selectedStoreId={selectedStoreId} />
           ) : active === "Suggestions et notes" ? (
-            <MobileSettingsView onNavigate={setActive} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="feedback" />
+            <MobileSettingsView onNavigate={navigateToSection} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="feedback" />
           ) : active === "Notifications" ? (
             <NotificationsView onBack={() => setActive(previousSection)} />
           ) : (
@@ -540,7 +587,7 @@ function DashboardWorkspace() {
               campaignsVersion={campaignsVersion}
               selectedPeriodDays={overviewPeriodDays}
               onPeriodDaysChange={setOverviewPeriodDays}
-              onNavigate={setActive}
+              onNavigate={navigateToSection}
               loading={storeDataLoading}
               storeSelector={<div className="dashboard-overview-mobile-store" data-onboarding="store"><DashboardStoreSelector mobile stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} /></div>}
             />
@@ -568,19 +615,19 @@ function DashboardWorkspace() {
               <Grid2X2 size={24} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Home" : "Accueil"}</span>
             </button>
-            <button type="button" data-onboarding="Pub" aria-current={active === "Pub" ? "page" : undefined} className={`nav-btn ${active === "Pub" ? "active" : ""}`} onClick={() => setActive("Pub")}>
+            <button type="button" data-onboarding="Pub" aria-current={active === "Pub" ? "page" : undefined} className={`nav-btn ${active === "Pub" ? "active" : ""}`} onClick={() => navigateToSection("Pub")}>
               <Megaphone size={24} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Ads" : "Pub"}</span>
             </button>
-            <button type="button" data-onboarding="Vendeo AI" aria-label={locale === "en" ? "Assistant" : "Assistant"} title={locale === "en" ? "Assistant" : "Assistant"} aria-current={active === "Vendeo AI" ? "page" : undefined} className={`nav-btn nav-btn-assistant ${active === "Vendeo AI" ? "active" : ""}${guideAssistantHighlight ? " nav-btn-guide-highlight" : ""}`} onClick={() => setActive("Vendeo AI")}>
+            <button type="button" data-onboarding="Vendeo AI" aria-label={locale === "en" ? "Assistant" : "Assistant"} title={locale === "en" ? "Assistant" : "Assistant"} aria-current={active === "Vendeo AI" ? "page" : undefined} className={`nav-btn nav-btn-assistant ${active === "Vendeo AI" ? "active" : ""}${guideAssistantHighlight ? " nav-btn-guide-highlight" : ""}`} onClick={() => navigateToSection("Vendeo AI")}>
               <Brain size={26} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Assistant" : "Assistant"}</span>
             </button>
-            <button type="button" data-onboarding="Studio" aria-current={active === "Studio" ? "page" : undefined} className={`nav-btn nav-btn-studio ${active === "Studio" ? "active" : ""}`} onClick={() => setActive("Studio")}>
+            <button type="button" data-onboarding="Studio" aria-current={active === "Studio" ? "page" : undefined} className={`nav-btn nav-btn-studio ${active === "Studio" ? "active" : ""}`} onClick={() => navigateToSection("Studio")}>
               <Palette size={24} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Studio" : "Studio"}</span>
             </button>
-            <button type="button" data-onboarding="Performance publicitaire" aria-label={hasNewRecommendation ? (locale === "en" ? "Recommendation, new suggestion" : "Recommandation, nouvelle proposition") : undefined} title={locale === "en" ? "Recommendations" : "Recommandation"} aria-current={active === "Performance publicitaire" ? "page" : undefined} className={`nav-btn nav-btn-recommendation ${active === "Performance publicitaire" ? "active" : ""}${hasNewRecommendation ? " nav-btn-has-notification" : ""}`} onClick={() => setActive("Performance publicitaire")}>
+            <button type="button" data-onboarding="Performance publicitaire" aria-label={hasNewRecommendation ? (locale === "en" ? "Recommendation, new suggestion" : "Recommandation, nouvelle proposition") : undefined} title={locale === "en" ? "Recommendations" : "Recommandation"} aria-current={active === "Performance publicitaire" ? "page" : undefined} className={`nav-btn nav-btn-recommendation ${active === "Performance publicitaire" ? "active" : ""}${hasNewRecommendation ? " nav-btn-has-notification" : ""}`} onClick={() => navigateToSection("Performance publicitaire")}>
               <BarChart3 size={24} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Recommendations" : "Recommandation"}</span>
             </button>
@@ -596,7 +643,7 @@ function DashboardWorkspace() {
               <button type="button" role="menuitem" data-onboarding="mobile-menu:Relances WhatsApp" aria-current={active === "Relances WhatsApp" ? "page" : undefined} className={mobileMoreItemClass("Relances WhatsApp")} onClick={() => { setActive("Relances WhatsApp"); setMoreOpen(false); }}><MessageSquare size={16} /> {w("whatsapp")}</button>
               <span className="mobile-more-label">{w("analysis")}</span>
               <button type="button" role="menuitem" data-onboarding="mobile-menu:Radar marché" aria-current={active === "Radar marché" ? "page" : undefined} className={mobileMoreItemClass("Radar marché")} onClick={() => { setActive("Radar marché"); setMoreOpen(false); }}><Lightbulb size={16} /> {locale === "en" ? "Market radar" : "Radar marché"}</button>
-              <button type="button" role="menuitem" data-onboarding="mobile-menu:Performance publicitaire" aria-current={active === "Performance publicitaire" ? "page" : undefined} className={mobileMoreItemClass("Performance publicitaire")} onClick={() => { setActive("Performance publicitaire"); setMoreOpen(false); }}><BarChart3 size={16} /> {t("nav.adPerformance")}</button>
+              <button type="button" role="menuitem" data-onboarding="mobile-menu:Performance publicitaire" aria-current={active === "Performance publicitaire" ? "page" : undefined} className={mobileMoreItemClass("Performance publicitaire")} onClick={() => { navigateToSection("Performance publicitaire"); setMoreOpen(false); }}><BarChart3 size={16} /> {t("nav.adPerformance")}</button>
               <button type="button" role="menuitem" data-onboarding="mobile-menu:Rapports" aria-current={active === "Rapports" ? "page" : undefined} className={mobileMoreItemClass("Rapports")} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> {" "}{t("workspaceExtra.reports")}</button>
               <span className="mobile-more-label">{w("application")}</span>
               <button type="button" role="menuitem" data-onboarding="mobile-menu:Paramètres" aria-current={active === "Paramètres" ? "page" : undefined} className={mobileMoreItemClass("Paramètres")} onClick={openSettingsIndex}><Settings size={16} /> {" "}{t("workspaceExtra.settings")}</button>
