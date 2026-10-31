@@ -63,6 +63,8 @@ describe("generateUgcCreative", () => {
     expect(askText.mock.calls[1][1].responseSchema.name).toBe("ugc_creative_direction");
     const creativeSystemPrompt = askText.mock.calls[1][0][0].content as string;
     expect(creativeSystemPrompt).toContain("Choisis toi-même un ou deux adultes fictifs noirs ou métissés");
+    expect(creativeSystemPrompt).toContain("Dans chaque characters[].look, commence par un marqueur positif explicite");
+    expect(askText.mock.calls[1][1].responseSchema.schema.properties.characters.items.properties.look.description).toContain("marqueur positif explicite");
     expect(creativeSystemPrompt).toContain("hook, une scène, des accessoires, des gestes, un script et un CTA réellement spécifiques");
     expect(creativeSystemPrompt).toContain("leur phrase doit être prononcée mot pour mot une seule fois dans le dialogue du premier plan (hook.text) et du dernier plan (cta)");
     expect(creativeSystemPrompt).not.toContain("Ne pas répéter le hook/CTA dans les plans et champs séparés");
@@ -125,6 +127,26 @@ describe("generateUgcCreative", () => {
     ]) {
       await expect(Promise.resolve().then(() => validateUgcCreative(altered, input()))).rejects.toBeInstanceOf(UgcPromptGenerationError);
     }
+  });
+
+  it("reconnaît les identités explicites dans look sans les inférer depuis gender", () => {
+    const base = creative();
+    for (const look of [
+      "Personnage noir ou métissé, apparence naturelle",
+      "Afro-descendante, peau brune et cheveux naturels",
+      "Mixed-race woman with natural hair",
+      "Femme métissée au teint brun",
+    ]) {
+      expect(() => validateUgcCreative({ ...base, characters: [{ ...base.characters[0], look }] }, input())).not.toThrow();
+    }
+    expect(() => validateUgcCreative({
+      ...base,
+      characters: [{ ...base.characters[0], look: "peau foncée, cheveux naturels", gender: "Black woman" }],
+    }, input())).toThrow(/marqueur positif noir ou métissé doit figurer explicitement dans look/);
+    expect(() => validateUgcCreative({
+      ...base,
+      characters: [{ ...base.characters[0], look: "not a Black person", gender: "femme" }],
+    }, input())).toThrow(/marqueur positif noir ou métissé doit figurer explicitement dans look/);
   });
 
   it("accepte une catégorie sans description avec hypothèses et aucun bénéfice inventé", async () => {
