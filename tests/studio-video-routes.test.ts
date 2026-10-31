@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ugcFixtureResponse } from "@/tests/fixtures/ugc";
 const { requireUser, askText } = vi.hoisted(() => ({ requireUser: vi.fn(), askText: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/ai/text", () => ({ askText }));
@@ -6,7 +7,7 @@ import { POST as prompt } from "@/app/api/studio/prompt/route";
 import { POST as generate } from "@/app/api/studio/video/route";
 const request = (body: unknown) => new Request("https://preview.example/api/studio/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const product = { name: "Ebook guide", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion.", image: "https://cdn.chariow.com/cover.png" };
-beforeEach(() => { vi.clearAllMocks(); requireUser.mockResolvedValue({ user: { id: "test" } }); askText.mockResolvedValue('{"direction":"conversation","copyIndices":[0]}'); });
+beforeEach(() => { vi.clearAllMocks(); requireUser.mockResolvedValue({ user: { id: "test" } }); askText.mockImplementation((messages: Array<{ content: string }>) => Promise.resolve(ugcFixtureResponse(messages))); });
 describe("Locked studio video preparation routes", () => {
   it("blocks actual video creation before credit or provider access", async () => {
     const response = await generate(request({ duration: 60 }));
@@ -18,7 +19,9 @@ describe("Locked studio video preparation routes", () => {
     const data = await response.json();
     expect(response.status).toBe(200); expect(data.locked).toBe(true);
     expect(data.plan.segments.map((s: { duration: number }) => s.duration)).toEqual([15,10]);
-    expect(askText.mock.calls[0][0][0].content).toContain("Aucun champ libre");
+    expect(askText).toHaveBeenCalledTimes(2);
+    expect(askText.mock.calls[0][1]).toEqual({ order: ["imole"] });
+    expect(askText.mock.calls[1][1]).toEqual({ order: ["imole"] });
   });
   it("ignores the legacy Motion Design preference and keeps prompt planning in UGC", async () => {
     const response = await prompt(request({ mediaType: "video", videoStyle: "motion_design", duration: 25, product }));
@@ -26,9 +29,8 @@ describe("Locked studio video preparation routes", () => {
     expect(response.status).toBe(200);
     expect(data.locked).toBe(true);
     expect(data.plan.segments[0].prompt).toContain("Black or mixed-race");
-    expect(askText.mock.calls[0][0][0].content).toContain("UGC");
-    expect(askText.mock.calls[0][0][0].content).not.toContain("Motion design");
-    expect(askText.mock.calls[0][0][1].content).not.toContain("motion_design");
+    expect(askText).toHaveBeenCalledTimes(2);
+    expect(data.prompt).toContain(product.name);
   });
   it("prepares the slideshow without even calling the text model", async () => {
     const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 25, product }));
@@ -54,9 +56,11 @@ describe("Locked studio video preparation routes", () => {
     expect((await prompt(request({ mediaType: "video", videoMode: "slideshow", duration, product }))).status).toBe(400);
     expect(askText).not.toHaveBeenCalled();
   });
-  it("falls back safely when text service fails", async () => {
+  it("fails closed when text service fails instead of returning a generic fallback", async () => {
     askText.mockRejectedValue(new Error("offline"));
-    expect((await prompt(request({ mediaType: "video", duration: 25, product }))).status).toBe(200);
+    const response = await prompt(request({ mediaType: "video", duration: 25, product }));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ code: "STUDIO_UGC_PREPARATION_FAILED" });
   });
   it("validates durations, formats and authentication before preparation", async () => {
     expect((await prompt(request({ mediaType: "video", duration: 61, product }))).status).toBe(400);

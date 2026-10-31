@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
-import { buildVideoAdPlan, videoPlanPrompt, videoPlanningSystem, VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
+import { VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
+import { generateUgcCreative } from "@/lib/studio/ugc-prompt-generator";
+import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
+import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
+import { signPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { logPreparationFailure } from "@/lib/studio/preparation-diagnostics";
 import { shortProductDescriptionMessage, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
@@ -12,6 +16,8 @@ import {
   CREATIVE_STYLES, CREATIVE_COMPOSITIONS, sourceCopyCandidates,
   parseCreativePlan, compileFaithfulPrompt,
 } from "@/lib/studio/faithful-prompt";
+
+export const maxDuration = 60;
 
 function systemPrompt() {
   return `Tu es directeur artistique de publicités produit, pas rédacteur de faits ou de contenu produit.
@@ -48,7 +54,7 @@ export async function POST(request: Request) {
 
   if (body?.mediaType === "video") {
     const isSlideshow = body?.videoMode === "slideshow";
-    const duration = Number(body?.duration ?? (isSlideshow ? 25 : 15));
+    const duration = Number(body?.duration ?? 25);
     if (!((isSlideshow ? SLIDESHOW_DURATIONS : VIDEO_AD_DURATIONS) as readonly number[]).includes(duration)) return NextResponse.json({ error: "Durée vidéo non prise en charge." }, { status: 400 });
     const aspectRatio = body?.aspectRatio ?? "9:16";
     if (aspectRatio !== "9:16") return NextResponse.json({ error: "Le prompt vidéo Studio doit être en portrait 9:16." }, { status: 400 });
@@ -68,18 +74,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: slideshowPublicFailure(body?.locale) }, { status: 400 });
       }
     }
-    if (inferProductType(name, description) === "ebook" && !productImage) {
+    const generatorInput = normalizeUgcInput(product, { ...body?.ugcOptions, duration }, body?.locale, userBrief, previousPrompt);
+    if (inferProductType(name, description) === "ebook" && !generatorInput.product.images?.length) {
       return NextResponse.json({ error: "Sélectionne la couverture réelle de l’ebook avant de préparer son scénario vidéo.", code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" }, { status: 400 });
     }
-    let videoAnswer = "";
     try {
-      videoAnswer = await askText([
-        { role: "system", content: videoPlanningSystem(input) },
-        { role: "user", content: JSON.stringify({ productName: name, confirmedProductCopy: candidates.map((text, index) => ({ index, text })), hasReference: Boolean(productImage), artisticPreferencesOnly: userBrief, previousDirectionOnly: previousPrompt, duration, aspectRatio, character: "one_or_two_fictional_black_or_mixed_race_adults" }) },
-      ], { order: ["imole", "groq", "gemini"] });
-    } catch { /* The constrained local planner is usable even when the text service is unavailable. */ }
-    const plan = buildVideoAdPlan(input, videoAnswer);
-    return NextResponse.json({ prompt: videoPlanPrompt(plan), plan, contentLanguage, locked: !isStudioVideoRenderEnabledForPreview() });
+      const result = await generateUgcCreative(generatorInput);
+      const prompt = compileUgcPrompt(generatorInput, result.creative);
+      const plan = compileUgcProviderPlan(generatorInput, result.creative);
+      return NextResponse.json({ prompt, ...result, plan, preparedUgc: signPreparedUgc(user.id, generatorInput, result, prompt), contentLanguage, locked: !isStudioVideoRenderEnabledForPreview() });
+    } catch {
+      return NextResponse.json({ error: "Le scénario UGC n’a pas pu être validé. Vérifie les informations produit puis régénère le prompt; aucun scénario générique ni rendu n’a été lancé.", code: "STUDIO_UGC_PREPARATION_FAILED" }, { status: 422 });
+    }
   }
 
   let answer: string;

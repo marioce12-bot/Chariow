@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ugcFixtureResponse } from "@/tests/fixtures/ugc";
 
 type Row = Record<string, any>;
 const mocks = vi.hoisted(() => ({
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   afterCallbacks: [] as Array<() => void | Promise<void>>,
   studioVideoWorkflow: vi.fn(),
   failQueuedVideoDispatchStep: vi.fn(),
+  askText: vi.fn(),
 }));
 
 vi.mock("next/server", async (importOriginal) => {
@@ -23,6 +25,7 @@ vi.mock("next/server", async (importOriginal) => {
 });
 vi.mock("workflow/api", () => ({ start: mocks.start }));
 vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
+vi.mock("@/lib/ai/text", () => ({ askText: mocks.askText }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock("@/lib/subscription/access", () => ({ requireActiveSubscription: mocks.requireActiveSubscription }));
 vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit: mocks.rateLimit }));
@@ -38,11 +41,13 @@ vi.mock("@/lib/studio/video-workflow", () => ({
 }));
 
 import { GET as videoReadiness, POST as generateVideo } from "@/app/api/studio/video/route";
+import { POST as preparePrompt } from "@/app/api/studio/prompt/route";
 import { countFalVideoPromptCharacters, FAL_VIDEO_PROMPT_SAFE_MAX_CHARS } from "@/lib/studio/fal-video-contract";
 
 const originalVercelEnv = process.env.VERCEL_ENV;
 const originalRenderFlag = process.env.STUDIO_VIDEO_RENDER_ENABLED;
 const originalFalKey = process.env.FAL_API_KEY;
+const originalSigningSecret = process.env.STUDIO_UGC_SIGNING_SECRET;
 const requestId = "11111111-1111-4111-8111-111111111111";
 const baseBody = {
   id: requestId,
@@ -113,6 +118,8 @@ beforeEach(() => {
   mocks.requireActiveSubscription.mockResolvedValue(null);
   mocks.rateLimit.mockReturnValue(false);
   mocks.packagedVideoProbe.mockReturnValue("/mock/ffprobe");
+  process.env.STUDIO_UGC_SIGNING_SECRET = "fake-test-signing-secret-only";
+  mocks.askText.mockImplementation((messages: Array<{ content: string }>) => Promise.resolve(ugcFixtureResponse(messages)));
   mocks.start.mockResolvedValue({ runId: "mock-run" });
   mocks.studioVideoWorkflow.mockReset();
   mocks.failQueuedVideoDispatchStep.mockReset();
@@ -126,6 +133,8 @@ afterEach(() => {
   else process.env.STUDIO_VIDEO_RENDER_ENABLED = originalRenderFlag;
   if (originalFalKey === undefined) delete process.env.FAL_API_KEY;
   else process.env.FAL_API_KEY = originalFalKey;
+  if (originalSigningSecret === undefined) delete process.env.STUDIO_UGC_SIGNING_SECRET;
+  else process.env.STUDIO_UGC_SIGNING_SECRET = originalSigningSecret;
   vi.clearAllMocks();
 });
 
@@ -184,7 +193,8 @@ describe("Studio video Preview generation", () => {
     expect(response.status).toBe(202);
     expect(insertedRows[0].metadata.videoStyle).toBe("ugc");
     expect(insertedRows[0].options.videoStyle).toBe("ugc");
-    expect(insertedRows[0].metadata.plan.segments[0].prompt).toContain("Staged UGC");
+    expect(insertedRows[0].metadata.plan.segments[0].prompt).toContain("UGC staged advertising");
+    expect(mocks.askText).toHaveBeenCalledTimes(2);
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
@@ -232,11 +242,34 @@ describe("Studio video Preview generation", () => {
     for (const segment of insertedRows[0].metadata.plan.segments) {
       expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
       expect(segment.prompt).toContain("Guide ebook cuisine");
-      expect(segment.prompt).toContain("supplied ebook cover exactly as provided");
+      expect(segment.prompt).toContain("supplied exact ebook cover clearly");
       expect(segment.prompt).toContain("Black or mixed-race");
     }
     expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 750, request_id: requestId }));
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
+  it("reuses a valid prepared token at render time without extra LLM calls", async () => {
+    enablePreview();
+    const preparedResponse = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
+    const prepared = await preparedResponse.json();
+    expect(preparedResponse.status).toBe(200);
+    expect(mocks.askText).toHaveBeenCalledTimes(2);
+    mocks.askText.mockClear();
+    const render = await generateVideo(request({ ...baseBody, prompt: prepared.prompt, preparedUgc: prepared.preparedUgc }));
+    expect(render.status).toBe(202);
+    expect(mocks.askText).not.toHaveBeenCalled();
+  });
+
+  it.each(["tampered-token", "edited-prompt"] as const)("regenerates with exactly two mocked LLM calls for %s", async mode => {
+    enablePreview();
+    const preparedResponse = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
+    const prepared = await preparedResponse.json();
+    mocks.askText.mockClear();
+    const body = { ...baseBody, prompt: mode === "edited-prompt" ? `${prepared.prompt} edited` : prepared.prompt, preparedUgc: mode === "tampered-token" ? `${prepared.preparedUgc}x` : prepared.preparedUgc };
+    const render = await generateVideo(request(body));
+    expect(render.status).toBe(202);
+    expect(mocks.askText).toHaveBeenCalledTimes(2);
   });
 
   it("defaults to UGC when the legacy style is omitted", async () => {

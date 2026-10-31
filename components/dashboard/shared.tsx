@@ -93,7 +93,7 @@ export type SubscriptionData = {
   current_period_end?: string;
 };
 
-export type ProductData = { id: string; name: string; description: string | null; price: number | string | null; currency: string | null; status: string | null; image: string | null; url?: string | null; createdAt: string | null; sales: number | null };
+export type ProductData = { id: string; name: string; description: string | null; price: number | string | null; currency: string | null; status: string | null; image: string | null; url?: string | null; createdAt: string | null; sales: number | null; category?: string; type?: string; tags?: string[]; images?: string[]; shop?: string };
 export type AnalyticsData = {
   storeName: string;
   storeStatus: string;

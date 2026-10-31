@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ugcFixtureResponse } from "@/tests/fixtures/ugc";
 const { requireUser, askText } = vi.hoisted(() => ({ requireUser: vi.fn(), askText: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/ai/text", () => ({ askText }));
@@ -12,7 +13,7 @@ const request = (body: unknown) => new Request("https://test.invalid/api/studio/
 beforeEach(() => {
   vi.clearAllMocks();
   requireUser.mockResolvedValue({ user: { id: "test-user" } });
-  askText.mockResolvedValue('{"style":"editorial","composition":"asymmetric","copyIndices":[0,1],"direction":"product_film"}');
+  askText.mockImplementation((messages: Array<{ content: string }>) => Promise.resolve(ugcFixtureResponse(messages)));
 });
 
 describe("Studio product language is independent of interface locale", () => {
@@ -38,7 +39,7 @@ describe("Studio product language is independent of interface locale", () => {
     expect(response.status).toBe(200);
     expect(body.contentLanguage.code).toBe(code);
     expect(body.prompt).toContain(product.name);
-    expect(body.prompt).toContain(product.description.split(". ")[0]);
+    expect(body.prompt).not.toContain(product.description.split(". ")[0]);
     expect(body.prompt).toContain("Never translate or paraphrase");
     expect(body.prompt.length).toBeLessThanOrEqual(4000);
     // The text service is mocked: no provider or credit operation is available here.
@@ -51,9 +52,11 @@ describe("Studio product language is independent of interface locale", () => {
     expect(body.locked).toBe(true);
     expect(body.contentLanguage.code).toBe("en");
     for (const segment of body.plan.segments) {
-      expect(segment.prompt).toContain("Visible language and narration: English");
-      expect(segment.prompt).not.toContain("Découvre ce produit");
+      expect(segment.prompt).toContain("language English");
+      expect(segment.prompt).toContain(english.name);
+      expect(segment.prompt).not.toContain("Retrouve le guide");
     }
+    expect(askText).toHaveBeenCalledTimes(2);
   });
 
   it("does not interpret French retouch instructions as translation", () => {

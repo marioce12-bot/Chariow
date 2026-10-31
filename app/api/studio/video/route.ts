@@ -7,11 +7,14 @@ import { rateLimit } from "@/lib/shop/rate-limit";
 import { videoCreditCost } from "@/lib/studio/credits";
 import { STUDIO_VIDEO_RESOLUTIONS, inferProductType, isSupportedStudioVideoResolution } from "@/lib/studio/creative-workflows";
 import { isStudioVideoRenderEnabledForPreview } from "@/lib/studio/video-feature";
-import { videoModelCapability, buildVideoAdPlan, type VideoAdInput } from "@/lib/studio/video-plan";
+import { videoModelCapability } from "@/lib/studio/video-plan";
 import { assertFalVideoPromptWithinSafeLimit, isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
-import { buildVideoProviderPlan } from "@/lib/studio/video-provider-prompts";
+import { generateUgcCreative } from "@/lib/studio/ugc-prompt-generator";
+import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
+import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
+import { readPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
 import { selectVideoModel } from "@/lib/studio/creative-models";
-import { parseStudioProduct, buildStudioVideoPrompt } from "@/lib/studio/product-prompt";
+import { parseStudioProduct } from "@/lib/studio/product-prompt";
 import { packagedVideoProbe } from "@/lib/studio/video-probe-runtime";
 import { studioVideoWorkflow, failQueuedVideoDispatchStep } from "@/lib/studio/video-workflow";
 
@@ -58,6 +61,8 @@ export async function POST(request: Request) {
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
   const product = parseStudioProduct(body?.product);
   if (!product) return NextResponse.json({ error: "Choisis un produit réel de ta boutique pour construire un scénario adapté et le présenter fidèlement." }, { status: 400 });
+  const input = normalizeUgcInput(body?.product, { ...(body?.ugcOptions && typeof body.ugcOptions === "object" ? body.ugcOptions : {}), duration: 25 }, body?.locale, prompt);
+  product.imageUrl = input.product.images?.[0] ?? null;
   if (prompt.length > 4_000) return NextResponse.json({ error: "Le prompt vidéo dépasse la longueur autorisée." }, { status: 400 });
   if (inferProductType(product.name, product.description) === "ebook" && !product.imageUrl) {
     return NextResponse.json({ error: "Ajoute ou sélectionne la couverture réelle de l’ebook pour qu’elle soit fidèlement présentée sur un téléphone ou une tablette.", code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" }, { status: 400 });
@@ -82,21 +87,14 @@ export async function POST(request: Request) {
   catch { return NextResponse.json({ error: "Le modèle vidéo configuré n’est pas vérifié pour cette Preview." }, { status: 503 }); }
 
   const userBrief = prompt.slice(0, 4_000);
-  const composedPrompt = buildStudioVideoPrompt(userBrief, product);
-  const input: VideoAdInput = {
-    name: product?.name ?? "Création vidéo",
-    description: product?.description ?? userBrief,
-    hasReference: Boolean(product?.imageUrl),
-    duration: 25,
-    aspectRatio,
-    character: "with",
-    userBrief,
-    locale: body?.locale === "en" ? "en" : "fr",
-  };
+  let composedPrompt: string;
+  let creativeResult: Awaited<ReturnType<typeof generateUgcCreative>>;
   let plan;
   try {
-    const trustedPlan = buildVideoAdPlan(input, "", () => 0);
-    plan = buildVideoProviderPlan(input, trustedPlan, product?.description ?? "");
+    const prepared = readPreparedUgc(body?.preparedUgc, user.id, input, prompt);
+    creativeResult = prepared ?? await generateUgcCreative(input);
+    composedPrompt = prepared?.prompt ?? compileUgcPrompt(input, creativeResult.creative);
+    plan = compileUgcProviderPlan(input, creativeResult.creative);
     // Fail closed before reserving credits if a future compiler change exceeds the safe provider budget.
     for (const segment of plan.segments) assertFalVideoPromptWithinSafeLimit(segment.prompt);
   } catch (error) {
@@ -154,6 +152,8 @@ export async function POST(request: Request) {
     userPrompt: userBrief,
     videoStyle,
     product: product ?? null,
+    ugcAnalysis: creativeResult.analysis,
+    ugcCreative: creativeResult.creative,
     plan,
     resolution,
     aspectRatio,
