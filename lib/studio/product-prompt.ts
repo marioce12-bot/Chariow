@@ -68,3 +68,14 @@ export function buildStudioPrompt(kind: "image" | "video", userPrompt: string, p
     "Consignes : composition professionnelle, produit bien mis en valeur, aucun texte flou ni faute d'orthographe, n'affiche aucun prix, n'invente ni logo, ni promesse absents des informations ci-dessus.",
   ].filter(Boolean).join(" ").slice(0, 6000);
 }
+
+export function buildStudioVideoPrompt(userPrompt: string, product: StudioProductInput | null, videoStyle: "motion_design" | "ugc") {
+  const style = videoStyle === "ugc"
+    ? "Style vidéo sélectionné : UGC, publicité mise en scène par des personnes fictives, sans faux témoignage présenté comme réel."
+    : "Style vidéo sélectionné : motion design, graphismes animés, sans codes de témoignage UGC.";
+  const brief = userPrompt.trim().slice(0, 4_000);
+  const maxDescription = Math.max(0, 5_700 - style.length - brief.length - (product?.name.length ?? 0) - 120);
+  const boundedProduct = product ? { ...product, description: product.description?.slice(0, maxDescription) } : null;
+  const subject = buildStudioPrompt("video", brief, boundedProduct);
+  return [style, subject].filter(Boolean).join("\n").slice(0, 6_000);
+}

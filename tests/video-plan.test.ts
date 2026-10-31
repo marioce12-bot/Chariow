@@ -1,17 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildVideoAdPlan, eligibleVideoDirections, splitVideoDuration, videoModelCapability, videoPlanPrompt, type VideoAdInput } from "@/lib/studio/video-plan";
 import { buildSlideshowPlan, prepareSlideshowImages } from "@/lib/studio/slideshow-plan";
-const input: VideoAdInput = { name: "Guide ebook cuisine", description: "Un guide numérique de recettes. Disponible en PDF.", hasReference: true, duration: 60, aspectRatio: "9:16", character: "auto" };
+const input: VideoAdInput = { name: "Guide ebook cuisine", description: "Un guide numérique de recettes. Disponible en PDF.", hasReference: true, duration: 25, aspectRatio: "9:16", character: "auto" };
 
 describe("Evidence-only video advertising planner", () => {
-  it("prepares four distinct 15s clips with shared continuity, not one 60s provider request", () => {
-    expect(splitVideoDuration(60)).toEqual([15, 15, 15, 15]);
+  it("prepares exactly two clips of 15s then 10s with shared continuity", () => {
+    expect(splitVideoDuration(25)).toEqual([15, 10]);
     const plan = buildVideoAdPlan(input, '{"direction":"conversation","copyIndices":[0]}');
-    expect(plan.segments.map(s => s.duration)).toEqual([15, 15, 15, 15]);
-    expect(new Set(plan.segments.map(s => s.prompt)).size).toBe(4);
+    expect(plan.duration).toBe(25);
+    expect(plan.segments.map(s => s.duration)).toEqual([15, 10]);
+    expect(new Set(plan.segments.map(s => s.prompt)).size).toBe(2);
     for (const segment of plan.segments) expect(segment.prompt).toContain(plan.continuity);
     expect(plan.segments[0].prompt).toContain("HOOK:");
-    expect(plan.segments[3].prompt).toContain("CALL TO ACTION:");
+    expect(plan.segments[1].prompt).toContain("CALL TO ACTION:");
     expect(videoPlanPrompt(plan).length).toBeLessThanOrEqual(4000);
   });
   it("varies directions, respects explicit choices and avoids the last direction", () => {
@@ -20,6 +21,16 @@ describe("Evidence-only video advertising planner", () => {
     expect(first.direction).toBe("in_hand"); expect(second.direction).not.toBe("in_hand");
     expect(buildVideoAdPlan({ ...input, userBrief: "un micro trottoir" }).direction).toBe("street_interview");
     expect(buildVideoAdPlan({ ...input, userBrief: "une discussion" }).direction).toBe("conversation");
+  });
+  it("keeps Motion design and UGC in distinct, explicit direction families", () => {
+    const motion = eligibleVideoDirections({ ...input, videoStyle: "motion_design" });
+    const ugc = eligibleVideoDirections({ ...input, videoStyle: "ugc" });
+    expect(motion).toContain("visual_story");
+    expect(motion).toContain("product_film");
+    expect(motion).not.toContain("conversation");
+    expect(ugc).toContain("conversation");
+    expect(ugc).toContain("street_interview");
+    expect(ugc).not.toContain("visual_story");
   });
   it("honors no people and never invents physical books or unsupported product claims", () => {
     const plan = buildVideoAdPlan({ ...input, character: "without" }, '{"direction":"in_hand","copyIndices":[0],"dialogue":"Résultat garanti en 3 jours"}', () => 0);
@@ -40,13 +51,15 @@ describe("Evidence-only video advertising planner", () => {
   });
   it("uses verified capabilities only and refuses unsupported durations or provider overrides", () => {
     expect(videoModelCapability("xai/grok-imagine-video/v1.5/image-to-video").maxDuration).toBe(15);
-    expect(() => splitVideoDuration(60, "unverified/model")).toThrow("non vérifiées");
+    expect(() => splitVideoDuration(25, "unverified/model")).toThrow("non vérifiées");
     expect(() => splitVideoDuration(42)).toThrow();
     expect(() => buildVideoAdPlan({ ...input, aspectRatio: "21:9" })).toThrow();
   });
-  it.each([5,10,15,30,45,60])("provides an appropriate complete narrative for %ss", duration => {
+  it("provides only the required complete 25s narrative", () => {
+    const duration = 25;
     const plan = buildVideoAdPlan({ ...input, duration }, '{"direction":"product_film"}');
     expect(plan.segments.reduce((n,s) => n+s.duration,0)).toBe(duration);
+    expect(plan.segments.map(s => s.duration)).toEqual([15, 10]);
     expect(plan.segments.at(-1)?.prompt).toContain("CALL TO ACTION:");
   });
 });

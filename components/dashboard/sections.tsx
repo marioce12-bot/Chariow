@@ -24,9 +24,9 @@ import { DiagnosticFunnel } from "@/components/vendeo/DiagnosticFunnel";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
-import { CREDIT_PRICE_XOF } from "@/lib/studio/credits";
+import { CREDIT_PRICE_XOF, videoCreditCost } from "@/lib/studio/credits";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
-import { VIDEO_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/studio/creative-workflows";
+import { VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/studio/creative-workflows";
 import { useI18n } from "@/lib/i18n/i18n";
 import { MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY } from "./shared";
 import { useNavigationCache } from "./NavigationDataCache";
@@ -101,7 +101,7 @@ export function StoreOnboarding() {
   );
 }
 
-type StudioVideoJob = { id: string; status: string; contentUrl?: string | null };
+type StudioVideoJob = { id: string; status: string; contentUrl?: string | null; error?: string; progress?: number; phase?: string };
 type StudioHistoryItem = { id: string; kind: "image" | "video"; prompt: string; options: Record<string, string | number>; metadata?: Record<string, unknown> | null; creationType?: "slideshow" | "image" | "video"; thumbnailUrl?: string | null; mediaState?: "ready" | "missing" | "processing" | "failed"; sourceImageCount?: number; status: string; credits_cost: number; storage_path?: string | null; video_job_id?: string | null; mediaUrl?: string | null; created_at: string };
 
 function htmlDescriptionToText(description: string): string {
@@ -146,18 +146,20 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [mobileStudioMode, setMobileStudioMode] = useState<"image" | "slideshow" | "video" | null>(null);
   const [prompt, setPrompt] = useState("");
   const videoMode = "slideshow";
+  const [videoStyle, setVideoStyle] = useState<"motion_design" | "ugc">("motion_design");
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
   const [referenceUploading, setReferenceUploading] = useState(false);
   const [quality, setQuality] = useState("medium");
   const [imageResolution, setImageResolution] = useState("hd");
   const [orientation, setOrientation] = useState("square");
   const [background, setBackground] = useState("auto");
-  const [duration, setDuration] = useState<typeof VIDEO_DURATIONS[number]>(VIDEO_DURATIONS[0]);
+  const duration = 25;
   const [videoResolution, setVideoResolution] = useState<typeof VIDEO_RESOLUTIONS[number]>(VIDEO_RESOLUTIONS[0]);
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [videoJob, setVideoJob] = useState<StudioVideoJob | null>(null);
+  const videoRequestIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const stopProgressRef = useRef<(() => void) | null>(null);
@@ -168,6 +170,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const imageTaskIdRef = useRef<string | null>(null);
   const [error, setError] = useState("");
   const [balance, setBalance] = useState(0);
+  const [reservedCredits, setReservedCredits] = useState(0);
+  const [creditsLoaded, setCreditsLoaded] = useState(false);
+  const videoCostEstimate = videoCreditCost(videoResolution, duration);
+  const availableCredits = Math.max(0, balance - reservedCredits);
   const [creditAmount, setCreditAmount] = useState("200");
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [recharging, setRecharging] = useState(false);
@@ -293,7 +299,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             setImageTask({ id: task.id, status: "completed" });
             setLoading(false); generatingRef.current = false;
             void loadHistory(true);
-            void fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).then((credits) => { if (credits) setBalance(credits.balance ?? 0); }).catch(() => undefined);
+            void fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).then((credits) => { if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); } }).catch(() => undefined);
             return;
           }
         } else if (task.status === "failed") {
@@ -316,7 +322,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   }, [imageTask?.id, imageTask?.status]);
 
   useEffect(() => {
-    fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).then((data) => { if (data) setBalance(data.balance ?? 0); }).catch(() => undefined);
+    fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).then((data) => { if (data) { setBalance(data.balance ?? 0); setReservedCredits(data.reserved ?? 0); } setCreditsLoaded(true); }).catch(() => setCreditsLoaded(true));
   }, []);
 
   async function loadHistory(reset = false) {
@@ -365,7 +371,11 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           // ouverture de la page.
         }
       }
-      if (changed) await loadHistory(true);
+      if (changed) {
+        await loadHistory(true);
+        const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
+        if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
+      }
     })();
   }, [history]);
 
@@ -379,7 +389,15 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`, { signal: controller.signal });
         const result = await response.json().catch(() => ({}));
         if (!active) return;
-        if (response.ok && typeof result?.status === "string") setVideoJob(result);
+        if (response.ok && typeof result?.status === "string") {
+          setVideoJob(result);
+          if (typeof result.error === "string") setError(result.error);
+          if (["completed", "failed", "cancelled"].includes(result.status)) {
+            const credits = await fetch("/api/studio/credits").then((creditResponse) => creditResponse.ok ? creditResponse.json() : null).catch(() => null);
+            if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
+            void loadHistory(true);
+          }
+        }
         else if (result.error) setError(result.error);
       } catch {
         // Retry after the current request settles; cleanup aborts any in-flight read.
@@ -439,7 +457,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           background,
           locale,
           mediaType: kind,
-          videoMode,
+          ...(kind === "video" ? { videoStyle } : { videoMode }),
           duration,
           aspectRatio,
           userBrief,
@@ -464,6 +482,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       setError(locale === "en" ? "Video generation is not available yet." : "La génération vidéo reste indisponible.");
       return;
     }
+    if (kind === "video" && (!creditsLoaded || availableCredits < videoCostEstimate)) {
+      setError(locale === "en" ? `Insufficient available credits: ${videoCostEstimate} required, ${availableCredits} available. No purchase was started.` : `Solde disponible insuffisant : ${videoCostEstimate} crédits requis, ${availableCredits} disponibles. Aucun achat n’a été lancé.`);
+      return;
+    }
     if (!prompt.trim()) {
       setError(kind === "image" ? t("sweep1.text201") : t("sweep2.text202"));
       return;
@@ -485,14 +507,17 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       const referenceUrls = kind === "image"
         ? Array.from(new Set([...(uploadedReferenceUrls.length < 3 && selectedProduct?.image ? [selectedProduct.image] : []), ...uploadedReferenceUrls])).slice(0, 3)
         : [];
+      const videoRequestId = kind === "video" ? (videoRequestIdRef.current || crypto.randomUUID()) : undefined;
+      if (videoRequestId) videoRequestIdRef.current = videoRequestId;
       const response = await fetch(kind === "image" ? "/api/studio/tasks" : "/api/studio/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(kind === "image"
           ? { id: crypto.randomUUID(), kind: "image", input: { prompt, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", referenceUrls, ...(selectedProduct ? { product: { id: selectedProduct.id, name: selectedProduct.name } } : {}) } }
-          : { prompt, duration, resolution: videoResolution, aspectRatio, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
+          : { id: videoRequestId, prompt, duration, resolution: videoResolution, aspectRatio, videoStyle, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
       });
       const result = await response.json().catch(() => ({}));
+      if (!response.ok && kind === "video" && [400, 402, 423].includes(response.status)) videoRequestIdRef.current = null;
       if (!response.ok) throw new Error(result.error || "La génération a échoué.");
       if (kind === "image") {
         const task = result.task;
@@ -514,10 +539,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       }
       if (kind === "image" && result.task?.status === "completed") setSelectedGenerationId(result.task.result?.generationId ?? null);
       if (kind === "image") setReferenceFiles([]);
-      else setVideoJob({ id: result.jobId, status: result.status || "queued" });
+      else {
+        if (typeof result.jobId !== "string" || !result.jobId) throw new Error("La tâche vidéo n'a pas pu être enregistrée.");
+        videoRequestIdRef.current = null;
+        setVideoJob({ id: result.jobId, status: result.status || "queued" });
+      }
       if (kind === "video") {
         const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
-        if (credits) setBalance(credits.balance ?? 0);
+        if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
       }
     } catch (generationError) {
       if (kind === "image") { imageRecoveryReadyRef.current = false; setImageRecoveryReady(false); }
@@ -560,7 +589,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Modification impossible.");
       setImageUrl(result.imageUrl); setSelectedGenerationId(result.generationId); setEditInstruction(""); setEditOpen(false); setHistoryCursor(null); await loadHistory(true);
-      const credits = await fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).catch(() => null); if (credits) setBalance(credits.balance ?? 0);
+      const credits = await fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).catch(() => null); if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
     } catch (editError) { setError(editError instanceof Error ? editError.message : t("optionsExtra.text21")); } finally { setEditSubmitting(false); }
   }
 
@@ -678,23 +707,16 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       <button type="button" className="studio-mobile-back" onClick={() => setMobileStudioMode(null)}><ArrowLeft size={16} aria-hidden="true" /> {locale === "en" ? "Choose another format" : "Choisir un autre format"}</button>
 
       <div className="studio-tabs" role="tablist" aria-label={t("sweep2.text205")}>
-        <button type="button" role="tab" id="studio-photo-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo"} className={studioTab === "photo" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("photo"); setKind("image"); }}><ImageIcon size={17} /> Photo</button>
+        <button type="button" role="tab" id="studio-photo-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo" && kind === "image"} className={studioTab === "photo" && kind === "image" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("photo"); setKind("image"); }}><ImageIcon size={17} /> Photo</button>
         <button type="button" role="tab" id="studio-slideshow-tab" aria-controls="studio-slideshow-panel" aria-selected={studioTab === "slideshow"} className={studioTab === "slideshow" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("slideshow"); }}><ImageIcon size={17} /> {locale === "en" ? "Slideshow" : "Diaporama"}</button>
-        <button type="button" role="tab" aria-selected={false} disabled aria-disabled="true" style={{ opacity: 0.45, cursor: "not-allowed" }} title={locale === "en" ? "Coming later — generation locked" : "À venir — génération verrouillée"}><Video size={17} /> {t("studio.video")}</button>
+        <button type="button" role="tab" id="studio-video-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo" && kind === "video"} className={studioTab === "photo" && kind === "video" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("photo"); setKind("video"); setError(""); }}><Video size={17} /> {t("studio.video")}</button>
       </div>
       <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => selectProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => selectProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => selectProduct(null)} aria-label={t("sweep3.text206")}>×</button>{selectedProduct.image ? <em>{kind === "video" ? t("studio.coverRef") : t("studio.imageReferenceNote")}</em> : null}</div> : null}</section>
       <div id="studio-slideshow-panel" ref={slideshowPanelRef} tabIndex={-1} role="tabpanel" aria-labelledby="studio-slideshow-tab" hidden={studioTab !== "slideshow"}>
         <SlideshowStudio product={selectedProduct} locale={locale} selectedTaskId={selectedSlideshowTaskId} onComplete={() => void loadHistory(true)} />
       </div>
-      <div id="studio-photo-panel" role="tabpanel" aria-labelledby="studio-photo-tab" hidden={studioTab !== "photo"}>
-      {kind === "video" ? (
-        <section className="app-card studio-coming-soon" aria-live="polite">
-          <div className="studio-coming-soon-icon"><Video size={30} /></div>
-          <span className="eyebrow">{t("studio.video")}</span>
-          <h2>{t("studio.videoComingSoonTitle")}</h2>
-          <p>{t("studio.videoComingSoonText")}</p>
-        </section>
-      ) : <div className="studio-grid">
+      <div id="studio-photo-panel" role="tabpanel" aria-labelledby={kind === "video" ? "studio-video-tab" : "studio-photo-tab"} hidden={studioTab !== "photo"}>
+      <div className="studio-grid">
         <section className="app-card studio-form">
           <label className={`studio-field${promptGenerating ? " is-generating" : ""}`}>
             <span>{t("studio.describe")}</span>
@@ -716,7 +738,16 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             </div>
           ) : (
             <div className="studio-options">
-              <label className="studio-field"><span>{t("studio.duration")}</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value) as typeof VIDEO_DURATIONS[number])}>{VIDEO_DURATIONS.map((value) => <option key={value} value={value}>{value} {t("studio.seconds")}</option>)}</select></label>
+              <fieldset className="studio-field">
+                <legend>Style de vidéo</legend>
+                <div className="studio-tabs" role="group" aria-label="Style de vidéo">
+                  <button type="button" aria-pressed={videoStyle === "motion_design"} className={videoStyle === "motion_design" ? "active" : ""} onClick={() => setVideoStyle("motion_design")}>Motion design</button>
+                  <button type="button" aria-pressed={videoStyle === "ugc"} className={videoStyle === "ugc" ? "active" : ""} onClick={() => setVideoStyle("ugc")}>UGC</button>
+                </div>
+                <small>Motion design est sélectionné par défaut; tu peux aussi choisir UGC.</small>
+              </fieldset>
+              {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
+              <div className="studio-field"><span>{t("studio.duration")}</span><strong>{locale === "en" ? "25 seconds (15 s + 10 s)" : "25 secondes (15 s + 10 s)"}</strong><small>{locale === "en" ? "Two clips are assembled into one 25-second video." : "Deux séquences sont assemblées en une seule vidéo finale de 25 s."}</small></div>
               <StudioSelect label={t("studio.resolution")} value={videoResolution} onChange={(value) => setVideoResolution(value as typeof VIDEO_RESOLUTIONS[number])} options={VIDEO_RESOLUTIONS.map((value) => [value, value])} />
               {selectedProduct?.image ? <p className="studio-cost" style={{ marginTop: 8 }}>{t("studio.coverStart")}</p> : null}
               <StudioSelect label={t("studio.format")} value={aspectRatio} onChange={setAspectRatio} options={VIDEO_ASPECT_RATIOS.map((value) => [value, value === "16:9" ? t("studio.landscape16") : t("studio.vertical9")])} />
@@ -724,21 +755,22 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           )}
 
           {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
-          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady)}>
-            <Sparkles size={17} /> {loading && kind === "image" && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : kind === "image" ? t("studio.createImage") : t("studio.createVideo")}
+          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady) || (kind === "video" && (STUDIO_VIDEO_LOCKED || !creditsLoaded || availableCredits < videoCostEstimate))}>
+            <Sparkles size={17} /> {kind === "video" ? STUDIO_VIDEO_LOCKED ? "Rendu vidéo verrouillé sur cette Preview" : loading ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…") : locale === "en" ? "Generate video" : "Créer la vidéo" : loading && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : t("studio.createImage")}
           </button>
-          <p className="studio-cost">{kind === "image" ? t("studio.imageCost") : t("studio.videoCost", { rate: videoResolution === "1080p" ? "38" : videoResolution === "720p" ? "25" : "15", res: videoResolution })}</p>
-          <div className="studio-balance"><div><span className="eyebrow">{t("studio.balance")}</span><strong>{balance} {t("studio.credits")}</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>{t("studio.recharge")}</button><small>{t("studio.balanceHint")}</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>{t("studio.recharge")}</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label={t("wizardExtra.close")}>×</button></div><label className="studio-field"><span>{t("sweep1.text84")}</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>{t("finalExtra.text18")}{" "}<strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>{t("sweep3.text209")}</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? t("sweep1.text210") : t("sweep2.text211")}</button></div> : null}</div>
+          {kind === "image" ? <><p className="studio-cost">{t("studio.imageCost")}</p>
+          <div className="studio-balance"><div><span className="eyebrow">{t("studio.balance")}</span><strong>{balance} {t("studio.credits")}</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>{t("studio.recharge")}</button><small>{t("studio.balanceHint")}</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>{t("studio.recharge")}</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label={t("wizardExtra.close")}>×</button></div><label className="studio-field"><span>{t("sweep1.text84")}</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>{t("finalExtra.text18")} {" "}<strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>{t("sweep3.text209")}</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? t("sweep1.text210") : t("sweep2.text211")}</button></div> : null}</div></> : <div><p className="studio-cost">Coût estimé : <strong>{videoCostEstimate} crédits Studio</strong> ({duration} s, {videoResolution}). Solde disponible : <strong>{creditsLoaded ? availableCredits : locale === "en" ? "loading…" : "chargement…"}</strong> {t("studio.credits")}.</p><p className="studio-cost">Aucun achat supplémentaire ne sera lancé. La génération est refusée automatiquement si le solde disponible ne couvre pas ce coût.</p></div>}
         </section>
 
         <section className="app-card studio-result" aria-busy={loading || editSubmitting || Boolean(videoJob && !["completed", "failed", "cancelled"].includes(videoJob.status))}>
           <div className="card-head"><div><span className="eyebrow">{t("studio.result")}</span><h2>{kind === "image" ? t("studio.yourImage") : t("studio.yourVideo")}</h2></div>{kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>
           {imageUrl ? <><div className={editSubmitting ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imageUrl} alt={t("studio.yourImage")} decoding="async" onLoad={() => { setImageLoaded(true); setGenerationProgress(100); }} onError={() => { setImageLoaded(false); setGenerationProgress((current) => Math.min(current, 95)); setError(t("studio.imageLoadError")); }} /></div><div className="studio-result-actions"><button className="btn btn-ghost" onClick={() => void downloadMedia(imageUrl, "vendeo-studio-image.png")}>{t("studio.downloadImage")}</button><button className="btn btn-ghost" onClick={() => setEditOpen(true)} disabled={editSubmitting}>{t("studio.edit")}</button></div>{editOpen ? <div className="studio-edit-box"><label><span>{t("sweep3.text212")}</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} disabled={editSubmitting} /></label><small>{t("sweep1.text213")}</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editSubmitting || !editInstruction.trim()}>{editSubmitting ? t("optionsExtra.text22") : t("studio.edit")}</button><button className="btn btn-ghost" onClick={() => { setEditOpen(false); setEditInstruction(""); }} disabled={editSubmitting}>{t("workspaceExtra.cancel")}</button></div></div> : null}</> : null}
           {videoReady ? <><video className="studio-media" src={videoJob.contentUrl ?? undefined} controls playsInline /><VideoDownloadButton url={videoJob.contentUrl!} filename="vendeo-studio-video.mp4" locale={locale}>{t("studio.downloadVideo")}</VideoDownloadButton></> : null}
+          {kind === "video" && videoJob?.status === "failed" && videoJob.error ? <p className="form-error" role="alert">{videoJob.error}</p> : null}
           {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>{kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Image created" : "Image créée") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Checking your creation" : "Vérification de ta création") : t("chat.posterGenerating")}</strong><p role="status">{kind === "image" && imageTrackingIssue ? (locale === "en" ? "Tracking is temporarily unavailable. Checking automatically; do not start another generation." : "Suivi temporairement indisponible. Vérification automatique en cours ; ne relance pas de génération.") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Retrieving the saved image. No new generation or credit charge." : "Récupération de l’image enregistrée. Aucune nouvelle génération ni dépense de crédits.") : videoJob ? t("dynamicExtra.videoStatus", { status: (videoJob.status) }) : t("optionsExtra.text23")}</p>{kind === "image" && loading && !imageTrackingIssue && imageTask?.status !== "awaiting_media" ? <div className="studio-generation-progress"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}</> : <><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></>}</div> : null}
           {imageUrl && kind === "image" ? <div className="studio-generation-progress" aria-live="polite"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}
         </section>
-      </div>}
+      </div>
       </div>
       {selectedHistory ? <section ref={historyViewerRef} tabIndex={-1} className="app-card studio-result studio-history-viewer" aria-label={t("studio.result")}>
         <div className="card-head"><div><span className="eyebrow">{t("overview.history")}</span><h2>{selectedHistory.kind === "image" ? t("studio.yourImage") : isSlideshow(selectedHistory) ? (locale === "en" ? "Slideshow" : "Diaporama") : t("studio.yourVideo")}</h2></div>{selectedHistory.kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>

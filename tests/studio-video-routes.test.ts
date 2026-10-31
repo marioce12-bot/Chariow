@@ -13,12 +13,20 @@ describe("Locked studio video preparation routes", () => {
     expect(response.status).toBe(423); expect((await response.json()).code).toBe("STUDIO_VIDEO_LOCKED");
     expect(askText).not.toHaveBeenCalled();
   });
-  it("prepares 60s as 4x15s with a constrained text response only", async () => {
-    const response = await prompt(request({ mediaType: "video", videoMode: "characters", duration: 60, product }));
+  it("prepares 25s as 15s+10s with a constrained text response only", async () => {
+    const response = await prompt(request({ mediaType: "video", videoMode: "characters", duration: 25, product }));
     const data = await response.json();
     expect(response.status).toBe(200); expect(data.locked).toBe(true);
-    expect(data.plan.segments.map((s: { duration: number }) => s.duration)).toEqual([15,15,15,15]);
+    expect(data.plan.segments.map((s: { duration: number }) => s.duration)).toEqual([15,10]);
     expect(askText.mock.calls[0][0][0].content).toContain("Aucun champ libre");
+  });
+  it.each(["motion_design", "ugc"] as const)("passes the %s preference into constrained prompt planning", async videoStyle => {
+    const response = await prompt(request({ mediaType: "video", videoStyle, duration: 25, product }));
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.locked).toBe(true);
+    expect(askText.mock.calls[0][0][0].content).toContain(videoStyle === "motion_design" ? "Motion design" : "UGC");
+    expect(askText.mock.calls[0][0][1].content).toContain(videoStyle);
   });
   it("prepares the slideshow without even calling the text model", async () => {
     const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 25, product }));
@@ -38,11 +46,11 @@ describe("Locked studio video preparation routes", () => {
   });
   it("falls back safely when text service fails", async () => {
     askText.mockRejectedValue(new Error("offline"));
-    expect((await prompt(request({ mediaType: "video", duration: 60, product }))).status).toBe(200);
+    expect((await prompt(request({ mediaType: "video", duration: 25, product }))).status).toBe(200);
   });
   it("validates durations, formats and authentication before preparation", async () => {
     expect((await prompt(request({ mediaType: "video", duration: 61, product }))).status).toBe(400);
-    expect((await prompt(request({ mediaType: "video", duration: 60, aspectRatio: "21:9", product }))).status).toBe(400);
+    expect((await prompt(request({ mediaType: "video", duration: 25, aspectRatio: "21:9", product }))).status).toBe(400);
     requireUser.mockResolvedValue({ user: null, response: new Response("no", { status: 401 }) });
     expect((await generate(request({}))).status).toBe(401);
   });

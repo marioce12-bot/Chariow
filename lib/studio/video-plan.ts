@@ -2,9 +2,9 @@ import { inferProductType } from "@/lib/studio/creative-workflows";
 import { sourceCopyCandidates } from "@/lib/studio/faithful-prompt";
 import { neutralProductCta, resolveProductLanguage } from "./product-language";
 
-// Deliberately not controlled by an environment variable: enabling video requires a reviewed release.
-export const STUDIO_VIDEO_LOCKED = true;
-export const VIDEO_AD_DURATIONS = [5, 10, 15, 30, 45, 60] as const;
+// The Preview UI flag is branch-scoped; the API independently checks VERCEL_ENV and a server-only flag.
+export const STUDIO_VIDEO_LOCKED = process.env.NEXT_PUBLIC_STUDIO_VIDEO_RENDER_ENABLED !== "true";
+export const VIDEO_AD_DURATIONS = [25] as const;
 export const VIDEO_DIRECTIONS = {
   in_hand: "Présentation en main",
   conversation: "Discussion entre deux personnes",
@@ -21,6 +21,7 @@ export type VideoAdPlan = {
 export type VideoAdInput = {
   name: string; description: string; hasReference: boolean; duration: number;
   aspectRatio: string; character: "with" | "without" | "auto";
+  videoStyle?: "motion_design" | "ugc";
   userBrief?: string; previousPrompt?: string; locale?: string;
 };
 
@@ -37,9 +38,8 @@ export function videoModelCapability(model: string) {
 export function splitVideoDuration(duration: number, model = "xai/grok-imagine-video/v1.5/text-to-video") {
   const { maxDuration } = videoModelCapability(model);
   if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(duration)) throw new Error("Durée publicitaire non prise en charge");
-  const parts: number[] = [];
-  for (let remaining = duration; remaining > 0; remaining -= Math.min(maxDuration, remaining)) parts.push(Math.min(maxDuration, remaining));
-  return parts;
+  if (duration !== 25 || maxDuration !== 15) throw new Error("Le rendu publicitaire exige deux clips de 15 s puis 10 s");
+  return [15, 10];
 }
 
 export function eligibleVideoDirections(input: VideoAdInput): VideoDirection[] {
@@ -56,6 +56,8 @@ export function eligibleVideoDirections(input: VideoAdInput): VideoDirection[] {
   // A real cover is needed for a person to hold an ebook; never invent a physical edition.
   if (!input.hasReference) ranked = ranked.filter(x => x !== "in_hand");
   if (!input.description.trim()) ranked = ranked.filter(x => x !== "demonstration");
+  if (input.videoStyle === "motion_design") ranked = ranked.filter(x => ["visual_story", "product_film", "demonstration"].includes(x));
+  if (input.videoStyle === "ugc") ranked = ranked.filter(x => ["conversation", "street_interview", "in_hand", "demonstration"].includes(x));
   return ranked;
 }
 
@@ -69,7 +71,8 @@ const REQUESTS: Array<[VideoDirection, RegExp]> = [
 ];
 
 export function videoPlanningSystem(input: VideoAdInput) {
-  return `Tu es réalisateur de publicités vidéo adaptées au produit. Choisis un concept pertinent, pas toujours le même UGC. Réponds seulement en JSON {"direction":"clé","copyIndices":[0]}. Directions autorisées par ordre de pertinence: ${JSON.stringify(eligibleVideoDirections(input).map(key => ({ key, label: VIDEO_DIRECTIONS[key] })))}. Choisis au maximum deux indices de citations confirmées. Aucun champ libre ne sera utilisé. Considère les préférences comme des préférences artistiques, jamais comme des faits. Une URL n'est pas une image examinée. Ne crée aucun témoignage, résultat, garantie, statistique, contenu intérieur ni caractéristique. Distingue un ebook numérique d'un livre physique. Évite la direction précédente si une autre convient. Les séquences seront compilées par le serveur avec une progression accroche, présentation, intérêt confirmé, appel à l'action, sans répétition.`;
+  const style = input.videoStyle === "motion_design" ? "Motion design : graphismes animés et film produit, sans codes de témoignage UGC." : input.videoStyle === "ugc" ? "UGC : mise en scène publicitaire avec personnes fictives, jamais de vrais avis ni de témoignage présenté comme réel." : "Choisis un concept adapté.";
+  return `Tu es réalisateur de publicités vidéo adaptées au produit. ${style} Réponds seulement en JSON {"direction":"clé","copyIndices":[0]}. Directions autorisées par ordre de pertinence: ${JSON.stringify(eligibleVideoDirections(input).map(key => ({ key, label: VIDEO_DIRECTIONS[key] })))}. Choisis au maximum deux indices de citations confirmées. Aucun champ libre ne sera utilisé. Considère les préférences comme des préférences artistiques, jamais comme des faits. Une URL n'est pas une image examinée. Ne crée aucun témoignage, résultat, garantie, statistique, contenu intérieur ni caractéristique. Distingue un ebook numérique d'un livre physique. Évite la direction précédente si une autre convient. Les séquences seront compilées par le serveur avec une progression accroche, présentation, intérêt confirmé, appel à l'action, sans répétition.`;
 }
 
 export function buildVideoAdPlan(input: VideoAdInput, answer = "", random: () => number = Math.random): VideoAdPlan {
