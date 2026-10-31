@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { askGemini, GeminiApiError } from "@/lib/ai/gemini";
+import { askOpenRouter, OpenRouterApiError } from "@/lib/ai/openrouter";
 import { getChariowSnapshot, serializeChariowContext } from "@/lib/chariow/analytics";
 import { cleanAiText } from "@/lib/ai/format";
 import { calculateProfitabilityAggregate } from "@/lib/profitability-aggregates";
@@ -365,17 +365,17 @@ export async function POST(request: Request) {
   };
 
   try {
-    answer = await askGemini(
+    answer = await askOpenRouter(
       [{ role: "system", content: systemContent }, ...safeHistory, currentTurn],
-      { model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW", overloadRetries: 2 }
+      { timeoutMs: 60000, overloadRetries: 2 }
     );
-  } catch (geminiError) {
-    console.error("Gemini chat error", geminiError instanceof Error ? geminiError.message : geminiError);
-    if (geminiError instanceof GeminiApiError && geminiError.status === 503) {
+  } catch (openRouterError) {
+    console.error("OpenRouter chat error", openRouterError instanceof OpenRouterApiError ? { status: openRouterError.status } : openRouterError instanceof Error ? openRouterError.name : "unknown");
+    if (openRouterError instanceof OpenRouterApiError && openRouterError.status === 503) {
       return NextResponse.json({
         error: body?.locale === "en"
-          ? "Gemini is experiencing high demand despite automatic retries. Please try again in a few moments."
-          : "Gemini est saturé malgré les réessais automatiques. Réessaie dans quelques instants.",
+          ? "OpenRouter is experiencing high demand despite automatic retries. Please try again in a few moments."
+          : "OpenRouter est saturé malgré les réessais automatiques. Réessaie dans quelques instants.",
         code: "AI_OVERLOADED",
         conversationId,
         conversationTitle,
