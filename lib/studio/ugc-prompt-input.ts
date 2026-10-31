@@ -29,7 +29,7 @@ export function normalizeUgcInput(rawProduct: unknown, rawOptions: unknown, loca
     options: {
       language: language && language !== "auto" ? language : resolveProductLanguage({ name, description }, typeof locale === "string" ? locale : "fr").label,
       duration: Number(options.duration ?? 25), tone: text(options.tone, 100) || "naturel",
-      characterProfile: text(options.characterProfile, 200), platform: text(options.platform, 60) || "Reels",
+      platform: text(options.platform, 60) || "Reels",
       angle: text(options.angle, 120),
     },
     userBrief: text(userBrief, 4000), previousPrompt: text(previousPrompt, 4000),

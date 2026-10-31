@@ -51,15 +51,36 @@ describe("generateUgcCreative", () => {
     expect(askText.mock.calls[1][0][0].content).toContain("Product fingerprint anti-répétition");
   });
 
+  it("uses Groq by default and lets the model choose one or two adult Black or mixed-race characters", async () => {
+    vi.stubEnv("STUDIO_UGC_TEXT_PROVIDER", "");
+    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative()));
+    await generateUgcCreative(input());
+    expect(askText).toHaveBeenCalledTimes(2);
+    expect(askText.mock.calls[0][1]).toEqual({ order: ["groq"] });
+    expect(askText.mock.calls[1][1]).toEqual({ order: ["groq"] });
+    const creativeSystemPrompt = askText.mock.calls[1][0][0].content as string;
+    expect(creativeSystemPrompt).toContain("Choisis toi-même un ou deux adultes fictifs noirs ou métissés");
+    expect(creativeSystemPrompt).toContain("hook, une scène, des accessoires, des gestes, un script et un CTA réellement spécifiques");
+  });
+
   it("adapte réellement hook et décor à deux produits distincts", async () => {
+    const soapBase = creative("Savon Karité Kora", "Atelier de beauté à Abidjan");
+    const soapCta = "Découvre Savon Karité Kora dans la boutique.";
     askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative("Guide Excel Facile", "Cour à Cotonou")))
       .mockResolvedValueOnce(JSON.stringify({ ...analysis, product_type: "physique", niche: "beauté", confirmed_facts: ["name: Savon Karité Kora"] }))
-      .mockResolvedValueOnce(JSON.stringify(creative("Savon Karité Kora", "Atelier de beauté à Abidjan")));
+      .mockResolvedValueOnce(JSON.stringify({
+        ...soapBase,
+        scene: { ...soapBase.scene, props: ["Savon Karité Kora", "serviette en coton"] },
+        shots: soapBase.shots.map((shot, index) => index === 4 ? { ...shot, dialogue: soapCta } : shot),
+        cta: soapCta,
+      }));
     const a = await generateUgcCreative(input());
     const bInput = { ...input("Savon Karité Kora"), product: { ...input("Savon Karité Kora").product, type: "physique", category: "beauté" } };
     const b = await generateUgcCreative(bInput);
     expect(a.creative.hook.text).not.toBe(b.creative.hook.text);
     expect(a.creative.scene.location).not.toBe(b.creative.scene.location);
+    expect(a.creative.scene.props).not.toEqual(b.creative.scene.props);
+    expect(a.creative.cta).not.toBe(b.creative.cta);
     expect(a.creative.shots).not.toEqual(b.creative.shots);
     expect(askText).toHaveBeenCalledTimes(4);
   });

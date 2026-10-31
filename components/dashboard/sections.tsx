@@ -105,8 +105,6 @@ export function StoreOnboarding() {
 type StudioVideoJob = { id: string; status: string; contentUrl?: string | null; error?: string; progress?: number; phase?: string };
 type StudioHistoryItem = { id: string; kind: "image" | "video"; prompt: string; options: Record<string, string | number>; metadata?: Record<string, unknown> | null; creationType?: "slideshow" | "image" | "video"; thumbnailUrl?: string | null; mediaState?: "ready" | "missing" | "processing" | "failed"; sourceImageCount?: number; status: string; credits_cost: number; storage_path?: string | null; video_job_id?: string | null; mediaUrl?: string | null; created_at: string };
 
-const DESKTOP_VIDEO_REFERENCE_PROMPT = "Mise en scène UGC naturelle et dynamique, lumière naturelle, ton chaleureux. Présente clairement le produit sélectionné.";
-
 function htmlDescriptionToText(description: string): string {
   const document = new DOMParser().parseFromString(description, "text/html");
   const blockTags = new Set(["ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "DIV", "DL", "DT", "DD", "FIELDSET", "FIGCAPTION", "FIGURE", "FOOTER", "FORM", "H1", "H2", "H3", "H4", "H5", "H6", "HEADER", "HR", "LI", "MAIN", "NAV", "OL", "P", "PRE", "SECTION", "TABLE", "TR", "UL"]);
@@ -152,11 +150,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [videoLanguage, setVideoLanguage] = useState("auto");
   const [videoTone, setVideoTone] = useState("naturel");
   const [videoPlatform, setVideoPlatform] = useState("Reels");
-  const [videoCharacterProfile, setVideoCharacterProfile] = useState("");
   const [videoAngle, setVideoAngle] = useState("");
   const [ugcAssumptions, setUgcAssumptions] = useState<string[]>([]);
   const preparedUgcRef = useRef<string | null>(null);
-  const ugcOptions = { language: videoLanguage, tone: videoTone, platform: videoPlatform, characterProfile: videoCharacterProfile, angle: videoAngle };
+  const ugcOptions = { language: videoLanguage, tone: videoTone, platform: videoPlatform, angle: videoAngle };
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
   const [referenceUploading, setReferenceUploading] = useState(false);
   const [quality, setQuality] = useState("medium");
@@ -681,10 +678,13 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     setSelectedProduct(product);
   };
   const openStudioMode = (mode: "image" | "slideshow" | "video") => {
-    if (mode === "video" && window.matchMedia?.("(min-width: 1200px)").matches) {
-      setSelectedProduct((current) => current ?? products[0] ?? null);
+    if (mode === "video") {
+      if (window.matchMedia?.("(min-width: 1200px)").matches) setSelectedProduct((current) => current ?? products[0] ?? null);
       setAspectRatio("9:16");
-      setPrompt((current) => current.trim() ? current : DESKTOP_VIDEO_REFERENCE_PROMPT);
+      setPrompt("");
+      lastGeneratedPromptRef.current = null;
+      preparedUgcRef.current = null;
+      setUgcAssumptions([]);
     }
     setDesktopHistoryExpanded(false);
     setHistoryActionsOpenId(null);
@@ -745,7 +745,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       <div className="studio-tabs" role="tablist" aria-label={t("sweep2.text205")}>
         <button type="button" role="tab" id="studio-photo-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo" && kind === "image"} className={studioTab === "photo" && kind === "image" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("photo"); setKind("image"); }}><ImageIcon size={17} /> Photo</button>
         <button type="button" role="tab" id="studio-slideshow-tab" aria-controls="studio-slideshow-panel" aria-selected={studioTab === "slideshow"} className={studioTab === "slideshow" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("slideshow"); }}><ImageIcon size={17} /> {locale === "en" ? "Slideshow" : "Diaporama"}</button>
-        <button type="button" role="tab" id="studio-video-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo" && kind === "video"} className={studioTab === "photo" && kind === "video" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("photo"); setKind("video"); setError(""); }}><Video size={17} /> {t("studio.video")}</button>
+        <button type="button" role="tab" id="studio-video-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo" && kind === "video"} className={studioTab === "photo" && kind === "video" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; if (kind !== "video") { setPrompt(""); lastGeneratedPromptRef.current = null; preparedUgcRef.current = null; setUgcAssumptions([]); setAspectRatio("9:16"); } setStudioTab("photo"); setKind("video"); setError(""); }}><Video size={17} /> {t("studio.video")}</button>
       </div>
       <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => selectProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => selectProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => selectProduct(null)} aria-label={t("sweep3.text206")}>×</button>{selectedProduct.image ? <em>{kind === "video" ? t("studio.coverRef") : t("studio.imageReferenceNote")}</em> : null}</div> : null}</section>
       <div id="studio-slideshow-panel" ref={slideshowPanelRef} tabIndex={-1} role="tabpanel" aria-labelledby="studio-slideshow-tab" hidden={studioTab !== "slideshow"}>
@@ -760,7 +760,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             <StudioSelect label="Ton" value={videoTone} onChange={setVideoTone} options={[["naturel", "Naturel"], ["fun", "Fun"], ["sérieux", "Sérieux"], ["émotionnel", "Émotionnel"]]} />
             <StudioSelect label="Plateforme cible" value={videoPlatform} onChange={setVideoPlatform} options={[["Reels", "Reels"], ["TikTok", "TikTok"], ["Facebook", "Facebook"]]} />
             <StudioSelect label="Angle créatif" value={videoAngle} onChange={setVideoAngle} options={[["", "Adapté au produit"], ["Problème → solution", "Problème → solution"], ["Avant / après", "Avant / après (si étayé)"], ["J'ai testé pour vous", "Découverte scénarisée"], ["Déballage / découverte", "Déballage / découverte"], ["Secret / astuce", "Astuce"], ["Témoignage émotionnel", "Émotion (fiction signalée)"], ["Comparaison", "Comparaison"], ["Tutoriel rapide", "Tutoriel rapide"], ["Réaction / étonnement", "Réaction / étonnement"]]} />
-            <label className="studio-field"><span>Profil souhaité (optionnel)</span><input value={videoCharacterProfile} onChange={event => setVideoCharacterProfile(event.target.value)} maxLength={200} placeholder="Ex. entrepreneuse, 30 ans, ton chaleureux" /><small>Un ou deux adultes fictifs noirs ou métissés; contexte adapté au produit.</small></label>
           </div> : null}
           <label className={`studio-field${promptGenerating ? " is-generating" : ""}`}>
 

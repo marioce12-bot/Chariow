@@ -20,8 +20,17 @@ describe("Locked studio video preparation routes", () => {
     expect(response.status).toBe(200); expect(data.locked).toBe(true);
     expect(data.plan.segments.map((s: { duration: number }) => s.duration)).toEqual([15,10]);
     expect(askText).toHaveBeenCalledTimes(2);
-    expect(askText.mock.calls[0][1]).toEqual({ order: ["imole"] });
-    expect(askText.mock.calls[1][1]).toEqual({ order: ["imole"] });
+    expect(askText.mock.calls[0][1]).toEqual({ order: ["groq"] });
+    expect(askText.mock.calls[1][1]).toEqual({ order: ["groq"] });
+  });
+  it("lets the AI choose the cast instead of accepting a user profile", async () => {
+    const response = await prompt(request({ mediaType: "video", duration: 25, product, ugcOptions: { characterProfile: "Entrepreneuse de 30 ans" } }));
+    expect(response.status).toBe(200);
+    expect(askText).toHaveBeenCalledTimes(2);
+    const creativeMessages = askText.mock.calls[1][0] as Array<{ role: string; content: string }>;
+    const modelPayload = JSON.parse(creativeMessages[1].content);
+    expect(modelPayload.options).not.toHaveProperty("characterProfile");
+    expect(creativeMessages[0].content).toContain("Choisis toi-même un ou deux adultes fictifs noirs ou métissés");
   });
   it("ignores the legacy Motion Design preference and keeps prompt planning in UGC", async () => {
     const response = await prompt(request({ mediaType: "video", videoStyle: "motion_design", duration: 25, product }));
