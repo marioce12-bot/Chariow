@@ -150,46 +150,40 @@ export type StudioVideoGenerationOptions = {
   resolution: VideoResolution;
   aspectRatio: VideoAspectRatio;
   referenceUrl?: string | null;
+  endUserId?: string;
 };
 
-// L'identifiant de job retourné combine le modèle fal utilisé et le request_id
-// de la queue fal (`model::request_id`) : contrairement à Imole, la queue fal
-// exige de connaître le modèle d'origine pour interroger le statut ou récupérer
-// le résultat d'une requête.
+// Seedance 2.5 prend en charge 4–30 s, plusieurs images de référence et audio
+// natif synchronisé (dont la parole avec synchronisation labiale). Le rendu
+// complet est une seule tâche fournisseur : aucun montage local ni deuxième job.
+const DEFAULT_UGC_VIDEO_MODEL = "bytedance/seedance-2.5/reference-to-video";
 function encodeJobId(model: string, requestId: string) {
   return `${model}::${requestId}`;
 }
 function decodeJobId(jobId: string) {
   const separatorIndex = jobId.lastIndexOf("::");
   if (separatorIndex === -1) throw new Error("Identifiant de génération vidéo invalide");
-  return { model: jobId.slice(0, separatorIndex), requestId: jobId.slice(separatorIndex + 2) };
+  const model = jobId.slice(0, separatorIndex);
+  if (model !== DEFAULT_UGC_VIDEO_MODEL) throw new Error("Modèle vidéo non pris en charge");
+  return { model, requestId: jobId.slice(separatorIndex + 2) };
 }
-
 export async function createFalVideo(prompt: string, options: StudioVideoGenerationOptions) {
   ensureConfigured();
-  // Validation stricte : aucune valeur n'est transformée silencieusement. Si une
-  // valeur non supportée arrive jusqu'ici, c'est un bug de l'interface et on
-  // refuse plutôt que de générer une vidéo différente de ce que l'utilisateur attend.
   if (!isSupportedVideoDuration(options.duration)) throw new Error(`Durée vidéo non supportée : ${options.duration}s`);
   if (!isSupportedVideoResolution(options.resolution)) throw new Error(`Résolution vidéo non supportée : ${options.resolution}`);
   if (!isSupportedVideoAspectRatio(options.aspectRatio)) throw new Error(`Format vidéo non supporté : ${options.aspectRatio}`);
-
-  const duration = options.duration;
-  const resolution = options.resolution;
-  const aspectRatio = options.aspectRatio;
-  const useImage = Boolean(options.referenceUrl);
-  const model = useImage ? getAiVideoImageModel() : getAiVideoTextModel();
-
-  // Grok Imagine 1.5 : `duration` est un nombre (secondes), `image_url` est
-  // singulier (image-to-video), et `aspect_ratio` n'est accepté que pour le
-  // texte-to-video.
-  const input: Record<string, unknown> = { prompt, duration, resolution };
-  if (useImage) {
-    input.image_url = options.referenceUrl;
-  } else {
-    input.aspect_ratio = aspectRatio;
-  }
-
+  if (typeof prompt !== "string" || !prompt.trim() || prompt.length > 8000) throw new Error("Prompt vidéo invalide");
+  const model = DEFAULT_UGC_VIDEO_MODEL;
+  const input: Record<string, unknown> = {
+    prompt,
+    duration: String(options.duration),
+    resolution: options.resolution,
+    aspect_ratio: options.aspectRatio,
+    generate_audio: true,
+    task: "reference",
+    end_user_id: options.endUserId,
+    ...(options.referenceUrl ? { image_urls: [options.referenceUrl] } : {}),
+  };
   try {
     const { request_id } = await fal.queue.submit(model, { input });
     if (!request_id) throw new Error("fal.ai n'a renvoyé aucun identifiant de génération vidéo");
@@ -199,21 +193,17 @@ export async function createFalVideo(prompt: string, options: StudioVideoGenerat
     throw new Error(`fal.ai video API error: ${message} (modèle ${model})`);
   }
 }
-
 const COMPLETED_QUEUE_STATUSES = new Set(["COMPLETED"]);
 const FAILED_QUEUE_STATUSES = new Set(["ERROR"]);
-
 export async function getFalVideoJob(jobId: string) {
   ensureConfigured();
   const { model, requestId } = decodeJobId(jobId);
   const status = await fal.queue.status(model, { requestId, logs: false });
-  const rawStatus = String((status as { status?: string }).status || "");
+  const rawStatus = String((status as { status?: string }).status || "").toUpperCase();
   const mapped = COMPLETED_QUEUE_STATUSES.has(rawStatus) ? "completed" : FAILED_QUEUE_STATUSES.has(rawStatus) ? "failed" : "processing";
   return { id: jobId, status: mapped };
 }
-
 type FalVideoResult = { data?: { video?: { url?: string } } };
-
 export async function getFalVideoUrl(jobId: string) {
   ensureConfigured();
   const { model, requestId } = decodeJobId(jobId);
@@ -222,7 +212,6 @@ export async function getFalVideoUrl(jobId: string) {
   if (!videoUrl) throw new Error("fal.ai n'a renvoyé aucune vidéo");
   return videoUrl;
 }
-
 export async function downloadFalVideo(jobId: string) {
   const videoUrl = await getFalVideoUrl(jobId);
   const response = await fetch(videoUrl, { cache: "no-store" });

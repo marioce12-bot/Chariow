@@ -46,10 +46,10 @@ describe("Studio product language is independent of interface locale", () => {
     expect(askText).toHaveBeenCalledOnce();
   });
 
-  it("keeps locked video preparation in English despite French UI", async () => {
+  it("keeps generated video prompts in the product language despite French UI", async () => {
     const response = await POST(request({ product: english, locale: "fr", mediaType: "video", duration: 30 }));
     const body = await response.json();
-    expect(body.locked).toBe(true);
+    expect(body.locked).toBe(false);
     expect(body.contentLanguage.code).toBe("en");
     for (const segment of body.plan.segments) {
       expect(segment.prompt).toContain("Visible language and narration: English");

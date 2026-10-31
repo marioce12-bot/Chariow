@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getFalVideoUrl } from "@/lib/ai/fal";
 
 export async function GET(_: Request, { params }: { params: Promise<{ jobId: string }> }) {
@@ -7,6 +8,11 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
   if (!user) return response;
 
   const { jobId } = await params;
+
+  const { data: generation, error } = await createAdminClient().from("studio_generations")
+    .select("id,status").eq("user_id", user.id).eq("video_job_id", jobId).maybeSingle();
+  if (error) return NextResponse.json({ error: "Le média n’est pas disponible pour le moment." }, { status: 503 });
+  if (!generation || generation.status !== "completed") return NextResponse.json({ error: "Le média vidéo n’est pas encore disponible." }, { status: 404 });
 
   try {
     const videoUrl = await getFalVideoUrl(jobId);

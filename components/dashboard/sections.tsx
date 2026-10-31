@@ -14,7 +14,6 @@ import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
 import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
 import { StorePlatformDialog } from "@/components/dashboard/StorePlatformDialog";
-import { STUDIO_VIDEO_LOCKED } from "@/lib/studio/video-plan";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
 import { toUsd } from "@/lib/currency";
@@ -127,7 +126,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [kind, setKind] = useState<"image" | "video">("image");
   const [studioTab, setStudioTab] = useState<"photo" | "slideshow">("photo");
   const [prompt, setPrompt] = useState("");
-  const videoMode = "slideshow";
+  const videoMode = "ugc";
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
   const [referenceUploading, setReferenceUploading] = useState(false);
   const [quality, setQuality] = useState("medium");
@@ -361,7 +360,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`, { signal: controller.signal });
         const result = await response.json().catch(() => ({}));
         if (!active) return;
-        if (response.ok && typeof result?.status === "string") setVideoJob(result);
+        if (response.ok && typeof result?.status === "string") {
+          setVideoJob(result);
+          if (result.status === "completed" || result.status === "failed") {
+            void loadHistory(true);
+            const credits = await fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).catch(() => null);
+            if (credits) setBalance(credits.balance ?? 0);
+          }
+        }
         else if (result.error) setError(result.error);
       } catch {
         // Retry after the current request settles; cleanup aborts any in-flight read.
@@ -442,12 +448,12 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   async function generate() {
     if (generatingRef.current) return;
     if (kind === "image" && (!imageRecoveryReadyRef.current || ["processing", "awaiting_media"].includes(imageTask?.status ?? ""))) return;
-    if (kind === "video" && STUDIO_VIDEO_LOCKED) {
-      setError(locale === "en" ? "Video generation is not available yet." : "La génération vidéo reste indisponible.");
+    if (kind === "image" && !prompt.trim()) {
+      setError(t("sweep1.text201"));
       return;
     }
-    if (!prompt.trim()) {
-      setError(kind === "image" ? t("sweep1.text201") : t("sweep2.text202"));
+    if (kind === "video" && !selectedProduct) {
+      setError(locale === "en" ? "Choose a product before creating a video." : "Choisis un produit avant de créer une vidéo.");
       return;
     }
     let photoStillProcessing = false;
@@ -472,7 +478,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(kind === "image"
           ? { id: crypto.randomUUID(), kind: "image", input: { prompt, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", referenceUrls, ...(selectedProduct ? { product: { id: selectedProduct.id, name: selectedProduct.name } } : {}) } }
-          : { prompt, duration, resolution: videoResolution, aspectRatio, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
+          : { id: crypto.randomUUID(), prompt, duration, resolution: videoResolution, aspectRatio, locale, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description ? htmlDescriptionToText(selectedProduct.description) : "", price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null } : undefined }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "La génération a échoué.");
@@ -496,7 +502,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       }
       if (kind === "image" && result.task?.status === "completed") setSelectedGenerationId(result.task.result?.generationId ?? null);
       if (kind === "image") setReferenceFiles([]);
-      else setVideoJob({ id: result.jobId, status: result.status || "queued" });
+      else {
+        if (typeof result.job?.id !== "string") throw new Error("Le suivi de la vidéo n’a pas été confirmé. Consulte ton historique avant de relancer.");
+        setVideoJob({ id: result.job.id, status: result.job.status || "processing" });
+      }
       if (kind === "video") {
         const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
         if (credits) setBalance(credits.balance ?? 0);
@@ -627,14 +636,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         <SlideshowStudio product={selectedProduct} locale={locale} selectedTaskId={selectedSlideshowTaskId} onComplete={() => void loadHistory(true)} />
       </div>
       <div id="studio-photo-panel" role="tabpanel" aria-labelledby="studio-photo-tab" hidden={studioTab !== "photo"}>
-      {kind === "video" ? (
-        <section className="app-card studio-coming-soon" aria-live="polite">
-          <div className="studio-coming-soon-icon"><Video size={30} /></div>
-          <span className="eyebrow">{t("studio.video")}</span>
-          <h2>{t("studio.videoComingSoonTitle")}</h2>
-          <p>{t("studio.videoComingSoonText")}</p>
-        </section>
-      ) : <div className="studio-grid">
+      <div className="studio-grid">
         <section className="app-card studio-form">
           <label className={`studio-field${promptGenerating ? " is-generating" : ""}`}>
             <span>{t("studio.describe")}</span>
@@ -656,6 +658,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             </div>
           ) : (
             <div className="studio-options">
+              {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Video size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? t("studio.insertProductInfoLoading") : (locale === "en" ? "Generate a product-aware video prompt" : "Générer un prompt vidéo adapté au produit")}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">{locale === "en" ? "Select a product above to generate a tailored UGC scenario." : "Sélectionne un produit ci-dessus pour générer un scénario UGC adapté."}</p>}
               <label className="studio-field"><span>{t("studio.duration")}</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value) as typeof VIDEO_DURATIONS[number])}>{VIDEO_DURATIONS.map((value) => <option key={value} value={value}>{value} {t("studio.seconds")}</option>)}</select></label>
               <StudioSelect label={t("studio.resolution")} value={videoResolution} onChange={(value) => setVideoResolution(value as typeof VIDEO_RESOLUTIONS[number])} options={VIDEO_RESOLUTIONS.map((value) => [value, value])} />
               {selectedProduct?.image ? <p className="studio-cost" style={{ marginTop: 8 }}>{t("studio.coverStart")}</p> : null}
@@ -667,7 +670,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady)}>
             <Sparkles size={17} /> {loading && kind === "image" && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : kind === "image" ? t("studio.createImage") : t("studio.createVideo")}
           </button>
-          <p className="studio-cost">{kind === "image" ? t("studio.imageCost") : t("studio.videoCost", { rate: videoResolution === "1080p" ? "38" : videoResolution === "720p" ? "25" : "15", res: videoResolution })}</p>
+          <p className="studio-cost">{kind === "image" ? t("studio.imageCost") : <>{t("studio.videoCost", { rate: videoResolution === "1080p" ? "38" : videoResolution === "720p" ? "25" : "15", res: videoResolution })} {t("studio.videoTotalCost", { duration, cost: duration * (videoResolution === "1080p" ? 38 : videoResolution === "720p" ? 25 : 15) })}</>}</p>
           <div className="studio-balance"><div><span className="eyebrow">{t("studio.balance")}</span><strong>{balance} {t("studio.credits")}</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>{t("studio.recharge")}</button><small>{t("studio.balanceHint")}</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>{t("studio.recharge")}</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label={t("wizardExtra.close")}>×</button></div><label className="studio-field"><span>{t("sweep1.text84")}</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>{t("finalExtra.text18")}{" "}<strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>{t("sweep3.text209")}</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? t("sweep1.text210") : t("sweep2.text211")}</button></div> : null}</div>
         </section>
 
@@ -678,7 +681,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>{kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Image created" : "Image créée") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Checking your creation" : "Vérification de ta création") : t("chat.posterGenerating")}</strong><p role="status">{kind === "image" && imageTrackingIssue ? (locale === "en" ? "Tracking is temporarily unavailable. Checking automatically; do not start another generation." : "Suivi temporairement indisponible. Vérification automatique en cours ; ne relance pas de génération.") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Retrieving the saved image. No new generation or credit charge." : "Récupération de l’image enregistrée. Aucune nouvelle génération ni dépense de crédits.") : videoJob ? t("dynamicExtra.videoStatus", { status: (videoJob.status) }) : t("optionsExtra.text23")}</p>{kind === "image" && loading && !imageTrackingIssue && imageTask?.status !== "awaiting_media" ? <div className="studio-generation-progress"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}</> : <><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></>}</div> : null}
           {imageUrl && kind === "image" ? <div className="studio-generation-progress" aria-live="polite"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}
         </section>
-      </div>}
+      </div>
       </div>
       {selectedHistory ? <section ref={historyViewerRef} tabIndex={-1} className="app-card studio-result studio-history-viewer" aria-label={t("studio.result")}>
         <div className="card-head"><div><span className="eyebrow">{t("overview.history")}</span><h2>{selectedHistory.kind === "image" ? t("studio.yourImage") : isSlideshow(selectedHistory) ? (locale === "en" ? "Slideshow" : "Diaporama") : t("studio.yourVideo")}</h2></div>{selectedHistory.kind === "image" ? <ImageIcon size={20} /> : <Video size={20} />}</div>

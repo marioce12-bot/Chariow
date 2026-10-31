@@ -21,12 +21,21 @@ describe("Evidence-only video advertising planner", () => {
     expect(buildVideoAdPlan({ ...input, userBrief: "un micro trottoir" }).direction).toBe("street_interview");
     expect(buildVideoAdPlan({ ...input, userBrief: "une discussion" }).direction).toBe("conversation");
   });
+  it("defaults to fictional mixed-race UGC characters and shows the supplied ebook cover mid-video", () => {
+    const plan = buildVideoAdPlan({ ...input, duration: 25 }, '{"direction":"conversation","copyIndices":[0]}');
+    const prompt = videoPlanPrompt(plan);
+    expect(plan.direction).toBe("conversation");
+    expect(plan.continuity).toContain("métis / mixed-race");
+    expect(prompt).toContain("around the middle of the video");
+    expect(prompt).toContain("une seule publicité UGC native de 25s");
+    expect(prompt).toContain("DIALOGUE:");
+  });
   it("honors no people and never invents physical books or unsupported product claims", () => {
     const plan = buildVideoAdPlan({ ...input, character: "without" }, '{"direction":"in_hand","copyIndices":[0],"dialogue":"Résultat garanti en 3 jours"}', () => 0);
     expect(plan.direction).not.toBe("in_hand");
     for (const segment of plan.segments) {
       expect(segment.prompt).toContain("No people, faces, hands or characters");
-      expect(segment.prompt).toContain("not a printed book");
+      expect(segment.prompt).toContain("Do not redesign the cover, show a printed book");
       expect(segment.prompt).not.toContain("Résultat garanti en 3 jours");
     }
     expect(eligibleVideoDirections({ ...input, hasReference: false })).not.toContain("in_hand");

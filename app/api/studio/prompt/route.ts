@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       ], { order: ["imole", "groq", "gemini"] });
     } catch { /* The constrained local planner is usable even when the text service is unavailable. */ }
     const plan = buildVideoAdPlan(input, videoAnswer);
-    return NextResponse.json({ prompt: videoPlanPrompt(plan), plan, contentLanguage, locked: true });
+    return NextResponse.json({ prompt: videoPlanPrompt(plan), plan, contentLanguage, locked: false });
   }
 
   let answer: string;
