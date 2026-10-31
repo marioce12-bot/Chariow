@@ -125,7 +125,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const { t, locale } = useI18n();
   const [promptGenerating, setPromptGenerating] = useState(false);
   const [kind, setKind] = useState<"image" | "video">("image");
-  const [studioTab, setStudioTab] = useState<"photo" | "slideshow">("photo");
+  const [studioTab, setStudioTab] = useState<"photo" | "slideshow" | "video">("photo");
   const [prompt, setPrompt] = useState("");
   const videoMode = "characters";
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
@@ -620,13 +620,13 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       <div className="studio-tabs" role="tablist" aria-label={t("sweep2.text205")}>
         <button type="button" role="tab" id="studio-photo-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo"} className={studioTab === "photo" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("photo"); setKind("image"); }}><ImageIcon size={17} /> Photo</button>
         <button type="button" role="tab" id="studio-slideshow-tab" aria-controls="studio-slideshow-panel" aria-selected={studioTab === "slideshow"} className={studioTab === "slideshow" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("slideshow"); }}><ImageIcon size={17} /> {locale === "en" ? "Slideshow" : "Diaporama"}</button>
-        <button type="button" role="tab" aria-selected={false} disabled aria-disabled="true" style={{ opacity: 0.45, cursor: "not-allowed" }} title={locale === "en" ? "Coming later — generation locked" : "À venir — génération verrouillée"}><Video size={17} /> {t("studio.video")}</button>
+        <button type="button" role="tab" id="studio-video-tab" aria-controls="studio-video-panel" aria-selected={studioTab === "video"} className={studioTab === "video" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("video"); setKind("video"); }}><Video size={17} /> {t("studio.video")}</button>
       </div>
       <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => selectProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => selectProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => selectProduct(null)} aria-label={t("sweep3.text206")}>×</button>{selectedProduct.image ? <em>{kind === "video" ? t("studio.coverRef") : t("studio.imageReferenceNote")}</em> : null}</div> : null}</section>
       <div id="studio-slideshow-panel" ref={slideshowPanelRef} tabIndex={-1} role="tabpanel" aria-labelledby="studio-slideshow-tab" hidden={studioTab !== "slideshow"}>
         <SlideshowStudio product={selectedProduct} locale={locale} selectedTaskId={selectedSlideshowTaskId} onComplete={() => void loadHistory(true)} />
       </div>
-      <div id="studio-photo-panel" role="tabpanel" aria-labelledby="studio-photo-tab" hidden={studioTab !== "photo"}>
+      <div id="studio-photo-panel" role="tabpanel" aria-labelledby="studio-photo-tab" hidden={studioTab !== "photo" && studioTab !== "video"}>
       {kind === "video" ? (
         <section className="app-card studio-coming-soon" aria-live="polite">
           <div className="studio-coming-soon-icon"><Video size={30} /></div>
