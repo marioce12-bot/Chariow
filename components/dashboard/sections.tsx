@@ -26,7 +26,7 @@ import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
 import { CREDIT_PRICE_XOF } from "@/lib/studio/credits";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
-import { VIDEO_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/studio/creative-workflows";
+import { VIDEO_TOTAL_DURATIONS, VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS } from "@/lib/studio/creative-workflows";
 import { useI18n } from "@/lib/i18n/i18n";
 import { MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY } from "./shared";
 import { useNavigationCache } from "./NavigationDataCache";
@@ -127,14 +127,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [kind, setKind] = useState<"image" | "video">("image");
   const [studioTab, setStudioTab] = useState<"photo" | "slideshow">("photo");
   const [prompt, setPrompt] = useState("");
-  const videoMode = "slideshow";
+  const videoMode = "characters";
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
   const [referenceUploading, setReferenceUploading] = useState(false);
   const [quality, setQuality] = useState("medium");
   const [imageResolution, setImageResolution] = useState("hd");
   const [orientation, setOrientation] = useState("square");
   const [background, setBackground] = useState("auto");
-  const [duration, setDuration] = useState<typeof VIDEO_DURATIONS[number]>(VIDEO_DURATIONS[0]);
+  const [duration, setDuration] = useState<typeof VIDEO_TOTAL_DURATIONS[number]>(VIDEO_TOTAL_DURATIONS[0]);
   const [videoResolution, setVideoResolution] = useState<typeof VIDEO_RESOLUTIONS[number]>(VIDEO_RESOLUTIONS[0]);
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -656,7 +656,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             </div>
           ) : (
             <div className="studio-options">
-              <label className="studio-field"><span>{t("studio.duration")}</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value) as typeof VIDEO_DURATIONS[number])}>{VIDEO_DURATIONS.map((value) => <option key={value} value={value}>{value} {t("studio.seconds")}</option>)}</select></label>
+              <label className="studio-field"><span>{t("studio.duration")}</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value) as typeof VIDEO_TOTAL_DURATIONS[number])}>{VIDEO_TOTAL_DURATIONS.map((value) => <option key={value} value={value}>{value} {t("studio.seconds")}</option>)}</select></label>
               <StudioSelect label={t("studio.resolution")} value={videoResolution} onChange={(value) => setVideoResolution(value as typeof VIDEO_RESOLUTIONS[number])} options={VIDEO_RESOLUTIONS.map((value) => [value, value])} />
               {selectedProduct?.image ? <p className="studio-cost" style={{ marginTop: 8 }}>{t("studio.coverStart")}</p> : null}
               <StudioSelect label={t("studio.format")} value={aspectRatio} onChange={setAspectRatio} options={VIDEO_ASPECT_RATIOS.map((value) => [value, value === "16:9" ? t("studio.landscape16") : t("studio.vertical9")])} />

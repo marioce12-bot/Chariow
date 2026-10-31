@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { downloadFalVideo, getFalVideoJob } from "@/lib/ai/fal";
 import { signedStudioUrl, storeStudioVideo } from "@/lib/studio/media";
+import { GET as getStudioVideo } from "@/app/api/studio/video/route";
 
 const MAX_WAIT_MS = 12 * 60_000;
 
@@ -13,12 +14,17 @@ function normalize(status: string) {
   return status.trim().toLowerCase();
 }
 
-export async function GET(_: Request, { params }: { params: Promise<{ jobId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ jobId: string }> }) {
   const { user, response } = await requireUser();
   if (!user) return response;
 
   const { jobId } = await params;
   if (!jobId) return NextResponse.json({ error: "Identifiant de tâche manquant." }, { status: 400 });
+  if (jobId.startsWith("studio::")) {
+    const url = new URL("/api/studio/video", request.url);
+    url.searchParams.set("jobId", jobId);
+    return getStudioVideo(new Request(url, { headers: request.headers }));
+  }
 
   const admin = createAdminClient();
 

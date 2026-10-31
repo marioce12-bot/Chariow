@@ -3,8 +3,9 @@ import { sourceCopyCandidates } from "@/lib/studio/faithful-prompt";
 import { neutralProductCta, resolveProductLanguage } from "./product-language";
 
 // Deliberately not controlled by an environment variable: enabling video requires a reviewed release.
-export const STUDIO_VIDEO_LOCKED = true;
+export const STUDIO_VIDEO_LOCKED = false;
 export const VIDEO_AD_DURATIONS = [5, 10, 15, 30, 45, 60] as const;
+export const VIDEO_UGC_DURATIONS = [20, 25, 30] as const;
 export const VIDEO_DIRECTIONS = {
   in_hand: "Présentation en main",
   conversation: "Discussion entre deux personnes",
@@ -15,7 +16,7 @@ export const VIDEO_DIRECTIONS = {
 } as const;
 export type VideoDirection = keyof typeof VIDEO_DIRECTIONS;
 export type VideoAdPlan = {
-  duration: number; aspectRatio: string; direction: string; continuity: string;
+  duration: number; aspectRatio: string; direction: string; continuity: string; coverMoment?: { segmentIndex: number; startSecond: number; durationSecond: number };
   segments: Array<{ index: number; duration: number; prompt: string }>;
 };
 export type VideoAdInput = {
@@ -36,7 +37,7 @@ export function videoModelCapability(model: string) {
 
 export function splitVideoDuration(duration: number, model = "xai/grok-imagine-video/v1.5/text-to-video") {
   const { maxDuration } = videoModelCapability(model);
-  if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(duration)) throw new Error("Durée publicitaire non prise en charge");
+  if (![...VIDEO_AD_DURATIONS, ...VIDEO_UGC_DURATIONS].includes(duration as any)) throw new Error("Durée publicitaire non prise en charge");
   const parts: number[] = [];
   for (let remaining = duration; remaining > 0; remaining -= Math.min(maxDuration, remaining)) parts.push(Math.min(maxDuration, remaining));
   return parts;
@@ -96,7 +97,8 @@ export function buildVideoAdPlan(input: VideoAdInput, answer = "", random: () =>
   const product = input.hasReference
     ? digital ? "Show the actual supplied cover on a tablet or phone, not a printed book or invented box. Never open or invent interior pages or interfaces." : "Preserve only the supplied product's visible identity; do not invent unseen components or features."
     : "No visual reference: use exact title-led abstract graphics. Do not invent a cover, packaging, interior or interface.";
-  const continuity = `${noPeople ? "No people, faces, hands or characters." : direction === "conversation" || direction === "street_interview" ? "Keep the same two fictional adult actors, faces, voices, clothes and roles throughout; never present them as real customers." : "Keep the same fictional adult presenter, face, voice and clothes throughout; no fabricated endorsement."} Same location, lighting, palette, product identity, screen orientation and audio ambience throughout. Continue from the supplied last frame when available, without restarting the story. No continuous music restart or abrupt dialogue cut; finish each sentence before a boundary.`;
+  const characterLook = noPeople ? "No casting instruction because this concept has no people." : "Default casting: fictional adult UGC characters with mixed-race/métis skin tones, natural textured hair and realistic, respectful representation; keep the same complexion, face, voice and wardrobe throughout.";
+  const continuity = `${noPeople ? "No people, faces, hands or characters." : direction === "conversation" || direction === "street_interview" ? "Keep the same two fictional adult actors, faces, voices, clothes and roles throughout; never present them as real customers." : "Keep the same fictional adult presenter, face, voice and clothes throughout; no fabricated endorsement."} ${characterLook} Same location, lighting, palette, product identity, screen orientation and audio ambience throughout. Continue from the supplied last frame when available, without restarting the story. No continuous music restart or abrupt dialogue cut; finish each sentence before a boundary.`;
   const scene: Record<VideoDirection, string[]> = {
     in_hand: ["Presenter raises the tablet/phone with the real cover toward the viewer; gentle handheld push-in.", "Presenter naturally introduces the exact product title while holding the screen steady.", "Cut closer to the same supplied cover, presenter points to confirmed supporting copy only.", "Presenter returns to eye contact, holds the cover visible and invites discovery, then settles for a clean ending."],
     conversation: ["Two fictional adults in a natural two-shot, one asks a neutral question about the product title, without alleging a personal problem or result.", "Reverse shot: the other introduces the exact product title; show the real cover on a device if available.", "Return to the two-shot: a brief question and response using only confirmed supporting copy, no testimonial.", "They turn the supplied cover or title toward camera, with a simple invitation to discover it and a calm closing frame."],
@@ -111,11 +113,14 @@ export function buildVideoAdPlan(input: VideoAdInput, answer = "", random: () =>
     const beatIndices = durations.length === 1 ? [0, 1, 2, 3] : durations.length === 2 ? (index === 0 ? [0, 1] : [2, 3]) : durations.length === 3 ? (index === 0 ? [0] : index === 1 ? [1, 2] : [3]) : [index];
     return { index, duration, prompt: `[direction:${direction}] ${VIDEO_DIRECTIONS[direction]}. Segment ${index + 1}/${durations.length}, exactly ${duration}s, ${input.aspectRatio}. Visible language and narration: ${language.label}. Preserve the product name and approved source excerpts exactly as supplied; do not translate or add decorative words.\n${safety}\nCONTINUITY: ${continuity}\nTIMED ACTION: ${beatIndices.map((beat, offset) => `${(duration * offset / beatIndices.length).toFixed(1)}-${(duration * (offset + 1) / beatIndices.length).toFixed(1)}s ${beats[beat]}: ${scene[direction][beat]}`).join(" ")}\nAUDIO: Natural short delivery in ${language.label}, maximum ${Math.floor(duration * 1.8)} spoken words total, pauses for comprehension; use only supplied facts and source wording. ${cta ? `Optional neutral CTA, only if a CTA is appropriate: "${cta}".` : "No generated CTA; use source wording only."} No repeated opening or CTA ${index < durations.length - 1 ? "in this segment" : "before the closing beat"}. Preserve identity and legibility; no watermark, malformed hands or invented text.` };
   });
-  return { duration: input.duration, aspectRatio: input.aspectRatio, direction, continuity, segments };
+  const coverSegment = Math.min(segments.length - 1, Math.max(0, Math.floor(segments.length / 2)));
+  const coverMoment = { segmentIndex: coverSegment, startSecond: Math.max(0, segments.slice(0, coverSegment).reduce((sum, item) => sum + item.duration, 0) + 0.5), durationSecond: Math.min(4, segments[coverSegment]?.duration ?? 3) };
+  return { duration: input.duration, aspectRatio: input.aspectRatio, direction, continuity, coverMoment, segments };
 }
 
 /** Editable overview; the structured per-segment plan is the future worker's source of truth. */
 export function videoPlanPrompt(plan: VideoAdPlan) {
+  const coverMoment = plan.coverMoment ?? { segmentIndex: Math.min(1, Math.max(0, plan.segments.length - 1)), startSecond: 1, durationSecond: 3 };
   const evidence = plan.segments[0].prompt.split("CONTINUITY:")[0].split("\n").slice(1).join("\n");
-  return `[direction:${plan.direction}] ${VIDEO_DIRECTIONS[plan.direction as VideoDirection]} — publicité ${plan.duration}s, ${plan.aspectRatio}.\n${evidence}\nCONTINUITÉ: ${plan.continuity}\n${plan.segments.map(segment => `SÉQUENCE ${segment.index + 1} (${segment.duration}s): ${segment.prompt.split("TIMED ACTION: ")[1]?.split("\nAUDIO:")[0]}`).join("\n")}\nAssembler toutes les séquences dans cet ordre, sans boucle ni répétition, après validation de chacune.`;
+  return `[direction:${plan.direction}] [cover:${coverMoment.segmentIndex}:${coverMoment.durationSecond}s] ${VIDEO_DIRECTIONS[plan.direction as VideoDirection]} — publicité ${plan.duration}s, ${plan.aspectRatio}.\n${evidence}\nCONTINUITÉ: ${plan.continuity}\n${plan.segments.map(segment => `SÉQUENCE ${segment.index + 1} (${segment.duration}s): ${segment.prompt.split("TIMED ACTION: ")[1]?.split("\nAUDIO:")[0]}`).join("\n")}\nAssembler toutes les séquences dans cet ordre, sans boucle ni répétition, après validation de chacune.`;
 }

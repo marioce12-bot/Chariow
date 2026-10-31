@@ -16,7 +16,10 @@ export type VideoAspectRatio = (typeof VIDEO_ASPECT_RATIOS)[number];
 
 // Durées (en secondes) produites par Grok Imagine 1.5 (jusqu'à 15 s).
 export const VIDEO_DURATIONS = [5, 10, 15] as const;
-export type VideoDuration = (typeof VIDEO_DURATIONS)[number];
+export const VIDEO_TOTAL_DURATIONS = [20, 25, 30] as const;
+export const VIDEO_SEGMENT_DURATIONS = [5, 6, 7, 8, 10, 12, 15] as const;
+export type VideoDuration = (typeof VIDEO_SEGMENT_DURATIONS)[number];
+export type VideoTotalDuration = (typeof VIDEO_TOTAL_DURATIONS)[number];
 
 export const VIDEO_CAPABILITIES = {
   resolutions: VIDEO_RESOLUTIONS,
@@ -38,7 +41,11 @@ export function isSupportedVideoAspectRatio(value: string): value is VideoAspect
 }
 
 export function isSupportedVideoDuration(value: number): value is VideoDuration {
-  return (VIDEO_DURATIONS as readonly number[]).includes(value);
+  return (VIDEO_SEGMENT_DURATIONS as readonly number[]).includes(value);
+}
+
+export function isSupportedVideoTotalDuration(value: number): value is VideoTotalDuration {
+  return (VIDEO_TOTAL_DURATIONS as readonly number[]).includes(value);
 }
 
 export const PRODUCT_TYPES = [

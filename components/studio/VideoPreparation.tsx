@@ -13,14 +13,14 @@ type Props = {
 
 const COPY = {
   fr: {
-    title: "Préparation de la vidéo", intro: "Choisis un format et une musique. Aucun rendu n’est lancé depuis ce panneau.", mode: "Format vidéo",
+    title: "Préparation de la vidéo", intro: "Choisis un format et une musique. Le mode personnages crée une vidéo UGC avec le produit sélectionné.", mode: "Format vidéo",
     slideshow: "Diaporama animé", characters: "Scènes avec personnages", music: "Musique", search: "Rechercher une musique…", searchButton: "Rechercher",
     mood: "Ambiance", all: "Toutes", calm: "Calme", upbeat: "Enjouée", dramatic: "Dramatique", results: "Résultats provenant de Wikimedia Commons",
     loading: "Recherche…", noResults: "Aucun morceau avec une licence CC0 ou domaine public vérifiable n’a été trouvé.", error: "Catalogue indisponible. Réessaie plus tard.", select: "Sans musique", preview: "Écouter l’aperçu", stop: "Arrêter l’aperçu",
     license: "Licence", attribution: "Attribution", source: "Page du fichier", caveat: "Vérifie les droits sur la page source avant toute utilisation commerciale. Les métadonnées Commons ne constituent pas une validation juridique.",
   },
   en: {
-    title: "Video preparation", intro: "Choose a format and music. This panel does not start a render.", mode: "Video format",
+    title: "Video preparation", intro: "Choose a format and music. The characters mode creates an UGC video with your selected product.", mode: "Video format",
     slideshow: "Animated slideshow", characters: "Scenes with characters", music: "Music", search: "Search for music…", searchButton: "Search",
     mood: "Mood", all: "All", calm: "Calm", upbeat: "Upbeat", dramatic: "Dramatic", results: "Results from Wikimedia Commons",
     loading: "Searching…", noResults: "No track with a verifiable CC0 or public-domain label was found.", error: "Catalogue unavailable. Try again later.", select: "No music", preview: "Play preview", stop: "Stop preview",
@@ -61,7 +61,7 @@ export function VideoPreparation({ locale, mode, onModeChange, musicId, onMusicC
         <legend className="mb-2 text-sm font-medium">{t.mode}</legend>
         <div className="grid gap-2 sm:grid-cols-2">
           {(["slideshow", "characters"] as const).map((value) => (
-            <button key={value} type="button" disabled={value === "characters"} aria-disabled={value === "characters"} aria-pressed={mode === value} onClick={() => onModeChange(value)} className={`rounded-xl border px-4 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-40 ${mode === value ? "border-violet-400 bg-violet-500/15" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
+            <button key={value} type="button" disabled={false} aria-disabled={false} aria-pressed={mode === value} onClick={() => onModeChange(value)} className={`rounded-xl border px-4 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-40 ${mode === value ? "border-violet-400 bg-violet-500/15" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
               {value === "slideshow" ? t.slideshow : t.characters}
             </button>
           ))}

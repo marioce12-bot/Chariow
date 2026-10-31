@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
-import { buildVideoAdPlan, videoPlanPrompt, videoPlanningSystem, VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
+import { buildVideoAdPlan, videoPlanPrompt, videoPlanningSystem, VIDEO_AD_DURATIONS, VIDEO_UGC_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { logPreparationFailure } from "@/lib/studio/preparation-diagnostics";
 import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
@@ -46,8 +46,9 @@ export async function POST(request: Request) {
 
   if (body?.mediaType === "video") {
     const isSlideshow = body?.videoMode === "slideshow";
-    const duration = Number(body?.duration ?? (isSlideshow ? 25 : 15));
-    if (!((isSlideshow ? SLIDESHOW_DURATIONS : VIDEO_AD_DURATIONS) as readonly number[]).includes(duration)) return NextResponse.json({ error: "Durée vidéo non prise en charge." }, { status: 400 });
+    const duration = Number(body?.duration ?? (isSlideshow ? 25 : 20));
+    const allowedDurations = isSlideshow ? SLIDESHOW_DURATIONS : VIDEO_UGC_DURATIONS;
+    if (!(allowedDurations as readonly number[]).includes(duration)) return NextResponse.json({ error: "Durée vidéo non prise en charge." }, { status: 400 });
     const aspectRatio = body?.aspectRatio ?? "9:16";
     if (!["16:9", "9:16", "1:1"].includes(aspectRatio)) return NextResponse.json({ error: "Format vidéo non pris en charge." }, { status: 400 });
     const input: VideoAdInput = { name, description, hasReference: Boolean(productImage), duration, aspectRatio, character, userBrief, previousPrompt, locale: body?.locale === "en" ? "en" : "fr" };
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
       ], { order: ["imole", "groq", "gemini"] });
     } catch { /* The constrained local planner is usable even when the text service is unavailable. */ }
     const plan = buildVideoAdPlan(input, videoAnswer);
-    return NextResponse.json({ prompt: videoPlanPrompt(plan), plan, contentLanguage, locked: true });
+    return NextResponse.json({ prompt: videoPlanPrompt(plan), plan, contentLanguage, locked: false });
   }
 
   let answer: string;
