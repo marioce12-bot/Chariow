@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     const duration = Number(body?.duration ?? (isSlideshow ? 25 : 15));
     if (!((isSlideshow ? SLIDESHOW_DURATIONS : VIDEO_AD_DURATIONS) as readonly number[]).includes(duration)) return NextResponse.json({ error: "Durée vidéo non prise en charge." }, { status: 400 });
     const aspectRatio = body?.aspectRatio ?? "9:16";
-    if (!["16:9", "9:16", "1:1"].includes(aspectRatio)) return NextResponse.json({ error: "Format vidéo non pris en charge." }, { status: 400 });
+    if (aspectRatio !== "9:16") return NextResponse.json({ error: "Le prompt vidéo Studio doit être en portrait 9:16." }, { status: 400 });
     const videoStyle = body?.videoStyle === "ugc" ? "ugc" : body?.videoStyle === "motion_design" ? "motion_design" : undefined;
     const input: VideoAdInput = { name, description, hasReference: Boolean(productImage), duration, aspectRatio, character, videoStyle, userBrief, previousPrompt, locale: body?.locale === "en" ? "en" : "fr" };
     if (body?.videoMode === "slideshow") {

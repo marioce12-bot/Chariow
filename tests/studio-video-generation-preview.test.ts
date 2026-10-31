@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   requireActiveSubscription: vi.fn(),
   rateLimit: vi.fn(),
-  packagedVideoBinaries: vi.fn(),
+  packagedVideoProbe: vi.fn(),
   createFalVideo: vi.fn(),
   start: vi.fn(),
   afterCallbacks: [] as Array<() => void | Promise<void>>,
@@ -26,7 +26,7 @@ vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock("@/lib/subscription/access", () => ({ requireActiveSubscription: mocks.requireActiveSubscription }));
 vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit: mocks.rateLimit }));
-vi.mock("@/lib/studio/video-runtime", () => ({ packagedVideoBinaries: mocks.packagedVideoBinaries }));
+vi.mock("@/lib/studio/video-probe-runtime", () => ({ packagedVideoProbe: mocks.packagedVideoProbe }));
 vi.mock("@/lib/ai/fal", () => ({
   getAiVideoTextModel: () => "xai/grok-imagine-video/v1.5/text-to-video",
   getAiVideoImageModel: () => "xai/grok-imagine-video/v1.5/image-to-video",
@@ -38,6 +38,7 @@ vi.mock("@/lib/studio/video-workflow", () => ({
 }));
 
 import { GET as videoReadiness, POST as generateVideo } from "@/app/api/studio/video/route";
+import { countFalVideoPromptCharacters, FAL_VIDEO_PROMPT_SAFE_MAX_CHARS } from "@/lib/studio/fal-video-contract";
 
 const originalVercelEnv = process.env.VERCEL_ENV;
 const originalRenderFlag = process.env.STUDIO_VIDEO_RENDER_ENABLED;
@@ -48,7 +49,7 @@ const baseBody = {
   prompt: "Créer une publicité motion design pour un guide numérique.",
   duration: 25,
   resolution: "480p",
-  aspectRatio: "16:9",
+  aspectRatio: "9:16",
   videoStyle: "motion_design",
   product: { name: "Guide numérique", description: "Un guide PDF." },
 };
@@ -81,7 +82,7 @@ function makeAdmin() {
         }),
       };
     }),
-    rpc: vi.fn(async (name: string) => name === "reserve_credits" ? { data: reserveResult, error: null } : { data: true, error: null }),
+    rpc: vi.fn(async (name: string) => name === "reserve_credits" ? { data: reserveResult, error: null } : name === "reserve_studio_video_quota" ? { data: { ok: true, user_daily_used: 1, user_daily_limit: 2 }, error: null } : { data: { ok: true }, error: null }),
   };
 }
 
@@ -105,13 +106,13 @@ beforeEach(() => {
   process.env.FAL_API_KEY = "test-only-key";
   rows = new Map();
   insertedRows = [];
-  reserveResult = { ok: true, transaction_id: "22222222-2222-4222-8222-222222222222", balance: 500, reserved: 375 };
+  reserveResult = { ok: true, transaction_id: "22222222-2222-4222-8222-222222222222", balance: 500, reserved: 750 };
   admin = makeAdmin();
   mocks.requireUser.mockResolvedValue({ user: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, response: null });
   mocks.createAdminClient.mockReturnValue(admin);
   mocks.requireActiveSubscription.mockResolvedValue(null);
   mocks.rateLimit.mockReturnValue(false);
-  mocks.packagedVideoBinaries.mockReturnValue({ ffmpegPath: "/mock/ffmpeg", ffprobePath: "/mock/ffprobe" });
+  mocks.packagedVideoProbe.mockReturnValue("/mock/ffprobe");
   mocks.start.mockResolvedValue({ runId: "mock-run" });
   mocks.studioVideoWorkflow.mockReset();
   mocks.failQueuedVideoDispatchStep.mockReset();
@@ -133,7 +134,7 @@ describe("Studio video Preview generation", () => {
     enablePreview();
     const response = await videoReadiness();
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ready: true, binaries: { ffmpeg: true, ffprobe: true }, duration: 25, segmentDurations: [15, 10] });
+    expect(await response.json()).toEqual({ ready: true, binaries: { ffprobe: true }, assembly: "fal-merge-with-audio-safe-fallback", duration: 25, aspectRatio: "9:16", segmentDurations: [15, 10] });
     expect(admin.from).not.toHaveBeenCalled();
     expect(admin.rpc).not.toHaveBeenCalled();
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
@@ -164,11 +165,14 @@ describe("Studio video Preview generation", () => {
     const response = await generateVideo(request(baseBody));
     const result = await response.json();
     expect(response.status).toBe(202);
-    expect(result).toMatchObject({ jobId: requestId, status: "processing", cost: 375 });
-    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 375, request_id: requestId }));
+    expect(result).toMatchObject({ jobId: requestId, status: "processing", cost: 750 });
+    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 750, request_id: requestId }));
     expect(insertedRows).toHaveLength(1);
-    expect(insertedRows[0]).toMatchObject({ id: requestId, status: "processing", credits_cost: 375, video_job_id: requestId });
+    expect(insertedRows[0]).toMatchObject({ id: requestId, status: "processing", credits_cost: 750, video_job_id: requestId });
     expect(insertedRows[0].metadata).toMatchObject({ phase: "queued", segment0State: "pending", segment1State: "pending", videoStyle: "motion_design" });
+    for (const segment of insertedRows[0].metadata.plan.segments) {
+      expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
+    }
     expect(mocks.afterCallbacks).toHaveLength(1);
     expect(mocks.start).not.toHaveBeenCalled();
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
@@ -182,6 +186,55 @@ describe("Studio video Preview generation", () => {
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
+  it("charges exactly 1,300 credits for a 25-second 720p portrait video", async () => {
+    enablePreview();
+    reserveResult = { ...reserveResult, reserved: 1300 };
+    const response = await generateVideo(request({ ...baseBody, resolution: "720p" }));
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({ cost: 1300 });
+    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 1300, request_id: requestId }));
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
+  it.each(["USER_ACTIVE_LIMIT", "USER_DAILY_LIMIT"] as const)("blocks a user quota response (%s) before reserving credits", async code => {
+    enablePreview();
+    admin.rpc.mockImplementation(async (name: string) => name === "reserve_studio_video_quota"
+      ? { data: { ok: false, code }, error: null }
+      : { data: reserveResult, error: null });
+    const response = await generateVideo(request(baseBody));
+    expect(response.status).toBe(429);
+    expect((await response.json()).code).toBe(code);
+    expect(admin.rpc).toHaveBeenCalledOnce();
+    expect(insertedRows).toHaveLength(0);
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { resolution: "1080p", aspectRatio: "9:16" },
+    { resolution: "480p", aspectRatio: "16:9" },
+  ])("rejects unpriced or non-portrait options before reservation", async overrides => {
+    enablePreview();
+    const response = await generateVideo(request({ ...baseBody, ...overrides }));
+    expect(response.status).toBe(400);
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
+  it("compiles 15s + 10s prompts safely before reserving credits, even for long product data and brief", async () => {
+    enablePreview();
+    const description = Array.from({ length: 60 }, (_, index) => `Fait produit ${index + 1}: le guide est disponible au format PDF.`).join(" ").slice(0, 4000);
+    const prompt = "Motion design animé, transitions fluides et rythme soutenu. ".repeat(100).slice(0, 4000);
+    const response = await generateVideo(request({ ...baseBody, prompt, product: { name: "Guide ebook cuisine", description } }));
+    expect(response.status).toBe(202);
+    expect(insertedRows[0].metadata.plan.segments.map((segment: Row) => segment.duration)).toEqual([15, 10]);
+    for (const segment of insertedRows[0].metadata.plan.segments) {
+      expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
+      expect(segment.prompt).toContain("Guide ebook cuisine");
+    }
+    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 750, request_id: requestId }));
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
   it("defaults to Motion design when the style is omitted", async () => {
     enablePreview();
     const { videoStyle: _ignored, ...body } = baseBody;
@@ -191,7 +244,7 @@ describe("Studio video Preview generation", () => {
 
   it("does not reserve credits or contact a provider if the user has insufficient available credits", async () => {
     enablePreview();
-    reserveResult = { ok: false, balance: 300, reserved: 100, required: 375 };
+    reserveResult = { ok: false, balance: 300, reserved: 100, required: 750 };
     const response = await generateVideo(request(baseBody));
     const result = await response.json();
     expect(response.status).toBe(402);
@@ -201,9 +254,9 @@ describe("Studio video Preview generation", () => {
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
-  it("fails closed before reserving if packaged video binaries are unavailable", async () => {
+  it("fails closed before reserving if ffprobe is unavailable", async () => {
     enablePreview();
-    mocks.packagedVideoBinaries.mockReturnValue(null);
+    mocks.packagedVideoProbe.mockReturnValue(null);
     const response = await generateVideo(request(baseBody));
     expect(response.status).toBe(503);
     expect(admin.rpc).not.toHaveBeenCalled();
@@ -220,7 +273,7 @@ describe("Studio video Preview generation", () => {
 
   it("returns an existing request idempotently without a new reservation or provider job", async () => {
     enablePreview();
-    rows.set(requestId, { id: requestId, user_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", status: "processing", video_job_id: requestId, credits_cost: 375, metadata: { progress: 10 } });
+    rows.set(requestId, { id: requestId, user_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", status: "processing", video_job_id: requestId, credits_cost: 750, metadata: { progress: 10 } });
     const response = await generateVideo(request(baseBody));
     expect(response.status).toBe(202);
     expect(await response.json()).toMatchObject({ jobId: requestId, status: "processing", progress: 10 });

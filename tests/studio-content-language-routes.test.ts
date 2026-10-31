@@ -47,7 +47,7 @@ describe("Studio product language is independent of interface locale", () => {
   });
 
   it("keeps locked video preparation in English despite French UI", async () => {
-    const response = await POST(request({ product: english, locale: "fr", mediaType: "video", duration: 30 }));
+    const response = await POST(request({ product: english, locale: "fr", mediaType: "video", duration: 25 }));
     const body = await response.json();
     expect(body.locked).toBe(true);
     expect(body.contentLanguage.code).toBe("en");

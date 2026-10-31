@@ -1,5 +1,6 @@
 import { fal } from "@fal-ai/client";
 import { isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoAspectRatio, type VideoDuration, type VideoResolution, type VideoAspectRatio } from "@/lib/studio/creative-workflows";
+import { assertFalVideoPromptWithinSafeLimit, falVideoInputRejectedErrorFrom } from "@/lib/studio/fal-video-contract";
 
 // Modèles choisis :
 // - Texte→image : GPT Image 2 (« ChatGPT Images 2.0 », openai/gpt-image-2), le modèle d'image de ChatGPT,
@@ -166,6 +167,7 @@ function decodeJobId(jobId: string) {
 }
 
 export async function createFalVideo(prompt: string, options: StudioVideoGenerationOptions) {
+  assertFalVideoPromptWithinSafeLimit(prompt);
   ensureConfigured();
   // Validation stricte : aucune valeur n'est transformée silencieusement. Si une
   // valeur non supportée arrive jusqu'ici, c'est un bug de l'interface et on
@@ -195,9 +197,45 @@ export async function createFalVideo(prompt: string, options: StudioVideoGenerat
     if (!request_id) throw new Error("fal.ai n'a renvoyé aucun identifiant de génération vidéo");
     return encodeJobId(model, request_id);
   } catch (error) {
+    const validationError = falVideoInputRejectedErrorFrom(error);
+    if (validationError) throw validationError;
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`fal.ai video API error: ${message} (modèle ${model})`);
+    const wrapped = new Error(`fal.ai video API error: ${message} (modèle ${model})`);
+    (wrapped as Error & { cause?: unknown }).cause = error;
+    throw wrapped;
   }
+}
+
+
+export const FAL_EXTRACT_FRAME_ENDPOINT = "fal-ai/ffmpeg-api/extract-frame";
+export const FAL_MERGE_VIDEOS_ENDPOINT = "fal-ai/ffmpeg-api/merge-videos";
+
+/** Queue a documented Fal utility; callers must persist the returned job ID before polling. */
+export async function submitFalQueueUtility(endpoint: string, input: Record<string, unknown>) {
+  ensureConfigured();
+  try {
+    const { request_id } = await fal.queue.submit(endpoint, { input });
+    if (!request_id) throw new Error("fal.ai n'a renvoyé aucun request_id pour l'utilitaire vidéo");
+    return encodeJobId(endpoint, request_id);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const wrapped = new Error(`fal.ai utility API error: ${message} (endpoint ${endpoint})`);
+    (wrapped as Error & { cause?: unknown }).cause = error;
+    throw wrapped;
+  }
+}
+
+export async function downloadFalQueueUtilityFile(jobId: string, kind: "video" | "image") {
+  ensureConfigured();
+  const { model, requestId } = decodeJobId(jobId);
+  const result = (await fal.queue.result(model, { requestId })) as {
+    data?: { video?: { url?: string }; images?: Array<{ url?: string }> };
+  };
+  const url = kind === "video" ? result?.data?.video?.url : result?.data?.images?.[0]?.url;
+  if (!url) throw new Error(`fal.ai n'a renvoyé aucun résultat ${kind} pour l'utilitaire vidéo`);
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error(`fal.ai utility content download returned ${response.status}`);
+  return { body: await response.arrayBuffer(), contentType: response.headers.get("content-type") || (kind === "video" ? "video/mp4" : "image/png") };
 }
 
 const COMPLETED_QUEUE_STATUSES = new Set(["COMPLETED"]);
@@ -214,10 +252,51 @@ export async function getFalVideoJob(jobId: string) {
 
 type FalVideoResult = { data?: { video?: { url?: string } } };
 
+function summarizeFalVideoResultError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return { providerErrorName: "Error" };
+  }
+  const value = error as {
+    name?: unknown;
+    message?: unknown;
+    status?: unknown;
+    requestId?: unknown;
+    body?: { detail?: unknown };
+  };
+  const detail = value.body?.detail;
+  const validationDetail = Array.isArray(detail)
+    ? detail.slice(0, 5).map((entry) => {
+        if (!entry || typeof entry !== "object") return { kind: typeof entry };
+        const item = entry as { loc?: unknown; msg?: unknown; type?: unknown };
+        return {
+          location: Array.isArray(item.loc) ? item.loc.slice(0, 8).map((part) => String(part).slice(0, 80)) : undefined,
+          type: typeof item.type === "string" ? item.type.slice(0, 80) : undefined,
+        };
+      })
+    : typeof detail === "string" ? { kind: "string", length: detail.length } : undefined;
+  return {
+    providerErrorName: typeof value.name === "string" ? value.name.slice(0, 80) : "Error",
+    providerStatus: typeof value.status === "number" || typeof value.status === "string" ? value.status : undefined,
+    providerRequestId: typeof value.requestId === "string" ? value.requestId.slice(0, 100) : undefined,
+    validationDetail,
+  };
+}
+
 export async function getFalVideoUrl(jobId: string) {
   ensureConfigured();
   const { model, requestId } = decodeJobId(jobId);
-  const result = (await fal.queue.result(model, { requestId })) as FalVideoResult;
+  let result: FalVideoResult;
+  try {
+    result = (await fal.queue.result(model, { requestId })) as FalVideoResult;
+  } catch (error) {
+    console.error("[studio-video] Fal queue result GET failed", {
+      stage: "fal_queue_result_get",
+      model,
+      requestId,
+      ...summarizeFalVideoResultError(error),
+    });
+    throw error;
+  }
   const videoUrl = result?.data?.video?.url;
   if (!videoUrl) throw new Error("fal.ai n'a renvoyé aucune vidéo");
   return videoUrl;

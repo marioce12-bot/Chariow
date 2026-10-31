@@ -39,20 +39,27 @@ describe("durable Studio orchestration (fixtures only)", () => {
     expect(mocks.step).toHaveBeenCalledTimes(1);
     expect(mocks.fail).toHaveBeenCalledWith("fixture-task", expect.any(Error), { revision: 4, phase: "queued" });
   });
-  it("keeps rendering binaries only on the generated durable step route", () => {
+  it("keeps rendering binaries on the durable worker and direct slideshow renderer only", () => {
     const workflow = readFileSync("lib/studio/task-workflow.ts", "utf8");
     const config = readFileSync("next.config.ts", "utf8");
     const includes = config.split("outputFileTracingIncludes: {")[1]?.split("async headers()")[0] ?? "";
     const excludes = config.split("outputFileTracingExcludes: {")[1]?.split("outputFileTracingIncludes:")[0] ?? "";
     const runtimeFiles = config.split("const videoRuntimeFiles = [")[1]?.split("];", 1)[0] ?? "";
+    const probeFiles = config.split("const videoProbeFiles = [")[1]?.split("];", 1)[0] ?? "";
     expect(workflow).toContain('"use workflow"'); expect(workflow).toContain('"use step"');
     expect(includes).toContain('"/.well-known/workflow/v1/step"');
     expect(includes).not.toContain('"/.well-known/workflow/**"');
     expect(includes).toContain('"/.well-known/workflow/v1/step": [...videoRuntimeFiles');
+    expect(includes).toContain('"/api/studio/slideshow/render": [...videoRuntimeFiles');
+    expect(includes).not.toContain('"/api/studio/tasks": videoRuntimeFiles');
+    expect(includes).not.toContain('"/api/studio/tasks/*": videoRuntimeFiles');
+    expect(includes).not.toContain('"/api/studio/slideshow/*":');
+    expect(includes).not.toContain('"/api/studio/video": videoRuntimeFiles');
     expect(runtimeFiles).toContain("./node_modules/ffmpeg-static/index.js");
     expect(runtimeFiles).toContain("./node_modules/ffmpeg-static/ffmpeg");
-    expect(runtimeFiles).toContain("./node_modules/ffprobe-static/index.js");
-    expect(runtimeFiles).toContain("./node_modules/ffprobe-static/bin/linux/x64/ffprobe");
+    expect(runtimeFiles).toContain("...videoProbeFiles");
+    expect(probeFiles).toContain("./node_modules/ffprobe-static/index.js");
+    expect(probeFiles).toContain("./node_modules/ffprobe-static/bin/linux/x64/ffprobe");
     expect(excludes).toContain('"/.well-known/workflow/v1/step"');
     expect(readFileSync("lib/studio/background-tasks.ts", "utf8")).not.toContain("/api/studio/tasks/worker");
   });

@@ -54,33 +54,33 @@ const globalSecurityHeaders = [
   { key: "Content-Security-Policy-Report-Only", value: appCspReportOnly },
 ];
 
+const videoProbeFiles = [
+  "./node_modules/ffprobe-static/index.js",
+  "./node_modules/ffprobe-static/package.json",
+  "./node_modules/ffprobe-static/bin/linux/x64/ffprobe",
+];
 const videoRuntimeFiles = [
   "./node_modules/ffmpeg-static/index.js",
   "./node_modules/ffmpeg-static/package.json",
   "./node_modules/ffmpeg-static/ffmpeg",
-  "./node_modules/ffprobe-static/index.js",
-  "./node_modules/ffprobe-static/package.json",
-  "./node_modules/ffprobe-static/bin/linux/x64/ffprobe",
+  ...videoProbeFiles,
 ];
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["ffmpeg-static", "ffprobe-static"],
   outputFileTracingExcludes: {
+    // Video API route only checks ffprobe; FFmpeg remains in the isolated workflow worker for safe fallback/slideshow.
+    "/api/studio/video": ["./node_modules/ffmpeg-static/**"],
     // Only the durable step handler can reach runTaskStep/renderSlideshow; keep workflow control routes light.
     "/.well-known/workflow/v1/step": ["./node_modules/ffprobe-static/bin/darwin/**", "./node_modules/ffprobe-static/bin/win32/**", "./node_modules/ffprobe-static/bin/linux/ia32/**", "./node_modules/ffprobe-static/bin/linux/arm64/**"],
     "/api/studio/tasks/**": ["./node_modules/ffprobe-static/bin/darwin/**", "./node_modules/ffprobe-static/bin/win32/**", "./node_modules/ffprobe-static/bin/linux/ia32/**", "./node_modules/ffprobe-static/bin/linux/arm64/**"],
     "/api/studio/slideshow/**": ["./node_modules/ffprobe-static/bin/darwin/**", "./node_modules/ffprobe-static/bin/win32/**", "./node_modules/ffprobe-static/bin/linux/ia32/**", "./node_modules/ffprobe-static/bin/linux/arm64/**"],
   },
   outputFileTracingIncludes: {
-    "/api/studio/video": videoRuntimeFiles,
-    "/api/studio/video/*": videoRuntimeFiles,
-    "/api/studio/video/*/content": videoRuntimeFiles,
+    "/api/studio/video": videoProbeFiles,
     "/.well-known/workflow/v1/step": [...videoRuntimeFiles, "./public/vendeo-logo.webp"],
-    "/api/studio/tasks": videoRuntimeFiles,
-    "/api/studio/tasks/*": videoRuntimeFiles,
-    "/api/studio/slideshow/*": [...videoRuntimeFiles, "./public/vendeo-logo.webp"],
-    "/api/studio/slideshow/music/*": [...videoRuntimeFiles, "./public/vendeo-logo.webp"],
+    "/api/studio/slideshow/render": [...videoRuntimeFiles, "./public/vendeo-logo.webp"],
   },
   async headers() {
     return [

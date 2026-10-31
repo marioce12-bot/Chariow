@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildVideoAdPlan, eligibleVideoDirections, splitVideoDuration, videoModelCapability, videoPlanPrompt, type VideoAdInput } from "@/lib/studio/video-plan";
+import { buildVideoProviderPlan } from "@/lib/studio/video-provider-prompts";
+import { countFalVideoPromptCharacters, FAL_VIDEO_PROMPT_SAFE_MAX_CHARS } from "@/lib/studio/fal-video-contract";
 import { buildSlideshowPlan, prepareSlideshowImages } from "@/lib/studio/slideshow-plan";
 const input: VideoAdInput = { name: "Guide ebook cuisine", description: "Un guide numérique de recettes. Disponible en PDF.", hasReference: true, duration: 25, aspectRatio: "9:16", character: "auto" };
 
@@ -14,6 +16,35 @@ describe("Evidence-only video advertising planner", () => {
     expect(plan.segments[0].prompt).toContain("HOOK:");
     expect(plan.segments[1].prompt).toContain("CALL TO ACTION:");
     expect(videoPlanPrompt(plan).length).toBeLessThanOrEqual(4000);
+  });
+  it("keeps long product data and creative direction safely below the Fal limit without repeating full copy", () => {
+    const description = Array.from({ length: 30 }, (_, index) => `Le guide est au format PDF. Fait vérifié ${index + 1}: contient un chapitre pratique sur la cuisine.`).join(" ");
+    const longInput: VideoAdInput = {
+      ...input,
+      name: "Guide ebook cuisine",
+      description,
+      userBrief: "Réalise un motion design moderne et animé avec des transitions fluides. ".repeat(80),
+      videoStyle: "motion_design",
+    };
+    const raw = buildVideoAdPlan(longInput, "", () => 0);
+    const plan = buildVideoProviderPlan(longInput, raw, description);
+    expect(plan.segments.map(segment => segment.duration)).toEqual([15, 10]);
+    for (const segment of plan.segments) {
+      expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
+      expect(segment.prompt).toContain("Guide ebook cuisine");
+      expect(segment.prompt).toContain("Le guide est au format PDF.");
+      expect(segment.prompt).toContain("STYLE: Strict 2D motion design");
+      expect(segment.prompt).toContain("portrait 9:16");
+      expect(segment.prompt).toContain("three distinct on-screen text elements");
+      expect(segment.prompt).toContain("visible visual change every 2–3 seconds");
+      expect(segment.prompt).toContain("CONTINUITY:");
+      expect(segment.prompt).toContain("TIMED ACTION:");
+      expect(segment.prompt).not.toMatch(/\b(camera|shot|lens|zoom|dolly|focus)\b/i);
+      expect(segment.prompt).not.toContain(description);
+      expect(segment.prompt).not.toContain(longInput.userBrief);
+    }
+    expect(videoPlanPrompt(plan).length).toBeLessThanOrEqual(4000);
+    expect(countFalVideoPromptCharacters("é😀")).toBe(2);
   });
   it("varies directions, respects explicit choices and avoids the last direction", () => {
     const first = buildVideoAdPlan(input, '{"direction":"in_hand"}');
@@ -54,13 +85,14 @@ describe("Evidence-only video advertising planner", () => {
     expect(() => splitVideoDuration(25, "unverified/model")).toThrow("non vérifiées");
     expect(() => splitVideoDuration(42)).toThrow();
     expect(() => buildVideoAdPlan({ ...input, aspectRatio: "21:9" })).toThrow();
+    expect(() => buildVideoAdPlan({ ...input, aspectRatio: "16:9" })).toThrow("portrait 9:16");
   });
   it("provides only the required complete 25s narrative", () => {
     const duration = 25;
     const plan = buildVideoAdPlan({ ...input, duration }, '{"direction":"product_film"}');
     expect(plan.segments.reduce((n,s) => n+s.duration,0)).toBe(duration);
     expect(plan.segments.map(s => s.duration)).toEqual([15, 10]);
-    expect(plan.segments.at(-1)?.prompt).toContain("CALL TO ACTION:");
+    expect(plan.segments.at(-1)?.prompt).toContain("portrait 9:16");
   });
 });
 

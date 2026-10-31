@@ -5,12 +5,14 @@ import { requireActiveSubscription } from "@/lib/subscription/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/shop/rate-limit";
 import { videoCreditCost } from "@/lib/studio/credits";
-import { VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS, isSupportedVideoResolution, isSupportedVideoAspectRatio } from "@/lib/studio/creative-workflows";
+import { STUDIO_VIDEO_RESOLUTIONS, isSupportedStudioVideoResolution } from "@/lib/studio/creative-workflows";
 import { isStudioVideoRenderEnabledForPreview } from "@/lib/studio/video-feature";
 import { videoModelCapability, buildVideoAdPlan, type VideoAdInput } from "@/lib/studio/video-plan";
+import { assertFalVideoPromptWithinSafeLimit, isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
+import { buildVideoProviderPlan } from "@/lib/studio/video-provider-prompts";
 import { selectVideoModel } from "@/lib/studio/creative-models";
 import { parseStudioProduct, buildStudioVideoPrompt } from "@/lib/studio/product-prompt";
-import { packagedVideoBinaries } from "@/lib/studio/video-runtime";
+import { packagedVideoProbe } from "@/lib/studio/video-probe-runtime";
 import { studioVideoWorkflow, failQueuedVideoDispatchStep } from "@/lib/studio/video-workflow";
 
 export const runtime = "nodejs";
@@ -22,11 +24,11 @@ export async function GET() {
   if (!isStudioVideoRenderEnabledForPreview()) {
     return NextResponse.json({ ready: false, locked: true, code: "STUDIO_VIDEO_LOCKED" }, { status: 423, headers: { "Cache-Control": "no-store" } });
   }
-  const binaries = packagedVideoBinaries();
-  if (!binaries) {
-    return NextResponse.json({ ready: false, binaries: { ffmpeg: false, ffprobe: false } }, { status: 503, headers: { "Cache-Control": "no-store" } });
+  const ffprobePath = packagedVideoProbe();
+  if (!ffprobePath) {
+    return NextResponse.json({ ready: false, binaries: { ffprobe: false } }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
-  return NextResponse.json({ ready: true, binaries: { ffmpeg: true, ffprobe: true }, duration: 25, segmentDurations: [15, 10] }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ ready: true, binaries: { ffprobe: true }, assembly: "fal-merge-with-audio-safe-fallback", duration: 25, aspectRatio: "9:16", segmentDurations: [15, 10] }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -58,10 +60,10 @@ export async function POST(request: Request) {
   if ((!prompt && !product) || prompt.length > 4_000) return NextResponse.json({ error: "Décris la vidéo à créer ou choisis un produit." }, { status: 400 });
   if (Number(body?.duration) !== 25) return NextResponse.json({ error: "Le rendu vidéo doit durer exactement 25 secondes (deux clips de 15 s puis 10 s).", supported: [25] }, { status: 400 });
 
-  const resolution = typeof body?.resolution === "string" ? body.resolution : VIDEO_RESOLUTIONS[0];
-  if (!isSupportedVideoResolution(resolution)) return NextResponse.json({ error: `Résolution vidéo non prise en charge. Choix disponibles : ${VIDEO_RESOLUTIONS.join(", ")}.` }, { status: 400 });
-  const aspectRatio = typeof body?.aspectRatio === "string" ? body.aspectRatio : "16:9";
-  if (!isSupportedVideoAspectRatio(aspectRatio)) return NextResponse.json({ error: `Format vidéo non pris en charge. Choix disponibles : ${VIDEO_ASPECT_RATIOS.join(", ")}.` }, { status: 400 });
+  const resolution = typeof body?.resolution === "string" ? body.resolution : STUDIO_VIDEO_RESOLUTIONS[0];
+  if (!isSupportedStudioVideoResolution(resolution)) return NextResponse.json({ error: `Résolution vidéo non prise en charge. Choix tarifés : ${STUDIO_VIDEO_RESOLUTIONS.join(", ")}.` }, { status: 400 });
+  const aspectRatio = typeof body?.aspectRatio === "string" ? body.aspectRatio : "9:16";
+  if (aspectRatio !== "9:16") return NextResponse.json({ error: "Le rendu vidéo Studio doit être en portrait 9:16." }, { status: 400 });
   const videoStyle = body?.videoStyle === undefined ? "motion_design" : body.videoStyle;
   if (videoStyle !== "motion_design" && videoStyle !== "ugc") return NextResponse.json({ error: "Choisis Motion design ou UGC." }, { status: 400 });
 
@@ -69,8 +71,7 @@ export async function POST(request: Request) {
   if (blocked) return blocked;
   if (rateLimit(`studio-video:${user.id}`, 3)) return NextResponse.json({ error: "Trop de demandes vidéo. Réessaie dans une minute." }, { status: 429 });
   if (!process.env.FAL_API_KEY) return NextResponse.json({ error: "Le fournisseur vidéo n’est pas configuré pour cette Preview. Aucun crédit n’a été réservé." }, { status: 503 });
-  const binaries = packagedVideoBinaries();
-  if (!binaries) return NextResponse.json({ error: "Pré-requis manquant : les binaires ffmpeg-static/ffprobe-static empaquetés sont absents. Aucun crédit n’a été réservé et aucun fournisseur n’a été appelé.", code: "STUDIO_VIDEO_BINARIES_UNAVAILABLE" }, { status: 503 });
+  if (!packagedVideoProbe()) return NextResponse.json({ error: "Pré-requis manquant : ffprobe-static est absent. Aucun crédit n’a été réservé et aucun fournisseur n’a été appelé.", code: "STUDIO_VIDEO_PROBE_UNAVAILABLE" }, { status: 503 });
 
   const model = selectVideoModel(Boolean(product?.imageUrl));
   try { videoModelCapability(model); }
@@ -91,21 +92,35 @@ export async function POST(request: Request) {
   };
   let plan;
   try {
-    plan = buildVideoAdPlan(input, "", () => 0);
-    // Keep the typed prompt effective at render time while retaining the server's
-    // factual guardrails and its explicit 15s + 10s scene plan.
-    plan = {
-      ...plan,
-      segments: plan.segments.map(segment => ({
-        ...segment,
-        prompt: `${segment.prompt}\n\nUSER CREATIVE DIRECTION (style only; never add unsupported product facts): ${composedPrompt}`,
-      })),
-    };
-  } catch {
+    const trustedPlan = buildVideoAdPlan(input, "", () => 0);
+    plan = buildVideoProviderPlan(input, trustedPlan, product?.description ?? "");
+    // Fail closed before reserving credits if a future compiler change exceeds the safe provider budget.
+    for (const segment of plan.segments) assertFalVideoPromptWithinSafeLimit(segment.prompt);
+  } catch (error) {
+    if (isFalVideoInputRejectedError(error)) {
+      return NextResponse.json({ error: "Le prompt vidéo dépasse la limite sûre du fournisseur. Aucun crédit n’a été réservé.", code: error.code }, { status: 400 });
+    }
     return NextResponse.json({ error: "Le prompt vidéo n’a pas pu être préparé." }, { status: 400 });
   }
 
   const cost = videoCreditCost(resolution, 25);
+  const quota = await admin.rpc("reserve_studio_video_quota", {
+    p_user_id: user.id,
+    p_generation_id: id,
+    p_resolution: resolution,
+  });
+  if (quota.error) return NextResponse.json({ error: "Impossible de vérifier le plafond quotidien vidéo. Aucun crédit n’a été réservé ni aucun fournisseur appelé." }, { status: 503 });
+  const quotaResult = quota.data as { ok?: boolean; duplicate?: boolean; code?: string } | null;
+  if (!quotaResult?.ok) {
+    const messages: Record<string, string> = {
+      USER_ACTIVE_LIMIT: "Une seule vidéo peut être active à la fois.",
+      USER_DAILY_LIMIT: "La limite est de deux vidéos par jour et par utilisateur.",
+      UNPRICED_RESOLUTION: "Cette résolution n’a pas de tarif confirmé.",
+      REQUEST_ALREADY_RESERVED: "Cette demande possède déjà une réservation de quota; elle n’a pas été relancée.",
+    };
+    const status = quotaResult?.code === "REQUEST_ALREADY_RESERVED" ? 409 : 429;
+    return NextResponse.json({ code: quotaResult?.code ?? "STUDIO_VIDEO_QUOTA_BLOCKED", error: messages[quotaResult?.code ?? ""] ?? "Le plafond quotidien vidéo empêche cette demande." }, { status });
+  }
   const reservation = await admin.rpc("reserve_credits", {
     target_user_id: user.id,
     amount: cost,
@@ -114,10 +129,17 @@ export async function POST(request: Request) {
     provider_amount: Math.round(cost / 1.5),
     request_id: id,
   });
-  if (reservation.error) return NextResponse.json({ error: "Impossible de vérifier ou réserver les crédits Studio. Aucun fournisseur n’a été appelé." }, { status: 503 });
+  if (reservation.error) {
+    await Promise.resolve(admin.rpc("set_studio_video_quota_state", { p_user_id: user.id, p_generation_id: id, p_state: "uncertain" })).catch(() => undefined);
+    return NextResponse.json({ error: "Impossible de confirmer la réservation des crédits Studio; aucun fournisseur n’a été appelé. Ne relance pas cette demande." }, { status: 503 });
+  }
   const reserved = reservation.data as { ok?: boolean; duplicate?: boolean; balance?: number; reserved?: number; required?: number; transaction_id?: string } | null;
-  if (!reserved?.ok) return NextResponse.json({ code: "INSUFFICIENT_CREDITS", error: `Solde insuffisant : cette vidéo coûte ${cost} crédits Studio, ton solde disponible est de ${Math.max(0, (reserved?.balance ?? 0) - (reserved?.reserved ?? 0))}. Aucun achat n’a été lancé.`, required: cost, balance: Math.max(0, (reserved?.balance ?? 0) - (reserved?.reserved ?? 0)) }, { status: 402 });
+  if (!reserved?.ok) {
+    await Promise.resolve(admin.rpc("set_studio_video_quota_state", { p_user_id: user.id, p_generation_id: id, p_state: "released" })).catch(() => undefined);
+    return NextResponse.json({ code: "INSUFFICIENT_CREDITS", error: `Solde insuffisant : cette vidéo coûte ${cost} crédits Studio, ton solde disponible est de ${Math.max(0, (reserved?.balance ?? 0) - (reserved?.reserved ?? 0))}. Aucun achat n’a été lancé.`, required: cost, balance: Math.max(0, (reserved?.balance ?? 0) - (reserved?.reserved ?? 0)) }, { status: 402 });
+  }
   if (reserved.duplicate || !reserved.transaction_id) {
+    await Promise.resolve(admin.rpc("set_studio_video_quota_state", { p_user_id: user.id, p_generation_id: id, p_state: "uncertain" })).catch(() => undefined);
     return NextResponse.json({ code: "STUDIO_VIDEO_REQUEST_UNCERTAIN", error: "Cette demande possède déjà une réservation. Elle n’a pas été relancée afin d’éviter un doublon." }, { status: 409 });
   }
 
@@ -135,6 +157,8 @@ export async function POST(request: Request) {
     initialReferenceUrl: product?.imageUrl ?? null,
     segment0State: "pending",
     segment1State: "pending",
+    continuityFrameState: "pending",
+    mergeState: "pending",
     creditState: "reserved",
     updatedAt: new Date().toISOString(),
   };
@@ -151,8 +175,13 @@ export async function POST(request: Request) {
     credit_transaction_id: reserved.transaction_id,
   }).select("id").maybeSingle();
   if (inserted.error || !inserted.data) {
-    await admin.rpc("refund_credit_debit", { transaction_id: reserved.transaction_id });
-    return NextResponse.json({ error: "La tâche vidéo n’a pas pu être enregistrée. Aucun rendu n’a été lancé." }, { status: 503 });
+    const refund = await admin.rpc("refund_credit_debit", { transaction_id: reserved.transaction_id });
+    await Promise.resolve(admin.rpc("set_studio_video_quota_state", {
+      p_user_id: user.id,
+      p_generation_id: id,
+      p_state: !refund.error && refund.data === true ? "released" : "uncertain",
+    })).catch(() => undefined);
+    return NextResponse.json({ error: "La tâche vidéo n’a pas pu être enregistrée. Aucun rendu n’a été lancé; l’état du quota/crédit est conservé pour vérification." }, { status: 503 });
   }
 
   after(async () => {

@@ -11,6 +11,10 @@
 export const VIDEO_RESOLUTIONS = ["480p", "720p", "1080p"] as const;
 export type VideoResolution = (typeof VIDEO_RESOLUTIONS)[number];
 
+// Le Studio ne propose que les deux paliers de prix explicitement validés.
+export const STUDIO_VIDEO_RESOLUTIONS = ["480p", "720p"] as const;
+export type StudioVideoResolution = (typeof STUDIO_VIDEO_RESOLUTIONS)[number];
+
 export const VIDEO_ASPECT_RATIOS = ["16:9", "9:16", "1:1"] as const;
 export type VideoAspectRatio = (typeof VIDEO_ASPECT_RATIOS)[number];
 
@@ -31,6 +35,10 @@ export const VIDEO_CAPABILITIES = {
 
 export function isSupportedVideoResolution(value: string): value is VideoResolution {
   return (VIDEO_RESOLUTIONS as readonly string[]).includes(value);
+}
+
+export function isSupportedStudioVideoResolution(value: string): value is StudioVideoResolution {
+  return (STUDIO_VIDEO_RESOLUTIONS as readonly string[]).includes(value);
 }
 
 export function isSupportedVideoAspectRatio(value: string): value is VideoAspectRatio {
