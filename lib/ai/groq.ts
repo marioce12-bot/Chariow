@@ -13,6 +13,14 @@ type GroqResponse = {
 const DEFAULT_BASE_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_MODEL = "openai/gpt-oss-120b";
 const DEFAULT_TIMEOUT_MS = 12_000;
+const GROQ_JSON_SCHEMA_MODELS = new Set([
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-120b",
+  "qwen/qwen3.8-27b",
+  "meta-models/muse-spark-open",
+]);
+
+type StructuredJsonSchema = { name: string; schema: Record<string, unknown> };
 
 export function getGroqModel() {
   return process.env.GROQ_MODEL?.trim() || DEFAULT_MODEL;
@@ -44,7 +52,7 @@ function stripThinking(value: string) {
 // Texte uniquement (system / user / assistant). Pas de `temperature` ni d'autre paramètre
 // optionnel : seuls `model` et `messages` sont envoyés, pour éviter tout 400 sur un
 // paramètre non supporté par le modèle choisi.
-export async function askGroq(messages: TextMessage[], options: { timeoutMs?: number } = {}) {
+export async function askGroq(messages: TextMessage[], options: { timeoutMs?: number; responseSchema?: StructuredJsonSchema } = {}) {
   const { apiKey, url, model } = getConfig();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
@@ -59,6 +67,11 @@ export async function askGroq(messages: TextMessage[], options: { timeoutMs?: nu
       body: JSON.stringify({
         model,
         messages: messages.map((message) => ({ role: message.role, content: message.content })),
+        ...(options.responseSchema ? {
+          response_format: GROQ_JSON_SCHEMA_MODELS.has(model)
+            ? { type: "json_schema", json_schema: { name: options.responseSchema.name, strict: true, schema: options.responseSchema.schema } }
+            : { type: "json_object" },
+        } : {}),
       }),
       signal: controller.signal,
       cache: "no-store",

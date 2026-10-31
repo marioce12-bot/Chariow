@@ -36,6 +36,20 @@ describe("askText — cascade de fournisseurs IA texte", () => {
     expect(askGemini).not.toHaveBeenCalled();
   });
 
+  it("transmet le JSON Schema au fournisseur Groq", async () => {
+    const responseSchema = { name: "ugc_test", schema: { type: "object", properties: { answer: { type: "string" } } } };
+    await expect(askText(messages, { order: ["groq"], responseSchema })).resolves.toBe("réponse groq");
+    expect(askGroq).toHaveBeenCalledWith(messages, { responseSchema });
+  });
+
+  it("préserve le statut HTTP sans journaliser le détail fournisseur", async () => {
+    const privateProviderText = "PRIVATE_PROVIDER_OR_MODEL_CONTENT";
+    const logSpy = vi.spyOn(console, "error");
+    askGroq.mockRejectedValue(Object.assign(new Error(privateProviderText), { status: 429 }));
+    await expect(askText(messages, { order: ["groq"] })).rejects.toMatchObject({ status: 429, failedProviders: ["groq"] });
+    expect(JSON.stringify(logSpy.mock.calls)).not.toContain(privateProviderText);
+  });
+
   it("respecte un ordre personnalisé : Imole, puis Groq, puis Gemini", async () => {
     await expect(askText(messages, { order: ["imole", "groq", "gemini"] })).resolves.toBe("réponse imole");
     expect(askImole).toHaveBeenCalledTimes(1);

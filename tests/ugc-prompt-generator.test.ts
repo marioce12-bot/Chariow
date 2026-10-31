@@ -37,7 +37,8 @@ describe("generateUgcCreative", () => {
     const result = await generateUgcCreative(input());
     expect(askText).toHaveBeenCalledTimes(2);
     for (const [messages, options] of askText.mock.calls) {
-      expect(options).toEqual({ order: ["imole"] });
+      expect(options.order).toEqual(["imole"]);
+      expect(options.responseSchema).toBeDefined();
       const payload = messages.map((m: { content: string }) => m.content).join(" ");
       expect(payload).toContain("Guide Excel Facile");
       expect(payload).toContain("description");
@@ -56,8 +57,10 @@ describe("generateUgcCreative", () => {
     askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative()));
     await generateUgcCreative(input());
     expect(askText).toHaveBeenCalledTimes(2);
-    expect(askText.mock.calls[0][1]).toEqual({ order: ["groq"] });
-    expect(askText.mock.calls[1][1]).toEqual({ order: ["groq"] });
+    expect(askText.mock.calls[0][1].order).toEqual(["groq"]);
+    expect(askText.mock.calls[1][1].order).toEqual(["groq"]);
+    expect(askText.mock.calls[0][1].responseSchema.name).toBe("ugc_product_analysis");
+    expect(askText.mock.calls[1][1].responseSchema.name).toBe("ugc_creative_direction");
     const creativeSystemPrompt = askText.mock.calls[1][0][0].content as string;
     expect(creativeSystemPrompt).toContain("Choisis toi-même un ou deux adultes fictifs noirs ou métissés");
     expect(creativeSystemPrompt).toContain("hook, une scène, des accessoires, des gestes, un script et un CTA réellement spécifiques");
@@ -131,9 +134,32 @@ describe("generateUgcCreative", () => {
     expect(result.analysis.main_benefit).toBeNull();
     expect(askText).toHaveBeenCalledTimes(2);
   });
+  it("normalise les champs d’analyse non critiques mais conserve les types critiques", async () => {
+    const tolerant = {
+      ...analysis, core_problem: 42, main_benefit: {}, emotion_dominante: [], usage_context: null,
+      visual_assets: "couverture fournie", risks: null, assumptions: ["indice fourni", 7],
+    };
+    askText.mockResolvedValueOnce(JSON.stringify(tolerant)).mockResolvedValueOnce(JSON.stringify(creative()));
+    const result = await generateUgcCreative(input());
+    expect(result.analysis).toMatchObject({
+      core_problem: null, main_benefit: null, emotion_dominante: "non précisée", usage_context: "non précisé",
+      visual_assets: ["couverture fournie"], risks: [], assumptions: ["indice fourni"],
+    });
+    expect(askText).toHaveBeenCalledTimes(2);
+  });
+  it("rejette avant tout appel modèle un produit sans description ni métadonnée de contexte", async () => {
+    const sparse = { ...input(), product: { ...input().product, description: "", category: "", type: "", tags: [] } };
+    await expect(generateUgcCreative(sparse)).rejects.toMatchObject({
+      stage: "input", details: { type: "missing_product_info", missingFields: ["product.description", "product.category", "product.type", "product.tags"] },
+    });
+    expect(askText).not.toHaveBeenCalled();
+  });
   it("refuse les citations fabriquées avant le deuxième appel", async () => {
     askText.mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_facts: ["description: 50 leçons certifiées"] }));
-    await expect(generateUgcCreative(input())).rejects.toThrow(/Citation factuelle/);
+    await expect(generateUgcCreative(input())).rejects.toMatchObject({
+      stage: "product_analysis_validation",
+      details: { path: "confirmed_facts[0]", type: "unsupported_fact" },
+    });
     expect(askText).toHaveBeenCalledTimes(1);
   });
   it("refuse un mineur et une reprise identique du hook", () => {

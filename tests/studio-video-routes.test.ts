@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ugcFixtureResponse } from "@/tests/fixtures/ugc";
+import { ugcAnalysis, ugcFixtureResponse } from "@/tests/fixtures/ugc";
 const { requireUser, askText } = vi.hoisted(() => ({ requireUser: vi.fn(), askText: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/ai/text", () => ({ askText }));
@@ -20,8 +20,10 @@ describe("Locked studio video preparation routes", () => {
     expect(response.status).toBe(200); expect(data.locked).toBe(true);
     expect(data.plan.segments.map((s: { duration: number }) => s.duration)).toEqual([15,10]);
     expect(askText).toHaveBeenCalledTimes(2);
-    expect(askText.mock.calls[0][1]).toEqual({ order: ["groq"] });
-    expect(askText.mock.calls[1][1]).toEqual({ order: ["groq"] });
+    expect(askText.mock.calls[0][1].order).toEqual(["groq"]);
+    expect(askText.mock.calls[1][1].order).toEqual(["groq"]);
+    expect(askText.mock.calls[0][1].responseSchema.name).toBe("ugc_product_analysis");
+    expect(askText.mock.calls[1][1].responseSchema.name).toBe("ugc_creative_direction");
   });
   it("lets the AI choose the cast instead of accepting a user profile", async () => {
     const response = await prompt(request({ mediaType: "video", duration: 25, product, ugcOptions: { characterProfile: "Entrepreneuse de 30 ans" } }));
@@ -65,18 +67,46 @@ describe("Locked studio video preparation routes", () => {
     expect((await prompt(request({ mediaType: "video", videoMode: "slideshow", duration, product }))).status).toBe(400);
     expect(askText).not.toHaveBeenCalled();
   });
-  it("fails closed when text service fails instead of returning a generic fallback", async () => {
+  it("returns a distinct model error and HTTP status without leaking provider text", async () => {
     askText.mockRejectedValue(new Error("offline"));
     const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
     const response = await prompt(request({ mediaType: "video", duration: 25, product }));
-    expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ code: "STUDIO_UGC_PREPARATION_FAILED" });
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({ code: "erreur_modele", httpStatus: null });
     expect(diagnostic).toHaveBeenCalledWith("Studio UGC preparation failed", {
       stage: "product_analysis_provider",
-      reason: "Le fournisseur texte a échoué pendant la préparation UGC.",
+      type: "provider_error", keyPath: null, httpStatus: null,
     });
     expect(JSON.stringify(diagnostic.mock.calls)).not.toContain("offline");
     diagnostic.mockRestore();
+  });
+  it("returns the failing analysis key and type for a known invalid mocked model response", async () => {
+    const privateModelText = "MODEL_RAW_RESPONSE_MUST_NOT_BE_LOGGED";
+    askText.mockResolvedValueOnce(JSON.stringify({
+      ...ugcAnalysis(product.name), price_positioning: [], assumptions: [privateModelText],
+    }));
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await prompt(request({ mediaType: "video", duration: 25, product }));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({
+      code: "analyse_invalide", keyPath: "price_positioning", validationType: "type_mismatch",
+      expected: "string", received: "array",
+    });
+    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain(privateModelText);
+    expect(askText).toHaveBeenCalledTimes(1);
+    diagnostic.mockRestore();
+  });
+  it("returns missing product fields before calling any model", async () => {
+    const response = await prompt(request({
+      mediaType: "video", duration: 25,
+      product: { name: "Produit", description: "", category: "", type: "", tags: [] },
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: "infos_produit_manquantes",
+      missingFields: ["product.description", "product.category", "product.type", "product.tags"],
+    });
+    expect(askText).not.toHaveBeenCalled();
   });
   it("validates durations, formats and authentication before preparation", async () => {
     expect((await prompt(request({ mediaType: "video", duration: 61, product }))).status).toBe(400);

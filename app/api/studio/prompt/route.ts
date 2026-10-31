@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
-import { generateUgcCreative, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
+import { generateUgcCreative, missingUgcProductInfoFields, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
 import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
 import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
 import { signPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const product = body?.product && typeof body.product === "object" ? body.product as Record<string, unknown> : null;
   const name = typeof product?.name === "string" ? product.name.trim().slice(0, 200) : "";
-  if (!name) return NextResponse.json({ error: "Choisis d'abord un produit." }, { status: 400 });
+  if (!name) return NextResponse.json({ code: "infos_produit_manquantes", missingFields: ["product.name"], error: body?.locale === "en" ? "Choose a product before preparing a UGC scenario." : "Choisis d’abord un produit pour préparer le scénario UGC." }, { status: 400 });
 
   const orientation = body?.orientation === "landscape" ? "landscape" : body?.orientation === "portrait" ? "portrait" : "square";
   const background = body?.background === "transparent" ? "transparent" : body?.background === "opaque" ? "opaque" : "auto";
@@ -78,6 +78,14 @@ export async function POST(request: Request) {
     if (inferProductType(name, description) === "ebook" && !generatorInput.product.images?.length) {
       return NextResponse.json({ error: "Sélectionne la couverture réelle de l’ebook avant de préparer son scénario vidéo.", code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" }, { status: 400 });
     }
+    const missingFields = missingUgcProductInfoFields(generatorInput);
+    if (missingFields.length) return NextResponse.json({
+      code: "infos_produit_manquantes",
+      missingFields,
+      error: body?.locale === "en"
+        ? "Add a product description or at least a category, product type, or tags before preparing this scenario."
+        : "Ajoute une description produit ou au moins une catégorie, un type ou des étiquettes avant de préparer le scénario.",
+    }, { status: 400 });
     let assemblyStage = "model_generation";
     try {
       const result = await generateUgcCreative(generatorInput);
@@ -88,10 +96,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ prompt, ...result, plan, preparedUgc: signPreparedUgc(user.id, generatorInput, result, prompt), contentLanguage, locked: !isStudioVideoRenderEnabledForPreview() });
     } catch (error) {
       const diagnostic = error instanceof UgcPromptGenerationError
-        ? { stage: error.stage, reason: error.message }
-        : { stage: assemblyStage, reason: error instanceof Error ? error.name : "unknown_error" };
+        ? { stage: error.stage, type: error.details.type ?? "validation_error", keyPath: error.details.path ?? null, httpStatus: error.details.httpStatus ?? null }
+        : { stage: assemblyStage, type: error instanceof Error ? error.name : "unknown_error" };
       console.error("Studio UGC preparation failed", diagnostic);
-      return NextResponse.json({ error: "Le scénario UGC n’a pas pu être validé. Vérifie les informations produit puis régénère le prompt; aucun scénario générique ni rendu n’a été lancé.", code: "STUDIO_UGC_PREPARATION_FAILED" }, { status: 422 });
+      if (error instanceof UgcPromptGenerationError && error.details.type === "missing_product_info") {
+        return NextResponse.json({
+          error: body?.locale === "en" ? "Add the missing product details before preparing the scenario." : "Ajoute les informations produit manquantes avant de préparer le scénario.",
+          code: "infos_produit_manquantes", missingFields: error.details.missingFields ?? [],
+        }, { status: 400 });
+      }
+      if (error instanceof UgcPromptGenerationError && error.stage.endsWith("_provider")) {
+        const httpStatus = error.details.httpStatus ?? null;
+        return NextResponse.json({
+          error: body?.locale === "en"
+            ? `The text model could not prepare the scenario${httpStatus ? ` (HTTP ${httpStatus})` : " (no HTTP status received)"}. No rendering was started.`
+            : `Le service IA n’a pas pu préparer le scénario${httpStatus ? ` (HTTP ${httpStatus})` : " (aucun statut HTTP reçu)"}. Aucun rendu n’a été lancé.`,
+          code: "erreur_modele", httpStatus,
+        }, { status: 502 });
+      }
+      if (error instanceof UgcPromptGenerationError && /(?:_validation|_json)$/.test(error.stage)) {
+        const details = error.details;
+        const path = details.path ?? "$";
+        const validationType = details.type ?? "invalid_output";
+        const errorMessage = body?.locale === "en"
+          ? `The generated ${error.stage.startsWith("creative") ? "creative direction" : "product analysis"} is invalid at ${path}${details.expected ? `: expected ${details.expected}, received ${details.received ?? "unknown"}` : "."}`
+          : `La réponse générée (${error.stage.startsWith("creative") ? "direction créative" : "analyse produit"}) est invalide au champ ${path}${details.expected ? ` : attendu ${details.expected}, reçu ${details.received ?? "inconnu"}` : "."}`;
+        return NextResponse.json({ error: errorMessage, code: "analyse_invalide", keyPath: path, validationType, expected: details.expected, received: details.received }, { status: 422 });
+      }
+      return NextResponse.json({
+        error: body?.locale === "en" ? "An internal error prevented scenario preparation. No rendering was started." : "Une erreur interne a empêché la préparation du scénario. Aucun rendu n’a été lancé.",
+        code: "erreur_preparation",
+      }, { status: 500 });
     }
   }
 
