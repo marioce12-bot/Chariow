@@ -7,9 +7,9 @@ import { requireActiveSubscription } from "@/lib/subscription/access";
 import { rateLimit } from "@/lib/shop/rate-limit";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
-import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, slideshowVoiceAvailability } from "@/lib/studio/slideshow-voice";
+import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, SlideshowVoiceUnavailableError, slideshowVoiceAvailability } from "@/lib/studio/slideshow-voice";
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
-import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { publicSlideshowError, shortProductDescriptionMessage, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { logPreparationFailure, type PreparationStage } from "@/lib/studio/preparation-diagnostics";
 import { resolveProductLanguage } from "@/lib/studio/product-language";
 import { validateCreativePerformanceStudioSource } from "@/lib/creative-performance/studio-source";
@@ -148,16 +148,17 @@ export async function POST(request: Request) {
     } catch (error) {
       logPreparationFailure(body.id, preparationStage, error);
       const insufficient = error instanceof InsufficientProductDetailsError;
+      const voiceUnavailable = error instanceof SlideshowVoiceUnavailableError;
       return NextResponse.json({
         error: insufficient
-          ? preparationStage === "voice_plan"
-            ? (body.input.locale === "en"
-              ? `The description is too short for a ${body.input.duration}-second narration. Add product details; no images were generated and no credits were consumed.`
-              : `La description est trop courte pour une narration de ${body.input.duration} s. Ajoute des phrases décrivant le produit ; aucune image n’a été générée et aucun crédit n’a été consommé.`)
-            : (body.input.locale === "en" ? "Add product details below, then click Retry." : "Complète la description ci-dessous, puis appuie sur Relancer.")
-          : slideshowPublicFailure(body.input.locale),
+          ? shortProductDescriptionMessage(body.input.locale, body.input.duration)
+          : voiceUnavailable
+            ? publicSlideshowError(error instanceof Error ? error.message : null, body.input.locale, "SLIDESHOW_VOICE_UNAVAILABLE")
+            : slideshowPublicFailure(body.input.locale),
+        locale: body.input.locale === "en" ? "en" : "fr",
         ...(insufficient ? { code: error.code } : {}),
-      }, { status: 400 });
+        ...(voiceUnavailable ? { code: "SLIDESHOW_VOICE_UNAVAILABLE" } : {}),
+      }, { status: voiceUnavailable ? 409 : 400 });
     }
     // Credit pre-check: the whole slideshow (5 images) must be affordable BEFORE the task is
     // created. Read-only: nothing is reserved here, reservation still happens per image.

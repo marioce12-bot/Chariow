@@ -123,16 +123,17 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(oldHandler).not.toHaveBeenCalled();
   });
 
-  it("récupère les détails via prompt seul, puis n'envoie tasks qu'après Créer", async () => {
+  it("montre une popup au premier clic puis crée directement après mise à jour de la description", async () => {
+    const updatedDescription = "Disponible au format PDF. Le guide propose huit chapitres de préparation du jardin. Chaque chapitre contient trois exercices pratiques et une liste de matériel. Les fiches détaillent le choix des graines, la préparation du sol, l’arrosage, la rotation des cultures et les méthodes de récolte. Un calendrier saisonnier accompagne la planification. Les illustrations montrent les plantations en pots et en pleine terre. Le téléchargement se lit hors connexion sur téléphone ou tablette.";
     fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url.endsWith("/config")) return config();
       if (url === "/api/studio/prompt") {
         const body = JSON.parse(String(init?.body));
-        return body.product.description === "Description existante\nDétails ajoutés"
+        return body.product.description === updatedDescription
           ? response({ plan: {} })
-          : response({ code: "INSUFFICIENT_PRODUCT_DETAILS", message: "Ajoute une précision produit.", details: "Diagnostics techniques longs" }, false);
+          : response({ code: "INSUFFICIENT_PRODUCT_DETAILS", error: "La description du produit est trop courte.", details: "Diagnostics techniques longs" }, false);
       }
-      if (url === "/api/studio/tasks" && init?.method === "POST") return response({ task: processing });
+      if (url === "/api/studio/tasks" && init?.method === "POST") return response({ task: { ...processing, id: JSON.parse(String(init.body)).id } });
       return response({ tasks: [] });
     });
     await mount();
@@ -141,31 +142,85 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(container.textContent).not.toContain("Remplacer la musique");
     const click = async (name: string) => act(async () => {
       const button = [...container.querySelectorAll("button")].find((item) => item.textContent?.trim() === name)!;
-      button.click(); await Promise.resolve();
+      button.click();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
     });
     await click("Créer");
-    expect(container.textContent).toContain("Ajoute une précision utile");
-    expect(container.querySelectorAll("details")).toHaveLength(0);
-    const textarea = container.querySelector("textarea")!;
-    expect((textarea as HTMLTextAreaElement).value).toBe("Description existante");
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "Détails ajoutés");
-      textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await click("Relancer");
-    expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(0);
-    expect(container.textContent).toContain("Plan prêt");
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog?.getAttribute("aria-modal")).toBe("true");
+    expect(dialog?.textContent).toContain("Description du produit trop courte");
+    expect(dialog?.textContent).toContain("Revois-la dans ta boutique");
+    expect(dialog?.textContent).toContain("Aucune image n’a été générée et aucun crédit n’a été consommé");
+    expect(container.querySelector("textarea")).toBeNull();
+    expect(container.textContent).not.toContain("Relancer");
+    expect(calls("POST").filter(([url]) => url === "/api/studio/tasks")).toHaveLength(0);
+    expect(localStorage.getItem("vendeo-slideshow-request:p1")).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>("button.studio-generate")?.disabled).toBe(false);
+    await click("Fermer");
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>("button.studio-generate")?.disabled).toBe(false);
+    await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={{ ...product, description: updatedDescription }} /></I18nProvider>));
     await click("Créer");
-    expect(container.textContent).toContain("100 crédits Studio");
     expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(1);
     const prompt = fetcher.mock.calls.filter(([url]) => url === "/api/studio/prompt").at(-1)!;
     expect(JSON.parse(String(prompt[1]?.body))).toMatchObject({
-      product: { description: "Description existante\nDétails ajoutés" }, mediaType: "video", videoMode: "slideshow", duration: 25,
+      product: { description: updatedDescription }, mediaType: "video", videoMode: "slideshow", duration: 25,
       aspectRatio: "9:16", campaignGoal: "discover", locale: "fr", musicId: "", voiceover: true,
     });
     const launch = fetcher.mock.calls.find(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")!;
-    expect(JSON.parse(String(launch[1]?.body))).toMatchObject({ input: { musicId: "", voiceover: true } });
-    expect([...container.querySelectorAll("button")].some((item) => item.textContent?.trim() === "Créer")).toBe(false);
+    expect(JSON.parse(String(launch[1]?.body))).toMatchObject({ input: { product: { description: updatedDescription }, musicId: "", voiceover: true } });
+    expect(container.textContent).toContain("Génération en cours");
+    expect(container.textContent).not.toContain("Plan prêt");
+    expect(container.textContent).not.toContain("Relancer");
+  });
+  it("montre la même popup si le préflight voix serveur rejette la description et réessaie avec les nouvelles données", async () => {
+    const updatedDescription = "Disponible au format PDF. Le guide propose huit chapitres de préparation du jardin. Chaque chapitre contient trois exercices pratiques et une liste de matériel. Les fiches détaillent le choix des graines, la préparation du sol, l’arrosage, la rotation des cultures et les méthodes de récolte. Un calendrier saisonnier accompagne la planification. Les illustrations montrent les plantations en pots et en pleine terre. Le téléchargement se lit hors connexion sur téléphone ou tablette.";
+    let taskPosts = 0;
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST") {
+        taskPosts += 1;
+        return taskPosts === 1
+          ? response({ code: "INSUFFICIENT_PRODUCT_DETAILS", error: "Description trop courte." }, false)
+          : response({ task: { ...processing, id: JSON.parse(String(init.body)).id } });
+      }
+      return response({ tasks: [] });
+    });
+    const click = async () => act(async () => {
+      container.querySelector<HTMLButtonElement>("button.studio-generate")!.click();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+    await mount();
+    await click();
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("Revois-la dans ta boutique");
+    expect(localStorage.getItem("vendeo-slideshow-request:p1")).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>("button.studio-generate")?.disabled).toBe(false);
+    await act(async () => { container.querySelector<HTMLButtonElement>('[role="dialog"] button')!.click(); });
+    await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={{ ...product, description: updatedDescription }} /></I18nProvider>));
+    await click();
+    expect(taskPosts).toBe(2);
+    const launched = fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST").at(-1)!;
+    expect(JSON.parse(String(launched[1]?.body))).toMatchObject({ input: { product: { description: updatedDescription } } });
+    expect(container.textContent).toContain("Génération en cours");
+  });
+
+  it("présente un refus vocal de Preview comme préflight connu, sans verrouiller Create ni lancer une tâche", async () => {
+    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/config")) return config();
+      if (url === "/api/studio/prompt") return response({ plan: {} });
+      if (url === "/api/studio/tasks" && init?.method === "POST") return response({ code: "SLIDESHOW_VOICE_UNAVAILABLE", error: "La génération vocale n’est pas encore activée dans cet environnement." }, false);
+      return response({ tasks: [] });
+    });
+    await mount();
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("button.studio-generate")!.click();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("La génération vocale n’est pas encore activée");
+    expect(container.textContent).not.toContain("Lancement non confirmé");
+    expect(container.querySelector<HTMLButtonElement>("button.studio-generate")?.disabled).toBe(false);
+    expect(localStorage.getItem("vendeo-slideshow-request:p1")).toBeNull();
   });
   it("fait progresser l’indicateur sous 100% pendant les étapes images 1 à n", async () => {
     vi.useFakeTimers();

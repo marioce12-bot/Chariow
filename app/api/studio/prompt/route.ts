@@ -4,7 +4,7 @@ import { askText } from "@/lib/ai/text";
 import { buildVideoAdPlan, videoPlanPrompt, videoPlanningSystem, VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { logPreparationFailure } from "@/lib/studio/preparation-diagnostics";
-import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { shortProductDescriptionMessage, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { resolveProductLanguage } from "@/lib/studio/product-language";
 import {
   CREATIVE_STYLES, CREATIVE_COMPOSITIONS, sourceCopyCandidates,
@@ -59,7 +59,8 @@ export async function POST(request: Request) {
         logPreparationFailure(typeof body?.variationId === "string" ? body.variationId : "", "prompt_plan", error);
         if (error instanceof InsufficientProductDetailsError) return NextResponse.json({
           code: error.code,
-          error: body?.locale === "en" ? "Add product details below, then click Retry." : "Complète la description ci-dessous, puis appuie sur Relancer.",
+          error: shortProductDescriptionMessage(body?.locale, duration),
+          locale: body?.locale === "en" ? "en" : "fr",
           details: error.message,
         }, { status: 400 });
         return NextResponse.json({ error: slideshowPublicFailure(body?.locale) }, { status: 400 });

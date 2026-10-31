@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { publicSlideshowError, shortProductDescriptionMessage, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 
 describe("public slideshow errors", () => {
   it("returns plain localized copy for narration-duration diagnostics", () => {
@@ -16,6 +16,14 @@ describe("public slideshow errors", () => {
   it("does not pass through unverified text and never returns empty diagnostics", () => {
     expect(publicSlideshowError("Ajoute une description du produit.", "fr")).toBe(slideshowPublicFailure("fr"));
     expect(publicSlideshowError(null, "en")).toBe("The slideshow could not be created. Check your history before trying again.");
+  });
+
+  it("gives a clear shop-description action and does not preserve the old Retry wording", () => {
+    expect(shortProductDescriptionMessage("fr", 25)).toContain("diaporama 25 s");
+    expect(shortProductDescriptionMessage("fr", 25)).toContain("Revois-la dans ta boutique");
+    expect(publicSlideshowError("Complète la description ci-dessous, puis appuie sur Relancer.", "fr", "INSUFFICIENT_PRODUCT_DETAILS"))
+      .toBe(shortProductDescriptionMessage("fr"));
+    expect(publicSlideshowError("", "en", "SLIDESHOW_VOICE_UNAVAILABLE")).toContain("not enabled in this environment");
   });
 
   it("explains a retryable Gemini refusal without exposing provider details", () => {

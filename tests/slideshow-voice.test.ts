@@ -5,7 +5,7 @@ import { slideshowEvidence, slideshowSourceCandidates } from "@/lib/studio/slide
 afterEach(() => { vi.restoreAllMocks(); delete process.env.VERCEL_ENV; delete process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED; delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED; delete process.env.GEMINI_API_KEY; delete process.env.VENDEO_SLIDESHOW_TTS_ENABLED; });
 const product = { name: "Carnet créatif", description: "Livre illustré avec 120 pages. Papier recyclé certifié. Reliure cousue durable. Format compact pour le voyage. Chaque page accueille des notes et des dessins. Le format permet de glisser le carnet dans un sac. Les pages sont organisées pour accompagner les idées au quotidien. Une couverture souple protège les pages pendant le transport. Les pages épaisses accueillent des crayons et stylos. Le carnet comprend une table des matières pour retrouver les thèmes. Le papier sans acide conserve les dessins plus longtemps. Les sections sont séparées par des pages de garde colorées. Une pochette intérieure permet de ranger de petits souvenirs." };
 describe("slideshow voice", () => {
-  it("blocks before the network unless preview and both explicit gates are true", async () => {
+  it("allows normal Preview generation without test-only flags and retains Production gates", async () => {
     process.env.VERCEL_ENV = "development";
     delete process.env.VENDEO_SLIDESHOW_TTS_ENABLED;
     delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED;
@@ -14,10 +14,12 @@ describe("slideshow voice", () => {
     await expect(synthesizeSlideshowVoice({} as any, fetcher as any)).rejects.toThrow(/preview/);
     expect(fetcher).not.toHaveBeenCalled();
     process.env.VERCEL_ENV = "preview";
-    process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED = "true";
-    expect(() => assertSlideshowVoiceAllowed()).toThrow(/palier gratuit/);
-    process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED = "true";
+    delete process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED;
+    expect(() => assertSlideshowVoiceAllowed()).not.toThrow();
+    expect(slideshowVoiceAvailability().available).toBe(true);
     process.env.VERCEL_ENV = "production";
+    expect(() => assertSlideshowVoiceAllowed()).toThrow(/activée/);
+    process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED = "true";
     expect(() => assertSlideshowVoiceAllowed()).toThrow(/activée/);
     process.env.VENDEO_SLIDESHOW_TTS_ENABLED = "true";
     expect(() => assertSlideshowVoiceAllowed()).not.toThrow();
