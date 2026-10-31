@@ -29,7 +29,10 @@ describe("free slideshow preparation routes", () => {
     expect((await prepare(request(input("")))).status).toBe(400);
     const response = await prepare(request(input(facts)));
     expect(response.status).toBe(200);
-    expect((await response.json()).slideshow.slides).toHaveLength(5);
+    const body = await response.json();
+    expect(body.slideshow).toMatchObject({ ready: true, duration: 25, aspectRatio: "9:16", slideCount: 5 });
+    expect(body).not.toHaveProperty("prompt");
+    expect(body.slideshow).not.toHaveProperty("slides");
     expect(mocks.ask).not.toHaveBeenCalled(); expect(mocks.from).not.toHaveBeenCalled(); expect(mocks.insert).not.toHaveBeenCalled(); expect(mocks.worker).not.toHaveBeenCalled();
   });
   it("rejects even a direct task request with duplicate facts before insertion or dispatch", async () => {

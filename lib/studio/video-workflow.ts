@@ -11,6 +11,7 @@ import { signedStudioUrl, storeStudioVideo } from "@/lib/studio/media";
 import { deleteStudioVideoArtifacts, readStudioVideoArtifact, storeStudioVideoArtifact } from "@/lib/studio/video-artifacts";
 import type { VideoAdPlan } from "@/lib/studio/video-plan";
 import { isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
+import { falJobReferenceMetadata, storedFalJobReference } from "@/lib/studio/video-job-reference";
 
 const MAX_POLLS_PER_SEGMENT = 60;
 const POLL_DELAY = "10s";
@@ -142,12 +143,14 @@ export async function submitVideoSegmentStep(id: string, index: 0 | 1): Promise<
   if (!row || row.status !== "processing") return null;
   const metadata = row.metadata ?? {};
   const stateKey = `segment${index}State`;
-  const jobKey = `segment${index}JobId`;
   const state = metadata[stateKey];
-  if (["submitting", "submitted", "completed", "uncertain"].includes(state) && typeof metadata[jobKey] === "string") {
+  const segmentPrefix = `segment${index}`;
+  const storedJobId = storedFalJobReference(metadata, segmentPrefix);
+  if (storedJobId) {
     await setDailyQuotaState(row, "submitted");
-    return metadata[jobKey];
+    return storedJobId;
   }
+  if (["submitting", "submitted", "completed", "uncertain"].includes(state)) return null;
   if (state !== "pending") return null;
   const plan = metadata.plan as VideoAdPlan | undefined;
   const segment = plan?.segments?.[index];
@@ -194,12 +197,12 @@ export async function submitVideoSegmentStep(id: string, index: 0 | 1): Promise<
     });
     const saved: Record<string, any> = await patchVideoRow(id, {
       [stateKey]: "submitted",
-      [jobKey]: submittedJobId,
+      ...falJobReferenceMetadata(segmentPrefix, submittedJobId),
       phase: `segment${index}_processing`,
       progress: index === 0 ? 10 : 58,
       creditState: "reserved",
     });
-    if (saved[stateKey] !== "submitted" || saved[jobKey] !== submittedJobId) throw new Error("Le job vidéo n’a pas pu être confirmé.");
+    if (saved[stateKey] !== "submitted" || saved[`${segmentPrefix}JobId`] !== submittedJobId) throw new Error("Le job vidéo n’a pas pu être confirmé.");
     await setDailyQuotaState(row, "submitted");
     return submittedJobId;
   } catch (error) {
@@ -217,7 +220,7 @@ export async function submitVideoSegmentStep(id: string, index: 0 | 1): Promise<
     // reservation and permanently prevent a second submit for this segment.
     await patchVideoRow(id, {
       [stateKey]: "uncertain",
-      ...(submittedJobId ? { [jobKey]: submittedJobId } : {}),
+      ...(submittedJobId ? falJobReferenceMetadata(segmentPrefix, submittedJobId) : {}),
       phase: "uncertain",
       errorCode: "STUDIO_VIDEO_SUBMIT_UNCERTAIN",
       userMessage: "La soumission vidéo n’a pas pu être confirmée. Les crédits restent réservés; ne relance pas cette génération.",
@@ -239,6 +242,10 @@ export async function storeVideoSegmentStep(id: string, index: 0 | 1, jobId: str
   const row = await readVideoRow(id);
   if (!row) throw new Error("Tâche vidéo introuvable.");
   const metadata = row.metadata ?? {};
+  const segmentPrefix = `segment${index}`;
+  if (storedFalJobReference(metadata, segmentPrefix) !== jobId || !["submitted", "uncertain", "completed"].includes(metadata[`${segmentPrefix}State`])) {
+    throw new FatalError("STUDIO_VIDEO_SEGMENT_JOB_MISMATCH");
+  }
   const pathKey = `segment${index}StoragePath`;
   if (typeof metadata[pathKey] === "string") return metadata[pathKey] as string;
   const video = await downloadFalVideo(jobId);
@@ -258,10 +265,12 @@ export async function submitVideoContinuityFrameStep(id: string): Promise<string
   if (!row || row.status !== "processing") return null;
   const metadata = row.metadata ?? {};
   if (typeof metadata.continuityFramePath === "string") return metadata.continuityFramePath;
-  if (["submitting", "submitted", "uncertain"].includes(metadata.continuityFrameState) && typeof metadata.continuityFrameJobId === "string") {
+  const storedJobId = storedFalJobReference(metadata, "continuityFrame");
+  if (storedJobId) {
     await setDailyQuotaState(row, "submitted");
-    return metadata.continuityFrameJobId;
+    return storedJobId;
   }
+  if (["submitting", "submitted", "uncertain"].includes(metadata.continuityFrameState)) return null;
   if (metadata.continuityFrameState !== "pending") return null;
   if (typeof metadata.segment0StoragePath !== "string") throw new Error("La première séquence n’est pas enregistrée.");
 
@@ -282,7 +291,7 @@ export async function submitVideoContinuityFrameStep(id: string): Promise<string
     const videoUrl = await signedStudioUrl(metadata.segment0StoragePath);
     jobId = await submitFalQueueUtility(FAL_EXTRACT_FRAME_ENDPOINT, { video_url: videoUrl, frame_type: "last" });
     const saved = await patchVideoRow(id, {
-      continuityFrameJobId: jobId,
+      ...falJobReferenceMetadata("continuityFrame", jobId),
       continuityFrameState: "submitted",
       phase: "continuity_processing",
       progress: 45,
@@ -292,7 +301,7 @@ export async function submitVideoContinuityFrameStep(id: string): Promise<string
     return jobId;
   } catch (error) {
     await patchVideoRow(id, {
-      ...(jobId ? { continuityFrameJobId: jobId } : {}),
+      ...(jobId ? falJobReferenceMetadata("continuityFrame", jobId) : {}),
       continuityFrameState: "uncertain",
       phase: "uncertain",
       errorCode: "STUDIO_VIDEO_CONTINUITY_UNCERTAIN",
@@ -309,8 +318,8 @@ export async function storeVideoContinuityFrameStep(id: string, jobId: string) {
   const row = await readVideoRow(id);
   if (!row) throw new Error("Tâche vidéo introuvable.");
   const metadata = row.metadata ?? {};
+  if (storedFalJobReference(metadata, "continuityFrame") !== jobId || !["submitted", "uncertain", "completed"].includes(metadata.continuityFrameState)) throw new FatalError("STUDIO_VIDEO_CONTINUITY_JOB_MISMATCH");
   if (typeof metadata.continuityFramePath === "string") return metadata.continuityFramePath;
-  if (metadata.continuityFrameJobId !== jobId || !["submitted", "uncertain"].includes(metadata.continuityFrameState)) throw new FatalError("STUDIO_VIDEO_CONTINUITY_JOB_MISMATCH");
   const image = await downloadFalQueueUtilityFile(jobId, "image");
   if (!image.contentType.startsWith("image/")) throw new Error("fal.ai n’a pas renvoyé une image de continuité.");
   const framePath = await storeStudioVideoArtifact(row.user_id, id, "continuity-frame.png", Buffer.from(image.body), image.contentType);
@@ -347,10 +356,12 @@ export async function submitVideoMergeStep(id: string): Promise<string | null> {
   const row = await readVideoRow(id);
   if (!row || row.status !== "processing") return null;
   const metadata = row.metadata ?? {};
-  if (["submitting", "submitted", "uncertain", "completed"].includes(metadata.mergeState) && typeof metadata.mergeJobId === "string") {
+  const storedJobId = storedFalJobReference(metadata, "merge");
+  if (storedJobId) {
     await setDailyQuotaState(row, "submitted");
-    return metadata.mergeJobId;
+    return storedJobId;
   }
+  if (["submitting", "submitted", "uncertain", "completed"].includes(metadata.mergeState)) return null;
   if (metadata.mergeState !== "pending") return null;
   if (typeof metadata.segment0StoragePath !== "string" || typeof metadata.segment1StoragePath !== "string") throw new Error("Les deux séquences vidéo ne sont pas prêtes.");
 
@@ -373,13 +384,13 @@ export async function submitVideoMergeStep(id: string): Promise<string | null> {
       video_urls: videoUrls,
       resolution_aspect_ratio_video_index: 0,
     });
-    const saved = await patchVideoRow(id, { mergeJobId: jobId, mergeState: "submitted", phase: "merge_processing", progress: 90 });
+    const saved = await patchVideoRow(id, { ...falJobReferenceMetadata("merge", jobId), mergeState: "submitted", phase: "merge_processing", progress: 90 });
     if (saved.mergeJobId !== jobId || saved.mergeState !== "submitted") throw new Error("La demande Fal de fusion vidéo n’a pas pu être confirmée.");
     await setDailyQuotaState(row, "submitted");
     return jobId;
   } catch {
     await patchVideoRow(id, {
-      ...(jobId ? { mergeJobId: jobId } : {}),
+      ...(jobId ? falJobReferenceMetadata("merge", jobId) : {}),
       mergeState: "uncertain",
       phase: "uncertain",
       errorCode: "STUDIO_VIDEO_MERGE_UNCERTAIN",
@@ -399,6 +410,7 @@ export async function assembleAndFinalizeVideoStep(id: string, falMergeJobId: st
   const metadata = row.metadata ?? {};
   const plan = metadata.plan as VideoAdPlan | undefined;
   if (!plan || plan.duration !== 25 || typeof metadata.segment0StoragePath !== "string" || typeof metadata.segment1StoragePath !== "string") throw new Error("Les deux séquences vidéo ne sont pas prêtes.");
+  if (falMergeJobId && storedFalJobReference(metadata, "merge") !== falMergeJobId) throw new FatalError("STUDIO_VIDEO_MERGE_JOB_MISMATCH");
 
   let storagePath = row.storage_path;
   if (!storagePath) {
@@ -584,6 +596,8 @@ export async function studioVideoWorkflow(id: string) {
       }
       await storeVideoSegmentStep(id, index, jobId);
       if (index === 0) {
+        const continuityState = await inspectVideoWorkflowStep(id);
+        if (typeof continuityState?.metadata?.continuityFramePath === "string") continue;
         const frameJobId = await submitVideoContinuityFrameStep(id);
         if (!frameJobId) {
           const current = await inspectVideoWorkflowStep(id);

@@ -6,6 +6,7 @@ import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATION
 import { logPreparationFailure } from "@/lib/studio/preparation-diagnostics";
 import { shortProductDescriptionMessage, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { resolveProductLanguage } from "@/lib/studio/product-language";
+import { inferProductType } from "@/lib/studio/creative-workflows";
 import { isStudioVideoRenderEnabledForPreview } from "@/lib/studio/video-feature";
 import {
   CREATIVE_STYLES, CREATIVE_COMPOSITIONS, sourceCopyCandidates,
@@ -51,12 +52,11 @@ export async function POST(request: Request) {
     if (!((isSlideshow ? SLIDESHOW_DURATIONS : VIDEO_AD_DURATIONS) as readonly number[]).includes(duration)) return NextResponse.json({ error: "Durée vidéo non prise en charge." }, { status: 400 });
     const aspectRatio = body?.aspectRatio ?? "9:16";
     if (aspectRatio !== "9:16") return NextResponse.json({ error: "Le prompt vidéo Studio doit être en portrait 9:16." }, { status: 400 });
-    const videoStyle = body?.videoStyle === "ugc" ? "ugc" : body?.videoStyle === "motion_design" ? "motion_design" : undefined;
-    const input: VideoAdInput = { name, description, hasReference: Boolean(productImage), duration, aspectRatio, character, videoStyle, userBrief, previousPrompt, locale: body?.locale === "en" ? "en" : "fr" };
+    const input: VideoAdInput = { name, description, hasReference: Boolean(productImage), duration, aspectRatio, character: "with", userBrief, previousPrompt, locale: body?.locale === "en" ? "en" : "fr" };
     if (body?.videoMode === "slideshow") {
       try {
         const slideshow = buildSlideshowPlan({ ...input, campaignGoal: body?.campaignGoal, variationId: typeof body?.variationId === "string" ? body.variationId.slice(0, 100) : "default" }, typeof body?.musicId === "string" ? body.musicId.slice(0, 30) : undefined);
-        return NextResponse.json({ prompt: slideshow.prompt, slideshow, contentLanguage, locked: true });
+        return NextResponse.json({ slideshow: { ready: true, duration: slideshow.duration, aspectRatio: slideshow.aspectRatio, slideCount: slideshow.slides.length }, contentLanguage, locked: true });
       } catch (error) {
         logPreparationFailure(typeof body?.variationId === "string" ? body.variationId : "", "prompt_plan", error);
         if (error instanceof InsufficientProductDetailsError) return NextResponse.json({
@@ -68,11 +68,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: slideshowPublicFailure(body?.locale) }, { status: 400 });
       }
     }
+    if (inferProductType(name, description) === "ebook" && !productImage) {
+      return NextResponse.json({ error: "Sélectionne la couverture réelle de l’ebook avant de préparer son scénario vidéo.", code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" }, { status: 400 });
+    }
     let videoAnswer = "";
     try {
       videoAnswer = await askText([
         { role: "system", content: videoPlanningSystem(input) },
-        { role: "user", content: JSON.stringify({ productName: name, confirmedProductCopy: candidates.map((text, index) => ({ index, text })), hasReference: Boolean(productImage), artisticPreferencesOnly: userBrief, previousDirectionOnly: previousPrompt, duration, aspectRatio, character, videoStyle }) },
+        { role: "user", content: JSON.stringify({ productName: name, confirmedProductCopy: candidates.map((text, index) => ({ index, text })), hasReference: Boolean(productImage), artisticPreferencesOnly: userBrief, previousDirectionOnly: previousPrompt, duration, aspectRatio, character: "one_or_two_fictional_black_or_mixed_race_adults" }) },
       ], { order: ["imole", "groq", "gemini"] });
     } catch { /* The constrained local planner is usable even when the text service is unavailable. */ }
     const plan = buildVideoAdPlan(input, videoAnswer);

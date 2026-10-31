@@ -5,7 +5,7 @@ vi.mock("@/lib/ai/text", () => ({ askText }));
 import { POST as prompt } from "@/app/api/studio/prompt/route";
 import { POST as generate } from "@/app/api/studio/video/route";
 const request = (body: unknown) => new Request("https://preview.example/api/studio/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-const product = { name: "Ebook guide", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion.", image: "https://example.test/cover.png" };
+const product = { name: "Ebook guide", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion.", image: "https://cdn.chariow.com/cover.png" };
 beforeEach(() => { vi.clearAllMocks(); requireUser.mockResolvedValue({ user: { id: "test" } }); askText.mockResolvedValue('{"direction":"conversation","copyIndices":[0]}'); });
 describe("Locked studio video preparation routes", () => {
   it("blocks actual video creation before credit or provider access", async () => {
@@ -20,18 +20,28 @@ describe("Locked studio video preparation routes", () => {
     expect(data.plan.segments.map((s: { duration: number }) => s.duration)).toEqual([15,10]);
     expect(askText.mock.calls[0][0][0].content).toContain("Aucun champ libre");
   });
-  it.each(["motion_design", "ugc"] as const)("passes the %s preference into constrained prompt planning", async videoStyle => {
-    const response = await prompt(request({ mediaType: "video", videoStyle, duration: 25, product }));
+  it("ignores the legacy Motion Design preference and keeps prompt planning in UGC", async () => {
+    const response = await prompt(request({ mediaType: "video", videoStyle: "motion_design", duration: 25, product }));
     const data = await response.json();
     expect(response.status).toBe(200);
     expect(data.locked).toBe(true);
-    expect(askText.mock.calls[0][0][0].content).toContain(videoStyle === "motion_design" ? "Motion design" : "UGC");
-    expect(askText.mock.calls[0][0][1].content).toContain(videoStyle);
+    expect(data.plan.segments[0].prompt).toContain("Black or mixed-race");
+    expect(askText.mock.calls[0][0][0].content).toContain("UGC");
+    expect(askText.mock.calls[0][0][0].content).not.toContain("Motion design");
+    expect(askText.mock.calls[0][0][1].content).not.toContain("motion_design");
   });
   it("prepares the slideshow without even calling the text model", async () => {
     const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 25, product }));
     const data = await response.json();
-    expect(response.status).toBe(200); expect(data.slideshow.slides).toHaveLength(5); expect(data.locked).toBe(true);
+    expect(response.status).toBe(200); expect(data.slideshow.slideCount).toBe(5); expect(data.locked).toBe(true);
+    expect(data).not.toHaveProperty("prompt");
+    expect(data.slideshow).not.toHaveProperty("slides");
+    expect(askText).not.toHaveBeenCalled();
+  });
+  it("requires a real ebook cover before generating its UGC prompt", async () => {
+    const response = await prompt(request({ mediaType: "video", duration: 25, product: { name: "Ebook guide", description: "Disponible en PDF." } }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" });
     expect(askText).not.toHaveBeenCalled();
   });
   it("rejects insufficient and repeated facts with HTTP 400 before any model call", async () => {

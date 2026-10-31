@@ -37,18 +37,8 @@ export function parseStudioProduct(raw: unknown): StudioProductInput | null {
   return { id: clean(source.id, 80) || undefined, name, description: clean(source.description, 4000) || undefined, price: price || undefined, currency: clean(source.currency, 8) || undefined, imageUrl };
 }
 
-// Quatre tentatives successives ont ajouté des consignes de plus en plus
-// précises au prompt vidéo (structure en plans, interdiction de parole, de
-// texte à l'écran, règles de fin de plan, options théme/ambiance/personnage
-// glissées en phrases imposées...). Constat après plusieurs mises en
-// production avec l'ancien fournisseur (Imole) : le modèle vidéo ne suivait
-// fiablement aucune de ces consignes, quel que soit leur degré de détail — la
-// qualité perçue ne s'est jamais améliorée, seul le prompt est devenu plus
-// long et plus rigide. À la demande explicite de l'équipe produit, on reste
-// au plus simple avec le fournisseur actuel (fal.ai) : pour la vidéo, on
-// transmet uniquement le sujet (le brief de l'utilisateur, et le strict
-// nécessaire pour savoir de quel produit il s'agit s'il y en a un), sans
-// aucune instruction de réalisation, de voix, de texte ou de mise en scène.
+// Compose le sujet et les références factuelles. La fonction dédiée ci-dessous
+// ajoute le style UGC unique du Studio; l'API construit ensuite le plan structuré.
 export function buildStudioPrompt(kind: "image" | "video", userPrompt: string, product: StudioProductInput | null, hasReference = false, videoOptions: StudioVideoOptions = {}) {
   const brief = userPrompt.trim();
   if (kind === "video") {
@@ -69,11 +59,9 @@ export function buildStudioPrompt(kind: "image" | "video", userPrompt: string, p
   ].filter(Boolean).join(" ").slice(0, 6000);
 }
 
-export function buildStudioVideoPrompt(userPrompt: string, product: StudioProductInput | null, videoStyle: "motion_design" | "ugc") {
-  const style = videoStyle === "ugc"
-    ? "Style vidéo sélectionné : UGC, publicité mise en scène par des personnes fictives, sans faux témoignage présenté comme réel."
-    : "Style vidéo sélectionné : motion design, graphismes animés, sans codes de témoignage UGC.";
-  const brief = userPrompt.trim().slice(0, 4_000);
+export function buildStudioVideoPrompt(userPrompt: string, product: StudioProductInput | null) {
+  const style = "Style vidéo imposé : UGC uniquement, avec un ou deux personnages adultes fictifs noirs ou métissés. Le vrai produit doit être clairement présenté; aucun faux témoignage ni caractéristique inventée.";
+  const brief = userPrompt.trim().replace(/\bmotion[ -]?design\b/gi, "").slice(0, 4_000);
   const maxDescription = Math.max(0, 5_700 - style.length - brief.length - (product?.name.length ?? 0) - 120);
   const boundedProduct = product ? { ...product, description: product.description?.slice(0, maxDescription) } : null;
   const subject = buildStudioPrompt("video", brief, boundedProduct);

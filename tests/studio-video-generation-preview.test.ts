@@ -46,12 +46,12 @@ const originalFalKey = process.env.FAL_API_KEY;
 const requestId = "11111111-1111-4111-8111-111111111111";
 const baseBody = {
   id: requestId,
-  prompt: "Créer une publicité motion design pour un guide numérique.",
+  prompt: "Présenter clairement le produit dans une courte publicité.",
   duration: 25,
   resolution: "480p",
   aspectRatio: "9:16",
   videoStyle: "motion_design",
-  product: { name: "Guide numérique", description: "Un guide PDF." },
+  product: { name: "Tasse en céramique", description: "Un objet en céramique pour boire.", imageUrl: "https://cdn.chariow.com/tasse.png" },
 };
 let rows: Map<string, Row>;
 let insertedRows: Row[];
@@ -169,7 +169,7 @@ describe("Studio video Preview generation", () => {
     expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 750, request_id: requestId }));
     expect(insertedRows).toHaveLength(1);
     expect(insertedRows[0]).toMatchObject({ id: requestId, status: "processing", credits_cost: 750, video_job_id: requestId });
-    expect(insertedRows[0].metadata).toMatchObject({ phase: "queued", segment0State: "pending", segment1State: "pending", videoStyle: "motion_design" });
+    expect(insertedRows[0].metadata).toMatchObject({ phase: "queued", segment0State: "pending", segment1State: "pending", videoStyle: "ugc" });
     for (const segment of insertedRows[0].metadata.plan.segments) {
       expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
     }
@@ -178,11 +178,13 @@ describe("Studio video Preview generation", () => {
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
-  it.each(["motion_design", "ugc"] as const)("persists the selected %s style without calling a video provider", async videoStyle => {
+  it("ignores the legacy Motion Design field and persists UGC without calling Fal", async () => {
     enablePreview();
-    const response = await generateVideo(request({ ...baseBody, videoStyle }));
+    const response = await generateVideo(request({ ...baseBody, videoStyle: "motion_design" }));
     expect(response.status).toBe(202);
-    expect(insertedRows[0].metadata.videoStyle).toBe(videoStyle);
+    expect(insertedRows[0].metadata.videoStyle).toBe("ugc");
+    expect(insertedRows[0].options.videoStyle).toBe("ugc");
+    expect(insertedRows[0].metadata.plan.segments[0].prompt).toContain("Staged UGC");
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
@@ -223,23 +225,35 @@ describe("Studio video Preview generation", () => {
   it("compiles 15s + 10s prompts safely before reserving credits, even for long product data and brief", async () => {
     enablePreview();
     const description = Array.from({ length: 60 }, (_, index) => `Fait produit ${index + 1}: le guide est disponible au format PDF.`).join(" ").slice(0, 4000);
-    const prompt = "Motion design animé, transitions fluides et rythme soutenu. ".repeat(100).slice(0, 4000);
-    const response = await generateVideo(request({ ...baseBody, prompt, product: { name: "Guide ebook cuisine", description } }));
+    const prompt = "Mise en scène UGC naturelle avec rythme soutenu. ".repeat(100).slice(0, 4000);
+    const response = await generateVideo(request({ ...baseBody, prompt, product: { name: "Guide ebook cuisine", description, imageUrl: "https://cdn.chariow.com/ebook-cover.png" } }));
     expect(response.status).toBe(202);
     expect(insertedRows[0].metadata.plan.segments.map((segment: Row) => segment.duration)).toEqual([15, 10]);
     for (const segment of insertedRows[0].metadata.plan.segments) {
       expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
       expect(segment.prompt).toContain("Guide ebook cuisine");
+      expect(segment.prompt).toContain("supplied ebook cover exactly as provided");
+      expect(segment.prompt).toContain("Black or mixed-race");
     }
     expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 750, request_id: requestId }));
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
-  it("defaults to Motion design when the style is omitted", async () => {
+  it("defaults to UGC when the legacy style is omitted", async () => {
     enablePreview();
     const { videoStyle: _ignored, ...body } = baseBody;
     expect((await generateVideo(request(body))).status).toBe(202);
-    expect(insertedRows[0].metadata.videoStyle).toBe("motion_design");
+    expect(insertedRows[0].metadata.videoStyle).toBe("ugc");
+  });
+
+  it("requires an ebook cover before quota or credits are reserved", async () => {
+    enablePreview();
+    const response = await generateVideo(request({ ...baseBody, product: { name: "Ebook guide pratique", description: "Disponible en PDF." } }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" });
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(insertedRows).toHaveLength(0);
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
   it("does not reserve credits or contact a provider if the user has insufficient available credits", async () => {

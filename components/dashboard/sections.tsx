@@ -105,7 +105,7 @@ export function StoreOnboarding() {
 type StudioVideoJob = { id: string; status: string; contentUrl?: string | null; error?: string; progress?: number; phase?: string };
 type StudioHistoryItem = { id: string; kind: "image" | "video"; prompt: string; options: Record<string, string | number>; metadata?: Record<string, unknown> | null; creationType?: "slideshow" | "image" | "video"; thumbnailUrl?: string | null; mediaState?: "ready" | "missing" | "processing" | "failed"; sourceImageCount?: number; status: string; credits_cost: number; storage_path?: string | null; video_job_id?: string | null; mediaUrl?: string | null; created_at: string };
 
-const DESKTOP_VIDEO_REFERENCE_PROMPT = "Une entrepreneuse présente sa boutique en ligne sur son smartphone. Plans dynamiques, lumière naturelle, ambiance moderne et inspirante.";
+const DESKTOP_VIDEO_REFERENCE_PROMPT = "Mise en scène UGC naturelle et dynamique, lumière naturelle, ton chaleureux. Présente clairement le produit sélectionné.";
 
 function htmlDescriptionToText(description: string): string {
   const document = new DOMParser().parseFromString(description, "text/html");
@@ -148,8 +148,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [studioTab, setStudioTab] = useState<"photo" | "slideshow">("photo");
   const [mobileStudioMode, setMobileStudioMode] = useState<"image" | "slideshow" | "video" | null>(null);
   const [prompt, setPrompt] = useState("");
-  const videoMode = "slideshow";
-  const [videoStyle, setVideoStyle] = useState<"motion_design" | "ugc">("motion_design");
+  const videoStyle = "ugc" as const;
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
   const [referenceUploading, setReferenceUploading] = useState(false);
   const [quality, setQuality] = useState("medium");
@@ -471,7 +470,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           background,
           locale,
           mediaType: kind,
-          ...(kind === "video" ? { videoStyle } : { videoMode }),
+          ...(kind === "video" ? { videoStyle: "ugc" } : {}),
           duration,
           aspectRatio,
           userBrief,
@@ -670,7 +669,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const openStudioMode = (mode: "image" | "slideshow" | "video") => {
     if (mode === "video" && window.matchMedia?.("(min-width: 1200px)").matches) {
       setSelectedProduct((current) => current ?? products[0] ?? null);
-      setVideoStyle("ugc");
       setAspectRatio("9:16");
       setPrompt((current) => current.trim() ? current : DESKTOP_VIDEO_REFERENCE_PROMPT);
     }
@@ -767,14 +765,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           ) : (
             <>
               <div className="studio-options studio-video-options-mobile">
-                <fieldset className="studio-field">
-                  <legend>Style de vidéo</legend>
-                  <div className="studio-tabs" role="group" aria-label="Style de vidéo">
-                    <button type="button" aria-pressed={videoStyle === "motion_design"} className={videoStyle === "motion_design" ? "active" : ""} onClick={() => setVideoStyle("motion_design")}>Motion design</button>
-                    <button type="button" aria-pressed={videoStyle === "ugc"} className={videoStyle === "ugc" ? "active" : ""} onClick={() => setVideoStyle("ugc")}>UGC</button>
-                  </div>
-                  <small>Motion design est sélectionné par défaut; tu peux aussi choisir UGC.</small>
-                </fieldset>
+                <div className="studio-field"><span>{locale === "en" ? "Video style" : "Style vidéo"}</span><strong>UGC</strong><small>{locale === "en" ? "Product-specific scenario with one or two fictional adult Black or mixed-race characters." : "Scénario adapté au produit, avec un ou deux personnages adultes fictifs noirs ou métissés."}</small></div>
                 {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
                 <div className="studio-field"><span>{t("studio.duration")}</span><strong>{locale === "en" ? "25 seconds (15 s + 10 s)" : "25 secondes (15 s + 10 s)"}</strong><small>{locale === "en" ? "Two clips are assembled into one 25-second video." : "Deux séquences sont assemblées en une seule vidéo finale de 25 s."}</small></div>
                 <StudioSelect label={t("studio.resolution")} value={videoResolution} onChange={(value) => setVideoResolution(value as typeof STUDIO_VIDEO_RESOLUTIONS[number])} options={STUDIO_VIDEO_RESOLUTIONS.map((value) => [value, value])} />
@@ -782,20 +773,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
                 <div className="studio-field"><span>{t("studio.format")}</span><strong>Portrait · 9:16</strong><small>{locale === "en" ? "Fixed vertical format" : "Format vertical fixe"}</small></div>
               </div>
               <div className="studio-options studio-video-options-desktop">
-                <fieldset className="studio-field studio-video-style">
-                  <legend>Style de vidéo</legend>
-                  <div className="studio-video-style-cards" role="group" aria-label="Style de vidéo">
-                    <button type="button" aria-pressed={videoStyle === "motion_design"} className={`studio-video-style-card${videoStyle === "motion_design" ? " active" : ""}`} onClick={() => setVideoStyle("motion_design")}>
-                      <span className="studio-video-style-icon"><Video size={23} aria-hidden="true" /></span>
-                      <span><strong>Motion design</strong><small>Animations modernes et dynamiques</small></span>
-                    </button>
-                    <button type="button" aria-pressed={videoStyle === "ugc"} className={`studio-video-style-card${videoStyle === "ugc" ? " active" : ""}`} onClick={() => setVideoStyle("ugc")}>
-                      <span className="studio-video-style-icon"><Users size={23} aria-hidden="true" /></span>
-                      <span><strong>UGC</strong><small>Style authentique et naturel comme sur les réseaux sociaux</small></span>
-                    </button>
-                  </div>
-                  <small className="studio-video-style-help">Motion design est sélectionné par défaut; tu peux aussi choisir UGC.</small>
-                </fieldset>
+                <div className="studio-field studio-video-style"><span>{locale === "en" ? "Video style" : "Style vidéo"}</span><strong>UGC</strong><small>{locale === "en" ? "Product-specific scenario with one or two fictional adult Black or mixed-race characters." : "Scénario adapté au produit, avec un ou deux personnages adultes fictifs noirs ou métissés."}</small></div>
                 <div className="studio-video-controls-grid">
                   <div className="studio-field studio-video-duration">
                     <span>{locale === "en" ? "Final duration" : "Durée finale"}</span>

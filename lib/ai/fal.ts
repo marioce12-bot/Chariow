@@ -1,6 +1,7 @@
 import { fal } from "@fal-ai/client";
 import { isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoAspectRatio, type VideoDuration, type VideoResolution, type VideoAspectRatio } from "@/lib/studio/creative-workflows";
 import { assertFalVideoPromptWithinSafeLimit, falVideoInputRejectedErrorFrom } from "@/lib/studio/fal-video-contract";
+import { encodeFalJobReference, parseFalJobReference } from "@/lib/studio/video-job-reference";
 
 // Modèles choisis :
 // - Texte→image : GPT Image 2 (« ChatGPT Images 2.0 », openai/gpt-image-2), le modèle d'image de ChatGPT,
@@ -158,12 +159,11 @@ export type StudioVideoGenerationOptions = {
 // exige de connaître le modèle d'origine pour interroger le statut ou récupérer
 // le résultat d'une requête.
 function encodeJobId(model: string, requestId: string) {
-  return `${model}::${requestId}`;
+  return encodeFalJobReference(model, requestId);
 }
 function decodeJobId(jobId: string) {
-  const separatorIndex = jobId.lastIndexOf("::");
-  if (separatorIndex === -1) throw new Error("Identifiant de génération vidéo invalide");
-  return { model: jobId.slice(0, separatorIndex), requestId: jobId.slice(separatorIndex + 2) };
+  const { endpoint, requestId } = parseFalJobReference(jobId);
+  return { model: endpoint, requestId };
 }
 
 export async function createFalVideo(prompt: string, options: StudioVideoGenerationOptions) {

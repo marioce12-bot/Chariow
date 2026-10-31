@@ -40,7 +40,7 @@ vi.mock("@/lib/studio/video-artifacts", () => ({
   storeStudioVideoArtifact: mocks.storeStudioVideoArtifact,
 }));
 
-import { assembleAndFinalizeVideoStep, claimVideoWorkflowStep, failVideoWorkflowStep, studioVideoWorkflow, submitVideoContinuityFrameStep, submitVideoMergeStep, submitVideoSegmentStep } from "@/lib/studio/video-workflow";
+import { assembleAndFinalizeVideoStep, claimVideoWorkflowStep, failVideoWorkflowStep, storeVideoSegmentStep, studioVideoWorkflow, submitVideoContinuityFrameStep, submitVideoMergeStep, submitVideoSegmentStep } from "@/lib/studio/video-workflow";
 import { FalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
 
 const generationId = "11111111-1111-4111-8111-111111111111";
@@ -133,7 +133,7 @@ function makeRow(overrides: Row = {}) {
       plan: {
         duration: 25,
         aspectRatio: "9:16",
-        direction: "visual_story",
+        direction: "conversation",
         continuity: "same scene",
         segments: [
           { index: 0, duration: 15, prompt: "segment zero prompt" },
@@ -185,6 +185,7 @@ describe("durable Studio video workflow claims", () => {
     expect(first).toBe("xai/grok-imagine-video/v1.5/text-to-video::provider-job");
     expect(replay).toBe(first);
     expect(mocks.createFalVideo).toHaveBeenCalledOnce();
+    expect(rows.get(generationId)?.metadata).toMatchObject({ segment0JobId: first, segment0FalEndpoint: "xai/grok-imagine-video/v1.5/text-to-video", segment0FalRequestId: "provider-job" });
     expect(mocks.createFalVideo).toHaveBeenCalledWith("segment zero prompt", {
       duration: 15,
       resolution: "480p",
@@ -204,6 +205,25 @@ describe("durable Studio video workflow claims", () => {
     });
   });
 
+  it("reconstructs a persisted endpoint/request_id pair after interruption without reposting", async () => {
+    const row = rows.get(generationId)!;
+    row.metadata.segment0State = "submitting";
+    delete row.metadata.segment0JobId;
+    row.metadata.segment0FalEndpoint = "xai/grok-imagine-video/v1.5/text-to-video";
+    row.metadata.segment0FalRequestId = "provider-request-12345";
+    const recovered = await submitVideoSegmentStep(generationId, 0);
+    expect(recovered).toBe("xai/grok-imagine-video/v1.5/text-to-video::provider-request-12345");
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
+  it("rejects a result GET whose Fal request belongs to a different segment", async () => {
+    await submitVideoSegmentStep(generationId, 0);
+    await expect(storeVideoSegmentStep(generationId, 1, "xai/grok-imagine-video/v1.5/text-to-video::provider-job"))
+      .rejects.toThrow("STUDIO_VIDEO_SEGMENT_JOB_MISMATCH");
+    expect(mocks.downloadFalVideo).not.toHaveBeenCalled();
+    expect(mocks.storeStudioVideoArtifact).not.toHaveBeenCalled();
+  });
+
   it("submits the last-frame utility once and reuses its saved Fal job ID", async () => {
     const row = rows.get(generationId)!;
     row.metadata.continuityFramePath = null;
@@ -213,6 +233,7 @@ describe("durable Studio video workflow claims", () => {
     const replay = await submitVideoContinuityFrameStep(generationId);
     expect(first).toBe("fal-ai/ffmpeg-api/extract-frame::provider-util-job");
     expect(replay).toBe(first);
+    expect(rows.get(generationId)?.metadata).toMatchObject({ continuityFrameFalEndpoint: "fal-ai/ffmpeg-api/extract-frame", continuityFrameFalRequestId: "provider-util-job" });
     expect(mocks.submitFalQueueUtility).toHaveBeenCalledOnce();
     expect(mocks.submitFalQueueUtility).toHaveBeenCalledWith("fal-ai/ffmpeg-api/extract-frame", {
       video_url: "https://storage.example/signed-asset",
@@ -228,6 +249,7 @@ describe("durable Studio video workflow claims", () => {
     const replay = await submitVideoMergeStep(generationId);
     expect(first).toBe("fal-ai/ffmpeg-api/merge-videos::provider-util-job");
     expect(replay).toBe(first);
+    expect(rows.get(generationId)?.metadata).toMatchObject({ mergeFalEndpoint: "fal-ai/ffmpeg-api/merge-videos", mergeFalRequestId: "provider-util-job" });
     expect(mocks.submitFalQueueUtility).toHaveBeenCalledOnce();
     expect(mocks.submitFalQueueUtility).toHaveBeenCalledWith("fal-ai/ffmpeg-api/merge-videos", {
       video_urls: ["https://storage.example/signed-asset", "https://storage.example/signed-asset"],
@@ -241,7 +263,10 @@ describe("durable Studio video workflow claims", () => {
     row.metadata.segment1State = "completed";
     row.metadata.segment0StoragePath = "temp/segment-0.mp4";
     row.metadata.segment1StoragePath = "temp/segment-1.mp4";
-    const stored = await assembleAndFinalizeVideoStep(generationId, "fal-merge-job");
+    row.metadata.mergeJobId = "fal-ai/ffmpeg-api/merge-videos::fal-merge-job";
+    row.metadata.mergeFalEndpoint = "fal-ai/ffmpeg-api/merge-videos";
+    row.metadata.mergeFalRequestId = "fal-merge-job";
+    const stored = await assembleAndFinalizeVideoStep(generationId, "fal-ai/ffmpeg-api/merge-videos::fal-merge-job");
     expect(stored).toBe("user/final.mp4");
     expect(mocks.storeStudioVideo).toHaveBeenCalledOnce();
     expect(mocks.assembleVideo).not.toHaveBeenCalled();
@@ -255,12 +280,15 @@ describe("durable Studio video workflow claims", () => {
     row.metadata.segment1State = "completed";
     row.metadata.segment0StoragePath = "temp/segment-0.mp4";
     row.metadata.segment1StoragePath = "temp/segment-1.mp4";
+    row.metadata.mergeJobId = "fal-ai/ffmpeg-api/merge-videos::fal-merge-job";
+    row.metadata.mergeFalEndpoint = "fal-ai/ffmpeg-api/merge-videos";
+    row.metadata.mergeFalRequestId = "fal-merge-job";
     mocks.probeVideoFile
       .mockResolvedValueOnce({ duration: 25, width: 720, height: 1280, hasAudio: false, audioDuration: 0 })
       .mockResolvedValueOnce({ duration: 15, width: 720, height: 1280, hasAudio: true, audioDuration: 15 })
       .mockResolvedValueOnce({ duration: 10, width: 720, height: 1280, hasAudio: true, audioDuration: 10 })
       .mockResolvedValueOnce({ duration: 25, width: 720, height: 1280, hasAudio: true, audioDuration: 25 });
-    const stored = await assembleAndFinalizeVideoStep(generationId, "fal-merge-job");
+    const stored = await assembleAndFinalizeVideoStep(generationId, "fal-ai/ffmpeg-api/merge-videos::fal-merge-job");
     expect(stored).toBe("user/final.mp4");
     expect(mocks.assembleVideo).toHaveBeenCalledOnce();
     const options = mocks.assembleVideo.mock.calls[0][2];
@@ -277,6 +305,9 @@ describe("durable Studio video workflow claims", () => {
     row.metadata.segment0StoragePath = null;
     row.metadata.segment1StoragePath = null;
     row.metadata.mergeState = "pending";
+    mocks.createFalVideo
+      .mockResolvedValueOnce("xai/grok-imagine-video/v1.5/text-to-video::segment-zero-request")
+      .mockResolvedValueOnce("xai/grok-imagine-video/v1.5/text-to-video::segment-one-request");
 
     await studioVideoWorkflow(generationId);
 
@@ -284,6 +315,9 @@ describe("durable Studio video workflow claims", () => {
     expect(row.storage_path).toBe("user/final.mp4");
     expect(row.metadata.mergeMethod).toBe("fal-merge");
     expect(mocks.createFalVideo).toHaveBeenCalledTimes(2);
+    expect(mocks.downloadFalVideo).toHaveBeenNthCalledWith(1, "xai/grok-imagine-video/v1.5/text-to-video::segment-zero-request");
+    expect(mocks.downloadFalVideo).toHaveBeenNthCalledWith(2, "xai/grok-imagine-video/v1.5/text-to-video::segment-one-request");
+    expect(row.metadata).toMatchObject({ segment0FalRequestId: "segment-zero-request", segment1FalRequestId: "segment-one-request" });
     expect(mocks.submitFalQueueUtility).toHaveBeenNthCalledWith(1, "fal-ai/ffmpeg-api/extract-frame", expect.objectContaining({ frame_type: "last" }));
     expect(mocks.submitFalQueueUtility).toHaveBeenNthCalledWith(2, "fal-ai/ffmpeg-api/merge-videos", expect.objectContaining({ video_urls: expect.any(Array) }));
     expect(mocks.downloadFalQueueUtilityFile).toHaveBeenNthCalledWith(1, "fal-ai/ffmpeg-api/extract-frame::provider-util-job", "image");

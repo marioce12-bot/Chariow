@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { signedStudioUrl } from "@/lib/studio/media";
+import { findStudioVideoRowForUser, isStudioVideoTaskReference } from "@/lib/studio/video-job-reference";
 
 export const runtime = "nodejs";
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STALE_AFTER_MS = 30 * 60 * 1000;
 
 type Context = { params: Promise<{ jobId: string }> };
@@ -13,25 +13,15 @@ export async function GET(_request: Request, { params }: Context) {
   const { user, response } = await requireUser();
   if (!user) return response;
   const { jobId } = await params;
-  if (!UUID.test(jobId)) return NextResponse.json({ error: "Tâche vidéo introuvable. Vérifie l’historique et les crédits avant toute nouvelle demande.", code: "STUDIO_VIDEO_TASK_NOT_FOUND" }, { status: 404, headers: { "Cache-Control": "no-store" } });
+  if (jobId.length > 256 || !isStudioVideoTaskReference(jobId)) return NextResponse.json({ error: "Tâche vidéo introuvable. Vérifie l’historique et les crédits avant toute nouvelle demande.", code: "STUDIO_VIDEO_TASK_NOT_FOUND" }, { status: 404, headers: { "Cache-Control": "no-store" } });
 
   const admin = createAdminClient();
-  let { data: row, error } = await admin
-    .from("studio_generations")
-    .select("id,user_id,video_job_id,status,storage_path,metadata,credits_cost,credit_transaction_id,created_at,error")
-    .eq("user_id", user.id)
-    .eq("video_job_id", jobId)
-    .maybeSingle();
-  if (!error && !row) {
-    const fallback = await admin
-      .from("studio_generations")
-      .select("id,user_id,video_job_id,status,storage_path,metadata,credits_cost,credit_transaction_id,created_at,error")
-      .eq("user_id", user.id)
-      .eq("id", jobId)
-      .maybeSingle();
-    row = fallback.data;
-    error = fallback.error;
-  }
+  const { data: row, error } = await findStudioVideoRowForUser(
+    admin,
+    user.id,
+    jobId,
+    "id,user_id,video_job_id,status,storage_path,metadata,credits_cost,credit_transaction_id,created_at,error",
+  );
   if (error) return NextResponse.json({ error: "Le suivi vidéo est temporairement indisponible." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   if (!row) return NextResponse.json({ error: "Tâche vidéo introuvable. Vérifie l’historique et les crédits avant toute nouvelle demande.", code: "STUDIO_VIDEO_TASK_NOT_FOUND" }, { status: 404, headers: { "Cache-Control": "no-store" } });
 
@@ -87,7 +77,7 @@ export async function GET(_request: Request, { params }: Context) {
       .replace(/credits remain reserved/gi, "credits were released");
   }
   return NextResponse.json({
-    jobId,
+    jobId: row.id,
     status,
     phase: metadata.phase ?? status,
     progress: Math.max(0, Math.min(100, Number(metadata.progress) || (status === "completed" ? 100 : 0))),

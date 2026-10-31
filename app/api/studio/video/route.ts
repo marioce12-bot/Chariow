@@ -5,7 +5,7 @@ import { requireActiveSubscription } from "@/lib/subscription/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/shop/rate-limit";
 import { videoCreditCost } from "@/lib/studio/credits";
-import { STUDIO_VIDEO_RESOLUTIONS, isSupportedStudioVideoResolution } from "@/lib/studio/creative-workflows";
+import { STUDIO_VIDEO_RESOLUTIONS, inferProductType, isSupportedStudioVideoResolution } from "@/lib/studio/creative-workflows";
 import { isStudioVideoRenderEnabledForPreview } from "@/lib/studio/video-feature";
 import { videoModelCapability, buildVideoAdPlan, type VideoAdInput } from "@/lib/studio/video-plan";
 import { assertFalVideoPromptWithinSafeLimit, isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
@@ -57,15 +57,19 @@ export async function POST(request: Request) {
 
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
   const product = parseStudioProduct(body?.product);
-  if ((!prompt && !product) || prompt.length > 4_000) return NextResponse.json({ error: "Décris la vidéo à créer ou choisis un produit." }, { status: 400 });
+  if (!product) return NextResponse.json({ error: "Choisis un produit réel de ta boutique pour construire un scénario adapté et le présenter fidèlement." }, { status: 400 });
+  if (prompt.length > 4_000) return NextResponse.json({ error: "Le prompt vidéo dépasse la longueur autorisée." }, { status: 400 });
+  if (inferProductType(product.name, product.description) === "ebook" && !product.imageUrl) {
+    return NextResponse.json({ error: "Ajoute ou sélectionne la couverture réelle de l’ebook pour qu’elle soit fidèlement présentée sur un téléphone ou une tablette.", code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" }, { status: 400 });
+  }
   if (Number(body?.duration) !== 25) return NextResponse.json({ error: "Le rendu vidéo doit durer exactement 25 secondes (deux clips de 15 s puis 10 s).", supported: [25] }, { status: 400 });
 
   const resolution = typeof body?.resolution === "string" ? body.resolution : STUDIO_VIDEO_RESOLUTIONS[0];
   if (!isSupportedStudioVideoResolution(resolution)) return NextResponse.json({ error: `Résolution vidéo non prise en charge. Choix tarifés : ${STUDIO_VIDEO_RESOLUTIONS.join(", ")}.` }, { status: 400 });
   const aspectRatio = typeof body?.aspectRatio === "string" ? body.aspectRatio : "9:16";
   if (aspectRatio !== "9:16") return NextResponse.json({ error: "Le rendu vidéo Studio doit être en portrait 9:16." }, { status: 400 });
-  const videoStyle = body?.videoStyle === undefined ? "motion_design" : body.videoStyle;
-  if (videoStyle !== "motion_design" && videoStyle !== "ugc") return NextResponse.json({ error: "Choisis Motion design ou UGC." }, { status: 400 });
+  // Le champ historique videoStyle est ignoré côté serveur : seul le mode UGC subsiste.
+  const videoStyle = "ugc" as const;
 
   const blocked = await requireActiveSubscription(user.id);
   if (blocked) return blocked;
@@ -78,15 +82,14 @@ export async function POST(request: Request) {
   catch { return NextResponse.json({ error: "Le modèle vidéo configuré n’est pas vérifié pour cette Preview." }, { status: 503 }); }
 
   const userBrief = prompt.slice(0, 4_000);
-  const composedPrompt = buildStudioVideoPrompt(userBrief, product, videoStyle);
+  const composedPrompt = buildStudioVideoPrompt(userBrief, product);
   const input: VideoAdInput = {
     name: product?.name ?? "Création vidéo",
     description: product?.description ?? userBrief,
     hasReference: Boolean(product?.imageUrl),
     duration: 25,
     aspectRatio,
-    character: "auto",
-    videoStyle,
+    character: "with",
     userBrief,
     locale: body?.locale === "en" ? "en" : "fr",
   };

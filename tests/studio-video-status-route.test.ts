@@ -38,6 +38,9 @@ beforeEach(() => {
       creditState: "uncertain",
       errorCode: "STUDIO_VIDEO_UNCERTAIN",
       userMessage: "Le suivi de cette génération est incertain. Les crédits restent réservés; ne relance pas la vidéo.",
+      segment0JobId: "xai/grok-imagine-video/v1.5/text-to-video::provider_segment_zero",
+      segment0FalEndpoint: "xai/grok-imagine-video/v1.5/text-to-video",
+      segment0FalRequestId: "provider-segment-zero",
     },
   };
   admin = {
@@ -46,10 +49,18 @@ beforeEach(() => {
         const filters: Record<string, unknown> = {};
         const query = {
           eq(column: string, value: unknown) { filters[column] = value; return query; },
+          like(column: string, value: unknown) { filters[`like:${column}`] = value; return query; },
           maybeSingle: async () => {
             if (table === "credit_transactions") return { data: { status: transactionStatus }, error: null };
             return {
-              data: Object.entries(filters).every(([key, value]) => row[key] === value) ? { ...row } : null,
+              data: Object.entries(filters).every(([key, value]) => {
+                if (key.startsWith("like:metadata->>")) {
+                  const field = key.slice("like:metadata->>".length);
+                  const suffix = (String(value).startsWith("%") ? String(value).slice(1) : String(value)).replace(/\\([\\%_])/g, "$1");
+                  return typeof row.metadata?.[field] === "string" && row.metadata[field].endsWith(suffix);
+                }
+                return key.startsWith("metadata->>") ? row.metadata?.[key.slice("metadata->>".length)] === value : row[key] === value;
+              }) ? { ...row } : null,
               error: null,
             };
           },
@@ -84,5 +95,31 @@ describe("Studio video status reporting", () => {
     expect(admin.from.mock.results.every((result: any) => result.value.update.mock.calls.length === 0)).toBe(true);
     expect(row.status).toBe("failed");
     expect(row.metadata.creditState).toBe("uncertain");
+  });
+
+  it("resolves a Fal segment request ID to the canonical Vendeo task without exposing the provider reference", async () => {
+    const providerJobId = "xai/grok-imagine-video/v1.5/text-to-video::provider_segment_zero";
+    const response = await getVideoStatus(new Request("https://preview.example/api/studio/video/" + encodeURIComponent(providerJobId)), {
+      params: Promise.resolve({ jobId: providerJobId }),
+    });
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ jobId: taskId, status: "failed", creditState: "refunded" });
+    expect(JSON.stringify(body)).not.toContain(providerJobId);
+    expect(row.status).toBe("failed");
+  });
+
+  it("resolves a raw Fal request_id from the durable legacy composite reference using GET only", async () => {
+    delete row.metadata.segment0FalEndpoint;
+    delete row.metadata.segment0FalRequestId;
+    const requestId = "provider_segment_zero";
+    const response = await getVideoStatus(new Request(`https://preview.example/api/studio/video/${requestId}`), {
+      params: Promise.resolve({ jobId: requestId }),
+    });
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ jobId: taskId, status: "failed", creditState: "refunded" });
+    expect(JSON.stringify(body)).not.toContain(requestId);
+    expect(row.status).toBe("failed");
   });
 });
