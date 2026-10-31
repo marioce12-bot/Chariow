@@ -9,6 +9,7 @@ import type { CreativePerformanceIdea } from "@/lib/creative-performance/client"
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
 import { publicSlideshowError, shortProductDescriptionMessage, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
+import { StudioDesktopProductFields } from "@/components/studio/StudioDesktopProductFields";
 
 type Product = {
   id: string;
@@ -130,6 +131,8 @@ function SlideThumbnail({
 }
 export function SlideshowStudio({
   product,
+  products = [],
+  onSelectProduct = () => {},
   locale,
   onComplete,
   selectedTaskId = null,
@@ -137,6 +140,8 @@ export function SlideshowStudio({
   creativeIdea = null,
 }: {
   product: Product | null;
+  products?: Product[];
+  onSelectProduct?: (productId: string | null) => void;
   locale: string;
   onComplete?: () => void;
   selectedTaskId?: string | null;
@@ -463,7 +468,14 @@ export function SlideshowStudio({
       style={{ display: "grid", gap: 16, alignContent: "start" }}
       aria-label={fr ? "Diaporama animé" : "Animated slideshow"}
     >
-      <h2 style={{ margin: 0 }}>{fr ? "Diaporama" : "Slideshow"}</h2>
+      <StudioDesktopProductFields
+        products={products}
+        selectedProduct={product}
+        onSelect={onSelectProduct}
+        locale={locale}
+        mode="slideshow"
+      />
+      <h2 className="studio-mobile-session-title" style={{ margin: 0 }}>{fr ? "Diaporama" : "Slideshow"}</h2>
       {!product ? (
         <small>
           {fr ? "Choisis un produit ci-dessus pour une nouvelle création." : "Choose a product above for a new creation."}
@@ -499,6 +511,18 @@ export function SlideshowStudio({
             ))}
           </select>
         </label>
+        <div className="studio-field studio-desktop-session-control studio-desktop-session-format">
+          <span>Format</span>
+          <output>Vertical · 9:16</output>
+        </div>
+        <div className="studio-field studio-desktop-session-control studio-desktop-session-voice">
+          <span>{fr ? "Voix off" : "Voice-over"}</span>
+          <output>{fr ? "Ajoutée automatiquement" : "Added automatically"}</output>
+        </div>
+        <div className="studio-field studio-desktop-session-control studio-desktop-session-music">
+          <span>{fr ? "Musique" : "Music"}</span>
+          <output>{fr ? "Ajoutée automatiquement" : "Added automatically"}</output>
+        </div>
       </div>
       <p>{fr ? "Voix et musique ajoutées automatiquement à la génération." : "Voiceover and music are added automatically during generation."}</p>
       {!voiceoverEnabled || !voiceoverTestAllowed ? <small>{fr ? "La génération de voix est en cours de validation." : "Voice generation is being validated."}</small> : null}
@@ -525,13 +549,16 @@ export function SlideshowStudio({
     </section>
     <section className="app-card studio-result studio-slideshow-preview" aria-label={fr ? "Aperçu du diaporama" : "Slideshow preview"} aria-busy={busy}>
       <div className="card-head">
-        <div><span className="eyebrow">{fr ? "Résultat" : "Result"}</span><h2>{fr ? "Ton diaporama" : "Your slideshow"}</h2></div>
-        <Film size={20} aria-hidden="true" />
+        <div><span className="eyebrow"><span className="studio-mobile-session-title-text">{fr ? "Résultat" : "Result"}</span><span className="studio-desktop-session-title-text">{fr ? "Aperçu" : "Preview"}</span></span><h2><span className="studio-mobile-session-title-text">{fr ? "Ton diaporama" : "Your slideshow"}</span><span className="studio-desktop-session-title-text">{fr ? "Aperçu du diaporama" : "Slideshow preview"}</span></h2></div>
+        <Film className="studio-mobile-session-icon" size={20} aria-hidden="true" />
+        <span className="studio-desktop-session-summary">5 {fr ? "visuels" : "visuals"} · {duration} {fr ? "secondes" : "seconds"}</span>
       </div>
       <div className={`studio-slideshow-canvas${!result && !busy ? " studio-empty" : ""}`}>
         {!busy && !result ? <>
-          <Sparkles size={32} aria-hidden="true" />
-          <strong>{pendingRequest ? (fr ? "Lancement à vérifier" : "Check launch status") : error || resumeTask ? (fr ? "Création interrompue" : "Creation interrupted") : (fr ? "Prêt à créer" : "Ready to create")}</strong>
+          <Sparkles className="studio-mobile-session-icon" size={32} aria-hidden="true" />
+          <div className="studio-desktop-session-sample" role="img" aria-label={fr ? "Exemple de visuel de diaporama" : "Slideshow preview example"} />
+          <strong className="studio-mobile-session-title-text">{pendingRequest ? (fr ? "Lancement à vérifier" : "Check launch status") : error || resumeTask ? (fr ? "Création interrompue" : "Creation interrupted") : (fr ? "Prêt à créer" : "Ready to create")}</strong>
+          <strong className="studio-desktop-session-title-text">{pendingRequest ? (fr ? "Lancement à vérifier" : "Check launch status") : error || resumeTask ? (fr ? "Création interrompue" : "Creation interrupted") : (fr ? "Aperçu du rendu" : "Preview")}</strong>
           {!pendingRequest && !error && !resumeTask ? <p>{fr ? "Choisis ton produit, ajuste les réglages puis lance la création. Ton diaporama apparaîtra ici." : "Choose your product, adjust the settings and start creating. Your slideshow will appear here."}</p> : null}
         </> : null}
       {pendingRequest ? <p role="status">{fr ? "Vérifie l’historique ; aucune nouvelle génération ne sera lancée automatiquement." : "Check history; no new generation will be started automatically."}</p> : null}
