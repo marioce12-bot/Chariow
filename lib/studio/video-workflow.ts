@@ -9,6 +9,7 @@ import { packagedVideoBinaries } from "@/lib/studio/video-runtime";
 import { signedStudioUrl, storeStudioVideo } from "@/lib/studio/media";
 import { deleteStudioVideoArtifacts, readStudioVideoArtifact, storeStudioVideoArtifact } from "@/lib/studio/video-artifacts";
 import type { VideoAdPlan } from "@/lib/studio/video-plan";
+import { isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
 
 const MAX_POLLS_PER_SEGMENT = 60;
 const POLL_DELAY = "10s";
@@ -181,7 +182,17 @@ export async function submitVideoSegmentStep(id: string, index: 0 | 1): Promise<
     });
     if (saved[stateKey] !== "submitted" || saved[jobKey] !== jobId) throw new Error("Le job vidéo n’a pas pu être confirmé.");
     return jobId;
-  } catch {
+  } catch (error) {
+    if (isFalVideoInputRejectedError(error)) {
+      await patchVideoRow(id, {
+        [stateKey]: "rejected",
+        phase: "provider_rejected",
+        errorCode: "STUDIO_VIDEO_PROVIDER_INPUT_REJECTED",
+        userMessage: "Le fournisseur a refusé le prompt vidéo avant le rendu.",
+        creditState: "reserved",
+      }).catch(() => undefined);
+      throw error;
+    }
     // A transport failure may happen after Fal accepted the request. Preserve the
     // reservation and permanently prevent a second submit for this segment.
     await patchVideoRow(id, {
@@ -297,7 +308,7 @@ export async function assembleAndFinalizeVideoStep(id: string) {
   return storagePath;
 }
 
-export async function failVideoWorkflowStep(id: string, reason: "provider_failed" | "assembly_failed" | "uncertain") {
+export async function failVideoWorkflowStep(id: string, reason: "provider_rejected" | "provider_failed" | "assembly_failed" | "uncertain") {
   "use step";
   const row = await readVideoRow(id);
   if (!row || row.status === "completed" || row.status === "failed") return;
@@ -311,7 +322,7 @@ export async function failVideoWorkflowStep(id: string, reason: "provider_failed
   }
   if (transactionStatus === "refunded") creditState = "refunded";
   else if (transactionStatus === "completed") creditState = "consumed";
-  if (reason === "provider_failed" || reason === "assembly_failed") {
+  if (reason === "provider_rejected" || reason === "provider_failed") {
     if (transactionId && transactionStatus === "pending") {
       const refund = await createAdminClient().rpc("refund_credit_debit", { transaction_id: transactionId });
       if (!refund.error && refund.data === true) creditState = "refunded";
@@ -322,18 +333,31 @@ export async function failVideoWorkflowStep(id: string, reason: "provider_failed
       }
     }
   }
-  const uncertain = creditState !== "refunded";
-  const userMessage = creditState === "refunded"
-    ? "La vidéo n’a pas pu être finalisée. Les crédits Studio ont été libérés."
-    : creditState === "consumed"
-    ? "Le résultat vidéo n’a pas pu être confirmé; le débit de crédits est déjà passé. Ne relance pas cette génération."
-      : "Le suivi de cette génération est incertain. Les crédits restent réservés; ne relance pas la vidéo.";
+  const providerRejected = reason === "provider_rejected";
+  const uncertain = !providerRejected && creditState !== "refunded";
+  const userMessage = providerRejected
+    ? creditState === "refunded"
+      ? "Le fournisseur a refusé le prompt avant le rendu; les crédits Studio ont été libérés."
+      : creditState === "consumed"
+        ? "Le fournisseur a refusé le prompt avant le rendu, mais le débit est déjà finalisé. Ne relance pas cette génération."
+        : "Le fournisseur a refusé le prompt avant le rendu, mais la libération des crédits n’est pas confirmée. Ne relance pas cette génération."
+    : creditState === "refunded"
+      ? "La vidéo n’a pas pu être finalisée. Les crédits Studio ont été libérés."
+      : creditState === "consumed"
+        ? "Le résultat vidéo n’a pas pu être confirmé; le débit de crédits est déjà passé. Ne relance pas cette génération."
+        : "Le suivi de cette génération est incertain. Les crédits restent réservés; ne relance pas la vidéo.";
+  const rejectedSegmentKey = metadata.segment1State === "submitting" || metadata.segment1State === "submitted"
+    ? "segment1State"
+    : metadata.segment0State === "submitting" || metadata.segment0State === "submitted"
+      ? "segment0State"
+      : null;
   const nextMetadata = {
     ...metadata,
+    ...(providerRejected && rejectedSegmentKey ? { [rejectedSegmentKey]: "rejected" } : {}),
     phase: uncertain ? "uncertain" : "failed",
     progress: metadata.progress ?? 0,
     creditState,
-    errorCode: uncertain ? "STUDIO_VIDEO_UNCERTAIN" : "STUDIO_VIDEO_FAILED",
+    errorCode: providerRejected ? "STUDIO_VIDEO_PROVIDER_INPUT_REJECTED" : uncertain ? "STUDIO_VIDEO_UNCERTAIN" : "STUDIO_VIDEO_FAILED",
     userMessage,
     updatedAt: new Date().toISOString(),
   };
@@ -388,12 +412,15 @@ export async function studioVideoWorkflow(id: string) {
       if (index === 0) await prepareVideoContinuityStep(id);
     }
     await assembleAndFinalizeVideoStep(id);
-  } catch {
+  } catch (error) {
     const current = await inspectVideoWorkflowStep(id).catch(() => null);
     if (!current || current.status === "completed" || current.status === "failed") return;
     const metadata = current.metadata ?? {};
     const ambiguousSubmission = [metadata.segment0State, metadata.segment1State]
       .some(state => state === "submitting" || state === "submitted" || state === "uncertain");
-    await failVideoWorkflowStep(id, ambiguousSubmission ? "uncertain" : "assembly_failed").catch(() => undefined);
+    const reason = isFalVideoInputRejectedError(error)
+      ? "provider_rejected"
+      : ambiguousSubmission ? "uncertain" : "assembly_failed";
+    await failVideoWorkflowStep(id, reason).catch(() => undefined);
   }
 }

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   createFalVideo: vi.fn(),
   getFalVideoJob: vi.fn(),
   downloadFalVideo: vi.fn(),
+  storeStudioVideoArtifact: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
@@ -20,14 +21,17 @@ vi.mock("@/lib/studio/media", () => ({ signedStudioUrl: vi.fn(), storeStudioVide
 vi.mock("@/lib/studio/video-artifacts", () => ({
   deleteStudioVideoArtifacts: vi.fn(),
   readStudioVideoArtifact: vi.fn(),
-  storeStudioVideoArtifact: vi.fn(),
+  storeStudioVideoArtifact: mocks.storeStudioVideoArtifact,
 }));
 
-import { claimVideoWorkflowStep, submitVideoSegmentStep } from "@/lib/studio/video-workflow";
+import { claimVideoWorkflowStep, failVideoWorkflowStep, studioVideoWorkflow, submitVideoSegmentStep } from "@/lib/studio/video-workflow";
+import { FalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
 
 const generationId = "11111111-1111-4111-8111-111111111111";
 const userId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const transactionId = "22222222-2222-4222-8222-222222222222";
 let rows: Map<string, Row>;
+let transactions: Map<string, string>;
 let admin: any;
 
 function matches(row: Row, filters: Record<string, unknown>) {
@@ -40,6 +44,22 @@ function matches(row: Row, filters: Record<string, unknown>) {
 function makeAdmin() {
   return {
     from: vi.fn((table: string) => {
+      if (table === "credit_transactions") {
+        return {
+          select: vi.fn(() => {
+            const filters: Record<string, unknown> = {};
+            const query = {
+              eq(column: string, value: unknown) { filters[column] = value; return query; },
+              maybeSingle: async () => {
+                const id = String(filters.id ?? "");
+                const status = transactions.get(id);
+                return { data: status ? { status } : null, error: null };
+              },
+            };
+            return query;
+          }),
+        };
+      }
       if (table !== "studio_generations") throw new Error(`Unexpected table ${table}`);
       return {
         select: vi.fn(() => {
@@ -69,7 +89,12 @@ function makeAdmin() {
         }),
       };
     }),
-    rpc: vi.fn(async () => ({ data: true, error: null })),
+    rpc: vi.fn(async (name: string, args?: Record<string, unknown>) => {
+      if (name === "refund_credit_debit" && typeof args?.transaction_id === "string") {
+        transactions.set(args.transaction_id, "refunded");
+      }
+      return { data: true, error: null };
+    }),
   };
 }
 
@@ -79,7 +104,7 @@ function makeRow(overrides: Row = {}) {
     user_id: userId,
     status: "processing",
     storage_path: null,
-    credit_transaction_id: "22222222-2222-4222-8222-222222222222",
+    credit_transaction_id: transactionId,
     metadata: {
       phase: "running",
       resolution: "480p",
@@ -107,11 +132,13 @@ function makeRow(overrides: Row = {}) {
 
 beforeEach(() => {
   rows = new Map([[generationId, makeRow()]]);
+  transactions = new Map([[transactionId, "pending"]]);
   admin = makeAdmin();
   mocks.createAdminClient.mockReturnValue(admin);
   mocks.createFalVideo.mockReset().mockResolvedValue("xai/grok-imagine-video/v1.5/text-to-video::provider-job");
-  mocks.getFalVideoJob.mockReset();
-  mocks.downloadFalVideo.mockReset();
+  mocks.getFalVideoJob.mockReset().mockResolvedValue({ status: "completed" });
+  mocks.downloadFalVideo.mockReset().mockResolvedValue({ body: new Uint8Array([1, 2, 3]), contentType: "video/mp4" });
+  mocks.storeStudioVideoArtifact.mockReset().mockResolvedValue("temp/segment-0.mp4");
 });
 
 describe("durable Studio video workflow claims", () => {
@@ -170,5 +197,82 @@ describe("durable Studio video workflow claims", () => {
     rows.get(generationId)!.metadata.segment0State = "submitting";
     expect(await submitVideoSegmentStep(generationId, 0)).toBeNull();
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
+  it("refunds only when the provider rejects submission before accepting a job", async () => {
+    const row = rows.get(generationId)!;
+    row.metadata.phase = "queued";
+    mocks.createFalVideo.mockRejectedValueOnce(new FalVideoInputRejectedError(
+      "STUDIO_VIDEO_PROVIDER_INPUT_REJECTED",
+      "HTTP 422 validation rejection during submit",
+      422,
+    ));
+
+    await studioVideoWorkflow(generationId);
+
+    expect(mocks.createFalVideo).toHaveBeenCalledOnce();
+    expect(mocks.getFalVideoJob).not.toHaveBeenCalled();
+    expect(mocks.downloadFalVideo).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledOnce();
+    expect(admin.rpc).toHaveBeenCalledWith("refund_credit_debit", { transaction_id: transactionId });
+    expect(row.status).toBe("failed");
+    expect(row.metadata.segment0State).toBe("rejected");
+    expect(row.metadata.creditState).toBe("refunded");
+    expect(row.metadata.errorCode).toBe("STUDIO_VIDEO_PROVIDER_INPUT_REJECTED");
+    expect(row.metadata.userMessage).toContain("ont été libérés");
+  });
+
+  it("does not refund if a 422 occurs while storing a result after provider acceptance", async () => {
+    const row = rows.get(generationId)!;
+    row.metadata.phase = "queued";
+    mocks.storeStudioVideoArtifact.mockRejectedValueOnce(Object.assign(new Error("Storage HTTP 422"), { status: 422 }));
+
+    await studioVideoWorkflow(generationId);
+
+    expect(mocks.createFalVideo).toHaveBeenCalledOnce();
+    expect(mocks.getFalVideoJob).toHaveBeenCalledOnce();
+    expect(mocks.downloadFalVideo).toHaveBeenCalledOnce();
+    expect(mocks.storeStudioVideoArtifact).toHaveBeenCalledOnce();
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(row.status).toBe("failed");
+    expect(row.metadata.segment0State).toBe("submitted");
+    expect(row.metadata.creditState).toBe("uncertain");
+    expect(row.metadata.errorCode).toBe("STUDIO_VIDEO_UNCERTAIN");
+  });
+
+  it("does not refund a pending reservation after local assembly failure", async () => {
+    const row = rows.get(generationId)!;
+    row.metadata.segment0State = "completed";
+    row.metadata.segment1State = "completed";
+    await failVideoWorkflowStep(generationId, "assembly_failed");
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(row.status).toBe("failed");
+    expect(row.metadata.creditState).toBe("uncertain");
+  });
+
+  it("refunds a pending reservation only after an explicit terminal provider failure", async () => {
+    const row = rows.get(generationId)!;
+    await failVideoWorkflowStep(generationId, "provider_failed");
+    expect(admin.rpc).toHaveBeenCalledWith("refund_credit_debit", { transaction_id: transactionId });
+    expect(row.metadata.creditState).toBe("refunded");
+    expect(row.metadata.errorCode).toBe("STUDIO_VIDEO_FAILED");
+  });
+
+  it("keeps credits reserved when submission failure remains ambiguous", async () => {
+    const row = rows.get(generationId)!;
+    row.metadata.phase = "queued";
+    mocks.createFalVideo.mockRejectedValueOnce(new Error("simulated network interruption"));
+
+    await studioVideoWorkflow(generationId);
+
+    expect(row.status).toBe("failed");
+    expect(row.metadata.creditState).toBe("uncertain");
+    expect(admin.rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not refund when the explicit failure reason is uncertain", async () => {
+    await failVideoWorkflowStep(generationId, "uncertain");
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(rows.get(generationId)?.metadata.creditState).toBe("uncertain");
   });
 });

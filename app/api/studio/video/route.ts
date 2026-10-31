@@ -8,6 +8,8 @@ import { videoCreditCost } from "@/lib/studio/credits";
 import { VIDEO_RESOLUTIONS, VIDEO_ASPECT_RATIOS, isSupportedVideoResolution, isSupportedVideoAspectRatio } from "@/lib/studio/creative-workflows";
 import { isStudioVideoRenderEnabledForPreview } from "@/lib/studio/video-feature";
 import { videoModelCapability, buildVideoAdPlan, type VideoAdInput } from "@/lib/studio/video-plan";
+import { assertFalVideoPromptWithinSafeLimit, isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
+import { buildVideoProviderPlan } from "@/lib/studio/video-provider-prompts";
 import { selectVideoModel } from "@/lib/studio/creative-models";
 import { parseStudioProduct, buildStudioVideoPrompt } from "@/lib/studio/product-prompt";
 import { packagedVideoBinaries } from "@/lib/studio/video-runtime";
@@ -91,17 +93,14 @@ export async function POST(request: Request) {
   };
   let plan;
   try {
-    plan = buildVideoAdPlan(input, "", () => 0);
-    // Keep the typed prompt effective at render time while retaining the server's
-    // factual guardrails and its explicit 15s + 10s scene plan.
-    plan = {
-      ...plan,
-      segments: plan.segments.map(segment => ({
-        ...segment,
-        prompt: `${segment.prompt}\n\nUSER CREATIVE DIRECTION (style only; never add unsupported product facts): ${composedPrompt}`,
-      })),
-    };
-  } catch {
+    const trustedPlan = buildVideoAdPlan(input, "", () => 0);
+    plan = buildVideoProviderPlan(input, trustedPlan, product?.description ?? "");
+    // Fail closed before reserving credits if a future compiler change exceeds the safe provider budget.
+    for (const segment of plan.segments) assertFalVideoPromptWithinSafeLimit(segment.prompt);
+  } catch (error) {
+    if (isFalVideoInputRejectedError(error)) {
+      return NextResponse.json({ error: "Le prompt vidéo dépasse la limite sûre du fournisseur. Aucun crédit n’a été réservé.", code: error.code }, { status: 400 });
+    }
     return NextResponse.json({ error: "Le prompt vidéo n’a pas pu être préparé." }, { status: 400 });
   }
 

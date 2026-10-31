@@ -398,6 +398,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             void loadHistory(true);
           }
         }
+        else if (response.status === 404) {
+          const message = typeof result.error === "string" ? result.error : (locale === "en" ? "Video task not found. Check history and credits before starting another request." : "Tâche vidéo introuvable. Vérifie l’historique et les crédits avant toute nouvelle demande.");
+          setError(message);
+          setVideoJob((current) => current?.id === videoJob.id ? { ...current, status: "failed", error: message } : current);
+          void loadHistory(true);
+          const credits = await fetch("/api/studio/credits").then((creditResponse) => creditResponse.ok ? creditResponse.json() : null).catch(() => null);
+          if (active && credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
+        }
         else if (result.error) setError(result.error);
       } catch {
         // Retry after the current request settles; cleanup aborts any in-flight read.

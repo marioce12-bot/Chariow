@@ -38,6 +38,7 @@ vi.mock("@/lib/studio/video-workflow", () => ({
 }));
 
 import { GET as videoReadiness, POST as generateVideo } from "@/app/api/studio/video/route";
+import { countFalVideoPromptCharacters, FAL_VIDEO_PROMPT_SAFE_MAX_CHARS } from "@/lib/studio/fal-video-contract";
 
 const originalVercelEnv = process.env.VERCEL_ENV;
 const originalRenderFlag = process.env.STUDIO_VIDEO_RENDER_ENABLED;
@@ -169,6 +170,9 @@ describe("Studio video Preview generation", () => {
     expect(insertedRows).toHaveLength(1);
     expect(insertedRows[0]).toMatchObject({ id: requestId, status: "processing", credits_cost: 375, video_job_id: requestId });
     expect(insertedRows[0].metadata).toMatchObject({ phase: "queued", segment0State: "pending", segment1State: "pending", videoStyle: "motion_design" });
+    for (const segment of insertedRows[0].metadata.plan.segments) {
+      expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
+    }
     expect(mocks.afterCallbacks).toHaveLength(1);
     expect(mocks.start).not.toHaveBeenCalled();
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
@@ -179,6 +183,21 @@ describe("Studio video Preview generation", () => {
     const response = await generateVideo(request({ ...baseBody, videoStyle }));
     expect(response.status).toBe(202);
     expect(insertedRows[0].metadata.videoStyle).toBe(videoStyle);
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+  });
+
+  it("compiles 15s + 10s prompts safely before reserving credits, even for long product data and brief", async () => {
+    enablePreview();
+    const description = Array.from({ length: 60 }, (_, index) => `Fait produit ${index + 1}: le guide est disponible au format PDF.`).join(" ").slice(0, 4000);
+    const prompt = "Motion design animé, transitions fluides et rythme soutenu. ".repeat(100).slice(0, 4000);
+    const response = await generateVideo(request({ ...baseBody, prompt, product: { name: "Guide ebook cuisine", description } }));
+    expect(response.status).toBe(202);
+    expect(insertedRows[0].metadata.plan.segments.map((segment: Row) => segment.duration)).toEqual([15, 10]);
+    for (const segment of insertedRows[0].metadata.plan.segments) {
+      expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
+      expect(segment.prompt).toContain("Guide ebook cuisine");
+    }
+    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 375, request_id: requestId }));
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,6 @@
 import { fal } from "@fal-ai/client";
 import { isSupportedVideoDuration, isSupportedVideoResolution, isSupportedVideoAspectRatio, type VideoDuration, type VideoResolution, type VideoAspectRatio } from "@/lib/studio/creative-workflows";
+import { assertFalVideoPromptWithinSafeLimit, falVideoInputRejectedErrorFrom } from "@/lib/studio/fal-video-contract";
 
 // Modèles choisis :
 // - Texte→image : GPT Image 2 (« ChatGPT Images 2.0 », openai/gpt-image-2), le modèle d'image de ChatGPT,
@@ -166,6 +167,7 @@ function decodeJobId(jobId: string) {
 }
 
 export async function createFalVideo(prompt: string, options: StudioVideoGenerationOptions) {
+  assertFalVideoPromptWithinSafeLimit(prompt);
   ensureConfigured();
   // Validation stricte : aucune valeur n'est transformée silencieusement. Si une
   // valeur non supportée arrive jusqu'ici, c'est un bug de l'interface et on
@@ -195,8 +197,12 @@ export async function createFalVideo(prompt: string, options: StudioVideoGenerat
     if (!request_id) throw new Error("fal.ai n'a renvoyé aucun identifiant de génération vidéo");
     return encodeJobId(model, request_id);
   } catch (error) {
+    const validationError = falVideoInputRejectedErrorFrom(error);
+    if (validationError) throw validationError;
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`fal.ai video API error: ${message} (modèle ${model})`);
+    const wrapped = new Error(`fal.ai video API error: ${message} (modèle ${model})`);
+    (wrapped as Error & { cause?: unknown }).cause = error;
+    throw wrapped;
   }
 }
 
