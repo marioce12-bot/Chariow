@@ -205,7 +205,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(container.textContent).toContain("visuel 2/5"); expect(calls("POST")).toHaveLength(0);
   });
   it("affiche l'erreur de worker une seule fois et conserve les quatre images", async () => {
-    const message = "Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.";
+    const message = "Le montage n’a pas abouti. Tes visuels terminés sont conservés ; suis l’action indiquée ici pour le terminer.";
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, status: "failed", images: images.slice(0, 4), message: "Technical worker trace", error: "Technical worker trace", details: "raw details", creditsConsumed: 80 }] }));
     await mount();
     expect(container.textContent?.split(message)).toHaveLength(2);
@@ -213,8 +213,9 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(container.querySelector("pre")).toBeNull();
     expect(container.querySelector("details")).toBeNull();
     expect(container.querySelectorAll("img")).toHaveLength(4);
-    expect(container.textContent).toContain("80 crédits Studio utilisés");
-    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.textContent).toContain("4/5 visuels conservés.");
+    expect(container.textContent).not.toContain("80 crédits Studio utilisés");
+    expect(container.querySelector('[role="status"]')?.textContent).toContain("Aucune nouvelle génération ne sera lancée sans vérification.");
     expect(calls("POST")).toHaveLength(0);
   });
   it("affiche un seul bloc bref pour un ancien échec et garde le blocage après doublons", async () => {
@@ -225,8 +226,8 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
       return response({ tasks: [{ id: "failed", kind: "slideshow", status: "failed", message: long, error: long }] });
     });
     await mount();
-    expect(container.querySelector('[role="status"]')).toBeNull();
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(container.querySelector('[role="status"]')?.textContent).toContain("Aucune nouvelle génération ne sera lancée sans vérification.");
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Le montage n’a pas abouti. Tes visuels terminés sont conservés ; suis l’action indiquée ici pour le terminer.");
     expect(container.querySelectorAll("details")).toHaveLength(0);
     expect(container.querySelectorAll("pre")).toHaveLength(0);
     expect(container.textContent).not.toContain(long);
@@ -256,7 +257,8 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
       return response({ tasks: [{ ...completed, id: "unrelated-latest" }] });
     });
     await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={null} selectedTaskId="selected-old" /></I18nProvider>));
-    expect(container.querySelectorAll("img")).toHaveLength(4); expect(container.textContent).toContain("80 crédits Studio utilisés");
+    expect(container.querySelectorAll("img")).toHaveLength(4); expect(container.textContent).toContain("4/5 visuels conservés.");
+    expect(container.textContent).not.toContain("80 crédits Studio utilisés");
     expect(container.textContent).toContain("Produit historique"); expect(container.textContent).toContain("20 crédits Studio");
     const button = container.querySelector<HTMLButtonElement>(".studio-continue")!;
     expect(button.disabled).toBe(true); expect(calls("POST")).toHaveLength(0);
@@ -271,9 +273,9 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     const old = { ...processing, id: "unknown", status: "failed", revision: 5, images: images.slice(0, 4), creditsConsumed: 80, error: "Suivi interrompu.", resume: { allowed: false, reason: "STAGE_UNCERTAIN", cost: 20, requiresConfirmation: true } };
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ task: old }));
     await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={null} selectedTaskId="unknown" /></I18nProvider>));
-    expect(container.querySelector<HTMLButtonElement>(".studio-continue")?.disabled).toBe(true);
-    expect(container.textContent).toContain("éviter une nouvelle facturation"); expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(container.querySelector<HTMLButtonElement>(".studio-continue")).toBeNull();
+    expect(container.textContent).toContain("Aucune nouvelle génération ne sera lancée sans vérification."); expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Le montage n’a pas abouti. Tes visuels terminés sont conservés ; suis l’action indiquée ici pour le terminer.");
     expect(container.querySelectorAll("details, pre")).toHaveLength(0); expect(calls("POST")).toHaveLength(0);
   });
 

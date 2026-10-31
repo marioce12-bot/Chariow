@@ -98,7 +98,7 @@ describe("SlideshowStudio preview zone", () => {
     await mount();
     const section = preview();
     expect(section).not.toBeNull();
-    expect(section?.querySelector('[role="alert"]')?.textContent).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(section?.querySelector('[role="alert"]')?.textContent).toBe("Le montage n’a pas abouti. Tes visuels terminés sont conservés ; suis l’action indiquée ici pour le terminer.");
     expect(section?.querySelectorAll("details, pre")).toHaveLength(0);
     expect(section?.querySelectorAll("img")).toHaveLength(3);
     expect(container.textContent).toContain("20 crédits Studio");

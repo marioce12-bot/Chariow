@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveSubscription } from "@/lib/subscription/access";
 import { TASK_TYPE, continuationQuote, failTask, logTaskEvent, publicTask, StudioTaskError, legacyQueuedDispatchCheckpoint, stageGenerationId, type StageRecord, type TaskMetadata } from "@/lib/studio/background-tasks";
+import { buildSlideshowVoicePlan } from "@/lib/studio/slideshow-voice";
+import { InsufficientProductDetailsError } from "@/lib/studio/slideshow-plan";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -32,17 +34,44 @@ export async function POST(request: Request, context: Context) {
   const body = await request.json().catch(() => null);
   if (!UUID.test(id) || !body || !Number.isInteger(body.expectedRevision) || body.expectedRevision < 0 || !Number.isInteger(body.confirmCost) || body.confirmCost < 0)
     return NextResponse.json({ error: "Demande invalide." }, { status: 400 });
+  if (body.productDescription !== undefined && (typeof body.productDescription !== "string" || body.productDescription.length > 20_000))
+    return NextResponse.json({ error: "La description doit être un texte de 20 000 caractères maximum." }, { status: 400 });
   const row = await ownedTask(id, user.id);
   if (!row || row.metadata?.type !== TASK_TYPE) return NextResponse.json({ error: "Demande indisponible." }, { status: 404 });
   if (row.metadata.revision !== body.expectedRevision) return NextResponse.json({ error: "La tâche a changé. Actualise le suivi." }, { status: 409 });
   const task = await publicTask(row);
   const quote = continuationQuote(row, task);
-  if (!quote.allowed) return NextResponse.json({ error: "Cette tâche ne peut pas être reprise en toute sécurité.", reason: quote.reason }, { status: 409 });
+  const meta = row.metadata as TaskMetadata;
+  const voiceRetry = quote.voiceSourceRetryAllowed === true;
+  const hasVoiceDescription = typeof body.productDescription === "string";
+  if (voiceRetry && !hasVoiceDescription)
+    return NextResponse.json({ error: "Ajoute des faits précis sur le produit avant de réessayer le montage.", code: "SLIDESHOW_VOICE_SOURCE_INSUFFICIENT", reason: quote.reason }, { status: 409 });
+  if (!quote.allowed && !(voiceRetry && hasVoiceDescription))
+    return NextResponse.json({ error: "Le montage ne peut pas être relancé dans cet état. Les visuels terminés sont conservés.", reason: quote.reason }, { status: 409 });
+  if (hasVoiceDescription && !voiceRetry)
+    return NextResponse.json({ error: "La description ne peut être modifiée que pour la reprise de narration prévue.", reason: quote.reason }, { status: 409 });
   if (body.confirmCost !== quote.cost) return NextResponse.json({ error: "Confirmation du coût requise.", cost: quote.cost }, { status: 409 });
+  const updatedDescription = voiceRetry ? (body.productDescription as string).trim() : undefined;
+  if (voiceRetry) {
+    const previousDescription = typeof meta.input?.product?.description === "string" ? meta.input.product.description.trim() : "";
+    if (!updatedDescription || updatedDescription === previousDescription)
+      return NextResponse.json({ error: "Ajoute quelques faits précis dans la description avant de réessayer.", code: "SLIDESHOW_VOICE_SOURCE_INSUFFICIENT" }, { status: 409 });
+    const duration = Number(meta.input?.duration);
+    const requiredWords = Number(quote.requiredNarrationWords);
+    const maxWords = Number(quote.maximumNarrationWords);
+    if (!Number.isSafeInteger(requiredWords) || requiredWords <= 0 || !Number.isSafeInteger(maxWords) || maxWords < requiredWords)
+      return NextResponse.json({ error: "La narration doit être vérifiée avant de reprendre ce montage.", code: "SLIDESHOW_VOICE_SOURCE_INSUFFICIENT" }, { status: 409 });
+    try {
+      buildSlideshowVoicePlan({ ...meta.input.product, description: updatedDescription }, duration, meta.input.locale, meta.input.campaignGoal, { minimumWords: requiredWords, maxWords });
+    } catch (error) {
+      if (error instanceof InsufficientProductDetailsError)
+        return NextResponse.json({ error: "La description reste un peu courte. Ajoute d’autres faits précis sur le contenu, les fonctionnalités ou les bénéfices vérifiés du produit.", code: "SLIDESHOW_VOICE_SOURCE_INSUFFICIENT", details: { availableWords: error.availableWords, requiredWords: error.requiredWords } }, { status: 409 });
+      return NextResponse.json({ error: "Impossible de vérifier la description. Rien n’a été lancé ; tu peux la compléter et réessayer.", code: "SLIDESHOW_VOICE_SOURCE_INSUFFICIENT" }, { status: 409 });
+    }
+  }
   const blocked = await requireActiveSubscription(user.id);
   if (blocked) return blocked;
 
-  const meta = row.metadata as TaskMetadata;
   const admin = createAdminClient();
   // Re-read deterministic children before claiming. Only completed children prove the stage is safe;
   // any absent/non-completed child remains uncertain and is never retried.
@@ -78,10 +107,11 @@ export async function POST(request: Request, context: Context) {
   if (recoveredImages.length > 5) return NextResponse.json({ error: "État de tâche invalide." }, { status: 409 });
   const nextMeta: TaskMetadata = {
     ...meta, images: recoveredImages, stages, continueQueued: true,
+    ...(voiceRetry ? { input: { ...meta.input, product: { ...meta.input.product, description: updatedDescription } }, voiceRetryInfo: undefined } : {}),
     creditsConsumed: Math.max(meta.creditsConsumed ?? 0, task.creditsConsumed ?? 0), creditState: "confirmed",
-    revision: meta.revision + (recoveredCurrentStep ? 1 : 0),
+    revision: meta.revision + (recoveredCurrentStep || voiceRetry ? 1 : 0),
     phase: "queued", error: undefined, errorCode: undefined,
-    message: "Reprise en cours…", updatedAt: new Date().toISOString(),
+    message: voiceRetry ? "Réglage de la narration et reprise du montage…" : "Reprise en cours…", updatedAt: new Date().toISOString(),
   };
   // Claim atomically by status + phase + revision: simultaneous requests yield one winner.
   const claim = await admin.from("studio_generations").update({ status: "processing", error: null, metadata: nextMeta })

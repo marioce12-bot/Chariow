@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { parseVoiceSourceRetryInfo, publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 
 describe("public slideshow errors", () => {
   it("returns plain localized copy for narration-duration diagnostics", () => {
@@ -10,12 +10,27 @@ describe("public slideshow errors", () => {
   it("sanitizes legacy diagnostics already stored on failed tasks", () => {
     const legacy = { error: "Voiceover render failed: expected 25s, got 20.09s (95%)" };
     expect(publicSlideshowError(legacy.error, "fr")).not.toContain("20.09");
-    expect(publicSlideshowError(legacy.error, "fr")).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(publicSlideshowError(legacy.error, "fr")).toBe(slideshowPublicFailure("fr"));
+    expect(publicSlideshowError(legacy.error, "fr")).not.toContain("Consultez l’historique");
+  });
+
+  it("gives a concrete next step for the short-source voiceover case", () => {
+    const message = publicSlideshowError("54 words available, 61 required", "fr", "SLIDESHOW_VOICE_SOURCE_INSUFFICIENT");
+    expect(message).toContain("description du produit dans ta boutique");
+    expect(message).toContain("Ajoute quelques faits précis");
+    expect(message).not.toContain("54");
+    expect(message).not.toContain("étape manquante");
+    expect(message).not.toContain("coût restant");
+  });
+  it("recognizes only the exact legacy measured short-source diagnostic", () => {
+    expect(parseVoiceSourceRetryInfo("Source insuffisante pour une narration couvrant 25s (54 mots disponibles, 61 requis); TTS non lancé."))
+      .toEqual({ availableWords: 54, requiredWords: 61, maximumWords: 68, providerAttempts: 1 });
+    expect(parseVoiceSourceRetryInfo("Le diaporama n’a pas pu être créé.")).toBeNull();
   });
 
   it("does not pass through unverified text and never returns empty diagnostics", () => {
     expect(publicSlideshowError("Ajoute une description du produit.", "fr")).toBe(slideshowPublicFailure("fr"));
-    expect(publicSlideshowError(null, "en")).toBe("The slideshow could not be created. Check your history before trying again.");
+    expect(publicSlideshowError(null, "en")).toBe(slideshowPublicFailure("en"));
   });
 
   it("explains a retryable Gemini refusal without exposing provider details", () => {
@@ -25,10 +40,10 @@ describe("public slideshow errors", () => {
       .toContain("before producing audio");
   });
 
-  it("explains that uncertain Gemini results stay blocked", () => {
+  it("explains uncertain Gemini results without exposing provider details or automatic retry wording", () => {
     expect(publicSlideshowError("Gemini voice request outcome is uncertain.", "fr", "SLIDESHOW_VOICE_UNCERTAIN"))
-      .toContain("la reprise est bloquée");
+      .toContain("aucune nouvelle demande vocale ne sera lancée automatiquement");
     expect(publicSlideshowError("Gemini voice request outcome is uncertain.", "en", "SLIDESHOW_VOICE_UNCERTAIN"))
-      .toContain("resuming is blocked");
+      .toContain("no new voice request will be made automatically");
   });
 });

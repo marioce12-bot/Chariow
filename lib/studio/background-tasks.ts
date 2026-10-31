@@ -1,14 +1,15 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateStudioImage } from "@/lib/studio/image-generation";
-import { buildSlideshowPlan } from "@/lib/studio/slideshow-plan";
+import { buildSlideshowPlan, InsufficientProductDetailsError } from "@/lib/studio/slideshow-plan";
 import {
   preflightSlideshow,
   renderSlideshow,
 } from "@/lib/studio/slideshow-server";
 import { assertSlideshowVoiceAllowed, GeminiVoiceError } from "@/lib/studio/slideshow-voice";
+import { SlideshowVoiceSourceInsufficientError } from "@/lib/studio/slideshow-voice-retry";
 import { signedStudioUrl } from "@/lib/studio/media";
-import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { parseVoiceSourceRetryInfo, publicSlideshowError, slideshowPublicFailure, type VoiceSourceRetryInfo } from "@/lib/studio/slideshow-errors";
 
 export const TASK_TYPE = "studio_background_task";
 export type StageRecord = {
@@ -64,6 +65,7 @@ export type TaskMetadata = {
   creditsConsumed?: number;
   creditState?: "confirmed" | "uncertain";
   errorCode?: string;
+  voiceRetryInfo?: VoiceSourceRetryInfo;
   httpStatus?: number | null;
   result?: any;
   error?: string;
@@ -101,11 +103,15 @@ export type PublicTask = {
   result?: any;
   mediaPending?: boolean;
   trackingUnavailable?: boolean;
+  voiceRetryInfo?: VoiceSourceRetryInfo;
   createdAt?: string;
 };
 
 export async function publicTask(row: any): Promise<PublicTask> {
   const metadata = row.metadata as TaskMetadata;
+  const voiceRetryInfo = metadata.voiceRetryInfo ?? parseVoiceSourceRetryInfo(metadata.error);
+  const publicErrorCode = metadata.errorCode === "STUDIO_STEP_FAILED" && voiceRetryInfo
+    ? "SLIDESHOW_VOICE_SOURCE_INSUFFICIENT" : metadata.errorCode;
   let result = metadata.result;
   let recoveredFinal = false;
   let mediaPending = false;
@@ -223,14 +229,15 @@ export async function publicTask(row: any): Promise<PublicTask> {
     revision: metadata.revision, updatedAt: metadata.updatedAt,
     creditsConsumed: Math.max(metadata.creditsConsumed ?? 0, images.length * 20),
     creditState: stale && metadata.phase === "running" ? "uncertain" : (metadata.creditState ?? "confirmed"),
-    errorCode: stale ? "STUDIO_TASK_STALE" : metadata.errorCode,
+    errorCode: stale ? "STUDIO_TASK_STALE" : publicErrorCode,
     progress: (recoveredFinal || row.status === "completed") && result ? 100 : Math.min(99, metadata.progress),
     message: recoveredFinal ? "Création prête." : metadata.taskKind === "slideshow" && row.status === "failed"
       ? slideshowPublicFailure(metadata.input?.locale) : metadata.message,
     error: recoveredFinal ? undefined : stale
       ? "Le suivi de cette génération a été interrompu. Consulte l’historique : aucune nouvelle génération n’a été lancée automatiquement."
-      : row.status === "failed" ? (metadata.taskKind === "slideshow" ? publicSlideshowError(metadata.error, metadata.input?.locale, metadata.errorCode) : metadata.error) : undefined,
+      : row.status === "failed" ? (metadata.taskKind === "slideshow" ? publicSlideshowError(metadata.error, metadata.input?.locale, publicErrorCode) : metadata.error) : undefined,
     images, sourceImagesConfirmed, ...(input ? { input } : {}), result,
+    ...(voiceRetryInfo ? { voiceRetryInfo } : {}),
     ...(mediaPending ? { mediaPending: true } : {}), createdAt: row.created_at,
   };
 }
@@ -252,6 +259,19 @@ export function continuationQuote(row: any, task: any) {
   const knownCompletedImages = new Set((task.images ?? []).map((image: any) => image.id));
   const uncertain = stages.some((stage) => stage.state !== "completed" &&
     !(stage.kind === "image" && stage.generationId && knownCompletedImages.has(stage.generationId)));
+  const voiceRetryInfo = task.voiceRetryInfo ?? meta.voiceRetryInfo ?? parseVoiceSourceRetryInfo(meta.error);
+  const imageStages = stages.filter((stage) => stage.kind === "image");
+  const incompleteStages = stages.filter((stage) => stage.state !== "completed" &&
+    !(stage.kind === "image" && stage.generationId && knownCompletedImages.has(stage.generationId)));
+  const voiceSourceRetryAllowed = meta.taskKind === "slideshow" && row.status === "failed" && task.status === "failed" &&
+    task.trackingUnavailable !== true && task.sourceImagesConfirmed === true && (task.images ?? []).length === 5 &&
+    meta.input?.voiceover === true && task.errorCode === "SLIDESHOW_VOICE_SOURCE_INSUFFICIENT" && Boolean(voiceRetryInfo) &&
+    Number.isSafeInteger(voiceRetryInfo?.availableWords) && Number.isSafeInteger(voiceRetryInfo?.requiredWords) &&
+    Number.isSafeInteger(voiceRetryInfo?.maximumWords) && Number(voiceRetryInfo?.requiredWords) > Number(voiceRetryInfo?.availableWords) &&
+    Number(voiceRetryInfo?.maximumWords) >= Number(voiceRetryInfo?.requiredWords) &&
+    imageStages.length === 5 && imageStages.every((stage) => stage.state === "completed" && stage.generationId && knownCompletedImages.has(stage.generationId)) &&
+    incompleteStages.every((stage) => stage.kind === "render") &&
+    (incompleteStages.some((stage) => stage.kind === "render") || voiceRetryInfo?.providerAttempts === 0);
   const stageProofMissing = !meta.stages && meta.revision > 0 && meta.continueQueued !== true && !legacyQueuedDispatchCheckpoint(row, task);
   const failedOrStale = row.status === "failed" || stale;
   let reason: string | null = null;
@@ -259,17 +279,28 @@ export function continuationQuote(row: any, task: any) {
   else if (meta.taskKind !== "slideshow") reason = "UNSUPPORTED_TASK";
   else if (!failedOrStale) reason = "TASK_NOT_FAILED";
   else if (task.sourceImagesConfirmed === false) reason = "COMPLETED_ASSET_MISSING";
+  else if (voiceSourceRetryAllowed) reason = "VOICE_SOURCE_TOO_SHORT";
   else if (uncertain) reason = "STAGE_UNCERTAIN";
   else if (stageProofMissing) reason = "STAGE_HISTORY_UNKNOWN";
   else if (task.images.length > 5) reason = "INVALID_IMAGE_STATE";
   const nextStep = task.images.length < 5 ? "image" : "render";
-  return { allowed: !reason, reason, cost: nextStep === "image" ? (5 - task.images.length) * 20 : 0, nextStep, requiresConfirmation: nextStep === "image" };
+  return { allowed: !reason, reason, cost: nextStep === "image" ? (5 - task.images.length) * 20 : 0, nextStep,
+    requiresConfirmation: nextStep === "image",
+    ...(voiceSourceRetryAllowed && voiceRetryInfo ? { voiceSourceRetryAllowed: true,
+      requiredNarrationWords: voiceRetryInfo.requiredWords, maximumNarrationWords: voiceRetryInfo.maximumWords,
+      availableNarrationWords: voiceRetryInfo.availableWords } : {}) };
 }
 export async function failTask(
   id: string,
   error: unknown,
   expected?: { revision: number; phase: string },
 ) {
+  const voiceRetryInfo = error instanceof SlideshowVoiceSourceInsufficientError
+    ? { availableWords: error.availableWords ?? 0, requiredWords: error.requiredWords ?? 0, maximumWords: error.maximumWords, providerAttempts: error.providerAttempts }
+    : error instanceof InsufficientProductDetailsError && Number.isSafeInteger(error.availableWords) && Number.isSafeInteger(error.requiredWords) &&
+      error.requiredWords! > error.availableWords!
+      ? { availableWords: error.availableWords!, requiredWords: error.requiredWords!, maximumWords: Math.max(error.requiredWords!, Math.floor(error.requiredWords! / 1.02 * 1.14)), providerAttempts: 0 }
+      : null;
   if (error instanceof GeminiVoiceError) {
     error = new StudioTaskError(error.disposition === "retryable" ? "SLIDESHOW_VOICE_RETRYABLE" : "SLIDESHOW_VOICE_UNCERTAIN", error.status);
   }
@@ -288,10 +319,11 @@ export async function failTask(
     return;
   const message =
     error instanceof Error ? error.message : "Génération interrompue.";
-  const code = error instanceof StudioTaskError ? error.code : "STUDIO_STEP_FAILED";
+  const code = voiceRetryInfo ? "SLIDESHOW_VOICE_SOURCE_INSUFFICIENT" : error instanceof StudioTaskError ? error.code : error instanceof InsufficientProductDetailsError ? error.code : "STUDIO_STEP_FAILED";
   // A known no-charge refusal (credit/subscription preflight or explicit Gemini 4xx before audio)
   // drops the render stage instead of marking it uncertain; previously completed images remain intact.
-  const noCharge = error instanceof StudioTaskError && NO_CHARGE_ERROR_CODES.includes(error.code);
+  const noCharge = (error instanceof StudioTaskError && NO_CHARGE_ERROR_CODES.includes(error.code)) ||
+    error instanceof InsufficientProductDetailsError || Boolean(voiceRetryInfo && voiceRetryInfo.providerAttempts === 0);
   const uncertain = row.metadata.phase === "running" && !noCharge;
   logTaskEvent("task_failed", id, row.metadata.revision, { ...row.metadata, creditState: uncertain ? "uncertain" : row.metadata.creditState }, error);
   const failure = await admin
@@ -304,6 +336,7 @@ export async function failTask(
         phase: "failed",
         error: message,
         errorCode: code,
+        voiceRetryInfo: voiceRetryInfo ?? undefined,
         httpStatus: error instanceof StudioTaskError ? error.status : null,
         creditState: uncertain ? "uncertain" : (noCharge ? "confirmed" : (row.metadata.creditState ?? "confirmed")),
         stages: (row.metadata.stages ?? [])

@@ -38,6 +38,10 @@ const LAYOUTS = [
 
 export class InsufficientProductDetailsError extends Error {
   readonly code = "INSUFFICIENT_PRODUCT_DETAILS";
+  constructor(message: string, readonly availableWords?: number, readonly requiredWords?: number) {
+    super(message);
+    this.name = "InsufficientProductDetailsError";
+  }
 }
 // Preserve HTML blocks and exact wording, including explicit coordinated facts.
 export function slideshowSourceCandidates(description: string): string[] {

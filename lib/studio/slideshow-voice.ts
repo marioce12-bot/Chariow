@@ -92,6 +92,7 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
   const sourceWords = narrationFacts.reduce((count, sentence) => count + wordCount(sentence), 0);
   if (sourceWords < minimumSourceWords) throw new InsufficientProductDetailsError(
     `Description insuffisante pour une narration de ${duration}s : ${sourceWords} mots source exploitables, ${minimumSourceWords} requis avec marge. Aucune image ni aucun crédit consommé.`,
+    sourceWords, minimumSourceWords,
   );
   // Keep complete evidence sentences only; never clip a fact.
   const cta = language === "fr" || language === "en" ? buildSlideshowCta(name, slideshowSourceCandidates(description), campaignGoal(goal), language === "en") : (neutralProductCta(language) ?? name);
@@ -108,7 +109,7 @@ export function buildSlideshowVoicePlan(product: { name: string; description?: s
     if (measuredBudget && words >= minimumWords) break;
     accepted.push(part.trim()); words += count;
   }
-  if (words < minimumWords) throw new InsufficientProductDetailsError(`Source insuffisante pour une narration couvrant ${duration}s (${words} mots disponibles, ${minimumWords} requis); TTS non lancé.`);
+  if (words < minimumWords) throw new InsufficientProductDetailsError(`Source insuffisante pour une narration couvrant ${duration}s (${words} mots disponibles, ${minimumWords} requis); TTS non lancé.`, words, minimumWords);
   const spokenFacts = accepted.map(part => part.replace(/[.!?]+$/g, ""));
   const script = `${spokenFacts.join(". ")}. ${cta.replace(/[.!?]+$/g, "")}.`;
   const kind = category(name, description);

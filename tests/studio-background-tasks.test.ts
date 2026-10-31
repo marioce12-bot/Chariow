@@ -17,6 +17,8 @@ vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit: mocks.rateLimit }));
 
 import { continuationQuote, publicTask, runTaskStep, TASK_TYPE, stageGenerationId, taskToken } from "@/lib/studio/background-tasks";
 import { GeminiVoiceError } from "@/lib/studio/slideshow-voice";
+import { InsufficientProductDetailsError } from "@/lib/studio/slideshow-plan";
+import { SlideshowVoiceSourceInsufficientError } from "@/lib/studio/slideshow-voice-retry";
 import { studioTaskWorkflow } from "@/lib/studio/task-workflow";
 import { GET, POST as createTask } from "@/app/api/studio/tasks/route";
 import { POST as workerPost } from "@/app/api/studio/tasks/worker/route";
@@ -145,12 +147,29 @@ describe("runTaskStep", () => {
     expect(mocks.preflight).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled();
     expect(mocks.render).not.toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
   });
-  it("n'annonce jamais 100 sans MP4 prêt", async () => {
+  it("n’annonce jamais 100 sans MP4 prêt", async () => {
     const row = rowFor(metadata("slideshow", { revision: 6, images: Array.from({ length: 5 }, (_, i) => ({ id: `g${i}`, url: `u${i}` })) }));
     configureDb(row); mocks.render.mockResolvedValue({ generationId: "video-1" });
     await runTaskStep(id, 6);
     expect(row.status).toBe("failed"); expect(row.metadata.progress).not.toBe(100);
     expect(row.metadata.errorCode).toBe("STUDIO_MP4_NOT_READY");
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+  it("persists measured voice-source counts and allows only the matching 5-image render retry", async () => {
+    const images = Array.from({ length: 5 }, (_, i) => ({ id: `g${i}`, url: `u${i}` }));
+    const stages = images.map((image, i) => ({ step: i + 1, kind: "image", state: "completed", generationId: image.id, cost: 20, creditState: "confirmed", startedAt: "2026-01-01" }));
+    const input = { ...metadata("slideshow").input, voiceover: true };
+    const row = rowFor(metadata("slideshow", { input, revision: 6, phase: "queued", images, creditsConsumed: 100, creditState: "confirmed", stages }));
+    configureDb(row);
+    const sourceError = new InsufficientProductDetailsError("Measured narration source is too short.", 54, 61);
+    mocks.render.mockRejectedValue(new SlideshowVoiceSourceInsufficientError(54, 61, 68, 1, sourceError));
+    await runTaskStep(id, 6);
+    expect(row.status).toBe("failed");
+    expect(row.metadata.errorCode).toBe("SLIDESHOW_VOICE_SOURCE_INSUFFICIENT");
+    expect(row.metadata.voiceRetryInfo).toEqual({ availableWords: 54, requiredWords: 61, maximumWords: 68, providerAttempts: 1 });
+    expect(row.metadata.stages.at(-1)).toMatchObject({ kind: "render", state: "uncertain" });
+    expect(continuationQuote(row, { status: "failed", errorCode: row.metadata.errorCode, voiceRetryInfo: row.metadata.voiceRetryInfo, images, sourceImagesConfirmed: true }))
+      .toMatchObject({ allowed: false, reason: "VOICE_SOURCE_TOO_SHORT", voiceSourceRetryAllowed: true, cost: 0, requiredNarrationWords: 61, maximumNarrationWords: 68 });
     expect(mocks.generate).not.toHaveBeenCalled();
   });
   it("keeps completed images and permits a zero-cost retry after an explicit Gemini 4xx refusal", async () => {

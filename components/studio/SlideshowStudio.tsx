@@ -41,7 +41,8 @@ type Task = {
   creditsConsumed?: number;
   creditState?: "confirmed" | "uncertain";
   input?: { product?: Product; duration?: number; musicId?: string; campaignGoal?: CampaignGoal; locale?: string; variationId?: string };
-  resume?: { allowed: boolean; reason: string | null; cost: number; nextStep: string; requiresConfirmation: boolean };
+  resume?: { allowed: boolean; reason: string | null; cost: number; nextStep: string; requiresConfirmation: boolean; voiceSourceRetryAllowed?: boolean; requiredNarrationWords?: number; maximumNarrationWords?: number; availableNarrationWords?: number };
+  voiceRetryInfo?: { availableWords: number; requiredWords: number; maximumWords: number; providerAttempts: number };
 };
 const jsonResponse = async (response: Response) => {
   const data = await response.json();
@@ -165,11 +166,14 @@ export function SlideshowStudio({
     [technicalDetails, setTechnicalDetails] = useState(""),
     [resumeTask, setResumeTask] = useState<Task | null>(null),
     [resumeConfirmed, setResumeConfirmed] = useState(false),
+    [resumeDescription, setResumeDescription] = useState(""),
     [available, setAvailable] = useState<number | null>(null);
   const slideshowCost = 5 * imageCreditCost("hd", "medium");
   const lacksCredits = available !== null && available < slideshowCost;
   const resumeCost = resumeTask?.resume?.allowed ? resumeTask.resume.cost : 0;
   const lacksResumeCredits = available !== null && resumeCost > 0 && available < resumeCost;
+  const originalResumeDescription = resumeTask?.input?.product?.description?.trim() ?? "";
+  const hasUpdatedResumeDescription = resumeDescription.trim().length > 0 && resumeDescription.trim() !== originalResumeDescription;
   // Read-only balance lookup (balance minus credits already reserved). Fail-open: if the balance is
   // unavailable or malformed, the UI does not block and the server (which re-checks) decides.
   const refreshCredits = () =>
@@ -188,6 +192,7 @@ export function SlideshowStudio({
   const loadedHistoryRef = useRef<string | null>(null);
   const running = useRef(false),
     taskRef = useRef<Task | null>(null),
+    resumeDescriptionRef = useRef(""),
     initialDone = useRef(false),
     signature = useRef(`${product?.id ?? ""}`);
   const currentSignature = JSON.stringify([product?.id ?? "", temporaryDescription, duration, campaignGoal]);
@@ -227,6 +232,11 @@ export function SlideshowStudio({
     taskRef.current = task;
     setResumeTask(task.status === "failed" ? task : null);
     if (changedTask) setResumeConfirmed(false);
+    if (changedTask) {
+      const description = task.input?.product?.description ?? "";
+      resumeDescriptionRef.current = description;
+      setResumeDescription(description);
+    }
     if (task.input && (changedTask || loadedHistoryRef.current === task.id)) {
       if (task.input.variationId) variationIdRef.current = task.input.variationId;
       if (task.input.duration) setDuration(task.input.duration);
@@ -245,7 +255,7 @@ export function SlideshowStudio({
     if (insufficient) { setRecovery(true); setStatus(""); setTemporaryDescription((current) => current || product?.description || ""); setTechnicalDetails(task.error || task.message || ""); }
     setError(
       (task.status === "failed" || (task.status === "completed" && !task.result)) && !insufficient
-        ? publicSlideshowError(task.error || task.message || slideshowPublicFailure(fr ? "fr" : "en"), fr ? "fr" : "en")
+        ? publicSlideshowError(task.error || task.message || slideshowPublicFailure(fr ? "fr" : "en"), fr ? "fr" : "en", task.errorCode)
         : "",
     );
     if (insufficient) setError(task.error || task.message || "");
@@ -384,6 +394,31 @@ export function SlideshowStudio({
       try { const r = await fetch(`/api/studio/tasks/${encodeURIComponent(task.id)}/continue`, { cache: "no-store" }); const data = await jsonResponse(r); if (data.task) applyTask(data.task); } catch { /* keep visible error */ }
     } finally { running.current = false; setBusy(taskRef.current?.status === "processing"); }
   }
+  async function retryVoiceWithDescription() {
+    const task = taskRef.current;
+    const description = resumeDescriptionRef.current.trim();
+    const original = task?.input?.product?.description?.trim() ?? "";
+    if (running.current || busy || !task?.resume?.voiceSourceRetryAllowed || !Number.isInteger(task.revision) || !description || description === original) return;
+    running.current = true; setBusy(true); setError("");
+    try {
+      const data = await send(`/api/studio/tasks/${encodeURIComponent(task.id)}/continue`, {
+        expectedRevision: task.revision, confirmCost: 0, productDescription: description,
+      });
+      if (!data.task) throw new Error("Suivi indisponible.");
+      applyTask(data.task);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Ajoute des faits précis puis réessaie.");
+      // Read-only reconciliation: never repeat a continuation POST with an uncertain result.
+      try {
+        const response = await fetch(`/api/studio/tasks/${encodeURIComponent(task.id)}/continue`, { cache: "no-store" });
+        const data = await jsonResponse(response);
+        if (data.task) applyTask(data.task);
+      } catch { /* keep the actionable error visible */ }
+    } finally {
+      running.current = false;
+      setBusy(taskRef.current?.status === "processing");
+    }
+  }
   async function generate() {
     if (!enabled || !ready || !product || busy || pendingRequest || running.current || taskRef.current?.status === "processing") return;
     if (recovery && !temporaryDescription.trim()) return;
@@ -501,18 +536,26 @@ export function SlideshowStudio({
       </div>
       <p>{fr ? "Voix et musique ajoutées automatiquement à la génération." : "Voiceover and music are added automatically during generation."}</p>
       {!voiceoverEnabled || !voiceoverTestAllowed ? <small>{fr ? "La génération de voix est en cours de validation." : "Voice generation is being validated."}</small> : null}
-      {resumeTask && !recovery && !busy ? <section aria-label={fr ? "Reprise du diaporama" : "Resume slideshow"}>
-        <h3>{fr ? "Diaporama interrompu" : "Interrupted slideshow"}</h3>
+      {resumeTask && !recovery && !busy ? <section aria-label={fr ? "Terminer le montage" : "Finish the montage"}>
+        <h3>{fr ? "Terminer le montage" : "Finish the montage"}</h3>
         {resumeTask.input?.product?.name ? <p>{resumeTask.input.product.name}</p> : null}
-        <p>{fr ? `Progression sauvegardée : ${Math.min(resumeTask.progress ?? 0, 99)} % · ${images.length < 5 ? `prochain visuel ${images.length + 1}/5` : "montage MP4 restant"}.` : `Saved progress: ${Math.min(resumeTask.progress ?? 0, 99)}% · ${images.length < 5 ? `next image ${images.length + 1}/5` : "MP4 assembly remaining"}.`}</p>
-        <p>{fr ? `${images.length}/5 visuels conservés · ${creditsUsed} crédits déjà utilisés. Les visuels terminés ne seront pas recréés.` : `${images.length}/5 images preserved · ${creditsUsed} credits already used. Completed images will not be recreated.`}</p>
-        {resumeTask.resume?.allowed ? <>
-          <p>{fr ? `Coût restant de la reprise : ${resumeTask.resume.cost} crédits Studio.` : `Remaining resume cost: ${resumeTask.resume.cost} Studio credits.`}</p>
-          {lacksResumeCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : la reprise coûte ${resumeCost} crédits Studio, il te reste ${available}. Recharge tes crédits pour continuer.` : `Insufficient balance: resuming costs ${resumeCost} Studio credits, you have ${available}. Top up to continue.`}</p> : null}
+        {resumeTask.resume?.voiceSourceRetryAllowed ? <>
+          <p>{publicSlideshowError(resumeTask.error, fr ? "fr" : "en", resumeTask.errorCode)}</p>
+          <label className="studio-field">
+            <span>{fr ? "Complète la description pour cette narration" : "Add details for this voiceover"}</span>
+            <textarea aria-label={fr ? "Compléter la description du produit" : "Complete the product description"} rows={5} maxLength={20_000} value={resumeDescription}
+              onChange={event => { resumeDescriptionRef.current = event.target.value; setResumeDescription(event.target.value); }} />
+          </label>
+          <small>{fr ? "Ajoute des faits vérifiés sur le contenu, les fonctionnalités ou les bénéfices du produit. Cette modification sert uniquement à ce diaporama et ne change pas la fiche de la boutique." : "Add verified facts about the product’s contents, features or benefits. This change is only for this slideshow; it does not edit the store listing."}</small>
+          <p>{fr ? `${images.length}/5 visuels conservés. Réessayer relance seulement la narration et le montage MP4, sans recréer les visuels ni reprendre leurs crédits. Coût Studio supplémentaire : 0 crédit.` : `${images.length}/5 visuals are preserved. Retry only reruns narration and MP4 assembly, without recreating visuals or charging their credits again. Additional Studio cost: 0 credits.`}</p>
+          <button type="button" className="btn btn-dark studio-continue" disabled={!hasUpdatedResumeDescription || busy || !ready} onClick={() => void retryVoiceWithDescription()}>{fr ? "Réessayer" : "Retry"}</button>
+        </> : resumeTask.resume?.allowed ? <>
+          <p>{fr ? `Les ${images.length}/5 visuels conservés ne seront pas recréés. Étape à reprendre : ${resumeTask.resume.nextStep === "render" ? "montage MP4" : "visuel manquant"}.` : `${images.length}/5 saved visuals will not be recreated. Next step: ${resumeTask.resume.nextStep === "render" ? "MP4 assembly" : "missing image"}.`}</p>
+          <p>{fr ? `Coût de reprise : ${resumeTask.resume.cost} crédits Studio.` : `Resume cost: ${resumeTask.resume.cost} Studio credits.`}</p>
+          {lacksResumeCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : la reprise coûte ${resumeCost} crédits Studio, il te reste ${available}. Recharge tes crédits pour continuer.` : `Insufficient balance: resuming costs ${resumeCost} credits, you have ${available}. Top up to continue.`}</p> : null}
           {resumeTask.resume.requiresConfirmation ? <label><input type="checkbox" checked={resumeConfirmed} onChange={e => setResumeConfirmed(e.target.checked)} />{fr ? `J’autorise la reprise pour ${resumeTask.resume.cost} crédits maximum.` : `I authorize resuming for up to ${resumeTask.resume.cost} credits.`}</label> : null}
-        </> : <p>{fr ? `L’état de l’étape manquante n’est pas confirmé. La reprise reste bloquée pour éviter une nouvelle facturation. Coût restant estimé : ${resumeTask.resume?.cost ?? "—"} crédits, non autorisé tant que cette étape n’est pas vérifiée. Les visuels terminés sont conservés.` : `The missing stage is unconfirmed. Resuming is blocked to prevent another charge. Estimated remaining cost: ${resumeTask.resume?.cost ?? "—"} credits, not authorized until the stage is verified. Completed images are preserved.`}</p>}
-        <button type="button" className="btn btn-dark studio-continue" disabled={!resumeTask.resume?.allowed || lacksResumeCredits || (!!resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
-        <button type="button" className="btn btn-ghost" onClick={newSlideshow}>{fr ? "Nouveau diaporama" : "New slideshow"}</button>
+          <button type="button" className="btn btn-dark studio-continue" disabled={lacksResumeCredits || (!!resumeTask.resume.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Réessayer" : "Retry"}</button>
+        </> : <p role="status">{fr ? "Le montage n’a pas abouti. Les visuels déjà terminés sont conservés. Aucune nouvelle génération ne sera lancée sans vérification." : "The montage did not finish. Completed visuals are kept. No new generation will start without verification."}</p>}
       </section> : null}
       {(!resumeTask || recovery) && (!pendingRequest && (!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed" || recovery)) && !busy && ready ? (
         <>
@@ -531,7 +574,7 @@ export function SlideshowStudio({
       <div className={`studio-slideshow-canvas${!result && !busy ? " studio-empty" : ""}`}>
         {!busy && !result ? <>
           <Sparkles size={32} aria-hidden="true" />
-          <strong>{pendingRequest ? (fr ? "Lancement à vérifier" : "Check launch status") : recovery ? (fr ? "Précise ton produit" : "Add product details") : error || resumeTask ? (fr ? "Création interrompue" : "Creation interrupted") : (fr ? "Prêt à créer" : "Ready to create")}</strong>
+          <strong>{pendingRequest ? (fr ? "Lancement à vérifier" : "Check launch status") : recovery ? (fr ? "Précise ton produit" : "Add product details") : resumeTask?.resume?.voiceSourceRetryAllowed ? (fr ? "Narration à compléter" : "Voiceover needs details") : error || resumeTask ? (fr ? "Montage à terminer" : "Montage to finish") : (fr ? "Prêt à créer" : "Ready to create")}</strong>
           {!pendingRequest && !recovery && !error && !resumeTask ? <p>{fr ? "Choisis ton produit, ajuste les réglages puis lance la création. Ton diaporama apparaîtra ici." : "Choose your product, adjust the settings and start creating. Your slideshow will appear here."}</p> : null}
           {recovery ? <p>{fr ? "Complète les informations dans les réglages pour préparer ton diaporama." : "Complete the details in the settings to prepare your slideshow."}</p> : null}
         </> : null}
@@ -620,7 +663,9 @@ export function SlideshowStudio({
       ) : null}
       {attempted ? (
         <small>
-          {fr
+          {resumeTask
+            ? (fr ? `${images.length}/5 visuels conservés.` : `${images.length}/5 visuals preserved.`)
+            : fr
             ? `${images.length}/5 visuels · ${creditsUsed} crédits Studio utilisés.`
             : `${images.length}/5 images · ${creditsUsed} Studio credits used.`}
         </small>

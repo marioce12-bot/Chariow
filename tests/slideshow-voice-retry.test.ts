@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildSlideshowVoicePlan } from "@/lib/studio/slideshow-voice";
 import { slideshowEvidence, buildSlideshowCta, slideshowSourceCandidates } from "@/lib/studio/slideshow-plan";
-import { MAX_SLIDESHOW_VOICE_ATTEMPTS, SlideshowVoiceTimingError, synthesizeCoveredSlideshowVoice } from "@/lib/studio/slideshow-voice-retry";
+import { MAX_SLIDESHOW_VOICE_ATTEMPTS, SlideshowVoiceSourceInsufficientError, SlideshowVoiceTimingError, synthesizeCoveredSlideshowVoice } from "@/lib/studio/slideshow-voice-retry";
 
 const product = { name: "Guide Snapchat", description: "Guide pour lancer des campagnes sur Snapchat. Le guide explique les réglages du ciblage. Il présente plusieurs exemples de publicités. Chaque chapitre détaille une étape de préparation. Les exercices accompagnent la lecture du guide. Une section décrit les indicateurs de suivi. Le document explique les formats publicitaires disponibles. Une liste rassemble les vérifications avant publication. Le guide aide à définir les objectifs de chaque campagne. Des conseils présentent les audiences disponibles dans la plateforme. Les exemples montrent comment rédiger des annonces claires. Un chapitre décrit le calendrier de publication. Le lecteur peut comparer plusieurs formats de publicité. Des étapes expliquent comment préparer les visuels. Le guide détaille aussi le budget quotidien. Une partie aide à suivre les clics reçus. Les sections proposent des méthodes pour ajuster les campagnes. Un glossaire définit le vocabulaire employé dans les menus. Des captures illustrent les écrans de configuration des comptes. Une annexe rassemble les dimensions des images acceptées. Le sommaire organise la lecture en modules thématiques. Des fiches proposent des questions pour préparer les annonces. Le document est disponible au format PDF sur ordinateur. Une page explique la différence entre les enchères et les dépenses." };
 const input = { product, locale: "fr", campaignGoal: "buy" };
@@ -27,6 +27,17 @@ describe("bounded measured narration correction, mocked TTS only", () => {
     expect(new Set(spokenFacts).size).toBe(spokenFacts.length);
     for (const fact of spokenFacts) expect(facts.map(value => value.replace(/[.!?]+$/g, "") + ".")).toContain(fact);
     expect(spokenFacts.length).toBeGreaterThan(plan.script.split(". ").length - 3);
+  });
+  it("shortens an overlong narration to the measured video window instead of truncating audio", async () => {
+    const plan = buildSlideshowVoicePlan(product, 25, "fr", "buy");
+    const synthesize = vi.fn().mockResolvedValue(mockAudio);
+    const overlong = new SlideshowVoiceTimingError("long", 34, 34, "Internal long sample");
+    const prepare = vi.fn().mockRejectedValueOnce(overlong).mockResolvedValueOnce("/tmp/fitted.wav");
+    const result = await synthesizeCoveredSlideshowVoice(plan, input, prepare, synthesize);
+    expect(result.attempts).toBe(2);
+    expect(words(result.plan.script)).toBeLessThan(words(plan.script));
+    expect(synthesize).toHaveBeenCalledTimes(2);
+    expect(prepare).toHaveBeenCalledTimes(2);
   });
   it.each([25, 30, 40])("returns the first measured fitting voice without extra requests at %ss", async duration => {
     const plan = buildSlideshowVoicePlan(product, duration, "fr", "buy");
@@ -66,7 +77,10 @@ describe("bounded measured narration correction, mocked TTS only", () => {
     const plan = buildSlideshowVoicePlan(scarce, 25, "fr", "buy");
     const synthesize = vi.fn().mockResolvedValue(mockAudio);
     const prepare = vi.fn().mockRejectedValue(short(10));
-    await expect(synthesizeCoveredSlideshowVoice(plan, { ...input, product: scarce }, prepare, synthesize)).rejects.toThrow();
+    const error = await synthesizeCoveredSlideshowVoice(plan, { ...input, product: scarce }, prepare, synthesize).then(() => null, cause => cause);
+    expect(error).toBeInstanceOf(SlideshowVoiceSourceInsufficientError);
+    expect(error).toMatchObject({ availableWords: expect.any(Number), requiredWords: expect.any(Number), maximumWords: expect.any(Number), providerAttempts: 1 });
+    expect(prepare).toHaveBeenCalledTimes(1);
     expect(synthesize).toHaveBeenCalledTimes(1);
   });
   it("does not retry a filesystem or encoder failure as if it were a short voice", async () => {

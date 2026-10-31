@@ -1,10 +1,24 @@
 import { buildSlideshowVoicePlan, synthesizeSlideshowVoice, type SlideshowVoicePlan } from "./slideshow-voice";
+import { InsufficientProductDetailsError } from "./slideshow-plan";
 
 /** Internal diagnostics only. Public boundaries must use the friendly slideshow error copy. */
 export class SlideshowVoiceTimingError extends Error {
   constructor(readonly reason: "short" | "long", readonly audibleEnd: number, readonly sourceDuration: number, message: string) {
     super(message);
     this.name = "SlideshowVoiceTimingError";
+  }
+}
+export class SlideshowVoiceSourceInsufficientError extends Error {
+  readonly code = "SLIDESHOW_VOICE_SOURCE_INSUFFICIENT";
+  constructor(
+    readonly availableWords: number | undefined,
+    readonly requiredWords: number | undefined,
+    readonly maximumWords: number,
+    readonly providerAttempts: number,
+    cause: InsufficientProductDetailsError,
+  ) {
+    super(cause.message, { cause });
+    this.name = "SlideshowVoiceSourceInsufficientError";
   }
 }
 export const MAX_SLIDESHOW_VOICE_ATTEMPTS = 3;
@@ -46,7 +60,14 @@ export async function synthesizeCoveredSlideshowVoice(
       const minimumWords = error.reason === "short" ? Math.max(currentWords + 1, targetWords) : targetWords;
       const maxWords = Math.floor(pace * (plan.duration - 0.4) * 1.14);
       if (minimumWords > maxWords) throw error;
-      const next = buildSlideshowVoicePlan(input.product, plan.duration, initialPlan.language, input.campaignGoal, { minimumWords, maxWords });
+      let next: SlideshowVoicePlan;
+      try {
+        next = buildSlideshowVoicePlan(input.product, plan.duration, initialPlan.language, input.campaignGoal, { minimumWords, maxWords });
+      } catch (cause) {
+        if (cause instanceof InsufficientProductDetailsError)
+          throw new SlideshowVoiceSourceInsufficientError(cause.availableWords, cause.requiredWords ?? minimumWords, maxWords, attempt, cause);
+        throw cause;
+      }
       // Insufficient new source material does not justify another identical request.
       if (seen.has(next.script) || (error.reason === "short" && wordCount(next.script) <= currentWords) ||
           (error.reason === "long" && wordCount(next.script) >= currentWords)) throw error;
