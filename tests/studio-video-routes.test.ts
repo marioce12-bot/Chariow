@@ -67,9 +67,16 @@ describe("Locked studio video preparation routes", () => {
   });
   it("fails closed when text service fails instead of returning a generic fallback", async () => {
     askText.mockRejectedValue(new Error("offline"));
+    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
     const response = await prompt(request({ mediaType: "video", duration: 25, product }));
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({ code: "STUDIO_UGC_PREPARATION_FAILED" });
+    expect(diagnostic).toHaveBeenCalledWith("Studio UGC preparation failed", {
+      stage: "product_analysis_provider",
+      reason: "Le fournisseur texte a échoué pendant la préparation UGC.",
+    });
+    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain("offline");
+    diagnostic.mockRestore();
   });
   it("validates durations, formats and authentication before preparation", async () => {
     expect((await prompt(request({ mediaType: "video", duration: 61, product }))).status).toBe(400);

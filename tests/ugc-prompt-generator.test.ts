@@ -61,6 +61,25 @@ describe("generateUgcCreative", () => {
     const creativeSystemPrompt = askText.mock.calls[1][0][0].content as string;
     expect(creativeSystemPrompt).toContain("Choisis toi-même un ou deux adultes fictifs noirs ou métissés");
     expect(creativeSystemPrompt).toContain("hook, une scène, des accessoires, des gestes, un script et un CTA réellement spécifiques");
+    expect(creativeSystemPrompt).toContain("leur phrase doit être prononcée mot pour mot une seule fois dans le dialogue du premier plan (hook.text) et du dernier plan (cta)");
+    expect(creativeSystemPrompt).not.toContain("Ne pas répéter le hook/CTA dans les plans et champs séparés");
+  });
+
+  it("accepts valid JSON wrapped in Markdown fences while keeping exactly two LLM calls", async () => {
+    askText.mockResolvedValueOnce(`\`\`\`json\n${JSON.stringify(analysis)}\n\`\`\``)
+      .mockResolvedValueOnce(`\`\`\`json\n${JSON.stringify(creative())}\n\`\`\``);
+    const result = await generateUgcCreative(input());
+    expect(result.creative.shots).toHaveLength(5);
+    expect(askText).toHaveBeenCalledTimes(2);
+  });
+
+  it("tags provider failures by stage without exposing provider details", async () => {
+    askText.mockRejectedValueOnce(new Error("private provider response"));
+    await expect(generateUgcCreative(input())).rejects.toMatchObject({
+      stage: "product_analysis_provider",
+      message: "Le fournisseur texte a échoué pendant la préparation UGC.",
+    });
+    expect(askText).toHaveBeenCalledTimes(1);
   });
 
   it("adapte réellement hook et décor à deux produits distincts", async () => {

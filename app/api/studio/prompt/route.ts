@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
-import { generateUgcCreative } from "@/lib/studio/ugc-prompt-generator";
+import { generateUgcCreative, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
 import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
 import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
 import { signPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
@@ -78,12 +78,19 @@ export async function POST(request: Request) {
     if (inferProductType(name, description) === "ebook" && !generatorInput.product.images?.length) {
       return NextResponse.json({ error: "Sélectionne la couverture réelle de l’ebook avant de préparer son scénario vidéo.", code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" }, { status: 400 });
     }
+    let assemblyStage = "model_generation";
     try {
       const result = await generateUgcCreative(generatorInput);
+      assemblyStage = "editable_prompt_assembly";
       const prompt = compileUgcPrompt(generatorInput, result.creative);
+      assemblyStage = "provider_plan_assembly";
       const plan = compileUgcProviderPlan(generatorInput, result.creative);
       return NextResponse.json({ prompt, ...result, plan, preparedUgc: signPreparedUgc(user.id, generatorInput, result, prompt), contentLanguage, locked: !isStudioVideoRenderEnabledForPreview() });
-    } catch {
+    } catch (error) {
+      const diagnostic = error instanceof UgcPromptGenerationError
+        ? { stage: error.stage, reason: error.message }
+        : { stage: assemblyStage, reason: error instanceof Error ? error.name : "unknown_error" };
+      console.error("Studio UGC preparation failed", diagnostic);
       return NextResponse.json({ error: "Le scénario UGC n’a pas pu être validé. Vérifie les informations produit puis régénère le prompt; aucun scénario générique ni rendu n’a été lancé.", code: "STUDIO_UGC_PREPARATION_FAILED" }, { status: 422 });
     }
   }
