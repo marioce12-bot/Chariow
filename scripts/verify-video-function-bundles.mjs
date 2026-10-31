@@ -9,6 +9,9 @@ const functions = [
     name: "POST /api/studio/video",
     manifest: ".next/server/app/api/studio/video/route.js.nft.json",
     required: [
+      { name: "ffmpeg-static package link", matches: file => /^(?:\.\.\/)+node_modules\/ffmpeg-static$/.test(file), directory: true },
+      { name: "ffmpeg-static entry", matches: file => /(?:^|\/)ffmpeg-static\/index\.js$/.test(file) },
+      { name: "ffmpeg-static package metadata", matches: file => /(?:^|\/)ffmpeg-static\/package\.json$/.test(file) },
       { name: "ffprobe-static entry", matches: file => /(?:^|\/)ffprobe-static\/index\.js$/.test(file) },
       { name: "ffprobe-static package metadata", matches: file => /(?:^|\/)ffprobe-static\/package\.json$/.test(file) },
       { name: "ffprobe executable (linux/x64)", matches: file => /(?:^|\/)ffprobe-static\/bin\/linux\/x64\/ffprobe$/.test(file), executable: true },
@@ -56,9 +59,10 @@ for (const fn of functions) {
     const absolutePath = path.resolve(path.dirname(manifestPath), match);
     try {
       const fileInfo = await stat(absolutePath);
-      if (!fileInfo.isFile() || fileInfo.size === 0) throw new Error("not a non-empty file");
+      if (requirement.directory ? !fileInfo.isDirectory() : (!fileInfo.isFile() || fileInfo.size === 0)) throw new Error("not a non-empty file or package directory");
       if (requirement.executable) await access(absolutePath, constants.X_OK);
-      console.log(`OK   ${fn.name}: ${requirement.name} (${Math.round(fileInfo.size / 1024 / 1024)} MiB)`);
+      const sizeLabel = requirement.directory ? "package link" : `${Math.round(fileInfo.size / 1024 / 1024)} MiB`;
+      console.log(`OK   ${fn.name}: ${requirement.name} (${sizeLabel})`);
     } catch {
       console.error(`FAIL ${fn.name}: traced ${requirement.name}, but ${match} is missing or unusable in the build tree.`);
       failures++;
@@ -67,4 +71,4 @@ for (const fn of functions) {
 }
 
 if (failures) process.exitCode = 1;
-else console.log("Video route bundles ffprobe without the FFmpeg executable; the durable worker keeps FFmpeg/FFprobe for fallback and slideshow.");
+else console.log("Video route bundles ffmpeg-static's loader and ffprobe, without the FFmpeg executable; the durable worker keeps FFmpeg/FFprobe for fallback and slideshow.");
