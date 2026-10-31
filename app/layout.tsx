@@ -4,7 +4,9 @@ import "./sale-modal.css";
 import "./page-headings.css";
 import "./mobile-nav.css";
 import { PwaRegister } from "./PwaRegister";
+import { Suspense } from "react";
 import { I18nProvider } from "@/lib/i18n/i18n";
+import { MetaPixel } from "./MetaPixel";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 // L'image de partage 1200×630 vient de app/opengraph-image.tsx (convention Next.js).
@@ -57,6 +59,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <script dangerouslySetInnerHTML={{ __html: langInitScript }} />
+        <Suspense fallback={null}>
+          <MetaPixel />
+        </Suspense>
         <PwaRegister />
         <I18nProvider>{children}</I18nProvider>
       </body>
