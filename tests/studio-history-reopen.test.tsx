@@ -47,7 +47,22 @@ describe("Studio history reopening", () => {
     await act(async () => container.querySelector<HTMLButtonElement>(".studio-mobile-back")!.click());
     expect(container.querySelector(".studio-page")?.classList.contains("is-open")).toBe(false);
     await act(async () => container.querySelectorAll<HTMLButtonElement>(".studio-mobile-choice-select")[2].click());
-    expect(container.querySelector(".studio-coming-soon")?.textContent).toContain("studio.videoComingSoonText");
+    expect(container.querySelector(".studio-page")?.getAttribute("data-session")).toBe("video");
+    expect(container.querySelector(".studio-prompt-box textarea")).toBeTruthy();
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+  });
+  it("expands real history and toggles its action menu without opening or mutating a creation", async () => {
+    render(); await settle();
+    const page = container.querySelector(".studio-page")!;
+    expect(page.getAttribute("data-history-expanded")).toBe("false");
+    expect(container.querySelectorAll(".studio-history-card")).toHaveLength(images.length);
+    await act(async () => container.querySelector<HTMLButtonElement>(".studio-history-expand")!.click());
+    expect(page.getAttribute("data-history-expanded")).toBe("true");
+    const card = container.querySelector<HTMLElement>(".studio-history-card")!;
+    await act(async () => card.querySelector<HTMLButtonElement>(".studio-history-menu")!.click());
+    expect(card.getAttribute("data-actions-open")).toBe("true");
+    expect(container.querySelector(".studio-history-viewer")).toBeNull();
+    expect(fetchMock.mock.calls.some(([, init]) => ["POST", "DELETE"].includes(init?.method))).toBe(false);
   });
   it("switches between two history videos, independent of video_job_id", async () => {
     render(); await settle();

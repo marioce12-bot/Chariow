@@ -1167,3 +1167,68 @@
     margin-top: 20px;
   }
 }
+
+/* Keep the reference's compact recent-history composition without losing real records/actions. */
+.studio-history-expand,
+.studio-history-menu { display: none; }
+
+@media (min-width: 1200px) {
+  .studio-page.is-open[data-session="slideshow"] .studio-history-toolbar > div { display: none; }
+  .studio-page.is-open[data-session="slideshow"] .studio-history-expand {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #2563eb;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 0;
+    white-space: nowrap;
+  }
+  .studio-page.is-open[data-session="slideshow"] > .studio-history .studio-history-card:nth-child(n + 3) { display: flex; }
+  .studio-page.is-open[data-session="slideshow"][data-history-expanded="false"] > .studio-history .studio-history-card:nth-child(n + 3),
+  .studio-page.is-open[data-session="slideshow"][data-history-expanded="false"] > .studio-history .studio-load-more { display: none; }
+  .studio-page.is-open[data-session="slideshow"][data-history-expanded="true"] > .studio-history {
+    max-height: 360px;
+    overflow-y: auto;
+  }
+  .studio-page.is-open[data-session="slideshow"] > .studio-history .studio-history-card::after { content: none; display: none; }
+  .studio-page.is-open[data-session="slideshow"] > .studio-history .studio-history-copy { padding-right: 90px; }
+  .studio-page.is-open[data-session="slideshow"] > .studio-history .studio-history-status {
+    background: #eaf8f2;
+    border-radius: 999px;
+    color: #168361;
+    font-size: 10px;
+    padding: 5px 8px;
+    position: absolute;
+    right: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+  }
+  .studio-page.is-open[data-session="slideshow"] > .studio-history .studio-history-status[data-status="completed"]::before { content: "✓ "; font-weight: 700; }
+  .studio-page.is-open[data-session="slideshow"] > .studio-history .studio-history-status[data-status="processing"] { background: #edf3ff; color: #2563eb; }
+  .studio-page.is-open[data-session="slideshow"] > .studio-history .studio-history-status[data-status="failed"],
+  .studio-page.is-open[data-session="slideshow"] > .studio-history .studio-history-status[data-status="cancelled"] { background: #fff0ef; color: #b6483e; }
+  .studio-page.is-open[data-session="slideshow"] > .studio-history .studio-history-menu {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #526078;
+    display: inline-flex;
+    flex: none;
+    font-size: 18px;
+    height: 28px;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    width: 20px;
+  }
+  .studio-page.is-open[data-session="slideshow"] > .studio-history .studio-history-card[data-actions-open="true"] .studio-history-actions {
+    background: #fff;
+    display: flex;
+    position: absolute;
+    right: 0;
+    z-index: 3;
+  }
+}
