@@ -110,7 +110,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
             {!forgot && <div className="form-group"><label htmlFor="password">{t("auth.password")}</label><input id="password" name="password" required type="password" placeholder={t("auth.passwordPlaceholder")} minLength={8} /></div>}
             {register && <label className="legal-consent"><input type="checkbox" name="acceptedLegal" required /><span><ShieldCheck size={14} aria-hidden="true" /> {t("auth.consent")} <Link href="/terms" target="_blank">{t("auth.terms")}</Link> {t("auth.and")} <Link href="/privacy" target="_blank">{t("auth.privacy")}</Link>.</span></label>}
             {error && <p className="form-error">{localizeSystemMessage(error, locale)}</p>}
-            <button className="btn btn-dark" type="submit" disabled={(register || forgot) ? sendingEmail : false}>{forgot ? t("auth.sendLink") : register ? t("auth.createSpace") : t("auth.login")} <ArrowRight size={15} /></button>
+            <button className="btn btn-dark" type="submit" disabled={configurationError || ((register || forgot) ? sendingEmail : false)}>{forgot ? t("auth.sendLink") : register ? t("auth.createSpace") : t("auth.login")} <ArrowRight size={15} /></button>
           </form>
         )}
         {forgot ? <div className="auth-foot"><Link href="/login">{t("auth.backToLogin")}</Link></div> : register ? <div className="auth-foot">{t("auth.alreadyAccount")} <Link href="/login">{t("auth.login")}</Link></div> : <div className="auth-foot"><Link href="/forgot-password">{t("auth.forgotPassword")}</Link><span> · </span>{t("auth.noAccount")} <Link href="/register">{t("auth.createSpace")}</Link></div>}
