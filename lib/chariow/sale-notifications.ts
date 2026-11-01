@@ -67,7 +67,7 @@ export async function notifyChariowSales(
   for (const raw of chariowSaleRows(store.id, sales, store.user_id)) {
     const sale = record(raw.raw_payload);
     if (!isConfirmedChariowSaleStatus(sale.status)) continue;
-    const id = saleId(sale);
+    const id = String(raw.chariow_sale_id ?? saleId(sale)).trim();
     const date = saleDate(sale);
     if (!id || date == null || date < lowerBound || date > now) continue;
     const dedupeKey = `chariow-sale:${store.id}:${id}`;

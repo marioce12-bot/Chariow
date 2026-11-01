@@ -74,6 +74,13 @@ describe("notifyChariowSales", () => {
     await Promise.all([notifyChariowSales(store, wrapper(valid())), notifyChariowSales(store, wrapper(valid()))]);
     expect(state.rows).toHaveLength(1); expect(state.push).toHaveBeenCalledTimes(1);
   });
+  it("deduplicates the same sale across pulse and list-sync event IDs", async () => {
+    await notifyChariowSales(store, wrapper(valid({ event_id: "pulse-42" })));
+    await notifyChariowSales(store, wrapper(valid()));
+    expect(state.rows).toHaveLength(1);
+    expect(state.rows[0].dedupe_key).toBe("chariow-sale:s1:sale1");
+    expect(state.push).toHaveBeenCalledTimes(1);
+  });
   it("retries a failed duplicate with persisted title/body, without new in-app row", async () => {
     await notifyChariowSales(store, wrapper(valid()));
     state.rows[0].metadata.push_state = "failed";
