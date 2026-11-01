@@ -18,10 +18,10 @@ const input = (name = "Guide Excel Facile", duration = 25): UgcGeneratorInput =>
 });
 const draft = (overrides: Record<string, unknown> = {}) => ({
   angle: "Découverte quotidienne",
-  hook: { text: "Une piste à explorer ?", visual: "La présentatrice ouvre son téléphone." },
+  hook: { text: "Excel, ça t'intéresse ?", visual: "La présentatrice ouvre son téléphone." },
   scene: { location: "Cour ombragée à Cotonou", lighting: "lumière du matin", mood: "spontané", props: ["téléphone"] },
   characters: [{ id: "creator", age: "30", gender: "femme", look: "noire adulte aux cheveux courts", outfit: "tenue quotidienne sobre", personality: "naturelle et attentive", role: "présentatrice fictive" }],
-  shortLines: ["Je cherche un point de départ.", "Je regarde cette référence.", "La couverture reste visible."],
+  shortLines: ["Tu cherches un guide ?", "Ce guide numérique porte sur Excel.", "Tous les détails en boutique."],
   ...overrides,
 });
 const runGeneration = (creative = draft()) => {
@@ -32,7 +32,7 @@ const timing = (duration: number) => validateUgcCreative(draft(), input("Guide E
 
 beforeEach(() => { askText.mockReset(); vi.stubEnv("STUDIO_UGC_TEXT_PROVIDER", "groq"); });
 
-describe("génération créative UGC déterministe", () => {
+describe("génération créative UGC", () => {
   it("demande au modèle l’angle, le hook, la scène, le casting et trois répliques courtes", async () => {
     const result = await runGeneration();
     expect(askText).toHaveBeenCalledTimes(2);
@@ -47,8 +47,11 @@ describe("génération créative UGC déterministe", () => {
     expect(creativeCall[1].responseSchema.schema.properties).not.toHaveProperty("cta");
     expect(creativeCall[0][0].content).toContain("le serveur les construit");
     expect(creativeCall[0][0].content).toContain("Choisis toi-même un ou deux adultes fictifs noirs ou métissés");
+    expect(creativeCall[0][0].content).toContain("sont des paroles réellement prononcées");
+    expect(creativeCall[0][0].content).not.toContain("remplacera entièrement le dialogue");
     expect(result.creative.characters).toEqual(draft().characters);
     expect(result.creative.shots.map(shot => shot.type)).toEqual(["hook", "problem", "solution", "proof", "cta"]);
+    expect(result.creative.shots.slice(0, 4).map(shot => shot.dialogue)).toEqual([draft().hook.text, ...draft().shortLines]);
     expect(result.creative.cta).toBe("Découvre Guide Excel Facile dans la boutique.");
   });
 
@@ -86,10 +89,10 @@ describe("génération créative UGC déterministe", () => {
     for (let i = 1; i < shots.length; i++) expect(shots[i].start).toBe(shots[i - 1].end);
   });
 
-  it.each([15, 20, 30])("génère un dialogue déterministe sous le plafond pour une vidéo de %i secondes", duration => {
+  it.each([15, 20, 30])("conserve le dialogue publicitaire sous le plafond pour une vidéo de %i secondes", duration => {
     const result = validateUgcCreative(draft({
-      hook: { text: "mot ".repeat(13), visual: "La présentatrice ouvre son téléphone." },
-      shortLines: ["ligne ".repeat(13), "autre ".repeat(13), "texte ".repeat(13)],
+      hook: { text: "Excel, ça t'intéresse ?", visual: "La présentatrice ouvre son téléphone." },
+      shortLines: ["Tu cherches un guide ?", "Guide numérique sur Excel.", "Voir les détails en boutique."],
     }), input("Guide Excel Facile", duration));
     const spoken = result.shots.map(shot => shot.dialogue).join(" ");
     expect(spoken.trim().split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(Math.floor(duration * 1.8));
@@ -123,21 +126,57 @@ describe("génération créative UGC déterministe", () => {
     expect(result.negative_prompt).toContain("no unverified facts");
   });
 
-  it("remplace un hook et trois lignes totalisant 52 mots par un script serveur sous 45 mots", async () => {
+  it("refuse les répliques qui dépassent le temps de parole plutôt que de les remplacer par du remplissage", async () => {
     const overlong = draft({
       hook: { text: "mot ".repeat(13), visual: "La présentatrice ouvre son téléphone." },
       shortLines: ["ligne ".repeat(13), "autre ".repeat(13), "texte ".repeat(13)],
     });
     askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(overlong));
-    const result = await generateUgcCreative(input());
+    await expect(generateUgcCreative(input())).rejects.toMatchObject({
+      stage: "creative_direction_validation", details: { type: "dialogue_too_long" },
+    });
     expect(askText).toHaveBeenCalledTimes(2);
-    expect(result.creative.angle).toBe("Découverte quotidienne");
-    expect(result.creative.hook.text).toBe(result.creative.shots[0].dialogue);
-    expect(result.creative.hook.visual).toBe("La présentatrice ouvre son téléphone.");
-    expect(result.creative.scene.location).toBe("Cour ombragée à Cotonou");
-    expect(result.creative.characters).toEqual(draft().characters);
-    expect(result.creative.shots.map(shot => shot.dialogue).join(" ").trim().split(/\s+/).length).toBeLessThanOrEqual(45);
-    expect(result.creative.shots.map(shot => shot.dialogue).join(" ")).not.toContain("mot mot");
+  });
+
+  it.each(["Une nouvelle découverte.", "Je prends un instant.", "Je regarde la référence.", "Je continue."])("rejette l’ancienne réplique de remplissage %s", async filler => {
+    const candidate = draft({ shortLines: [filler, draft().shortLines[1], draft().shortLines[2]] });
+    await expect(runGeneration(candidate)).rejects.toMatchObject({
+      stage: "creative_direction_validation", details: { type: "generic_filler" },
+    });
+  });
+
+  it("prononce un mini-scénario naturel qui reprend seulement les faits confirmés du pack", async () => {
+    const name = "Pack spécial Promo développement";
+    const description = "Le pack réunit quatre guides : vidéos IA, audience LinkedIn, création SaaS et comptabilité avec l'IA. L'accès au pack est disponible après paiement.";
+    const packInput: UgcGeneratorInput = {
+      ...input(name, 30),
+      product: { ...input(name, 30).product, description },
+    };
+    const packAnalysis = { ...analysis, confirmed_fact_ids: [0, 1, 2] };
+    const packDraft = draft({
+      hook: { text: "Tu développes un projet et tu veux explorer plusieurs sujets ?", visual: "La présentatrice tient la fiche du pack sur son téléphone." },
+      shortLines: [
+        "Tu cherches des ressources autour du numérique ?",
+        "Le pack réunit quatre guides : vidéos IA, audience LinkedIn, création SaaS et comptabilité avec l'IA.",
+        "L'accès au pack est disponible après paiement.",
+      ],
+    });
+    askText.mockResolvedValueOnce(JSON.stringify(packAnalysis)).mockResolvedValueOnce(JSON.stringify(packDraft));
+
+    const result = await generateUgcCreative(packInput);
+    const spoken = result.creative.shots.map(shot => shot.dialogue).join(" ");
+    const creativeRequest = JSON.parse(askText.mock.calls[1][0][1].content);
+
+    expect(creativeRequest.analysis.confirmed_facts).toEqual([
+      `name: ${name}`,
+      `description: ${description.split(". ")[0]}.`,
+      `description: ${description.split(". ")[1]}`,
+    ]);
+    expect(result.creative.shots.slice(0, 4).map(shot => shot.dialogue)).toEqual([packDraft.hook.text, ...packDraft.shortLines]);
+    expect(spoken).toContain("quatre guides : vidéos IA, audience LinkedIn, création SaaS et comptabilité avec l'IA");
+    expect(spoken).toContain("L'accès au pack est disponible après paiement.");
+    expect(spoken).toContain(result.creative.cta);
+    expect(spoken).not.toMatch(/Une nouvelle découverte|Je prends un instant|Je regarde la référence|Je continue/i);
   });
 
   it("corrige un hook répété en ne demandant que hookText", async () => {
@@ -156,7 +195,7 @@ describe("génération créative UGC déterministe", () => {
   });
 
   it("corrige un hook répété mais ne demande plus au modèle de réparer le dialogue", async () => {
-    const repeatedOverlong = draft({ shortLines: ["mot ".repeat(20), "phrase ".repeat(20), "texte ".repeat(20)] });
+    const repeatedOverlong = draft();
     const previousPrompt = `Ancien prompt : ${repeatedOverlong.hook.text}`;
     askText.mockResolvedValueOnce(JSON.stringify(analysis))
       .mockResolvedValueOnce(JSON.stringify(repeatedOverlong))
@@ -168,7 +207,7 @@ describe("génération créative UGC déterministe", () => {
   });
 
   it("rejette un chiffre non étayé même lorsqu’il apparaît seul dans le dialogue", () => {
-    const unverified = draft({ shortLines: ["Je note 7 idées.", "Je regarde cette référence.", "Elle reste sous mes yeux."] });
+    const unverified = draft({ shortLines: ["Tu veux découvrir Excel ?", "Je note 7 idées.", "Tu peux lire la description dans la boutique."] });
     expect(() => validateUgcCreative(unverified, input())).toThrowError(UgcPromptGenerationError);
     expect(() => validateUgcCreative(unverified, input())).toThrow("affirmation chiffrée absente des données produit");
   });
@@ -186,20 +225,8 @@ describe("génération créative UGC déterministe", () => {
     expect(askText).toHaveBeenCalledTimes(4);
   });
 
-  it("ne bloque jamais un dialogue modèle de 52 mots lorsque le texte final est généré côté serveur", async () => {
-    const overlong = draft({
-      hook: { text: "mot ".repeat(13), visual: "La présentatrice ouvre son téléphone." },
-      shortLines: ["ligne ".repeat(13), "autre ".repeat(13), "texte ".repeat(13)],
-    });
-    askText.mockResolvedValueOnce(JSON.stringify(analysis))
-      .mockResolvedValueOnce(JSON.stringify(overlong));
-    const result = await generateUgcCreative(input());
-    expect(askText).toHaveBeenCalledTimes(2);
-    expect(result.creative.shots.map(shot => shot.dialogue).join(" ").trim().split(/\s+/).length).toBeLessThanOrEqual(45);
-  });
-
   it("rejette les promesses, bénéfices et chiffres non étayés sans demander au modèle de les sauver", async () => {
-    const unverified = draft({ shortLines: ["Cette méthode garantit 10 000 XOF de revenus.", "Je regarde cette référence.", "Elle reste sous mes yeux."] });
+    const unverified = draft({ shortLines: ["Cette méthode garantit 10 000 XOF de revenus.", "Ce guide numérique est consacré à Excel.", "Tu peux en découvrir les détails dans la boutique."] });
     askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(unverified));
     await expect(generateUgcCreative(input())).rejects.toMatchObject({
       stage: "creative_direction_validation", details: { type: "unsupported_claim" },
@@ -210,7 +237,7 @@ describe("génération créative UGC déterministe", () => {
   it("bloque une affirmation non vérifiée dans le dialogue brut même si ce texte sera remplacé", async () => {
     const overlong = draft({ shortLines: ["mot ".repeat(20), "phrase ".repeat(20), "texte ".repeat(20)] });
     askText.mockResolvedValueOnce(JSON.stringify(analysis))
-      .mockResolvedValueOnce(JSON.stringify({ ...overlong, shortLines: ["Cette méthode garantit un résultat.", "Je consulte cette référence.", "Elle reste sous mes yeux."] }));
+      .mockResolvedValueOnce(JSON.stringify({ ...overlong, shortLines: ["Cette méthode garantit un résultat.", "Ce guide numérique est consacré à Excel.", "Tu peux en découvrir les détails dans la boutique."] }));
     await expect(generateUgcCreative(input())).rejects.toMatchObject({
       stage: "creative_direction_validation", details: { type: "unsupported_claim" },
     });

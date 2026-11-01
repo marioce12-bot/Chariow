@@ -101,7 +101,22 @@ export function StoreOnboarding() {
   );
 }
 
-type StudioVideoJob = { id: string; status: string; contentUrl?: string | null; error?: string; progress?: number; phase?: string };
+type StudioVideoJob = { id: string; status: string; contentUrl?: string | null; error?: string; progress?: number; phase?: string; trackingUnconfirmed?: boolean };
+const MAX_VIDEO_TRACKING_FAILURES = 3;
+function nextVideoTrackingFailure(previous: { id: string; count: number }, id: string) {
+  return { id, count: previous.id === id ? previous.count + 1 : 1 };
+}
+function videoTrackingRetryMessage(status: string, id: string, locale: string) {
+  const lastKnownStatus = status === "processing" && locale !== "en" ? "en cours" : status;
+  return locale === "en"
+    ? `The last confirmed video status was “${lastKnownStatus}” (ID: ${id}). The current status could not be confirmed; checking again automatically. Do not start another generation.`
+    : `Dernier statut confirmé : « ${lastKnownStatus} » (ID : ${id}). Le statut actuel n’a pas pu être confirmé ; nouvelle vérification automatique. Ne relance pas la génération.`;
+}
+function videoTrackingUnavailableMessage(id: string, locale: string) {
+  return locale === "en"
+    ? `The current video status remains unknown after ${MAX_VIDEO_TRACKING_FAILURES} checks. ID: ${id}. Check Studio History before starting another request.`
+    : `Le statut actuel de la vidéo reste inconnu après ${MAX_VIDEO_TRACKING_FAILURES} vérifications. ID : ${id}. Consulte l’Historique du Studio avant toute nouvelle demande.`;
+}
 type StudioHistoryItem = { id: string; kind: "image" | "video"; prompt: string; options: Record<string, string | number>; metadata?: Record<string, unknown> | null; creationType?: "slideshow" | "image" | "video"; thumbnailUrl?: string | null; mediaState?: "ready" | "missing" | "processing" | "failed"; sourceImageCount?: number; status: string; credits_cost: number; storage_path?: string | null; video_job_id?: string | null; mediaUrl?: string | null; created_at: string };
 
 function htmlDescriptionToText(description: string): string {
@@ -167,6 +182,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [imageLoaded, setImageLoaded] = useState(false);
   const [videoJob, setVideoJob] = useState<StudioVideoJob | null>(null);
   const videoRequestIdRef = useRef<string | null>(null);
+  const videoTrackingFailuresRef = useRef<{ id: string; count: number }>({ id: "", count: 0 });
   const [loading, setLoading] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const stopProgressRef = useRef<(() => void) | null>(null);
@@ -421,21 +437,29 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       let changed = false;
       for (const item of pending) {
         try {
-          const response = await fetch(`/api/studio/video/${encodeURIComponent(item.video_job_id as string)}`);
+          const jobId = item.video_job_id as string;
+          const response = await fetch(`/api/studio/video/${encodeURIComponent(jobId)}`);
           const data = await response.json().catch(() => null);
-          if (response.ok && data?.status) {
-            if (data.status === "processing") {
-              // Toujours en cours : on reprend le polling pour terminer la
-              // génération au lieu de la laisser figée sur "processing".
-              setVideoJob((current) => current ?? { id: item.video_job_id as string, status: "processing" });
-            } else {
-              changed = true;
-            }
+          if (response.ok && typeof data?.status === "string") {
+            videoTrackingFailuresRef.current = { id: jobId, count: 0 };
+            const normalized: StudioVideoJob = {
+              ...data,
+              id: typeof data.jobId === "string" ? data.jobId : jobId,
+              trackingUnconfirmed: false,
+            };
+            setVideoJob((current) => current && current.id !== jobId && current.id !== normalized.id ? current : normalized);
+            setError(typeof normalized.error === "string" ? normalized.error : "");
+            if (data.status !== "processing") changed = true;
+          } else {
+            videoTrackingFailuresRef.current = nextVideoTrackingFailure(videoTrackingFailuresRef.current, jobId);
+            setVideoJob((current) => current && current.id !== jobId ? current : { ...(current ?? { id: jobId, status: item.status }), trackingUnconfirmed: true });
+            setError(videoTrackingRetryMessage(item.status, jobId, locale));
           }
         } catch {
-          // Vérification en tâche de fond : un échec réseau ici n'empêche pas
-          // de continuer à utiliser le Studio, on retentera à la prochaine
-          // ouverture de la page.
+          const jobId = item.video_job_id as string;
+          videoTrackingFailuresRef.current = nextVideoTrackingFailure(videoTrackingFailuresRef.current, jobId);
+          setVideoJob((current) => current && current.id !== jobId ? current : { ...(current ?? { id: jobId, status: item.status }), trackingUnconfirmed: true });
+          setError(videoTrackingRetryMessage(item.status, jobId, locale));
         }
       }
       if (changed) {
@@ -451,31 +475,41 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     let active = true;
     let timer: number | null = null;
     const controller = new AbortController();
+    const noteTrackingFailure = () => {
+      const next = nextVideoTrackingFailure(videoTrackingFailuresRef.current, videoJob.id);
+      videoTrackingFailuresRef.current = next;
+      if (next.count >= MAX_VIDEO_TRACKING_FAILURES) {
+        const message = videoTrackingUnavailableMessage(videoJob.id, locale);
+        setVideoJob((current) => current?.id === videoJob.id ? null : current);
+        setError(message);
+        void loadHistory(true);
+      } else {
+        setVideoJob((current) => current?.id === videoJob.id ? { ...current, trackingUnconfirmed: true } : current);
+        setError(videoTrackingRetryMessage(videoJob.status, videoJob.id, locale));
+      }
+    };
     const poll = async () => {
       try {
         const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`, { signal: controller.signal });
         const result = await response.json().catch(() => ({}));
         if (!active) return;
         if (response.ok && typeof result?.status === "string") {
-          setVideoJob(result);
-          if (typeof result.error === "string") setError(result.error);
+          videoTrackingFailuresRef.current = { id: videoJob.id, count: 0 };
+          const normalized: StudioVideoJob = {
+            ...result,
+            id: typeof result.jobId === "string" ? result.jobId : videoJob.id,
+            trackingUnconfirmed: false,
+          };
+          setVideoJob(normalized);
+          setError(typeof normalized.error === "string" ? normalized.error : "");
           if (["completed", "failed", "cancelled"].includes(result.status)) {
             const credits = await fetch("/api/studio/credits").then((creditResponse) => creditResponse.ok ? creditResponse.json() : null).catch(() => null);
             if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
             void loadHistory(true);
           }
-        }
-        else if (response.status === 404) {
-          const message = typeof result.error === "string" ? result.error : (locale === "en" ? "Video task not found. Check history and credits before starting another request." : "Tâche vidéo introuvable. Vérifie l’historique et les crédits avant toute nouvelle demande.");
-          setError(message);
-          setVideoJob((current) => current?.id === videoJob.id ? { ...current, status: "failed", error: message } : current);
-          void loadHistory(true);
-          const credits = await fetch("/api/studio/credits").then((creditResponse) => creditResponse.ok ? creditResponse.json() : null).catch(() => null);
-          if (active && credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
-        }
-        else if (result.error) setError(result.error);
+        } else noteTrackingFailure();
       } catch {
-        // Retry after the current request settles; cleanup aborts any in-flight read.
+        if (active && !controller.signal.aborted) noteTrackingFailure();
       } finally {
         if (active && !controller.signal.aborted) timer = window.setTimeout(() => void poll(), 4_000);
       }
@@ -486,7 +520,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       if (timer !== null) window.clearTimeout(timer);
       controller.abort();
     };
-  }, [videoJob?.id, videoJob?.status]);
+  }, [videoJob?.id, videoJob?.status, locale]);
 
   async function uploadReferenceFiles() {
     if (!referenceFiles.length) return [];
@@ -582,7 +616,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     setImageLoaded(false);
     setGenerationProgress(kind === "image" ? 3 : 0);
     if (kind === "image") stopProgressRef.current = startEstimatedGenerationProgress(setGenerationProgress);
-    if (kind === "video") setVideoJob(null);
+    if (kind === "video") {
+      videoTrackingFailuresRef.current = { id: "", count: 0 };
+      setVideoJob(null);
+    }
     try {
       const uploadedReferenceUrls = kind === "image" ? await uploadReferenceFiles() : [];
       const referenceUrls = kind === "image"

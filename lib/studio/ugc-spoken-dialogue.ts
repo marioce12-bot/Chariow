@@ -4,28 +4,51 @@ export function ugcWordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+const GENERIC_FILLER_LINES = new Set([
+  "a new discovery",
+  "i take a moment",
+  "i look at the reference",
+  "i continue",
+  "a discovery",
+  "i take a look",
+  "here is the reference",
+  "une nouvelle decouverte",
+  "je prends un instant",
+  "je regarde la reference",
+  "je continue",
+  "une decouverte",
+  "je regarde",
+  "voici la reference",
+]);
+
+function normalizeDialogueLine(line: string): string {
+  return line
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/[.!?…]+$/g, "")
+    .trim();
+}
+
+export function isGenericUgcFillerLine(line: string): boolean {
+  return GENERIC_FILLER_LINES.has(normalizeDialogueLine(line));
+}
+
 /**
- * Spoken copy is deliberately code-generated: it contains no product claims,
- * and the full product name is used only when the complete script fits.
+ * Preserve the model-written ad dialogue. Only the final CTA is server-authored,
+ * and the named product is kept whenever the full script fits the time budget.
  */
-export function deterministicUgcDialogue(
+export function buildUgcSpokenDialogue(
   duration: number,
   language: UgcSpokenLanguage,
   productName: string,
-  lineCount: 4 | 5,
+  storyLines: [string, string, string, string],
 ): string[] {
   const english = language === "en";
-  const setup = lineCount === 5
-    ? english
-      ? ["A new discovery.", "I take a moment.", "I look at the reference.", "I continue."]
-      : ["Une nouvelle découverte.", "Je prends un instant.", "Je regarde la référence.", "Je continue."]
-    : english
-      ? ["A discovery.", "I take a look.", "Here is the reference."]
-      : ["Une découverte.", "Je regarde.", "Voici la référence."];
   const name = productName.trim();
   const namedCta = english ? `Discover ${name} in the shop.` : `Découvre ${name} dans la boutique.`;
   const neutralCta = english ? "Discover the product in the shop." : "Découvre le produit en boutique.";
   const maxWords = Math.floor(duration * 1.8);
-  const cta = ugcWordCount([...setup, namedCta].join(" ")) <= maxWords ? namedCta : neutralCta;
-  return [...setup, cta];
+  const cta = ugcWordCount([...storyLines, namedCta].join(" ")) <= maxWords ? namedCta : neutralCta;
+  return [...storyLines, cta];
 }

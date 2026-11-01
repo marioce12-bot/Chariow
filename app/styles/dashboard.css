@@ -142,9 +142,11 @@ html[data-theme="dark"] .studio-mobile-choice { background:#101f45; border-color
 .studio-edit-box > div { display:flex; gap:7px; }
 .studio-loading { animation:studioShimmer 1.5s linear infinite; background:linear-gradient(110deg,#edf3e9 30%,#f8fbf5 45%,#edf3e9 60%); background-size:220% 100%; }
 .studio-loading svg { animation:studioPulse 1s ease-in-out infinite; }
+.studio-result[aria-busy="true"] .studio-empty.studio-loading::after { animation:studioStatusSpin .9s linear infinite; border:2px solid rgba(76,111,84,.22); border-radius:50%; border-top-color:#4b7452; content:""; display:block; height:18px; margin:8px auto 0; width:18px; }
+@keyframes studioStatusSpin { to { transform:rotate(360deg); } }
 @keyframes studioShimmer { from { background-position:200% 0; } to { background-position:-20% 0; } }
 @keyframes studioPulse { 0%,100% { opacity:.5; transform:scale(.94); } 50% { opacity:1; transform:scale(1.04); } }
-@media (prefers-reduced-motion: reduce) { .studio-loading,.studio-loading svg,.studio-media-wrap.is-editing::after { animation:none; } }
+@media (prefers-reduced-motion: reduce) { .studio-loading,.studio-loading svg,.studio-media-wrap.is-editing::after,.studio-result[aria-busy="true"] .studio-empty.studio-loading::after { animation:none; } }
 /* Histogramme empile de l'accueil */
 .stack-chart { color:inherit; position:relative; }
 .stack-legend { border:1px solid rgba(128,128,128,.3); border-radius:8px; display:flex; flex-wrap:wrap; font-size:11px; gap:6px 14px; list-style:none; margin:0 0 12px; max-width:100%; padding:8px 10px; width:fit-content; }
