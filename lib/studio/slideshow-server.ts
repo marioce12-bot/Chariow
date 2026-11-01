@@ -11,7 +11,6 @@ import { MAX_SLIDESHOW_IMAGES, MIN_SLIDESHOW_IMAGES, SLIDESHOW_DURATIONS } from 
 import { storeStudioVideo, signedStudioUrl } from "@/lib/studio/media";
 import { isCloudinaryStudioPath, signedCloudinaryPrivateImageDownload } from "@/lib/studio/cloudinary-media";
 import { LICENSED_MUSIC, getLicensedTrack, musicAttribution, YOUTUBE_CREDIT_NOTICE } from "@/lib/studio/licensed-music";
-import { resolveSlideshowMusicId } from "@/lib/studio/slideshow-music";
 
 import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan } from "@/lib/studio/slideshow-voice";
 import { synthesizeCoveredSlideshowVoice } from "@/lib/studio/slideshow-voice-retry";
@@ -139,41 +138,46 @@ export async function preflightSlideshow(musicId: string) {
   const bins = binPaths(); await stat(bins.ffmpegPath); await stat(bins.ffprobePath);
   const bucket = await createAdminClient().storage.getBucket("studio-media");
   if (bucket.error || !bucket.data || bucket.data.public) throw new Error("Private Studio storage required");
-  const track = getLicensedTrack(resolveSlideshowMusicId(musicId)); if (!track) throw new Error("Music track unavailable");
+  if (!musicId) return;
+  const track = getLicensedTrack(musicId); if (!track) throw new Error("Music track unavailable");
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-preflight-"));
   try { await ensurePrivateTrack(track, work); } finally { await rm(work, { recursive: true, force: true }); }
 }
 export async function renderSlideshow(userId: string, ids: string[], duration: number, musicId: string, taskId?: string, voiceInput?: { product: { name: string; description?: string }; locale?: string; campaignGoal?: unknown }, creativePerformanceSource?: Record<string, unknown>, creativeIdea?: Record<string, unknown>): Promise<SlideResult> {
   if (ids.length < MIN_SLIDESHOW_IMAGES || ids.length > MAX_SLIDESHOW_IMAGES || new Set(ids).size !== ids.length) throw new Error("Invalid slideshow image count");
   if (!(SLIDESHOW_DURATIONS as readonly number[]).includes(duration)) throw new Error("Invalid slideshow duration");
-  if (!voiceInput) throw new Error("La voix off est obligatoire pour chaque diaporama.");
-  if (!taskId) throw new Error("La voix nécessite une tâche persistante pour éviter les doublons.");
-  assertSlideshowVoiceAllowed();
-  const voicePlan = buildSlideshowVoicePlan(voiceInput.product, duration, voiceInput.locale, voiceInput.campaignGoal);
-  musicId = voicePlan.musicId;
-  musicId = resolveSlideshowMusicId(musicId);
+  // Only newly created, explicitly opted-in background tasks use TTS. Legacy tasks remain unchanged.
+  let voicePlan: ReturnType<typeof buildSlideshowVoicePlan> | undefined;
+  if (voiceInput) {
+    if (!taskId) throw new Error("La voix nécessite une tâche persistante pour éviter les doublons.");
+    assertSlideshowVoiceAllowed();
+    voicePlan = buildSlideshowVoicePlan(voiceInput.product, duration, voiceInput.locale, voiceInput.campaignGoal);
+    musicId = voicePlan.musicId;
+  }
   const track = getLicensedTrack(musicId);
-  if (!track) throw new Error("Music track unavailable");
+  if (musicId && !track) throw new Error("Music track unavailable");
   const work = await mkdtemp(path.join(tmpdir(), "vendeo-slideshow-api-"));
   try {
     const { files: images, thumbnailStoragePath } = await loadOwnedImages(userId, ids, work);
-    const music = await ensurePrivateTrack(track, work);
+    const music = track ? await ensurePrivateTrack(track, work) : undefined;
     let voicePath: string | undefined;
     let voiceMetadata: Record<string, unknown> | undefined;
     const bins = binPaths();
-    // The durable render claim prevents duplicate workers. Only measured timing
-    // failures may request a revised script; uncertain/API failures stop at once.
-    const covered = await synthesizeCoveredSlideshowVoice(voicePlan, voiceInput, async (audio, attempt) => {
-      const raw = path.join(work, `narration-${attempt}.wav`);
-      await writeFile(raw, audio);
-      return prepareSlideshowVoice(raw, bins.ffmpegPath, bins.ffprobePath, duration, work);
-    });
-    voicePath = covered.voicePath;
-    voiceMetadata = { ...covered.plan, provider: "gemini", tier: "free", creditsCost: 0, version: 2, attempts: covered.attempts };
-    if (!voicePath || !voiceMetadata) throw new Error("Narration audio is required; refusing to save a silent slideshow.");
+    if (voicePlan && voiceInput) {
+      // The durable render claim prevents duplicate workers. Only measured timing
+      // failures may request a revised script; uncertain/API failures stop at once.
+      const covered = await synthesizeCoveredSlideshowVoice(voicePlan, voiceInput, async (audio, attempt) => {
+        const raw = path.join(work, `narration-${attempt}.wav`);
+        await writeFile(raw, audio);
+        return prepareSlideshowVoice(raw, bins.ffmpegPath, bins.ffprobePath, duration, work);
+      });
+      voicePlan = covered.plan;
+      voicePath = covered.voicePath;
+      voiceMetadata = { ...voicePlan, provider: "gemini", tier: "free", creditsCost: 0, version: 2, attempts: covered.attempts };
+    }
     const output = path.join(work, "slideshow.mp4");
-    const attribution = `${musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", SLIDESHOW_AUDIO_CHANGE] })}\n${YOUTUBE_CREDIT_NOTICE}`;
-    const finalAttribution = `${attribution}\nAdditional modifications: music ducked under generated product narration.`;
+    const attribution = track ? `${musicAttribution(track, { changes: ["synchronized with product visuals", "trimmed to slideshow duration", SLIDESHOW_AUDIO_CHANGE] })}\n${YOUTUBE_CREDIT_NOTICE}` : "Sans musique. Aucune attribution musicale nécessaire pour ce rendu.";
+    const finalAttribution = voicePlan ? `${attribution}\nAdditional modifications: music ducked under generated product narration.` : attribution;
     await assembleSlideshow({ ...bins, outputPath: output, duration, imagePaths: images, musicPath: music, voicePath, width: 720, height: 1280, fps: 25, attribution: finalAttribution });
     const { size } = await stat(output);
     if (size > MAX_VIDEO_BYTES) throw new Error("Rendered video exceeds size limit");
@@ -190,7 +194,6 @@ export async function remixSlideshow(userId: string, generationId: string, music
   const admin = createAdminClient();
   const { data: row, error } = await admin.from("studio_generations").select("id,user_id,kind,status,storage_path,metadata").eq("id", generationId).eq("user_id", userId).maybeSingle();
   if (error || !row || row.user_id !== userId || row.kind !== "video" || row.status !== "completed" || typeof row.storage_path !== "string" || !row.storage_path.startsWith(`${userId}/`) || row.metadata?.type !== "slideshow" || !Array.isArray(row.metadata.imageGenerationIds) || row.metadata.imageGenerationIds.length < 2 || row.metadata.imageGenerationIds.length > MAX_SLIDESHOW_IMAGES || new Set(row.metadata.imageGenerationIds).size !== row.metadata.imageGenerationIds.length || row.metadata.imageGenerationIds.some((id: unknown) => typeof id !== "string") || !isRemixSlideshowDuration(row.metadata.duration) || (row.metadata.musicId !== "" && !getLicensedTrack(row.metadata.musicId))) throw new Error("Slideshow unavailable");
-  if (!row.metadata.voiceover) throw new Error("Le remix est bloqué : chaque diaporama doit contenir une voix off.");
   if (row.metadata.voiceover) throw new Error("La bande-son automatique de ce diaporama est conservée avec sa voix.");
   const images = row.metadata.imageGenerationIds as string[];
   // Verify the original still belongs to the user and is an image; never trust client paths/metadata alone.

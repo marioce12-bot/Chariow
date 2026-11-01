@@ -33,35 +33,16 @@ function database() {
 }
 beforeEach(() => {
   vi.clearAllMocks(); m.after.length = 0;
-  vi.stubEnv("VERCEL_ENV", "preview"); vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "true"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "true");
   process.env.SUPABASE_SERVICE_ROLE_KEY = "mock-only-key";
   m.auth.mockResolvedValue({ user: { id: "owner" } });
   children = Array.from({ length: 4 }, (_, i) => ({ id: stageGenerationId(id, i + 1), user_id: "owner", status: "completed", storage_path: `owner/${i}.png`, credits_cost: 20 }));
-  row = { id, user_id: "owner", status: "failed", created_at: "2026-10-21T23:26:12Z", metadata: { type: TASK_TYPE, taskKind: "slideshow", phase: "failed", revision: 5, images: children.map(c => ({ id: c.id, url: "old" })), creditsConsumed: 80, creditState: "confirmed", progress: 73, updatedAt: "2026-10-21T23:28:00Z", error: "dispatch", input: { product: { name: "mock", description: "mock" }, duration: 25, musicId: "", locale: "fr", voiceover: true }, stages: children.map((c, i) => ({ step: i + 1, kind: "image", state: "completed", generationId: c.id, cost: 20, creditState: "confirmed" })) } };
+  row = { id, user_id: "owner", status: "failed", created_at: "2026-10-21T23:26:12Z", metadata: { type: TASK_TYPE, taskKind: "slideshow", phase: "failed", revision: 5, images: children.map(c => ({ id: c.id, url: "old" })), creditsConsumed: 80, creditState: "confirmed", progress: 73, updatedAt: "2026-10-21T23:28:00Z", error: "dispatch", input: { product: { name: "mock", description: "mock" }, duration: 25, musicId: "", locale: "fr" }, stages: children.map((c, i) => ({ step: i + 1, kind: "image", state: "completed", generationId: c.id, cost: 20, creditState: "confirmed" })) } };
   m.generate.mockImplementation(async (_user, _input, stage) => { children.push({ id: stage.generationId, user_id: "owner", status: "completed", storage_path: "owner/fifth.png", credits_cost: 20 }); return Response.json({ generationId: stage.generationId, imageUrl: "https://stored.test/fifth.png", cost: 20 }); });
   m.render.mockResolvedValue({ generationId: "mp4", videoUrl: "https://stored.test/final.mp4" });
   vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 202 })));
   database();
 });
 describe("continue route no-charge integration", () => {
-  it("blocks GET and POST without mutating the task while voiceover is unavailable", async () => {
-    vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "false");
-    const original = structuredClone(row);
-    const get = await GET(new Request("https://test.invalid"), context); const payload = await get.json();
-    expect(payload.task.resume).toMatchObject({ allowed: false, reason: "SLIDESHOW_VOICE_UNAVAILABLE" });
-    const response = await POST(request({ expectedRevision: 5, confirmCost: 20 }), context);
-    expect(response.status).toBe(503); expect((await response.json()).code).toBe("SLIDESHOW_VOICE_UNAVAILABLE");
-    expect(row).toEqual(original); expect(m.after).toHaveLength(0); expect(m.generate).not.toHaveBeenCalled();
-  });
-  it("blocks a legacy task that did not request the required voiceover", async () => {
-    row.metadata.input.voiceover = false;
-    const original = structuredClone(row);
-    const get = await GET(new Request("https://test.invalid"), context); const payload = await get.json();
-    expect(payload.task.resume).toMatchObject({ allowed: false, reason: "SLIDESHOW_VOICE_REQUIRED" });
-    const response = await POST(request({ expectedRevision: 5, confirmCost: 20 }), context);
-    expect(response.status).toBe(409); expect((await response.json()).code).toBe("SLIDESHOW_VOICE_REQUIRED");
-    expect(row).toEqual(original); expect(m.after).toHaveLength(0); expect(m.generate).not.toHaveBeenCalled();
-  });
   it("GET loads the four saved images, 80 credits and quote without scheduling any work", async () => {
     const response = await GET(new Request("https://test.invalid"), context); const data = await response.json();
     expect(response.status).toBe(200); expect(data.task.images).toHaveLength(4); expect(data.task.creditsConsumed).toBe(80);

@@ -155,7 +155,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
       return response({ tasks: [] });
     });
     await mount();
-    expect(container.textContent).toContain("Voix off obligatoire et musique ajoutées automatiquement");
+    expect(container.textContent).toContain("Voix et musique ajoutées automatiquement");
     expect(container.querySelector('[aria-label="Musique"]')).toBeNull();
     expect(container.textContent).not.toContain("Remplacer la musique");
     const click = async (name: string) => act(async () => {
@@ -180,13 +180,13 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     const prompt = fetcher.mock.calls.filter(([url]) => url === "/api/studio/prompt").at(-1)!;
     expect(JSON.parse(String(prompt[1]?.body))).toMatchObject({
       product: { description: "Description existante\nDétails ajoutés" }, mediaType: "video", videoMode: "slideshow", duration: 25,
-      aspectRatio: "9:16", campaignGoal: "discover", locale: "fr", musicId: "sb-amberlight", voiceover: true,
+      aspectRatio: "9:16", campaignGoal: "discover", locale: "fr", musicId: "", voiceover: true,
     });
     const launch = fetcher.mock.calls.find(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")!;
-    expect(JSON.parse(String(launch[1]?.body))).toMatchObject({ input: { musicId: "sb-amberlight", voiceover: true } });
+    expect(JSON.parse(String(launch[1]?.body))).toMatchObject({ input: { musicId: "", voiceover: true } });
     expect([...container.querySelectorAll("button")].some((item) => item.textContent?.trim() === "Créer")).toBe(false);
   });
-  it("bloque la création tant que la voix obligatoire est indisponible", async () => {
+  it("crée en musique seule et n’envoie pas la voix tant qu’elle est en validation", async () => {
     fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url.endsWith("/config")) return response({ enabled: true, voiceoverEnabled: true, voiceoverTestAllowed: false, tracks: [] });
       if (url === "/api/studio/prompt") return response({ plan: {} });
@@ -194,12 +194,14 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
       return response({ tasks: [] });
     });
     await mount();
-    expect(container.textContent).toContain("La voix off est obligatoire pour chaque diaporama.");
-    expect(container.textContent).toContain("aucun visuel ni crédit ne sera consommé");
-    const create = container.querySelector<HTMLButtonElement>("button.studio-generate")!;
-    expect(create.disabled).toBe(true);
-    await act(async () => { create.click(); });
-    expect(fetcher.mock.calls.some(([url, init]) => ["/api/studio/prompt", "/api/studio/tasks"].includes(String(url)) && (init as RequestInit | undefined)?.method === "POST")).toBe(false);
+    expect(container.textContent).toContain("Musique ajoutée automatiquement à la génération.");
+    expect(container.textContent).toContain("La génération de voix est en cours de validation.");
+    await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); });
+    const prompt = fetcher.mock.calls.find(([url, init]) => url === "/api/studio/prompt" && (init as RequestInit | undefined)?.method === "POST")!;
+    const launch = fetcher.mock.calls.find(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")!;
+    expect(JSON.parse(String(prompt[1]?.body))).toMatchObject({ voiceover: false });
+    expect(JSON.parse(String(launch[1]?.body))).toMatchObject({ input: { voiceover: false } });
+    expect(container.textContent).toContain("Génération en cours");
   });
   it("fait progresser l’indicateur sous 100% pendant les étapes images 1 à n", async () => {
     vi.useFakeTimers();

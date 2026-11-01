@@ -10,7 +10,6 @@ import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progre
 import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
 import { createClient } from "@/lib/supabase/browser";
-import { resolveSlideshowMusicId } from "@/lib/studio/slideshow-music";
 
 type Product = {
   id: string;
@@ -450,7 +449,6 @@ export function SlideshowStudio({
   }
   async function generate() {
     if (!enabled || !ready || !product || busy || pendingRequest || running.current || taskRef.current?.status === "processing") return;
-    if (!voiceoverAvailable) { setError(fr ? "La voix off est obligatoire. La création est bloquée tant qu’elle n’est pas disponible." : "A voiceover is required. Creation is blocked until it is available."); return; }
     if (recovery && !temporaryDescription.trim()) return;
     if (lacksCredits) return;
     running.current = true;
@@ -459,7 +457,7 @@ export function SlideshowStudio({
     setStatus(fr ? "Vérification des informations…" : "Checking product details…");
     try {
       if (!variationIdRef.current) variationIdRef.current = crypto.randomUUID();
-      await send("/api/studio/prompt", { variationId: variationIdRef.current, product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId: resolveSlideshowMusicId(musicId), voiceover: voiceoverAvailable });
+      await send("/api/studio/prompt", { variationId: variationIdRef.current, product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId: "", voiceover: voiceoverAvailable });
       setRecovery(false); setTechnicalDetails("");
       if (recovery) { taskRef.current = null; setResumeTask(null); setAttempted(false); setStatus(fr ? "Plan prêt. Vérifie le coût, puis appuie sur Créer." : "Plan ready. Review the cost, then click Create."); return; }
       await createTask();
@@ -487,7 +485,7 @@ export function SlideshowStudio({
     }
     setStatus(fr ? "Lancement de la génération…" : "Starting generation…");
     try {
-      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId: resolveSlideshowMusicId(musicId), voiceover: voiceoverAvailable, variationId: variationIdRef.current, ...(creativePerformanceSource ? { creativePerformanceSource } : {}), ...(creativeIdea ? { creativeIdea } : {}) } });
+      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId: "", voiceover: voiceoverAvailable, variationId: variationIdRef.current, ...(creativePerformanceSource ? { creativePerformanceSource } : {}), ...(creativeIdea ? { creativeIdea } : {}) } });
       const task = response.task as Task;
       if (!task) throw new Error("Réponse de tâche invalide.");
       try { localStorage.removeItem(key); } catch { /* ignore */ }
@@ -565,8 +563,9 @@ export function SlideshowStudio({
         </label>
       </div>
       <p>{voiceoverAvailable
-        ? (fr ? "Voix off obligatoire et musique ajoutées automatiquement à la génération." : "Required voiceover and music are added automatically during generation.")
-        : (fr ? "La voix off est obligatoire pour chaque diaporama. La création est bloquée tant que la voix n’est pas disponible ; aucun visuel ni crédit ne sera consommé." : "Every slideshow requires a voiceover. Creation is blocked until voice is available; no images or credits will be used.")}</p>
+        ? (fr ? "Voix et musique ajoutées automatiquement à la génération." : "Voiceover and music are added automatically during generation.")
+        : (fr ? "Musique ajoutée automatiquement à la génération." : "Music is added automatically during generation.")}</p>
+      {!voiceoverAvailable ? <small>{fr ? "La génération de voix est en cours de validation." : "Voice generation is being validated."}</small> : null}
       {resumeTask && !recovery && !busy ? <section aria-label={fr ? "Reprise du diaporama" : "Resume slideshow"}>
         <h3>{fr ? "Diaporama interrompu" : "Interrupted slideshow"}</h3>
         {resumeTask.input?.product?.name ? <p>{resumeTask.input.product.name}</p> : null}
@@ -576,11 +575,7 @@ export function SlideshowStudio({
           <p>{fr ? `Coût restant de la reprise : ${resumeTask.resume.cost} crédits Studio.` : `Remaining resume cost: ${resumeTask.resume.cost} Studio credits.`}</p>
           {lacksResumeCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : la reprise coûte ${resumeCost} crédits Studio, il te reste ${available}. Recharge tes crédits pour continuer.` : `Insufficient balance: resuming costs ${resumeCost} Studio credits, you have ${available}. Top up to continue.`}</p> : null}
           {resumeTask.resume.requiresConfirmation ? <label><input type="checkbox" checked={resumeConfirmed} onChange={e => setResumeConfirmed(e.target.checked)} />{fr ? `J’autorise la reprise pour ${resumeTask.resume.cost} crédits maximum.` : `I authorize resuming for up to ${resumeTask.resume.cost} credits.`}</label> : null}
-        </> : <p>{resumeTask.resume?.reason === "SLIDESHOW_VOICE_UNAVAILABLE"
-          ? (fr ? "La reprise est bloquée jusqu’au rétablissement de la voix off obligatoire. Les visuels existants sont conservés et aucun nouveau crédit n’est consommé." : "Resuming is blocked until the required voiceover is available. Existing images are preserved and no new credits are consumed.")
-          : resumeTask.resume?.reason === "SLIDESHOW_VOICE_REQUIRED"
-            ? (fr ? "Cette ancienne tâche ne contient pas la voix obligatoire. Elle ne sera pas relancée sans narration." : "This older task has no required voiceover. It will not resume without narration.")
-            : (fr ? `L’état de l’étape manquante n’est pas confirmé. La reprise reste bloquée pour éviter une nouvelle facturation. Coût restant estimé : ${resumeTask.resume?.cost ?? "—"} crédits, non autorisé tant que cette étape n’est pas vérifiée. Les visuels terminés sont conservés.` : `The missing stage is unconfirmed. Resuming is blocked to prevent another charge. Estimated remaining cost: ${resumeTask.resume?.cost ?? "—"} credits, not authorized until the stage is verified. Completed images are preserved.`)}</p>}
+        </> : <p>{fr ? `L’état de l’étape manquante n’est pas confirmé. La reprise reste bloquée pour éviter une nouvelle facturation. Coût restant estimé : ${resumeTask.resume?.cost ?? "—"} crédits, non autorisé tant que cette étape n’est pas vérifiée. Les visuels terminés sont conservés.` : `The missing stage is unconfirmed. Resuming is blocked to prevent another charge. Estimated remaining cost: ${resumeTask.resume?.cost ?? "—"} credits, not authorized until the stage is verified. Completed images are preserved.`}</p>}
         <button type="button" className="btn btn-dark studio-continue" disabled={!resumeTask.resume?.allowed || lacksResumeCredits || (!!resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
         <button type="button" className="btn btn-ghost" onClick={newSlideshow}>{fr ? "Nouveau diaporama" : "New slideshow"}</button>
       </section> : null}
@@ -589,7 +584,7 @@ export function SlideshowStudio({
           {recovery ? <><p>{fr ? "Ajoute une précision utile sur le produit pour préparer le diaporama." : "Add a useful product detail to prepare the slideshow."}</p>{error ? <p role="alert" className="form-error">{error}</p> : null}<label>{fr ? "Description temporaire" : "Temporary description"}<textarea aria-label={fr ? "Description temporaire" : "Temporary description"} rows={4} value={temporaryDescription} disabled={busy} onChange={e => setTemporaryDescription(e.target.value)} /></label></> : null}
           <p className="studio-cost">{fr ? `Coût : ${slideshowCost} crédits Studio` : `Cost: ${slideshowCost} Studio credits`}{available !== null ? (fr ? ` · Solde disponible : ${available}` : ` · Available balance: ${available}`) : null}</p>
           {lacksCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : ce diaporama coûte ${slideshowCost} crédits Studio, il te reste ${available}. Recharge tes crédits avant de créer.` : `Insufficient balance: this slideshow costs ${slideshowCost} Studio credits, you have ${available}. Top up before creating.`}</p> : null}
-          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready || lacksCredits || !voiceoverAvailable} onClick={() => void generate()}>{recovery ? (fr ? "Relancer" : "Retry") : (fr ? "Créer" : "Create")}</button>
+          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready || lacksCredits} onClick={() => void generate()}>{recovery ? (fr ? "Relancer" : "Retry") : (fr ? "Créer" : "Create")}</button>
         </>
       ) : null}
     </section>

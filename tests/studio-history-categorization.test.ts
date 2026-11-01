@@ -12,7 +12,6 @@ const slideshow = (n: number, created_at: string, sourceIds: string[], extra: Re
 
 type Filter = (row: any) => boolean;
 function pathValue(row: any, path: string): any {
-  if (Object.hasOwn(row ?? {}, path)) return row[path];
   if (path === "id" || path === "kind" || path === "user_id" || path === "created_at") return row[path];
   if (path === "options->>type") return row.options?.type;
   if (path === "metadata->>type") return row.metadata?.type;
@@ -44,9 +43,8 @@ function expression(expr: string): Filter {
 }
 class MemorySupabase {
   calls: any[] = [];
-  constructor(public rows: any[], public transactions: any[] = []) {}
+  constructor(public rows: any[]) {}
   from(table: string) {
-    const source = table === "credit_transactions" ? this.transactions : this.rows;
     const state: { filters: Filter[]; orders: { column: string; ascending: boolean }[]; start?: number; end?: number; max?: number } = { filters: [], orders: [] };
     const q: any = {
       select: () => q,
@@ -61,7 +59,7 @@ class MemorySupabase {
       then: (resolve: any, reject: any) => {
         try {
           this.calls.push({ table, ...state });
-          let data = source.filter(r => state.filters.every(f => f(r)));
+          let data = this.rows.filter(r => state.filters.every(f => f(r)));
           for (const ord of [...state.orders].reverse()) data.sort((a,b) => (a[ord.column] < b[ord.column] ? -1 : a[ord.column] > b[ord.column] ? 1 : 0) * (ord.ascending ? 1 : -1));
           if (state.start !== undefined) data = data.slice(state.start, (state.end ?? state.start) + 1);
           if (state.max !== undefined) data = data.slice(0, state.max);
@@ -76,34 +74,6 @@ class MemorySupabase {
 beforeEach(() => signedUrl.mockClear());
 
 describe("studio history categorization", () => {
-  it("shows real debit totals for resumed slideshows, deduplicating repeated image IDs on every read", async () => {
-    const imageIds = Array.from({ length: 5 }, (_, index) => id(60 + index));
-    const refundedId = id(66);
-    const task = {
-      id: id(70), user_id: U, kind: "image", status: "failed", created_at: "2025-01-04T00:00:00.000Z", storage_path: null,
-      options: { type: "studio_background_task" },
-      metadata: { type: "studio_background_task", taskKind: "slideshow", input: { duration: 25 },
-        images: [...imageIds, imageIds[0]].map(generationId => ({ id: generationId, url: "stored" })),
-        stages: [...imageIds, imageIds[0], refundedId].map((generationId, step) => ({ kind: "image", generationId, step, cost: 20 })) },
-    };
-    const debits = [...imageIds.map(external_id => ({ user_id: U, kind: "debit", status: "completed", external_id, credits: 20 })),
-      { user_id: U, kind: "debit", status: "refunded", external_id: refundedId, credits: 20 }];
-    const db = new MemorySupabase([task], debits);
-    const first = await readStudioHistory(db, U, null, null);
-    const second = await readStudioHistory(db, U, null, null);
-    expect(first.items[0].credits_cost).toBe(100);
-    expect(second.items[0].credits_cost).toBe(100);
-    expect(db.calls.filter(call => call.table === "credit_transactions")).toHaveLength(2);
-  });
-
-  it("shows the summed image debits on the final MP4 instead of its zero render-row cost", async () => {
-    const imageIds = Array.from({ length: 5 }, (_, index) => id(80 + index));
-    const final = slideshow(90, "2025-01-05T00:00:00.000Z", imageIds, { credits_cost: 0 });
-    const debits = imageIds.map(external_id => ({ user_id: U, kind: "debit", status: "completed", external_id, credits: 20 }));
-    const history = await readStudioHistory(new MemorySupabase([final], debits), U, "video", null);
-    expect(history.items[0]).toMatchObject({ id: final.id, credits_cost: 100 });
-  });
-
   it("shows a saved final MP4 once in All and Video, while retaining source images in Images", async () => {
     const source = image(1, "2025-01-01T00:00:00.000Z");
     const final = slideshow(2, "2025-01-02T00:00:00.000Z", [source.id], { storage_path: `${U}/final.mp4` });

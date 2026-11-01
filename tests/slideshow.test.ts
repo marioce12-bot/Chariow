@@ -29,9 +29,6 @@ function samplePixel(file: string, second: number): Promise<[number, number, num
 }
 
 describe("assembleSlideshow (real ffmpeg)", () => {
-  it("refuses to assemble a slideshow without a required narration input", async () => {
-    await expect(assembleSlideshow({ ffmpegPath: ffmpeg, ffprobePath: ffprobe, outputPath: path.join(tmpdir(), "no-voice.mp4"), duration: 25, imagePaths: [] } as any)).rejects.toThrow(/narration voicePath is required/i);
-  });
   it("uses reproducible but varied profiles with four different transitions per slideshow", () => {
     expect(chooseSlideshowMotionProfile("fixture")).toEqual(chooseSlideshowMotionProfile("fixture"));
     const profiles = Array.from({ length: 40 }, (_, seed) => chooseSlideshowMotionProfile(seed));
@@ -51,10 +48,8 @@ describe("assembleSlideshow (real ffmpeg)", () => {
       }
       const music = path.join(dir, "music.wav");
       await command(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=2", music]);
-      const voice = path.join(dir, "voice.wav");
-      await command(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=25", voice]);
       const output = path.join(dir, "slideshow.mp4");
-      const result = await assembleSlideshow({ ffmpegPath: ffmpeg, ffprobePath: ffprobe, imagePaths: images, musicPath: music, voicePath: voice, outputPath: output, duration: 25, width: 160, height: 90, fps: 24, transitionDuration: 0.6, profileSeed: 11 });
+      const result = await assembleSlideshow({ ffmpegPath: ffmpeg, ffprobePath: ffprobe, imagePaths: images, musicPath: music, outputPath: output, duration: 25, width: 160, height: 90, fps: 24, transitionDuration: 0.6, profileSeed: 11 });
       expect(result.url).toBe(output);
       expect(result.duration).toBeGreaterThanOrEqual(24.9);
       expect(result.duration).toBeLessThanOrEqual(25.1);
