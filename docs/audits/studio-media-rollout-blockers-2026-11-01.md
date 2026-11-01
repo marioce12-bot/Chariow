@@ -34,12 +34,12 @@ Les tests SQL actuels prouvent les leases et transitions après qu’un `request
 
 ## Résultats et étapes encore nécessaires
 
-- Vitest complet : **2 060 tests réussis, 296 fichiers**.
-- TypeScript : `npx tsc --noEmit` réussi.
-- PostgreSQL 16.15 isolé : six migrations appliquées; quatre suites SQL et deux scripts de concurrence réussis; publication Realtime et `pg_cron` vérifiés. Limite : pas de serveur Realtime/Supabase complet, donc pas de preuve du transport d’événements réel.
-- Build de production : `npm run build` réussi (Next.js 15.5.28, compilation, lint/type checks et génération des pages statiques compris).
+- Vitest complet sur la branche : **1 985 tests réussis, 287 fichiers**; `origin/main` (base `6bad835`) : **1 976 tests, 281 fichiers**, tous réussis.
+- TypeScript : `npx tsc --noEmit` réussi sur la branche et sur `origin/main`.
+- PostgreSQL 16.15 temporaire, avec bootstrap minimal des rôles/auth/storage/publication : **102/102 migrations** appliquées. Suites SQL crédit, leases fal.ai, confidentialité/RLS ventes et quotas réussies; courses quota (10 réservations image/vidéo), callback (10 callbacks), et rétention Shopify (SQL et course à deux sessions) réussies. `pg_cron`, la publication et les politiques RLS sont vérifiés. Ce n’est pas la stack Supabase complète : le transport Realtime réel et la réception côté client restent à valider.
+- Build : `npm run build` réussi sur la branche et sur `origin/main` (Next.js 15.5.28, compilation, lint/type checks et génération des pages statiques compris).
 - Cloudinary : lecteur privé local et compatibilité legacy testés; intégration réelle non testée; drapeau toujours fermé.
 - Vidéo fal.ai : producteur/outbox/réconciliateur non implémentés; route toujours verrouillée HTTP 423.
-- Dépendances : 23 modérés restent; aucune correction compatible démontrée sans downgrade majeur.
+- Dépendances : `npm audit` et `npm audit --omit=dev` donnent **23 avis modérés, zéro élevé/critique** sur la branche. Sur `origin/main`, l’audit complet trouve 50 avis (16 modérés, 30 élevés, 4 critiques) et les dépendances de production 42 (12 modérés, 28 élevés, 2 critiques); l’audit courant se termine avec un code non nul à cause des 23 avis restants.
 
 Avant toute décision Production, il reste à valider la stack Supabase/Realtime complète, à tester le lecteur via un compte Cloudinary de prévisualisation, à concevoir puis tester le protocole durable fal.ai sur un environnement isolé, et à obtenir une autorisation séparée pour tout déploiement Production. Aucune de ces étapes Production n’a été exécutée ici.
