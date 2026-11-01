@@ -1,6 +1,6 @@
 # Préparation Studio avant toute décision de mise en production
 
-**État au 1 novembre 2026.** Aucun secret n’a été lu ou exposé; aucun upload média réel, webhook live, projet Vercel, domaine, variable Production, déploiement, merge ou migration distante n’a été utilisé ou modifié. `STUDIO_MEDIA_CLOUDINARY_IMPORT` reste désactivé par défaut, et `POST /api/studio/video` renvoie toujours `423 STUDIO_VIDEO_LOCKED`.
+**État au 1 novembre 2026.** Aucun secret n’a été lu ou exposé; aucun upload média réel, webhook live, paramètre Vercel, domaine, variable Production, merge ou migration distante n’a été utilisé ou modifié. Après autorisation explicite, les pushes de cette branche ont déclenché les seules préversions Vercel de `chariow` et `vendeo`; les checks des deux projets ont réussi sur la révision `9147b70`. Aucun déploiement Production n’a été fait. `STUDIO_MEDIA_CLOUDINARY_IMPORT` reste désactivé par défaut, et `POST /api/studio/video` renvoie toujours `423 STUDIO_VIDEO_LOCKED`.
 
 ## Ce qui est désormais validé localement
 
@@ -42,4 +42,4 @@ Les tests SQL actuels prouvent les leases et transitions après qu’un `request
 - Vidéo fal.ai : producteur/outbox/réconciliateur non implémentés; route toujours verrouillée HTTP 423.
 - Dépendances : 23 modérés restent; aucune correction compatible démontrée sans downgrade majeur.
 
-Avant toute décision Production, il reste à valider la stack Supabase/Realtime complète, à tester le lecteur via un compte Cloudinary de prévisualisation, à concevoir puis tester le protocole durable fal.ai sur un environnement isolé, et à obtenir une autorisation séparée pour tout déploiement. Aucune de ces étapes Production n’a été exécutée ici.
+Avant toute décision Production, il reste à valider la stack Supabase/Realtime complète, à tester le lecteur via un compte Cloudinary de prévisualisation, à concevoir puis tester le protocole durable fal.ai sur un environnement isolé, et à obtenir une autorisation séparée pour tout déploiement Production. Aucune de ces étapes Production n’a été exécutée ici.
