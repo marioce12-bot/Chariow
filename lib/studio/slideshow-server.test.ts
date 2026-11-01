@@ -5,10 +5,8 @@ import { isRemixSlideshowDuration, isPreviewEnabled, publicTracks, resolveTrackP
 
 describe("slideshow backend safety", () => {
   const prior = process.env.VERCEL_ENV;
-  const priorVendeoEnvironment = process.env.VENDEO_DEPLOYMENT_ENV;
   afterEach(() => {
     if (prior === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = prior;
-    if (priorVendeoEnvironment === undefined) delete process.env.VENDEO_DEPLOYMENT_ENV; else process.env.VENDEO_DEPLOYMENT_ENV = priorVendeoEnvironment;
   });
 
   it("enables the released slideshow on Vercel Preview and Production only", () => {
@@ -19,16 +17,6 @@ describe("slideshow backend safety", () => {
     process.env.VERCEL_ENV = "development";
     expect(isPreviewEnabled()).toBe(false);
     delete process.env.VERCEL_ENV;
-    expect(isPreviewEnabled()).toBe(false);
-  });
-
-  it("supports an explicit Render preview tier and fails closed for development", () => {
-    delete process.env.VERCEL_ENV;
-    process.env.VENDEO_DEPLOYMENT_ENV = "preview";
-    expect(isPreviewEnabled()).toBe(true);
-    process.env.VENDEO_DEPLOYMENT_ENV = "development";
-    expect(isPreviewEnabled()).toBe(false);
-    process.env.VENDEO_DEPLOYMENT_ENV = "unknown";
     expect(isPreviewEnabled()).toBe(false);
   });
 

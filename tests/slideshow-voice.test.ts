@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, classifyGeminiVoiceStatus, SLIDESHOW_MUSIC_METADATA, slideshowVoiceAvailability, synthesizeSlideshowVoice } from "@/lib/studio/slideshow-voice";
 import { slideshowEvidence, slideshowSourceCandidates } from "@/lib/studio/slideshow-plan";
 
-afterEach(() => { vi.restoreAllMocks(); delete process.env.VERCEL_ENV; delete process.env.VENDEO_DEPLOYMENT_ENV; delete process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED; delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED; delete process.env.GEMINI_API_KEY; delete process.env.VENDEO_SLIDESHOW_TTS_ENABLED; });
+afterEach(() => { vi.restoreAllMocks(); delete process.env.VERCEL_ENV; delete process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED; delete process.env.VENDEO_GEMINI_FREE_TIER_CONFIRMED; delete process.env.GEMINI_API_KEY; delete process.env.VENDEO_SLIDESHOW_TTS_ENABLED; });
 const product = { name: "Carnet créatif", description: "Livre illustré avec 120 pages. Papier recyclé certifié. Reliure cousue durable. Format compact pour le voyage. Chaque page accueille des notes et des dessins. Le format permet de glisser le carnet dans un sac. Les pages sont organisées pour accompagner les idées au quotidien. Une couverture souple protège les pages pendant le transport. Les pages épaisses accueillent des crayons et stylos. Le carnet comprend une table des matières pour retrouver les thèmes. Le papier sans acide conserve les dessins plus longtemps. Les sections sont séparées par des pages de garde colorées. Une pochette intérieure permet de ranger de petits souvenirs." };
 describe("slideshow voice", () => {
   it("blocks before the network unless preview and both explicit gates are true", async () => {
@@ -23,9 +23,8 @@ describe("slideshow voice", () => {
     expect(() => assertSlideshowVoiceAllowed()).not.toThrow();
     expect(slideshowVoiceAvailability().available).toBe(true);
   });
-  it("recognizes a Render preview but keeps TTS blocked without its explicit gates", async () => {
-    process.env.VERCEL_ENV = "";
-    process.env.VENDEO_DEPLOYMENT_ENV = "preview";
+  it("recognizes Vercel Preview but keeps TTS blocked without its explicit gates", async () => {
+    process.env.VERCEL_ENV = "preview";
     const fetcher = vi.fn();
     expect(slideshowVoiceAvailability()).toMatchObject({ environment: "preview", voiceoverEnabled: true, available: false });
     await expect(synthesizeSlideshowVoice({} as any, fetcher as any)).rejects.toThrow(/pas encore activée/);

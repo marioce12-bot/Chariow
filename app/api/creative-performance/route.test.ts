@@ -22,10 +22,9 @@ describe("creative-performance read-only guard", () => {
     expect(mocks.load).toHaveBeenCalledWith(expect.objectContaining({ persistSnapshots: false }));
   });
 
-  it("keeps Render Preview reports read-only without Vercel environment metadata", async () => {
-    vi.stubEnv("VERCEL_ENV", "");
-    vi.stubEnv("VENDEO_DEPLOYMENT_ENV", "preview");
-    await GET(new Request("https://render-preview.example/api/creative-performance?store_id=store-1"));
+  it("keeps Vercel Preview reports read-only", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    await GET(new Request("https://preview.example/api/creative-performance?store_id=store-1"));
     expect(mocks.load).toHaveBeenCalledWith(expect.objectContaining({ persistSnapshots: false }));
   });
 
