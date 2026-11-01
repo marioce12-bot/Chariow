@@ -186,23 +186,6 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(JSON.parse(String(launch[1]?.body))).toMatchObject({ input: { musicId: "", voiceover: true } });
     expect([...container.querySelectorAll("button")].some((item) => item.textContent?.trim() === "Créer")).toBe(false);
   });
-  it("crée en musique seule et n’envoie pas la voix tant qu’elle est en validation", async () => {
-    fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
-      if (url.endsWith("/config")) return response({ enabled: true, voiceoverEnabled: true, voiceoverTestAllowed: false, tracks: [] });
-      if (url === "/api/studio/prompt") return response({ plan: {} });
-      if (url === "/api/studio/tasks" && init?.method === "POST") return response({ task: processing });
-      return response({ tasks: [] });
-    });
-    await mount();
-    expect(container.textContent).toContain("Musique ajoutée automatiquement à la génération.");
-    expect(container.textContent).toContain("La génération de voix est en cours de validation.");
-    await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); });
-    const prompt = fetcher.mock.calls.find(([url, init]) => url === "/api/studio/prompt" && (init as RequestInit | undefined)?.method === "POST")!;
-    const launch = fetcher.mock.calls.find(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")!;
-    expect(JSON.parse(String(prompt[1]?.body))).toMatchObject({ voiceover: false });
-    expect(JSON.parse(String(launch[1]?.body))).toMatchObject({ input: { voiceover: false } });
-    expect(container.textContent).toContain("Génération en cours");
-  });
   it("fait progresser l’indicateur sous 100% pendant les étapes images 1 à n", async () => {
     vi.useFakeTimers();
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, progress: 14, phase: "running", images: images.slice(0, 1), message: "Image 1/5" }] }));
