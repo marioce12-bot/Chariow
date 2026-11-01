@@ -7,7 +7,7 @@ import { notifyChariowSales } from "@/lib/chariow/sale-notifications";
 
 async function syncStore(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], userId: string, store: { id: string; mcp_url: string | null; access_token_encrypted: string | null; store_name: string; connected_at?: string | null }) {
   const snapshot = await getChariowSnapshot(store);
-  const rows = chariowSaleRows(store.id, snapshot.sales);
+  const rows = chariowSaleRows(store.id, snapshot.sales, userId);
   if (rows.length) {
     const { error } = await supabase.from("chariow_sales").upsert(rows, { onConflict: "chariow_sale_id" });
     if (error) throw error;

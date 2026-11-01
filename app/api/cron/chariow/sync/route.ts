@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   for (const store of stores ?? []) {
     try {
       const snapshot = await getChariowSnapshot(store);
-      const rows = chariowSaleRows(store.id, snapshot.sales);
+      const rows = chariowSaleRows(store.id, snapshot.sales, store.user_id);
       if (rows.length) {
         const { error: upsertError } = await supabase.from("chariow_sales").upsert(rows, { onConflict: "chariow_sale_id" });
         if (upsertError) throw upsertError;

@@ -48,7 +48,7 @@ function saleDate(sale: Record<string, any>): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 function saleId(sale: Record<string, any>): string {
-  const id = sale.id ?? sale.sale_id ?? sale.order_id;
+  const id = sale.event_id ?? sale.id ?? sale.sale_id ?? sale.order_id;
   return id == null ? "" : String(id).trim();
 }
 
@@ -64,7 +64,7 @@ export async function notifyChariowSales(
   if (profileError) throw profileError;
   const locale = localeFor(profile?.preferred_locale);
 
-  for (const raw of chariowSaleRows(store.id, sales)) {
+  for (const raw of chariowSaleRows(store.id, sales, store.user_id)) {
     const sale = record(raw.raw_payload);
     if (!isConfirmedChariowSaleStatus(sale.status)) continue;
     const id = saleId(sale);
