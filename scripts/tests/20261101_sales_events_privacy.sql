@@ -1,5 +1,5 @@
 -- Exécuter avec psql après `supabase db reset`, sur une base Supabase locale.
--- Supabase locale. Tout est annulé à la fin; aucun fixture ne persiste.
+-- Tout est annulé à la fin; aucun fixture ne persiste.
 begin;
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)

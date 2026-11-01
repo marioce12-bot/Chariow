@@ -125,6 +125,16 @@ describe("POST /api/studio/image slideshow validation", () => {
     expect(mocks.generateFalImageWithReferences).not.toHaveBeenCalled();
   });
 
+  it("accepts the released storyboard in Render Preview without performing generation", async () => {
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("VENDEO_DEPLOYMENT_ENV", "preview");
+    const response = await POST(request(validStoryboard()));
+    expect(response.status).toBe(402);
+    expect(mocks.requireActiveSubscription).toHaveBeenCalledWith("user-1");
+    expect(mocks.generateFalImage).not.toHaveBeenCalled();
+    expect(mocks.generateFalImageWithReferences).not.toHaveBeenCalled();
+  });
+
   it("accepts a valid five-image plan, rebuilds the selected server prompt, then stops at subscription", async () => {
     const storyboard = validStoryboard({ slideIndex: 2, prompt: "client-controlled prompt must be ignored" });
     const expected = buildSlideshowPlan({

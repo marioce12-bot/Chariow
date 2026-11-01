@@ -28,6 +28,11 @@ describe("aggregateProductProfit", () => {
     expect(result({ net_amount: 0 })).toMatchObject({ netRevenue: 0, profit: null, estimatedNetRevenue: false });
     expect(result({ net_amount: 0, raw_payload: { settlement: { amount: { value: 0 } } } })).toMatchObject({ netRevenue: 0, estimatedNetRevenue: false });
   });
+  it("recognizes zero net from the minimized payload when settlement_done is true", () => {
+    const safePayload = { event_id: "e1", store_id: "s1", status: "paid", amount: 100, currency: "XOF", product_id: "ebook", product_name: "Guide", created_at: "2026-11-01T00:00:00Z" };
+    expect(result({ net_amount: 0, settlement_done: true, raw_payload: safePayload })).toMatchObject({ netRevenue: 0, estimatedNetRevenue: false });
+    expect(result({ amount: 100, net_amount: 0, settlement_done: false, raw_payload: safePayload })).toMatchObject({ netRevenue: 85, estimatedNetRevenue: true });
+  });
   it("recognizes imported placeholder zero when source has no net amount", () => {
     expect(result({ net_amount: 0, raw_payload: { id: "sale", settlement: { amount: null } } })).toMatchObject({
       netRevenue: 8500, profit: null, estimatedNetRevenue: true,

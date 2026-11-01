@@ -34,4 +34,13 @@ describe("isolated preview workflow fixture", () => {
     for (const plan of result.narration) expect(plan.words).toBeGreaterThanOrEqual(Math.ceil(plan.duration * 0.95 * 2));
   });
 
+  it("runs the synthetic fixture on a provider-neutral Render Preview", async () => {
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("VENDEO_DEPLOYMENT_ENV", "preview");
+    start.mockResolvedValue({ returnValue: Promise.resolve({ completedImages: 5, studioCreditsConsumed: 0 }) });
+    await expect(fixtureStage(3)).resolves.toBe(3);
+    expect((await GET()).status).toBe(200);
+    expect(start).toHaveBeenCalledOnce();
+  });
+
 });

@@ -28,6 +28,8 @@ beforeEach(async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", { url: "http://localhost" });
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement });
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  Object.defineProperty(document, "hasFocus", { configurable: true, value: () => true });
   Object.defineProperty(globalThis, "navigator", { configurable: true, value: dom.window.navigator });
   container = dom.window.document.getElementById("root")!;
   root = createRoot(container);

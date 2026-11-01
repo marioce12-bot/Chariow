@@ -46,6 +46,17 @@ describe("preview launch guard", () => {
     expect(from).not.toHaveBeenCalled();
     for (const mock of [provider, pageToken, createCampaign, createAdSet, createCreative, createCarousel, createVideo, prepareVideo, createAd, publishAd, funding, prepareImage]) expect(mock).not.toHaveBeenCalled();
   });
+
+  it("also blocks campaign publication in a provider-neutral Render Preview", async () => {
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("VENDEO_DEPLOYMENT_ENV", "preview");
+    const from = vi.fn(() => { throw new Error("Campaign data must not be read in Preview"); });
+    requireUser.mockResolvedValue({ supabase: { from }, user: { id: "user-1" }, response: null });
+    const response = await POST(request(), context());
+    expect(response.status).toBe(403);
+    expect(from).not.toHaveBeenCalled();
+    for (const mock of [provider, pageToken, createCampaign, createAdSet, createCreative, createCarousel, createVideo, prepareVideo, createAd, publishAd, funding, prepareImage]) expect(mock).not.toHaveBeenCalled();
+  });
 });
 
 describe("launch lifecycle guard", () => {
