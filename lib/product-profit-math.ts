@@ -8,6 +8,7 @@ export type ProductSales = {
   product_name?: string | null;
   amount: number | string | null;
   net_amount: number | string | null;
+  settlement_done?: boolean | null;
   currency: string | null;
   status: string;
   raw_payload?: unknown;
@@ -41,7 +42,7 @@ function receivedNet(sale: ProductSales): number | null {
   const explicit = amountValue(settlement.amount) ?? amountValue(payload.net_amount);
   if (explicit != null) return explicit;
   const stored = numeric(sale.net_amount);
-  if (stored === 0 && Object.keys(raw).length > 0) return null;
+  if (stored === 0 && Object.keys(raw).length > 0 && sale.settlement_done !== true) return null;
   return stored;
 }
 

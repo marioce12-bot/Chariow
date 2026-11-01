@@ -56,6 +56,7 @@ export async function GET(request: Request) {
     chariow_campaign_name?: string | null;
     amount: number | string | null;
     net_amount: number | string | null;
+    settlement_done?: boolean | null;
     currency: string | null;
     status: string;
     product_name?: string | null;
@@ -64,7 +65,7 @@ export async function GET(request: Request) {
   while (true) {
     const { data, error } = await supabase
       .from("chariow_sales")
-      .select("product_id, chariow_campaign_id, chariow_campaign_name, amount, net_amount, currency, status, raw_payload")
+      .select("product_id, product_name, chariow_campaign_id, chariow_campaign_name, amount, net_amount, settlement_done, currency, status, raw_payload")
       .eq("store_id", storeId)
       .gte("occurred_at", since)
       .lte("occurred_at", until)
@@ -74,7 +75,7 @@ export async function GET(request: Request) {
     if (error)
       return NextResponse.json({ error: error.message }, { status: 500 });
     for (const row of data ?? [])
-      sales.push({ ...row, product_name: productLabel(row.raw_payload) });
+      sales.push({ ...row, product_name: row.product_name ?? productLabel(row.raw_payload) });
     if (!data || data.length < pageSize) break;
     from += pageSize;
   }
