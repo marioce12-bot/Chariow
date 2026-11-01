@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/shop/rate-limit";
+import { invalidateStorefrontSettings } from "@/lib/shop/cache";
 import { presentStorefront } from "@/lib/shop/present";
 import { STOREFRONT_COLUMNS, saveStorefront, setStorefrontPublished, type StorefrontRow } from "@/lib/shop/service";
 
@@ -29,12 +30,14 @@ export async function PATCH(request: Request, { params }: Context) {
   if (body.isPublished !== undefined && typeof body.isPublished !== "boolean") return NextResponse.json({ error: "isPublished doit être vrai ou faux" }, { status: 400 });
   if (body.config === undefined && body.isPublished === undefined) return NextResponse.json({ error: "Rien à modifier" }, { status: 400 });
 
-  const { data: existing } = await supabase.from("shop_storefronts").select("id, store_id").eq("id", id).eq("user_id", user.id).maybeSingle();
+  const { data: existing } = await supabase.from("shop_storefronts").select("id, store_id, slug").eq("id", id).eq("user_id", user.id).maybeSingle();
   if (!existing) return NextResponse.json({ error: "Vitrine introuvable" }, { status: 404 });
 
   const result = body.config !== undefined
     ? await saveStorefront({ supabase, userId: user.id, storeId: existing.store_id, config: body.config, publish: body.isPublished })
     : await setStorefrontPublished(supabase, user.id, id, body.isPublished);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+  invalidateStorefrontSettings(existing.slug);
+  invalidateStorefrontSettings(result.storefront.slug);
   return NextResponse.json({ storefront: presentStorefront(result.storefront) });
 }

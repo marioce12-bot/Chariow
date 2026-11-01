@@ -113,6 +113,18 @@ describe("GET /api/analytics dashboard period bundle", () => {
     expect(combined.periodError).toBeNull();
   });
 
+  it("does not refetch or repeat sales side effects on an analytics cache hit", async () => {
+    mocks.cachedAnalytics.mockResolvedValue({
+      marker: "calendar-month", store: { name: "Fixture store", currency: "XOF" },
+      products: { data: [] }, sales: { data: [] }, salesAnalytics: {}, storeAnalytics: {},
+      coverage: { sales: { complete: true } },
+    });
+    const response = await GET(request("store_id=store-1"));
+    expect(response.status).toBe(200);
+    expect(mocks.getSnapshot).not.toHaveBeenCalled();
+    expect(mocks.adminFrom).not.toHaveBeenCalled();
+  });
+
   it("sends private short-lived cache headers and honors authenticated manual refresh", async () => {
     const response = await GET(request("store_id=store-1", { "x-vendeo-refresh": "1" }));
     expect(response.status).toBe(200);

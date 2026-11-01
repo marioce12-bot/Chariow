@@ -51,7 +51,7 @@ describe("foreground polling", () => {
     await act(async () => { root.render(<AutopilotView />); });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     visible = "hidden"; hasFocus = false;
-    await tick(5 * 60_000);
+    await tick(15 * 60_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     visible = "visible";
     await act(async () => { document.dispatchEvent(new Event("visibilitychange")); window.dispatchEvent(new Event("focus")); });
@@ -61,7 +61,7 @@ describe("foreground polling", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
     await act(async () => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
     expect(fetchMock).toHaveBeenCalledTimes(4);
-    await tick(5 * 60_000 - 1);
+    await tick(15 * 60_000 - 1);
     expect(fetchMock).toHaveBeenCalledTimes(4);
     await tick(1);
     expect(fetchMock).toHaveBeenCalledTimes(6);
@@ -69,7 +69,7 @@ describe("foreground polling", () => {
     fetchMock.mockImplementation(async (url: string) => url === "/api/autopilot/reports"
       ? ({ ok: false, status: 503, json: async () => ({}) })
       : ({ ok: true, json: async () => ({ alerts: [] }) }));
-    await tick(5 * 60_000);
+    await tick(15 * 60_000);
     const retry = container.querySelector<HTMLButtonElement>('[role="alert"] button');
     expect(retry).toBeTruthy();
     await act(async () => { retry!.click(); await Promise.resolve(); });

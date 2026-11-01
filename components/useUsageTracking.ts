@@ -5,7 +5,9 @@ import { shouldRotateUsageSession, type UsageSessionState } from "@/lib/usage-tr
 
 const SESSION_KEY = "vendeo_usage_session_id";
 const SESSION_ACTIVITY_KEY = "vendeo_usage_session_activity_at";
-const HEARTBEAT_MS = 20_000;
+// L'API accepte au plus 60 secondes par lot : un heartbeat par minute conserve
+// le même cumul en usage normal avec trois fois moins d'invocations Vercel.
+const HEARTBEAT_MS = 60_000;
 const MAX_SECONDS_PER_FLUSH = 60;
 const ROTATE_AFTER_HIDDEN_MS = 30 * 60 * 1000;
 const MAX_CONSECUTIVE_FAILURES = 3;

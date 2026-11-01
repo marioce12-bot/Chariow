@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedStoreProducts, fetchStoreProducts } from "./products";
@@ -9,6 +10,7 @@ import { isValidSlug } from "./slug";
 import { clientIp, rateLimit } from "./rate-limit";
 import { formatPrice } from "./text";
 import { parseBuyUrl, validateShopConfig, type ShopConfig } from "./config";
+import { storefrontSettingsTag } from "./cache";
 
 export type ShopItem = { id: string; title: string; description: string | null; price: string | null; image: string | null };
 export type ShopOk = {
@@ -44,20 +46,26 @@ function validate(config: unknown) {
 // Une vitrine n'est lisible que si : elle existe, n'est pas désactivée par l'admin et l'abonnement du propriétaire est valide.
 async function readStorefront(slug: string): Promise<StorefrontRecord | null> {
   if (!isValidSlug(slug)) return null;
-  const admin = createAdminClient();
-  const { data: row } = await admin
-    .from("shop_storefronts")
-    .select("id, user_id, store_id, slug, config, is_published, is_disabled_by_admin")
-    .eq("slug", slug)
-    .maybeSingle();
-  if (!row || row.is_disabled_by_admin) return null;
-  const { data: subscription } = await admin
-    .from("subscriptions")
-    .select("status, trial_active, trial_ends_at, current_period_end")
-    .eq("user_id", row.user_id)
-    .maybeSingle();
-  if (!isSubscriptionActive(subscription as SubscriptionRow)) return null;
-  return row as StorefrontRecord;
+  const load = unstable_cache(async () => {
+    const admin = createAdminClient();
+    const { data: row } = await admin
+      .from("shop_storefronts")
+      .select("id, user_id, store_id, slug, config, is_published, is_disabled_by_admin")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (!row || row.is_disabled_by_admin) return null;
+    const { data: subscription } = await admin
+      .from("subscriptions")
+      .select("status, trial_active, trial_ends_at, current_period_end")
+      .eq("user_id", row.user_id)
+      .maybeSingle();
+    if (!isSubscriptionActive(subscription as SubscriptionRow)) return null;
+    return row as StorefrontRecord;
+  }, ["public-shop-storefront-v1", slug], {
+    revalidate: 60,
+    tags: [storefrontSettingsTag(slug)],
+  });
+  return load();
 }
 
 async function isOwnerViewing(ownerId: string): Promise<boolean> {
@@ -111,13 +119,6 @@ export const loadShop = cache(async (slug: string): Promise<ShopView> => {
     preview = true;
   }
   const { data: store } = await createAdminClient().from("stores").select("platform").eq("id", row.store_id).maybeSingle();
-  let verifiedCatalog: Awaited<ReturnType<typeof fetchStoreProducts>> | null = null;
-  if (store?.platform === "shopify") { try { verifiedCatalog = await fetchStoreProducts(row.store_id); } catch { return { state: "unavailable" }; } }
-  const parsed = store?.platform === "shopify" ? validateConfigForServer(row.config, catalogHosts(verifiedCatalog ?? [])) : validate(row.config);
-  if (!parsed.ok) return { state: "unavailable" };
-  const config = parsed.config;
-  if (store?.platform === "shopify" && config.products.some((entry) => { const product = verifiedCatalog?.find((item) => item.id === entry.productId); return !product?.url || !sameShopifyProductUrl(entry.buyUrl, product.url); })) return { state: "unavailable" };
-
   let catalog: Awaited<ReturnType<typeof getCachedStoreProducts>> = [];
   let productsError = false;
   try {
@@ -125,7 +126,12 @@ export const loadShop = cache(async (slug: string): Promise<ShopView> => {
   } catch (error) {
     productsError = true;
     console.error("shop products unavailable", error instanceof Error ? error.message : error);
+    if (store?.platform === "shopify") return { state: "unavailable" };
   }
+  const parsed = store?.platform === "shopify" ? validateConfigForServer(row.config, catalogHosts(catalog)) : validate(row.config);
+  if (!parsed.ok) return { state: "unavailable" };
+  const config = parsed.config;
+  if (store?.platform === "shopify" && config.products.some((entry) => { const product = catalog.find((item) => item.id === entry.productId); return !product?.url || !sameShopifyProductUrl(entry.buyUrl, product.url); })) return { state: "unavailable" };
   const byId = new Map(catalog.map((product) => [product.id, product] as const));
   const items: ShopItem[] = [];
   for (const entry of config.products) {

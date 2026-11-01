@@ -4,6 +4,8 @@ import { chariowSaleRows } from "@/lib/chariow/sales-rows";
 import { invalidateChariowAnalytics } from "@/lib/chariow/analytics-cache";
 import { verifyChariowSignature } from "@/lib/attribution-server";
 import { notifyChariowSales } from "@/lib/chariow/sale-notifications";
+import { invalidateCachedStoreProducts } from "@/lib/shop/products";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -103,6 +105,8 @@ export async function POST(request: Request) {
   try {
     // Clear stale analytics before an INSERT can notify subscribers to refetch.
     await invalidateChariowAnalytics(storeId);
+    invalidateCachedStoreProducts(storeId);
+    invalidateUserStoreList(store.user_id);
   } catch (error) {
     console.error("Chariow analytics cache invalidation failed", error instanceof Error ? error.message : "unknown");
     return NextResponse.json({ error: "Cache analytique non invalidé" }, { status: 500 });

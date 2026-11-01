@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { rateLimit } from "@/lib/shop/rate-limit";
+import { invalidateStorefrontSettings } from "@/lib/shop/cache";
 import { presentStorefront } from "@/lib/shop/present";
 import { STOREFRONT_COLUMNS, saveStorefront, type StorefrontRow } from "@/lib/shop/service";
 
@@ -35,5 +36,6 @@ export async function POST(request: Request) {
 
   const result = await saveStorefront({ supabase, userId: user.id, storeId: body.storeId, config: body.config, publish: body.publish, preferredSlug: body.slug });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+  invalidateStorefrontSettings(result.storefront.slug);
   return NextResponse.json({ storefront: presentStorefront(result.storefront) }, { status: result.created ? 201 : 200 });
 }

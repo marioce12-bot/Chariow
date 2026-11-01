@@ -1,12 +1,14 @@
 import crypto from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
-  notify: vi.fn(), invalidate: vi.fn(), events: new Map<string, any>(), sales: new Map<string, any>(), signals: new Map<string, any>(),
+  notify: vi.fn(), invalidate: vi.fn(), invalidateProducts: vi.fn(), invalidateStoreList: vi.fn(), events: new Map<string, any>(), sales: new Map<string, any>(), signals: new Map<string, any>(),
   signalInserts: 0, filters: [] as any[], upserts: [] as any[], deletes: [] as string[], steps: [] as string[],
   eventError: null as any, saleError: null as any, signalError: null as any, storeError: null as any, store: null as any,
 }));
 vi.mock("@/lib/chariow/sale-notifications", () => ({ notifyChariowSales: m.notify }));
 vi.mock("@/lib/chariow/analytics-cache", () => ({ invalidateChariowAnalytics: m.invalidate }));
+vi.mock("@/lib/shop/products", () => ({ invalidateCachedStoreProducts: m.invalidateProducts }));
+vi.mock("@/lib/shop/cache", () => ({ invalidateUserStoreList: m.invalidateStoreList }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: (table: string) => ({
   insert: async (row: any) => {
     if (m.eventError) return { error: m.eventError };
@@ -43,6 +45,8 @@ beforeEach(() => {
   m.store = { id: "store-1", user_id: "owner-1", store_name: "Fixture store", chariow_store_id: "native-1" };
   m.notify.mockImplementation(async () => { m.steps.push("notify"); });
   m.invalidate.mockImplementation(() => { m.steps.push("invalidate"); });
+  m.invalidateProducts.mockImplementation(() => { m.steps.push("products"); });
+  m.invalidateStoreList.mockImplementation(() => { m.steps.push("stores"); });
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
@@ -50,7 +54,9 @@ describe("Signed Chariow sale webhook", () => {
   it("publishes only trusted minimal data after persisting the sale and invalidating cache", async () => {
     expect((await POST(request())).status).toBe(200);
     expect(m.invalidate).toHaveBeenCalledWith("store-1");
-    expect(m.steps).toEqual(["sale", "notify", "invalidate", "signal"]);
+    expect(m.steps).toEqual(["sale", "notify", "invalidate", "products", "stores", "signal"]);
+    expect(m.invalidateProducts).toHaveBeenCalledWith("store-1");
+    expect(m.invalidateStoreList).toHaveBeenCalledWith("owner-1");
     expect(m.signals.get("store-1:event-1")).toEqual({ event_id: "event-1", store_id: "store-1", user_id: "owner-1", status: "paid", amount: 42, currency: "EUR", product_id: null, product_name: null, created_at: "2026-11-01T08:00:00.000Z" });
     expect(m.upserts.find(value => value.table === "sales_events").options).toEqual({ onConflict: "store_id,event_id", ignoreDuplicates: true });
     expect(m.events.get("event-1")).toEqual({ event_id: "event-1", store_id: "store-1", user_id: "owner-1", status: "paid", amount: 42, currency: "EUR", product_id: null, product_name: null });

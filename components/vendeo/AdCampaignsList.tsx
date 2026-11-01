@@ -212,7 +212,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   useEffect(() => {
     if (!monitoredIds.length) return;
     let disposed = false;
-    const intervalMs = 5 * 60_000;
+    const intervalMs = 10 * 60_000;
     const refreshWhenDue = () => {
       if (disposed || document.visibilityState !== "visible" || !document.hasFocus() || Date.now() - lastAutoRefreshAt.current < intervalMs) return;
       lastAutoRefreshAt.current = Date.now();

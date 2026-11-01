@@ -113,7 +113,7 @@ export function AutopilotView() {
       previousReloadKey.current = reloadKey;
       lastAutoRefreshAt.current = 0;
     }
-    const intervalMs = 5 * 60_000;
+    const intervalMs = 15 * 60_000;
     const foreground = () => document.visibilityState === "visible" && document.hasFocus();
     const refreshIfDue = () => {
       if (cancelled || !foreground() || Date.now() - lastAutoRefreshAt.current < intervalMs) return;

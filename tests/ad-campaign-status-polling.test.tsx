@@ -32,7 +32,7 @@ describe("Ad campaign status refresh", () => {
     await flush();
     expect(statusCount()).toBe(1);
     visible = "hidden"; focused = false;
-    await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(10 * 60_000); });
     expect(statusCount()).toBe(1);
     visible = "visible";
     await act(async () => { document.dispatchEvent(new Event("visibilitychange")); window.dispatchEvent(new Event("focus")); });
@@ -40,7 +40,7 @@ describe("Ad campaign status refresh", () => {
     focused = true;
     await act(async () => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
     expect(statusCount()).toBe(2);
-    await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(10 * 60_000); });
     expect(statusCount()).toBe(3);
     await act(async () => { container.querySelector<HTMLButtonElement>('button[aria-label="Actualiser"]')!.click(); await Promise.resolve(); });
     expect(statusCount()).toBe(4);

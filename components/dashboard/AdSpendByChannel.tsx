@@ -306,10 +306,11 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
   }, [cache, cacheKey, plan, storeId, periodDays, refreshKey]);
   useEffect(() => { void cache.loadComputed(cacheKey, () => loaderRef.current(), refreshKey); }, [cache, cacheKey, cached, refreshKey]);
   useEffect(() => {
-    const refreshStale = () => { if (document.visibilityState !== "hidden") void cache.loadComputed(cacheKey, () => loaderRef.current(), refreshKey); };
-    const timer = window.setInterval(refreshStale, 60_000);
+    const refreshStale = () => { if (document.visibilityState === "visible" && document.hasFocus()) void cache.loadComputed(cacheKey, () => loaderRef.current(), refreshKey); };
+    const timer = window.setInterval(refreshStale, 12 * 60_000);
     window.addEventListener("focus", refreshStale);
-    return () => { clearInterval(timer); window.removeEventListener("focus", refreshStale); };
+    document.addEventListener("visibilitychange", refreshStale);
+    return () => { clearInterval(timer); window.removeEventListener("focus", refreshStale); document.removeEventListener("visibilitychange", refreshStale); };
   }, [cache, cacheKey, refreshKey]);
 
   const connected = stats.filter((stat) => stat.connected);

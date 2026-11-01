@@ -40,13 +40,15 @@ export default function ChariowStatusNotice() {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    const check = () => setStatus(readStatus());
+    const check = () => { if (document.visibilityState === "visible" && document.hasFocus()) setStatus(readStatus()); };
     check();
-    const timer = window.setInterval(check, 2000);
+    const timer = window.setInterval(check, 30_000);
     window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
     };
   }, []);
 

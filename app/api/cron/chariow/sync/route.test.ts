@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const m = vi.hoisted(() => ({ notify: vi.fn(), snapshot: vi.fn(), store: { id: "s1", user_id: "u1", store_name: "Boutique", connected_at: "2026-10-01T00:00:00Z" }, upserts: [] as unknown[] }));
+const m = vi.hoisted(() => ({ notify: vi.fn(), snapshot: vi.fn(), invalidate: vi.fn(), invalidateProducts: vi.fn(), invalidateStoreList: vi.fn(), store: { id: "s1", user_id: "u1", store_name: "Boutique", connected_at: "2026-10-01T00:00:00Z" }, upserts: [] as unknown[] }));
 vi.mock("@/lib/chariow/sale-notifications", () => ({ notifyChariowSales: m.notify }));
 vi.mock("@/lib/chariow/analytics", () => ({ getChariowSnapshot: m.snapshot }));
 vi.mock("@/lib/attribution/auto-map", () => ({ autoMapChariowCampaigns: vi.fn(async () => 0) }));
+vi.mock("@/lib/chariow/analytics-cache", () => ({ invalidateChariowAnalytics: m.invalidate }));
+vi.mock("@/lib/shop/products", () => ({ invalidateCachedStoreProducts: m.invalidateProducts }));
+vi.mock("@/lib/shop/cache", () => ({ invalidateUserStoreList: m.invalidateStoreList }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: () => ({
   select: () => { const q = { eq: () => q, then: (resolve: (result: unknown) => unknown) => Promise.resolve({ data: [m.store], error: null }).then(resolve) }; return q; },
   upsert: async (rows: unknown) => { m.upserts.push(rows); return { error: null }; },

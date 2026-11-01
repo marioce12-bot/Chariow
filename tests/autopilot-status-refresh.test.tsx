@@ -15,6 +15,7 @@ beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-19T08:00:00Z"));
   document.body.innerHTML = '<div id="root"></div>';
   Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  Object.defineProperty(document, "hasFocus", { configurable: true, value: () => true });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   root = createRoot(document.getElementById("root")!);
 });
@@ -29,28 +30,33 @@ describe("automatic active-only status refresh", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ cache: "no-store" });
   });
-  it("recovers from a transient failure after 30 seconds without a click", async () => {
+  it("does not retry periodically after failure; explicit retry recovers", async () => {
     const fetcher = vi.fn().mockRejectedValueOnce(new Error("network")).mockImplementation(async () => response()); vi.stubGlobal("fetch", fetcher);
     await render(); expect(document.body.textContent).not.toContain("Activer l’autopilote");
-    await tick(30_000);
+    await tick(90_000);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await act(async () => { document.querySelector("button")?.click(); });
     expect(document.body.textContent).toContain("Activer l’autopilote");
-    await tick(30_000); await tick(30_000);
-    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(fetcher).toHaveBeenCalledTimes(2);
     expect(document.body.textContent).toContain("Activer l’autopilote");
   });
   it("removes activation immediately on inactive or revoked proof, and clears error after recovery", async () => {
     const fetcher = vi.fn().mockImplementationOnce(async () => response()).mockImplementationOnce(async () => response(proof("inactive"))).mockImplementationOnce(async () => response(proof("unknown", { reasonCode: "TOKEN_EXPIRED" }))).mockImplementation(async () => response());
     vi.stubGlobal("fetch", fetcher); await render();
-    await tick(30_000); expect(document.body.textContent).not.toContain("Activer l’autopilote");
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(document.body.textContent).not.toContain("Activer l’autopilote");
     expect(document.body.textContent).toContain("inactive");
-    await tick(30_000); expect(document.querySelector('[role="alert"]')?.textContent).toContain("connexion Meta a expiré");
-    await tick(30_000); expect(document.body.textContent).toContain("Activer l’autopilote"); expect(document.querySelector('[role="alert"]')).toBeNull();
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("connexion Meta a expiré");
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(document.body.textContent).toContain("Activer l’autopilote"); expect(document.querySelector('[role="alert"]')).toBeNull();
   });
-  it("expires fresh proof while a refresh is still pending and serializes refreshes", async () => {
+  it("expires fresh proof and serializes manual refreshes", async () => {
     const fetcher = vi.fn(() => new Promise(() => {})); vi.stubGlobal("fetch", fetcher);
-    await render("c", proof()); await tick(30_000);
+    await render("c", proof()); await tick(59_999);
     expect(document.body.textContent).toContain("Activer l’autopilote");
-    await tick(30_000); expect(document.body.textContent).not.toContain("Activer l’autopilote");
+    await tick(1); expect(document.body.textContent).not.toContain("Activer l’autopilote");
+    await act(async () => { document.querySelector("button")?.click(); document.querySelector("button")?.click(); });
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it("suspends polling when hidden and rechecks on mobile visibility return", async () => {

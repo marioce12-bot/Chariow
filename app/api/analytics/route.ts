@@ -49,6 +49,7 @@ async function analyticsResponse(request: Request, shared?: ChariowRequestShared
     return shopifyDashboardResponse(supabase, user.id, store, { from, to });
   }
   try {
+    let fetchedFromChariow = false;
     const cacheNow = new Date();
     const cacheFrom = from ?? new Date(cacheNow.getFullYear(), cacheNow.getMonth(), 1).toISOString().slice(0, 10);
     const cacheTo = to ?? cacheNow.toISOString().slice(0, 10);
@@ -58,31 +59,33 @@ async function analyticsResponse(request: Request, shared?: ChariowRequestShared
       from: cacheFrom,
       to: cacheTo,
       forceRefresh: request.headers.get("x-vendeo-refresh") === "1",
-      load: () => getChariowSnapshot(store, { from, to }, shared),
+      load: () => { fetchedFromChariow = true; return getChariowSnapshot(store, { from, to }, shared); },
     });
     // Enregistre tout de suite les ventes renvoyées par Chariow : la synchro automatique ne tourne qu'une fois
     // par nuit, donc sans cela une vente faite dans la journée n'apparaissait pas dans les chiffres du tableau
     // de bord (toujours à 0) jusqu'au lendemain. Une erreur ici ne doit jamais bloquer l'affichage.
     let persistenceError = false;
-    try {
-      const freshRows = chariowSaleRows(store.id, snapshot.sales, user.id);
-      if (freshRows.length) {
-        // Client admin : la table n'autorise que la lecture à l'utilisateur. La boutique a déjà été vérifiée comme sienne ci-dessus.
-        const { error: upsertError } = await createAdminClient().from("chariow_sales").upsert(freshRows, { onConflict: "chariow_sale_id" });
-        if (upsertError) { persistenceError = true; console.error("Chariow sales upsert error", upsertError.message); }
-        else {
-          try {
-            await notifyChariowSales({ ...store, user_id: user.id }, snapshot.sales);
-          } catch (notificationError) {
-            console.error("analytics: sale notification failed", store.id, notificationError instanceof Error ? notificationError.message : "unknown");
+    if (fetchedFromChariow) {
+      try {
+        const freshRows = chariowSaleRows(store.id, snapshot.sales, user.id);
+        if (freshRows.length) {
+          // Client admin : la table n'autorise que la lecture à l'utilisateur. La boutique a déjà été vérifiée comme sienne ci-dessus.
+          const { error: upsertError } = await createAdminClient().from("chariow_sales").upsert(freshRows, { onConflict: "chariow_sale_id" });
+          if (upsertError) { persistenceError = true; console.error("Chariow sales upsert error", upsertError.message); }
+          else {
+            try {
+              await notifyChariowSales({ ...store, user_id: user.id }, snapshot.sales);
+            } catch (notificationError) {
+              console.error("analytics: sale notification failed", store.id, notificationError instanceof Error ? notificationError.message : "unknown");
+            }
           }
         }
+      } catch (syncError) {
+        persistenceError = true;
+        console.error("Chariow sales upsert failed", syncError instanceof Error ? syncError.message : syncError);
       }
-    } catch (syncError) {
-      persistenceError = true;
-      console.error("Chariow sales upsert failed", syncError instanceof Error ? syncError.message : syncError);
     }
-    if (!from && !to) {
+    if (!from && !to && fetchedFromChariow) {
       await createAdminClient().from("stores").update({
         sales_last_synced_at: new Date().toISOString(),
         sales_last_sync_complete: !persistenceError && snapshot.coverage?.sales.complete === true,
