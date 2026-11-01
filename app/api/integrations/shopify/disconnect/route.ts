@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
@@ -14,5 +15,6 @@ export async function POST(request: Request) {
   if (deleteError) return NextResponse.json({ error: "Impossible de supprimer les identifiants Shopify" }, { status: 500 });
   const { data, error } = await supabase.from("stores").update({ connection_status: "revoked", connection_error: null, access_token_encrypted: null, refresh_token_encrypted: null, mcp_url: null }).eq("id", store.id).eq("user_id", user.id).select("id, platform, store_name, shop_domain, mcp_url, is_active, connection_status, created_at").single();
   if (error) return NextResponse.json({ error: "Impossible de déconnecter la boutique" }, { status: 500 });
+  invalidateUserStoreList(user.id);
   return NextResponse.json({ store: data });
 }

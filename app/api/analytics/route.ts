@@ -12,6 +12,7 @@ import { notifyChariowSales } from "@/lib/chariow/sale-notifications";
 import { getDashboardAnalyticsPeriods, shareDashboardAnalyticsSnapshots } from "@/lib/dashboard-analytics-periods";
 import { getCachedChariowAnalytics } from "@/lib/chariow/analytics-cache";
 import type { ChariowRequestShared } from "@/lib/chariow/analytics";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 type AnalyticsSaleRow = SaleRow & { amount: number | string | null; product_id: string | null };
 
@@ -161,6 +162,7 @@ async function analyticsResponse(request: Request, shared?: ChariowRequestShared
     console.error("Chariow analytics error", message);
     if (/returned 401\b/.test(message)) {
       await supabase.from("stores").update({ connection_status: "expired", connection_error: null, last_verified_at: new Date().toISOString() }).eq("id", store.id).eq("user_id", user.id);
+      invalidateUserStoreList(user.id);
       return withStatus(NextResponse.json({ error: "La connexion Chariow a expiré", code: "CHARIOW_EXPIRED" }, { status: 401 }), "expired");
     }
     if (isChariowDown(message)) {

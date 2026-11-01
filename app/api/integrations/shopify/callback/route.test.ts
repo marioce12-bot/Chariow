@@ -5,10 +5,12 @@ const mocks = vi.hoisted(() => ({
   requireUser: vi.fn(), cookies: vi.fn(), createAdminClient: vi.fn(),
   consumed: true, store: { id: "11111111-1111-4111-8111-111111111111", shop_domain: "fixture.myshopify.com" } as any,
   deleteCalls: 0,
+  invalidateUserStoreList: vi.fn(),
 }));
 vi.mock("next/headers", () => ({ cookies: mocks.cookies }));
 vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
+vi.mock("@/lib/shop/cache", () => ({ invalidateUserStoreList: mocks.invalidateUserStoreList }));
 
 import { GET } from "./route";
 import { SHOPIFY_STATE_COOKIE, signShopifyState } from "@/lib/shopify/auth";
@@ -57,12 +59,14 @@ describe("Shopify OAuth callback", () => {
     const state = makeState();
     const first = await GET(signedUrl(state));
     expect(status(first)).toBe("connected");
+    expect(mocks.invalidateUserStoreList).toHaveBeenCalledWith(user.id);
     expect(mocks.deleteCalls).toBe(1);
     expect(fetch).toHaveBeenCalledTimes(1);
     mocks.consumed = false;
     const replay = await GET(signedUrl(state));
     expect(status(replay)).toBe("invalid_state");
     expect(mocks.deleteCalls).toBe(2);
+    expect(mocks.invalidateUserStoreList).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 

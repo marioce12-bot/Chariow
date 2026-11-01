@@ -4,6 +4,7 @@ import { normalizeShopDomain } from "@/lib/shopify/auth";
 import { syncShopifyStore } from "@/lib/shopify/sync";
 import { verifyShopifyWebhook } from "@/lib/shopify/webhooks";
 import { requestedOrderIds, redactRequestedShopifyOrders, exportRequestedShopifyOrders } from "@/lib/shopify/privacy-requests";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 export const runtime = "nodejs";
 const MAX_BODY = 1024 * 1024;
 async function matchingStores(admin: any, shop: string) {
@@ -21,7 +22,7 @@ async function cleanupStore(admin: any, store: any, redact: boolean) {
  const { error: credentialsError } = await admin.from("shopify_connections").delete().eq("store_id", store.id); if (credentialsError) throw credentialsError;
  const patch: Record<string, any> = { is_active: false, connection_status: redact ? "revoked" : "revoked" };
  if (redact) Object.assign(patch, { shop_domain: null, sales_last_synced_at: null, sales_last_sync_complete: false, sales_sync_error: null });
- const { error } = await admin.from("stores").update(patch).eq("id", store.id).eq("platform", "shopify"); if (error) throw error;
+ const { error } = await admin.from("stores").update(patch).eq("id", store.id).eq("platform", "shopify"); if (error) throw error; invalidateUserStoreList(store.user_id);
 }
 export async function POST(request: Request) {
  const len = Number(request.headers.get("content-length") ?? 0); if (len > MAX_BODY) return NextResponse.json({ error: "Payload too large" }, { status: 413 });

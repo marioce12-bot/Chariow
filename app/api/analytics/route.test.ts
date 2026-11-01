@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   normalize: vi.fn(),
   adminFrom: vi.fn(),
   cachedAnalytics: vi.fn(),
+  invalidateUserStoreList: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -29,6 +30,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/chariow/analytics", () => ({ getChariowSnapshot: mocks.getSnapshot, normalizeChariowSnapshot: mocks.normalize }));
 vi.mock("@/lib/chariow/analytics-cache", () => ({ getCachedChariowAnalytics: mocks.cachedAnalytics }));
+vi.mock("@/lib/shop/cache", () => ({ invalidateUserStoreList: mocks.invalidateUserStoreList }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: mocks.adminFrom }) }));
 vi.mock("@/lib/chariow/sales-rows", () => ({ chariowSaleRows: () => [] }));
 vi.mock("@/lib/chariow/sale-details", () => ({ mergeSaleDetails: (sales: unknown) => sales }));

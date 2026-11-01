@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ requireUser: vi.fn(), createAdminClient: vi.fn(), resolveUserMaxStores: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireUser: vi.fn(), createAdminClient: vi.fn(), resolveUserMaxStores: vi.fn(), invalidateUserStoreList: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock("@/lib/plans", () => ({ resolveUserMaxStores: mocks.resolveUserMaxStores }));
+vi.mock("@/lib/shop/cache", () => ({ invalidateUserStoreList: mocks.invalidateUserStoreList }));
 import { GET } from "./route";
 import { verifyShopifyState } from "@/lib/shopify/auth";
 
@@ -43,6 +44,7 @@ describe("Shopify OAuth start with shared encryption master", () => {
     expect(response.headers.get("set-cookie")).toMatch(/HttpOnly/i);
     expect(response.headers.get("set-cookie")).toMatch(/Secure/i);
     expect(response.headers.get("set-cookie")).toMatch(/SameSite=lax/i);
+    expect(mocks.invalidateUserStoreList).toHaveBeenCalledWith(userId);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
