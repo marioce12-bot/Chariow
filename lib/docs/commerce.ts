@@ -14,7 +14,7 @@ export const commerceSections: DocSection[] = [
         id: 'dashboard-overview',
         title: { fr: 'Les espaces du tableau de bord', en: 'Dashboard areas' },
         paragraphs: [
-          { fr: 'Le tableau de bord Vendeo regroupe les espaces Vue d’ensemble, Vendeo AI, Studio, Pub, Comptes publicitaires, Radar marché, Mes boutiques, Rapports, Bénéfices nets, Relances WhatsApp, Pilotage auto, Abonnement, Paramètres, Notifications et Suggestions et notes. Les éléments visibles peuvent dépendre de la configuration du compte.', en: 'The Vendeo dashboard groups Vue d’ensemble (Overview), Vendeo AI, Studio, Pub (Ads), Comptes publicitaires (Ad accounts), Radar marché (Market Radar), Mes boutiques (My stores), Rapports (Reports), Bénéfices nets (Net profit), Relances WhatsApp (WhatsApp follow-ups), Pilotage auto (Autopilot), Abonnement (Subscription), Paramètres (Settings), Notifications, and Suggestions et notes (Suggestions and notes). Which items appear can depend on account configuration.' },
+          { fr: 'Le tableau de bord Vendeo regroupe les espaces Vue d’ensemble, Vendeo AI, Studio, Pub, Comptes publicitaires, Radar marché, Mes boutiques, Rapports, Relances WhatsApp, Pilotage auto, Abonnement, Paramètres, Notifications et Suggestions et notes. Les éléments visibles peuvent dépendre de la configuration du compte.', en: 'The Vendeo dashboard groups Vue d’ensemble (Overview), Vendeo AI, Studio, Pub (Ads), Comptes publicitaires (Ad accounts), Radar marché (Market Radar), Mes boutiques (My stores), Rapports (Reports), Relances WhatsApp (WhatsApp follow-ups), Pilotage auto (Autopilot), Abonnement (Subscription), Paramètres (Settings), Notifications, and Suggestions et notes (Suggestions and notes). Which items appear can depend on account configuration.' },
           { fr: 'La navigation sélectionne un espace dans le tableau de bord. Pour passer d’un espace à l’autre, utilisez les éléments de navigation du tableau de bord. Les intitulés peuvent être affichés en français ou en anglais selon la langue choisie.', en: 'Navigation selects an area inside the dashboard. To move between areas, use the dashboard navigation. Labels may appear in French or English depending on your selected language.' },
         ],
         steps: [
@@ -257,55 +257,6 @@ export const commerceSections: DocSection[] = [
         steps: [
           { fr: 'Ouvrez les diagnostics de suivi si disponibles et corrigez les balises ou connexions signalées.', en: 'Open tracking diagnostics if available and fix reported tags or connections.' },
           { fr: 'Vérifiez les rapports sur la plateforme et les commandes dans Chariow; notez les écarts de période et de devise.', en: 'Check platform reports and Chariow orders; note period and currency differences.' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'profitability',
-    group: 'manage',
-    title: { fr: 'Bénéfices nets et rentabilité', en: 'Net profit and profitability' },
-    summary: {
-      fr: 'Lisez les estimations avec prudence : revenus nets et coûts connus moins les seules dépenses explicitement liées au produit.',
-      en: 'Read estimates carefully: net revenue and known costs less only spend explicitly linked to the product.',
-    },
-    articles: [
-      {
-        id: 'profit-calculation',
-        title: { fr: 'Comment Vendeo estime le bénéfice', en: 'How Vendeo estimates profit' },
-        paragraphs: [
-          { fr: 'Le panneau Bénéfices nets calcule une estimation indicative à partir des ventes Chariow nettes après frais Chariow, des coûts disponibles et des dépenses de campagnes explicitement associées au produit. Formule conceptuelle : bénéfice estimé = revenu net après frais − coûts existants − dépenses publicitaires explicitement allouées. Les frais et coûts ne sont pas supposés : si une valeur manque, le résultat peut être incomplet ou indisponible.', en: 'The Net profit panel provides an indicative estimate based on Chariow sales net of Chariow fees, available costs, and campaign spend explicitly linked to the product. Conceptual formula: estimated profit = net revenue after fees − existing costs − explicitly allocated ad spend. Fees and costs are not assumed: if a value is missing, the result may be incomplete or unavailable.' },
-          { fr: 'Aucune valeur universelle de frais Chariow, coût produit ou marge n’est affirmée ici : celles-ci dépendent des données accessibles et de votre activité. Le panneau précise que les devises restent séparées, sans conversion automatique. Vérifiez la période, la devise et les hypothèses avant de prendre une décision financière.', en: 'No universal Chariow fee, product cost, or margin value is asserted here: these depend on available data and your business. The panel specifies that currencies remain separate, with no automatic conversion. Check period, currency, and assumptions before making a financial decision.' },
-        ],
-        steps: [
-          { fr: 'Ouvrez Bénéfices nets et sélectionnez la période disponible.', en: 'Open Net profit and select the available period.' },
-          { fr: 'Vérifiez les revenus nets, frais/coûts présentés, devises et état des données manquantes.', en: 'Review net revenue, displayed fees/costs, currencies, and missing-data status.' },
-          { fr: 'N’interprétez l’estimation comme une comptabilité officielle, un bénéfice garanti ou un conseil fiscal.', en: 'Do not treat the estimate as official accounting, guaranteed profit, or tax advice.' },
-        ],
-      },
-      {
-        id: 'explicit-campaign-spend',
-        title: { fr: 'Dépenses : association explicite seulement', en: 'Spend: explicit association only' },
-        paragraphs: [
-          { fr: 'Le calcul par produit ne répartit pas automatiquement l’ensemble des dépenses du compte publicitaire. Il déduit les dépenses des campagnes explicitement liées au produit; les dépenses observées mais non allouées peuvent être affichées séparément. Ne répartissez pas une dépense entre produits sans preuve de lien dans les données.', en: 'Product-level calculation does not automatically allocate all ad-account spend. It deducts spend from campaigns explicitly linked to the product; observed but unallocated spend may be shown separately. Do not distribute spend across products without an explicit link in the data.' },
-          { fr: 'Les métadonnées de campagne individuelles sur une commande ne sont pas la même chose que les dépenses liées au produit ni que l’attribution Meta. Le panneau peut signaler les commandes sans ces métadonnées tout en conservant des dépenses de campagne liées au produit.', en: 'Individual campaign metadata on an order is not the same as product-linked campaign spend or Meta attribution. The panel may report orders without that metadata while still having product-linked campaign spend.' },
-        ],
-        steps: [
-          { fr: 'Associez les campagnes au bon produit via les contrôles d’attribution/lien disponibles.', en: 'Link campaigns to the correct product using the available attribution/link controls.' },
-          { fr: 'Dans Bénéfices nets, distinguez dépenses explicitement liées, dépenses observées non réparties et données indisponibles.', en: 'In Net profit, distinguish explicitly linked spend, observed unallocated spend, and unavailable data.' },
-        ],
-      },
-      {
-        id: 'profit-caveats',
-        title: { fr: 'Périodes, frais et incertitudes', en: 'Periods, fees, and uncertainty' },
-        paragraphs: [
-          { fr: 'Les ventes, dépenses publicitaires, frais et coûts peuvent provenir de systèmes différents et ne pas couvrir la même période. Une estimation qui affiche une valeur indisponible, des coûts incomplets ou plusieurs devises ne doit pas être interprétée comme un total final comparable.', en: 'Sales, ad spend, fees, and costs can come from different systems and cover different periods. An estimate showing unavailable values, incomplete costs, or multiple currencies should not be treated as a final comparable total.' },
-          { fr: 'Le calcul est indicatif. Il ne remplace pas le rapprochement des paiements, remboursements, taxes, frais de change ou coûts non enregistrés dans Vendeo.', en: 'The calculation is indicative. It does not replace reconciliation of payouts, refunds, taxes, foreign-exchange fees, or costs not recorded in Vendeo.' },
-        ],
-        steps: [
-          { fr: 'Alignez les périodes et devises des ventes et des dépenses avant toute comparaison.', en: 'Align sales and spend periods and currencies before comparing.' },
-          { fr: 'Complétez les coûts manquants dans la source qui les gère puis rechargez l’estimation.', en: 'Complete missing costs in the source that manages them, then refresh the estimate.' },
-          { fr: 'Rapprochez les résultats avec vos relevés Chariow, plateformes et comptabilité.', en: 'Reconcile results with Chariow, platform, and accounting statements.' },
         ],
       },
     ],

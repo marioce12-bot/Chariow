@@ -43,6 +43,7 @@ describe("POST /api/track", () => {
     { ...validBody, seconds: 61 },
     { ...validBody, session_id: "bad-id" },
     { ...validBody, section: "made-up-section" },
+    { ...validBody, section: "Bénéfices nets" },
     { ...validBody, new_visit: "true" },
   ])("rejects malformed or out-of-range client data: %o", async (body) => {
     const response = await POST(new Request("http://localhost/api/track", { method: "POST", body: JSON.stringify(body) }));

@@ -397,13 +397,6 @@ export const coreIntegrationSections: DocSection[] = [
               "fr": "Comprendre la mesure",
               "en": "Understand measurement"
             }
-          },
-          {
-            "href": "/docs#profitability",
-            "label": {
-              "fr": "Bénéfices et dépenses",
-              "en": "Profit and spend"
-            }
           }
         ]
       },

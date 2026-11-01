@@ -18,7 +18,7 @@ vi.mock("@/components/vendeo", () => ({ ImpactFinancierCard: () => null, LaunchA
 vi.mock("@/components/vendeo/wizard", () => ({ LaunchAdWizard: () => null }));
 vi.mock("@/components/dashboard/DesktopNavigation", () => ({
   DashboardHeaderNavigation: () => null,
-  DashboardPrimaryNavigation: ({ onChange }: any) => createElement("nav", null, ...["Vue d'ensemble", "Vendeo AI", "Studio", "Pub", "Performance publicitaire", "Comptes publicitaires", "Radar marché", "Mes boutiques", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Abonnement", "Paramètres", "Notifications", "Suggestions et notes"].map(section => createElement("button", { key: section, onClick: () => onChange(section) }, section))),
+  DashboardPrimaryNavigation: ({ onChange }: any) => createElement("nav", null, ...["Vue d'ensemble", "Vendeo AI", "Studio", "Pub", "Performance publicitaire", "Comptes publicitaires", "Radar marché", "Mes boutiques", "Rapports", "Relances WhatsApp", "Abonnement", "Paramètres", "Notifications", "Suggestions et notes"].map(section => createElement("button", { key: section, onClick: () => onChange(section) }, section))),
 }));
 vi.mock("@/components/dashboard/sections", () => ({
   StoreOnboarding: () => null, StudioView: () => null, MarketRadarView: () => null,
@@ -29,7 +29,6 @@ vi.mock("@/components/dashboard/OverviewHome", () => ({
   OverviewHome: ({ analytics, storeSelector }: any) => createElement("div", null, createElement("output", { "data-testid": "snapshot" }, analytics?.marker ?? analytics?.products?.map((p: any) => p.name).join(",") ?? "vide"), createElement("div", { "data-testid": "overview-store-slot" }, storeSelector)),
 }));
 vi.mock("@/components/dashboard/Skeleton", () => ({ DashboardSkeleton: () => createElement("div", { "data-testid": "dashboard-skeleton" }, "Chargement") }));
-vi.mock("@/components/dashboard/ProductProfitPanel", () => ({ default: () => null }));
 vi.mock("@/components/dashboard/RecoveryPanel", () => ({ default: () => null }));
 
 import { Dashboard } from "@/components/Dashboard";
@@ -70,7 +69,7 @@ describe("Dashboard store switch", () => {
     await mount();
     await eventually(() => !host.querySelector('[data-testid="dashboard-skeleton"]'));
     const links = Array.from(host.querySelectorAll<HTMLButtonElement>(".sidebar nav button"));
-    expect(links.length).toBe(15);
+    expect(links.length).toBe(14);
     for (const link of links) {
       await act(async () => { link.click(); });
       const selector = host.querySelector<HTMLSelectElement>(".sidebar #desktop-dashboard-store")!;

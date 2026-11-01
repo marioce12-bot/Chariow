@@ -68,7 +68,7 @@ export function TrackingQualityPanel({ storeId, periodDays }: { storeId: string 
         ? (quality?.issues.length ? (en ? `${quality.issues.length} tracking point${quality.issues.length === 1 ? "" : "s"} to review.` : `${quality.issues.length} point${quality.issues.length === 1 ? "" : "s"} à vérifier.`) : (en ? "Checking the available sales-to-ads links." : "Vérification des liens entre ventes et pubs."))
         : (en ? "Available tracking links verified for this period." : "Liens de suivi disponibles vérifiés sur cette période.")}</p>
     </div>
-    {incomplete && <p className="tracking-quality-warning"><strong>{en ? "Incomplete profitability" : "Rentabilité incomplète"}</strong><span>{en ? "Available data is not a complete profit statement." : "Les données disponibles ne constituent pas un bénéfice complet."}</span></p>}
+    {incomplete && <p className="tracking-quality-warning"><strong>{en ? "Sales-to-ad matching incomplete" : "Rapprochement ventes-publicités incomplet"}</strong><span>{en ? "Available data cannot confirm every link between sales and ads." : "Les données disponibles ne permettent pas de confirmer tous les liens entre ventes et publicités."}</span></p>}
     {error ? <p className="tracking-quality-error" role="alert">{localizeSystemMessage(error, locale)}</p> : null}
     {!quality && !error ? <p className="tracking-quality-loading" role="status">{en ? "Checking available evidence…" : "Vérification des données disponibles…"}</p> : null}
     {quality ? <details className="tracking-quality-details">

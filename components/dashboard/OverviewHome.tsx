@@ -305,7 +305,6 @@ export function OverviewHome({
       </section>
 
       {onNavigate ? <div className="overview-business-shortcuts" aria-label={t("sweep3.text143")}>
-        <button type="button" onClick={() => onNavigate("Bénéfices nets")}><span className="overview-shortcut-icon"><Package size={20} /></span><span><strong>{t("sweep1.text144")}</strong><small>{t("sweep2.text145")}</small></span><span aria-hidden="true">↗</span></button>
         <button type="button" onClick={() => onNavigate("Relances WhatsApp")}><span className="overview-shortcut-icon recovery"><Clock size={20} /></span><span><strong>{t("sweep3.text146")}</strong><small>{t("sweep1.text147")}</small></span><span aria-hidden="true">↗</span></button>
       </div> : null}
       {/* 2. Liste des campagnes publicitaires */}

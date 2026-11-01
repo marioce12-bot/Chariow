@@ -51,7 +51,7 @@ Les chiffres observés doivent venir de Vercel et des fournisseurs, pas être d�
 
 | Groupe et chemins concernés | Fréquence probable | Dépendances / CPU estimé | Cache sûr |
 |---|---|---|---|
-| Analytics et commerce : `/api/analytics`, `/api/stores*`, `/api/campaign-profit`, `/api/product-profit`, `/api/tracking-quality`, `/api/recovery*`, `/api/sales/celebration` | Chargement/changement de boutique ou période; célébration sur événement; analytics désormais sans timer | Supabase + Chariow/Shopify; moyen à élevé aux cache miss, faible à moyen au cache hit | Analytics privé, 60 s HTTP / 120 s serveur; boutique liée à l’utilisateur; aucune cache partagée de réponse personnalisée |
+| Analytics et commerce : `/api/analytics`, `/api/stores*`, `/api/tracking-quality`, `/api/recovery*`, `/api/sales/celebration` | Chargement/changement de boutique ou période; célébration sur événement; analytics désormais sans timer | Supabase + Chariow/Shopify; moyen à élevé aux cache miss, faible à moyen au cache hit | Analytics privé, 60 s HTTP / 120 s serveur; boutique liée à l’utilisateur; aucune cache partagée de réponse personnalisée |
 | Performance publicitaire : `/api/meta/*` (dont `/api/meta/daily-spend`), `/api/tiktok/performance`, `/api/pinterest/performance`, `/api/ad-performance/geography`, `/api/creative-performance*`, `/api/attribution*` | À l’ouverture, changement de période ou clic; statuts campagne environ toutes les 10 min par campagne active | Supabase + APIs Meta/TikTok/Pinterest; moyen, parfois élevé par lots ou agrégation | Résultats personnalisés : `private/no-store` ou cache privé bref si invalidation fiable; jamais partagé |
 | Campagnes/Autopilot : `/api/ad-campaigns*`, `/api/autopilot/reports`, `/api/overview/campaign-history` | Clics et affichage; statuts au premier plan toutes les 10 min; rapports Autopilot toutes les 15 min | Supabase, Meta/TikTok; moyen, potentiellement élevé quand plusieurs campagnes sont surveillées | No-store pour statut, rapports et mutations |
 | Connexions et synchronisation manuelle : 30 routes `/api/integrations/*`, `/api/stores/[id]/test`, `/api/market/radar`, `/api/market/warm` | Rare : clic, OAuth, test ou synchronisation déclenchée; `market/warm` n’est plus planifiée | Fournisseur connecté + Supabase; faible à moyen, synchronisations pouvant durer davantage | OAuth/secrets et résultats personnalisés non partagés; idempotence/limites fournisseur à surveiller |
@@ -65,7 +65,7 @@ Les chiffres observés doivent venir de Vercel et des fournisseurs, pas être d�
 L’inventaire exhaustif suivant liste chaque chemin détecté sous `app/api/**/route.ts` :
 
 <details>
-<summary>139 chemins API, par famille</summary>
+<summary>137 chemins API, par famille</summary>
 
 - **account (2) :** `/api/account/preferences`, `/api/account`
 - **ad-campaigns (7) :** `/api/ad-campaigns/[id]/autopilot/budget-limit`, `/api/ad-campaigns/[id]/autopilot`, `/api/ad-campaigns/[id]/launch`, `/api/ad-campaigns/[id]`, `/api/ad-campaigns/[id]/status`, `/api/ad-campaigns/previews`, `/api/ad-campaigns`
@@ -77,7 +77,6 @@ L’inventaire exhaustif suivant liste chaque chemin détecté sous `app/api/**/
 - **attribution (3) :** `/api/attribution/campaigns/[id]/link`, `/api/attribution/campaigns`, `/api/attribution/touch`
 - **autopilot (1) :** `/api/autopilot/reports`
 - **campaign-mappings (1) :** `/api/campaign-mappings`
-- **campaign-profit (1) :** `/api/campaign-profit`
 - **chat (3) :** `/api/chat/campaign-actions`, `/api/chat`, `/api/chat/upload`
 - **conversations (2) :** `/api/conversations/[id]`, `/api/conversations`
 - **creative-performance (3) :** `/api/creative-performance/ideas`, `/api/creative-performance/placements/[id]`, `/api/creative-performance`
@@ -92,7 +91,6 @@ L’inventaire exhaustif suivant liste chaque chemin détecté sous `app/api/**/
 - **onboarding (1) :** `/api/onboarding`
 - **overview (1) :** `/api/overview/campaign-history`
 - **pinterest (1) :** `/api/pinterest/performance`
-- **product-profit (1) :** `/api/product-profit`
 - **push (1) :** `/api/push/subscription`
 - **recovery (2) :** `/api/recovery/launch`, `/api/recovery`
 - **sales (1) :** `/api/sales/celebration`

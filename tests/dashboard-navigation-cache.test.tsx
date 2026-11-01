@@ -33,7 +33,6 @@ vi.mock("@/components/dashboard/sections", () => ({
 vi.mock("@/components/dashboard/AdSpendByChannel", () => ({ AdSpendByChannel: () => null }));
 vi.mock("@/components/vendeo/AdCampaignsList", () => ({ AdCampaignsList: () => null }));
 
-vi.mock("@/components/dashboard/ProductProfitPanel", () => ({ default: () => null }));
 vi.mock("@/components/dashboard/RecoveryPanel", () => ({ default: () => null }));
 
 import { Dashboard } from "@/components/Dashboard";

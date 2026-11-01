@@ -393,8 +393,8 @@
   color: #9a352c;
 }
 
-/* Optional business panels: neutral card framing, teal reserved for positive outcomes. */
-.dashboard-platform :is(.profit-panel, .recovery-panel) {
+/* Recovery panel: neutral card framing, teal reserved for positive outcomes. */
+.dashboard-platform .recovery-panel {
   background: var(--dashboard-surface);
   border: 1px solid var(--dashboard-line);
   border-radius: 14px;
@@ -402,12 +402,12 @@
   color: var(--dashboard-ink);
 }
 .dashboard-platform
-  :is(.profit-panel, .recovery-panel)
+  .recovery-panel
   :is(.success, .positive, .profit-value, .recovered-value) {
   color: var(--dashboard-teal);
 }
 .dashboard-platform
-  :is(.profit-panel, .recovery-panel)
+  .recovery-panel
   :is(.muted, small, .description) {
   color: var(--dashboard-muted);
 }
@@ -618,126 +618,11 @@
   }
 }
 
-/* Outils métier : même hiérarchie et même rythme que l’accueil. */
-.dashboard-platform .profit-panel {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-}
-.business-eyebrow {
-  display: block;
-  color: #2563eb;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  font-weight: 700;
-  margin: 0 0 10px;
-}
-.profit-panel select {
-  min-height: 38px;
-  padding: 8px 12px;
-}
-.profit-summary > b {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  font-weight: 600;
-  color: #687386;
-}
-.profit-summary > b > span {
-  color: #2563eb;
-  font-size: 11px;
-  background: #eff5ff;
-  padding: 3px 7px;
-  border-radius: 5px;
-}
-.profit-summary-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-}
-.profit-summary-metrics > div {
-  display: grid;
-  gap: 10px;
-  padding: 0 16px;
-  border-left: 1px solid #e6eaf0;
-}
-.profit-summary-metrics > div:first-child {
-  border: 0;
-  padding-left: 0;
-}
-.profit-summary-metrics small {
-  color: #7b8494;
-  font-size: 11px;
-}
-.profit-summary-metrics strong {
-  font-size: clamp(19px, 2vw, 27px);
-  letter-spacing: -0.045em;
-}
-.profit-summary-metrics .profit-summary-result strong {
-  color: #138573;
-}
-.profit-panel .profit-product {
-  padding: 22px !important;
-}
-.profit-product-stats {
-  background: #f7f9fc;
-  padding: 14px;
-  border-radius: 9px;
-  font-size: 12px;
-}
-.profit-product-stats span {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 6px;
-  color: #7b8494;
-}
-.profit-product-stats b {
-  color: #263449;
-  font-weight: 600;
-}
-.profit-product-result {
-  font-size: 12px;
-  padding: 12px 14px !important;
-  background: #edf7f4 !important;
-  color: #138573;
-}
-.profit-product label {
-  font-size: 12px;
-  color: #566276;
-  font-weight: 500;
-}
-.profit-product input {
-  min-height: 42px;
-  font-size: 13px;
-}
-.profit-product button {
-  min-height: 40px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.dashboard-platform .app-main > :is(.profit-panel, .recovery) {
+.dashboard-platform .app-main > .recovery {
   animation: dashboardContentIn 190ms ease-out both;
 }
-@media (max-width: 600px) {
-  .profit-summary-metrics {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  .profit-summary-metrics > div {
-    border: 0;
-    padding: 0;
-  }
-  .profit-summary-metrics strong {
-    font-size: 23px;
-  }
-  .profit-panel .profit-product {
-    padding: 17px !important;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .dashboard-platform .app-main > :is(.profit-panel, .recovery) {
+  .dashboard-platform .app-main > .recovery {
     animation: none;
   }
 }

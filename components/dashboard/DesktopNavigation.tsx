@@ -11,7 +11,6 @@ import {
   Settings,
   Sparkles,
   Store,
-  ChartNoAxesCombined,
   MessageCircle,
   MessageSquareText,
 } from "lucide-react";
@@ -35,11 +34,6 @@ export const dashboardPrimaryNavigation: readonly NavigationItem[] = [
     navKey: "nav.overview",
     label: "Vue d'ensemble",
     Icon: LayoutDashboard,
-  },
-  {
-    section: "Bénéfices nets",
-    label: "Bénéfices nets",
-    Icon: ChartNoAxesCombined,
   },
   {
     section: "Relances WhatsApp",
@@ -120,13 +114,13 @@ function DashboardNavigationItems({
           : copy["dashboardExtra.toolsLabel"]
       }
     >
-      {items.map(({ section, navKey, label, Icon }, index) => (
+      {items.map(({ section, navKey, label, Icon }) => (
         <div className="dashboard-nav-item" key={section}>
-          {primary && (index === 0 || index === 3 || index === 6) ? (
+          {primary && ["Vue d'ensemble", "Vendeo AI", "Performance publicitaire"].includes(section) ? (
             <span className="dashboard-nav-group">
-              {index === 0
+              {section === "Vue d'ensemble"
                 ? copy["dashboardExtra.myActivity"]
-                : index === 3
+                : section === "Vendeo AI"
                   ? copy["dashboardExtra.createDevelop"]
                   : copy["dashboardExtra.analyzeManage"]}
             </span>

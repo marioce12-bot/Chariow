@@ -4,7 +4,6 @@ export const CHAT_NAVIGATION_TARGETS = [
   { section: "Studio", labelFr: "Studio", labelEn: "Studio", routeLabelFr: "Studio", routeLabelEn: "Studio" },
   { section: "Performance publicitaire", labelFr: "Recommandation", labelEn: "Recommendations", routeLabelFr: "Recommandation", routeLabelEn: "Recommendations" },
   { section: "Vendeo AI", labelFr: "Assistant", labelEn: "Assistant", routeLabelFr: "Assistant", routeLabelEn: "Assistant" },
-  { section: "Bénéfices nets", labelFr: "Bénéfices nets", labelEn: "Net profit", routeLabelFr: "Bénéfices nets", routeLabelEn: "Net profit" },
   { section: "Relances WhatsApp", labelFr: "Relances WhatsApp", labelEn: "WhatsApp follow-ups", routeLabelFr: "Relances WhatsApp", routeLabelEn: "WhatsApp follow-ups" },
   { section: "Radar marché", labelFr: "Radar marché", labelEn: "Market radar", routeLabelFr: "Radar marché", routeLabelEn: "Market radar" },
   { section: "Rapports", labelFr: "Rapports", labelEn: "Reports", routeLabelFr: "Rapports", routeLabelEn: "Reports" },
@@ -46,7 +45,6 @@ export function resolveChatNavigationRequest(message: string): ChatNavigationTar
   if (/\b(?:rapports?|reports?)\b/.test(query)) return target("Rapports");
   if (/\b(?:relances?|whatsapp|abandon|recovery)\b/.test(query)) return target("Relances WhatsApp");
   if (/\b(?:radar|market radar)\b/.test(query) && /\b(?:marche|market)\b/.test(query)) return target("Radar marché");
-  if (/\b(?:benefices?|profits?|rentabilite|marges?)\b/.test(query)) return target("Bénéfices nets");
   if (/\b(?:parametres?|settings?|preferences?)\b/.test(query)) return target("Paramètres");
   if (/\b(?:comptes? publicitaires?|ad accounts?|ads accounts?)\b/.test(query)) return target("Comptes publicitaires");
   if (/\b(?:abonnement|subscription|billing|plan)\b/.test(query)) return target("Abonnement");
