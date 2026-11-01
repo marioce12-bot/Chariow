@@ -123,6 +123,15 @@ const failure = (status = 503) => new Response(JSON.stringify({ error: { message
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
+  it("passes a selected model through askText to OpenRouter", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(success());
+    vi.stubGlobal("fetch", fetchMock);
+    await askText(messages, { order: ["openrouter"], model: "google/gemini-2.5-flash-lite" });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).model).toBe("google/gemini-2.5-flash-lite");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("rejects empty successful responses and requires an API key", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-key");
     const fetchMock = vi.fn().mockResolvedValue(success(" "));

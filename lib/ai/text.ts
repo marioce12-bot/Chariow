@@ -8,11 +8,11 @@ export type StructuredJsonSchema = { name: string; schema: Record<string, unknow
 
 const DEFAULT_ORDER: TextProvider[] = ["groq", "imole", "gemini"];
 
-const PROVIDERS: Record<TextProvider, (messages: TextMessage[], responseSchema?: StructuredJsonSchema) => Promise<string>> = {
+const PROVIDERS: Record<TextProvider, (messages: TextMessage[], responseSchema?: StructuredJsonSchema, model?: string) => Promise<string>> = {
   groq: (messages, responseSchema) => askGroq(messages, { responseSchema }),
   imole: (messages) => askImole(messages),
   gemini: (messages, responseSchema) => askGemini(messages, { responseSchema: responseSchema?.schema }),
-  openrouter: (messages, responseSchema) => askOpenRouter(messages, { responseSchema }),
+  openrouter: (messages, responseSchema, model) => askOpenRouter(messages, { responseSchema, model }),
 };
 
 export class TextProviderError extends Error {
@@ -40,7 +40,7 @@ function getRetryAfter(error: unknown): string | undefined {
 
 // Génération texte avec secours en cascade. Les logs ne contiennent ni la réponse
 // du modèle ni le détail brut de l'erreur fournisseur : uniquement fournisseur, type et statut.
-export async function askText(messages: TextMessage[], options: { order?: TextProvider[]; responseSchema?: StructuredJsonSchema } = {}) {
+export async function askText(messages: TextMessage[], options: { order?: TextProvider[]; responseSchema?: StructuredJsonSchema; model?: string } = {}) {
   const order = Array.from(new Set(options.order?.length ? options.order : DEFAULT_ORDER));
   const failures: TextProvider[] = [];
   let lastStatus: number | undefined;
@@ -49,7 +49,7 @@ export async function askText(messages: TextMessage[], options: { order?: TextPr
   for (const provider of order) {
     if (provider === "groq" && !hasGroqKey()) continue;
     try {
-      const answer = await PROVIDERS[provider](messages, options.responseSchema);
+      const answer = await PROVIDERS[provider](messages, options.responseSchema, options.model);
       if (answer?.trim()) return answer.trim();
       throw new Error("empty response");
     } catch (error) {

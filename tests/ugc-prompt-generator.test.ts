@@ -39,6 +39,7 @@ describe("generateUgcCreative", () => {
     for (const [messages, options] of askText.mock.calls) {
       expect(options.order).toEqual(["openrouter"]);
       expect(options.responseSchema).toBeDefined();
+      expect(options.model).toBe("google/gemini-2.5-flash-lite");
       const payload = messages.map((m: { content: string }) => m.content).join(" ");
       expect(payload).toContain("Guide Excel Facile");
       expect(payload).toContain("description");
