@@ -54,7 +54,8 @@ import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
-import { DASHBOARD_ANALYTICS_REFRESH_MS, getDashboardAnalyticsUrl } from "@/lib/dashboard-analytics-periods";
+import { getDashboardAnalyticsUrl } from "@/lib/dashboard-analytics-periods";
+import { useChariowSalesRealtime } from "./dashboard/useChariowSalesRealtime";
 import type { DashboardTourStep } from "./dashboard/tour-steps";
 type DashboardAnalyticsResponse = { snapshot: AnalyticsData; rolling30Snapshot: AnalyticsData; periodSnapshot: AnalyticsData };
 type StoredDashboardAnalyticsResponse = { storeId: string; data: DashboardAnalyticsResponse };
@@ -393,13 +394,10 @@ function DashboardWorkspace() {
   }, [selectedStoreId]);
 
   const analyticsUrl = activeStoreId ? getDashboardAnalyticsUrl(activeStoreId, overviewPeriodDays) : null;
-  const analyticsReading = useNavigationData<DashboardAnalyticsResponse>(analyticsUrl, {
-    freshMs: DASHBOARD_ANALYTICS_REFRESH_MS,
-    refreshIntervalMs: DASHBOARD_ANALYTICS_REFRESH_MS,
-    visibleOnly: true,
-    refreshOnVisibilityReturn: true,
-    completionAnchoredRefresh: true,
-  });
+  // Analytics has no interval: initial load, signed sale event, manual refresh or stale foreground return only.
+  const analyticsReading = useNavigationData<DashboardAnalyticsResponse>(analyticsUrl);
+  const realtimeStoreId = stores.find((store) => store.id === activeStoreId)?.platform === "chariow" ? activeStoreId : null;
+  useChariowSalesRealtime(realtimeStoreId, notificationUserId, navigationCache);
   const dashboardAnalyticsData = analyticsReading.data
     ?? (lastAnalyticsResponse?.storeId === activeStoreId ? lastAnalyticsResponse.data : undefined);
   useEffect(() => {

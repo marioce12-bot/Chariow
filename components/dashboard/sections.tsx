@@ -196,8 +196,9 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   useEffect(() => {
     let active = true;
     let checking = false;
+    let retryTimer: number | null = null;
     const recover = async () => {
-      if (checking || imageRecoveryReadyRef.current) return;
+      if (!active || checking || imageRecoveryReadyRef.current) return;
       checking = true;
       try {
         const response = await fetch("/api/studio/tasks");
@@ -238,11 +239,11 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         setError("Impossible de vérifier si une génération photo est en cours. Réessayez la vérification avant de créer une nouvelle image.");
         imageRecoveryReadyRef.current = false;
         setImageRecoveryReady(false);
+        if (active) retryTimer = window.setTimeout(() => void recover(), 4_000);
       } finally { checking = false; }
     };
     void recover();
-    const timer = window.setInterval(() => void recover(), 4000);
-    return () => { active = false; window.clearInterval(timer); };
+    return () => { active = false; if (retryTimer !== null) window.clearTimeout(retryTimer); };
   }, []);
 
   useEffect(() => {
@@ -1153,7 +1154,7 @@ export function Reports({ stores, analytics, selectedStoreId }: { stores: StoreD
       const params = new URLSearchParams({ store_id: selectedStoreId });
       if (nextFrom) params.set("from", nextFrom);
       if (nextTo) params.set("to", nextTo);
-      const response = await fetch(`/api/analytics?${params.toString()}`);
+      const response = await fetch(`/api/analytics?${params.toString()}`, { cache: "no-store", headers: { "x-vendeo-refresh": "1" } });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         setReportError(data.error ?? "Impossible de charger le rapport pour cette période.");
@@ -1795,10 +1796,15 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
     setTiktokLoading(false);
   }, [cachedOnce]);
   useEffect(() => {
-    const refreshStale = () => { if (document.visibilityState !== "hidden") void navigationCache.loadComputed(adsCacheKey, () => loadRef.current(), campaignsVersion); };
+    const intervalMs = 12 * 60_000;
+    const refreshStale = () => {
+      if (document.visibilityState !== "visible" || !document.hasFocus()) return;
+      void navigationCache.loadComputed(adsCacheKey, () => loadRef.current(), campaignsVersion, false, intervalMs);
+    };
     window.addEventListener("focus", refreshStale);
-    const timer = window.setInterval(refreshStale, 60_000);
-    return () => { clearInterval(timer); window.removeEventListener("focus", refreshStale); metaRequestToken.current += 1; };
+    document.addEventListener("visibilitychange", refreshStale);
+    const timer = window.setInterval(refreshStale, intervalMs);
+    return () => { clearInterval(timer); window.removeEventListener("focus", refreshStale); document.removeEventListener("visibilitychange", refreshStale); metaRequestToken.current += 1; };
   }, [navigationCache, adsCacheKey, campaignsVersion]);
 
   const connectMeta = () => { window.location.href = "/api/integrations/meta/connect"; };
