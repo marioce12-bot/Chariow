@@ -8,11 +8,11 @@ values
   ('22222222-2222-4222-8222-222222222222', 'authenticated', 'authenticated', 'rls-owner-b@example.invalid', '', now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
   ('33333333-3333-4333-8333-333333333333', 'authenticated', 'authenticated', 'rls-owner-c@example.invalid', '', now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb);
 
-insert into public.stores (id, user_id, platform, store_name, mcp_url)
+insert into public.stores (id, user_id, platform, store_name, slug, mcp_url)
 values
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', '11111111-1111-4111-8111-111111111111', 'chariow', 'RLS A one', 'https://mcp.example.invalid'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', '11111111-1111-4111-8111-111111111111', 'chariow', 'RLS A two', 'https://mcp.example.invalid'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1', '22222222-2222-4222-8222-222222222222', 'chariow', 'RLS B one', 'https://mcp.example.invalid');
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', '11111111-1111-4111-8111-111111111111', 'chariow', 'RLS A one', 'rls-a-one', 'https://mcp.example.invalid'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', '11111111-1111-4111-8111-111111111111', 'chariow', 'RLS A two', 'rls-a-two', 'https://mcp.example.invalid'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1', '22222222-2222-4222-8222-222222222222', 'chariow', 'RLS B one', 'rls-b-one', 'https://mcp.example.invalid');
 
 insert into public.sales_events (event_id, store_id, user_id, status, amount, currency, product_id, product_name, created_at)
 values
