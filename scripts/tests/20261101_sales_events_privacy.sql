@@ -46,6 +46,16 @@ begin
     raise exception 'sales_events is missing from supabase_realtime publication';
   end if;
   if not exists (
+    select 1
+    from pg_index i
+    join pg_class idx on idx.oid = i.indexrelid
+    where i.indrelid = 'public.sales_events'::regclass
+      and i.indisreplident
+      and idx.relname = 'sales_events_store_event_unique'
+  ) then
+    raise exception 'sales_events is missing its unique replica identity';
+  end if;
+  if not exists (
     select 1 from cron.job where jobname = 'chariow-sales-retention-90d' and schedule = '17 3 * * *'
   ) then
     raise exception '90-day retention job is missing from Supabase Cron';

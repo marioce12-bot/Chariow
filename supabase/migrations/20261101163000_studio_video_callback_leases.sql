@@ -102,6 +102,7 @@ begin
     and status = 'processing'
     and provider_callback_status = 'OK'
     and provider_callback_lease_token = p_lease_token
+    and provider_callback_lease_until > clock_timestamp()
     and (storage_path is null or storage_path = p_storage_path);
   return found;
 end;

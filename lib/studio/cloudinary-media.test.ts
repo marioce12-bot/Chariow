@@ -39,6 +39,24 @@ describe("Cloudinary private Studio media", () => {
     expect(Number(url.searchParams.get("expires_at"))).toBeGreaterThan(Math.floor(Date.now() / 1000) + 3500);
   });
 
+  it("imports a generated video through the private video endpoint and signs a video download", async () => {
+    const videoUrl = "https://v3.fal.media/files/test/generated-video.mp4";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ public_id: "vendeo/studio/user/video-id", format: "mp4", resource_type: "video" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const path = await importFalMediaToCloudinary(videoUrl, userId, generationId, "video");
+    const [endpoint, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(endpoint).toContain("/video/upload");
+    expect((init.body as FormData).get("file")).toBe(videoUrl);
+    expect((init.body as FormData).get("type")).toBe("authenticated");
+    expect(path).toMatch(/^cloudinary-private:/);
+
+    const url = new URL(signedCloudinaryPrivateUrl(path));
+    expect(url.pathname).toContain("/video/download");
+    expect(url.searchParams.get("type")).toBe("authenticated");
+    expect(url.searchParams.get("public_id")).toBe("vendeo/studio/user/video-id");
+  });
+
   it("rejects non-fal hosts before calling Cloudinary", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

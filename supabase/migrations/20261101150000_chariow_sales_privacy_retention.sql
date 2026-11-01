@@ -74,6 +74,9 @@ alter table public.sales_events
   add column if not exists product_id text,
   add column if not exists product_name text;
 
+alter table public.sales_events
+  replica identity using index sales_events_store_event_unique;
+
 update public.sales_events se
 set user_id = s.user_id
 from public.stores s

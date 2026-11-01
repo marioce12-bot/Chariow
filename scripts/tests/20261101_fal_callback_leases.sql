@@ -80,12 +80,15 @@ begin
   if v->>'ok' <> 'true' then raise exception 'timeout fixture could not reserve quota: %', v; end if;
   v := public.claim_studio_video_callback('fal-lease-timeout-test', '77777777-7777-4777-8777-777777777777', 'OK', '71000000-0000-4000-8000-000000000006');
   if v->>'outcome' <> 'claimed' then raise exception 'timeout fixture callback was not claimed: %', v; end if;
-  v_ok := public.record_studio_video_callback_asset('70000000-0000-4000-8000-000000000003', '71000000-0000-4000-8000-000000000006', 'cloudinary-private:timeout-race-asset');
-  if not v_ok then raise exception 'timeout fixture could not persist its imported asset'; end if;
   v_ok := public.fail_stale_studio_video_generation('70000000-0000-4000-8000-000000000003', now() - interval '12 minutes', 'timeout');
   if v_ok then raise exception 'timeout invalidated a callback with an active lease'; end if;
   update public.studio_generations set provider_callback_lease_until = now() - interval '1 second'
     where id = '70000000-0000-4000-8000-000000000003';
+  v_ok := public.record_studio_video_callback_asset('70000000-0000-4000-8000-000000000003', '71000000-0000-4000-8000-000000000006', 'cloudinary-private:late-timeout-asset');
+  if v_ok then raise exception 'expired callback persisted an imported asset'; end if;
+  if (select storage_path from public.studio_generations where id = '70000000-0000-4000-8000-000000000003') is not null then
+    raise exception 'expired callback left an imported asset path behind';
+  end if;
   v_ok := public.complete_studio_video_callback('70000000-0000-4000-8000-000000000003', '71000000-0000-4000-8000-000000000006', 'cloudinary-private:timeout-race-asset');
   if v_ok then raise exception 'expired callback completed and charged its generation'; end if;
   select status into v_transaction_status from public.credit_transactions where id = '72000000-0000-4000-8000-000000000003';
