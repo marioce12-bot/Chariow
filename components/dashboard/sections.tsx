@@ -31,6 +31,7 @@ import { useI18n } from "@/lib/i18n/i18n";
 import { MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY } from "./shared";
 import { useNavigationCache } from "./NavigationDataCache";
 import type { StoreData, SubscriptionData, ProductData, AnalyticsData } from "./shared";
+import { watchStudioGeneration } from "@/lib/studio/realtime";
 
 function sumInUSD(entries: Array<{ amount: number; currency: string }>): number | null {
   if (!entries.length) return null;
@@ -185,10 +186,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const generatingRef = useRef(false);
   // Dernier prompt produit généré par l'IA (pour distinguer les consignes de l'utilisateur).
   const lastGeneratedPromptRef = useRef<string | null>(null);
-  // Jobs vidéo déjà vérifiés une fois depuis l'historique au chargement de la
-  // page, pour ne relancer la vérification serveur qu'une seule fois par job
-  // (évite une boucle de re-render infinie sur l'effet ci-dessous).
-  const reconciledJobsRef = useRef<Set<string>>(new Set());
   useEffect(() => () => { stopProgressRef.current?.(); stopProgressRef.current = null; }, []);
 
   // Restore the server-owned photo task after mount/refresh. This is deliberately
@@ -246,27 +243,30 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     return () => { active = false; if (retryTimer !== null) window.clearTimeout(retryTimer); };
   }, []);
 
+  const imageTaskId = imageTask?.id ?? null;
+  const imageTaskActive = Boolean(imageTaskId && imageTask && ["processing", "awaiting_media"].includes(imageTask.status));
   useEffect(() => {
-    if (!imageTask || !["processing", "awaiting_media"].includes(imageTask.status)) return;
+    if (!imageTaskId || !imageTaskActive) return;
     let active = true;
-    let failures = 0;
-    let timer: ReturnType<typeof setTimeout>;
+    let inFlight = false;
+    let refreshPending = false;
     const controller = new AbortController();
-    // Poll only this photo. Schedule AFTER each response so slow requests never overlap.
-    const poll = async () => {
+    const refresh = async () => {
+      if (!active) return;
+      if (inFlight) { refreshPending = true; return; }
+      inFlight = true;
       try {
-        const response = await fetch(`/api/studio/tasks?id=${encodeURIComponent(imageTask.id)}`, { cache: "no-store", signal: controller.signal });
+        const response = await fetch(`/api/studio/tasks?id=${encodeURIComponent(imageTaskId)}`, { cache: "no-store", signal: controller.signal });
         if (!response.ok) throw new Error("Suivi indisponible");
         const data = await response.json();
-        const task = Array.isArray(data.tasks) ? data.tasks.find((item: any) => item.id === imageTask.id) : null;
+        const task = Array.isArray(data.tasks) ? data.tasks.find((item: any) => item.id === imageTaskId) : null;
         if (!active) return;
         if (!task || task.trackingUnavailable) throw new Error("Suivi indisponible");
-        failures = task.mediaPending ? failures + 1 : 0;
         setImageTrackingIssue(false);
         if (task.status === "completed") {
           stopProgressRef.current?.(); stopProgressRef.current = null;
           if (task.mediaPending) {
-            // The provider has finished: do not keep claiming it is generating.
+            // Provider output is ready; a later storage-row update or foreground return will reconcile media.
             setImageTask((current) => current?.status === "awaiting_media" ? current : { id: task.id, status: "awaiting_media" });
           } else {
             setImageUrl(task.result?.imageUrl ?? null);
@@ -277,26 +277,33 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             setLoading(false); generatingRef.current = false;
             void loadHistory(true);
             void fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).then((credits) => { if (credits) setBalance(credits.balance ?? 0); }).catch(() => undefined);
-            return;
           }
         } else if (task.status === "failed") {
           stopProgressRef.current?.(); stopProgressRef.current = null;
           setError(task.error || task.message || "La génération photo a échoué.");
           setImageTask({ id: task.id, status: "failed" });
           setLoading(false); generatingRef.current = false; setGenerationProgress(0);
-          return;
         }
       } catch {
-        if (!active) return;
-        failures++;
+        if (!active || controller.signal.aborted) return;
         setImageTrackingIssue(true);
         stopProgressRef.current?.(); stopProgressRef.current = null;
+      } finally {
+        inFlight = false;
+        if (active && refreshPending) { refreshPending = false; void refresh(); }
       }
-      if (active) timer = setTimeout(() => void poll(), Math.min(30_000, 4_000 * 2 ** Math.min(failures, 3)));
     };
-    timer = setTimeout(() => void poll(), 4_000);
-    return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [imageTask?.id, imageTask?.status]);
+    const stopWatching = watchStudioGeneration({
+      filter: `id=eq.${imageTaskId}`,
+      onChange: refresh,
+      onError: () => {
+        if (!active) return;
+        setImageTrackingIssue(true);
+        stopProgressRef.current?.(); stopProgressRef.current = null;
+      },
+    });
+    return () => { active = false; controller.abort(); stopWatching(); };
+  }, [imageTaskId, imageTaskActive, locale]);
 
   useEffect(() => {
     fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).then((data) => { if (data) setBalance(data.balance ?? 0); }).catch(() => undefined);
@@ -313,70 +320,51 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   }
   useEffect(() => { void loadHistory(true); }, [historyKind]);
 
-  // Sans ceci, une vidéo qui continue à traiter côté serveur pendant qu'on
-  // ferme ou quitte l'appli restait bloquée sur "processing" pour toujours au
-  // retour : rien ne relançait jamais sa vérification tant que l'utilisateur
-  // ne rouvrait pas explicitement cette création précise. Au chargement (ou
-  // rafraîchissement) de l'historique, on revérifie donc une fois chaque job
-  // vidéo encore "processing" — la route appelée applique déjà la bascule en
-  // "completed"/"failed" (y compris l'abandon après un délai anormalement
-  // long), il suffit de la déclencher.
+  // Rehydrate the active video job from history; the Realtime watcher handles
+  // reconciliation and subsequent status updates without polling.
   useEffect(() => {
-    const pending = history.filter(
-      (item) => item.kind === "video" && item.status === "processing" && item.video_job_id && !reconciledJobsRef.current.has(item.video_job_id),
-    );
-    if (!pending.length) return;
-    pending.forEach((item) => reconciledJobsRef.current.add(item.video_job_id as string));
-    void (async () => {
-      let changed = false;
-      for (const item of pending) {
-        try {
-          const response = await fetch(`/api/studio/video/${encodeURIComponent(item.video_job_id as string)}`);
-          const data = await response.json().catch(() => null);
-          if (response.ok && data?.status) {
-            if (data.status === "processing") {
-              // Toujours en cours : on reprend le polling pour terminer la
-              // génération au lieu de la laisser figée sur "processing".
-              setVideoJob((current) => current ?? { id: item.video_job_id as string, status: "processing" });
-            } else {
-              changed = true;
-            }
-          }
-        } catch {
-          // Vérification en tâche de fond : un échec réseau ici n'empêche pas
-          // de continuer à utiliser le Studio, on retentera à la prochaine
-          // ouverture de la page.
-        }
-      }
-      if (changed) await loadHistory(true);
-    })();
+    const pending = history.find((item) => item.kind === "video" && item.status === "processing" && item.video_job_id);
+    if (!pending?.video_job_id) return;
+    setVideoJob((current) => current && !["completed", "failed", "cancelled"].includes(current.status)
+      ? current
+      : { id: pending.video_job_id as string, status: "processing" });
   }, [history]);
 
+  const videoJobId = videoJob?.id ?? null;
+  const videoJobActive = Boolean(videoJobId && videoJob && !["completed", "failed", "cancelled"].includes(videoJob.status));
   useEffect(() => {
-    if (!videoJob || ["completed", "failed", "cancelled"].includes(videoJob.status)) return;
+    if (!videoJobId || !videoJobActive) return;
     let active = true;
-    let timer: number | null = null;
+    let inFlight = false;
+    let refreshPending = false;
     const controller = new AbortController();
-    const poll = async () => {
+    const refresh = async () => {
+      if (!active) return;
+      if (inFlight) { refreshPending = true; return; }
+      inFlight = true;
       try {
-        const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`, { signal: controller.signal });
+        const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJobId)}`, { cache: "no-store", signal: controller.signal });
         const result = await response.json().catch(() => ({}));
         if (!active) return;
-        if (response.ok && typeof result?.status === "string") setVideoJob(result);
-        else if (result.error) setError(result.error);
+        if (response.ok && typeof result?.status === "string") {
+          setVideoJob(result);
+          if (["completed", "failed", "cancelled"].includes(result.status)) {
+            setHistory((current) => current.map((item) => item.video_job_id === videoJobId
+              ? { ...item, status: result.status, ...(typeof result.contentUrl === "string" ? { mediaUrl: result.contentUrl } : {}) }
+              : item));
+            setLoading(false); generatingRef.current = false;
+          }
+        } else if (result.error) setError(result.error);
       } catch {
-        // Retry after the current request settles; cleanup aborts any in-flight read.
+        // Realtime or foreground return retries failed reads without an interval.
       } finally {
-        if (active && !controller.signal.aborted) timer = window.setTimeout(() => void poll(), 4_000);
+        inFlight = false;
+        if (active && refreshPending) { refreshPending = false; void refresh(); }
       }
     };
-    timer = window.setTimeout(() => void poll(), 4_000);
-    return () => {
-      active = false;
-      if (timer !== null) window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [videoJob?.id, videoJob?.status]);
+    const stopWatching = watchStudioGeneration({ filter: `video_job_id=eq.${videoJobId}`, onChange: refresh });
+    return () => { active = false; controller.abort(); stopWatching(); };
+  }, [videoJobId, videoJobActive]);
 
   async function uploadReferenceFiles() {
     if (!referenceFiles.length) return [];

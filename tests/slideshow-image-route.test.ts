@@ -105,7 +105,7 @@ describe("POST /api/studio/image slideshow validation", () => {
     const eqChain = { eq: vi.fn() };
     eqChain.eq.mockReturnValue(eqChain);
     const table = { insert: vi.fn(() => ({ select: () => ({ single: async () => ({ data: { id: "generation-1" }, error: null }) }) })), update: vi.fn((value: Record<string, unknown>) => { updates.push(value); return eqChain; }) };
-    const rpc = vi.fn(async (operation: string) => operation === "reserve_credits" ? ({ data: { ok: true, transaction_id: "mock-transaction" }, error: null }) : ({ error: null }));
+    const rpc = vi.fn(async (operation: string) => operation === "reserve_image_slot" ? ({ data: { ok: true, used: 1, daily_limit: 50 }, error: null }) : operation === "reserve_credits" ? ({ data: { ok: true, transaction_id: "mock-transaction" }, error: null }) : ({ data: true, error: null }));
     mocks.createAdminClient.mockReturnValue({ from: () => table, rpc });
     const response = await POST(request(validStoryboard()));
     expect(response.ok).toBe(false); expect(updates.some(value => value.status === "completed")).toBe(false);
@@ -125,9 +125,8 @@ describe("POST /api/studio/image slideshow validation", () => {
     expect(mocks.generateFalImageWithReferences).not.toHaveBeenCalled();
   });
 
-  it("accepts the released storyboard in Render Preview without performing generation", async () => {
-    vi.stubEnv("VERCEL_ENV", "");
-    vi.stubEnv("VENDEO_DEPLOYMENT_ENV", "preview");
+  it("accepts the released storyboard in Vercel Preview without performing generation", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
     const response = await POST(request(validStoryboard()));
     expect(response.status).toBe(402);
     expect(mocks.requireActiveSubscription).toHaveBeenCalledWith("user-1");

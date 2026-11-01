@@ -5,6 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@/lib/i18n/i18n";
 import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
 
+vi.mock("@/lib/supabase/browser", () => ({
+  createClient: () => ({
+    channel: () => {
+      let channel: any;
+      channel = { on: () => channel, subscribe: () => channel };
+      return channel;
+    },
+    removeChannel: vi.fn(),
+  }),
+}));
+
 const product = { id: "p1", name: "Produit test", description: "Description existante" };
 const images = Array.from({ length: 5 }, (_, i) => ({ id: `image-${i}`, url: `https://placeholder.invalid/image-${i}` }));
 const result = { generationId: "video-1", videoUrl: "https://placeholder.invalid/video.mp4", attribution: "Crédits", duration: 25, musicId: "", imageGenerationIds: images.map((image) => image.id) };
@@ -19,12 +30,19 @@ let fetcher: ReturnType<typeof vi.fn>;
 const mount = async (callback?: () => void) => act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={product} onComplete={callback} /></I18nProvider>));
 const remount = async (callback?: () => void) => { root = createRoot(container); await mount(callback); };
 const calls = (method: string) => fetcher.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === method);
+const refreshOnFocus = async () => act(async () => {
+  window.dispatchEvent(new Event("focus"));
+  await vi.advanceTimersByTimeAsync(250);
+  await Promise.resolve();
+});
 
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
   localStorage.clear();
   fetcher = vi.fn(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [] }));
   vi.stubGlobal("fetch", fetcher);
@@ -32,12 +50,13 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.restoreAllMocks();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 describe("récupération des tâches serveur SlideshowStudio", () => {
-  it("conserve la tâche processing et ses images au remount, puis récupère completed par polling sans POST", async () => {
+  it("conserve la tâche processing et ses images au remount, puis récupère completed au retour au premier plan sans POST", async () => {
     vi.useFakeTimers();
     let serverTask: typeof processing | typeof completed = processing;
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [serverTask] }));
@@ -49,7 +68,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(container.querySelectorAll("img")).toHaveLength(5);
     expect(container.textContent).toContain("Génération en cours");
     serverTask = completed;
-    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    await refreshOnFocus();
     expect(container.textContent).toContain("Ton diaporama est prêt");
     expect(container.querySelector('video[aria-label="Diaporama final"]')?.getAttribute("src")).toBe(result.videoUrl);
     expect(container.querySelectorAll("img")).toHaveLength(5);
@@ -75,7 +94,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(calls("POST")).toHaveLength(2);
   });
 
-  it("après échec du GET initial, bloque la génération jusqu'au polling récupérateur", async () => {
+  it("après échec du GET initial, bloque la génération puis réessaie au retour au premier plan", async () => {
     vi.useFakeTimers();
     let firstGet = true;
     fetcher.mockImplementation(async (url: string) => {
@@ -86,7 +105,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     await mount();
     expect(container.querySelector<HTMLButtonElement>("button.studio-generate")).toBeNull();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("Vérification du suivi");
-    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    await refreshOnFocus();
     expect(container.textContent).toContain("Ton diaporama est prêt");
     expect(calls("POST")).toHaveLength(0);
   });
@@ -103,13 +122,13 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     await act(async () => { container.querySelector<HTMLButtonElement>("button.studio-generate")!.click(); });
     expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(1);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("aucune relance automatique");
-    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    await refreshOnFocus();
     expect(container.textContent).toContain("Génération en cours");
     expect(container.querySelectorAll("img")).toHaveLength(5);
     expect(calls("POST")).toHaveLength(2);
   });
 
-  it("notifie avec le dernier onComplete après rerender avant la fin du polling", async () => {
+  it("notifie avec le dernier onComplete après rerender quand le suivi est rafraîchi", async () => {
     vi.useFakeTimers();
     let serverTask: typeof processing | typeof completed = processing;
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [serverTask] }));
@@ -118,7 +137,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     await mount(oldHandler);
     await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={product} onComplete={latestHandler} /></I18nProvider>));
     serverTask = completed;
-    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    await refreshOnFocus();
     expect(latestHandler).toHaveBeenCalledTimes(1);
     expect(oldHandler).not.toHaveBeenCalled();
   });
@@ -173,32 +192,36 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     await mount();
     expect(container.textContent).toContain("Image 1/5");
     const before = Number(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow") ?? 0);
+    const requestsBeforeEstimate = fetcher.mock.calls.length;
     await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
     const after = Number(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow") ?? 0);
     expect(after).toBeGreaterThan(before);
     expect(after).toBeLessThan(100);
+    expect(fetcher.mock.calls).toHaveLength(requestsBeforeEstimate);
     expect(container.textContent).toContain("1/5");
     expect(container.querySelector(".chat-launch-progress-ring")).not.toBeNull();
     expect(container.querySelector(".chat-launch-progress-value")).not.toBeNull();
     expect(container.querySelector(".chat-launch-progress-copy small")?.textContent).toContain("Progression estimée");
     expect(container.querySelector('[data-testid="slideshow-spinner"]')).toBeNull();
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, progress: 82, phase: "running", images: images.slice(0, 4), message: "Image 4/5" }] }));
-    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    await refreshOnFocus();
     expect(container.textContent).toContain("4/5 visuels");
     expect(container.textContent).not.toContain("100%");
   });
 
-  it("avance pendant chaque longue étape sans reculer au polling", async () => {
+  it("avance pendant chaque longue étape sans polling périodique et ne recule pas au rafraîchissement", async () => {
     vi.useFakeTimers();
     let task: any = { ...processing, revision: 1, phase: "running", progress: 5, images: [], message: "Génération du visuel 1/5…" };
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [task] }));
     const percent = () => Number(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow") ?? 0);
     await mount(); const start = percent();
+    const requestsBeforeWait = fetcher.mock.calls.length;
     await act(async () => { await vi.advanceTimersByTimeAsync(120_000); }); const first = percent();
     expect(first).toBeGreaterThan(start); expect(first).toBeLessThan(22);
+    expect(fetcher.mock.calls).toHaveLength(requestsBeforeWait);
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); }); expect(percent()).toBeGreaterThanOrEqual(first);
     task = { ...task, revision: 2, progress: 22, images: images.slice(0, 1), message: "Génération du visuel 2/5…" };
-    await act(async () => { await vi.advanceTimersByTimeAsync(4000); }); const next = percent();
+    await refreshOnFocus(); const next = percent();
     expect(next).toBeGreaterThanOrEqual(first);
     await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
     expect(percent()).toBeGreaterThan(next); expect(percent()).toBeLessThan(39);

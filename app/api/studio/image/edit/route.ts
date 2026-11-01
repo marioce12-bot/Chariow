@@ -29,9 +29,18 @@ export async function POST(request: Request) {
   const editedPrompt = `${source.prompt}\nRequested edit: ${editInstruction}`;
   const { data: generation, error: generationError } = await admin.from("studio_generations").insert({ user_id: user.id, kind: "image", prompt: editedPrompt, options, status: "processing", credits_cost: cost, parent_id: source.id }).select("id").single();
   if (generationError) return NextResponse.json({ error: "L'historique Studio n'est pas configuré." }, { status: 503 });
+  const quota = await admin.rpc("reserve_image_slot", { p_user_id: user.id, p_request_id: generation.id });
+  if (quota.error) {
+    await admin.from("studio_generations").delete().eq("id", generation.id).eq("user_id", user.id);
+    return NextResponse.json({ error: "Impossible de vérifier le quota image." }, { status: 503 });
+  }
+  if (!(quota.data as { ok?: boolean } | null)?.ok) {
+    await admin.from("studio_generations").delete().eq("id", generation.id).eq("user_id", user.id);
+    return NextResponse.json({ error: "Le quota quotidien de génération d’images est atteint.", code: "DAILY_IMAGE_LIMIT" }, { status: 429, headers: { "Cache-Control": "private, no-store" } });
+  }
   const reservation = await admin.rpc("reserve_credits", { target_user_id: user.id, amount: cost, operation_name: "studio_image_edit", model_name: getAiImageEditModel(), provider_amount: Math.round(cost / 1.5), request_id: crypto.randomUUID() });
   const reserveResult = reservation.data as { ok?: boolean; balance?: number; transaction_id?: string } | null;
-  if (reservation.error || !reserveResult?.ok) { await admin.from("studio_generations").update({ status: "failed", error: reservation.error?.message || "Solde insuffisant" }).eq("id", generation.id); return NextResponse.json({ error: `Solde insuffisant. Cette modification nécessite ${cost} crédits.`, balance: reserveResult?.balance ?? 0 }, { status: reservation.error ? 503 : 402 }); }
+  if (reservation.error || !reserveResult?.ok) { await admin.rpc("release_image_slot", { p_user_id: user.id, p_request_id: generation.id }); await admin.from("studio_generations").update({ status: "failed", error: reservation.error?.message || "Solde insuffisant" }).eq("id", generation.id); return NextResponse.json({ error: `Solde insuffisant. Cette modification nécessite ${cost} crédits.`, balance: reserveResult?.balance ?? 0 }, { status: reservation.error ? 503 : 402 }); }
   try {
     // fal.ai expose un vrai modèle d'édition à partir d'une URL d'image (contrairement
     // à Imole, qui ne documentait aucun contrat d'édition exploitable) : on repart de
@@ -41,14 +50,30 @@ export async function POST(request: Request) {
     const imageUrl = sourceImageUrl
       ? await generateFalImageFromUrl(editInstruction, sourceImageUrl)
       : await generateFalImage(editedPrompt, "square", { ...options, outputFormat: options.outputFormat as "png" | "jpeg" });
-    await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
-    let storagePath: string | null = null;
-    try { storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat || "png"); } catch (storageError) { console.error("Studio edit storage error", storageError); }
-    await admin.from("studio_generations").update({ status: "completed", storage_path: storagePath }).eq("id", generation.id).eq("user_id", user.id);
-    return NextResponse.json({ imageUrl: storagePath ? await signedStudioUrl(storagePath) : imageUrl, generationId: generation.id, cost });
+    const storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat || "png");
+    const signedUrl = await signedStudioUrl(storagePath);
+    const debit = await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
+    if (debit.error || debit.data !== true) throw new Error("Credit completion failed");
+    const quotaCompletion = await admin.rpc("complete_image_slot", { p_user_id: user.id, p_request_id: generation.id });
+    if (quotaCompletion.error || quotaCompletion.data?.completed !== true) throw new Error("Image quota completion failed");
+    const saved = await admin.from("studio_generations").update({ status: "completed", storage_path: storagePath })
+      .eq("id", generation.id).eq("user_id", user.id).select("id");
+    if (saved.error || !saved.data?.length) throw new Error("Studio edit state could not be saved");
+    return NextResponse.json({ imageUrl: signedUrl, generationId: generation.id, cost });
   } catch (error) {
-    await admin.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });
-    await admin.from("studio_generations").update({ status: "failed", error: error instanceof Error ? error.message : "Erreur de modification" }).eq("id", generation.id).eq("user_id", user.id);
+    const refund = await admin.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });
+    const release = await admin.rpc("release_image_slot", { p_user_id: user.id, p_request_id: generation.id });
+    const failed = await admin.from("studio_generations")
+      .update({ status: "failed", error: error instanceof Error ? error.message : "Erreur de modification" })
+      .eq("id", generation.id).eq("user_id", user.id).select("id");
+    if (refund.error || refund.data !== true || release.error || failed.error || !failed.data?.length) {
+      console.error("Studio image edit compensation is pending", {
+        refund: refund.error?.code ?? (refund.data === true ? null : "not_confirmed"),
+        release: release.error?.code ?? null,
+        state: failed.error?.code ?? (failed.data?.length ? null : "not_saved"),
+      });
+      return NextResponse.json({ error: "L'opération a échoué; la compensation est en cours de reprise." }, { status: 503 });
+    }
     return NextResponse.json({ error: "Impossible de modifier l'image pour le moment." }, { status: 502 });
   }
 }

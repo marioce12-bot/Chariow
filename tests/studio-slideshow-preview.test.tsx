@@ -5,6 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@/lib/i18n/i18n";
 import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
 
+vi.mock("@/lib/supabase/browser", () => ({
+  createClient: () => ({
+    channel: () => {
+      let channel: any;
+      channel = { on: () => channel, subscribe: () => channel };
+      return channel;
+    },
+    removeChannel: vi.fn(),
+  }),
+}));
+
 const product = { id: "preview-product", name: "Produit test", description: "Description du produit" };
 const images = Array.from({ length: 5 }, (_, index) => ({ id: `image-${index + 1}`, url: `https://placeholder.invalid/image-${index + 1}.jpg` }));
 const result = { generationId: "video-1", videoUrl: "https://placeholder.invalid/video.mp4", attribution: "Crédits musicaux", duration: 25, musicId: "", imageGenerationIds: images.map((image) => image.id) };
@@ -19,11 +30,18 @@ let fetcher: ReturnType<typeof vi.fn>;
 const mount = async (locale = "fr") => act(async () => root.render(<I18nProvider><SlideshowStudio locale={locale} product={product} /></I18nProvider>));
 const calls = (method: string) => fetcher.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === method);
 const preview = () => container.querySelector<HTMLElement>('section[aria-label="Aperçu du diaporama"]');
+const refreshOnFocus = async () => act(async () => {
+  window.dispatchEvent(new Event("focus"));
+  await vi.advanceTimersByTimeAsync(250);
+  await Promise.resolve();
+});
 
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   container = document.createElement("div"); document.body.append(container);
   root = createRoot(container); localStorage.clear();
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
   fetcher = vi.fn(async (url: string) => {
     if (url.endsWith("/config")) return config();
     if (url === "/api/studio/credits") return response({ balance: 500, reserved: 0 });
@@ -32,7 +50,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetcher);
 });
 afterEach(() => {
-  act(() => root.unmount()); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals();
+  act(() => root.unmount()); container.remove(); vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals();
 });
 
 describe("SlideshowStudio preview zone", () => {
@@ -62,7 +80,7 @@ describe("SlideshowStudio preview zone", () => {
     expect(section?.querySelectorAll("img")).toHaveLength(5);
     expect(container.querySelector('[role="progressbar"]')).toBe(section?.querySelector('[role="progressbar"]'));
     task = completed;
-    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    await refreshOnFocus();
     section = preview();
     expect(section?.textContent).toContain("Ton diaporama est prêt");
     expect(section?.querySelector('video[aria-label="Diaporama final"]')?.getAttribute("src")).toBe(result.videoUrl);

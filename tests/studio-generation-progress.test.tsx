@@ -25,8 +25,12 @@ function selectProduct() {
 }
 beforeEach(() => {
   window.sessionStorage.clear();
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "");
   container = document.createElement("div"); document.body.append(container);
   root = createRoot(container);
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (url === "/api/studio/tasks" && init?.method === "POST") return response({ task: { id: "task1", kind: "image", status: "completed", result: { imageUrl: "https://example.test/generated.png", generationId: "g1" } } });
     if (url === "/api/studio/tasks") return response({ tasks: [] });
@@ -39,7 +43,7 @@ beforeEach(() => {
 
 
 });
-afterEach(() => { act(() => root.unmount()); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("Studio image generation progress", () => {
   it("stays at or below 95 on mount, keeps estimate until image load, then shows 100", async () => {
@@ -113,7 +117,7 @@ describe("Studio image generation progress", () => {
     expect(progress()).toBe("100");
   });
 
-  it("restores a processing task after remount and completes it without another POST", async () => {
+  it("restores a processing task after remount and completes it on foreground refresh without another POST", async () => {
     let postCount = 0;
     let pollCount = 0;
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
@@ -133,13 +137,14 @@ describe("Studio image generation progress", () => {
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
     expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(true);
     expect(postCount).toBe(1);
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 4_100)); });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 250)); });
+    await act(async () => { window.dispatchEvent(new Event("focus")); await new Promise(resolve => setTimeout(resolve, 250)); });
     expect(container.querySelector<HTMLImageElement>(".studio-media")?.src).toContain("recovered.png");
     expect(postCount).toBe(1);
   });
 
 
-  it("shows a tracking outage instead of a frozen estimate, backs off and recovers with GET only", async () => {
+  it("shows a tracking outage and recovers on foreground with GET only", async () => {
     vi.useFakeTimers();
     let polls = 0;
     const original = fetchMock.getMockImplementation()!;
@@ -153,20 +158,20 @@ describe("Studio image generation progress", () => {
       return original(url, init);
     });
     await act(async () => { render(); });
-    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(container.textContent).toContain("Suivi temporairement indisponible");
     expect(progress()).toBeUndefined();
     expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(true);
-    await act(async () => { await vi.advanceTimersByTimeAsync(7_999); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     expect(polls).toBe(1);
-    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    await act(async () => { window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(250); });
     expect(polls).toBe(2);
     expect(container.querySelector<HTMLImageElement>(".studio-media")?.src).toContain("restored.png");
     expect(container.textContent).not.toContain("Suivi temporairement indisponible");
     expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
   });
 
-  it("distinguishes a completed image awaiting a link and retrieves it without regeneration", async () => {
+  it("distinguishes a completed image awaiting a link and retrieves it on foreground without regeneration", async () => {
     vi.useFakeTimers();
     let available = false;
     const original = fetchMock.getMockImplementation()!;
@@ -180,10 +185,10 @@ describe("Studio image generation progress", () => {
     expect(container.textContent).toContain("Récupération de l’image enregistrée");
     expect(progress()).toBeUndefined();
     expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(true);
-    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(container.textContent).toContain("Image créée");
     available = true;
-    await act(async () => { await vi.advanceTimersByTimeAsync(8_000); });
+    await act(async () => { window.dispatchEvent(new Event("focus")); await vi.advanceTimersByTimeAsync(250); });
     const image = container.querySelector<HTMLImageElement>(".studio-media")!;
     expect(image.src).toContain("ready.png");
     expect(progress()).toBe("95");
@@ -192,7 +197,7 @@ describe("Studio image generation progress", () => {
     expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
   });
 
-  it("does not overlap slow polling requests and cancels an in-flight read on unmount", async () => {
+  it("does not poll slow image tasks and cancels the single reconciliation read on unmount", async () => {
     vi.useFakeTimers();
     let resolveRead: (value: any) => void = () => {};
     let signal: AbortSignal | null | undefined;
@@ -204,6 +209,8 @@ describe("Studio image generation progress", () => {
       return original(url, init);
     });
     await act(async () => { render(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(polls).toBe(1);
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     expect(polls).toBe(1);
     act(() => root.unmount());
@@ -214,7 +221,7 @@ describe("Studio image generation progress", () => {
     expect(polls).toBe(1);
   });
 
-  it("does not overlap slow Studio video status polls", async () => {
+  it("uses one Studio video reconciliation read and cancels it on unmount", async () => {
     vi.useFakeTimers();
     let resolveRead: (value: any) => void = () => {};
     let pollSignal: AbortSignal | null | undefined;
@@ -224,7 +231,6 @@ describe("Studio image generation progress", () => {
       if (url.startsWith("/api/studio/history?")) return response({ items: [{ id: "video-history", kind: "video", prompt: "", options: {}, status: "processing", credits_cost: 1, video_job_id: "slow-video", created_at: "2026-10-24T12:00:00Z" }], nextCursor: null });
       if (url === "/api/studio/video/slow-video") {
         videoReads++;
-        if (videoReads === 1) return response({ id: "slow-video", status: "processing" });
         pollSignal = init?.signal;
         return new Promise(resolve => { resolveRead = resolve; });
       }
@@ -235,11 +241,10 @@ describe("Studio image generation progress", () => {
       render();
       for (let i = 0; i < 10 && videoReads === 0; i++) await Promise.resolve();
     });
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(videoReads).toBe(1);
-    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
-    expect(videoReads).toBe(2);
     await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
-    expect(videoReads).toBe(2);
+    expect(videoReads).toBe(1);
 
     act(() => root.unmount());
     expect(pollSignal?.aborted).toBe(true);
@@ -247,7 +252,7 @@ describe("Studio image generation progress", () => {
     await act(async () => { resolveRead(response({ id: "slow-video", status: "processing" })); });
   });
 
-  it("treats an isolated task read error as unavailable tracking, not as a failed generation", async () => {
+  it("treats an isolated Realtime reconciliation error as unavailable tracking, not as a failed generation", async () => {
     vi.useFakeTimers();
     const original = fetchMock.getMockImplementation()!;
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
@@ -256,13 +261,13 @@ describe("Studio image generation progress", () => {
       return original(url, init);
     });
     await act(async () => { render(); });
-    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(container.textContent).toContain("Suivi temporairement indisponible");
     expect(container.querySelector(".form-error")).toBeNull();
     expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(true);
   });
 
-  it("stops polling a deliberately deleted result without claiming it was generated again", async () => {
+  it("stops watching a deliberately deleted result without claiming it was generated again", async () => {
     vi.useFakeTimers();
     const original = fetchMock.getMockImplementation()!;
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
@@ -271,7 +276,7 @@ describe("Studio image generation progress", () => {
       return original(url, init);
     });
     await act(async () => { render(); });
-    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(container.textContent).toContain("Cette image n’est plus disponible");
     expect(container.querySelector(".studio-media")).toBeNull();
     expect(container.querySelector<HTMLButtonElement>(".studio-generate")?.disabled).toBe(false);

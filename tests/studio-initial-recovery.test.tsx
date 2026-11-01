@@ -2,8 +2,9 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { StudioView } from "../components/dashboard/sections";
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string) => key }) }));
+vi.mock("@/components/studio/SlideshowStudio", () => ({ SlideshowStudio: () => null }));
+import { StudioView } from "../components/dashboard/sections";
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let container: HTMLDivElement;
 let root: Root;

@@ -1,6 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { importFalMediaToCloudinary, isCloudinaryStudioPath, signedCloudinaryPrivateUrl } from "@/lib/studio/cloudinary-media";
 
 export async function storeStudioImage(imageUrl: string, userId: string, generationId: string, outputFormat = "png") {
+  if (process.env.STUDIO_MEDIA_CLOUDINARY_IMPORT === "true")
+    return importFalMediaToCloudinary(imageUrl, userId, generationId, "image");
   const admin = createAdminClient();
   const extension = outputFormat === "jpeg" ? "jpg" : "png";
   const path = `${userId}/${generationId}.${extension}`;
@@ -28,6 +31,12 @@ export async function storeStudioVideo(video: { body: ArrayBuffer; contentType?:
   return path;
 }
 
+export async function storeStudioVideoFromUrl(videoUrl: string, userId: string, generationId: string) {
+  if (process.env.STUDIO_MEDIA_CLOUDINARY_IMPORT !== "true")
+    throw new Error("Remote video storage is disabled until private Cloudinary import is enabled");
+  return importFalMediaToCloudinary(videoUrl, userId, generationId, "video");
+}
+
 const SIGNED_URL_TTL_MS = 45 * 60 * 1000;
 const SIGNED_URL_CACHE_MAX = 500;
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
@@ -46,6 +55,13 @@ export async function signedStudioUrl(path: string) {
   const pending = signedUrlInFlight.get(path);
   if (pending) return pending;
   const request = (async () => {
+    if (isCloudinaryStudioPath(path)) {
+      const url = signedCloudinaryPrivateUrl(path);
+      const entry = { url, expiresAt: Date.now() + SIGNED_URL_TTL_MS };
+      signedUrlCache.set(path, entry);
+      while (signedUrlCache.size > SIGNED_URL_CACHE_MAX) signedUrlCache.delete(signedUrlCache.keys().next().value!);
+      return url;
+    }
     const { data, error } = await createAdminClient().storage.from("studio-media").createSignedUrl(path, 3600);
     if (error) throw error;
     const entry = { url: data.signedUrl, expiresAt: Date.now() + SIGNED_URL_TTL_MS };

@@ -13,14 +13,14 @@ type Props = {
 
 const COPY = {
   fr: {
-    title: "Préparation de la vidéo", intro: "Choisis un format et une musique. Aucun rendu n’est lancé depuis ce panneau.", mode: "Format vidéo",
+    title: "Préparation de la vidéo", intro: "Choisis un format et une musique. Aucun rendu n’est lancé depuis ce panneau.", quota: "Quota vidéo aujourd’hui : {used}/{limit}. Renouvellement à {reset} UTC. La génération reste verrouillée pendant la validation.", quotaLoading: "Chargement du quota vidéo…", quotaUnavailable: "Quota vidéo indisponible. Aucun rendu n’est lancé.", mode: "Format vidéo",
     slideshow: "Diaporama animé", characters: "Scènes avec personnages", music: "Musique", search: "Rechercher une musique…", searchButton: "Rechercher",
     mood: "Ambiance", all: "Toutes", calm: "Calme", upbeat: "Enjouée", dramatic: "Dramatique", results: "Résultats provenant de Wikimedia Commons",
     loading: "Recherche…", noResults: "Aucun morceau avec une licence CC0 ou domaine public vérifiable n’a été trouvé.", error: "Catalogue indisponible. Réessaie plus tard.", select: "Sans musique", preview: "Écouter l’aperçu", stop: "Arrêter l’aperçu",
     license: "Licence", attribution: "Attribution", source: "Page du fichier", caveat: "Vérifie les droits sur la page source avant toute utilisation commerciale. Les métadonnées Commons ne constituent pas une validation juridique.",
   },
   en: {
-    title: "Video preparation", intro: "Choose a format and music. This panel does not start a render.", mode: "Video format",
+    title: "Video preparation", intro: "Choose a format and music. This panel does not start a render.", quota: "Video quota today: {used}/{limit}. Resets at {reset} UTC. Generation stays locked while the flow is validated.", quotaLoading: "Loading video quota…", quotaUnavailable: "Video quota unavailable. No render is started.", mode: "Video format",
     slideshow: "Animated slideshow", characters: "Scenes with characters", music: "Music", search: "Search for music…", searchButton: "Search",
     mood: "Mood", all: "All", calm: "Calm", upbeat: "Upbeat", dramatic: "Dramatic", results: "Results from Wikimedia Commons",
     loading: "Searching…", noResults: "No track with a verifiable CC0 or public-domain label was found.", error: "Catalogue unavailable. Try again later.", select: "No music", preview: "Play preview", stop: "Stop preview",
@@ -37,6 +37,8 @@ export function VideoPreparation({ locale, mode, onModeChange, musicId, onMusicC
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [previewId, setPreviewId] = useState("");
+  const [quota, setQuota] = useState<{ used: number; daily_video_limit: number; reset_at: string } | null>(null);
+  const [quotaError, setQuotaError] = useState(false);
 
   useEffect(() => {
     if (!submitted) { setTracks([]); return; }
@@ -50,6 +52,19 @@ export function VideoPreparation({ locale, mode, onModeChange, musicId, onMusicC
     return () => controller.abort();
   }, [submitted]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/studio/video/quota", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => { if (!response.ok) throw new Error("quota unavailable"); return response.json(); })
+      .then((data) => {
+        if (Number.isInteger(data?.used) && Number.isInteger(data?.daily_video_limit) && typeof data?.reset_at === "string")
+          setQuota({ used: data.used, daily_video_limit: data.daily_video_limit, reset_at: data.reset_at });
+        else setQuotaError(true);
+      })
+      .catch(() => { if (!controller.signal.aborted) setQuotaError(true); });
+    return () => controller.abort();
+  }, []);
+
   const filtered = useMemo(() => mood === "all" ? tracks : tracks.filter((track) => track.mood === mood), [tracks, mood]);
   const current = tracks.find((track) => track.id === previewId);
 
@@ -57,6 +72,11 @@ export function VideoPreparation({ locale, mode, onModeChange, musicId, onMusicC
     <section className="rounded-3xl border border-white/10 bg-[#111827] p-5 text-white" aria-labelledby="video-preparation-title">
       <h2 id="video-preparation-title" className="text-lg font-semibold">{t.title}</h2>
       <p className="mt-1 text-sm text-white/60">{t.intro}</p>
+      <p className="mt-2 text-xs text-white/55" role="status">
+        {quota
+          ? t.quota.replace("{used}", String(quota.used)).replace("{limit}", String(quota.daily_video_limit)).replace("{reset}", new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }).format(new Date(quota.reset_at)))
+          : quotaError ? t.quotaUnavailable : t.quotaLoading}
+      </p>
       <fieldset className="mt-5">
         <legend className="mb-2 text-sm font-medium">{t.mode}</legend>
         <div className="grid gap-2 sm:grid-cols-2">
