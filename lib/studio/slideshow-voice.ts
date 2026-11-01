@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { getDeploymentEnvironment } from "@/lib/deployment-environment";
 import { buildSlideshowCta, buildSlideshowPlan, campaignGoal, InsufficientProductDetailsError, slideshowEvidence, slideshowSourceCandidates } from "@/lib/studio/slideshow-plan";
 import { LICENSED_MUSIC } from "@/lib/studio/licensed-music";
 import { neutralProductCta, resolveProductLanguage } from "@/lib/studio/product-language";
@@ -25,7 +26,7 @@ export const SLIDESHOW_MUSIC_METADATA: Record<string, { tags: string[]; sourceUr
 };
 
 export function slideshowVoiceAvailability() {
-  const environment = process.env.VERCEL_ENV;
+  const environment = getDeploymentEnvironment();
   const supported = environment === "preview" || environment === "production";
   const enabled = process.env.VENDEO_SLIDESHOW_TTS_ENABLED === "true" ||
     (environment === "preview" && process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED === "true");
@@ -35,7 +36,7 @@ export function slideshowVoiceAvailability() {
     reason: allowed ? undefined : "Voix off momentanément indisponible. Aucun appel vocal ni crédit supplémentaire consommé." };
 }
 export function assertSlideshowVoiceAllowed(): void {
-  const environment = process.env.VERCEL_ENV;
+  const environment = getDeploymentEnvironment();
   if (environment !== "preview" && environment !== "production") throw new Error("TTS diaporama réservé aux environnements preview ou production autorisés.");
   const enabled = process.env.VENDEO_SLIDESHOW_TTS_ENABLED === "true" ||
     (environment === "preview" && process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED === "true");

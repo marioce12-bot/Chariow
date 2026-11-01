@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { start } from "workflow/api";
+import { getDeploymentEnvironment } from "@/lib/deployment-environment";
 import { studioTaskFixtureWorkflow } from "@/lib/studio/task-workflow-fixture";
 import { buildSlideshowVoicePlan } from "@/lib/studio/slideshow-voice";
 export const runtime = "nodejs";
@@ -7,7 +8,7 @@ export const maxDuration = 90;
 /** Accepts no task/user/product/provider inputs. No TTS call is made here.
  * Production always returns 404. Preview is protected by Vercel authentication. */
 export async function GET() {
-  if (process.env.VERCEL_ENV !== "preview") return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (getDeploymentEnvironment() !== "preview") return NextResponse.json({ error: "Not found" }, { status: 404 });
   const run = await start(studioTaskFixtureWorkflow, []);
   const result = await run.returnValue;
   const product = {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getDeploymentEnvironment } from "@/lib/deployment-environment";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCarouselCreative, createMetaCreative, publishMetaAdWithAdvantage, updateMetaAdCreative } from "@/lib/meta/campaigns";
@@ -72,7 +73,7 @@ async function createCampaignCreative(input: {
 export async function POST(request: Request, context: Context) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
-  if (process.env.VERCEL_ENV === "preview") {
+  if (getDeploymentEnvironment() === "preview") {
     return NextResponse.json({ error: "Le lancement de campagnes est désactivé sur cette Preview. Aucune publicité n’a été envoyée." }, { status: 403 });
   }
   const { id } = await context.params;

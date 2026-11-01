@@ -1,4 +1,5 @@
 import { FatalError } from "workflow";
+import { getDeploymentEnvironment } from "@/lib/deployment-environment";
 import { buildSlideshowPlan } from "@/lib/studio/slideshow-plan";
 
 /** Preview-only smoke test of queue delivery across seven independent steps.
@@ -13,7 +14,7 @@ export async function studioTaskFixtureWorkflow() {
 }
 export async function fixtureStage(revision: number) {
   "use step";
-  if (process.env.VERCEL_ENV !== "preview") throw new FatalError("PREVIEW_FIXTURE_ONLY");
+  if (getDeploymentEnvironment() !== "preview") throw new FatalError("PREVIEW_FIXTURE_ONLY");
   const plan = buildSlideshowPlan({
     name: "Guide Snapchat", description: "Guide pour lancer des campagnes sur Snapchat. Le guide détaille le ciblage. Il présente des exemples de campagnes. Les étapes sont organisées par niveau.",
     duration: 25, aspectRatio: "9:16", hasReference: false, character: "with", locale: "fr", campaignGoal: "buy",

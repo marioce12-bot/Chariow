@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getDeploymentEnvironment } from "@/lib/deployment-environment";
 import { requireUser } from "@/lib/auth";
 import { loadCreativePerformance, parseCreativePeriod } from "@/lib/creative-performance/service";
 import { buildVisualRecommendationCandidates, findVisualIdeaSourceCampaigns } from "@/lib/creative-performance/idea-candidates";
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   if (storeError || !store) return NextResponse.json({ error: "Boutique introuvable.", code: "STORE_NOT_FOUND" }, { status: 404 });
   try {
     const period = parseCreativePeriod(params);
-    const readOnly = process.env.VERCEL_ENV === "preview" || params.get("read_only") === "1";
+    const readOnly = getDeploymentEnvironment() === "preview" || params.get("read_only") === "1";
     const data = await loadCreativePerformance({ supabase, userId: user.id, storeId, period, persistSnapshots: !readOnly });
     const sourceCampaigns = findVisualIdeaSourceCampaigns(data);
     const sourceCampaignIds = [...new Set(sourceCampaigns.map(({ campaign }) => campaign.campaignId))];

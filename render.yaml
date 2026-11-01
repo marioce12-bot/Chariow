@@ -1,0 +1,146 @@
+services:
+  - type: web
+    name: vendeo
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --no-audit --no-fund && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: ADMIN_NOTIFICATION_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_PASSWORD_SECRET
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: CHARIOW_ALLOWED_HOSTS
+        sync: false
+      - key: CHARIOW_OAUTH_REDIRECT_URI
+        sync: false
+      - key: CHARIOW_PULSE_WEBHOOK_SECRET
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_FROM_NAME
+        sync: false
+      - key: FAL_API_KEY
+        sync: false
+      - key: FAL_IMAGE_EDIT_MODEL
+        sync: false
+      - key: FAL_IMAGE_MODEL
+        sync: false
+      - key: FAL_VIDEO_IMAGE_MODEL
+        sync: false
+      - key: FAL_VIDEO_TEXT_MODEL
+        sync: false
+      - key: FFMPEG_PATH
+        sync: false
+      - key: FFPROBE_PATH
+        sync: false
+      - key: FX_EXTRA_USD_RATES
+        sync: false
+      - key: FX_USD_PER_EUR
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_API_URL
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_API_URL
+        sync: false
+      - key: GROQ_MODEL
+        sync: false
+      - key: IMOLE_API_KEY
+        sync: false
+      - key: IMOLE_API_URL
+        sync: false
+      - key: IMOLE_IMAGE_MODEL
+        sync: false
+      - key: IMOLE_MODEL
+        sync: false
+      - key: IMOLE_VIDEO_MODEL
+        sync: false
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_GRAPH_VERSION
+        sync: false
+      - key: META_OAUTH_REDIRECT_URI
+        sync: false
+      - key: META_PLACEMENT_VARIANTS
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: PINTEREST_APP_ID
+        sync: false
+      - key: PINTEREST_APP_SECRET
+        sync: false
+      - key: PINTEREST_OAUTH_REDIRECT_URI
+        sync: false
+      - key: REDDIT_APP_ID
+        sync: false
+      - key: REDDIT_APP_SECRET
+        sync: false
+      - key: REDDIT_OAUTH_REDIRECT_URI
+        sync: false
+      - key: REDDIT_OAUTH_SCOPES
+        sync: false
+      - key: SASPAY_API_KEY
+        sync: false
+      - key: SASPAY_WEBHOOK_SECRET
+        sync: false
+      - key: SERPAPI_KEY
+        sync: false
+      - key: SHOPIFY_APP_URL
+        sync: false
+      - key: SHOPIFY_CLIENT_ID
+        sync: false
+      - key: SHOPIFY_CLIENT_SECRET
+        sync: false
+      - key: SHOPIFY_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: STUDIO_UPSTREAM_URL
+        sync: false
+      - key: SUPABASE_AUTH_HOOK_SECRET
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TIKTOK_API_VERSION
+        sync: false
+      - key: TIKTOK_APP_ID
+        sync: false
+      - key: TIKTOK_APP_SECRET
+        sync: false
+      - key: TIKTOK_OAUTH_REDIRECT_URI
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: VENDEO_DEPLOYMENT_ENV
+        sync: false
+      - key: VENDEO_GEMINI_FREE_TIER_CONFIRMED
+        sync: false
+      - key: VENDEO_SLIDESHOW_TTS_ENABLED
+        sync: false
+      - key: VENDEO_SLIDESHOW_TTS_TEST_ALLOWED
+        sync: false
