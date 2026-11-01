@@ -3,6 +3,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 const STORAGE_PREFIX = "cloudinary-private:";
 const FAL_MEDIA_HOST = /(^|\.)fal\.media$/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const IMAGE_FORMATS = new Set(["png", "jpg", "jpeg", "webp"]);
 
 type ResourceType = "image" | "video";
 type AssetDescriptor = {
@@ -17,7 +18,8 @@ function cloudinaryConfig() {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
-  if (!cloudName || !apiKey || !apiSecret) throw new Error("Cloudinary Studio storage is not configured");
+  if (!cloudName || !/^[a-zA-Z0-9_-]{1,64}$/.test(cloudName) || !apiKey || !apiSecret)
+    throw new Error("Cloudinary Studio storage is not configured");
   return { cloudName, apiKey, apiSecret };
 }
 
@@ -136,6 +138,26 @@ export function signedCloudinaryPrivateUrl(path: string, expectedUserId?: string
   url.searchParams.set("signature", apiSignature(signedParams, apiSecret));
   url.searchParams.set("api_key", apiKey);
   return url.toString();
+}
+
+export function signedCloudinaryPrivateImageDownload(path: string, expectedUserId: string) {
+  const { cloudName, apiSecret } = cloudinaryConfig();
+  const asset = decodeDescriptor(path, apiSecret);
+  const format = asset?.format.toLowerCase();
+  if (!asset || asset.resourceType !== "image" || asset.userId !== expectedUserId || !format || !IMAGE_FORMATS.has(format))
+    throw new Error("Cloudinary Studio image is invalid or does not belong to this user");
+
+  const url = new URL(signedCloudinaryPrivateUrl(path, expectedUserId));
+  const expectedPath = `/v1_1/${encodeURIComponent(cloudName)}/image/download`;
+  if (url.origin !== "https://api.cloudinary.com" || url.pathname !== expectedPath || url.username || url.password || url.hash ||
+      url.searchParams.get("type") !== "authenticated" || url.searchParams.get("format")?.toLowerCase() !== format ||
+      url.searchParams.get("public_id") !== asset.publicId || !url.searchParams.get("signature") ||
+      !url.searchParams.get("api_key") || !url.searchParams.get("expires_at"))
+    throw new Error("Cloudinary Studio image download URL is invalid");
+
+  const contentType = format === "jpg" || format === "jpeg" ? "image/jpeg" : `image/${format}`;
+  const extension = format === "jpeg" ? "jpg" : format;
+  return { url: url.toString(), format, contentType, extension };
 }
 
 export function isCloudinaryStudioPath(path: string) {

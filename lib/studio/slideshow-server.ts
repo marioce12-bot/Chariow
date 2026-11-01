@@ -9,6 +9,7 @@ import { assembleSlideshow, prepareSlideshowVoice } from "@/lib/studio/slideshow
 import { slideshowAudioFilter, SLIDESHOW_AUDIO_CHANGE } from "@/lib/studio/slideshow-audio";
 import { MAX_SLIDESHOW_IMAGES, MIN_SLIDESHOW_IMAGES, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { storeStudioVideo, signedStudioUrl } from "@/lib/studio/media";
+import { isCloudinaryStudioPath, signedCloudinaryPrivateImageDownload } from "@/lib/studio/cloudinary-media";
 import { LICENSED_MUSIC, getLicensedTrack, musicAttribution, YOUTUBE_CREDIT_NOTICE } from "@/lib/studio/licensed-music";
 
 import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan } from "@/lib/studio/slideshow-voice";
@@ -38,6 +39,50 @@ async function downloadPrivate(pathname: string, directory: string, maxBytes: nu
   if (data.size > maxBytes) throw new Error("Media exceeds size limit");
   const target = path.join(directory, `${randomUUID()}${path.extname(pathname).toLowerCase() || ".bin"}`);
   await writeFile(target, Buffer.from(await data.arrayBuffer()));
+  return target;
+}
+async function downloadCloudinaryPrivateImage(pathname: string, userId: string, directory: string, maxBytes: number) {
+  const asset = signedCloudinaryPrivateImageDownload(pathname, userId);
+  const url = new URL(asset.url);
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  if (!cloudName || url.protocol !== "https:" || url.origin !== "https://api.cloudinary.com" || url.port ||
+      url.username || url.password || url.hash || url.pathname !== `/v1_1/${cloudName}/image/download` ||
+      url.searchParams.get("type") !== "authenticated")
+    throw new Error("Cloudinary private image origin is invalid");
+
+  const response = await fetch(url, {
+    cache: "no-store",
+    redirect: "error",
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) throw new Error("Private Cloudinary image unavailable");
+  const returnedType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+  if (returnedType !== asset.contentType) throw new Error("Private Cloudinary image returned an unexpected content type");
+  const announced = Number(response.headers.get("content-length") ?? 0);
+  if (Number.isFinite(announced) && announced > maxBytes) throw new Error("Media exceeds size limit");
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Private Cloudinary image has no body");
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error("Media exceeds size limit");
+    }
+    chunks.push(value);
+  }
+  const bytes = Buffer.concat(chunks.map(chunk => Buffer.from(chunk)), length);
+  const signatureMatches = asset.format === "png"
+    ? bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    : asset.format === "jpg" || asset.format === "jpeg"
+      ? bytes.length >= 3 && bytes.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))
+      : bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  if (!length || !signatureMatches) throw new Error("Private Cloudinary image bytes do not match the image format");
+  const target = path.join(directory, `${randomUUID()}.${asset.extension}`);
+  await writeFile(target, bytes);
   return target;
 }
 async function ensurePrivateTrack(track: NonNullable<ReturnType<typeof getLicensedTrack>>, directory: string) {
@@ -71,7 +116,7 @@ export async function uploadAndInsert(userId: string, generationId: string, body
   if (error) throw error;
   return { generationId, videoUrl: await signedStudioUrl(storagePath, userId), attribution, creditsCost: 0 as const, imageGenerationIds: images, duration, musicId };
 }
-async function loadOwnedImages(userId: string, ids: string[], directory: string) {
+export async function loadOwnedImages(userId: string, ids: string[], directory: string) {
   const admin = createAdminClient();
   const { data, error } = await admin.from("studio_generations").select("id,user_id,kind,status,storage_path").in("id", ids).eq("user_id", userId);
   if (error) throw new Error("Unable to validate image generations");
@@ -80,6 +125,10 @@ async function loadOwnedImages(userId: string, ids: string[], directory: string)
   const files: string[] = [];
   for (const id of ids) {
     const storagePath = (byId.get(id) as any).storage_path as string;
+    if (isCloudinaryStudioPath(storagePath)) {
+      files.push(await downloadCloudinaryPrivateImage(storagePath, userId, directory, MAX_SOURCE_BYTES));
+      continue;
+    }
     if (!/\.(png|jpe?g|webp)$/i.test(storagePath) || !storagePath.startsWith(`${userId}/`)) throw new Error("Image storage ownership mismatch");
     files.push(await downloadPrivate(storagePath, directory, MAX_SOURCE_BYTES));
   }
