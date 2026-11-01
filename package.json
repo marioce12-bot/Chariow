@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node server/render-server.mjs",
+    "start": "next start",
     "lint": "next lint",
     "test": "vitest run"
   },
