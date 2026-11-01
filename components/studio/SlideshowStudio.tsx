@@ -167,6 +167,7 @@ export function SlideshowStudio({
     [resumeTask, setResumeTask] = useState<Task | null>(null),
     [resumeConfirmed, setResumeConfirmed] = useState(false),
     [available, setAvailable] = useState<number | null>(null);
+  const voiceoverAvailable = voiceoverEnabled && voiceoverTestAllowed;
   const slideshowCost = 5 * imageCreditCost("hd", "medium");
   const lacksCredits = available !== null && available < slideshowCost;
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
@@ -456,7 +457,7 @@ export function SlideshowStudio({
     setStatus(fr ? "Vérification des informations…" : "Checking product details…");
     try {
       if (!variationIdRef.current) variationIdRef.current = crypto.randomUUID();
-      await send("/api/studio/prompt", { variationId: variationIdRef.current, product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId: "", voiceover: true });
+      await send("/api/studio/prompt", { variationId: variationIdRef.current, product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId: "", voiceover: voiceoverAvailable });
       setRecovery(false); setTechnicalDetails("");
       if (recovery) { taskRef.current = null; setResumeTask(null); setAttempted(false); setStatus(fr ? "Plan prêt. Vérifie le coût, puis appuie sur Créer." : "Plan ready. Review the cost, then click Create."); return; }
       await createTask();
@@ -484,7 +485,7 @@ export function SlideshowStudio({
     }
     setStatus(fr ? "Lancement de la génération…" : "Starting generation…");
     try {
-      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId: "", voiceover: true, variationId: variationIdRef.current, ...(creativePerformanceSource ? { creativePerformanceSource } : {}), ...(creativeIdea ? { creativeIdea } : {}) } });
+      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId: "", voiceover: voiceoverAvailable, variationId: variationIdRef.current, ...(creativePerformanceSource ? { creativePerformanceSource } : {}), ...(creativeIdea ? { creativeIdea } : {}) } });
       const task = response.task as Task;
       if (!task) throw new Error("Réponse de tâche invalide.");
       try { localStorage.removeItem(key); } catch { /* ignore */ }
@@ -561,8 +562,10 @@ export function SlideshowStudio({
           </select>
         </label>
       </div>
-      <p>{fr ? "Voix et musique ajoutées automatiquement à la génération." : "Voiceover and music are added automatically during generation."}</p>
-      {!voiceoverEnabled || !voiceoverTestAllowed ? <small>{fr ? "La génération de voix est en cours de validation." : "Voice generation is being validated."}</small> : null}
+      <p>{voiceoverAvailable
+        ? (fr ? "Voix et musique ajoutées automatiquement à la génération." : "Voiceover and music are added automatically during generation.")
+        : (fr ? "Musique ajoutée automatiquement à la génération." : "Music is added automatically during generation.")}</p>
+      {!voiceoverAvailable ? <small>{fr ? "La génération de voix est en cours de validation." : "Voice generation is being validated."}</small> : null}
       {resumeTask && !recovery && !busy ? <section aria-label={fr ? "Reprise du diaporama" : "Resume slideshow"}>
         <h3>{fr ? "Diaporama interrompu" : "Interrupted slideshow"}</h3>
         {resumeTask.input?.product?.name ? <p>{resumeTask.input.product.name}</p> : null}
