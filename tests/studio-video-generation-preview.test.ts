@@ -261,26 +261,34 @@ describe("Studio video Preview generation", () => {
     expect(mocks.askText).not.toHaveBeenCalled();
   });
 
-  it("returns the exact 47/45 dialogue failure before quota or rendering and makes no extra model call", async () => {
+  it("retries one 57-word dialogue once, then blocks invalid output before quota or rendering", async () => {
     enablePreview();
+    const validAnalysis = {
+      product_type: "physique", niche: "céramique", target_audience: "adultes", core_problem: null,
+      main_benefit: null, emotion_dominante: "curiosité", usage_context: "boire", visual_assets: [],
+      price_positioning: "accessible", objections_probables: ["usage"], risks: [], assumptions: [], confirmed_fact_ids: [0],
+    };
     const longCreative = ugcCreative("Tasse en céramique");
     const mandatoryWords = `${longCreative.hook.text} ${longCreative.cta}`.trim().split(/\s+/).length;
-    const fillers = 47 - mandatoryWords;
+    const fillers = 57 - mandatoryWords;
     const middleCounts = [Math.floor(fillers / 3), Math.floor(fillers / 3), fillers - 2 * Math.floor(fillers / 3)];
     longCreative.shots = longCreative.shots.map((shot, index) => ({
       ...shot,
       dialogue: index === 0 ? longCreative.hook.text : index === 4 ? longCreative.cta : Array(middleCounts[index - 1]).fill("mot").join(" "),
     }));
-    expect(longCreative.shots.map(shot => shot.dialogue.trim()).join(" ").split(/\s+/)).toHaveLength(47);
-    mocks.askText.mockResolvedValueOnce(JSON.stringify(ugcAnalysis("Tasse en céramique"))).mockResolvedValueOnce(JSON.stringify(longCreative));
+    expect(longCreative.shots.map(shot => shot.dialogue.trim()).join(" ").split(/\s+/)).toHaveLength(57);
+    mocks.askText.mockResolvedValueOnce(JSON.stringify(validAnalysis))
+      .mockResolvedValueOnce(JSON.stringify(longCreative))
+      .mockResolvedValueOnce(JSON.stringify(longCreative));
 
     const response = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
     const result = await response.json();
 
     expect(response.status).toBe(422);
-    expect(result).toMatchObject({ code: "analyse_invalide", keyPath: "shots", expected: "<= 45 mots", received: "47 mots" });
-    expect(result.error).toContain("47 mots");
-    expect(mocks.askText).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ code: "analyse_invalide", keyPath: "shots", expected: "<= 45 mots", received: "57 mots" });
+    expect(result.error).toContain("57 mots");
+    expect(mocks.askText).toHaveBeenCalledTimes(3);
+    expect(mocks.askText.mock.calls[2][0].map((message: { content: string }) => message.content).join(" ")).toContain("57 mots");
     expect(admin.rpc).not.toHaveBeenCalled();
     expect(insertedRows).toHaveLength(0);
     expect(mocks.afterCallbacks).toHaveLength(0);

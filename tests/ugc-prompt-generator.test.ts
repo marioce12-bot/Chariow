@@ -94,29 +94,54 @@ describe("generateUgcCreative", () => {
     expect(askText).toHaveBeenCalledTimes(1);
   });
 
-  it("asks for a 35-word target and clearly rejects exactly 47 words without truncation or a third call", async () => {
+  it("reformulates once when the five-shot dialogue exceeds the strict word budget", async () => {
     const overlong = creative();
     const mandatoryWords = `${overlong.hook.text} ${overlong.cta}`.trim().split(/\s+/).length;
-    const fillers = 47 - mandatoryWords;
+    const fillers = 57 - mandatoryWords;
     const baseMiddleCount = Math.floor(fillers / 3);
     const perMiddleShot = [baseMiddleCount, baseMiddleCount, fillers - 2 * baseMiddleCount];
     overlong.shots = overlong.shots.map((shot, index) => ({
       ...shot,
       dialogue: index === 0 ? overlong.hook.text : index === 4 ? overlong.cta : Array(perMiddleShot[index - 1]).fill("mot").join(" "),
     }));
-    expect(overlong.shots.map(shot => shot.dialogue.trim()).join(" ").split(/\s+/)).toHaveLength(47);
-    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(overlong));
+    expect(overlong.shots.map(shot => shot.dialogue.trim()).join(" ").split(/\s+/)).toHaveLength(57);
+    askText.mockResolvedValueOnce(JSON.stringify(analysis))
+      .mockResolvedValueOnce(JSON.stringify(overlong))
+      .mockResolvedValueOnce(JSON.stringify(creative()));
 
-    await expect(generateUgcCreative(input())).rejects.toMatchObject({
-      stage: "creative_direction_validation",
-      details: { type: "dialogue_word_budget", path: "shots", expected: "<= 45 mots", received: "47 mots" },
-      message: expect.stringContaining("47 mots, limite stricte 45"),
-    });
-
-    expect(askText).toHaveBeenCalledTimes(2);
+    const result = await generateUgcCreative(input());
+    expect(result.creative.shots).toHaveLength(5);
+    expect(askText).toHaveBeenCalledTimes(3);
     const creativePrompt = askText.mock.calls[1][0].map((message: { content: string }) => message.content).join(" ");
     expect(creativePrompt).toContain("vise au plus 35 mots");
     expect(creativePrompt).toContain("idéalement 30–32");
+    const retryPrompt = askText.mock.calls[2][0].map((message: { content: string }) => message.content).join(" ");
+    expect(retryPrompt).toContain("57 mots");
+    expect(retryPrompt).toContain("au plus 35 mots");
+    expect(retryPrompt).toContain("creativeDirectionToCorrect");
+    expect(askText.mock.calls[2][1].responseSchema.name).toBe("ugc_creative_direction");
+  });
+
+  it("keeps strict validation after the one dialogue-budget correction", async () => {
+    const overlong = creative();
+    const mandatoryWords = `${overlong.hook.text} ${overlong.cta}`.trim().split(/\s+/).length;
+    const fillers = 57 - mandatoryWords;
+    const baseMiddleCount = Math.floor(fillers / 3);
+    const perMiddleShot = [baseMiddleCount, baseMiddleCount, fillers - 2 * baseMiddleCount];
+    overlong.shots = overlong.shots.map((shot, index) => ({
+      ...shot,
+      dialogue: index === 0 ? overlong.hook.text : index === 4 ? overlong.cta : Array(perMiddleShot[index - 1]).fill("mot").join(" "),
+    }));
+    askText.mockResolvedValueOnce(JSON.stringify(analysis))
+      .mockResolvedValueOnce(JSON.stringify(overlong))
+      .mockResolvedValueOnce(JSON.stringify(overlong));
+
+    await expect(generateUgcCreative(input())).rejects.toMatchObject({
+      stage: "creative_direction_validation",
+      details: { type: "dialogue_word_budget", path: "shots", expected: "<= 45 mots", received: "57 mots" },
+      message: expect.stringContaining("57 mots, limite stricte 45"),
+    });
+    expect(askText).toHaveBeenCalledTimes(3);
   });
 
   it("classifies OpenRouter 429 and Retry-After without retrying the provider", async () => {
