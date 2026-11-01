@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveSubscription } from "@/lib/subscription/access";
 import { TASK_TYPE, continuationQuote, failTask, logTaskEvent, publicTask, StudioTaskError, legacyQueuedDispatchCheckpoint, stageGenerationId, type StageRecord, type TaskMetadata } from "@/lib/studio/background-tasks";
+import { assertSlideshowVoiceAllowed, slideshowVoiceAvailability } from "@/lib/studio/slideshow-voice";
+import { publicSlideshowError } from "@/lib/studio/slideshow-errors";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -16,6 +18,16 @@ async function ownedTask(id: string, userId: string) {
     .select("id,user_id,status,metadata,created_at").eq("id", id).eq("user_id", userId).maybeSingle();
   return error ? null : data;
 }
+function resumeQuote(row: any, task: any) {
+  const quote = continuationQuote(row, task);
+  if (!quote.allowed) return quote;
+  if (row.metadata?.taskKind !== "slideshow") return quote;
+  if (row.metadata?.input?.voiceover !== true)
+    return { ...quote, allowed: false, reason: "SLIDESHOW_VOICE_REQUIRED", requiresConfirmation: false };
+  if (!slideshowVoiceAvailability().available)
+    return { ...quote, allowed: false, reason: "SLIDESHOW_VOICE_UNAVAILABLE", requiresConfirmation: false };
+  return quote;
+}
 export async function GET(_request: Request, context: Context) {
   const { user, response } = await requireUser();
   if (!user) return response;
@@ -23,7 +35,7 @@ export async function GET(_request: Request, context: Context) {
   const row = await ownedTask(id, user.id);
   if (!row || row.metadata?.type !== TASK_TYPE) return NextResponse.json({ error: "Demande indisponible." }, { status: 404 });
   const task = await publicTask(row);
-  return NextResponse.json({ task: { ...task, resume: continuationQuote(row, task) } }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ task: { ...task, resume: resumeQuote(row, task) } }, { headers: { "Cache-Control": "no-store" } });
 }
 export async function POST(request: Request, context: Context) {
   const { user, response } = await requireUser();
@@ -34,15 +46,23 @@ export async function POST(request: Request, context: Context) {
     return NextResponse.json({ error: "Demande invalide." }, { status: 400 });
   const row = await ownedTask(id, user.id);
   if (!row || row.metadata?.type !== TASK_TYPE) return NextResponse.json({ error: "Demande indisponible." }, { status: 404 });
+  const meta = row.metadata as TaskMetadata;
+  if (meta.taskKind === "slideshow") {
+    if (meta.input?.voiceover !== true)
+      return NextResponse.json({ code: "SLIDESHOW_VOICE_REQUIRED", error: publicSlideshowError(null, meta.input?.locale, "SLIDESHOW_VOICE_REQUIRED") }, { status: 409 });
+    try { assertSlideshowVoiceAllowed(); }
+    catch {
+      return NextResponse.json({ code: "SLIDESHOW_VOICE_UNAVAILABLE", error: publicSlideshowError(null, meta.input?.locale, "SLIDESHOW_VOICE_UNAVAILABLE") }, { status: 503 });
+    }
+  }
   if (row.metadata.revision !== body.expectedRevision) return NextResponse.json({ error: "La tâche a changé. Actualise le suivi." }, { status: 409 });
   const task = await publicTask(row);
-  const quote = continuationQuote(row, task);
+  const quote = resumeQuote(row, task);
   if (!quote.allowed) return NextResponse.json({ error: "Cette tâche ne peut pas être reprise en toute sécurité.", reason: quote.reason }, { status: 409 });
   if (body.confirmCost !== quote.cost) return NextResponse.json({ error: "Confirmation du coût requise.", cost: quote.cost }, { status: 409 });
   const blocked = await requireActiveSubscription(user.id);
   if (blocked) return blocked;
 
-  const meta = row.metadata as TaskMetadata;
   const admin = createAdminClient();
   // Re-read deterministic children before claiming. Only completed children prove the stage is safe;
   // any absent/non-completed child remains uncertain and is never retried.
@@ -100,5 +120,5 @@ export async function POST(request: Request, context: Context) {
   });
   const updated = { ...row, status: "processing", metadata: nextMeta };
   const responseTask = await publicTask(updated);
-  return NextResponse.json({ task: { ...responseTask, resume: continuationQuote(updated, responseTask) } }, { status: 202, headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ task: { ...responseTask, resume: resumeQuote(updated, responseTask) } }, { status: 202, headers: { "Cache-Control": "no-store" } });
 }

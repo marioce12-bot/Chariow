@@ -70,6 +70,27 @@ describe("pré-vérification du solde avant lancement d’un diaporama", () => {
     expect(insert).toHaveBeenCalledOnce(); expect(mocks.after).toHaveBeenCalledOnce();
     expect(mocks.generate).not.toHaveBeenCalled();
   });
+  it("refuses before credit checks or media APIs when voiceover is unavailable", async () => {
+    vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "false");
+    const insert = configureDb({ balance: 100, reserved: 0 });
+    const noVoiceInput = { ...input, voiceover: false, musicId: "" };
+    const response = await POST(request(noVoiceInput));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ code: "SLIDESHOW_VOICE_UNAVAILABLE" });
+    expect(mocks.from.mock.calls.map(([table]) => table)).toEqual(["studio_generations"]);
+    expect(insert).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.render).not.toHaveBeenCalled();
+    expect(mocks.preflight).not.toHaveBeenCalled();
+  });
+  it("rejects a voice-disabled client even when TTS is available", async () => {
+    const insert = configureDb({ balance: 100, reserved: 0 });
+    const response = await POST(request({ ...input, voiceover: false }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "SLIDESHOW_VOICE_REQUIRED" });
+    expect(insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.preflight).not.toHaveBeenCalled();
+  });
   it("conserve l’interface française et persiste la création anglaise sans génération réelle", async () => {
     const insert = configureDb({ balance: 100, reserved: 0 });
     const englishInput = { ...input, product: { name: "Guide pratique", description: "This guide is available in PDF format. The guide contains eight chapters about preparing a garden. Each chapter includes three practical exercises, a materials checklist and a seasonal calendar. The worksheets explain seed selection, soil preparation, regular watering, crop rotation and harvesting. The illustrations show plants grown in pots and in the ground. The download can be read offline on a phone or tablet." } };

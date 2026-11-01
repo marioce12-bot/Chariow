@@ -18,12 +18,12 @@ beforeEach(() => {
   mocks.user.mockResolvedValue({ user: { id: "owner" } }); mocks.subscription.mockResolvedValue(null);
 });
 describe("nouveaux diaporamas avec voix", () => {
-  it.each([false, undefined])("refuse un client obsolète avec voiceover=%s avant insertion ni provider", async (voiceover) => {
+  it.each([false, undefined])("refuse un client sans narration avec voiceover=%s avant insertion ni provider", async (voiceover) => {
     vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "true"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "true");
     const insert = vi.fn(); mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
     const response = await POST(request(slideshowInput(voiceover)));
     const body = await response.json();
-    expect(response.status).toBe(409); expect(body.code).toBe("STUDIO_CLIENT_UPDATE_REQUIRED"); expect(body.error).toMatch(/Actualisez.*narration/i);
+    expect(response.status).toBe(409); expect(body.code).toBe("SLIDESHOW_VOICE_REQUIRED"); expect(body.error).toMatch(/voix off est obligatoire/i);
     expect(insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.render).not.toHaveBeenCalled();
   });
   it("accepte une demande voiceover=true selon la garde normale", async () => {
@@ -47,7 +47,7 @@ describe("nouveaux diaporamas avec voix", () => {
   it("bloque avant insertion, image ou voix tant que le test réel n’est pas autorisé", async () => {
     const insert = vi.fn(); mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
     const response = await POST(new Request("https://preview.test/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input: { voiceover: true, product: { name: "Guide", description: "Disponible au format PDF. Le guide comporte huit chapitres consacrés à la préparation du jardin. Chaque chapitre présente trois exercices pratiques, une liste de matériel et un calendrier saisonnier. Les fiches expliquent le choix des graines, la préparation du sol, l’arrosage régulier, la rotation des cultures et la récolte. Les illustrations montrent des plantations en pots et en pleine terre. Le téléchargement permet une lecture hors connexion sur téléphone ou tablette." }, duration: 25, musicId: "", locale: "fr" } }) }));
-    expect(response.status).toBe(400); expect(insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled();
+    expect(response.status).toBe(503); expect((await response.json()).code).toBe("SLIDESHOW_VOICE_UNAVAILABLE"); expect(insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled();
   });
   it("un worker voix running n’est jamais réexécuté après une réponse ambiguë", async () => {
     const row = { id, user_id: "owner", status: "processing", metadata: { type: TASK_TYPE, taskKind: "slideshow", input: { voiceover: true }, phase: "running", revision: 6 } };

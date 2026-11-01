@@ -55,17 +55,17 @@ describe("slideshow HTTP guards (all implementation dependencies mocked)", () =>
     expect(remixSlideshow).not.toHaveBeenCalled();
   });
 
-  it("accepts no-music rendering and passes only the authenticated owner id", async () => {
+  it("rejects the legacy direct render endpoint because it has no narration input", async () => {
     const response = await render(request({ generationIds: fiveIds, duration: 25, musicId: "" }));
-    expect(response.status).toBe(200);
-    expect(renderSlideshow).toHaveBeenCalledWith("user-A", fiveIds, 25, "");
-    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "SLIDESHOW_VOICE_REQUIRED" });
+    expect(renderSlideshow).not.toHaveBeenCalled();
   });
 
   it("accepts five images and rejects six before invoking the implementation", async () => {
     const five = [uid1, uid2, "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444", "55555555-5555-4555-8555-555555555555"];
-    expect((await render(request({ generationIds: five, duration: 25, musicId: "" }))).status).toBe(200);
-    expect(renderSlideshow).toHaveBeenCalledWith("user-A", five, 25, "");
+    expect((await render(request({ generationIds: five, duration: 25, musicId: "" }))).status).toBe(409);
+    expect(renderSlideshow).not.toHaveBeenCalled();
     vi.clearAllMocks();
     requireUser.mockResolvedValue({ user: { id: "user-A" } }); rateLimit.mockReturnValue(false); isPreviewEnabled.mockReturnValue(true);
     const six = [...five, "66666666-6666-4666-8666-666666666666"];

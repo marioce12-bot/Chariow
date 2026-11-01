@@ -9,10 +9,11 @@ import { imageCreditCost } from "@/lib/studio/credits";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan, slideshowVoiceAvailability } from "@/lib/studio/slideshow-voice";
 import { isPreviewEnabled } from "@/lib/studio/slideshow-server";
-import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { logPreparationFailure, type PreparationStage } from "@/lib/studio/preparation-diagnostics";
 import { resolveProductLanguage } from "@/lib/studio/product-language";
 import { validateCreativePerformanceStudioSource } from "@/lib/creative-performance/studio-source";
+import { resolveSlideshowMusicId } from "@/lib/studio/slideshow-music";
 import {
   TASK_TYPE,
   logTaskEvent,
@@ -77,19 +78,6 @@ export async function POST(request: Request) {
   if (validatedSource.error)
     return NextResponse.json({ code: "CREATIVE_SOURCE_NOT_READY", error: validatedSource.error }, { status: 409 });
   if (validatedSource.source) body.input.creativePerformanceSource = validatedSource.source;
-  if (
-    body.kind === "slideshow" &&
-    slideshowVoiceAvailability().voiceoverEnabled &&
-    slideshowVoiceAvailability().available &&
-    body.input.voiceover !== true
-  )
-    return NextResponse.json(
-      {
-        code: "STUDIO_CLIENT_UPDATE_REQUIRED",
-        error: "Actualisez la page pour activer la narration vocale, puis relancez votre diaporama.",
-      },
-      { status: 409 },
-    );
   const blocked = await requireActiveSubscription(user.id);
   if (blocked) return blocked;
   if (rateLimit(`studio-task:${user.id}`, 6))
@@ -131,22 +119,32 @@ export async function POST(request: Request) {
     body.input.contentLanguage = resolveProductLanguage(product, body.input.locale).code;
     let preparationStage: PreparationStage = "slideshow_plan";
     try {
-      if (body.input.voiceover === true) {
-        // Fail before image credits or provider calls while Preview validation is locked.
-        preparationStage = "voice_gate";
-        assertSlideshowVoiceAllowed();
-        preparationStage = "voice_plan";
-        const voice = buildSlideshowVoicePlan(product, body.input.duration, body.input.locale, body.input.campaignGoal);
-        body.input.contentLanguage = voice.language;
-        body.input.musicId = voice.musicId;
+      if (body.input.voiceover !== true) {
+        // Validate non-voice requests locally before rejecting; this has no provider or credit side effects.
+        buildSlideshowPlan({ name: product.name, description: product.description,
+          hasReference: Boolean(product.image), duration: body.input.duration,
+          aspectRatio: "9:16", character: "with", locale: body.input.locale,
+          campaignGoal: body.input.campaignGoal, variationId: typeof body.input.variationId === "string" ? body.input.variationId.slice(0, 100) : "default" }, body.input.musicId);
+        if (!slideshowVoiceAvailability().available)
+          return NextResponse.json({ code: "SLIDESHOW_VOICE_UNAVAILABLE", error: publicSlideshowError(null, body.input.locale, "SLIDESHOW_VOICE_UNAVAILABLE") }, { status: 503 });
+        return NextResponse.json({ code: "SLIDESHOW_VOICE_REQUIRED", error: publicSlideshowError(null, body.input.locale, "SLIDESHOW_VOICE_REQUIRED") }, { status: 409 });
       }
+      // Build and validate the script locally first; the voice gate still precedes any external or paid work.
+      preparationStage = "voice_plan";
+      const voice = buildSlideshowVoicePlan(product, body.input.duration, body.input.locale, body.input.campaignGoal);
+      body.input.contentLanguage = voice.language;
+      body.input.musicId = resolveSlideshowMusicId(voice.musicId);
+      preparationStage = "voice_gate";
+      assertSlideshowVoiceAllowed();
       preparationStage = "slideshow_plan";
       buildSlideshowPlan({ name: product.name, description: product.description,
         hasReference: Boolean(product.image), duration: body.input.duration,
         aspectRatio: "9:16", character: "with", locale: body.input.locale,
         campaignGoal: body.input.campaignGoal, variationId: typeof body.input.variationId === "string" ? body.input.variationId.slice(0, 100) : "default" }, body.input.musicId);
     } catch (error) {
-      logPreparationFailure(body.id, preparationStage, error);
+      logPreparationFailure(body.id, preparationStage, error, preparationStage === "voice_gate" ? 503 : 400);
+      if (preparationStage === "voice_gate")
+        return NextResponse.json({ code: "SLIDESHOW_VOICE_UNAVAILABLE", error: publicSlideshowError(null, body.input.locale, "SLIDESHOW_VOICE_UNAVAILABLE") }, { status: 503 });
       const insufficient = error instanceof InsufficientProductDetailsError;
       return NextResponse.json({
         error: insufficient

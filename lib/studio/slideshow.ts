@@ -13,7 +13,7 @@ export type SlideshowOptions = {
   duration: number;
   imagePaths: string[];
   musicPath?: string;
-  voicePath?: string;
+  voicePath: string;
   transitionDuration?: number;
   width?: number;
   height?: number;
@@ -37,6 +37,11 @@ function run(binary: string, args: string[]): Promise<string> {
 async function probeDuration(file: string, ffprobe: string): Promise<number> {
   const raw = await run(ffprobe, ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file]);
   return Number(raw);
+}
+
+async function probeAudioTrack(file: string, ffprobe: string): Promise<boolean> {
+  const raw = await run(ffprobe, ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_type", "-of", "default=noprint_wrappers=1:nokey=1", file]);
+  return raw === "audio";
 }
 
 async function probeVoiceCoverage(file: string, ffmpeg: string, ffprobe: string): Promise<{ duration: number; audibleEnd: number }> {
@@ -91,12 +96,13 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
   const transition = Math.min(options.transitionDuration ?? 0.8, 0.8);
   const width = options.width ?? 1280, height = options.height ?? 720, fps = options.fps ?? 30;
   if (!ffmpegPath || !ffprobePath) throw new Error("ffmpegPath and ffprobePath are required explicitly");
+  if (typeof options.voicePath !== "string" || !path.isAbsolute(options.voicePath)) throw new Error("A local narration voicePath is required for every slideshow");
   if (!path.isAbsolute(outputPath)) throw new Error("outputPath must be absolute");
   if (!Array.isArray(imagePaths) || imagePaths.length < 2 || imagePaths.some(p => !path.isAbsolute(p))) throw new Error("Provide at least two local absolute imagePaths");
   if (!Number.isFinite(total) || total < 25 || !Number.isFinite(transition) || transition <= 0) throw new Error("Slideshow duration must be at least 25s and transitionDuration must be positive");
   if (transition * (imagePaths.length - 1) >= total) throw new Error("Transitions must be shorter than the total slideshow duration");
   if (width < 2 || height < 2 || fps < 1) throw new Error("Invalid output dimensions or frame rate");
-  await Promise.all([...imagePaths, ...(options.musicPath ? [options.musicPath] : []), ...(options.voicePath ? [options.voicePath] : [])].map(async file => {
+  await Promise.all([...imagePaths, ...(options.musicPath ? [options.musicPath] : []), options.voicePath].map(async file => {
     if (!path.isAbsolute(file)) throw new Error(`Input must be a local absolute path: ${file}`);
     await stat(file);
   }));
@@ -150,6 +156,7 @@ export async function assembleSlideshow(options: SlideshowOptions): Promise<{ ur
     await run(ffmpegPath, args);
     const actual = await probeDuration(outputPath, ffprobePath);
     if (!Number.isFinite(actual) || Math.abs(actual - total) > Math.max(0.08, 1 / fps)) throw new Error(`Slideshow duration ${actual}s differs from requested ${total}s`);
+    if (!await probeAudioTrack(outputPath, ffprobePath)) throw new Error("Rendered slideshow is missing its required audio track");
     return { url: outputPath, duration: actual };
   } finally {
     await rm(work, { recursive: true, force: true });

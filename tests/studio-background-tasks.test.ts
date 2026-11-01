@@ -25,7 +25,7 @@ const id = "123e4567-e89b-42d3-a456-426614174000";
 const user = { id: "user-1" };
 const rowFor = (metadata: any, status = "processing") => ({ id, user_id: user.id, status, metadata, created_at: "2026-01-01" });
 function metadata(kind: "image" | "slideshow" = "image", extra: any = {}) {
-  return { type: TASK_TYPE, taskKind: kind, input: kind === "image" ? { prompt: "un paysage" } : { product: { name: "Produit", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion." }, duration: 25, musicId: "", locale: "fr", campaignGoal: "discover" }, revision: 0, phase: "queued", progress: 1, message: "queued", updatedAt: new Date().toISOString(), images: [], ...extra };
+  return { type: TASK_TYPE, taskKind: kind, input: kind === "image" ? { prompt: "un paysage" } : { product: { name: "Produit", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion." }, duration: 25, musicId: "", locale: "fr", campaignGoal: "discover", voiceover: true }, revision: 0, phase: "queued", progress: 1, message: "queued", updatedAt: new Date().toISOString(), images: [], ...extra };
 }
 function configureDb(row: any, claimWon = true) {
   const updates: any[] = [];
@@ -72,6 +72,7 @@ const ok = (body: any) => ({ ok: true, json: async () => body });
 
 beforeEach(() => {
   vi.clearAllMocks(); process.env.SUPABASE_SERVICE_ROLE_KEY = "test-secret";
+  vi.stubEnv("VERCEL_ENV", "preview"); vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "true"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "true");
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 202 })));
   mocks.after.mockImplementation((fn: () => unknown) => { void fn; });
   mocks.dispatch.mockResolvedValue(undefined);
@@ -80,6 +81,22 @@ beforeEach(() => {
 });
 
 describe("runTaskStep", () => {
+  it("bloque une tâche héritée sans narration avant préflight ou toute nouvelle image", async () => {
+    const meta = metadata("slideshow"); meta.input.voiceover = false;
+    const row = rowFor(meta); const updates = configureDb(row);
+    await runTaskStep(id, 0);
+    expect(row.status).toBe("failed"); expect(row.metadata.errorCode).toBe("SLIDESHOW_VOICE_REQUIRED");
+    expect(updates.at(-1)).toMatchObject({ status: "failed", metadata: { creditState: "confirmed" } });
+    expect(mocks.preflight).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.render).not.toHaveBeenCalled();
+  });
+  it("bloque avant toute image si la voix obligatoire devient indisponible", async () => {
+    vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "false");
+    const row = rowFor(metadata("slideshow")); configureDb(row);
+    await runTaskStep(id, 0);
+    expect(row.status).toBe("failed"); expect(row.metadata.errorCode).toBe("SLIDESHOW_VOICE_UNAVAILABLE");
+    expect(row.metadata.creditState).toBe("confirmed"); expect(row.metadata.stages).toHaveLength(0);
+    expect(mocks.preflight).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled();
+  });
   it("utilise le claim CAS pour ignorer un worker doublon sans génération", async () => {
     configureDb(rowFor(metadata()), false);
     await runTaskStep(id, 0);
@@ -219,7 +236,7 @@ describe("runTaskStep", () => {
     const updates = configureDb(rowFor(fullMeta));
     mocks.render.mockResolvedValue({ generationId: "video-1", videoUrl: "https://video.test/1" });
     await runTaskStep(id, 6);
-    expect(mocks.render).toHaveBeenCalledWith(user.id, ["g0", "g1", "g2", "g3", "g4"], 25, "", id, undefined, undefined, undefined);
+    expect(mocks.render).toHaveBeenCalledWith(user.id, ["g0", "g1", "g2", "g3", "g4"], 25, "", id, expect.objectContaining({ product: expect.any(Object) }), undefined, undefined);
     expect(updates.at(-1).metadata).toMatchObject({ phase: "completed", revision: 7 });
   });
 });

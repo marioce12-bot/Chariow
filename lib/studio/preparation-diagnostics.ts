@@ -23,7 +23,7 @@ function preparationReason(error: unknown): string {
   return "UNEXPECTED_PREPARATION_ERROR";
 }
 
-export function logPreparationFailure(taskId: string, stage: PreparationStage, error: unknown): void {
+export function logPreparationFailure(taskId: string, stage: PreparationStage, error: unknown, status: 400 | 503 = 400): void {
   // Diagnostics must never turn an ordinary refusal into an unhandled failure.
   try {
     console.warn(JSON.stringify({
@@ -31,7 +31,7 @@ export function logPreparationFailure(taskId: string, stage: PreparationStage, e
       taskId: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId) ? taskId : null,
       stage: ["voice_gate", "voice_plan", "slideshow_plan", "prompt_plan"].includes(stage) ? stage : "unknown",
       reason: preparationReason(error),
-      status: 400,
+      status: status === 503 ? 503 : 400,
     }));
   } catch { /* Best-effort, server-only diagnostics. */ }
 }

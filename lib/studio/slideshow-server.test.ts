@@ -60,4 +60,41 @@ describe("slideshow backend safety", () => {
     vi.doUnmock("node:fs/promises"); vi.doUnmock("@/lib/supabase/admin"); vi.doUnmock("@/lib/studio/slideshow"); vi.doUnmock("@/lib/studio/media");
     vi.resetModules();
   });
+
+  it("rejects direct rendering without narration before filesystem or database I/O", async () => {
+    const mkdtemp = vi.fn();
+    const createAdminClient = vi.fn();
+    vi.resetModules();
+    vi.doMock("node:fs/promises", () => ({ mkdtemp, readFile: vi.fn(), rm: vi.fn(), stat: vi.fn(), writeFile: vi.fn() }));
+    vi.doMock("@/lib/supabase/admin", () => ({ createAdminClient }));
+    vi.doMock("@/lib/studio/slideshow", () => ({ assembleSlideshow: vi.fn() }));
+    vi.doMock("@/lib/studio/media", () => ({ storeStudioVideo: vi.fn(), signedStudioUrl: vi.fn() }));
+    const server = await import("@/lib/studio/slideshow-server");
+    const ids = Array.from({ length: 5 }, (_, index) => `11111111-1111-4111-8111-11111111111${index}`);
+    await expect(server.renderSlideshow("owner", ids, 25, "sb-reverie", "task-id")).rejects.toThrow(/voix off est obligatoire/i);
+    expect(mkdtemp).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+    vi.doUnmock("node:fs/promises"); vi.doUnmock("@/lib/supabase/admin"); vi.doUnmock("@/lib/studio/slideshow"); vi.doUnmock("@/lib/studio/media");
+    vi.resetModules();
+  });
+
+  it("rejects remixing a legacy silent slideshow before filesystem or image lookup", async () => {
+    const mkdtemp = vi.fn();
+    const imageIds = ["11111111-1111-4111-8111-111111111110", "11111111-1111-4111-8111-111111111111"];
+    const row = { id: "22222222-2222-4222-8222-222222222222", user_id: "owner", kind: "video", status: "completed", storage_path: "owner/old.mp4", metadata: { type: "slideshow", imageGenerationIds: imageIds, duration: 25, musicId: "sb-reverie", voiceover: false } };
+    const query: any = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: row, error: null }), in: () => query };
+    const from = vi.fn(() => query);
+    const createAdminClient = vi.fn(() => ({ from }));
+    vi.resetModules();
+    vi.doMock("node:fs/promises", () => ({ mkdtemp, readFile: vi.fn(), rm: vi.fn(), stat: vi.fn(), writeFile: vi.fn() }));
+    vi.doMock("@/lib/supabase/admin", () => ({ createAdminClient }));
+    vi.doMock("@/lib/studio/slideshow", () => ({ assembleSlideshow: vi.fn() }));
+    vi.doMock("@/lib/studio/media", () => ({ storeStudioVideo: vi.fn(), signedStudioUrl: vi.fn() }));
+    const server = await import("@/lib/studio/slideshow-server");
+    await expect(server.remixSlideshow("owner", row.id, "sb-reverie")).rejects.toThrow(/remix est bloqué.*voix off/i);
+    expect(from).toHaveBeenCalledOnce();
+    expect(mkdtemp).not.toHaveBeenCalled();
+    vi.doUnmock("node:fs/promises"); vi.doUnmock("@/lib/supabase/admin"); vi.doUnmock("@/lib/studio/slideshow"); vi.doUnmock("@/lib/studio/media");
+    vi.resetModules();
+  });
 });

@@ -8,7 +8,7 @@ import { continuationQuote, runTaskStep, TASK_TYPE } from "@/lib/studio/backgrou
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const rowFor = (metadata: any, status = "processing") => ({ id, user_id: "user-1", status, metadata, created_at: "2026-01-01" });
 const images = Array.from({ length: 3 }, (_, i) => ({ id: `g${i}`, url: `u${i}` }));
-const slideshow = (extra: any = {}) => ({ type: TASK_TYPE, taskKind: "slideshow", input: { product: { name: "Produit", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion." }, duration: 25, musicId: "", locale: "fr", campaignGoal: "discover" }, revision: 4, phase: "queued", progress: 56, message: "queued", updatedAt: new Date().toISOString(), images, stages: [], ...extra });
+const slideshow = (extra: any = {}) => ({ type: TASK_TYPE, taskKind: "slideshow", input: { product: { name: "Produit", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion." }, duration: 25, musicId: "", locale: "fr", campaignGoal: "discover", voiceover: true }, revision: 4, phase: "queued", progress: 56, message: "queued", updatedAt: new Date().toISOString(), images, stages: [], ...extra });
 function configureDb(row: any) {
   mocks.from.mockImplementation(() => ({
     select: () => {
@@ -41,7 +41,7 @@ function configureDb(row: any) {
     },
   }));
 }
-beforeEach(() => { vi.clearAllMocks(); mocks.from.mockReset(); });
+beforeEach(() => { vi.clearAllMocks(); mocks.from.mockReset(); vi.stubEnv("VERCEL_ENV", "preview"); vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "true"); vi.stubEnv("VENDEO_GEMINI_FREE_TIER_CONFIRMED", "true"); });
 
 describe("refus 402 sans débit pendant une étape image", () => {
   it("conserve le vrai message de solde insuffisant et ne marque aucune étape incertaine", async () => {

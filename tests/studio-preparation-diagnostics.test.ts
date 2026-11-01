@@ -18,7 +18,7 @@ vi.mock("next/server", () => ({ after: mocks.after, NextResponse: { json: (body:
 import { POST } from "@/app/api/studio/tasks/route";
 import { logPreparationFailure } from "@/lib/studio/preparation-diagnostics";
 import { InsufficientProductDetailsError } from "@/lib/studio/slideshow-plan";
-import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const request = (voiceover = true) => new Request("https://test.invalid/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input: { voiceover, product: { name: "PRIVATE_PRODUCT", description: "PRIVATE_DESCRIPTION", image: "https://private.invalid/secret" }, duration: 25, musicId: "", locale: "fr", prompt: "PRIVATE_PROMPT" } }) });
 let warn: ReturnType<typeof vi.spyOn>;
@@ -38,6 +38,11 @@ const noEffects = () => {
   expect(JSON.stringify(warn.mock.calls)).not.toMatch(/PRIVATE_|private\.invalid|secret|stack/);
 };
 describe("server-only preparation diagnostics", () => {
+  it("exposes only a safe user message for required and unavailable voice codes", () => {
+    expect(publicSlideshowError("private runtime detail", "fr", "SLIDESHOW_VOICE_REQUIRED")).toMatch(/voix off est obligatoire/i);
+    expect(publicSlideshowError("private runtime detail", "fr", "SLIDESHOW_VOICE_UNAVAILABLE")).toMatch(/n’est pas disponible/i);
+    expect(publicSlideshowError("private runtime detail", "en", "SLIDESHOW_VOICE_REQUIRED")).toMatch(/requires a voiceover/i);
+  });
   it.each([
     ["TTS diaporama réservé aux environnements preview ou production autorisés.", "VOICE_ENVIRONMENT_UNSUPPORTED"],
     ["La voix off n’est pas encore activée dans cet environnement. Aucun appel vocal effectué.", "VOICE_DISABLED"],
@@ -45,8 +50,8 @@ describe("server-only preparation diagnostics", () => {
   ])("classifies a voice gate refusal without changing the public response: %s", async (message, reason) => {
     mocks.gate.mockImplementation(() => { throw new Error(message); });
     const response = await POST(request());
-    expect(response.status).toBe(400); expect(await response.json()).toEqual({ error: slideshowPublicFailure("fr") });
-    expect(diagnostic()).toEqual({ event: "studio_preparation_failed", taskId: id, stage: "voice_gate", reason, status: 400 });
+    expect(response.status).toBe(503); expect(await response.json()).toEqual({ code: "SLIDESHOW_VOICE_UNAVAILABLE", error: publicSlideshowError(null, "fr", "SLIDESHOW_VOICE_UNAVAILABLE") });
+    expect(diagnostic()).toEqual({ event: "studio_preparation_failed", taskId: id, stage: "voice_gate", reason, status: 503 });
     expect(warn).toHaveBeenCalledOnce(); noEffects();
   });
   it.each([true, false])("locates insufficient evidence with voiceover=%s", async (voiceover) => {
@@ -78,7 +83,7 @@ describe("server-only preparation diagnostics", () => {
   it("keeps ordinary refusals working if logging fails", async () => {
     warn.mockImplementation(() => { throw new Error("logger down"); });
     mocks.gate.mockImplementation(() => { throw new Error("PRIVATE_EXCEPTION"); });
-    expect((await POST(request())).status).toBe(400); expect(mocks.insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled();
+    expect((await POST(request())).status).toBe(503); expect(mocks.insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled();
   });
   it("rejects unvalidated correlation identifiers and stages", () => {
     logPreparationFailure("PRIVATE_ID", "PRIVATE_STAGE" as never, new Error("PRIVATE_EXCEPTION"));

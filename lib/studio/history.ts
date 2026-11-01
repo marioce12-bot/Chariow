@@ -14,6 +14,14 @@ export function sourceIds(row: any): string[] {
   const ids = row.metadata?.imageGenerationIds ?? row.metadata?.images?.map((image: any) => image.id) ?? [];
   return Array.isArray(ids) ? ids.filter((id: unknown): id is string => typeof id === "string" && uuid.test(id)) : [];
 }
+function slideshowChargeIds(row: any): string[] {
+  const ids = new Set(sourceIds(row));
+  if (isTask(row)) {
+    for (const stage of row.metadata?.stages ?? [])
+      if (stage?.kind === "image" && typeof stage.generationId === "string" && uuid.test(stage.generationId)) ids.add(stage.generationId);
+  }
+  return [...ids];
+}
 function isTask(row: any) {
   return row.metadata?.type === TASK_TYPE || row.options?.type === TASK_TYPE;
 }
@@ -50,6 +58,20 @@ export async function linkedSourceIds(supabase: any, userId: string, rows: any[]
 }
 
 export async function enrichHistory(supabase: any, userId: string, rows: any[]) {
+  const chargeIds = [...new Set(rows.filter(isSlideshow).flatMap(slideshowChargeIds))];
+  const chargedCredits = new Map<string, number>();
+  if (chargeIds.length) {
+    const { data, error } = await supabase.from("credit_transactions").select("external_id,credits")
+      .eq("user_id", userId).eq("kind", "debit").eq("status", "completed")
+      .in("external_id", chargeIds).limit(chargeIds.length);
+    if (error) throw error;
+    for (const transaction of data ?? []) {
+      if (typeof transaction.external_id === "string") {
+        const credits = Number(transaction.credits);
+        chargedCredits.set(transaction.external_id, Number.isFinite(credits) ? Math.max(0, credits) : 0);
+      }
+    }
+  }
   const thumbnailIds = [...new Set(rows.filter(isSlideshow).map(row => sourceIds(row)[0]).filter(Boolean))];
   const thumbnails = new Map<string, string>();
   if (thumbnailIds.length) {
@@ -70,10 +92,11 @@ export async function enrichHistory(supabase: any, userId: string, rows: any[]) 
     const processing = row.status === "processing" && !stale;
     const mediaState = mediaUrl ? "ready" : processing ? "processing" : slideshow || row.status === "completed" ? "missing" : "failed";
     const { metadata, ...rest } = row;
+    const creditsCost = slideshow ? slideshowChargeIds(row).reduce((total, id) => total + (chargedCredits.get(id) ?? 0), 0) : row.credits_cost;
     // Do not send provider prompts or the full task input as the label of a final slideshow.
     const publicMetadata = task ? { type: "slideshow", duration: metadata.input?.duration, imageGenerationIds: sourceIds(row), taskId: row.id } : metadata;
     return {
-      ...rest, metadata: publicMetadata,
+      ...rest, ...(slideshow ? { credits_cost: creditsCost } : {}), metadata: publicMetadata,
       kind: slideshow ? "video" : row.kind,
       creationType: slideshow ? "slideshow" : row.kind,
       prompt: slideshow ? "Diaporama" : row.prompt,

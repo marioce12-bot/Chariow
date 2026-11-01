@@ -23,7 +23,7 @@ export type StageRecord = {
 };
 // Known no-charge outcomes: credit/subscription preflight refusal or an explicit Gemini
 // 4xx refusal before audio. The render stage can be retried without regenerating images.
-export const NO_CHARGE_ERROR_CODES = ["STUDIO_INSUFFICIENT_CREDITS", "STUDIO_PLANS_REQUIRED", "SLIDESHOW_VOICE_RETRYABLE"];
+export const NO_CHARGE_ERROR_CODES = ["STUDIO_INSUFFICIENT_CREDITS", "STUDIO_PLANS_REQUIRED", "SLIDESHOW_VOICE_RETRYABLE", "SLIDESHOW_VOICE_UNAVAILABLE"];
 export class StudioTaskError extends Error {
   constructor(public code: string, public status: number | null = null, message?: string) {
     super(message ?? "Le suivi serveur n’a pas pu continuer. Les étapes terminées sont conservées ; aucune étape payante n’est relancée.");
@@ -293,7 +293,7 @@ export async function failTask(
   // drops the render stage instead of marking it uncertain; previously completed images remain intact.
   const noCharge = error instanceof StudioTaskError && NO_CHARGE_ERROR_CODES.includes(error.code);
   const uncertain = row.metadata.phase === "running" && !noCharge;
-  logTaskEvent("task_failed", id, row.metadata.revision, { ...row.metadata, creditState: uncertain ? "uncertain" : row.metadata.creditState }, error);
+  logTaskEvent("task_failed", id, row.metadata.revision, { ...row.metadata, creditState: uncertain ? "uncertain" : (noCharge ? "confirmed" : (row.metadata.creditState ?? "confirmed")) }, error);
   const failure = await admin
     .from("studio_generations")
     .update({
@@ -336,6 +336,17 @@ export async function runTaskStep(id: string, revision: number) {
   )
     return;
   const meta = row.metadata as TaskMetadata;
+  if (meta.taskKind === "slideshow") {
+    if (meta.input?.voiceover !== true) {
+      await failTask(id, new StudioTaskError("SLIDESHOW_VOICE_REQUIRED", 409), { revision, phase: "queued" });
+      return;
+    }
+    try { assertSlideshowVoiceAllowed(); }
+    catch {
+      await failTask(id, new StudioTaskError("SLIDESHOW_VOICE_UNAVAILABLE", 503), { revision, phase: "queued" });
+      return;
+    }
+  }
   const stage: StageRecord = {
     step: revision, kind: meta.taskKind === "image" || (revision > 0 && meta.images.length < 5) ? "image" : revision === 0 ? "preflight" : "render",
     state: "running", cost: 0, creditState: "none", startedAt: new Date().toISOString(),
@@ -375,7 +386,6 @@ export async function runTaskStep(id: string, revision: number) {
     } else if (revision === 0) {
       // Reject insufficient/repeated copy and scenes before any external preflight or image.
       const { product, duration, campaignGoal, locale } = meta.input;
-      if (meta.input.voiceover === true) assertSlideshowVoiceAllowed();
       buildSlideshowPlan({
         name: product.name,
         description: typeof product.description === "string" ? product.description : "",
@@ -425,9 +435,7 @@ export async function runTaskStep(id: string, revision: number) {
       images = [...images, { id: image.generationId, url: image.imageUrl }];
     } else {
       const ids = images.map((image) => image.id);
-      result = meta.input.voiceover === true
-        ? await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id, { product: meta.input.product, locale: meta.input.locale, campaignGoal: meta.input.campaignGoal }, meta.input.creativePerformanceSource, meta.input.creativeIdea)
-        : await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id, undefined, meta.input.creativePerformanceSource, meta.input.creativeIdea);
+      result = await renderSlideshow(row.user_id, ids, meta.input.duration, meta.input.musicId, id, { product: meta.input.product, locale: meta.input.locale, campaignGoal: meta.input.campaignGoal }, meta.input.creativePerformanceSource, meta.input.creativeIdea);
     }
     if (meta.taskKind === "slideshow" && result && (!result.videoUrl || !result.generationId))
       throw new StudioTaskError("STUDIO_MP4_NOT_READY");
@@ -444,7 +452,7 @@ export async function runTaskStep(id: string, revision: number) {
       message: complete
         ? "Création prête."
         : images.length === 5
-          ? (meta.input.voiceover === true ? "Voix et mixage du diaporama…" : "Montage du diaporama…")
+          ? "Voix et mixage du diaporama…"
           : `Génération du visuel ${images.length + 1}/5…`,
       updatedAt: new Date().toISOString(),
       ...(result ? { result } : {}),

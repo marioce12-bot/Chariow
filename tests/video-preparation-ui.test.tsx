@@ -22,7 +22,7 @@ describe("Slideshow server task UI", () => {
     expect(container.querySelector('select[aria-label="Musique"]')).toBeNull();
     expect(container.textContent).not.toContain("Remplacer la musique");
     const taskPost = fetcher.mock.calls.find(([url, options]) => url === "/api/studio/tasks" && options?.method === "POST")!;
-    expect(JSON.parse(String(taskPost[1]?.body)).input).toMatchObject({ voiceover: true, musicId: "" });
+    expect(JSON.parse(String(taskPost[1]?.body)).input).toMatchObject({ voiceover: true, musicId: "sb-amberlight" });
     expect(fetcher.mock.calls.filter(([url]) => String(url).endsWith("/remix"))).toHaveLength(0); expect(container.textContent).toContain("YouTube DESCRIPTION");
    } finally { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); }
  });

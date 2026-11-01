@@ -18,8 +18,10 @@ it("renders an exactly five-image synthetic vertical MP4 with the packaged Verce
     }
     const audio = path.join(directory, "sine.wav");
     await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=5", audio]);
+    const voice = path.join(directory, "voice.wav");
+    await exec(ffmpeg!, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=25", voice]);
     const output = path.join(directory, "render.mp4"); const attribution = "Synthetic test soundtrack. Source: local sine, no third-party music.";
-    await assembleSlideshow({ ffmpegPath: ffmpeg!, ffprobePath: ffprobe, imagePaths: images, musicPath: audio, duration: 25, width: 180, height: 320, fps: 25, outputPath: output, attribution, profileSeed: "bundled-fixture" });
+    await assembleSlideshow({ ffmpegPath: ffmpeg!, ffprobePath: ffprobe, imagePaths: images, musicPath: audio, voicePath: voice, duration: 25, width: 180, height: 320, fps: 25, outputPath: output, attribution, profileSeed: "bundled-fixture" });
     const { stdout } = await exec(ffprobe, ["-v", "error", "-show_streams", "-show_format", "-of", "json", output]);
     const data = JSON.parse(stdout); const video = data.streams.find((stream: any) => stream.codec_type === "video");
     expect(video.width).toBe(180); expect(video.height).toBe(320); expect(Number(data.format.duration)).toBeCloseTo(25, 1);
