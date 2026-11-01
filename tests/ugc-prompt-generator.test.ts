@@ -8,7 +8,7 @@ const analysis = {
   product_type: "digital", niche: "éducation", target_audience: "Adultes francophones", core_problem: null,
   main_benefit: null, emotion_dominante: "curiosité", usage_context: "étude à domicile", visual_assets: ["couverture si URL fournie"],
   price_positioning: "accessible", objections_probables: ["contenu adapté ?"], risks: ["ne pas promettre un résultat"],
-  assumptions: ["l’usage pédagogique est supposé d’après la description"], confirmed_facts: ["name: Guide Excel Facile"],
+  assumptions: ["l’usage pédagogique est supposé d’après la description"], confirmed_fact_ids: [0],
 };
 const input = (name = "Guide Excel Facile"): UgcGeneratorInput => ({
   product: { name, description: `${name}, guide numérique pour apprendre Excel.`, price: 5000, currency: "XOF", category: "Éducation", type: "digital", tags: ["ebook"], shop: "Kora", images: ["https://example.test/cover.jpg"] },
@@ -47,6 +47,12 @@ describe("generateUgcCreative", () => {
       expect(payload).toContain("Contexte béninois");
       expect(payload).toContain("Guide Excel Facile");
     }
+    const analysisPayload = JSON.parse(askText.mock.calls[0][0][1].content);
+    expect(askText.mock.calls[0][1].responseSchema.schema.properties.confirmed_fact_ids).toEqual({ type: "array", items: { type: "integer" } });
+    expect(analysisPayload.product_source_sentences).toEqual([
+      { id: 0, source: "name", text: "Guide Excel Facile" },
+      { id: 1, source: "description", text: "Guide Excel Facile, guide numérique pour apprendre Excel." },
+    ]);
     expect(result.creative.shots).toHaveLength(5);
     expect(askText.mock.calls[0][0][1].content).toContain("image_reference_urls");
     expect(askText.mock.calls[1][0][0].content).toContain("Product fingerprint anti-répétition");
@@ -128,7 +134,7 @@ describe("generateUgcCreative", () => {
     const soapBase = creative("Savon Karité Kora", "Atelier de beauté à Abidjan");
     const soapCta = "Découvre Savon Karité Kora dans la boutique.";
     askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative("Guide Excel Facile", "Cour à Cotonou")))
-      .mockResolvedValueOnce(JSON.stringify({ ...analysis, product_type: "physique", niche: "beauté", confirmed_facts: ["name: Savon Karité Kora"] }))
+      .mockResolvedValueOnce(JSON.stringify({ ...analysis, product_type: "physique", niche: "beauté", confirmed_fact_ids: [0] }))
       .mockResolvedValueOnce(JSON.stringify({
         ...soapBase,
         scene: { ...soapBase.scene, props: ["Savon Karité Kora", "serviette en coton"] },
@@ -213,21 +219,42 @@ describe("generateUgcCreative", () => {
     });
     expect(askText).not.toHaveBeenCalled();
   });
-  it("refuse les citations fabriquées avant le deuxième appel", async () => {
-    askText.mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_facts: ["description: 50 leçons certifiées"] }));
-    await expect(generateUgcCreative(input())).rejects.toMatchObject({
-      stage: "product_analysis_validation",
-      details: { path: "confirmed_facts[0]", type: "unsupported_fact" },
-    });
-    expect(askText).toHaveBeenCalledTimes(1);
+  it("reconstruit les faits depuis les phrases sources et ignore les IDs inconnus et doublons", async () => {
+    askText.mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_fact_ids: [0, 999, 0, 1, 1] }))
+      .mockResolvedValueOnce(JSON.stringify(creative()));
+    const result = await generateUgcCreative(input());
+    expect(result.analysis.confirmed_facts).toEqual([
+      "name: Guide Excel Facile",
+      "description: Guide Excel Facile, guide numérique pour apprendre Excel.",
+    ]);
+    expect(askText).toHaveBeenCalledTimes(2);
+  });
+
+  it("réessaie une seule fois si la liste est vide, puis continue avec les faits sélectionnés", async () => {
+    askText.mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_fact_ids: [] }))
+      .mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_fact_ids: [0] }))
+      .mockResolvedValueOnce(JSON.stringify(creative()));
+    const result = await generateUgcCreative(input());
+    expect(result.analysis.confirmed_facts).toEqual(["name: Guide Excel Facile"]);
+    expect(askText).toHaveBeenCalledTimes(3);
+    expect(askText.mock.calls[1][0].map((message: { content: string }) => message.content).join(" ")).toContain("Nouvelle tentative");
+  });
+
+  it("ignore les IDs inconnus et continue sans faits si le seul réessai n'en trouve pas", async () => {
+    askText.mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_fact_ids: [999] }))
+      .mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_fact_ids: [1000] }))
+      .mockResolvedValueOnce(JSON.stringify(creative()));
+    const result = await generateUgcCreative(input());
+    expect(result.analysis.confirmed_facts).toEqual([]);
+    expect(askText).toHaveBeenCalledTimes(3);
   });
   it("refuse un mineur et une reprise identique du hook", () => {
     expect(() => validateUgcCreative({ ...creative(), characters: [{ ...creative().characters[0], age: "16 ans" }] }, input())).toThrow(/adultes/);
     expect(() => validateUgcCreative(creative(), { ...input(), previousPrompt: creative().hook.text })).toThrow(/répétée/);
   });
   it("refuse une sortie créative invalide sans appel de secours", async () => {
-    askText.mockResolvedValueOnce("{}");
+    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce("{}");
     await expect(generateUgcCreative(input())).rejects.toBeInstanceOf(UgcPromptGenerationError);
-    expect(askText).toHaveBeenCalledTimes(1);
+    expect(askText).toHaveBeenCalledTimes(2);
   });
 });
