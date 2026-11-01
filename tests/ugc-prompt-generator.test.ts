@@ -3,284 +3,232 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const askText = vi.fn();
 vi.mock("@/lib/ai/text", () => ({ askText: (...args: unknown[]) => askText(...args) }));
 import { generateUgcCreative, UgcPromptGenerationError, validateUgcCreative, type UgcGeneratorInput } from "@/lib/studio/ugc-prompt-generator";
+import { representativeUgcProducts } from "@/tests/fixtures/ugc-products";
 
 const analysis = {
-  product_type: "digital", niche: "éducation", target_audience: "Adultes francophones", core_problem: null,
-  main_benefit: null, emotion_dominante: "curiosité", usage_context: "étude à domicile", visual_assets: ["couverture si URL fournie"],
+  product_type: "digital", niche: "guide pratique", target_audience: "Adultes francophones", core_problem: null,
+  main_benefit: null, emotion_dominante: "curiosité", usage_context: "consultation sur téléphone", visual_assets: ["couverture si URL fournie"],
   price_positioning: "accessible", objections_probables: ["contenu adapté ?"], risks: ["ne pas promettre un résultat"],
-  assumptions: ["l’usage pédagogique est supposé d’après la description"], confirmed_fact_ids: [0],
+  assumptions: [], confirmed_fact_ids: [0],
 };
-const input = (name = "Guide Excel Facile"): UgcGeneratorInput => ({
+const input = (name = "Guide Excel Facile", duration = 25): UgcGeneratorInput => ({
   product: { name, description: `${name}, guide numérique pour apprendre Excel.`, price: 5000, currency: "XOF", category: "Éducation", type: "digital", tags: ["ebook"], shop: "Kora", images: ["https://example.test/cover.jpg"] },
-  options: { language: "français", duration: 25, tone: "chaleureux", platform: "TikTok" },
+  options: { language: "français", duration, tone: "chaleureux", platform: "TikTok" },
   userBrief: "Contexte béninois", previousPrompt: "Éviter la scène de bureau avec un tableau blanc",
 });
-const creative = (name = "Guide Excel Facile", location = "Cour ombragée à Cotonou") => ({
-  assumptions: [], angle: "ce que j’ai appris", hook: { text: `Voici ${name}`, visual: `La créatrice montre ${name}` },
-  scene: { location, lighting: "lumière du matin", mood: "spontané", props: ["téléphone"] },
-  characters: [{ id: "c1", age: "30 ans", gender: "femme", look: "femme noire béninoise", outfit: "chemise colorée", personality: "curieuse", role: "créatrice" }],
-  shots: [
-    { start: 0, end: 3, type: "hook", visual: `Montre le titre ${name}`, action: "sourit", dialogue: `Voici ${name}`, camera: "selfie vertical" },
-    { start: 3, end: 8, type: "problem", visual: "Parle d’apprentissage", action: "explique", dialogue: "Je voulais mieux comprendre les tableaux.", camera: "plan poitrine" },
-    { start: 8, end: 15, type: "solution", visual: `Présente ${name}`, action: "fait défiler l’écran", dialogue: "Je découvre les notions à mon rythme.", camera: "gros plan écran et visage" },
-    { start: 15, end: 21, type: "proof", visual: `La couverture de ${name} reste visible`, action: "rapproche le téléphone", dialogue: "Voici sa référence.", camera: "gros plan référence" },
-    { start: 21, end: 25, type: "cta", visual: `Reprend ${name}`, action: "pointe vers le lien", dialogue: "Découvre le guide sur la boutique.", camera: "selfie vertical" },
-  ],
-  cta: "Découvre le guide sur la boutique.", negative_prompt: "pas de promesse, pas d’avis client, pas de texte déformé",
+const draft = (overrides: Record<string, unknown> = {}) => ({
+  angle: "Découverte quotidienne",
+  hook: { text: "Une piste à explorer ?", visual: "La présentatrice ouvre son téléphone." },
+  scene: { location: "Cour ombragée à Cotonou", lighting: "lumière du matin", mood: "spontané", props: ["téléphone"] },
+  characters: [{ id: "creator", age: "30", gender: "femme", look: "noire adulte aux cheveux courts", outfit: "tenue quotidienne sobre", personality: "naturelle et attentive", role: "présentatrice fictive" }],
+  shortLines: ["Je cherche un point de départ.", "Je regarde cette référence.", "La couverture reste visible."],
+  ...overrides,
 });
+const runGeneration = (creative = draft()) => {
+  askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative));
+  return generateUgcCreative(input());
+};
+const timing = (duration: number) => validateUgcCreative(draft(), input("Guide Excel Facile", duration)).shots;
 
-describe("generateUgcCreative", () => {
-  beforeEach(() => { askText.mockReset(); vi.stubEnv("STUDIO_UGC_TEXT_PROVIDER", "groq"); });
+beforeEach(() => { askText.mockReset(); vi.stubEnv("STUDIO_UGC_TEXT_PROVIDER", "groq"); });
 
-  it("fait exactement deux appels askText avec les données, options, références et le provider unique", async () => {
-    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative()));
-    const result = await generateUgcCreative(input());
+describe("génération créative UGC déterministe", () => {
+  it("demande au modèle l’angle, le hook, la scène, le casting et trois répliques courtes", async () => {
+    const result = await runGeneration();
     expect(askText).toHaveBeenCalledTimes(2);
     for (const [messages, options] of askText.mock.calls) {
       expect(options.order).toEqual(["openrouter"]);
-      expect(options.responseSchema).toBeDefined();
       expect(options.model).toBe("google/gemini-2.5-flash-lite");
-      const payload = messages.map((m: { content: string }) => m.content).join(" ");
-      expect(payload).toContain("Guide Excel Facile");
-      expect(payload).toContain("description");
-      expect(payload).toContain("5000");
-      expect(payload).toContain("https://example.test/cover.jpg");
-      expect(payload).toContain("Contexte béninois");
-      expect(payload).toContain("Guide Excel Facile");
     }
-    const analysisPayload = JSON.parse(askText.mock.calls[0][0][1].content);
-    expect(askText.mock.calls[0][1].responseSchema.schema.properties.confirmed_fact_ids).toEqual({ type: "array", items: { type: "integer" } });
-    expect(analysisPayload.product_source_sentences).toEqual([
-      { id: 0, source: "name", text: "Guide Excel Facile" },
-      { id: 1, source: "description", text: "Guide Excel Facile, guide numérique pour apprendre Excel." },
-    ]);
-    expect(result.creative.shots).toHaveLength(5);
-    expect(askText.mock.calls[0][0][1].content).toContain("image_reference_urls");
-    expect(askText.mock.calls[1][0][0].content).toContain("Product fingerprint anti-répétition");
+    const creativeCall = askText.mock.calls[1];
+    expect(creativeCall[1].responseSchema.name).toBe("ugc_creative_direction");
+    expect(Object.keys(creativeCall[1].responseSchema.schema.properties)).toEqual(["angle", "hook", "scene", "characters", "shortLines"]);
+    expect(creativeCall[1].responseSchema.schema.properties).not.toHaveProperty("shots");
+    expect(creativeCall[1].responseSchema.schema.properties).not.toHaveProperty("cta");
+    expect(creativeCall[0][0].content).toContain("le serveur les construit");
+    expect(creativeCall[0][0].content).toContain("Choisis toi-même un ou deux adultes fictifs noirs ou métissés");
+    expect(result.creative.characters).toEqual(draft().characters);
+    expect(result.creative.shots.map(shot => shot.type)).toEqual(["hook", "problem", "solution", "proof", "cta"]);
+    expect(result.creative.cta).toBe("Découvre Guide Excel Facile dans la boutique.");
   });
 
-  it("uses OpenRouter and lets the model choose one or two adult Black or mixed-race characters", async () => {
-    vi.stubEnv("STUDIO_UGC_TEXT_PROVIDER", "");
-    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative()));
-    await generateUgcCreative(input());
-    expect(askText).toHaveBeenCalledTimes(2);
-    expect(askText.mock.calls[0][1].order).toEqual(["openrouter"]);
-    expect(askText.mock.calls[1][1].order).toEqual(["openrouter"]);
-    expect(askText.mock.calls[0][1].responseSchema.name).toBe("ugc_product_analysis");
-    expect(askText.mock.calls[1][1].responseSchema.name).toBe("ugc_creative_direction");
-    const creativeSystemPrompt = askText.mock.calls[1][0][0].content as string;
-    expect(creativeSystemPrompt).toContain("Choisis toi-même un ou deux adultes fictifs noirs ou métissés");
-    expect(creativeSystemPrompt).toContain("Dans chaque characters[].look, commence par un marqueur positif explicite");
-    expect(askText.mock.calls[1][1].responseSchema.schema.properties.characters.items.properties.look.description).toContain("marqueur positif explicite");
-    expect(creativeSystemPrompt).toContain("hook, une scène, des accessoires, des gestes, un script et un CTA réellement spécifiques");
-    expect(creativeSystemPrompt).toContain("leur phrase doit être prononcée mot pour mot une seule fois dans le dialogue du premier plan (hook.text) et du dernier plan (cta)");
-    expect(creativeSystemPrompt).not.toContain("Ne pas répéter le hook/CTA dans les plans et champs séparés");
+  it.each([
+    [{ ...draft().characters[0], age: "17" }, "personnages adultes uniquement"],
+    [{ ...draft().characters[0], look: "adulte à la peau brune" }, "marqueur positif"],
+    [{ ...draft().characters[0], role: "présentatrice" }, "fictif"],
+  ])("rejette un casting qui ne respecte pas les contraintes d’adulte, d’identité et de fiction", (character, expected) => {
+    expect(() => validateUgcCreative(draft({ characters: [character] }), input())).toThrow(expected);
   });
 
-  it("accepts valid JSON wrapped in Markdown fences while keeping exactly two LLM calls", async () => {
-    askText.mockResolvedValueOnce(`\`\`\`json\n${JSON.stringify(analysis)}\n\`\`\``)
-      .mockResolvedValueOnce(`\`\`\`json\n${JSON.stringify(creative())}\n\`\`\``);
+  it("conserve deux personnages fictifs choisis par le modèle", () => {
+    const characters = [
+      ...draft().characters,
+      { id: "guest", age: "42", gender: "homme", look: "métis adulte aux cheveux bouclés", outfit: "chemise légère", personality: "calme", role: "invité fictif" },
+    ];
+    const result = validateUgcCreative(draft({ characters }), input());
+    expect(result.characters).toEqual(characters);
+    expect(result.shots[0].action).toContain("Les personnages fictifs ouvrent");
+  });
+
+  it.each([15, 20, 25, 30])("construit cinq plans contigus pour une vidéo de %i secondes", duration => {
+    const shots = timing(duration);
+    expect(shots).toHaveLength(5);
+    expect(shots[0].start).toBe(0);
+    expect(shots[4].end).toBe(duration);
+    expect(shots[4].end - shots[4].start).toBeGreaterThanOrEqual(3);
+    expect(shots[4].end - shots[4].start).toBeLessThanOrEqual(5);
+    for (let i = 1; i < shots.length; i++) expect(shots[i].start).toBe(shots[i - 1].end);
+  });
+
+  it("insère toujours le nom exact du produit dans les plans et le CTA, même si le modèle l’omet", () => {
+    const result = validateUgcCreative(draft(), input("Nom Exact Boutique"));
+    expect(result.shots[2].visual).toContain("Nom Exact Boutique");
+    expect(result.shots[3].action).toContain("Nom Exact Boutique");
+    expect(result.shots[4].dialogue).toContain("Nom Exact Boutique");
+    expect(result.shots[4].dialogue).toBe(result.cta);
+    expect(result.shots[4].type).toBe("cta");
+  });
+
+  it("construit aussi les champs automatiques en anglais quand la fiche est en anglais", () => {
+    const englishInput = { ...input("Exact Product Name"), options: { ...input().options, language: "English" } };
+    const result = validateUgcCreative(draft(), englishInput);
+    expect(result.cta).toBe("Discover Exact Product Name in the shop.");
+    expect(result.shots[0].action).toContain("The fictional character");
+    expect(result.negative_prompt).toContain("no unverified facts");
+  });
+
+  it("corrige un dialogue trop long en ne renvoyant que le hook parlé et les trois lignes", async () => {
+    const overlong = draft({ shortLines: ["mot ".repeat(20), "phrase ".repeat(20), "texte ".repeat(20)] });
+    askText.mockResolvedValueOnce(JSON.stringify(analysis))
+      .mockResolvedValueOnce(JSON.stringify(overlong))
+      .mockResolvedValueOnce(JSON.stringify({ hookText: "Une découverte, tout simplement.", shortLines: ["Je cherchais un point de départ.", "Je consulte cette référence.", "Elle reste sous mes yeux."] }));
     const result = await generateUgcCreative(input());
+    expect(askText).toHaveBeenCalledTimes(3);
+    expect(askText.mock.calls[2][1].responseSchema.name).toBe("ugc_dialogue_correction");
+    expect(Object.keys(askText.mock.calls[2][1].responseSchema.schema.properties)).toEqual(["hookText", "shortLines"]);
+    const correctionPayload = JSON.parse(askText.mock.calls[2][0][1].content);
+    expect(correctionPayload.correctionFields).toBe("hookText et shortLines");
+    expect(result.creative.angle).toBe("Découverte quotidienne");
+    expect(result.creative.hook.visual).toBe("La présentatrice ouvre son téléphone.");
+    expect(result.creative.scene.location).toBe("Cour ombragée à Cotonou");
+    expect(result.creative.characters).toEqual(draft().characters);
+    expect(result.creative.shots.map(shot => shot.dialogue)).toEqual([
+      "Une découverte, tout simplement.", "Je cherchais un point de départ.", "Je consulte cette référence.",
+      "Elle reste sous mes yeux.", "Découvre Guide Excel Facile dans la boutique.",
+    ]);
+    expect(result.creative.shots.map(shot => shot.dialogue).join(" ").trim().split(/\s+/).length).toBeLessThanOrEqual(45);
+  });
+
+  it("corrige un hook répété en ne demandant que hookText", async () => {
+    const repeated = draft();
+    const previousPrompt = `Ancien prompt : ${repeated.hook.text}`;
+    askText.mockResolvedValueOnce(JSON.stringify(analysis))
+      .mockResolvedValueOnce(JSON.stringify(repeated))
+      .mockResolvedValueOnce(JSON.stringify({ hookText: "Un nouveau regard sur ce guide." }));
+    const result = await generateUgcCreative({ ...input(), previousPrompt });
+    expect(askText).toHaveBeenCalledTimes(3);
+    expect(askText.mock.calls[2][1].responseSchema.name).toBe("ugc_hook_correction");
+    expect(Object.keys(askText.mock.calls[2][1].responseSchema.schema.properties)).toEqual(["hookText"]);
+    expect(result.creative.hook.text).toBe("Un nouveau regard sur ce guide.");
+    expect(result.creative.hook.visual).toBe(repeated.hook.visual);
+    expect(result.creative.scene).toEqual(repeated.scene);
+  });
+
+  it("utilise au plus deux corrections ciblées, y compris si hook et budget sont tous deux invalides", async () => {
+    const repeatedOverlong = draft({ shortLines: ["mot ".repeat(20), "phrase ".repeat(20), "texte ".repeat(20)] });
+    const previousPrompt = `Ancien prompt : ${repeatedOverlong.hook.text}`;
+    askText.mockResolvedValueOnce(JSON.stringify(analysis))
+      .mockResolvedValueOnce(JSON.stringify(repeatedOverlong))
+      .mockResolvedValueOnce(JSON.stringify({ hookText: "Un hook distinct et bref." }))
+      .mockResolvedValueOnce(JSON.stringify({ hookText: "Un hook distinct et bref.", shortLines: ["Je pars d’une question.", "Voici la référence.", "Je la regarde de près."] }));
+    const result = await generateUgcCreative({ ...input(), previousPrompt });
+    expect(askText).toHaveBeenCalledTimes(4);
+    expect(askText.mock.calls[2][1].responseSchema.name).toBe("ugc_hook_correction");
+    expect(askText.mock.calls[3][1].responseSchema.name).toBe("ugc_dialogue_correction");
     expect(result.creative.shots).toHaveLength(5);
+  });
+
+  it("s’arrête après deux corrections si le hook reste répété", async () => {
+    const repeated = draft();
+    const previousPrompt = `Ancien prompt : ${repeated.hook.text}`;
+    askText.mockResolvedValueOnce(JSON.stringify(analysis))
+      .mockResolvedValueOnce(JSON.stringify(repeated))
+      .mockResolvedValueOnce(JSON.stringify({ hookText: repeated.hook.text }))
+      .mockResolvedValueOnce(JSON.stringify({ hookText: repeated.hook.text }));
+    await expect(generateUgcCreative({ ...input(), previousPrompt })).rejects.toMatchObject({
+      stage: "creative_direction_validation", details: { type: "duplicate_hook", path: "hook.text" },
+    });
+    expect(askText).toHaveBeenCalledTimes(4);
+  });
+
+  it("s’arrête aussi après deux corrections si le budget de dialogue reste dépassé", async () => {
+    const overlong = draft({ shortLines: ["mot ".repeat(20), "phrase ".repeat(20), "texte ".repeat(20)] });
+    askText.mockResolvedValueOnce(JSON.stringify(analysis))
+      .mockResolvedValueOnce(JSON.stringify(overlong))
+      .mockResolvedValueOnce(JSON.stringify({ hookText: "Encore une piste à explorer.", shortLines: overlong.shortLines }))
+      .mockResolvedValueOnce(JSON.stringify({ hookText: "Une dernière piste à explorer.", shortLines: overlong.shortLines }));
+    await expect(generateUgcCreative(input())).rejects.toMatchObject({
+      stage: "creative_direction_validation", details: { type: "dialogue_word_budget", path: "shots" },
+    });
+    expect(askText).toHaveBeenCalledTimes(4);
+  });
+
+  it("rejette les promesses, bénéfices et chiffres non étayés sans demander au modèle de les sauver", async () => {
+    const unverified = draft({ shortLines: ["Cette méthode garantit 10 000 XOF de revenus.", "Je regarde cette référence.", "Elle reste sous mes yeux."] });
+    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(unverified));
+    await expect(generateUgcCreative(input())).rejects.toMatchObject({
+      stage: "creative_direction_validation", details: { type: "unsupported_claim" },
+    });
     expect(askText).toHaveBeenCalledTimes(2);
   });
 
-  it("tags provider failures by stage without exposing provider details", async () => {
-    askText.mockRejectedValueOnce(new Error("private provider response"));
+  it("ne laisse pas une correction de dialogue introduire une affirmation non vérifiée", async () => {
+    const overlong = draft({ shortLines: ["mot ".repeat(20), "phrase ".repeat(20), "texte ".repeat(20)] });
+    askText.mockResolvedValueOnce(JSON.stringify(analysis))
+      .mockResolvedValueOnce(JSON.stringify(overlong))
+      .mockResolvedValueOnce(JSON.stringify({ hookText: "Une découverte, tout simplement.", shortLines: ["Cette méthode garantit un résultat.", "Je consulte cette référence.", "Elle reste sous mes yeux."] }));
     await expect(generateUgcCreative(input())).rejects.toMatchObject({
-      stage: "product_analysis_provider",
-      message: "Le fournisseur texte a échoué pendant la préparation UGC.",
+      stage: "creative_direction_validation", details: { type: "unsupported_claim" },
+    });
+    expect(askText).toHaveBeenCalledTimes(3);
+  });
+
+  it("ne relance pas le fournisseur texte après une erreur de génération", async () => {
+    askText.mockRejectedValueOnce(Object.assign(new Error("provider failure"), { status: 429, retryAfter: "60" }));
+    await expect(generateUgcCreative(input())).rejects.toMatchObject({
+      stage: "product_analysis_provider", details: { type: "provider_rate_limited", httpStatus: 429, retryAfter: "60" },
     });
     expect(askText).toHaveBeenCalledTimes(1);
   });
 
-  it("reformulates once when the five-shot dialogue exceeds the strict word budget", async () => {
-    const overlong = creative();
-    const mandatoryWords = `${overlong.hook.text} ${overlong.cta}`.trim().split(/\s+/).length;
-    const fillers = 57 - mandatoryWords;
-    const baseMiddleCount = Math.floor(fillers / 3);
-    const perMiddleShot = [baseMiddleCount, baseMiddleCount, fillers - 2 * baseMiddleCount];
-    overlong.shots = overlong.shots.map((shot, index) => ({
-      ...shot,
-      dialogue: index === 0 ? overlong.hook.text : index === 4 ? overlong.cta : Array(perMiddleShot[index - 1]).fill("mot").join(" "),
-    }));
-    expect(overlong.shots.map(shot => shot.dialogue.trim()).join(" ").split(/\s+/)).toHaveLength(57);
-    askText.mockResolvedValueOnce(JSON.stringify(analysis))
-      .mockResolvedValueOnce(JSON.stringify(overlong))
-      .mockResolvedValueOnce(JSON.stringify(creative()));
-
-    const result = await generateUgcCreative(input());
-    expect(result.creative.shots).toHaveLength(5);
-    expect(askText).toHaveBeenCalledTimes(3);
-    const creativePrompt = askText.mock.calls[1][0].map((message: { content: string }) => message.content).join(" ");
-    expect(creativePrompt).toContain("vise au plus 35 mots");
-    expect(creativePrompt).toContain("idéalement 30–32");
-    const retryPrompt = askText.mock.calls[2][0].map((message: { content: string }) => message.content).join(" ");
-    expect(retryPrompt).toContain("57 mots");
-    expect(retryPrompt).toContain("au plus 35 mots");
-    expect(retryPrompt).toContain("creativeDirectionToCorrect");
-    expect(askText.mock.calls[2][1].responseSchema.name).toBe("ugc_creative_direction");
+  it("refuse les structures créatives qui réintroduisent des champs de plan fournis par le modèle", () => {
+    expect(() => validateUgcCreative({ ...draft(), shots: [] }, input())).toThrow(/champ supplémentaire interdit/);
   });
 
-  it("keeps strict validation after the one dialogue-budget correction", async () => {
-    const overlong = creative();
-    const mandatoryWords = `${overlong.hook.text} ${overlong.cta}`.trim().split(/\s+/).length;
-    const fillers = 57 - mandatoryWords;
-    const baseMiddleCount = Math.floor(fillers / 3);
-    const perMiddleShot = [baseMiddleCount, baseMiddleCount, fillers - 2 * baseMiddleCount];
-    overlong.shots = overlong.shots.map((shot, index) => ({
-      ...shot,
-      dialogue: index === 0 ? overlong.hook.text : index === 4 ? overlong.cta : Array(perMiddleShot[index - 1]).fill("mot").join(" "),
-    }));
-    askText.mockResolvedValueOnce(JSON.stringify(analysis))
-      .mockResolvedValueOnce(JSON.stringify(overlong))
-      .mockResolvedValueOnce(JSON.stringify(overlong));
-
-    await expect(generateUgcCreative(input())).rejects.toMatchObject({
-      stage: "creative_direction_validation",
-      details: { type: "dialogue_word_budget", path: "shots", expected: "<= 45 mots", received: "57 mots" },
-      message: expect.stringContaining("57 mots, limite stricte 45"),
-    });
-    expect(askText).toHaveBeenCalledTimes(3);
-  });
-
-  it("classifies OpenRouter 429 and Retry-After without retrying the provider", async () => {
-    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockRejectedValueOnce(Object.assign(new Error("rate limited"), { status: 429, retryAfter: "60" }));
-
-    await expect(generateUgcCreative(input())).rejects.toMatchObject({
-      stage: "creative_direction_provider",
-      details: { type: "provider_rate_limited", httpStatus: 429, retryAfter: "60" },
-    });
-
-    expect(askText).toHaveBeenCalledTimes(2);
-    expect(askText.mock.calls[1][1].order).toEqual(["openrouter"]);
-  });
-
-  it("adapte réellement hook et décor à deux produits distincts", async () => {
-    const soapBase = creative("Savon Karité Kora", "Atelier de beauté à Abidjan");
-    const soapCta = "Découvre Savon Karité Kora dans la boutique.";
-    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative("Guide Excel Facile", "Cour à Cotonou")))
-      .mockResolvedValueOnce(JSON.stringify({ ...analysis, product_type: "physique", niche: "beauté", confirmed_fact_ids: [0] }))
-      .mockResolvedValueOnce(JSON.stringify({
-        ...soapBase,
-        scene: { ...soapBase.scene, props: ["Savon Karité Kora", "serviette en coton"] },
-        shots: soapBase.shots.map((shot, index) => index === 4 ? { ...shot, dialogue: soapCta } : shot),
-        cta: soapCta,
+  it("traite localement toute la chaîne sur sept fixtures de produits représentatifs", async () => {
+    askText.mockImplementation(async (messages: Array<{ content: string }>, options: { responseSchema: { name: string } }) => {
+      if (options.responseSchema.name === "ugc_product_analysis") return JSON.stringify(analysis);
+      const payload = JSON.parse(messages[messages.length - 1].content) as { product: { name: string } };
+      return JSON.stringify(draft({
+        angle: `Découverte autour de ${payload.product.name}`,
+        hook: { text: `Une idée à découvrir, ${payload.product.name} ?`, visual: "La présentatrice ouvre la référence fournie." },
       }));
-    const a = await generateUgcCreative(input());
-    const bInput = { ...input("Savon Karité Kora"), product: { ...input("Savon Karité Kora").product, type: "physique", category: "beauté" } };
-    const b = await generateUgcCreative(bInput);
-    expect(a.creative.hook.text).not.toBe(b.creative.hook.text);
-    expect(a.creative.scene.location).not.toBe(b.creative.scene.location);
-    expect(a.creative.scene.props).not.toEqual(b.creative.scene.props);
-    expect(a.creative.cta).not.toBe(b.creative.cta);
-    expect(a.creative.shots).not.toEqual(b.creative.shots);
-    expect(askText).toHaveBeenCalledTimes(4);
-  });
-
-  it.each(["not-json", JSON.stringify(analysis)])("échoue proprement sur les sorties invalides %s", async (bad) => {
-    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(bad);
-    if (bad === JSON.stringify(analysis)) {
-      await expect(generateUgcCreative(input())).rejects.toBeInstanceOf(UgcPromptGenerationError);
-    } else {
-      await expect(generateUgcCreative(input())).rejects.toThrow(/JSON invalide/);
-    }
-    expect(askText).toHaveBeenCalledTimes(2);
-  });
-
-  it("rejette chronologie discontinue, casting non autorisé et claims chiffrés", async () => {
-    for (const altered of [
-      { ...creative(), shots: creative().shots.map((s, i) => i === 1 ? { ...s, start: 4 } : s) },
-      { ...creative(), characters: [{ ...creative().characters[0], look: "homme blanc" }] },
-      { ...creative(), cta: "Promis, 100% garanti", shots: creative().shots.map((s, i) => i === 4 ? { ...s, dialogue: "100% garanti" } : s) },
-    ]) {
-      await expect(Promise.resolve().then(() => validateUgcCreative(altered, input()))).rejects.toBeInstanceOf(UgcPromptGenerationError);
-    }
-  });
-
-  it("reconnaît les identités explicites dans look sans les inférer depuis gender", () => {
-    const base = creative();
-    for (const look of [
-      "Personnage noir ou métissé, apparence naturelle",
-      "Afro-descendante, peau brune et cheveux naturels",
-      "Mixed-race woman with natural hair",
-      "Femme métissée au teint brun",
-    ]) {
-      expect(() => validateUgcCreative({ ...base, characters: [{ ...base.characters[0], look }] }, input())).not.toThrow();
-    }
-    expect(() => validateUgcCreative({
-      ...base,
-      characters: [{ ...base.characters[0], look: "peau foncée, cheveux naturels", gender: "Black woman" }],
-    }, input())).toThrow(/marqueur positif noir ou métissé doit figurer explicitement dans look/);
-    expect(() => validateUgcCreative({
-      ...base,
-      characters: [{ ...base.characters[0], look: "not a Black person", gender: "femme" }],
-    }, input())).toThrow(/marqueur positif noir ou métissé doit figurer explicitement dans look/);
-  });
-
-  it("accepte une catégorie sans description avec hypothèses et aucun bénéfice inventé", async () => {
-    const sparse = { ...input(), product: { ...input().product, description: "" } };
-    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce(JSON.stringify(creative()));
-    const result = await generateUgcCreative(sparse);
-    expect(result.analysis.main_benefit).toBeNull();
-    expect(askText).toHaveBeenCalledTimes(2);
-  });
-  it("normalise les champs d’analyse non critiques mais conserve les types critiques", async () => {
-    const tolerant = {
-      ...analysis, core_problem: 42, main_benefit: {}, emotion_dominante: [], usage_context: null,
-      visual_assets: "couverture fournie", risks: null, assumptions: ["indice fourni", 7],
-    };
-    askText.mockResolvedValueOnce(JSON.stringify(tolerant)).mockResolvedValueOnce(JSON.stringify(creative()));
-    const result = await generateUgcCreative(input());
-    expect(result.analysis).toMatchObject({
-      core_problem: null, main_benefit: null, emotion_dominante: "non précisée", usage_context: "non précisé",
-      visual_assets: ["couverture fournie"], risks: [], assumptions: ["indice fourni"],
     });
-    expect(askText).toHaveBeenCalledTimes(2);
-  });
-  it("rejette avant tout appel modèle un produit sans description ni métadonnée de contexte", async () => {
-    const sparse = { ...input(), product: { ...input().product, description: "", category: "", type: "", tags: [] } };
-    await expect(generateUgcCreative(sparse)).rejects.toMatchObject({
-      stage: "input", details: { type: "missing_product_info", missingFields: ["product.description", "product.category", "product.type", "product.tags"] },
+    const generated = await Promise.all(representativeUgcProducts.map(product => generateUgcCreative({
+      product: { ...product, tags: [...product.tags], images: ["https://example.test/fixture-cover.jpg"], shop: "Boutique de test" },
+      options: { language: "français", duration: 25, tone: "naturel", platform: "Reels" },
+    })));
+    expect(generated).toHaveLength(7);
+    expect(askText).toHaveBeenCalledTimes(14);
+    generated.forEach((result, index) => {
+      const name = representativeUgcProducts[index].name;
+      expect(result.creative.shots).toHaveLength(5);
+      expect(result.creative.shots.map(shot => shot.type)).toEqual(["hook", "problem", "solution", "proof", "cta"]);
+      expect(result.creative.shots[2].visual).toContain(name);
+      expect(result.creative.shots[4].dialogue).toContain(name);
+      expect(result.creative.shots[0].start).toBe(0);
+      expect(result.creative.shots[4].end).toBe(25);
+      for (let shot = 1; shot < 5; shot++) expect(result.creative.shots[shot].start).toBe(result.creative.shots[shot - 1].end);
     });
-    expect(askText).not.toHaveBeenCalled();
-  });
-  it("reconstruit les faits depuis les phrases sources et ignore les IDs inconnus et doublons", async () => {
-    askText.mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_fact_ids: [0, 999, 0, 1, 1] }))
-      .mockResolvedValueOnce(JSON.stringify(creative()));
-    const result = await generateUgcCreative(input());
-    expect(result.analysis.confirmed_facts).toEqual([
-      "name: Guide Excel Facile",
-      "description: Guide Excel Facile, guide numérique pour apprendre Excel.",
-    ]);
-    expect(askText).toHaveBeenCalledTimes(2);
-  });
-
-  it("réessaie une seule fois si la liste est vide, puis continue avec les faits sélectionnés", async () => {
-    askText.mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_fact_ids: [] }))
-      .mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_fact_ids: [0] }))
-      .mockResolvedValueOnce(JSON.stringify(creative()));
-    const result = await generateUgcCreative(input());
-    expect(result.analysis.confirmed_facts).toEqual(["name: Guide Excel Facile"]);
-    expect(askText).toHaveBeenCalledTimes(3);
-    expect(askText.mock.calls[1][0].map((message: { content: string }) => message.content).join(" ")).toContain("Nouvelle tentative");
-  });
-
-  it("ignore les IDs inconnus et continue sans faits si le seul réessai n'en trouve pas", async () => {
-    askText.mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_fact_ids: [999] }))
-      .mockResolvedValueOnce(JSON.stringify({ ...analysis, confirmed_fact_ids: [1000] }))
-      .mockResolvedValueOnce(JSON.stringify(creative()));
-    const result = await generateUgcCreative(input());
-    expect(result.analysis.confirmed_facts).toEqual([]);
-    expect(askText).toHaveBeenCalledTimes(3);
-  });
-  it("refuse un mineur et une reprise identique du hook", () => {
-    expect(() => validateUgcCreative({ ...creative(), characters: [{ ...creative().characters[0], age: "16 ans" }] }, input())).toThrow(/adultes/);
-    expect(() => validateUgcCreative(creative(), { ...input(), previousPrompt: creative().hook.text })).toThrow(/répétée/);
-  });
-  it("refuse une sortie créative invalide sans appel de secours", async () => {
-    askText.mockResolvedValueOnce(JSON.stringify(analysis)).mockResolvedValueOnce("{}");
-    await expect(generateUgcCreative(input())).rejects.toBeInstanceOf(UgcPromptGenerationError);
-    expect(askText).toHaveBeenCalledTimes(2);
   });
 });
