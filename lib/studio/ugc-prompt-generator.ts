@@ -474,7 +474,7 @@ function wordCount(text: string): number {
 
 function validateCreativeSemantics(draft: UgcCreativeDraft, input: UgcGeneratorInput, cta: string, maxDialogueWords: number) {
   const source = `${input.product.name} ${input.product.description}`.normalize("NFKC").toLocaleLowerCase();
-  const modelText = [draft.angle, draft.hook.text, draft.hook.visual, draft.scene.location, draft.scene.lighting, draft.scene.mood, ...draft.scene.props, ...draft.characters.flatMap(({ age: _age, ...character }) => Object.values(character)), ...draft.shortLines];
+  const modelText = [draft.angle, draft.hook.text, draft.hook.visual, draft.scene.location, draft.scene.lighting, draft.scene.mood, ...draft.scene.props, ...draft.characters.flatMap(({ age: _age, id: _id, ...character }) => Object.values(character)), ...draft.shortLines];
   const riskyOrBenefit = /(?:\bgaranti(?:e|s|es|t)?\b|\bguarantee(?:d|s)?\b|\bcertifi(?:é|ée|e|és|ées)\b|\bavis clients?\b|\bt[ée]moignage(?:s)?(?: client)?\b|\bgu[ée]ri[rt]\b|\bcures?\b|\brevenus? assur[ée]s?\b|\b(?:aide|aider|permet|am[ée]liore|r[ée]duit|[ée]conomise|augmente|boost|improves?|helps?|reduces?|saves?|increases?|results?|gains?)\b)/i;
   const claimsText = modelText.join(" ");
   for (const sentence of claimsText.split(/[.!?;\n]+/).map(item => item.trim()).filter(Boolean)) {

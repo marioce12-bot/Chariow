@@ -70,6 +70,12 @@ describe("génération créative UGC déterministe", () => {
     expect(result.shots[0].action).toContain("Les personnages fictifs ouvrent");
   });
 
+  it("n’interprète pas un identifiant de personnage numérique comme une affirmation produit", () => {
+    const character = { ...draft().characters[0], id: "c1" };
+    const result = validateUgcCreative(draft({ characters: [character] }), input());
+    expect(result.characters[0].id).toBe("c1");
+  });
+
   it.each([15, 20, 25, 30])("construit cinq plans contigus pour une vidéo de %i secondes", duration => {
     const shots = timing(duration);
     expect(shots).toHaveLength(5);
@@ -146,6 +152,12 @@ describe("génération créative UGC déterministe", () => {
     expect(askText.mock.calls[2][1].responseSchema.name).toBe("ugc_hook_correction");
     expect(askText.mock.calls[3][1].responseSchema.name).toBe("ugc_dialogue_correction");
     expect(result.creative.shots).toHaveLength(5);
+  });
+
+  it("rejette un chiffre non étayé même lorsqu’il apparaît seul dans le dialogue", () => {
+    const unverified = draft({ shortLines: ["Je note 7 idées.", "Je regarde cette référence.", "Elle reste sous mes yeux."] });
+    expect(() => validateUgcCreative(unverified, input())).toThrowError(UgcPromptGenerationError);
+    expect(() => validateUgcCreative(unverified, input())).toThrow("affirmation chiffrée absente des données produit");
   });
 
   it("s’arrête après deux corrections si le hook reste répété", async () => {
