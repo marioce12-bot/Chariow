@@ -15,7 +15,7 @@ import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
 import { StudioDesktopProductFields } from "@/components/studio/StudioDesktopProductFields";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
 import { StorePlatformDialog } from "@/components/dashboard/StorePlatformDialog";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
 import { toUsd } from "@/lib/currency";
 import { isAdPlatformAllowed, planMaxStores, type AdPlatform, type PlanId } from "@/lib/plans";
@@ -179,6 +179,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [balance, setBalance] = useState(0);
   const [reservedCredits, setReservedCredits] = useState(0);
   const [creditsLoaded, setCreditsLoaded] = useState(false);
+  const [creditsLoading, setCreditsLoading] = useState(true);
+  const creditsRefreshRef = useRef<Promise<void> | null>(null);
   const videoCostEstimate = videoCreditCost(videoResolution, duration);
   const videoCostPriceXof = Math.round(videoCostEstimate * CREDIT_PRICE_XOF);
   const availableCredits = Math.max(0, balance - reservedCredits);
@@ -224,6 +226,32 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   // (évite une boucle de re-render infinie sur l'effet ci-dessous).
   const reconciledJobsRef = useRef<Set<string>>(new Set());
   useEffect(() => () => { stopProgressRef.current?.(); stopProgressRef.current = null; }, []);
+
+  const refreshCredits = useCallback(() => {
+    if (creditsRefreshRef.current) return creditsRefreshRef.current;
+    setCreditsLoaded(false);
+    setCreditsLoading(true);
+    const request = (async () => {
+      try {
+        const response = await fetch("/api/studio/credits", { cache: "no-store" });
+        if (!response.ok) throw new Error("Impossible d’actualiser le solde.");
+        const data = await response.json();
+        if (!data || typeof data.balance !== "number" || !Number.isFinite(data.balance)) {
+          throw new Error("Solde de crédits invalide.");
+        }
+        setBalance(data.balance);
+        setReservedCredits(typeof data.reserved === "number" && Number.isFinite(data.reserved) ? data.reserved : 0);
+        setCreditsLoaded(true);
+      } catch {
+        setCreditsLoaded(false);
+      } finally {
+        setCreditsLoading(false);
+        creditsRefreshRef.current = null;
+      }
+    })();
+    creditsRefreshRef.current = request;
+    return request;
+  }, []);
 
   // Restore the server-owned photo task after mount/refresh. This is deliberately
   // a GET only: an unknown response must never silently start a second billable job.
@@ -332,13 +360,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   }, [imageTask?.id, imageTask?.status]);
 
   useEffect(() => {
-    fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).then((data) => { if (data) { setBalance(data.balance ?? 0); setReservedCredits(data.reserved ?? 0); } setCreditsLoaded(true); }).catch(() => setCreditsLoaded(true));
-  }, []);
+    void refreshCredits();
+  }, [refreshCredits]);
 
   useEffect(() => {
     if (kind !== "video") return;
     let active = true;
     setVideoRenderLocked(true);
+    void refreshCredits();
     fetch("/api/studio/video", { cache: "no-store" })
       .then(async (response) => {
         const readiness = await response.json().catch(() => null);
@@ -346,7 +375,22 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       })
       .catch(() => { if (active) setVideoRenderLocked(true); });
     return () => { active = false; };
-  }, [kind]);
+  }, [kind, refreshCredits]);
+
+  useEffect(() => {
+    if (kind !== "video") return;
+    const refreshWhenReturning = () => {
+      if (document.visibilityState !== "hidden") void refreshCredits();
+    };
+    window.addEventListener("focus", refreshWhenReturning);
+    window.addEventListener("pageshow", refreshWhenReturning);
+    document.addEventListener("visibilitychange", refreshWhenReturning);
+    return () => {
+      window.removeEventListener("focus", refreshWhenReturning);
+      window.removeEventListener("pageshow", refreshWhenReturning);
+      document.removeEventListener("visibilitychange", refreshWhenReturning);
+    };
+  }, [kind, refreshCredits]);
 
   async function loadHistory(reset = false) {
     setHistoryLoading(true);
@@ -827,8 +871,17 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
           {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
           {kind === "video" ? <p className="studio-video-desktop-note">Voix et musique ajoutées automatiquement à la génération.</p> : null}
-          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady) || (kind === "video" && (videoRenderLocked || !creditsLoaded || availableCredits < videoCostEstimate))}>
-            <Sparkles size={17} /> {kind === "video" ? videoRenderLocked ? "Rendu vidéo verrouillé sur cette Preview" : loading ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…") : locale === "en" ? "Generate video" : "Créer la vidéo" : loading && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : t("studio.createImage")}
+          {kind === "video" && (creditsLoading || !creditsLoaded) ? <p className="studio-cost" role="status" aria-live="polite">{creditsLoading ? (locale === "en" ? "Refreshing credit balance…" : "Actualisation du solde…") : (locale === "en" ? "Credit balance unavailable. Reopen Video to try again." : "Solde indisponible. Rouvre le mode Vidéo pour réessayer.")}</p> : null}
+          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} aria-busy={kind === "video" && creditsLoading} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady) || (kind === "video" && (videoRenderLocked || creditsLoading || !creditsLoaded || availableCredits < videoCostEstimate))}>
+            <Sparkles size={17} /> {kind === "video"
+              ? videoRenderLocked
+                ? "Rendu vidéo verrouillé sur cette Preview"
+                : creditsLoading || !creditsLoaded
+                  ? (locale === "en" ? "Checking credit balance…" : "Vérification du solde…")
+                  : loading
+                    ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…")
+                    : locale === "en" ? "Generate video" : "Créer la vidéo"
+              : loading && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : t("studio.createImage")}
           </button>
           {kind === "image" ? <><p className="studio-cost">{t("studio.imageCost")}</p>
           <div className="studio-balance"><div><span className="eyebrow">{t("studio.balance")}</span><strong>{balance} {t("studio.credits")}</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>{t("studio.recharge")}</button><small>{t("studio.balanceHint")}</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>{t("studio.recharge")}</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label={t("wizardExtra.close")}>×</button></div><label className="studio-field"><span>{t("sweep1.text84")}</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>{t("finalExtra.text18")} {" "}<strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>{t("sweep3.text209")}</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? t("sweep1.text210") : t("sweep2.text211")}</button></div> : null}</div></> : <div className="studio-video-cost-inline"><p className="studio-cost">Coût estimé : <strong>{videoCostEstimate} crédits Studio · {videoCostPriceXof.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF</strong> ({duration} s, {videoResolution}, portrait 9:16). Solde disponible : <strong>{creditsLoaded ? availableCredits : locale === "en" ? "loading…" : "chargement…"}</strong> {t("studio.credits")}.</p><p className="studio-cost">Aucun achat supplémentaire ne sera lancé. La génération est refusée automatiquement si le solde disponible ne couvre pas ce coût.</p></div>}
