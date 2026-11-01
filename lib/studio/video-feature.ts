@@ -1,4 +1,4 @@
-/** Only branch-scoped Preview deployments may submit real video jobs. */
+/** Real video renders are enabled only in Production; every Preview fails closed. */
 export function isStudioVideoRenderEnabledForPreview() {
-  return process.env.VERCEL_ENV === "preview" && process.env.STUDIO_VIDEO_RENDER_ENABLED === "true";
+  return process.env.VERCEL_ENV === "production";
 }

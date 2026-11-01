@@ -61,6 +61,38 @@ describe("Studio UGC prompt generation UI", () => {
     }));
   });
 
+  it.each([
+    { status: 200, readiness: { ready: true }, expectedLabel: "Créer la vidéo" },
+    { status: 423, readiness: { ready: false, locked: true }, expectedLabel: "Rendu vidéo verrouillé sur cette Preview" },
+  ])("uses the server render gate status $status without starting a video job", async ({ status, readiness, expectedLabel }) => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/studio/video") return { ok: status === 200, status, json: async () => readiness };
+      if (url === "/api/account/preferences") return reply({ locale: "fr" });
+      if (url === "/api/studio/tasks") return reply({ tasks: [] });
+      if (url.startsWith("/api/studio/history")) return reply({ items: [], nextCursor: null });
+      if (url === "/api/studio/credits") return reply({ balance: 2_000, reserved: 0 });
+      return reply({});
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const { container, root } = setup();
+
+    try {
+      await render(root);
+      const videoChoice = container.querySelector<HTMLButtonElement>('article[data-studio-format="video"] button');
+      expect(videoChoice).toBeTruthy();
+      await click(videoChoice!);
+      const generateButton = container.querySelector<HTMLButtonElement>(".studio-generate");
+
+      expect(generateButton?.textContent).toContain(expectedLabel);
+      expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("shows only product-specific AI responses for selected products, with no generic seed or character-profile control", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);

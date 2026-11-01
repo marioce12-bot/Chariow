@@ -39,9 +39,9 @@ export async function POST(request: Request) {
   const { user, response } = await requireUser();
   if (!user) return response;
 
-  // Production is always locked, regardless of copied Preview environment variables.
+  // Only Production is enabled; Preview flags never grant access.
   if (!isStudioVideoRenderEnabledForPreview()) {
-    return NextResponse.json({ error: "La génération vidéo est indisponible hors de la Preview de test.", code: "STUDIO_VIDEO_LOCKED", locked: true }, { status: 423 });
+    return NextResponse.json({ error: "La génération vidéo est disponible uniquement en Production.", code: "STUDIO_VIDEO_LOCKED", locked: true }, { status: 423 });
   }
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const id = typeof body?.id === "string" ? body.id : "";

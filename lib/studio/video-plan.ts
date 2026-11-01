@@ -2,8 +2,7 @@ import { inferProductType } from "@/lib/studio/creative-workflows";
 import { sourceCopyCandidates } from "@/lib/studio/faithful-prompt";
 import { neutralProductCta, resolveProductLanguage } from "./product-language";
 
-// Le Studio vidéo est réservé à la Preview de test.
-export const STUDIO_VIDEO_LOCKED = process.env.NEXT_PUBLIC_STUDIO_VIDEO_RENDER_ENABLED !== "true";
+// Le statut du rendu est lu côté serveur afin de distinguer Production et Preview.
 export const VIDEO_AD_DURATIONS = [25] as const;
 export const VIDEO_DIRECTIONS = {
   in_hand: "Présentation du produit en main",
