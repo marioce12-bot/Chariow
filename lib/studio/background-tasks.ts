@@ -114,7 +114,7 @@ export async function publicTask(row: any): Promise<PublicTask> {
   const sign = (path: string): Promise<string | null> => {
     const existing = signedUrls.get(path);
     if (existing) return existing;
-    const signed = signedStudioUrl(path).catch(() => {
+    const signed = signedStudioUrl(path, row.user_id).catch(() => {
       mediaPending = true;
       return null;
     });

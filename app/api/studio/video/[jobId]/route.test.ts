@@ -83,10 +83,10 @@ describe("studio video status and timeout", () => {
   });
 
   it("returns a signed private content URL only for completed generations", async () => {
-    mocks.query.maybeSingle.mockResolvedValue({ data: { ...generation, status: "completed", storage_path: "private/video.mp4" }, error: null });
+    mocks.query.maybeSingle.mockResolvedValue({ data: { ...generation, status: "completed", storage_path: `${userId}/video.mp4` }, error: null });
     const response = await call();
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ status: "completed", contentUrl: "https://signed.example/video.mp4" });
-    expect(mocks.signedUrl).toHaveBeenCalledWith("private/video.mp4");
+    expect(mocks.signedUrl).toHaveBeenCalledWith(`${userId}/video.mp4`, userId);
   });
 });

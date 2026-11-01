@@ -21,7 +21,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.requireUser.mockResolvedValue({ user: { id: userId } });
   mocks.query.maybeSingle.mockResolvedValue({
-    data: { status: "completed", storage_path: "private/video.mp4" },
+    data: { status: "completed", storage_path: `${userId}/video.mp4` },
     error: null,
   });
   mocks.signedUrl.mockResolvedValue("https://signed.example/video.mp4");
@@ -72,7 +72,7 @@ describe("private Studio video content route", () => {
     expect(response.headers.get("Location")).toBe("https://signed.example/video.mp4");
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     expect(mocks.signedUrl).toHaveBeenCalledOnce();
-    expect(mocks.signedUrl).toHaveBeenCalledWith("private/video.mp4");
+    expect(mocks.signedUrl).toHaveBeenCalledWith(`${userId}/video.mp4`, userId);
   });
 
   it("returns a private 503 response when the database lookup fails", async () => {

@@ -111,6 +111,14 @@ describe("studio history categorization", () => {
     expect(db.calls.some(c => c.filters.length > 1 && c.table === "studio_generations")).toBe(true);
   });
 
+  it("passes a private Cloudinary descriptor and authenticated owner to the signer", async () => {
+    const descriptor = "cloudinary-private:opaque-descriptor";
+    const row = image(22, "2025-01-03T00:00:00.000Z", { storage_path: descriptor });
+    const result = await enrichHistory(new MemorySupabase([row]), U, [row]);
+    expect(result[0].mediaUrl).toBe(`signed:${descriptor}`);
+    expect(signedUrl).toHaveBeenCalledWith(descriptor, U);
+  });
+
   it("paginates deterministically across equal timestamps using the id tie-break cursor", async () => {
     const rows = Array.from({ length: 23 }, (_, i) => image(i + 100, "2025-02-01T12:00:00.000Z"));
     const db = new MemorySupabase(rows);

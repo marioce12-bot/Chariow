@@ -69,7 +69,7 @@ export async function uploadAndInsert(userId: string, generationId: string, body
   const metadata = { type: "slideshow", imageGenerationIds: images, parentGenerationId: images[0], thumbnailStoragePath, ...(taskId ? { backgroundTaskId: taskId } : {}), musicId, duration, attribution, ...(voiceover ? { voiceover } : {}), ...(creativePerformanceSource ? { creativePerformanceSource } : {}), ...(creativeIdea ? { creativeIdea } : {}) };
   const { error } = await createAdminClient().from("studio_generations").insert({ id: generationId, user_id: userId, kind: "video", prompt: SLIDESHOW_PROMPT, options: { type: "slideshow", duration }, metadata, status: "completed", storage_path: storagePath, credits_cost: 0 });
   if (error) throw error;
-  return { generationId, videoUrl: await signedStudioUrl(storagePath), attribution, creditsCost: 0 as const, imageGenerationIds: images, duration, musicId };
+  return { generationId, videoUrl: await signedStudioUrl(storagePath, userId), attribution, creditsCost: 0 as const, imageGenerationIds: images, duration, musicId };
 }
 async function loadOwnedImages(userId: string, ids: string[], directory: string) {
   const admin = createAdminClient();
@@ -171,7 +171,7 @@ export async function remixSlideshow(userId: string, generationId: string, music
     const newStoragePath = await storeStudioVideo({ body: outputBuffer.buffer.slice(outputBuffer.byteOffset, outputBuffer.byteOffset + outputBuffer.byteLength) as ArrayBuffer, contentType: "video/mp4" }, userId, `${generationId}-${randomUUID()}`);
     const { error: updateError } = await admin.from("studio_generations").update({ storage_path: newStoragePath, metadata, prompt: SLIDESHOW_PROMPT, credits_cost: 0 }).eq("id", generationId).eq("user_id", userId);
     if (updateError) throw updateError;
-    return { generationId, videoUrl: await signedStudioUrl(newStoragePath), attribution, creditsCost: 0, imageGenerationIds: images, duration: row.metadata.duration, musicId };
+    return { generationId, videoUrl: await signedStudioUrl(newStoragePath, userId), attribution, creditsCost: 0, imageGenerationIds: images, duration: row.metadata.duration, musicId };
   } finally { await rm(work, { recursive: true, force: true }); }
 }
 export async function makeMusicPreview(musicId: string): Promise<Buffer> {

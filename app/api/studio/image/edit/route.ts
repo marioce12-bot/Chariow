@@ -46,12 +46,12 @@ export async function POST(request: Request) {
     // à Imole, qui ne documentait aucun contrat d'édition exploitable) : on repart de
     // l'image déjà générée quand elle est disponible, sinon on retombe sur une
     // régénération à partir du prompt d'origine et de l'instruction.
-    const sourceImageUrl = source.storage_path ? await signedStudioUrl(source.storage_path).catch(() => null) : null;
+    const sourceImageUrl = source.storage_path ? await signedStudioUrl(source.storage_path, user.id).catch(() => null) : null;
     const imageUrl = sourceImageUrl
       ? await generateFalImageFromUrl(editInstruction, sourceImageUrl)
       : await generateFalImage(editedPrompt, "square", { ...options, outputFormat: options.outputFormat as "png" | "jpeg" });
     const storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat || "png");
-    const signedUrl = await signedStudioUrl(storagePath);
+    const signedUrl = await signedStudioUrl(storagePath, user.id);
     const debit = await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     if (debit.error || debit.data !== true) throw new Error("Credit completion failed");
     const quotaCompletion = await admin.rpc("complete_image_slot", { p_user_id: user.id, p_request_id: generation.id });

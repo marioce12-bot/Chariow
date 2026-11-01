@@ -60,7 +60,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
   }
 
   const contentUrl = status === "completed" && storagePath
-    ? await signedStudioUrl(storagePath).catch(() => null)
+    ? await signedStudioUrl(storagePath, user.id).catch(() => null)
     : null;
   return NextResponse.json({ id: jobId, status, contentUrl }, { headers: { "Cache-Control": "private, no-store" } });
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { translate } from "@/lib/i18n/translate";
 import { NavigationDataProvider, useNavigationCache } from "@/components/dashboard/NavigationDataCache";
 import { AdSpendByChannel } from "@/components/dashboard/AdSpendByChannel";
@@ -23,7 +23,7 @@ const perf = (amount: number) => ({
 const json = (data: unknown, ok = true) => ({ ok, json: async () => data });
 let root: Root;
 let host: HTMLDivElement;
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: Mock<(input: RequestInfo | URL, init?: RequestInit) => Promise<any>>;
 let store: string | null;
 let revision: number;
 

@@ -2,7 +2,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 const mocks = vi.hoisted(() => ({ uploadCampaignMedia: vi.fn() }));
 vi.mock("@/lib/media/direct-upload", () => ({ uploadCampaignMedia: mocks.uploadCampaignMedia }));
@@ -13,7 +13,7 @@ const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringif
 let container: HTMLDivElement;
 let root: Root;
 let fetchMock: ReturnType<typeof vi.fn>;
-let onApplyCampaign: ReturnType<typeof vi.fn>;
+let onApplyCampaign: Mock<(campaign: any) => void>;
 
 const referenceCampaign = {
   id: "campaign-1", product_id: "product-1", product_name: "Carnet créatif", platform: "meta", objective: "sales",
@@ -66,7 +66,7 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  onApplyCampaign = vi.fn();
+  onApplyCampaign = vi.fn<(campaign: any) => void>();
   mocks.uploadCampaignMedia.mockReset();
   mocks.uploadCampaignMedia.mockRejectedValueOnce(new Error("temporary upload issue")).mockResolvedValue({ secure_url: "https://cloudinary.example/generated.png" });
   fetchMock = vi.fn(async (input: RequestInfo | URL) => {

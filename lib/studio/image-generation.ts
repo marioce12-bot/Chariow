@@ -154,7 +154,7 @@ export async function generateStudioImage(
     if (stage && generationError.code === "23505") {
       const existing = await admin.from("studio_generations").select("id,user_id,status,storage_path,credits_cost").eq("id", stage.generationId).eq("user_id", userId).maybeSingle();
       if (!existing.error && existing.data?.status === "completed" && existing.data.storage_path) {
-        return NextResponse.json({ imageUrl: await signedStudioUrl(existing.data.storage_path), generationId: stage.generationId, cost: existing.data.credits_cost ?? cost });
+        return NextResponse.json({ imageUrl: await signedStudioUrl(existing.data.storage_path, userId), generationId: stage.generationId, cost: existing.data.credits_cost ?? cost });
       }
       return stagedUncertain(stage, cost);
     }
@@ -281,7 +281,7 @@ export async function generateStudioImage(
         "Le visuel n’a pas pu être enregistré dans l’historique. Montage annulé.",
       );
     return NextResponse.json({
-      imageUrl: storagePath ? await signedStudioUrl(storagePath) : imageUrl,
+      imageUrl: storagePath ? await signedStudioUrl(storagePath, userId) : imageUrl,
       generationId: generation.id,
       cost,
     });

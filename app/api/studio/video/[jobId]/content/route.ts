@@ -20,7 +20,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
     return NextResponse.json({ error: "Le média vidéo n'est pas encore disponible." }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
 
   try {
-    const contentUrl = await signedStudioUrl(generation.storage_path);
+    const contentUrl = await signedStudioUrl(generation.storage_path, user.id);
     return NextResponse.redirect(contentUrl, { status: 302, headers: { "Cache-Control": "private, no-store" } });
   } catch {
     return NextResponse.json({ error: "Vidéo indisponible." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
