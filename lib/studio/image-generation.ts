@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import { getDeploymentEnvironment } from "@/lib/deployment-environment";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveSubscription } from "@/lib/subscription/access";
 import {
@@ -44,7 +43,7 @@ export async function generateStudioImage(
     try {
       slideshow = validateSlideshowImageRequest(
         body.slideshow,
-        getDeploymentEnvironment(),
+        process.env.VERCEL_ENV,
       );
     } catch (error) {
       return NextResponse.json(
