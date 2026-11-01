@@ -22,6 +22,7 @@ describe("POST /api/webhooks/fal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.verify.mockResolvedValue(true);
+    mocks.rpc.mockResolvedValue({ data: { outcome: "owner_mismatch" }, error: null });
     mocks.maybeSingle.mockResolvedValue({
       data: {
         id: "generation-1",
@@ -56,7 +57,7 @@ describe("POST /api/webhooks/fal", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(403);
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledOnce();
     expect(mocks.store).not.toHaveBeenCalled();
   });
 });

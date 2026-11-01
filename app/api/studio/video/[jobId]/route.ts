@@ -28,12 +28,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
   let savedError = generation.error;
   let storagePath = generation.storage_path;
   if (status === "processing" && Date.now() - new Date(generation.created_at).getTime() > MAX_WAIT_MS) {
-    const { data: changed, error: updateError } = await admin.from("studio_generations")
-      .update({ status: "failed", error: TIMEOUT_ERROR })
-      .eq("id", generation.id).eq("user_id", user.id).eq("status", "processing")
-      .select("id");
+    const { data: changed, error: updateError } = await admin.rpc("fail_stale_studio_video_generation", {
+      p_generation_id: generation.id,
+      p_created_before: new Date(Date.now() - MAX_WAIT_MS).toISOString(),
+      p_error: TIMEOUT_ERROR,
+    });
     if (updateError) return NextResponse.json({ error: "Mise à jour du délai indisponible." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
-    if (changed?.length) {
+    if (changed === true) {
       status = "failed";
       savedError = TIMEOUT_ERROR;
     } else {
