@@ -4,12 +4,13 @@ const mocks = vi.hoisted(() => ({
   requireUser: vi.fn(),
   createAdminClient: vi.fn(),
   packagedVideoProbe: vi.fn(),
+  start: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock("@/lib/studio/video-probe-runtime", () => ({ packagedVideoProbe: mocks.packagedVideoProbe }));
-vi.mock("workflow/api", () => ({ start: vi.fn() }));
+vi.mock("workflow/api", () => ({ start: mocks.start }));
 
 import { GET, POST } from "@/app/api/studio/video/route";
 
@@ -21,6 +22,15 @@ function setEnv(name: "VERCEL_ENV" | "STUDIO_VIDEO_RENDER_ENABLED" | "NEXT_PUBLI
   if (value === undefined) delete process.env[name];
   else process.env[name] = value;
 }
+
+const environmentCases = [
+  { name: "Preview", vercelEnv: "preview", enabled: true },
+  { name: "Production", vercelEnv: "production", enabled: true },
+  { name: "development", vercelEnv: "development", enabled: false },
+  { name: "local", vercelEnv: "local", enabled: false },
+  { name: "unknown", vercelEnv: "test", enabled: false },
+  { name: "unset", vercelEnv: undefined, enabled: false },
+];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -38,49 +48,40 @@ afterEach(() => {
 });
 
 describe("Studio video render route gate", () => {
-  it("reports ready in Production without either legacy flag", async () => {
-    process.env.VERCEL_ENV = "production";
-    delete process.env.STUDIO_VIDEO_RENDER_ENABLED;
-    delete process.env.NEXT_PUBLIC_STUDIO_VIDEO_RENDER_ENABLED;
+  it.each(environmentCases)("GET: $name environment follows the gate", async ({ vercelEnv, enabled }) => {
+    setEnv("VERCEL_ENV", vercelEnv);
 
     const response = await GET();
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ready: true, binaries: { ffprobe: true } });
-    expect(mocks.packagedVideoProbe).toHaveBeenCalledOnce();
+    if (enabled) {
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ ready: true, binaries: { ffprobe: true } });
+      expect(mocks.packagedVideoProbe).toHaveBeenCalledOnce();
+    } else {
+      expect(response.status).toBe(423);
+      expect(await response.json()).toMatchObject({ ready: false, locked: true, code: "STUDIO_VIDEO_LOCKED" });
+      expect(mocks.packagedVideoProbe).not.toHaveBeenCalled();
+    }
   });
 
-  it("locks readiness on every Preview even when both legacy flags are true", async () => {
-    const response = await GET();
+  it.each(environmentCases)("POST: $name environment follows the gate and cannot start a render in this test", async ({ vercelEnv, enabled }) => {
+    setEnv("VERCEL_ENV", vercelEnv);
 
-    expect(response.status).toBe(423);
-    expect(await response.json()).toMatchObject({ ready: false, locked: true, code: "STUDIO_VIDEO_LOCKED" });
-    expect(mocks.packagedVideoProbe).not.toHaveBeenCalled();
-  });
-
-  it("rejects Preview POST before reading request data or touching credits/providers", async () => {
     const response = await POST(new Request("https://preview.example/api/studio/video", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: "11111111-1111-4111-8111-111111111111" }),
-    }));
-
-    expect(response.status).toBe(423);
-    expect((await response.json()).code).toBe("STUDIO_VIDEO_LOCKED");
-    expect(mocks.createAdminClient).not.toHaveBeenCalled();
-    expect(mocks.packagedVideoProbe).not.toHaveBeenCalled();
-  });
-
-  it("lets Production reach normal POST validation instead of returning the Preview lock", async () => {
-    process.env.VERCEL_ENV = "production";
-    const response = await POST(new Request("https://www.vendeo-studio.site/api/studio/video", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // Invalid ID proves the allowed request reaches ordinary validation and stops before credits/providers.
       body: JSON.stringify({ id: "not-a-uuid" }),
     }));
 
-    expect(response.status).toBe(400);
-    expect((await response.json()).error).toContain("Identifiant");
+    if (enabled) {
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toContain("Identifiant");
+    } else {
+      expect(response.status).toBe(423);
+      expect((await response.json()).code).toBe("STUDIO_VIDEO_LOCKED");
+    }
     expect(mocks.createAdminClient).not.toHaveBeenCalled();
+    expect(mocks.start).not.toHaveBeenCalled();
   });
 });

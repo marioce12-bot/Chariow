@@ -39,9 +39,9 @@ export async function POST(request: Request) {
   const { user, response } = await requireUser();
   if (!user) return response;
 
-  // Only Production is enabled; Preview flags never grant access.
+  // Preview and Production are enabled; legacy flags never grant access.
   if (!isStudioVideoRenderEnabledForPreview()) {
-    return NextResponse.json({ error: "La génération vidéo est disponible uniquement en Production.", code: "STUDIO_VIDEO_LOCKED", locked: true }, { status: 423 });
+    return NextResponse.json({ error: "La génération vidéo est disponible uniquement en Preview et en Production.", code: "STUDIO_VIDEO_LOCKED", locked: true }, { status: 423 });
   }
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const id = typeof body?.id === "string" ? body.id : "";
