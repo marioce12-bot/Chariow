@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { DEFAULT_WIZARD_STATE, type WizardState } from "../components/vendeo/wizard/types";
 import { Step1Product } from "../components/vendeo/wizard/Step1Product";
 
@@ -31,8 +31,8 @@ const stores = [
   { id: "store-b", store_name: "Boutique B", platform: "chariow", connection_status: "connected" },
 ];
 let currentState: WizardState;
-let patch: ReturnType<typeof vi.fn>;
-let onNext: ReturnType<typeof vi.fn>;
+let patch: Mock<(delta: Partial<WizardState>) => void>;
+let onNext: Mock<() => void>;
 let container: HTMLDivElement;
 let root: Root;
 let fetchMock: ReturnType<typeof vi.fn>;

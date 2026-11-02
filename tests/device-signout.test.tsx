@@ -20,6 +20,7 @@ vi.mock("@/components/NotificationCenter", () => ({ NotificationCenter: () => nu
 vi.mock("@/components/NotificationPermissionPrompt", () => ({ NotificationPermissionPrompt: () => null }));
 vi.mock("@/components/vendeo/AutopilotView", () => ({ AutopilotView: () => null }));
 vi.mock("@/components/NotificationsView", () => ({ NotificationsView: () => null }));
+vi.mock("@/components/dashboard/useChariowSalesRealtime", () => ({ useChariowSalesRealtime: () => {} }));
 vi.mock("@/components/vendeo", () => ({ ImpactFinancierCard: () => null, LaunchAdBar: () => null, CampaignCrossTable: () => null, DiagnosticBoutique: () => null }));
 vi.mock("@/components/vendeo/wizard", () => ({ LaunchAdWizard: () => null }));
 vi.mock("@/components/dashboard/DesktopNavigation", () => ({ DashboardHeaderNavigation: () => null, DashboardPrimaryNavigation: () => null }));
@@ -29,7 +30,6 @@ vi.mock("@/components/dashboard/sections", () => ({
   StoresView: () => null, SubscriptionView: () => null, Reports: () => null,
 }));
 vi.mock("@/components/dashboard/OverviewHome", () => ({ OverviewHome: () => null }));
-vi.mock("@/components/dashboard/ProductProfitPanel", () => ({ default: () => null }));
 vi.mock("@/components/dashboard/RecoveryPanel", () => ({ default: () => null }));
 vi.mock("@/components/dashboard/SaleCelebration", () => ({ SaleCelebration: () => null }));
 

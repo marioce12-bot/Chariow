@@ -1,7 +1,7 @@
 "use client";
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Activity, AlertTriangle, Bot, PauseCircle, ShieldCheck, TrendingUp } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import "./autopilot.css";
@@ -79,6 +79,8 @@ export function AutopilotView() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [unverifiedCount, setUnverifiedCount] = useState(0);
+  const lastAutoRefreshAt = useRef(0);
+  const previousReloadKey = useRef(reloadKey);
   const statusCopy = autopilotBudgetCopy[locale === "en" ? "en" : "fr"];
 
   const loadData = useCallback(async (cancelled: () => boolean) => {
@@ -107,11 +109,27 @@ export function AutopilotView() {
 
   useEffect(() => {
     let cancelled = false;
-    void loadData(() => cancelled);
-    const timer = window.setInterval(() => { void loadData(() => cancelled); }, 60_000);
-    const onFocus = () => { void loadData(() => cancelled); };
-    window.addEventListener("focus", onFocus);
-    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
+    if (previousReloadKey.current !== reloadKey) {
+      previousReloadKey.current = reloadKey;
+      lastAutoRefreshAt.current = 0;
+    }
+    const intervalMs = 15 * 60_000;
+    const foreground = () => document.visibilityState === "visible" && document.hasFocus();
+    const refreshIfDue = () => {
+      if (cancelled || !foreground() || Date.now() - lastAutoRefreshAt.current < intervalMs) return;
+      lastAutoRefreshAt.current = Date.now();
+      void loadData(() => cancelled);
+    };
+    refreshIfDue();
+    const timer = window.setInterval(refreshIfDue, intervalMs);
+    document.addEventListener("visibilitychange", refreshIfDue);
+    window.addEventListener("focus", refreshIfDue);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshIfDue);
+      window.removeEventListener("focus", refreshIfDue);
+    };
   }, [loadData, reloadKey]);
 
   const visible = visibleAutopilotData(campaigns, reports);

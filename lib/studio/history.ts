@@ -1,4 +1,5 @@
 import { signedStudioUrl } from "@/lib/studio/media";
+import { isCloudinaryStudioPath } from "@/lib/studio/cloudinary-media";
 
 export const HISTORY_PAGE_SIZE = 20;
 const BATCH_SIZE = 40;
@@ -54,17 +55,17 @@ export async function enrichHistory(supabase: any, userId: string, rows: any[]) 
   if (thumbnailIds.length) {
     const { data, error } = await supabase.from("studio_generations").select("id,storage_path").eq("user_id", userId).in("id", thumbnailIds).limit(HISTORY_PAGE_SIZE);
     if (error) throw error;
-    for (const row of data ?? []) if (row.storage_path?.startsWith(`${userId}/`)) thumbnails.set(row.id, row.storage_path);
+    for (const row of data ?? []) if (typeof row.storage_path === "string" && (row.storage_path.startsWith(`${userId}/`) || isCloudinaryStudioPath(row.storage_path))) thumbnails.set(row.id, row.storage_path);
   }
   return Promise.all(rows.map(async row => {
     const slideshow = isSlideshow(row);
     const task = isTask(row);
     // A technical task is only shown when no final object was ever saved. Never recreate a deleted final.
-    const ownedPath = typeof row.storage_path === "string" && row.storage_path.startsWith(`${userId}/`);
-    const storagePath = !task && ownedPath && (!slideshow || /\.mp4$/i.test(row.storage_path)) ? row.storage_path : null;
-    const mediaUrl = storagePath ? await signedStudioUrl(storagePath).catch(() => null) : null;
+    const ownedPath = typeof row.storage_path === "string" && (row.storage_path.startsWith(`${userId}/`) || isCloudinaryStudioPath(row.storage_path));
+    const storagePath = !task && ownedPath && (!slideshow || /\.mp4$/i.test(row.storage_path) || isCloudinaryStudioPath(row.storage_path)) ? row.storage_path : null;
+    const mediaUrl = storagePath ? await signedStudioUrl(storagePath, userId).catch(() => null) : null;
     const thumbnailPath = thumbnails.get(sourceIds(row)[0]);
-    const thumbnailUrl = thumbnailPath ? await signedStudioUrl(thumbnailPath).catch(() => null) : null;
+    const thumbnailUrl = thumbnailPath ? await signedStudioUrl(thumbnailPath, userId).catch(() => null) : null;
     const stale = task && row.status === "processing" && Date.now() - Date.parse(row.metadata.updatedAt || row.created_at) > 7 * 60_000;
     const processing = row.status === "processing" && !stale;
     const mediaState = mediaUrl ? "ready" : processing ? "processing" : slideshow || row.status === "completed" ? "missing" : "failed";

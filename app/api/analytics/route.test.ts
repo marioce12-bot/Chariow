@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   getSnapshot: vi.fn(),
   normalize: vi.fn(),
   adminFrom: vi.fn(),
+  cachedAnalytics: vi.fn(),
+  invalidateUserStoreList: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -27,6 +29,8 @@ vi.mock("@/lib/auth", () => ({
   }),
 }));
 vi.mock("@/lib/chariow/analytics", () => ({ getChariowSnapshot: mocks.getSnapshot, normalizeChariowSnapshot: mocks.normalize }));
+vi.mock("@/lib/chariow/analytics-cache", () => ({ getCachedChariowAnalytics: mocks.cachedAnalytics }));
+vi.mock("@/lib/shop/cache", () => ({ invalidateUserStoreList: mocks.invalidateUserStoreList }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: mocks.adminFrom }) }));
 vi.mock("@/lib/chariow/sales-rows", () => ({ chariowSaleRows: () => [] }));
 vi.mock("@/lib/chariow/sale-details", () => ({ mergeSaleDetails: (sales: unknown) => sales }));
@@ -36,8 +40,8 @@ vi.mock("@/lib/paginated-query", () => ({ fetchAllPages: async () => ({ rows: []
 import { GET } from "./route";
 import { getDashboardAnalyticsPeriods } from "@/lib/dashboard-analytics-periods";
 
-function request(query: string) {
-  return new Request(`https://example.invalid/api/analytics?${query}`);
+function request(query: string, headers?: HeadersInit) {
+  return new Request(`https://example.invalid/api/analytics?${query}`, { headers });
 }
 
 function adminChain() {
@@ -54,6 +58,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-25T08:55:58+01:00"));
   mocks.adminFrom.mockReturnValue(adminChain());
+  mocks.cachedAnalytics.mockImplementation(({ load }: { load: () => Promise<unknown> }) => load());
   mocks.getSnapshot.mockImplementation(async (_store: unknown, opts: { from?: string; to?: string }) => ({
     marker: opts.from ? "rolling-30" : "calendar-month",
     store: { name: "Fixture store", currency: "XOF" },
@@ -108,5 +113,26 @@ describe("GET /api/analytics dashboard period bundle", () => {
     expect(combined.rolling30Snapshot.kpis.visits).toBe(410);
     expect(combined.snapshot.overview.period).not.toEqual(combined.rolling30Snapshot.overview.period);
     expect(combined.periodError).toBeNull();
+  });
+
+  it("does not refetch or repeat sales side effects on an analytics cache hit", async () => {
+    mocks.cachedAnalytics.mockResolvedValue({
+      marker: "calendar-month", store: { name: "Fixture store", currency: "XOF" },
+      products: { data: [] }, sales: { data: [] }, salesAnalytics: {}, storeAnalytics: {},
+      coverage: { sales: { complete: true } },
+    });
+    const response = await GET(request("store_id=store-1"));
+    expect(response.status).toBe(200);
+    expect(mocks.getSnapshot).not.toHaveBeenCalled();
+    expect(mocks.adminFrom).not.toHaveBeenCalled();
+  });
+
+  it("sends private short-lived cache headers and honors authenticated manual refresh", async () => {
+    const response = await GET(request("store_id=store-1", { "x-vendeo-refresh": "1" }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, max-age=60, stale-while-revalidate=120");
+    expect(mocks.cachedAnalytics).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "user-1", storeId: "store-1", forceRefresh: true,
+    }));
   });
 });

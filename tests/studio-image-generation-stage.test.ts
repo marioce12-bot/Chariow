@@ -35,7 +35,7 @@ describe("generateStudioImage staged execution", () => {
   });
   it("blocks provider when credit reservation is uncertain", async () => {
     m.from.mockImplementation(() => ({ insert: () => ({ select: () => ({ single: async () => ({ data: { id: stage.generationId }, error: null }) }) }), update: () => updateReply() }));
-    m.rpc.mockResolvedValue({ data: null, error: { code: "NETWORK", message: "private" } });
+    m.rpc.mockImplementation(async (name: string) => name === "reserve_image_slot" ? { data: { ok: true }, error: null } : { data: null, error: { code: "NETWORK", message: "private" } });
     const response = await generateStudioImage("owner", { prompt: "tree" }, stage);
     expect(response.status).toBe(409); expect(m.provider).not.toHaveBeenCalled();
   });
@@ -48,7 +48,7 @@ describe("generateStudioImage staged execution", () => {
   it("saves the acquired image before returning uncertain debit state", async () => {
     const writes: any[] = [];
     m.from.mockImplementation(() => ({ insert: () => ({ select: () => ({ single: async () => ({ data: { id: stage.generationId }, error: null }) }) }), update: (value: any) => { writes.push(value); return updateReply(); } }));
-    m.rpc.mockImplementation(async (name: string) => name === "reserve_credits" ? { data: { ok: true, transaction_id: "tx" }, error: null } : { error: { code: "NETWORK" } });
+    m.rpc.mockImplementation(async (name: string) => name === "reserve_image_slot" ? { data: { ok: true }, error: null } : name === "reserve_credits" ? { data: { ok: true, transaction_id: "tx" }, error: null } : { error: { code: "NETWORK" } });
     m.provider.mockResolvedValue("https://provider.test/acquired"); m.store.mockResolvedValue("owner/acquired.png");
     const response = await generateStudioImage("owner", { prompt: "tree" }, stage);
     expect(response.status).toBe(409);

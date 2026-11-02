@@ -4,6 +4,7 @@ import { encryptSecret } from "@/lib/crypto";
 import { CHARIOW_MCP_URL } from "@/lib/chariow/types";
 import { resolveUserMaxStores } from "@/lib/plans";
 import crypto from "node:crypto";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 // Cookie lu par ChariowStatusNotice pour afficher un message clair au retour sur le dashboard.
 const STATUS_COOKIE = "vendeo_chariow_status";
@@ -96,6 +97,7 @@ export async function GET(request: Request) {
       .eq("id", storeId)
       .eq("user_id", user.id);
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    invalidateUserStoreList(user.id);
   } else {
     const { data: created, error: createErr } = await supabase
       .from("stores")
@@ -113,6 +115,7 @@ export async function GET(request: Request) {
     if (createErr) return NextResponse.json({ error: createErr.message }, { status: 500 });
     storeId = created.id;
     createdNew = true;
+    invalidateUserStoreList(user.id);
   }
 
   const state = base64UrlEncode(crypto.randomBytes(32));
@@ -147,6 +150,7 @@ export async function GET(request: Request) {
     // Une boutique créée uniquement pour cette tentative est désactivée pour ne pas laisser de doublon ;
     // une boutique déjà existante reste en place, simplement marquée en échec.
     await supabase.from("stores").update(createdNew ? { ...failure, is_active: false } : failure).eq("id", storeId).eq("user_id", user.id);
+    invalidateUserStoreList(user.id);
     console.error("Chariow OAuth dynamic registration failed", registerResponse?.status ?? "no response", registration.error ?? "missing client_id");
     // On renvoie l'utilisateur sur le dashboard (au lieu d'une page JSON brute) ; le bandeau explique la panne.
     const failed = NextResponse.redirect(new URL("/dashboard?chariow=failed", request.url));
@@ -166,6 +170,7 @@ export async function GET(request: Request) {
   if (attemptErr) {
     const failure = { connection_status: "failed", connection_error: "Impossible de préparer la connexion Chariow" };
     await supabase.from("stores").update(createdNew ? { ...failure, is_active: false } : failure).eq("id", storeId).eq("user_id", user.id);
+    invalidateUserStoreList(user.id);
     return NextResponse.json({ error: "Impossible de préparer la connexion Chariow" }, { status: 500 });
   }
 

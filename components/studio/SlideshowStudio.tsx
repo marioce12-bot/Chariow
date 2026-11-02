@@ -9,6 +9,7 @@ import type { CreativePerformanceIdea } from "@/lib/creative-performance/client"
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
 import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
+import { createClient } from "@/lib/supabase/browser";
 
 type Product = {
   id: string;
@@ -168,6 +169,9 @@ export function SlideshowStudio({
     [available, setAvailable] = useState<number | null>(null);
   const slideshowCost = 5 * imageCreditCost("hd", "medium");
   const lacksCredits = available !== null && available < slideshowCost;
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const pollInFlight = useRef(false);
+  const refreshTaskRef = useRef<(() => Promise<void>) | null>(null);
   const resumeCost = resumeTask?.resume?.allowed ? resumeTask.resume.cost : 0;
   const lacksResumeCredits = available !== null && resumeCost > 0 && available < resumeCost;
   // Read-only balance lookup (balance minus credits already reserved). Fail-open: if the balance is
@@ -225,6 +229,7 @@ export function SlideshowStudio({
     const changedTask = taskRef.current?.id !== task.id;
     if (taskRef.current?.id !== task.id) { displayedProgressRef.current = 0; progressStartedAtRef.current = Date.now(); }
     taskRef.current = task;
+    setActiveTaskId(task.status === "processing" ? task.id : null);
     setResumeTask(task.status === "failed" ? task : null);
     if (changedTask) setResumeConfirmed(false);
     if (task.input && (changedTask || loadedHistoryRef.current === task.id)) {
@@ -265,6 +270,8 @@ export function SlideshowStudio({
       if (alive && taskRef.current?.status === "processing") showProgress(taskRef.current);
     });
     const poll = async () => {
+      if (pollInFlight.current) return;
+      pollInFlight.current = true;
       try {
         const exactId = selectedTaskRef.current || taskRef.current?.id;
         const response = await fetch(exactId ? `/api/studio/tasks/${encodeURIComponent(exactId)}/continue` : "/api/studio/tasks", {
@@ -300,8 +307,16 @@ export function SlideshowStudio({
               : "Checking existing work before allowing a new generation.",
           );
         }
+      } finally {
+        pollInFlight.current = false;
       }
     };
+    refreshTaskRef.current = poll;
+    const onForeground = () => {
+      if (document.visibilityState === "visible" && document.hasFocus() && taskRef.current?.status !== "processing") void poll();
+    };
+    document.addEventListener("visibilitychange", onForeground);
+    window.addEventListener("focus", onForeground);
     fetch("/api/studio/slideshow/config", { signal: controller.signal })
       .then(jsonResponse)
       .then((data) => {
@@ -315,18 +330,64 @@ export function SlideshowStudio({
         if (alive) setEnabled(false);
       });
     void poll();
-    const timer = setInterval(() => {
-      let pending = false;
-      try { pending = !!localStorage.getItem(`vendeo-slideshow-request:${productRef.current?.id ?? ""}`); } catch { /* ignore */ }
-      if (!initialDone.current || taskRef.current?.status === "processing" || pending) void poll();
-    }, 4000);
     return () => {
       alive = false;
       controller.abort();
-      clearInterval(timer);
+      refreshTaskRef.current = null;
+      document.removeEventListener("visibilitychange", onForeground);
+      window.removeEventListener("focus", onForeground);
       stopProgress();
     };
   }, []);
+  useEffect(() => {
+    if (!activeTaskId) return;
+    const supabase = createClient();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let debounceTimer: number | null = null;
+    let disposed = false;
+    const refresh = () => {
+      if (disposed || document.visibilityState !== "visible" || !document.hasFocus()) return;
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null;
+        void refreshTaskRef.current?.();
+      }, 200);
+    };
+    const subscribe = () => {
+      if (disposed || channel || document.visibilityState !== "visible" || !document.hasFocus()) return;
+      channel = supabase
+        .channel(`studio-task:${activeTaskId}`)
+        .on("postgres_changes", {
+          event: "UPDATE", schema: "public", table: "studio_generations",
+          filter: `id=eq.${activeTaskId}`,
+        }, refresh)
+        .subscribe((state) => { if (state === "SUBSCRIBED") refresh(); });
+    };
+    const unsubscribe = () => {
+      if (!channel) return;
+      const current = channel;
+      channel = null;
+      void supabase.removeChannel(current);
+    };
+    const onForeground = () => {
+      if (document.visibilityState === "visible" && document.hasFocus()) {
+        subscribe();
+        refresh();
+      } else unsubscribe();
+    };
+    subscribe();
+    document.addEventListener("visibilitychange", onForeground);
+    window.addEventListener("focus", onForeground);
+    window.addEventListener("blur", onForeground);
+    return () => {
+      disposed = true;
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      document.removeEventListener("visibilitychange", onForeground);
+      window.removeEventListener("focus", onForeground);
+      window.removeEventListener("blur", onForeground);
+      unsubscribe();
+    };
+  }, [activeTaskId]);
   useEffect(() => {
     const next = product?.id ?? "";
     if (signature.current === next) return;
@@ -363,6 +424,7 @@ export function SlideshowStudio({
   function newSlideshow() {
     if (busy || pendingRequest || taskRef.current?.status === "processing") return;
     selectedTaskRef.current = null; loadedHistoryRef.current = null; newDraftRef.current = true;
+    setActiveTaskId(null);
     taskRef.current = null; setResumeTask(null); setResumeConfirmed(false);
     displayedProgressRef.current = 0; setProgress(0);
     setImages([]); setCreditsUsed(0); setResult(null); setError(""); setStatus("");

@@ -23,6 +23,15 @@ describe("slideshow voice", () => {
     expect(() => assertSlideshowVoiceAllowed()).not.toThrow();
     expect(slideshowVoiceAvailability().available).toBe(true);
   });
+  it("recognizes Vercel Preview but keeps TTS blocked without its explicit gates", async () => {
+    process.env.VERCEL_ENV = "preview";
+    const fetcher = vi.fn();
+    expect(slideshowVoiceAvailability()).toMatchObject({ environment: "preview", voiceoverEnabled: true, available: false });
+    await expect(synthesizeSlideshowVoice({} as any, fetcher as any)).rejects.toThrow(/pas encore activée/);
+    process.env.VENDEO_SLIDESHOW_TTS_TEST_ALLOWED = "true";
+    await expect(synthesizeSlideshowVoice({} as any, fetcher as any)).rejects.toThrow(/palier gratuit/);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it("uses verified facts, infers language, and points metadata to official sources", () => {
     const plan = buildSlideshowVoicePlan(product, 25, "en");
     expect(plan.language).toBe("fr");

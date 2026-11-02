@@ -46,6 +46,7 @@ describe("preview launch guard", () => {
     expect(from).not.toHaveBeenCalled();
     for (const mock of [provider, pageToken, createCampaign, createAdSet, createCreative, createCarousel, createVideo, prepareVideo, createAd, publishAd, funding, prepareImage]) expect(mock).not.toHaveBeenCalled();
   });
+
 });
 
 describe("launch lifecycle guard", () => {

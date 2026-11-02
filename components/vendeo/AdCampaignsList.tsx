@@ -101,7 +101,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   // Fragment scopes the in-memory key by storeId but is never sent to the API;
   // GET /api/ad-campaigns remains user-authorized and unchanged.
   const campaignsUrl = storeId ? `/api/ad-campaigns#store=${encodeURIComponent(storeId)}` : null;
-  const campaignsQuery = useNavigationData<{ campaigns?: AdCampaign[] }>(campaignsUrl);
+  const campaignsQuery = useNavigationData<{ campaigns?: AdCampaign[] }>(campaignsUrl, { freshMs: 5 * 60_000, refreshIntervalMs: 5 * 60_000, visibleOnly: true });
   const navigationCache = useNavigationCache();
   const campaigns = Array.isArray(campaignsQuery.data?.campaigns) ? campaignsQuery.data.campaigns : [];
   const currentCampaigns = campaigns
@@ -118,6 +118,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const refreshInFlight = useRef(false);
+  const lastAutoRefreshAt = useRef(0);
   const detailHistoryEntry = useRef(false);
   const openDetail = useCallback((campaign: AdCampaign) => {
     if (!detailHistoryEntry.current) {
@@ -211,15 +212,17 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   useEffect(() => {
     if (!monitoredIds.length) return;
     let disposed = false;
-    const refreshWhenVisible = () => {
-      if (!disposed && document.visibilityState === "visible") void refresh();
+    const intervalMs = 10 * 60_000;
+    const refreshWhenDue = () => {
+      if (disposed || document.visibilityState !== "visible" || !document.hasFocus() || Date.now() - lastAutoRefreshAt.current < intervalMs) return;
+      lastAutoRefreshAt.current = Date.now();
+      void refresh();
     };
-    refreshWhenVisible();
-    const interval = window.setInterval(refreshWhenVisible, 30_000);
-    const onReturn = refreshWhenVisible;
-    document.addEventListener("visibilitychange", onReturn);
-    window.addEventListener("focus", onReturn);
-    return () => { disposed = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", onReturn); window.removeEventListener("focus", onReturn); };
+    refreshWhenDue();
+    const interval = window.setInterval(refreshWhenDue, intervalMs);
+    document.addEventListener("visibilitychange", refreshWhenDue);
+    window.addEventListener("focus", refreshWhenDue);
+    return () => { disposed = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", refreshWhenDue); window.removeEventListener("focus", refreshWhenDue); };
   }, [monitoredIds.length, refresh]);
 
 

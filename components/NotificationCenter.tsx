@@ -11,9 +11,23 @@ export function NotificationCenter({ onOpen }: { onOpen: () => void }) {
     if (response.ok) setUnread(Number(data.unreadCount ?? 0));
   }, []);
   useEffect(() => {
-    void load();
-    const timer = window.setInterval(() => void load(), 60_000);
-    return () => window.clearInterval(timer);
+    const intervalMs = 12 * 60_000;
+    let lastLoadedAt = 0;
+    const foreground = () => document.visibilityState === "visible" && document.hasFocus();
+    const refreshIfDue = () => {
+      if (!foreground() || Date.now() - lastLoadedAt < intervalMs) return;
+      lastLoadedAt = Date.now();
+      void load();
+    };
+    refreshIfDue();
+    const timer = window.setInterval(refreshIfDue, intervalMs);
+    document.addEventListener("visibilitychange", refreshIfDue);
+    window.addEventListener("focus", refreshIfDue);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshIfDue);
+      window.removeEventListener("focus", refreshIfDue);
+    };
   }, [load]);
   return (
     <button type="button" className="notification-trigger" aria-label="Notifications" onClick={onOpen}>

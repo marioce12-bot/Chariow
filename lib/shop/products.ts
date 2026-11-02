@@ -1,4 +1,4 @@
-import { unstable_cache } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { ChariowMcpClient } from "@/lib/chariow/mcp-client";
@@ -76,4 +76,8 @@ export async function fetchStoreProducts(storeId: string): Promise<ShopProduct[]
 // Cache 5 minutes par boutique : la page publique ne rappelle pas Chariow à chaque visite.
 export function getCachedStoreProducts(storeId: string): Promise<ShopProduct[]> {
   return unstable_cache(() => fetchStoreProducts(storeId), ["shop-products", storeId], { revalidate: 300, tags: [`shop-products-${storeId}`] })();
+}
+
+export function invalidateCachedStoreProducts(storeId: string) {
+  revalidateTag(`shop-products-${storeId}`);
 }

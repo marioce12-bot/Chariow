@@ -79,7 +79,7 @@ describe("responsive Vendeo dashboard guide", () => {
   it("opens the actual overflow menu for menu destinations and leaves settings for its general index", () => {
     const menuSteps = MOBILE_DASHBOARD_TOUR_STEPS.filter((step) => step.menuTarget);
     expect(menuSteps.map((step) => step.menuTarget)).toEqual([
-      "Bénéfices nets", "Relances WhatsApp", "Radar marché", "Performance publicitaire", "Rapports",
+      "Relances WhatsApp", "Radar marché", "Performance publicitaire", "Rapports",
     ]);
     for (const step of menuSteps) {
       expect(step.openMobileMenu).toBe(true);
@@ -125,8 +125,8 @@ describe("responsive Vendeo dashboard guide", () => {
 
   it("uses an independent desktop sequence with desktop-specific overview refinements and navigation", () => {
     expect(DESKTOP_DASHBOARD_TOUR_STEPS[0].target).toBe("store");
-    expect(DESKTOP_DASHBOARD_TOUR_STEPS.slice(1, 8).map((step) => step.target)).toEqual([
-      "Vue d'ensemble", "Bénéfices nets", "Relances WhatsApp", "Vendeo AI", "Studio", "Pub", "Performance publicitaire",
+    expect(DESKTOP_DASHBOARD_TOUR_STEPS.slice(1, 7).map((step) => step.target)).toEqual([
+      "Vue d'ensemble", "Relances WhatsApp", "Vendeo AI", "Studio", "Pub", "Performance publicitaire",
     ]);
     expect(DESKTOP_DASHBOARD_TOUR_STEPS.find((step) => step.id === "home")?.body).toContain("graphique Meta est moins haut");
     expect(DESKTOP_DASHBOARD_TOUR_STEPS.map((step) => step.target)).toContain("Comptes publicitaires");
@@ -153,14 +153,14 @@ describe("responsive Vendeo dashboard guide", () => {
     await nextStep();
     expect(title()).toContain("Recommandation");
     await nextStep();
-    expect(title()).toBe("Bénéfices nets");
-    expect(transitions.at(-1)).toMatchObject({ openMobileMenu: true, menuTarget: "Bénéfices nets", target: "mobile-menu:Bénéfices nets" });
+    expect(title()).toContain("Relances WhatsApp");
+    expect(transitions.at(-1)).toMatchObject({ openMobileMenu: true, menuTarget: "Relances WhatsApp", target: "mobile-menu:Relances WhatsApp" });
   });
 
   it("reaches the real general Settings index at the mobile Settings step", async () => {
     setViewport(390);
     await mountGuide();
-    for (let index = 0; index < 10; index += 1) await nextStep();
+    for (let index = 0; index < 9; index += 1) await nextStep();
     expect(title()).toContain("Paramètres");
     expect(transitions.at(-1)).toMatchObject({
       id: "settings",

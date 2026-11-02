@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { requireUser } from "@/lib/auth";
 import { resolveUserMaxStores } from "@/lib/plans";
 import { getShopifyConfigStatus, normalizeShopDomain, SHOPIFY_SCOPES, SHOPIFY_STATE_COOKIE, SHOPIFY_STATE_TTL_SECONDS, signShopifyState } from "@/lib/shopify/auth";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 export async function GET(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -31,6 +32,7 @@ export async function GET(request: Request) {
         if (countError || (count ?? 0) >= await resolveUserMaxStores(supabase, user.id)) return NextResponse.json({ error: "Limite de boutiques atteinte" }, { status: 403 });
         const { error: restoreError } = await supabase.from("stores").update({ is_active: true }).eq("id", existing.id).eq("user_id", user.id);
         if (restoreError) return NextResponse.json({ error: "Impossible de réactiver la boutique" }, { status: 500 });
+        invalidateUserStoreList(user.id);
       }
       store = existing;
     }
@@ -43,11 +45,14 @@ export async function GET(request: Request) {
     const { data: created, error: createError } = await supabase.from("stores").insert({ user_id: user.id, platform: "shopify", store_name: shop.replace(".myshopify.com", ""), shop_domain: shop, mcp_url: null, access_token_encrypted: null, connection_status: "pending" }).select("id, shop_domain, store_name").single();
     if (createError) return NextResponse.json({ error: "Impossible de préparer la boutique Shopify" }, { status: 500 });
     store = created;
+    invalidateUserStoreList(user.id);
   } else if (!store.shop_domain) {
     const { error } = await supabase.from("stores").update({ shop_domain: shop, connection_status: "pending" }).eq("id", store.id).eq("user_id", user.id);
     if (error) return NextResponse.json({ error: "Impossible de mettre à jour la boutique" }, { status: 500 });
+    invalidateUserStoreList(user.id);
   } else {
     await supabase.from("stores").update({ connection_status: "pending" }).eq("id", store.id).eq("user_id", user.id);
+    invalidateUserStoreList(user.id);
   }
   const issuedAt = Math.floor(Date.now() / 1000);
   const nonce = crypto.randomBytes(32).toString("base64url");

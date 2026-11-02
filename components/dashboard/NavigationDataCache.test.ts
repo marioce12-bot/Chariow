@@ -1,126 +1,102 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { NavigationCache, scheduleNavigationRefreshFromCompletion } from "./NavigationDataCache";
-import { DASHBOARD_ANALYTICS_REFRESH_MS } from "@/lib/dashboard-analytics-periods";
+import { NavigationCache, scheduleNavigationRefresh } from "./NavigationDataCache";
+import { DASHBOARD_ANALYTICS_FALLBACK_MS } from "@/lib/dashboard-analytics-periods";
 
 class FakeEvents {
-  private listeners = new Map<string, Set<() => void>>();
-  private wrappers = new Map<EventListenerOrEventListenerObject, () => void>();
-  private wrap(type: string, listener: EventListenerOrEventListenerObject) {
-    let callback = this.wrappers.get(listener);
-    if (!callback) {
-      callback = typeof listener === "function" ? () => listener(new Event(type)) : () => listener.handleEvent(new Event(type));
-      this.wrappers.set(listener, callback);
-    }
-    return callback;
-  }
+  private listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
   addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
-    const callback = this.wrap(type, listener);
-    const callbacks = this.listeners.get(type) ?? new Set<() => void>();
-    callbacks.add(callback);
-    this.listeners.set(type, callbacks);
+    const listeners = this.listeners.get(type) ?? new Set<EventListenerOrEventListenerObject>();
+    listeners.add(listener); this.listeners.set(type, listeners);
   }
-  removeEventListener(type: string, listener: EventListenerOrEventListenerObject) {
-    const callbacks = this.listeners.get(type);
-    if (!callbacks) return;
-    const callback = this.wrappers.get(listener);
-    if (callback) callbacks.delete(callback);
-  }
-  dispatch(type: string) { this.listeners.get(type)?.forEach((listener) => listener()); }
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject) { this.listeners.get(type)?.delete(listener); }
+  dispatch(type: string) { this.listeners.get(type)?.forEach(listener => typeof listener === "function" ? listener(new Event(type)) : listener.handleEvent(new Event(type))); }
 }
-
 class FakeDocument extends FakeEvents {
   visibilityState: DocumentVisibilityState = "visible";
+  focused = true;
+  hasFocus() { return this.focused; }
 }
+const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-async function flushPromises() {
-  await Promise.resolve();
-  await Promise.resolve();
-}
+function clock() { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-01T08:00:00.000Z")); }
 
-afterEach(() => vi.useRealTimers());
-
-describe("Dashboard analytics refresh schedule", () => {
-  it("fires the first poll exactly five minutes after the initial response, never before", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-25T08:00:00.000Z"));
-    const startedAt = Date.now();
-    const cache = new NavigationCache();
-    const callTimes: number[] = [];
-    const loader = vi.fn()
-      .mockImplementationOnce(async () => {
-        await new Promise<void>(resolve => setTimeout(resolve, 12_000));
-        callTimes.push(Date.now());
-        return { receivedAt: Date.now() };
-      })
-      .mockImplementation(async () => {
-        callTimes.push(Date.now());
-        return { receivedAt: Date.now() };
-      });
-    const doc = new FakeDocument();
-    const win = new FakeEvents();
-    const initialLoad = cache.loadComputed("dashboard-analytics", loader, 0, false, DASHBOARD_ANALYTICS_REFRESH_MS);
-    const stop = scheduleNavigationRefreshFromCompletion(
-      () => cache.loadComputed("dashboard-analytics", loader, 0, false, DASHBOARD_ANALYTICS_REFRESH_MS),
-      () => cache.millisecondsUntilRefresh("dashboard-analytics", DASHBOARD_ANALYTICS_REFRESH_MS),
-      doc as unknown as Document,
-      win as unknown as Window,
-      initialLoad,
-    );
-
-    await vi.advanceTimersByTimeAsync(12_000);
-    await flushPromises();
-    expect(loader).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(DASHBOARD_ANALYTICS_REFRESH_MS - 1);
-    expect(loader).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(1);
-    await flushPromises();
-    expect(loader).toHaveBeenCalledTimes(2);
-    expect(callTimes).toEqual([startedAt + 12_000, startedAt + 12_000 + DASHBOARD_ANALYTICS_REFRESH_MS]);
-
-    await vi.advanceTimersByTimeAsync(DASHBOARD_ANALYTICS_REFRESH_MS - 1);
-    expect(loader).toHaveBeenCalledTimes(2);
-    await vi.advanceTimersByTimeAsync(1);
-    await flushPromises();
-    expect(loader).toHaveBeenCalledTimes(3);
-    expect(callTimes[2]).toBe(callTimes[1] + DASHBOARD_ANALYTICS_REFRESH_MS);
+describe("Event-driven analytics cache", () => {
+  it("creates no timer and makes no idle analytics request even after hours", async () => {
+    clock();
+    const refresh = vi.fn();
+    const stop = scheduleNavigationRefresh(refresh, 0, new FakeDocument() as unknown as Document, new FakeEvents() as unknown as Window, true);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(3 * 60 * 60_000);
+    expect(refresh).not.toHaveBeenCalled();
     stop();
   });
 
-  it("makes no request while hidden and makes exactly one stale request on visible return", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-25T08:00:00.000Z"));
+  it("only reloads a stale foreground reading and deduplicates return events", async () => {
+    clock();
     const cache = new NavigationCache();
+    const url = "/api/analytics?store_id=one";
     const loader = vi.fn(async () => ({ receivedAt: Date.now() }));
-    await cache.loadComputed("dashboard-analytics", loader, 0, false, DASHBOARD_ANALYTICS_REFRESH_MS);
-    const doc = new FakeDocument();
-    const win = new FakeEvents();
-    const stop = scheduleNavigationRefreshFromCompletion(
-      () => cache.loadComputed("dashboard-analytics", loader, 0, false, DASHBOARD_ANALYTICS_REFRESH_MS),
-      () => cache.millisecondsUntilRefresh("dashboard-analytics", DASHBOARD_ANALYTICS_REFRESH_MS),
-      doc as unknown as Document,
-      win as unknown as Window,
-      cache.loadComputed("dashboard-analytics", loader, 0, false, DASHBOARD_ANALYTICS_REFRESH_MS),
-    );
-
-    doc.visibilityState = "hidden";
-    doc.dispatch("visibilitychange");
-    await vi.advanceTimersByTimeAsync(DASHBOARD_ANALYTICS_REFRESH_MS);
-    await vi.advanceTimersByTimeAsync(DASHBOARD_ANALYTICS_REFRESH_MS);
-    win.dispatch("focus");
-    win.dispatch("online");
-    doc.dispatch("visibilitychange");
-    await flushPromises();
-    expect(loader).toHaveBeenCalledTimes(1);
-
+    await cache.loadComputed(url, loader, 0, false, DASHBOARD_ANALYTICS_FALLBACK_MS);
+    const doc = new FakeDocument(); const win = new FakeEvents();
+    const stop = scheduleNavigationRefresh(() => { void cache.loadComputed(url, loader, 0, false, DASHBOARD_ANALYTICS_FALLBACK_MS); }, 0, doc as unknown as Document, win as unknown as Window, true);
+    await vi.advanceTimersByTimeAsync(DASHBOARD_ANALYTICS_FALLBACK_MS - 1);
+    win.dispatch("focus"); win.dispatch("online"); doc.dispatch("visibilitychange");
+    await flush(); expect(loader).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    doc.focused = false;
+    win.dispatch("focus"); win.dispatch("online"); doc.dispatch("visibilitychange");
+    await flush(); expect(loader).toHaveBeenCalledTimes(1);
+    doc.focused = true; doc.visibilityState = "hidden";
+    win.dispatch("focus"); win.dispatch("online"); doc.dispatch("visibilitychange");
+    await flush(); expect(loader).toHaveBeenCalledTimes(1);
     doc.visibilityState = "visible";
-    doc.dispatch("visibilitychange");
-    win.dispatch("focus");
-    win.dispatch("online");
-    await flushPromises();
-    expect(loader).toHaveBeenCalledTimes(2);
+    doc.dispatch("visibilitychange"); win.dispatch("focus"); win.dispatch("online");
+    await flush(); expect(loader).toHaveBeenCalledTimes(2);
     stop();
-    await vi.advanceTimersByTimeAsync(DASHBOARD_ANALYTICS_REFRESH_MS);
-    await flushPromises();
-    expect(loader).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(DASHBOARD_ANALYTICS_FALLBACK_MS);
+    win.dispatch("focus"); await flush(); expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it("manual refresh bypasses a fresh client entry and sends the force header without browser caching", async () => {
+    clock();
+    const fetchMock = vi.fn(async () => Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const cache = new NavigationCache(); const url = "/api/analytics?store_id=one";
+    await cache.load(url, 0, false, DASHBOARD_ANALYTICS_FALLBACK_MS);
+    await cache.load(url, 0, false, DASHBOARD_ANALYTICS_FALLBACK_MS);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await cache.load(url, 0, true, DASHBOARD_ANALYTICS_FALLBACK_MS);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]).toEqual([url, { cache: "no-store", headers: { "x-vendeo-refresh": "1" } }]);
+  });
+
+  it("a sale expires analytics for only its store, not other stores or endpoint data", async () => {
+    clock(); const cache = new NavigationCache();
+    const first = vi.fn(async () => ({ store: "one" }));
+    const second = vi.fn(async () => ({ store: "two" }));
+    const ads = vi.fn(async () => []);
+    await cache.loadComputed("/api/analytics?store_id=one&dashboard_periods=1", first);
+    await cache.loadComputed("/api/analytics?store_id=two", second);
+    await cache.loadComputed("/api/ad-campaigns", ads);
+    cache.invalidateAnalyticsStore("one");
+    await Promise.all([
+      cache.loadComputed("/api/analytics?store_id=one&dashboard_periods=1", first),
+      cache.loadComputed("/api/analytics?store_id=two", second),
+      cache.loadComputed("/api/ad-campaigns", ads),
+    ]);
+    expect(first).toHaveBeenCalledTimes(2); expect(second).toHaveBeenCalledTimes(1); expect(ads).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares simultaneous identical loads and discards obsolete in-flight results after a sale", async () => {
+    clock(); const cache = new NavigationCache(); const url = "/api/analytics?store_id=one";
+    let resolveOld!: (value: { version: number }) => void;
+    const oldLoader = vi.fn(() => new Promise<{ version: number }>(resolve => { resolveOld = resolve; }));
+    const first = cache.loadComputed(url, oldLoader); const duplicate = cache.loadComputed(url, oldLoader);
+    expect(oldLoader).toHaveBeenCalledTimes(1);
+    cache.invalidateAnalyticsStore("one");
+    await cache.loadComputed(url, async () => ({ version: 2 }));
+    resolveOld({ version: 1 }); await Promise.all([first, duplicate]);
+    expect(cache.snapshot(url).data).toEqual({ version: 2 });
   });
 });

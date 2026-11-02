@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { ChariowMcpClient } from "@/lib/chariow/mcp-client";
 import { CHARIOW_MCP_URL } from "@/lib/chariow/types";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 function sanitizeErrorMessage(message: string) {
   // Remove potential sensitive payload and keep it short.
@@ -52,6 +53,7 @@ export async function GET(request: Request) {
   const oauthClientId = typeof attempt.oauth_client_id === "string" ? attempt.oauth_client_id : null;
   if (!oauthClientId) {
     await supabase.from("stores").update({ connection_status: "failed", connection_error: "Tentative OAuth invalide. Recommence la connexion.", last_verified_at: new Date().toISOString() }).eq("id", storeId).eq("user_id", user.id);
+    invalidateUserStoreList(user.id);
     return redirectToDashboard("chariow=failed");
   }
 
@@ -68,6 +70,7 @@ export async function GET(request: Request) {
       })
       .eq("id", storeId)
       .eq("user_id", user.id);
+    invalidateUserStoreList(user.id);
     await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
     return redirectToDashboard("chariow=failed");
   }
@@ -79,6 +82,7 @@ export async function GET(request: Request) {
       .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
       .eq("id", storeId)
       .eq("user_id", user.id);
+    invalidateUserStoreList(user.id);
     if (oauthError !== "access_denied") console.error("Chariow OAuth authorization failed", message);
     return redirectToDashboard("chariow=failed");
   }
@@ -89,6 +93,7 @@ export async function GET(request: Request) {
       .update({ connection_status: "failed", connection_error: "Connexion Chariow incomplète", last_verified_at: now.toISOString() })
       .eq("id", storeId)
       .eq("user_id", user.id);
+    invalidateUserStoreList(user.id);
     return redirectToDashboard("chariow=failed");
   }
 
@@ -117,6 +122,7 @@ export async function GET(request: Request) {
         .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
         .eq("id", storeId)
         .eq("user_id", user.id);
+      invalidateUserStoreList(user.id);
       console.error("Chariow OAuth token exchange failed", tokenResp.status, message);
       return redirectToDashboard("chariow=failed");
     }
@@ -128,6 +134,7 @@ export async function GET(request: Request) {
         .update({ connection_status: "failed", connection_error: "Réponse OAuth invalide", last_verified_at: now.toISOString() })
         .eq("id", storeId)
         .eq("user_id", user.id);
+      invalidateUserStoreList(user.id);
       return redirectToDashboard("chariow=failed");
     }
 
@@ -179,6 +186,7 @@ export async function GET(request: Request) {
         .eq("id", storeId)
         .eq("user_id", user.id);
     }
+    invalidateUserStoreList(user.id);
 
     await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
 
@@ -192,6 +200,7 @@ export async function GET(request: Request) {
         .update({ connection_status: "failed", connection_error: message, last_verified_at: now.toISOString() })
         .eq("id", storeId)
         .eq("user_id", user.id);
+      invalidateUserStoreList(user.id);
     }
     await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
     return redirectToDashboard("chariow=failed");

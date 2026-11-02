@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { ChatView } from "@/components/ChatView";
 
 const localeState = vi.hoisted(() => ({ locale: "fr" }));
@@ -23,7 +23,7 @@ const restoredMessages = [
 const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: async () => body } as Response);
 let container: HTMLDivElement;
 let root: Root;
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: Mock<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>;
 async function settle() {
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 }

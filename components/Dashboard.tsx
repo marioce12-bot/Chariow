@@ -42,7 +42,6 @@ import { AdPerformanceView } from "./dashboard/AdPerformanceView";
 import { usePerformanceRecommendationBadges } from "./dashboard/usePerformanceRecommendationBadges";
 import { OverviewHome } from "./dashboard/OverviewHome";
 import { DashboardSkeleton } from "./dashboard/Skeleton";
-import ProductProfitPanel from "./dashboard/ProductProfitPanel";
 import RecoveryPanel from "./dashboard/RecoveryPanel";
 import { NotificationPermissionPrompt } from "./NotificationPermissionPrompt";
 import { DashboardStoreSelector } from "./dashboard/StoreSelector";
@@ -54,7 +53,8 @@ import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
-import { DASHBOARD_ANALYTICS_REFRESH_MS, getDashboardAnalyticsUrl } from "@/lib/dashboard-analytics-periods";
+import { getDashboardAnalyticsUrl } from "@/lib/dashboard-analytics-periods";
+import { useChariowSalesRealtime } from "./dashboard/useChariowSalesRealtime";
 import type { DashboardTourStep } from "./dashboard/tour-steps";
 type DashboardAnalyticsResponse = { snapshot: AnalyticsData; rolling30Snapshot: AnalyticsData; periodSnapshot: AnalyticsData };
 type StoredDashboardAnalyticsResponse = { storeId: string; data: DashboardAnalyticsResponse };
@@ -74,7 +74,6 @@ const PERSISTED_DASHBOARD_SECTIONS = new Set([
   "Radar marché",
   "Mes boutiques",
   "Rapports",
-  "Bénéfices nets",
   "Relances WhatsApp",
   "Abonnement",
   "Paramètres",
@@ -393,13 +392,10 @@ function DashboardWorkspace() {
   }, [selectedStoreId]);
 
   const analyticsUrl = activeStoreId ? getDashboardAnalyticsUrl(activeStoreId, overviewPeriodDays) : null;
-  const analyticsReading = useNavigationData<DashboardAnalyticsResponse>(analyticsUrl, {
-    freshMs: DASHBOARD_ANALYTICS_REFRESH_MS,
-    refreshIntervalMs: DASHBOARD_ANALYTICS_REFRESH_MS,
-    visibleOnly: true,
-    refreshOnVisibilityReturn: true,
-    completionAnchoredRefresh: true,
-  });
+  // Analytics has no interval: initial load, signed sale event, manual refresh or stale foreground return only.
+  const analyticsReading = useNavigationData<DashboardAnalyticsResponse>(analyticsUrl);
+  const realtimeStoreId = stores.find((store) => store.id === activeStoreId)?.platform === "chariow" ? activeStoreId : null;
+  useChariowSalesRealtime(realtimeStoreId, notificationUserId, navigationCache);
   const dashboardAnalyticsData = analyticsReading.data
     ?? (lastAnalyticsResponse?.storeId === activeStoreId ? lastAnalyticsResponse.data : undefined);
   useEffect(() => {
@@ -461,11 +457,11 @@ function DashboardWorkspace() {
           <Link href="/" className="brand">
             <Image className="brand-logo" src="/vendeo-logo.webp" alt="Vendeo" width={150} height={40} unoptimized />
           </Link>
-          <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance publicitaire":"Recommendations","Bénéfices nets":"Net profit","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active === "Performance publicitaire" ? "Recommandation" : active}</strong></div>
+          <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance publicitaire":"Recommendations","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active === "Performance publicitaire" ? "Recommandation" : active}</strong></div>
           <DashboardHeaderNavigation active={active} onChange={(section) => section === "Paramètres" ? openSettingsIndex() : setActive(section)} />
           <div className="app-user">
             <NotificationCenter onOpen={() => setActive("Notifications")} />
-             <button type="button" data-onboarding="mobile-more-trigger" className={`mobile-more-trigger ${moreOpen || ["Radar marché", "Rapports", "Bénéfices nets", "Relances WhatsApp", "Performance publicitaire", "Paramètres"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
+             <button type="button" data-onboarding="mobile-more-trigger" className={`mobile-more-trigger ${moreOpen || ["Radar marché", "Rapports", "Relances WhatsApp", "Performance publicitaire", "Paramètres"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
             <button type="button" className="vendeo-guide-replay" onClick={replayGuide} aria-label={locale === "en" ? "Replay the workspace guide" : "Revoir le guide de mon espace"}>{locale === "en" ? "Guide" : "Guide"}</button>
@@ -513,8 +509,6 @@ function DashboardWorkspace() {
             <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={backToAccountSettings} />
           ) : active === "Abonnement" ? (
             <SubscriptionView subscription={subscription} onBackToSettings={backToAccountSettings} />
-          ) : active === "Bénéfices nets" ? (
-            <ProductProfitPanel key={activeStoreId} storeId={activeStoreId} />
           ) : active === "Relances WhatsApp" ? (
             <RecoveryPanel key={activeStoreId} storeId={activeStoreId} />
           ) : active === "Rapports" ? (
@@ -592,7 +586,6 @@ function DashboardWorkspace() {
             <button type="button" className="mobile-more-backdrop" aria-label={w("closeMenu")} onClick={() => setMoreOpen(false)} />
             <div className="mobile-more-menu" role="menu" aria-label={w("moreOptions")}>
               <span className="mobile-more-label">{w("myActivity")}</span>
-              <button type="button" role="menuitem" data-onboarding="mobile-menu:Bénéfices nets" aria-current={active === "Bénéfices nets" ? "page" : undefined} className={mobileMoreItemClass("Bénéfices nets")} onClick={() => { setActive("Bénéfices nets"); setMoreOpen(false); }}><BarChart3 size={16} /> {w("netProfit")}</button>
               <button type="button" role="menuitem" data-onboarding="mobile-menu:Relances WhatsApp" aria-current={active === "Relances WhatsApp" ? "page" : undefined} className={mobileMoreItemClass("Relances WhatsApp")} onClick={() => { setActive("Relances WhatsApp"); setMoreOpen(false); }}><MessageSquare size={16} /> {w("whatsapp")}</button>
               <span className="mobile-more-label">{w("analysis")}</span>
               <button type="button" role="menuitem" data-onboarding="mobile-menu:Radar marché" aria-current={active === "Radar marché" ? "page" : undefined} className={mobileMoreItemClass("Radar marché")} onClick={() => { setActive("Radar marché"); setMoreOpen(false); }}><Lightbulb size={16} /> {locale === "en" ? "Market radar" : "Radar marché"}</button>

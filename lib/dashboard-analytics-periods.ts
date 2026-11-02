@@ -1,7 +1,8 @@
 export type DashboardAnalyticsPeriodRange = { from: string; to: string };
 export type DashboardAnalyticsPeriods = { calendarMonth: DashboardAnalyticsPeriodRange; rolling30Days: DashboardAnalyticsPeriodRange };
 export type DashboardAnalyticsSnapshotResponse<T> = { snapshot?: T | null } | null | undefined;
-export const DASHBOARD_ANALYTICS_REFRESH_MS = 5 * 60_000;
+// No analytics polling: this threshold applies only to foreground return events.
+export const DASHBOARD_ANALYTICS_FALLBACK_MS = 30 * 60_000;
 
 function dateKey(date: Date) {
   return date.toISOString().slice(0, 10);

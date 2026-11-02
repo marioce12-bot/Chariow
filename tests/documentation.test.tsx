@@ -23,7 +23,7 @@ function bilingual(value: LocalizedText) {
 beforeEach(() => { mocks.locale = "fr"; });
 describe("public documentation center", () => {
   it("provides substantial bilingual guides with stable unique anchors", () => {
-    expect(sections.length).toBeGreaterThanOrEqual(22);
+    expect(sections.length).toBeGreaterThanOrEqual(21);
     for (const id of ["connect-chariow", "connect-meta", "connect-pinterest", "connect-tiktok"]) expect(sections.find(s => s.id === id)?.articles.length).toBeGreaterThanOrEqual(6);
     expect(new Set(sections.map(s => s.id)).size).toBe(sections.length);
     for (const section of sections) {

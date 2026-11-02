@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { NavigationCache, NavigationDataProvider, useNavigationCache, useNavigationData } from "@/components/dashboard/NavigationDataCache";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NAVIGATION_FRESH_MS, NavigationCache, NavigationDataProvider, useNavigationCache, useNavigationData } from "@/components/dashboard/NavigationDataCache";
 
 let root: Root | undefined;
 let host: HTMLDivElement;
@@ -14,6 +14,10 @@ async function mount(element: React.ReactNode) {
 async function click(text: string) {
   await act(async () => { Array.from(host.querySelectorAll("button")).find((button) => button.textContent === text)!.click(); });
 }
+beforeEach(() => {
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+});
 afterEach(async () => { if (root) await act(async () => root!.unmount()); host?.remove(); root = undefined; vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 function Reading({ url }: { url: string }) {
   const reading = useNavigationData<{ marker: string }>(url);
@@ -65,7 +69,7 @@ describe("navigation data cache", () => {
     await Promise.all([cache.load("/one"), cache.load("/one")]);
     expect(fetcher).toHaveBeenCalledTimes(1);
     await cache.load("/one"); expect(fetcher).toHaveBeenCalledTimes(1);
-    clock += 61_000;
+    clock += NAVIGATION_FRESH_MS + 1;
     let reject!: (reason: Error) => void;
     fetcher.mockImplementationOnce(() => new Promise((_r, rej) => { reject = rej; }));
     const refresh = cache.load("/one");

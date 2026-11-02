@@ -10,6 +10,9 @@ import { fetchAllPages } from "@/lib/paginated-query";
 import { DEFAULT_TARGET_MARGIN } from "@/lib/unit-economics";
 import { notifyChariowSales } from "@/lib/chariow/sale-notifications";
 import { getDashboardAnalyticsPeriods, shareDashboardAnalyticsSnapshots } from "@/lib/dashboard-analytics-periods";
+import { getCachedChariowAnalytics } from "@/lib/chariow/analytics-cache";
+import type { ChariowRequestShared } from "@/lib/chariow/analytics";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 type AnalyticsSaleRow = SaleRow & { amount: number | string | null; product_id: string | null };
 
@@ -27,7 +30,7 @@ function isChariowDown(message: string) {
   return /timeout|timed out|aborted|fetch failed|ECONN|ENOTFOUND|returned 5\d\d/i.test(message);
 }
 
-async function analyticsResponse(request: Request) {
+async function analyticsResponse(request: Request, shared?: ChariowRequestShared) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
   const params = new URL(request.url).searchParams;
@@ -47,30 +50,43 @@ async function analyticsResponse(request: Request) {
     return shopifyDashboardResponse(supabase, user.id, store, { from, to });
   }
   try {
-    const snapshot = await getChariowSnapshot(store, { from, to });
+    let fetchedFromChariow = false;
+    const cacheNow = new Date();
+    const cacheFrom = from ?? new Date(cacheNow.getFullYear(), cacheNow.getMonth(), 1).toISOString().slice(0, 10);
+    const cacheTo = to ?? cacheNow.toISOString().slice(0, 10);
+    const snapshot = await getCachedChariowAnalytics({
+      userId: user.id,
+      storeId: store.id,
+      from: cacheFrom,
+      to: cacheTo,
+      forceRefresh: request.headers.get("x-vendeo-refresh") === "1",
+      load: () => { fetchedFromChariow = true; return getChariowSnapshot(store, { from, to }, shared); },
+    });
     // Enregistre tout de suite les ventes renvoyées par Chariow : la synchro automatique ne tourne qu'une fois
     // par nuit, donc sans cela une vente faite dans la journée n'apparaissait pas dans les chiffres du tableau
     // de bord (toujours à 0) jusqu'au lendemain. Une erreur ici ne doit jamais bloquer l'affichage.
     let persistenceError = false;
-    try {
-      const freshRows = chariowSaleRows(store.id, snapshot.sales);
-      if (freshRows.length) {
-        // Client admin : la table n'autorise que la lecture à l'utilisateur. La boutique a déjà été vérifiée comme sienne ci-dessus.
-        const { error: upsertError } = await createAdminClient().from("chariow_sales").upsert(freshRows, { onConflict: "chariow_sale_id" });
-        if (upsertError) { persistenceError = true; console.error("Chariow sales upsert error", upsertError.message); }
-        else {
-          try {
-            await notifyChariowSales({ ...store, user_id: user.id }, snapshot.sales);
-          } catch (notificationError) {
-            console.error("analytics: sale notification failed", store.id, notificationError instanceof Error ? notificationError.message : "unknown");
+    if (fetchedFromChariow) {
+      try {
+        const freshRows = chariowSaleRows(store.id, snapshot.sales, user.id);
+        if (freshRows.length) {
+          // Client admin : la table n'autorise que la lecture à l'utilisateur. La boutique a déjà été vérifiée comme sienne ci-dessus.
+          const { error: upsertError } = await createAdminClient().from("chariow_sales").upsert(freshRows, { onConflict: "chariow_sale_id" });
+          if (upsertError) { persistenceError = true; console.error("Chariow sales upsert error", upsertError.message); }
+          else {
+            try {
+              await notifyChariowSales({ ...store, user_id: user.id }, snapshot.sales);
+            } catch (notificationError) {
+              console.error("analytics: sale notification failed", store.id, notificationError instanceof Error ? notificationError.message : "unknown");
+            }
           }
         }
+      } catch (syncError) {
+        persistenceError = true;
+        console.error("Chariow sales upsert failed", syncError instanceof Error ? syncError.message : syncError);
       }
-    } catch (syncError) {
-      persistenceError = true;
-      console.error("Chariow sales upsert failed", syncError instanceof Error ? syncError.message : syncError);
     }
-    if (!from && !to) {
+    if (!from && !to && fetchedFromChariow) {
       await createAdminClient().from("stores").update({
         sales_last_synced_at: new Date().toISOString(),
         sales_last_sync_complete: !persistenceError && snapshot.coverage?.sales.complete === true,
@@ -134,16 +150,19 @@ async function analyticsResponse(request: Request) {
       targetCurrency,
     );
     const overview = buildOverviewFromPages(current, previous, targetCurrency, periodFrom, periodTo, store.connected_at ?? null, DEFAULT_TARGET_MARGIN);
-    return withStatus(NextResponse.json({
+    const success = withStatus(NextResponse.json({
       store: { name: normalized.storeName, status: store.connection_status, connectedAt: store.connected_at ?? null },
       // `sales` est enrichi avec `id` et `details` (infos brutes Chariow lisibles) pour la fenêtre « Détail ».
       snapshot: { ...normalized, coverage: snapshot.coverage, persistenceError, sales: mergeSaleDetails(normalized.sales, snapshot.sales), overview, productPerformance },
     }), null);
+    success.headers.set("Cache-Control", "private, max-age=60, stale-while-revalidate=120");
+    return success;
   } catch (analyticsError) {
     const message = analyticsError instanceof Error ? analyticsError.message : String(analyticsError);
     console.error("Chariow analytics error", message);
     if (/returned 401\b/.test(message)) {
       await supabase.from("stores").update({ connection_status: "expired", connection_error: null, last_verified_at: new Date().toISOString() }).eq("id", store.id).eq("user_id", user.id);
+      invalidateUserStoreList(user.id);
       return withStatus(NextResponse.json({ error: "La connexion Chariow a expiré", code: "CHARIOW_EXPIRED" }, { status: 401 }), "expired");
     }
     if (isChariowDown(message)) {
@@ -171,6 +190,7 @@ export async function GET(request: Request) {
   if (params.get("dashboard_periods") !== "1") return analyticsResponse(request);
 
   const ranges = getDashboardAnalyticsPeriods(new Date());
+  const shared: ChariowRequestShared = {};
   const monthUrl = new URL(request.url);
   monthUrl.searchParams.delete("dashboard_periods");
   monthUrl.searchParams.delete("from");
@@ -186,9 +206,9 @@ export async function GET(request: Request) {
     selectedPeriodUrl.searchParams.set("to", selectedTo!);
   }
   const [monthResponse, rolling30Response, selectedPeriodResponse] = await Promise.all([
-    analyticsResponse(requestWithUrl(request, monthUrl)),
-    analyticsResponse(requestWithUrl(request, rolling30Url)),
-    selectedPeriodUrl ? analyticsResponse(requestWithUrl(request, selectedPeriodUrl)) : Promise.resolve(null),
+    analyticsResponse(requestWithUrl(request, monthUrl), shared),
+    analyticsResponse(requestWithUrl(request, rolling30Url), shared),
+    selectedPeriodUrl ? analyticsResponse(requestWithUrl(request, selectedPeriodUrl), shared) : Promise.resolve(null),
   ]);
   const [monthBody, rolling30Body, selectedPeriodBody] = await Promise.all([
     responseBody(monthResponse),
@@ -209,6 +229,7 @@ export async function GET(request: Request) {
     periodError: rolling30Response.ok ? null : rolling30Body?.error ?? "La période glissante est indisponible.",
     selectedPeriodError: !selectedPeriodResponse || selectedPeriodResponse.ok ? null : selectedPeriodBody?.error ?? "La période sélectionnée est indisponible.",
   });
+  if (combined.ok) combined.headers.set("Cache-Control", "private, max-age=60, stale-while-revalidate=120");
   if ((primaryBody?.store as { platform?: string } | undefined)?.platform === "shopify") return combined;
   const status = chariowStatus(!monthResponse.ok ? monthBody : !rolling30Response.ok ? rolling30Body : selectedPeriodResponse && !selectedPeriodResponse.ok ? selectedPeriodBody : null);
   return withStatus(combined, status);

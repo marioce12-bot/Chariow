@@ -5,24 +5,33 @@ import { collectChariowPages } from "./pagination";
 import { isConfirmedChariowSaleStatus } from "./sales";
 import type { ChariowNormalizedSnapshot, ChariowProduct, ChariowStoreSnapshot } from "./types";
 
+export type ChariowRequestShared = { client?: ChariowMcpClient; initialized?: Promise<unknown>; catalogue?: Promise<{ storeInfo: unknown; products: Awaited<ReturnType<typeof collectChariowPages>> }> };
+
 export async function getChariowSnapshot(
   store: { mcp_url: string | null; access_token_encrypted: string | null },
-  opts?: { from?: string; to?: string }
+  opts?: { from?: string; to?: string },
+  shared?: ChariowRequestShared
 ) {
   if (!store.mcp_url) throw new Error("Cette boutique n'a pas encore de connexion MCP active (mcp_url manquante)");
   const accessToken = store.access_token_encrypted ? decryptSecret(store.access_token_encrypted) : undefined;
-  const client = new ChariowMcpClient({ endpoint: store.mcp_url || undefined, accessToken });
-  await client.initialize();
+  const client = shared?.client ?? new ChariowMcpClient({ endpoint: store.mcp_url || undefined, accessToken });
+  if (shared) shared.client = client;
+  if (shared) shared.initialized ??= client.initialize();
+  await (shared?.initialized ?? client.initialize());
   const now = new Date();
   const from = opts?.from ?? new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const to = opts?.to ?? now.toISOString().slice(0, 10);
-  const [storeInfo, products, sales, salesAnalytics, storeAnalytics] = await Promise.all([
+  const catalogue = shared ? (shared.catalogue ??= Promise.all([
     client.callTool("get_store"),
     collectChariowPages((args) => client.callTool("list_products", args)),
+  ]).then(([storeInfo, products]) => ({ storeInfo, products }))) : null;
+  const [catalogueData, sales, salesAnalytics, storeAnalytics] = await Promise.all([
+    catalogue ?? Promise.all([client.callTool("get_store"), collectChariowPages((args) => client.callTool("list_products", args))]).then(([storeInfo, products]) => ({ storeInfo, products })),
     collectChariowPages((args) => client.callTool("list_sales", args), { ...(opts?.from ? { start_date: from } : {}), ...(opts?.to ? { end_date: to } : {}) }),
     client.callTool("get_sales_analytics", { from, to }),
     client.callTool("get_store_analytics", { from, to }),
   ]);
+  const { storeInfo, products } = catalogueData;
   return { store: storeInfo, products: { data: products.data }, sales: { data: sales.data }, salesAnalytics, storeAnalytics, coverage: { products: products.coverage, sales: sales.coverage } } satisfies ChariowStoreSnapshot;
 }
 
@@ -174,7 +183,6 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
   const productRows = firstArray(snapshot.products);
   const rawSales = firstArray(snapshot.sales).map((item) => asRecord(item));
   const productSalesIndex = buildProductSalesIndex(rawSales);
-  let loggedUnresolvedFields = false;
   const products: ChariowProduct[] = productRows.map((item, index) => {
     const product = asRecord(item);
     const price = asRecord(product.price);
@@ -249,56 +257,6 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
       product.cover,
       product.cover_url
     );
-    if (index < 2 && !resolvedImage) {
-      console.warn("[chariow] image produit non résolue — clés produit:", Object.keys(product), "clés pictures:", Object.keys(pictures));
-    }
-
-    // Diagnostic ponctuel : si on n'arrive toujours pas à lire le prix, ou si le
-    // lien produit est un secours (accueil boutique plutôt que page produit),
-    // on log les clés/valeurs brutes renvoyées par Chariow (jamais les valeurs
-    // sensibles) pour comprendre pourquoi côté Chariow (produit non publié,
-    // nouveau nom de champ, etc.).
-    if (!loggedUnresolvedFields && index < 2 && (resolvedPrice === null || urlIsFallback)) {
-      console.warn(
-        "[chariow] champ prix/lien non résolu pour un produit — prix résolu:",
-        resolvedPrice !== null,
-        "lien produit résolu (hors secours accueil boutique):",
-        !urlIsFallback,
-        "statut produit:",
-        product.status,
-        "type produit:",
-        product.type,
-        "clés boutique (get_store):",
-        Object.keys(store),
-        "clés produit:",
-        Object.keys(product),
-        "clés price:",
-        Object.keys(price),
-        "pricing est un tableau:",
-        Array.isArray(pricingRaw),
-        "clés pricing:",
-        Object.keys(pricingEntry)
-      );
-      loggedUnresolvedFields = true;
-
-      if (urlIsFallback) {
-        console.warn("[chariow] diagnostic valeurs lien produit —", {
-          product_id: product.id,
-          product_slug: product.slug,
-          product_handle: product.handle,
-          product_reference: product.reference,
-          product_status: product.status,
-          store_url: store.url,
-          store_domain: store.domain,
-          store_storefront_url: store.storefront_url,
-          store_subdomain: store.subdomain,
-          store_slug: store.slug,
-          store_store_slug: store.store_slug,
-          store_custom_slug: store.custom_slug,
-        });
-      }
-    }
-
     const productId = String(product.id ?? product.uuid ?? index);
     const productName = text(product.nom ?? product.name ?? product.title) ?? "Produit sans nom";
     // On calcule le nombre réel de ventes confirmées pour ce produit à partir
@@ -325,16 +283,6 @@ export function normalizeChariowSnapshot(snapshot: ChariowStoreSnapshot, period:
     };
   });
 
-  // Diagnostic ponctuel (temporaire) : un résumé compact slug/lien pour TOUT le
-  // catalogue en un seul log, plutôt que le diagnostic verbeux ci-dessus qui ne
-  // couvre que le premier produit en défaut de chaque appel — utile pour savoir
-  // si un slug manquant touche un seul produit ou l'ensemble du catalogue.
-  if (products.some((p) => p.urlIsFallback)) {
-    console.warn(
-      "[chariow] résumé lien produit par produit —",
-      products.map((p) => ({ id: p.id, name: p.name.slice(0, 30), status: p.status, urlIsFallback: p.urlIsFallback }))
-    );
-  }
   const revenue = asRecord(sales.value);
   const currency = revenue.currency ?? sales.currency ?? store.currency;
   const revenueValue = numberValue(revenue.value ?? sales.value);

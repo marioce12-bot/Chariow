@@ -4,6 +4,9 @@ import { getChariowSnapshot } from "@/lib/chariow/analytics";
 import { chariowSaleRows } from "@/lib/chariow/sales-rows";
 import { autoMapChariowCampaigns } from "@/lib/attribution/auto-map";
 import { notifyChariowSales } from "@/lib/chariow/sale-notifications";
+import { invalidateChariowAnalytics } from "@/lib/chariow/analytics-cache";
+import { invalidateCachedStoreProducts } from "@/lib/shop/products";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -19,7 +22,7 @@ export async function POST(request: Request) {
   for (const store of stores ?? []) {
     try {
       const snapshot = await getChariowSnapshot(store);
-      const rows = chariowSaleRows(store.id, snapshot.sales);
+      const rows = chariowSaleRows(store.id, snapshot.sales, store.user_id);
       if (rows.length) {
         const { error: upsertError } = await supabase.from("chariow_sales").upsert(rows, { onConflict: "chariow_sale_id" });
         if (upsertError) throw upsertError;
@@ -38,6 +41,9 @@ export async function POST(request: Request) {
         console.error("chariow sync: auto-map failed", store.id, mapError instanceof Error ? mapError.message : mapError);
       }
       await supabase.from("stores").update({ connection_status: "connected", last_verified_at: new Date().toISOString(), connection_error: null, sales_last_synced_at: new Date().toISOString(), sales_last_sync_complete: snapshot.coverage?.sales.complete ?? false, sales_sync_error: snapshot.coverage?.sales.reason ?? null }).eq("id", store.id);
+      invalidateChariowAnalytics(store.id);
+      invalidateCachedStoreProducts(store.id);
+      invalidateUserStoreList(store.user_id);
       results.push({ store_id: store.id, store_name: store.store_name, sales_synced: rows.length, coverage: snapshot.coverage, campaigns_mapped: campaignsMapped });
     } catch (syncError) {
       results.push({ store_id: store.id, error: syncError instanceof Error ? syncError.message : String(syncError) });

@@ -57,13 +57,13 @@ describe("useUsageTracking", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     await mount();
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    await act(async () => { await vi.advanceTimersByTimeAsync(19_999); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(59_999); });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    await act(async () => { await vi.advanceTimersByTimeAsync(39_999); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(119_999); });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -82,7 +82,7 @@ describe("useUsageTracking", () => {
     expect(fetchMock).not.toHaveBeenCalled();
 
     setVisibility("visible");
-    await act(async () => { await vi.advanceTimersByTimeAsync(19_999); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(59_999); });
     expect(fetchMock).not.toHaveBeenCalled();
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(fetchMock).toHaveBeenCalledTimes(1);

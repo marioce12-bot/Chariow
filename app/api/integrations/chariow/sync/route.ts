@@ -4,10 +4,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { chariowSaleRows } from "@/lib/chariow/sales-rows";
 import { getChariowSnapshot } from "@/lib/chariow/analytics";
 import { notifyChariowSales } from "@/lib/chariow/sale-notifications";
+import { invalidateChariowAnalytics } from "@/lib/chariow/analytics-cache";
+import { invalidateCachedStoreProducts } from "@/lib/shop/products";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 async function syncStore(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], userId: string, store: { id: string; mcp_url: string | null; access_token_encrypted: string | null; store_name: string; connected_at?: string | null }) {
   const snapshot = await getChariowSnapshot(store);
-  const rows = chariowSaleRows(store.id, snapshot.sales);
+  const rows = chariowSaleRows(store.id, snapshot.sales, userId);
   if (rows.length) {
     const { error } = await supabase.from("chariow_sales").upsert(rows, { onConflict: "chariow_sale_id" });
     if (error) throw error;
@@ -18,6 +21,9 @@ async function syncStore(supabase: Awaited<ReturnType<typeof requireUser>>["supa
     console.error("chariow manual sync: sale notification failed", store.id, notificationError instanceof Error ? notificationError.message : "unknown");
   }
   await supabase.from("stores").update({ connection_status: "connected", last_verified_at: new Date().toISOString(), connection_error: null, sales_last_synced_at: new Date().toISOString(), sales_last_sync_complete: snapshot.coverage?.sales.complete ?? false, sales_sync_error: snapshot.coverage?.sales.reason ?? null }).eq("id", store.id).eq("user_id", userId);
+  invalidateChariowAnalytics(store.id);
+  invalidateCachedStoreProducts(store.id);
+  invalidateUserStoreList(userId);
   return { store_id: store.id, store_name: store.store_name, sales_synced: rows.length, coverage: snapshot.coverage };
 }
 

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encryptShopifyToken } from "@/lib/shopify/credentials";
 import { getShopifyConfigStatus, normalizeShopDomain, SHOPIFY_STATE_COOKIE, verifyShopifyHmac, verifyShopifyState } from "@/lib/shopify/auth";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 export const runtime = "nodejs";
 export async function GET(request: Request) {
@@ -43,6 +44,7 @@ export async function GET(request: Request) {
     if (saveError) { console.error("Shopify credentials persistence failed", saveError.message); return finish("save_failed"); }
     const { error: publicError } = await supabase.from("stores").update({ platform: "shopify", store_name: shop.replace(".myshopify.com", ""), shop_domain: shop, mcp_url: null, access_token_encrypted: null, connection_status: "connected", connection_error: null, connected_at: new Date(now).toISOString() }).eq("id", state.storeId).eq("user_id", user.id);
     if (publicError) { console.error("Shopify store update failed", publicError.message); return finish("save_failed"); }
+    invalidateUserStoreList(user.id);
     return finish("connected");
   } catch (error) {
     console.error("Shopify OAuth callback failed", error instanceof Error ? error.message : "unknown");

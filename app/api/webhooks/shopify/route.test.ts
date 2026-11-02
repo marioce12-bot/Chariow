@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import crypto from "node:crypto";
 
-const mocks = vi.hoisted(() => ({ createAdminClient: vi.fn(), stores: [] as any[], failDelete: false, updates: [] as any[], lookups: 0 }));
+const mocks = vi.hoisted(() => ({ createAdminClient: vi.fn(), stores: [] as any[], failDelete: false, updates: [] as any[], lookups: 0, invalidateUserStoreList: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock("@/lib/shopify/sync", () => ({ syncShopifyStore: vi.fn() }));
+vi.mock("@/lib/shop/cache", () => ({ invalidateUserStoreList: mocks.invalidateUserStoreList }));
 import { POST } from "./route";
 import { verifyShopifyWebhook } from "@/lib/shopify/webhooks";
 
@@ -27,7 +28,7 @@ describe("Shopify lifecycle webhooks", () => {
   ];
   beforeEach(() => {
     process.env.SHOPIFY_CLIENT_SECRET = secret;
-    mocks.stores = stores.map((s) => ({ ...s })); mocks.failDelete = false; mocks.updates = []; mocks.lookups = 0;
+    mocks.stores = stores.map((s) => ({ ...s })); mocks.failDelete = false; mocks.updates = []; mocks.lookups = 0; mocks.invalidateUserStoreList.mockClear();
     mocks.createAdminClient.mockImplementation(() => ({ from(table: string) {
       let filters: Record<string, any> = {};
       const chain: any = {
@@ -57,6 +58,8 @@ describe("Shopify lifecycle webhooks", () => {
     expect(response.status).toBe(200);
     expect(mocks.lookups).toBe(2);
     expect(mocks.updates).toHaveLength(2);
+    expect(mocks.invalidateUserStoreList).toHaveBeenCalledWith("user-a");
+    expect(mocks.invalidateUserStoreList).toHaveBeenCalledWith("user-b");
     expect(mocks.updates.map((u) => u.patch)).toEqual([
       { is_active: false, connection_status: "revoked" },
       { is_active: false, connection_status: "revoked" },
@@ -68,6 +71,8 @@ describe("Shopify lifecycle webhooks", () => {
     expect(response.status).toBe(200);
     expect(mocks.lookups).toBe(1);
     expect(mocks.updates).toHaveLength(2);
+    expect(mocks.invalidateUserStoreList).toHaveBeenCalledWith("user-a");
+    expect(mocks.invalidateUserStoreList).toHaveBeenCalledWith("user-b");
     for (const { patch, filters } of mocks.updates) {
       expect(filters).toMatchObject({ id: expect.stringMatching(/^store-/), platform: "shopify" });
       expect(patch).toMatchObject({ is_active: false, connection_status: "revoked", shop_domain: null, sales_last_synced_at: null, sales_sync_error: null });

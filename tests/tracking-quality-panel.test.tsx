@@ -37,7 +37,7 @@ describe("TrackingQualityPanel", () => {
     expect(details.querySelector("summary")?.textContent).toBe("Voir les détails (3)");
     expect(host.textContent).toContain("Suivi à vérifier");
     expect(host.textContent).toContain("3 points à vérifier.");
-    expect(host.textContent).toContain("Rentabilité incomplète");
+    expect(host.textContent).toContain("Rapprochement ventes-publicités incomplet");
     await act(async () => { details.open = true; details.dispatchEvent(new Event("toggle", { bubbles: true })); });
     for (const message of messages) expect(host.textContent).toContain(message);
     expect(host.textContent).toContain("Les actions automatiques restent conditionnées à un suivi des achats validé et à des limites de budget explicites.");
@@ -46,7 +46,7 @@ describe("TrackingQualityPanel", () => {
   it("keeps the concise warning visible when the endpoint errors", async () => {
     await mount(vi.fn(async () => ({ ok: false, json: async () => ({ error: "Service momentanément indisponible." }) })));
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("Service momentanément indisponible.");
-    expect(host.textContent).toContain("Rentabilité incomplète");
+    expect(host.textContent).toContain("Rapprochement ventes-publicités incomplet");
     expect(host.textContent).toContain("Vérification des liens entre ventes et pubs.");
   });
 });

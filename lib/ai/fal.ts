@@ -165,7 +165,7 @@ function decodeJobId(jobId: string) {
   return { model: jobId.slice(0, separatorIndex), requestId: jobId.slice(separatorIndex + 2) };
 }
 
-export async function createFalVideo(prompt: string, options: StudioVideoGenerationOptions) {
+export async function createFalVideo(prompt: string, options: StudioVideoGenerationOptions, webhookUrl?: string) {
   ensureConfigured();
   // Validation stricte : aucune valeur n'est transformée silencieusement. Si une
   // valeur non supportée arrive jusqu'ici, c'est un bug de l'interface et on
@@ -173,6 +173,13 @@ export async function createFalVideo(prompt: string, options: StudioVideoGenerat
   if (!isSupportedVideoDuration(options.duration)) throw new Error(`Durée vidéo non supportée : ${options.duration}s`);
   if (!isSupportedVideoResolution(options.resolution)) throw new Error(`Résolution vidéo non supportée : ${options.resolution}`);
   if (!isSupportedVideoAspectRatio(options.aspectRatio)) throw new Error(`Format vidéo non supporté : ${options.aspectRatio}`);
+  if (webhookUrl) {
+    let callback: URL;
+    try { callback = new URL(webhookUrl); }
+    catch { throw new Error("fal.ai webhook URL is invalid"); }
+    if (callback.protocol !== "https:" && !(callback.protocol === "http:" && ["localhost", "127.0.0.1"].includes(callback.hostname)))
+      throw new Error("fal.ai webhook URL must use HTTPS");
+  }
 
   const duration = options.duration;
   const resolution = options.resolution;
@@ -191,7 +198,7 @@ export async function createFalVideo(prompt: string, options: StudioVideoGenerat
   }
 
   try {
-    const { request_id } = await fal.queue.submit(model, { input });
+    const { request_id } = await fal.queue.submit(model, { input, ...(webhookUrl ? { webhookUrl } : {}) });
     if (!request_id) throw new Error("fal.ai n'a renvoyé aucun identifiant de génération vidéo");
     return encodeJobId(model, request_id);
   } catch (error) {

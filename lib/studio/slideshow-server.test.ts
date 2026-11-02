@@ -5,7 +5,9 @@ import { isRemixSlideshowDuration, isPreviewEnabled, publicTracks, resolveTrackP
 
 describe("slideshow backend safety", () => {
   const prior = process.env.VERCEL_ENV;
-  afterEach(() => { if (prior === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = prior; });
+  afterEach(() => {
+    if (prior === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = prior;
+  });
 
   it("enables the released slideshow on Vercel Preview and Production only", () => {
     process.env.VERCEL_ENV = "preview";

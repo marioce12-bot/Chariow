@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
@@ -17,6 +17,7 @@ vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: language.locale, t
 vi.mock("@/components/ChatView", () => ({ ChatView: () => null }));
 vi.mock("@/components/NotificationCenter", () => ({ NotificationCenter: () => null }));
 vi.mock("@/components/vendeo/AutopilotView", () => ({ AutopilotView: () => null }));
+vi.mock("@/components/dashboard/useChariowSalesRealtime", () => ({ useChariowSalesRealtime: () => {} }));
 vi.mock("@/components/NotificationsView", () => ({ NotificationsView: () => null }));
 vi.mock("@/components/vendeo", () => ({ ImpactFinancierCard: () => null, LaunchAdBar: () => null, CampaignCrossTable: () => null, DiagnosticBoutique: () => null }));
 vi.mock("@/components/vendeo/wizard", () => ({ LaunchAdWizard: () => null }));
@@ -32,7 +33,6 @@ vi.mock("@/components/dashboard/sections", () => ({
 vi.mock("@/components/dashboard/AdSpendByChannel", () => ({ AdSpendByChannel: () => null }));
 vi.mock("@/components/vendeo/AdCampaignsList", () => ({ AdCampaignsList: () => null }));
 
-vi.mock("@/components/dashboard/ProductProfitPanel", () => ({ default: () => null }));
 vi.mock("@/components/dashboard/RecoveryPanel", () => ({ default: () => null }));
 
 import { Dashboard } from "@/components/Dashboard";
@@ -53,6 +53,11 @@ async function mount() {
   await act(async () => { root.render(createElement(Dashboard)); });
 }
 
+beforeEach(() => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+});
 afterEach(async () => {
   if (root) await act(async () => root.unmount());
   host?.remove();

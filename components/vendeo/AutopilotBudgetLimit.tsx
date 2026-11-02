@@ -43,7 +43,7 @@ export function AutopilotBudgetLimit({ campaignId, enabled = false, liveStatus, 
   const requestRef = useRef<AbortController | null>(null);
   const generationRef = useRef(0);
   const refreshStatus = useCallback(async () => {
-    if (document.visibilityState !== "visible" || requestRef.current) return;
+    if (document.visibilityState !== "visible" || !document.hasFocus() || requestRef.current) return;
     const controller = new AbortController();
     requestRef.current = controller;
     const generation = generationRef.current;
@@ -69,13 +69,15 @@ export function AutopilotBudgetLimit({ campaignId, enabled = false, liveStatus, 
     generationRef.current++;
     requestRef.current?.abort(); requestRef.current = null;
     setVerified(liveStatus);
-    if (!isAutopilotLive(liveStatus)) void refreshStatus();
-    const poll = window.setInterval(() => { if (document.visibilityState === "visible") void refreshStatus(); }, 30_000);
-    const onVisibility = () => { if (document.visibilityState === "visible") void refreshStatus(); };
+    if (document.visibilityState === "visible" && document.hasFocus() && !isAutopilotLive(liveStatus)) void refreshStatus();
+    // Aucun polling périodique par campagne : l'API revalide toujours la plateforme
+    // au moment d'activer. La vérification UI repart au focus, au retour d'onglet
+    // ou sur action explicite, sans appels Meta/TikTok toutes les 30 secondes.
+    const onVisibility = () => { if (document.visibilityState === "visible" && document.hasFocus()) void refreshStatus(); };
     const onFocus = () => void refreshStatus();
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("focus", onFocus);
-    return () => { window.clearInterval(poll); document.removeEventListener("visibilitychange", onVisibility); window.removeEventListener("focus", onFocus); requestRef.current?.abort(); requestRef.current = null; generationRef.current++; };
+    return () => { document.removeEventListener("visibilitychange", onVisibility); window.removeEventListener("focus", onFocus); requestRef.current?.abort(); requestRef.current = null; generationRef.current++; };
   }, [campaignId, liveStatus, refreshStatus]);
   useEffect(() => {
     if (!verified?.checked_at) return;

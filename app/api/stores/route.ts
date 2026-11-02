@@ -2,20 +2,19 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getChariowSnapshot } from "@/lib/chariow/analytics";
 import { resolveUserMaxStores } from "@/lib/plans";
+import { getCachedActiveStores } from "@/lib/shop/store-list";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 const platforms = ["chariow", "selar", "gumroad"] as const;
 
 export async function GET() {
-  const { supabase, user, response } = await requireUser();
+  const { user, response } = await requireUser();
   if (!user) return response;
-  const { data, error } = await supabase
-    .from("stores")
-    .select("id, platform, store_name, logo_url, image, mcp_url, is_active, connection_status, connection_error, connected_at, created_at")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .order("created_at", { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ stores: data });
+  try {
+    return NextResponse.json({ stores: await getCachedActiveStores(user.id) });
+  } catch {
+    return NextResponse.json({ error: "Impossible de charger les boutiques" }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -45,6 +44,7 @@ export async function POST(request: Request) {
     .select("id, platform, store_name, logo_url, image, mcp_url, connection_status, is_active, connected_at")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  invalidateUserStoreList(user.id);
 
   // Vérification MCP réelle avant de marquer comme connecté.
   try {
@@ -59,6 +59,7 @@ export async function POST(request: Request) {
       .update({ connection_status: "connected", connection_error: null, connected_at: new Date().toISOString() })
       .eq("id", data.id);
     if (upError) return NextResponse.json({ error: upError.message }, { status: 500 });
+    invalidateUserStoreList(user.id);
 
     const { data: updated } = await supabase
       .from("stores")
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
       .update({ connection_status: "failed", connection_error: message })
       .eq("id", data.id);
     if (upError) return NextResponse.json({ error: upError.message }, { status: 500 });
+    invalidateUserStoreList(user.id);
 
     const { data: updated } = await supabase
       .from("stores")

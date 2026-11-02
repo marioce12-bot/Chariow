@@ -15,6 +15,11 @@ describe("Assistant navigation requests", () => {
     expect(resolveChatNavigationRequest(question)?.section).toBe(section);
   });
 
+  it("does not route requests to the removed Net profit section", () => {
+    expect(resolveChatNavigationRequest("Où consulter les bénéfices nets ?")).toBeNull();
+    expect(CHAT_NAVIGATION_TARGETS.some((entry) => /bénéfices nets|net profit/i.test(`${entry.section} ${entry.labelFr} ${entry.labelEn}`))).toBe(false);
+  });
+
   it("keeps Assistant and Recommendation labels and has no Visuals destination", () => {
     expect(CHAT_NAVIGATION_TARGETS.find((entry) => entry.section === "Vendeo AI")).toMatchObject({ labelFr: "Assistant", routeLabelFr: "Assistant" });
     expect(CHAT_NAVIGATION_TARGETS.find((entry) => entry.section === "Performance publicitaire")).toMatchObject({ labelFr: "Recommandation", routeLabelFr: "Recommandation" });

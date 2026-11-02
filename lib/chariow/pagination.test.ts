@@ -26,9 +26,12 @@ describe("sale amount provenance", () => {
   it("does not manufacture zero amounts, dates or customer identifiers", () => {
     const [row] = chariowSaleRows("store", [{ id: "sale" }]);
     expect(row.amount).toBeNull(); expect(row.net_amount).toBeNull(); expect(row.occurred_at).toBeNull(); expect(row).not.toHaveProperty("customer_id");
+    expect(Object.keys(row.raw_payload).sort()).toEqual(["amount", "created_at", "currency", "event_id", "product_id", "product_name", "status", "store_id", "user_id"]);
   });
   it("preserves observed zero net and actual paid amounts", () => {
-    const [row] = chariowSaleRows("store", [{ id: "sale", amount: { value: "100", currency: "XOF" }, settlement: { amount: { value: 0 } }, customer: { id: "customer" } }]);
-    expect(row.amount).toBe(100); expect(row.net_amount).toBe(0); expect(row.raw_payload).toHaveProperty("customer.id", "customer");
+    const [row] = chariowSaleRows("store", [{ id: "sale", status: "paid", product: { id: "p1", name: "Livre" }, amount: { value: "100", currency: "XOF" }, settlement: { amount: { value: 0 } }, customer: { id: "customer", email: "private@example.invalid" } }], "owner");
+    expect(row.amount).toBe(100); expect(row.net_amount).toBe(0);
+    expect(row.raw_payload).toEqual({ event_id: "sale", store_id: "store", user_id: "owner", status: "paid", amount: 100, currency: "XOF", product_id: "p1", product_name: "Livre", created_at: null });
+    expect(JSON.stringify(row.raw_payload)).not.toMatch(/customer|private@example/);
   });
 });

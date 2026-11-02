@@ -60,17 +60,6 @@ export const MOBILE_DASHBOARD_TOUR_STEPS: readonly DashboardTourStep[] = [
     english: "Vendeo automatically looks for a proposal based on measured advertising results. If the data is insufficient, no proposal is shown. A red dot marks a new recommendation; review the draft before taking action.",
   },
   {
-    id: "net-profit",
-    target: "mobile-menu:Bénéfices nets",
-    activeSection: "Bénéfices nets",
-    openMobileMenu: true,
-    menuTarget: "Bénéfices nets",
-    fr: "Bénéfices nets",
-    en: "Net profit",
-    body: "Le menu « … » s’ouvre et met cette entrée en évidence. Bénéfices nets aide à examiner la rentabilité à partir des données disponibles.",
-    english: "The “…” menu opens and highlights this entry. Net profit helps you review profitability using the data available.",
-  },
-  {
     id: "whatsapp",
     target: "mobile-menu:Relances WhatsApp",
     activeSection: "Relances WhatsApp",
@@ -143,15 +132,6 @@ export const DESKTOP_DASHBOARD_TOUR_STEPS: readonly DashboardTourStep[] = [
     en: "Overview: your key metrics",
     body: "Revenu net, Ventes, Panier moyen et Campagnes en cours restent calculés à partir des données disponibles. Sur ordinateur, les couleurs pastel distinguent les cartes KPI et le graphique Meta est moins haut; les valeurs et données ne changent pas.",
     english: "Net revenue, Sales, Average basket and Running campaigns still use the available data. On desktop, pastel colors distinguish the KPI cards and the Meta chart is shorter; the values and data are unchanged.",
-  },
-  {
-    id: "net-profit",
-    target: "Bénéfices nets",
-    activeSection: "Bénéfices nets",
-    fr: "Bénéfices nets",
-    en: "Net profit",
-    body: "Examine la rentabilité avec les données disponibles. Une valeur absente n’est pas remplacée par une estimation inventée.",
-    english: "Review profitability using the available data. Missing values are not replaced with invented estimates.",
   },
   {
     id: "whatsapp",

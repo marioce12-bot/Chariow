@@ -154,7 +154,7 @@ export async function generateStudioImage(
     if (stage && generationError.code === "23505") {
       const existing = await admin.from("studio_generations").select("id,user_id,status,storage_path,credits_cost").eq("id", stage.generationId).eq("user_id", userId).maybeSingle();
       if (!existing.error && existing.data?.status === "completed" && existing.data.storage_path) {
-        return NextResponse.json({ imageUrl: await signedStudioUrl(existing.data.storage_path), generationId: stage.generationId, cost: existing.data.credits_cost ?? cost });
+        return NextResponse.json({ imageUrl: await signedStudioUrl(existing.data.storage_path, userId), generationId: stage.generationId, cost: existing.data.credits_cost ?? cost });
       }
       return stagedUncertain(stage, cost);
     }
@@ -162,6 +162,28 @@ export async function generateStudioImage(
       { error: "L'historique Studio n'est pas configuré." },
       { status: 503 },
     );
+  }
+
+  const quotaReservation = await admin.rpc("reserve_image_slot", {
+    p_user_id: userId,
+    p_request_id: generation.id,
+  });
+  if (quotaReservation.error) {
+    await admin.from("studio_generation_quota_reservations").delete().eq("user_id", userId).eq("request_id", generation.id);
+    await admin.from("studio_generations").delete().eq("id", generation.id).eq("user_id", userId).eq("status", "processing");
+    console.error("Studio image quota reservation failed", quotaReservation.error.code ?? "unknown");
+    return NextResponse.json({ error: "Impossible de vérifier le quota image. Réessaie plus tard." }, { status: 503 });
+  }
+  const imageQuota = quotaReservation.data as { ok?: boolean; reason?: string; used?: number; daily_limit?: number; reset_at?: string } | null;
+  if (!imageQuota?.ok) {
+    await admin.from("studio_generations").delete().eq("id", generation.id).eq("user_id", userId).eq("status", "processing");
+    return NextResponse.json({
+      error: "Le quota quotidien de génération d’images est atteint.",
+      code: imageQuota?.reason ?? "DAILY_IMAGE_LIMIT",
+      used: imageQuota?.used,
+      limit: imageQuota?.daily_limit ?? 50,
+      reset_at: imageQuota?.reset_at,
+    }, { status: 429, headers: { "Cache-Control": "private, no-store" } });
   }
 
   const reservation = await admin.rpc("reserve_credits", {
@@ -173,6 +195,7 @@ export async function generateStudioImage(
     request_id: stage?.generationId ?? crypto.randomUUID(),
   });
   if (reservation.error) {
+    await admin.rpc("release_image_slot", { p_user_id: userId, p_request_id: generation.id });
     if (stage) { await setCreditState(admin, userId, stage.generationId, generationMetadata, "uncertain"); return stagedUncertain(stage, cost, "reservation_error"); }
     console.error(
       "Studio credit reservation error",
@@ -197,6 +220,7 @@ export async function generateStudioImage(
     transaction_id?: string;
   } | null;
   if (!reserveResult?.ok) {
+    await admin.rpc("release_image_slot", { p_user_id: userId, p_request_id: generation.id });
     // Refused before any reservation or provider call: nothing was charged. For a staged step, drop the
     // placeholder row so the very same step can be retried safely after a top-up (no "uncertain" state).
     if (stage) await admin.from("studio_generations").delete().eq("id", generation.id).eq("user_id", userId).eq("status", "processing");
@@ -244,6 +268,9 @@ export async function generateStudioImage(
     const debit = await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
     if (stage && (debit.error || debit.data !== true)) { await setCreditState(admin, userId, generation.id, generationMetadata, "uncertain"); return stagedUncertain(stage, cost, "debit_error"); }
     if (stage && !(await setCreditState(admin, userId, generation.id, generationMetadata, "consumed"))) return stagedUncertain(stage, cost, "persistence_error");
+    const quotaCompletion = await admin.rpc("complete_image_slot", { p_user_id: userId, p_request_id: generation.id });
+    if (quotaCompletion.error || quotaCompletion.data?.completed !== true)
+      console.error("Studio image quota completion uncertain", quotaCompletion.error?.code ?? quotaCompletion.data?.status ?? "unknown");
     const saved = await admin
       .from("studio_generations")
       .update({ status: "completed", storage_path: storagePath, ...(stage ? { metadata: { ...generationMetadata, creditState: "consumed" } } : {}) })
@@ -254,12 +281,14 @@ export async function generateStudioImage(
         "Le visuel n’a pas pu être enregistré dans l’historique. Montage annulé.",
       );
     return NextResponse.json({
-      imageUrl: storagePath ? await signedStudioUrl(storagePath) : imageUrl,
+      imageUrl: storagePath ? await signedStudioUrl(storagePath, userId) : imageUrl,
       generationId: generation.id,
       cost,
     });
   } catch (error) {
     const refund = await admin.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });
+    const quotaRelease = await admin.rpc("release_image_slot", { p_user_id: userId, p_request_id: generation.id });
+    if (quotaRelease.error) console.error("Studio image quota release failed", quotaRelease.error.code ?? "unknown");
     if (stage) {
       const state = refund.error ? "uncertain" : "refunded";
       if (!(await setCreditState(admin, userId, generation.id, generationMetadata, state))) return stagedUncertain(stage, cost, "persistence_error");

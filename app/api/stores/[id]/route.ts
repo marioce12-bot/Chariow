@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { supabase, user, response } = await requireUser();
@@ -23,5 +24,6 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     connection_error: null,
   }).eq("id", id).eq("user_id", user.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  invalidateUserStoreList(user.id);
   return NextResponse.json({ success: true });
 }
