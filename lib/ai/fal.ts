@@ -232,7 +232,7 @@ export async function submitFalQueueUtility(endpoint: string, input: Record<stri
   }
 }
 
-export async function downloadFalQueueUtilityFile(jobId: string, kind: "video" | "image") {
+export async function getFalQueueUtilityFileUrl(jobId: string, kind: "video" | "image") {
   ensureConfigured();
   const { model, requestId } = decodeJobId(jobId);
   const result = (await fal.queue.result(model, { requestId })) as {
@@ -240,6 +240,11 @@ export async function downloadFalQueueUtilityFile(jobId: string, kind: "video" |
   };
   const url = kind === "video" ? result?.data?.video?.url : result?.data?.images?.[0]?.url;
   if (!url) throw new Error(`fal.ai n'a renvoyé aucun résultat ${kind} pour l'utilitaire vidéo`);
+  return url;
+}
+
+export async function downloadFalQueueUtilityFile(jobId: string, kind: "video" | "image") {
+  const url = await getFalQueueUtilityFileUrl(jobId, kind);
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) throw new Error(`fal.ai utility content download returned ${response.status}`);
   return { body: await response.arrayBuffer(), contentType: response.headers.get("content-type") || (kind === "video" ? "video/mp4" : "image/png") };

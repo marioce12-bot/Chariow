@@ -28,7 +28,7 @@ function timestamp(...values: unknown[]) {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
 }
 
-export function chariowSaleRows(storeId: string, sales: unknown, userId?: string | null) {
+export function chariowSaleRows(storeId: string, sales: unknown, userId?: string | null, options: { includeCustomerId?: boolean } = {}) {
   return arrayValue(sales).map((item) => {
     const sale = record(item);
     const product = record(sale.product);
@@ -69,6 +69,9 @@ export function chariowSaleRows(storeId: string, sales: unknown, userId?: string
       occurred_at: occurredAt,
       updated_at: new Date().toISOString(),
       raw_payload: safePayload,
+      ...(options.includeCustomerId ? {
+        customer_id: String(sale.customer_id ?? record(sale.customer).id ?? record(sale.customer).uuid ?? "") || null,
+      } : {}),
     };
   }).filter((row) => row.chariow_sale_id);
 }

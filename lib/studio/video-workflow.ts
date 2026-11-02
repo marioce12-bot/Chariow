@@ -3,16 +3,16 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createFalVideo, downloadFalVideo, downloadFalQueueUtilityFile, FAL_EXTRACT_FRAME_ENDPOINT, FAL_MERGE_VIDEOS_ENDPOINT, getFalVideoJob, submitFalQueueUtility } from "@/lib/ai/fal";
-import { assembleVideo, extractLastFrame } from "@/lib/studio/video-assembly";
-import { probeVideoFile, validateFinalPortraitVideo } from "@/lib/studio/video-probe";
+import { createFalVideo, downloadFalQueueUtilityFile, FAL_EXTRACT_FRAME_ENDPOINT, FAL_MERGE_VIDEOS_ENDPOINT, getFalQueueUtilityFileUrl, getFalVideoJob, getFalVideoUrl, submitFalQueueUtility } from "@/lib/ai/fal";
+import { extractLastFrame } from "@/lib/studio/video-assembly";
 import { packagedVideoBinaries } from "@/lib/studio/video-runtime";
-import { signedStudioUrl, storeStudioVideo } from "@/lib/studio/media";
+import { signedStudioUrl } from "@/lib/studio/media";
+import { deleteCloudinaryStudioAsset, importFalMediaToCloudinary, isCloudinaryStudioPath } from "@/lib/studio/cloudinary-media";
 import { deleteStudioVideoArtifacts, readStudioVideoArtifact, storeStudioVideoArtifact } from "@/lib/studio/video-artifacts";
-import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
+import { confirmCreditTransition, confirmStudioVideoPartialRefund } from "@/lib/studio/credit-rpc";
 import type { VideoAdPlan } from "@/lib/studio/video-plan";
 import { isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
-import { falJobReferenceMetadata, storedFalJobReference } from "@/lib/studio/video-job-reference";
+import { falJobReferenceMetadata, parseFalJobReference, storedFalJobReference } from "@/lib/studio/video-job-reference";
 
 const MAX_POLLS_PER_SEGMENT = 60;
 const POLL_DELAY = "10s";
@@ -23,13 +23,14 @@ type VideoRow = {
   status: string;
   storage_path: string | null;
   credit_transaction_id: string | null;
+  credits_cost: number;
   metadata: Record<string, any>;
 };
 
 async function readVideoRow(id: string): Promise<VideoRow | null> {
   const { data, error } = await createAdminClient()
     .from("studio_generations")
-    .select("id,user_id,status,storage_path,credit_transaction_id,metadata")
+    .select("id,user_id,status,storage_path,credit_transaction_id,credits_cost,metadata")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error("Le suivi vidéo est indisponible.");
@@ -189,19 +190,23 @@ export async function submitVideoSegmentStep(id: string, index: 0 | 1): Promise<
 
   let submittedJobId: string | null = null;
   try {
-    submittedJobId = await createFalVideo(segment.prompt, {
+    const videoOptions = {
       duration: segment.duration as 10 | 15,
       resolution,
       aspectRatio,
       referenceUrl: typeof referenceUrl === "string" ? referenceUrl : undefined,
-    });
+    };
+    const singleClip = plan.segments.length === 1;
+    submittedJobId = singleClip && process.env.FAL_WEBHOOK_URL
+      ? await createFalVideo(segment.prompt, videoOptions, process.env.FAL_WEBHOOK_URL)
+      : await createFalVideo(segment.prompt, videoOptions);
     const saved: Record<string, any> = await patchVideoRow(id, {
       [stateKey]: "submitted",
       ...falJobReferenceMetadata(segmentPrefix, submittedJobId),
       phase: `segment${index}_processing`,
       progress: index === 0 ? 10 : 58,
       creditState: "reserved",
-    });
+    }, singleClip ? { provider_request_id: parseFalJobReference(submittedJobId).requestId } : {});
     if (saved[stateKey] !== "submitted" || saved[`${segmentPrefix}JobId`] !== submittedJobId) throw new Error("Le job vidéo n’a pas pu être confirmé.");
     await setDailyQuotaState(row, "submitted");
     return submittedJobId;
@@ -248,8 +253,8 @@ export async function storeVideoSegmentStep(id: string, index: 0 | 1, jobId: str
   }
   const pathKey = `segment${index}StoragePath`;
   if (typeof metadata[pathKey] === "string") return metadata[pathKey] as string;
-  const video = await downloadFalVideo(jobId);
-  const storagePath = await storeStudioVideoArtifact(row.user_id, id, `segment-${index}.mp4`, video.body, video.contentType || "video/mp4");
+  const videoUrl = await getFalVideoUrl(jobId);
+  const storagePath = await importFalMediaToCloudinary(videoUrl, row.user_id, id, "video", index);
   await patchVideoRow(id, {
     [`segment${index}State`]: "completed",
     [pathKey]: storagePath,
@@ -409,55 +414,20 @@ export async function assembleAndFinalizeVideoStep(id: string, falMergeJobId: st
   if (row.status === "completed" && row.storage_path) return row.storage_path;
   const metadata = row.metadata ?? {};
   const plan = metadata.plan as VideoAdPlan | undefined;
-  if (!plan || plan.duration !== 25 || typeof metadata.segment0StoragePath !== "string" || typeof metadata.segment1StoragePath !== "string") throw new Error("Les deux séquences vidéo ne sont pas prêtes.");
+  if (!plan || ![10, 15, 25].includes(plan.duration) || typeof metadata.segment0StoragePath !== "string" || (plan.segments.length > 1 && typeof metadata.segment1StoragePath !== "string")) throw new Error("Les séquences vidéo ne sont pas prêtes.");
   if (falMergeJobId && storedFalJobReference(metadata, "merge") !== falMergeJobId) throw new FatalError("STUDIO_VIDEO_MERGE_JOB_MISMATCH");
 
   let storagePath = row.storage_path;
   if (!storagePath) {
-    const binaries = packagedVideoBinaries();
-    if (!binaries) throw new Error("Le probe vidéo ou le repli audio sûr n’est pas disponible.");
-    const dir = await mkdtemp(path.join(tmpdir(), "vendeo-video-final-"));
-    try {
-      let finalBytes: Buffer | null = null;
-      let mergeMethod = "local-fallback";
-      if (falMergeJobId) {
-        try {
-          const merged = await downloadFalQueueUtilityFile(falMergeJobId, "video");
-          const mergedPath = path.join(dir, "fal-merged.mp4");
-          await writeFile(mergedPath, Buffer.from(merged.body));
-          validateFinalPortraitVideo(await probeVideoFile(mergedPath, binaries.ffprobePath));
-          finalBytes = await readFile(mergedPath);
-          mergeMethod = "fal-merge";
-        } catch (error) {
-          console.warn("[studio-video] Fal merge output failed strict 25s/9:16/audio validation; using the local safe fallback", {
-            reason: error instanceof Error ? error.message.slice(0, 240) : "unknown",
-          });
-        }
-      }
-
-      if (!finalBytes) {
-        const clips = [];
-        for (const [index, assetPath] of [metadata.segment0StoragePath, metadata.segment1StoragePath].entries()) {
-          const clipPath = path.join(dir, `segment-${index}.mp4`);
-          await writeFile(clipPath, await readStudioVideoArtifact(assetPath));
-          const probe = await probeVideoFile(clipPath, binaries.ffprobePath);
-          const expectedDuration = plan.segments[index].duration;
-          if (!probe.hasAudio || !Number.isFinite(probe.audioDuration) || probe.audioDuration + 0.1 < expectedDuration) {
-            throw new Error(`La piste audio de la séquence ${index + 1} est absente ou trop courte; aucun résultat silencieux ne sera publié.`);
-          }
-          clips.push({ url: clipPath, duration: expectedDuration, index });
-        }
-        const outputPath = path.join(dir, "final-fallback.mp4");
-        await assembleVideo(clips, plan, { ...binaries, outputPath, width: 720, height: 1280, fps: 30 });
-        validateFinalPortraitVideo(await probeVideoFile(outputPath, binaries.ffprobePath));
-        finalBytes = await readFile(outputPath);
-      }
-
-      storagePath = await storeStudioVideo({ body: finalBytes.buffer.slice(finalBytes.byteOffset, finalBytes.byteOffset + finalBytes.byteLength) as ArrayBuffer, contentType: "video/mp4" }, row.user_id, id);
-      await patchVideoRow(id, { phase: "final_asset_saved", progress: 94, mergeMethod, mergeState: mergeMethod === "fal-merge" ? "completed" : "fallback" }, { storage_path: storagePath });
-    } finally {
-      await rm(dir, { recursive: true, force: true });
+    const mergeMethod = plan.segments.length === 1 ? "single-clip" : "fal-merge";
+    if (plan.segments.length === 1) {
+      storagePath = metadata.segment0StoragePath;
+    } else {
+      if (!falMergeJobId) throw new Error("Le rendu distant de fusion n’est pas prêt.");
+      const mergedUrl = await getFalQueueUtilityFileUrl(falMergeJobId, "video");
+      storagePath = await importFalMediaToCloudinary(mergedUrl, row.user_id, id, "video");
     }
+    await patchVideoRow(id, { phase: "final_asset_saved", progress: 94, mergeMethod, mergeState: plan.segments.length === 1 ? "not_required" : "completed" }, { storage_path: storagePath });
   }
 
   const transactionId = row.credit_transaction_id;
@@ -474,9 +444,14 @@ export async function assembleAndFinalizeVideoStep(id: string, falMergeJobId: st
   await setDailyQuotaState(row, "completed");
 
   const current = await readVideoRow(id);
-  const temporaryPaths = [current?.metadata?.segment0StoragePath, current?.metadata?.segment1StoragePath, current?.metadata?.continuityFramePath]
+  const temporaryPaths = [current?.metadata?.continuityFramePath]
     .filter((value): value is string => typeof value === "string");
   await deleteStudioVideoArtifacts(temporaryPaths).catch(() => undefined);
+  if (plan.segments.length > 1) {
+    const segmentPaths = [current?.metadata?.segment0StoragePath, current?.metadata?.segment1StoragePath]
+      .filter((value): value is string => typeof value === "string" && isCloudinaryStudioPath(value));
+    await Promise.all(segmentPaths.map((value) => deleteCloudinaryStudioAsset(value, row.user_id))).catch(() => undefined);
+  }
   return storagePath;
 }
 
@@ -488,7 +463,7 @@ export async function failVideoWorkflowStep(id: string, reason: "provider_reject
   const previousSegmentGenerated = [metadata.segment0State, metadata.segment1State].includes("completed")
     || typeof metadata.segment0StoragePath === "string"
     || typeof metadata.segment1StoragePath === "string";
-  let creditState: "uncertain" | "refunded" | "consumed" = "uncertain";
+  let creditState: "uncertain" | "refunded" | "consumed" | "partially_refunded" = "uncertain";
   const transactionId = row.credit_transaction_id;
   let transactionStatus: string | null = null;
   if (transactionId) {
@@ -497,20 +472,27 @@ export async function failVideoWorkflowStep(id: string, reason: "provider_reject
   }
   if (transactionStatus === "refunded") creditState = "refunded";
   else if (transactionStatus === "completed") creditState = "consumed";
-  const refundEligible = (reason === "provider_rejected" || reason === "provider_failed") && !previousSegmentGenerated;
-  if (refundEligible) {
-    if (transactionId && transactionStatus === "pending") {
-      if (await confirmCreditTransition(createAdminClient(), "refund_credit_debit", transactionId, { userId: row.user_id })) creditState = "refunded";
-      else {
-        const check = await createAdminClient().from("credit_transactions").select("status").eq("id", transactionId).maybeSingle();
-        if (!check.error && check.data?.status === "refunded") creditState = "refunded";
-        else if (!check.error && check.data?.status === "completed") creditState = "consumed";
-      }
+  const refundEligible = (reason === "provider_rejected" || reason === "provider_failed") && transactionStatus === "pending";
+  const plan = metadata.plan as VideoAdPlan | undefined;
+  const totalDuration = plan?.duration ?? 0;
+  const generatedDuration = plan?.segments.reduce((seconds, segment, index) => {
+    const generated = metadata[`segment${index}State`] === "completed" || typeof metadata[`segment${index}StoragePath`] === "string";
+    return seconds + (generated ? segment.duration : 0);
+  }, 0) ?? 0;
+  let refundCredits = 0;
+  if (refundEligible && transactionId && totalDuration > 0 && row.credits_cost > 0) {
+    refundCredits = Math.floor(row.credits_cost * Math.max(0, totalDuration - generatedDuration) / totalDuration);
+    if (refundCredits >= row.credits_cost) {
+      if (await confirmCreditTransition(createAdminClient(), "refund_credit_debit", transactionId, { userId: row.user_id, amount: row.credits_cost })) creditState = "refunded";
+    } else if (refundCredits > 0) {
+      if (await confirmStudioVideoPartialRefund(createAdminClient(), transactionId, id, row.user_id, refundCredits)) creditState = "partially_refunded";
     }
   }
   const providerRejected = reason === "provider_rejected";
   const uncertain = creditState === "uncertain";
-  const userMessage = previousSegmentGenerated
+  const userMessage = creditState === "partially_refunded"
+    ? `Une partie du rendu vidéo a échoué après la génération d’une séquence; ${refundCredits} crédits ont été remboursés au prorata. Ne relance pas cette même demande.`
+    : previousSegmentGenerated
     ? creditState === "refunded"
       ? "Une séquence vidéo a déjà été générée avant l’échec, mais les crédits ont été libérés. Ne relance pas cette génération."
       : creditState === "consumed"
@@ -569,7 +551,10 @@ export async function studioVideoWorkflow(id: string) {
     if (!(await claimVideoWorkflowStep(id))) return;
     const initial = await inspectVideoWorkflowStep(id);
     if (!initial || initial.status !== "processing") return;
-    for (const index of [0, 1] as const) {
+    const initialPlan = initial.metadata?.plan as VideoAdPlan | undefined;
+    if (!initialPlan || ![10, 15, 25].includes(initialPlan.duration)) throw new Error("Plan de durée vidéo absent ou invalide.");
+    const segmentCount = initialPlan.segments.length;
+    for (const index of (segmentCount === 1 ? [0] as const : [0, 1] as const)) {
       let jobId = await submitVideoSegmentStep(id, index);
       if (!jobId) {
         const current = await inspectVideoWorkflowStep(id);
@@ -594,7 +579,7 @@ export async function studioVideoWorkflow(id: string) {
         return;
       }
       await storeVideoSegmentStep(id, index, jobId);
-      if (index === 0) {
+      if (index === 0 && segmentCount > 1) {
         const continuityState = await inspectVideoWorkflowStep(id);
         if (typeof continuityState?.metadata?.continuityFramePath === "string") continue;
         const frameJobId = await submitVideoContinuityFrameStep(id);
@@ -611,12 +596,19 @@ export async function studioVideoWorkflow(id: string) {
           await sleep(POLL_DELAY);
         }
         if (frameTerminal === "completed") await storeVideoContinuityFrameStep(id, frameJobId);
-        else if (frameTerminal === "failed") await extractVideoContinuityFrameFallbackStep(id);
-        else {
+        else if (frameTerminal === "failed") {
+          await failVideoWorkflowStep(id, "provider_failed");
+          return;
+        } else {
           await failVideoWorkflowStep(id, "uncertain");
           return;
         }
       }
+    }
+
+    if (segmentCount === 1) {
+      await assembleAndFinalizeVideoStep(id, null);
+      return;
     }
 
     const mergeJobId = await submitVideoMergeStep(id);

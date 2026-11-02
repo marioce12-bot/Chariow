@@ -108,10 +108,18 @@ async function analyticsResponse(request: Request, shared?: ChariowRequestShared
         .gte("occurred_at", `${start}T00:00:00.000Z`)
         .lte("occurred_at", `${end}T23:59:59.999Z`)
         .order("occurred_at", { ascending: true })
-        .range(pageFrom, pageTo) as unknown as Promise<{ data: AnalyticsSaleRow[] | null; error: unknown | null }>,
+      .range(pageFrom, pageTo) as unknown as Promise<{ data: AnalyticsSaleRow[] | null; error: unknown | null }>,
     );
+    // Quand Chariow certifie la pagination complète, le snapshot est déjà la
+    // source courante utilisée pour l'upsert et pour le détail affiché. Réutiliser
+    // ces lignes évite de re-télécharger les mêmes ventes depuis le ledger. Si la
+    // couverture est partielle/inconnue, garder le ledger comme source complète.
+    const currentSnapshotRows = snapshot.coverage?.sales.complete === true
+      ? chariowSaleRows(store.id, snapshot.sales, user.id, { includeCustomerId: true })
+        .filter((sale) => sale.occurred_at !== null && sale.occurred_at >= `${periodFrom}T00:00:00.000Z` && sale.occurred_at <= `${periodTo}T23:59:59.999Z`) as AnalyticsSaleRow[]
+      : null;
     const [current, previous] = await Promise.all([
-      loadSales(periodFrom, periodTo),
+      currentSnapshotRows === null ? loadSales(periodFrom, periodTo) : Promise.resolve({ rows: currentSnapshotRows, error: null }),
       loadSales(previousFrom, previousTo),
     ]);
 

@@ -7,6 +7,15 @@ import { buildSlideshowPlan, prepareSlideshowImages } from "@/lib/studio/slidesh
 const input: VideoAdInput = { name: "Guide ebook cuisine", description: "Un guide numérique de recettes. Disponible en PDF.", hasReference: true, duration: 25, aspectRatio: "9:16", character: "with" };
 
 describe("Evidence-only UGC video advertising planner", () => {
+  it.each([10, 15])("creates a single %ss fal.ai clip without continuity stitching", duration => {
+    expect(splitVideoDuration(duration)).toEqual([duration]);
+    const plan = buildVideoAdPlan({ ...input, duration }, '{"direction":"conversation","copyIndices":[0]}');
+    expect(plan.duration).toBe(duration);
+    expect(plan.segments.map(segment => segment.duration)).toEqual([duration]);
+    expect(plan.segments[0].prompt).toContain(`exactly ${duration}s`);
+    expect(plan.segments[0].prompt).toContain("CALL TO ACTION");
+  });
+
   it("prepares exactly two clips of 15s then 10s and keeps the product and cast visible", () => {
     expect(splitVideoDuration(25)).toEqual([15, 10]);
     const plan = buildVideoAdPlan(input, '{"direction":"conversation","copyIndices":[0]}');

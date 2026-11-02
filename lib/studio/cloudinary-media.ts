@@ -51,7 +51,7 @@ function decodeDescriptor(path: string, apiSecret: string): AssetDescriptor | nu
         typeof value.userId !== "string" || !UUID.test(value.userId) ||
         typeof value.generationId !== "string" || !UUID.test(value.generationId) ||
         typeof value.publicId !== "string" ||
-        (value.publicId !== value.generationId && value.publicId !== `vendeo/studio/${value.userId}/${value.generationId}`) ||
+        (value.publicId !== value.generationId && value.publicId !== `${value.generationId}-segment-0` && value.publicId !== `${value.generationId}-segment-1` && value.publicId !== `vendeo/studio/${value.userId}/${value.generationId}` && value.publicId !== `vendeo/studio/${value.userId}/${value.generationId}-segment-0` && value.publicId !== `vendeo/studio/${value.userId}/${value.generationId}-segment-1`) ||
         typeof value.format !== "string" || !/^[a-z0-9]{2,8}$/i.test(value.format)) return null;
     return value as AssetDescriptor;
   } catch {
@@ -76,6 +76,7 @@ export async function importFalMediaToCloudinary(
   userId: string,
   generationId: string,
   resourceType: ResourceType,
+  segmentIndex?: 0 | 1,
 ) {
   if (!isAllowedFalMediaUrl(sourceUrl))
     throw new Error("fal.ai media host is not allowed for remote import");
@@ -85,7 +86,7 @@ export async function importFalMediaToCloudinary(
   const { cloudName, apiKey, apiSecret } = cloudinaryConfig();
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const folder = `vendeo/studio/${userId}`;
-  const publicId = generationId;
+  const publicId = segmentIndex === undefined ? generationId : `${generationId}-segment-${segmentIndex}`;
   const signedParams = { folder, overwrite: "true", public_id: publicId, timestamp, type: "authenticated" };
   const form = new FormData();
   form.append("file", new URL(sourceUrl).toString());
@@ -162,4 +163,23 @@ export function signedCloudinaryPrivateImageDownload(path: string, expectedUserI
 
 export function isCloudinaryStudioPath(path: string) {
   return path.startsWith(STORAGE_PREFIX);
+}
+
+export async function deleteCloudinaryStudioAsset(path: string, expectedUserId: string) {
+  const { cloudName, apiKey, apiSecret } = cloudinaryConfig();
+  const asset = decodeDescriptor(path, apiSecret);
+  if (!asset || asset.userId !== expectedUserId) throw new Error("Cloudinary Studio asset does not belong to this user");
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const params = { public_id: asset.publicId, timestamp, type: "authenticated" };
+  const form = new FormData();
+  form.append("api_key", apiKey);
+  form.append("public_id", asset.publicId);
+  form.append("timestamp", timestamp);
+  form.append("type", "authenticated");
+  form.append("signature", apiSignature(params, apiSecret));
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/${asset.resourceType}/destroy`, {
+    method: "POST", body: form, cache: "no-store", signal: AbortSignal.timeout(30_000),
+  });
+  const result = await response.json().catch(() => null) as { result?: unknown } | null;
+  if (!response.ok || (result?.result !== "ok" && result?.result !== "not found")) throw new Error("Cloudinary Studio asset cleanup failed");
 }

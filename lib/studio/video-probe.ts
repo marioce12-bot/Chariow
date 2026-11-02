@@ -43,14 +43,14 @@ export async function probeVideoFile(filePath: string, ffprobePath: string): Pro
   };
 }
 
-export function validateFinalPortraitVideo(probe: VideoProbeResult) {
-  if (!Number.isFinite(probe.duration) || Math.abs(probe.duration - 25) > 0.05) {
-    throw new Error(`Durée finale hors contrat (25 s requises; reçues ${probe.duration}s).`);
+export function validateFinalPortraitVideo(probe: VideoProbeResult, expectedDuration = 25) {
+  if (!Number.isFinite(probe.duration) || Math.abs(probe.duration - expectedDuration) > 0.05) {
+    throw new Error(`Durée finale hors contrat (${expectedDuration} s requises; reçues ${probe.duration}s).`);
   }
   if (!Number.isFinite(probe.width) || !Number.isFinite(probe.height) || Math.abs(probe.width / probe.height - 9 / 16) > 0.005) {
     throw new Error(`Le résultat final n’est pas en portrait 9:16 (${probe.width}×${probe.height}).`);
   }
-  if (!probe.hasAudio || !Number.isFinite(probe.audioDuration) || probe.audioDuration < 24.8) {
+  if (!probe.hasAudio || !Number.isFinite(probe.audioDuration) || probe.audioDuration + 0.2 < expectedDuration) {
     throw new Error("La piste audio manque ou ne couvre pas la durée finale; le résultat ne sera pas publié.");
   }
 }

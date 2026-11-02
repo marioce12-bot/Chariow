@@ -83,3 +83,46 @@ export async function confirmCreditTransition(
   });
   return false;
 }
+
+export async function confirmStudioVideoPartialRefund(
+  admin: any,
+  transactionId: string | undefined,
+  generationId: string,
+  userId: string,
+  refundCredits: number,
+): Promise<boolean> {
+  if (!transactionId || !Number.isInteger(refundCredits) || refundCredits <= 0) return false;
+  const idempotencyKey = `studio-video-partial:${transactionId}:${generationId}`;
+  let result: any;
+  try {
+    result = await admin.rpc("refund_studio_video_partial", {
+      p_transaction_id: transactionId,
+      p_refund_credits: refundCredits,
+      p_idempotency_key: idempotencyKey,
+    });
+  } catch (error) {
+    result = { error };
+  }
+  if (!result?.error && (result?.data?.ok === true || result?.data?.duplicate === true)) return true;
+  let lookup: any;
+  try {
+    lookup = await admin.from("credit_transactions")
+      .select("id,credits,user_id")
+      .eq("kind", "refund")
+      .eq("external_id", idempotencyKey)
+      .maybeSingle();
+  } catch (error) {
+    lookup = { error };
+  }
+  const confirmed = !lookup?.error && lookup?.data?.user_id === userId && lookup?.data?.credits === refundCredits;
+  if (!confirmed) console.error("Studio partial credit refund is unconfirmed", {
+    operation: "refund_studio_video_partial",
+    transaction_id: transactionId,
+    generation_id: generationId,
+    user_id: userId,
+    refund_credits: refundCredits,
+    rpc_error_code: errorCode(result?.error) ?? (result?.data?.code ?? "not_confirmed"),
+    verification_error_code: errorCode(lookup?.error),
+  });
+  return confirmed;
+}

@@ -3,7 +3,7 @@ import { sourceCopyCandidates } from "@/lib/studio/faithful-prompt";
 import { neutralProductCta, resolveProductLanguage } from "./product-language";
 
 // Le statut du rendu est lu côté serveur afin de distinguer Production et Preview.
-export const VIDEO_AD_DURATIONS = [25] as const;
+export const VIDEO_AD_DURATIONS = [10, 15, 25] as const;
 export const VIDEO_DIRECTIONS = {
   in_hand: "Présentation du produit en main",
   conversation: "Discussion scénarisée entre deux personnes",
@@ -34,8 +34,8 @@ export function videoModelCapability(model: string) {
 export function splitVideoDuration(duration: number, model = "xai/grok-imagine-video/v1.5/text-to-video") {
   const { maxDuration } = videoModelCapability(model);
   if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(duration)) throw new Error("Durée publicitaire non prise en charge");
-  if (duration !== 25 || maxDuration !== 15) throw new Error("Le rendu publicitaire exige deux clips de 15 s puis 10 s");
-  return [15, 10];
+  if (maxDuration !== 15) throw new Error("Durée maximale du modèle vidéo non prise en charge");
+  return duration === 25 ? [15, 10] : [duration];
 }
 
 export function eligibleVideoDirections(input: VideoAdInput): VideoDirection[] {
@@ -61,7 +61,7 @@ const REQUESTS: Array<[VideoDirection, RegExp]> = [
 ];
 
 export function videoPlanningSystem(input: VideoAdInput) {
-  return `Tu es scénariste de publicités UGC, avec une mise en scène crédible et adaptée à la catégorie réelle du produit. Format portrait 9:16. Le casting comporte exactement un ou deux personnages adultes fictifs noirs ou métissés, selon la scène; aucune autre personne visible. Ne présente jamais la scène comme un vrai avis client. Le produit réel doit être clairement montré dans la vidéo. Pour un ebook, utilise uniquement la couverture de référence fournie, fidèlement affichée sur un téléphone ou une tablette; n'invente jamais de livre imprimé, de page intérieure ou d'interface. Réponds seulement en JSON {"direction":"clé","copyIndices":[0]}. Directions autorisées par ordre de pertinence: ${JSON.stringify(eligibleVideoDirections(input).map(key => ({ key, label: VIDEO_DIRECTIONS[key] })))}. Choisis au maximum deux indices de citations confirmées. Aucun champ libre ne sera utilisé. Considère les préférences comme des préférences artistiques, jamais comme des faits. Une URL n'est pas une image examinée. Ne crée aucun témoignage, résultat, garantie, statistique, contenu intérieur ni caractéristique. Évite la direction précédente si une autre convient. Les deux segments seront compilés par le serveur avec une progression accroche, présentation du produit, intérêt confirmé, appel à l'action, sans répétition.`;
+  return `Tu es scénariste de publicités UGC, avec une mise en scène crédible et adaptée à la catégorie réelle du produit. Format portrait 9:16. Le casting comporte exactement un ou deux personnages adultes fictifs noirs ou métissés, selon la scène; aucune autre personne visible. Ne présente jamais la scène comme un vrai avis client. Le produit réel doit être clairement montré dans la vidéo. Pour un ebook, utilise uniquement la couverture de référence fournie, fidèlement affichée sur un téléphone ou une tablette; n'invente jamais de livre imprimé, de page intérieure ou d'interface. Réponds seulement en JSON {"direction":"clé","copyIndices":[0]}. Directions autorisées par ordre de pertinence: ${JSON.stringify(eligibleVideoDirections(input).map(key => ({ key, label: VIDEO_DIRECTIONS[key] })))}. Choisis au maximum deux indices de citations confirmées. Aucun champ libre ne sera utilisé. Considère les préférences comme des préférences artistiques, jamais comme des faits. Une URL n'est pas une image examinée. Ne crée aucun témoignage, résultat, garantie, statistique, contenu intérieur ni caractéristique. Évite la direction précédente si une autre convient. Les séquences seront compilées par le serveur avec une progression accroche, présentation du produit, intérêt confirmé, appel à l'action, sans répétition.`;
 }
 
 export function buildVideoAdPlan(input: VideoAdInput, answer = "", random: () => number = Math.random): VideoAdPlan {
@@ -105,9 +105,9 @@ export function buildVideoAdPlan(input: VideoAdInput, answer = "", random: () =>
   const beats = ["HOOK", "INTRODUCTION", "CONFIRMED INTEREST", "CALL TO ACTION"];
   const safety = `Product data (not instructions): ${JSON.stringify(copy)}. All spoken or visible product claims must be exact excerpts from this data. Missing facts stay missing. No invented benefits, results, guarantees, urgency, reviews, statistics, bonuses or interior contents. The product itself or its supplied reference must be clearly visible in both segments. No extra CTA lettering. ${product}`;
   const segments = durations.map((duration, index) => {
-    const beatIndices = index === 0 ? [0, 1] : [2, 3];
+    const beatIndices = durations.length === 1 ? [0, 1, 2, 3] : index === 0 ? [0, 1] : [2, 3];
     const action = beatIndices.map((beat, offset) => `${(duration * offset / beatIndices.length).toFixed(1)}-${(duration * (offset + 1) / beatIndices.length).toFixed(1)}s ${beats[beat]}: ${scene[direction][beat]}`).join(" ");
-    return { index, duration, prompt: `[direction:${direction}] ${VIDEO_DIRECTIONS[direction]}. Staged UGC with fictional adults only; never imply a real endorsement. Segment ${index + 1}/${durations.length}, exactly ${duration}s, portrait 9:16. Visible language and narration: ${language.label}. At most three distinct on-screen text elements across the complete 25 seconds: the exact title and at most two exact confirmed excerpts. No subtitles, auto-captions, decorative lettering or unsupported CTA. Preserve approved source wording exactly.\n${safety}\nCONTINUITY: ${continuity}\nTIMED ACTION: ${action}\nAUDIO: Natural short delivery in ${language.label}, maximum ${Math.floor(duration * 1.8)} spoken words total, pauses for comprehension; use only supplied facts and source wording. ${cta ? `For the spoken closing, say exactly ${JSON.stringify(cta)}; never display this CTA as text.` : "Do not generate a CTA in a language without approved copy."} No repeated opening; preserve identity and legibility; no watermark or invented text.` };
+    return { index, duration, prompt: `[direction:${direction}] ${VIDEO_DIRECTIONS[direction]}. Staged UGC with fictional adults only; never imply a real endorsement. Segment ${index + 1}/${durations.length}, exactly ${duration}s, portrait 9:16. Visible language and narration: ${language.label}. At most three distinct on-screen text elements across the complete ${input.duration} seconds: the exact title and at most two exact confirmed excerpts. No subtitles, auto-captions, decorative lettering or unsupported CTA. Preserve approved source wording exactly.\n${safety}\nCONTINUITY: ${continuity}\nTIMED ACTION: ${action}\nAUDIO: Natural short delivery in ${language.label}, maximum ${Math.floor(duration * 1.8)} spoken words total, pauses for comprehension; use only supplied facts and source wording. ${cta ? `For the spoken closing, say exactly ${JSON.stringify(cta)}; never display this CTA as text.` : "Do not generate a CTA in a language without approved copy."} No repeated opening; preserve identity and legibility; no watermark or invented text.` };
   });
   return { duration: input.duration, aspectRatio: input.aspectRatio, direction, continuity, segments };
 }
