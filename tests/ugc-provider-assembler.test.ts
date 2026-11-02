@@ -37,11 +37,20 @@ describe("UGC deterministic provider adapter", () => {
     }
     expect(compileUgcPrompt(input, creative)).toBe(prompt);
   });
-  it("fails closed on oversized scenarios and keeps renderer fixed at 25 seconds", () => {
+  it.each([10, 15])("renders %ss as one clip with the final dialogue and CTA in that clip", duration => {
+    const shortInput = { ...input, options: { ...input.options, duration } };
+    const plan = compileUgcProviderPlan(shortInput, creative);
+    expect(plan.duration).toBe(duration);
+    expect(plan.segments.map(segment => segment.duration)).toEqual([duration]);
+    expect(plan.segments[0].prompt).toContain(`exactly ${duration}s`);
+    expect(plan.segments[0].prompt).toContain("FINAL CTA");
+    expect(plan.segments[0].prompt).not.toContain("CONTINUITY:");
+  });
+  it("fails closed on oversized scenarios and unsupported duration values", () => {
     const oversized = { ...creative, negative_prompt: "x".repeat(5000) };
     expect(() => compileUgcPrompt(input, oversized)).toThrow();
     expect(() => compileUgcProviderPlan(input, oversized)).toThrow();
-    expect(() => compileUgcProviderPlan({ ...input, options: { ...input.options, duration: 20 } }, creative)).toThrow(/25 secondes/);
+    expect(() => compileUgcProviderPlan({ ...input, options: { ...input.options, duration: 20 } }, creative)).toThrow(/Durée vidéo non prise en charge/);
   });
   it("normalizes real metadata identically for prompt and render requests", () => {
     const renderInput = normalizeUgcInput({ ...input.product, imageUrl: input.product.images?.[0] }, input.options, "fr");

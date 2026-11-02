@@ -7,7 +7,7 @@ import { rateLimit } from "@/lib/shop/rate-limit";
 import { videoCreditCost } from "@/lib/studio/credits";
 import { STUDIO_VIDEO_RESOLUTIONS, inferProductType, isSupportedStudioVideoResolution } from "@/lib/studio/creative-workflows";
 import { isStudioVideoEnabled } from "@/lib/studio/video-feature";
-import { videoModelCapability } from "@/lib/studio/video-plan";
+import { VIDEO_AD_DURATIONS, videoModelCapability } from "@/lib/studio/video-plan";
 import { assertFalVideoPromptWithinSafeLimit, isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
 import { generateUgcCreative, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
 import { ugcProviderRateLimitResponse } from "@/lib/studio/ugc-provider-errors";
@@ -16,7 +16,6 @@ import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provi
 import { readPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
 import { selectVideoModel } from "@/lib/studio/creative-models";
 import { parseStudioProduct } from "@/lib/studio/product-prompt";
-import { packagedVideoProbe } from "@/lib/studio/video-probe-runtime";
 import { studioVideoWorkflow, failQueuedVideoDispatchStep } from "@/lib/studio/video-workflow";
 import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
 
@@ -25,15 +24,27 @@ export const maxDuration = 60;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function configuredFalWebhookUrl() {
+  const raw = process.env.FAL_WEBHOOK_URL;
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/api/webhooks/fal") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   if (!(await isStudioVideoEnabled())) {
     return NextResponse.json({ ready: false, locked: true, code: "STUDIO_VIDEO_LOCKED", error: "La génération vidéo est temporairement indisponible." }, { status: 423, headers: { "Cache-Control": "no-store" } });
   }
-  const ffprobePath = packagedVideoProbe();
-  if (!ffprobePath) {
-    return NextResponse.json({ ready: false, binaries: { ffprobe: false } }, { status: 503, headers: { "Cache-Control": "no-store" } });
-  }
-  return NextResponse.json({ ready: true, binaries: { ffprobe: true }, assembly: "fal-merge-with-audio-safe-fallback", duration: 25, aspectRatio: "9:16", segmentDurations: [15, 10] }, { headers: { "Cache-Control": "no-store" } });
+  const webhookUrl = configuredFalWebhookUrl();
+  const cloudinaryReady = process.env.STUDIO_MEDIA_CLOUDINARY_IMPORT === "true" && Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+  const providerReady = Boolean(process.env.FAL_API_KEY);
+  if (!cloudinaryReady || !providerReady) return NextResponse.json({ ready: false, code: "STUDIO_VIDEO_CONFIG_MISSING", storage: cloudinaryReady, provider: providerReady, callback: Boolean(webhookUrl) }, { status: 503, headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ ready: true, storage: "cloudinary-remote-import", provider: true, callback: Boolean(webhookUrl), callbackRequiredDurations: [10, 15], assembly: "fal-merge", supportedDurations: VIDEO_AD_DURATIONS, aspectRatio: "9:16" }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -60,16 +71,16 @@ export async function POST(request: Request) {
   }
 
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+  const duration = body?.duration === undefined ? 10 : Number(body.duration);
+  if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(duration)) return NextResponse.json({ error: "Durée vidéo non prise en charge.", supported: VIDEO_AD_DURATIONS }, { status: 400 });
   const product = parseStudioProduct(body?.product);
   if (!product) return NextResponse.json({ error: "Choisis un produit réel de ta boutique pour construire un scénario adapté et le présenter fidèlement." }, { status: 400 });
-  const input = normalizeUgcInput(body?.product, { ...(body?.ugcOptions && typeof body.ugcOptions === "object" ? body.ugcOptions : {}), duration: 25 }, body?.locale, prompt);
+  const input = normalizeUgcInput(body?.product, { ...(body?.ugcOptions && typeof body.ugcOptions === "object" ? body.ugcOptions : {}), duration }, body?.locale, prompt);
   product.imageUrl = input.product.images?.[0] ?? null;
   if (prompt.length > 4_000) return NextResponse.json({ error: "Le prompt vidéo dépasse la longueur autorisée." }, { status: 400 });
   if (inferProductType(product.name, product.description) === "ebook" && !product.imageUrl) {
     return NextResponse.json({ error: "Ajoute ou sélectionne la couverture réelle de l’ebook pour qu’elle soit fidèlement présentée sur un téléphone ou une tablette.", code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" }, { status: 400 });
   }
-  if (Number(body?.duration) !== 25) return NextResponse.json({ error: "Le rendu vidéo doit durer exactement 25 secondes (deux clips de 15 s puis 10 s).", supported: [25] }, { status: 400 });
-
   const resolution = typeof body?.resolution === "string" ? body.resolution : STUDIO_VIDEO_RESOLUTIONS[0];
   if (!isSupportedStudioVideoResolution(resolution)) return NextResponse.json({ error: `Résolution vidéo non prise en charge. Choix tarifés : ${STUDIO_VIDEO_RESOLUTIONS.join(", ")}.` }, { status: 400 });
   const aspectRatio = typeof body?.aspectRatio === "string" ? body.aspectRatio : "9:16";
@@ -81,7 +92,9 @@ export async function POST(request: Request) {
   if (blocked) return blocked;
   if (rateLimit(`studio-video:${user.id}`, 3)) return NextResponse.json({ error: "Trop de demandes vidéo. Réessaie dans une minute." }, { status: 429 });
   if (!process.env.FAL_API_KEY) return NextResponse.json({ error: "Le fournisseur vidéo n’est pas configuré pour cette Preview. Aucun crédit n’a été réservé." }, { status: 503 });
-  if (!packagedVideoProbe()) return NextResponse.json({ error: "Pré-requis manquant : ffprobe-static est absent. Aucun crédit n’a été réservé et aucun fournisseur n’a été appelé.", code: "STUDIO_VIDEO_PROBE_UNAVAILABLE" }, { status: 503 });
+  if (process.env.STUDIO_MEDIA_CLOUDINARY_IMPORT !== "true" || !process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) return NextResponse.json({ error: "Le stockage vidéo Cloudinary n’est pas entièrement configuré. Aucun crédit n’a été réservé et aucun fournisseur n’a été appelé.", code: "STUDIO_VIDEO_STORAGE_UNAVAILABLE" }, { status: 503 });
+  const webhookUrl = configuredFalWebhookUrl();
+  if (duration !== 25 && !webhookUrl) return NextResponse.json({ error: "Configure FAL_WEBHOOK_URL vers /api/webhooks/fal pour les vidéos 10/15 s. Aucun crédit n’a été réservé.", code: "STUDIO_VIDEO_WEBHOOK_UNAVAILABLE" }, { status: 503 });
 
   const model = selectVideoModel(Boolean(product?.imageUrl));
   try { videoModelCapability(model); }
@@ -107,7 +120,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Le prompt vidéo n’a pas pu être préparé." }, { status: 400 });
   }
 
-  const cost = videoCreditCost(resolution, 25);
+  const cost = videoCreditCost(resolution, duration);
   const quota = await admin.rpc("reserve_studio_video_quota", {
     p_user_id: user.id,
     p_generation_id: id,
@@ -119,6 +132,7 @@ export async function POST(request: Request) {
     const messages: Record<string, string> = {
       USER_ACTIVE_LIMIT: "Une seule vidéo peut être active à la fois.",
       USER_DAILY_LIMIT: "La limite est de deux vidéos par jour et par utilisateur.",
+      GLOBAL_ACTIVE_LIMIT: "Le nombre maximal de générations vidéo simultanées est temporairement atteint. Réessaie plus tard.",
       UNPRICED_RESOLUTION: "Cette résolution n’a pas de tarif confirmé.",
       REQUEST_ALREADY_RESERVED: "Cette demande possède déjà une réservation de quota; elle n’a pas été relancée.",
     };
@@ -162,9 +176,9 @@ export async function POST(request: Request) {
     aspectRatio,
     initialReferenceUrl: product?.imageUrl ?? null,
     segment0State: "pending",
-    segment1State: "pending",
-    continuityFrameState: "pending",
-    mergeState: "pending",
+    segment1State: plan.segments.length > 1 ? "pending" : "not_required",
+    continuityFrameState: plan.segments.length > 1 ? "pending" : "not_required",
+    mergeState: plan.segments.length > 1 ? "pending" : "not_required",
     creditState: "reserved",
     updatedAt: new Date().toISOString(),
   };
@@ -173,7 +187,7 @@ export async function POST(request: Request) {
     user_id: user.id,
     kind: "video",
     prompt: composedPrompt,
-    options: { duration: 25, resolution, aspectRatio, videoStyle },
+    options: { duration, resolution, aspectRatio, videoStyle },
     metadata,
     status: "processing",
     credits_cost: cost,
@@ -197,5 +211,5 @@ export async function POST(request: Request) {
       await failQueuedVideoDispatchStep(id).catch(() => undefined);
     }
   });
-  return NextResponse.json({ jobId: id, status: "processing", cost, progress: 0 }, { status: 202, headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ jobId: id, status: "processing", cost, duration, progress: 0 }, { status: 202, headers: { "Cache-Control": "no-store" } });
 }

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   assertCloudinaryStudioPathOwner,
+  deleteCloudinaryStudioAsset,
   importFalMediaToCloudinary,
   signedCloudinaryPrivateUrl,
 } from "./cloudinary-media";
@@ -90,6 +91,19 @@ describe("Cloudinary private Studio media", () => {
     expect(url.pathname).toBe("/v1_1/cloud-test/video/download");
     expect(url.searchParams.get("type")).toBe("authenticated");
     expect(url.searchParams.get("public_id")).toBe(publicId);
+  });
+
+  it("stores video segments under distinct private IDs and permits their cleanup", async () => {
+    const segmentPublicId = `${folder}/${generationId}-segment-0`;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ public_id: segmentPublicId, format: "mp4", resource_type: "video" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ result: "ok" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const path = await importFalMediaToCloudinary("https://v3.fal.media/files/segment.mp4", userId, generationId, "video", 0);
+    expect(new URL(signedCloudinaryPrivateUrl(path, userId)).searchParams.get("public_id")).toBe(segmentPublicId);
+    await expect(deleteCloudinaryStudioAsset(path, userId)).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[1][0]).toBe("https://api.cloudinary.com/v1_1/cloud-test/video/destroy");
+    await expect(deleteCloudinaryStudioAsset(path, otherUserId)).rejects.toThrow("does not belong");
   });
 
   it("rejects unsafe, deceptive, credentialed, and nonstandard-port sources before contacting Cloudinary", async () => {

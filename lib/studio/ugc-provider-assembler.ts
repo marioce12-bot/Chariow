@@ -9,7 +9,7 @@ function context(input: UgcGeneratorInput, creative: UgcCreativeDirection) {
     `UGC staged advertising; portrait 9:16; language ${input.options.language}. Product: ${input.product.name}.`,
     `SCENE: ${JSON.stringify(creative.scene)}`,
     `CAST (same throughout, fictional adults only, Black or mixed-race): ${JSON.stringify(creative.characters)}`,
-    ebook ? "REAL PRODUCT: show the supplied exact ebook cover clearly on a phone/tablet in BOTH clips. Preserve its title/artwork; never redraw it, invent pages or create a printed book." : "REAL PRODUCT: show the selected real reference in BOTH clips, close-up and in its evidenced use; invent no features, packaging or interface. For services show the real supplied brand/reference in its relevant life context.",
+    ebook ? "REAL PRODUCT: show the supplied exact ebook cover clearly on a phone/tablet throughout the video. Preserve its title/artwork; never redraw it, invent pages or create a printed book." : "REAL PRODUCT: show the selected real reference throughout the video, close-up and in its evidenced use; invent no features, packaging or interface. For services show the real supplied brand/reference in its relevant life context.",
     "FACTS: Product name and supplied description are the only factual source. No invented numerical claims, guarantees, certifications, real endorsements, medical or income promises. A staged character is not a real customer testimonial. Assumptions concern staging only, never product facts.",
   ].join("\n");
 }
@@ -34,21 +34,22 @@ export function compileUgcPrompt(input: UgcGeneratorInput, creative: UgcCreative
 }
 /** Fal adapter: only split the validated timing; preserve exact scripted speech in order. */
 export function compileUgcProviderPlan(input: UgcGeneratorInput, creative: UgcCreativeDirection): VideoAdPlan {
-  if (input.options.duration !== 25) throw new Error("Cette Preview rend uniquement 25 secondes (15 + 10).");
-  const continuity = "Same exact characters, faces, clothes, setting, lighting and real product; clip 2 starts from clip 1 closing frame, continuing action and speech without repeating the hook. Natural speech, no extra people, no fake endorsements.";
-  const segments = [15, 10].map((duration, index) => {
-    const offset = index === 0 ? 0 : 15;
+  if (![10, 15, 25].includes(input.options.duration)) throw new Error("Durée vidéo non prise en charge.");
+  const durations = input.options.duration === 25 ? [15, 10] : [input.options.duration];
+  const continuity = "Same exact characters, faces, clothes, setting, lighting and real product throughout; when split, clip 2 continues from clip 1 without repeating the hook. Natural speech, no extra people, no fake endorsements.";
+  const segments = durations.map((duration, index) => {
+    const offset = durations.length === 1 ? 0 : index === 0 ? 0 : 15;
     const shots = creative.shots.filter(shot => shot.start < offset + duration && shot.end > offset);
     const prompt = [
-      context(input, creative), `CLIP ${index + 1}/2: exactly ${duration}s of the complete 25s story. ANGLE: ${creative.angle}.`,
-      `CONTINUITY: ${continuity}`,
+      context(input, creative), `CLIP ${index + 1}/${durations.length}: exactly ${duration}s of the complete ${input.options.duration}s story. ANGLE: ${creative.angle}.`,
+      ...(durations.length === 2 ? [`CONTINUITY: ${continuity}`] : []),
       ...shots.map(shot => shotLine(shot, Math.max(offset, shot.start), Math.min(offset + duration, shot.end), offset)),
-      index === 1 ? `FINAL CTA (say once, not in addition if already scripted): ${creative.cta}` : "Do not repeat or anticipate the final CTA.",
+      index === durations.length - 1 ? `FINAL CTA (say once, not in addition if already scripted): ${creative.cta}` : "Do not repeat or anticipate the final CTA.",
       "AUDIO: natural dialogue exactly as scripted in the requested language; finish each line inside its allocated time. No auto-captions or watermark.",
       `NEGATIVE: ${creative.negative_prompt}`,
     ].join("\n");
     assertFalVideoPromptWithinSafeLimit(prompt);
     return { index, duration, prompt };
   });
-  return { duration: 25, aspectRatio: "9:16", direction: creative.angle, continuity, segments };
+  return { duration: input.options.duration, aspectRatio: "9:16", direction: creative.angle, continuity, segments };
 }

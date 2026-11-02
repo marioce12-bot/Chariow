@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ verify: vi.fn(), rpc: vi.fn(), store: vi.fn() }));
+const mocks = vi.hoisted(() => ({ verify: vi.fn(), rpc: vi.fn(), from: vi.fn(), store: vi.fn() }));
 vi.mock("@/lib/ai/fal-webhook", () => ({
   readFalWebhookBody: async (request: Request) => Buffer.from(await request.text()),
   verifyFalWebhook: mocks.verify,
   FalWebhookVerificationUnavailableError: class FalWebhookVerificationUnavailableError extends Error {},
 }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.rpc }) }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
 vi.mock("@/lib/studio/media", () => ({ storeStudioVideoFromUrl: mocks.store }));
 import { POST } from "./route";
 
@@ -44,9 +44,19 @@ beforeEach(() => {
   vi.stubEnv("STUDIO_MEDIA_CLOUDINARY_IMPORT", "true");
   mocks.verify.mockResolvedValue(true);
   mocks.store.mockResolvedValue("cloudinary-private:asset");
+  mocks.from.mockImplementation(() => {
+    let requestId = "";
+    const query = {
+      eq: vi.fn((_column: string, value: string) => { requestId = value; return query; }),
+      maybeSingle: async () => requestId === "request-1"
+        ? { data: { id: generation.id, user_id: generation.user_id }, error: null }
+        : { data: null, error: null },
+    };
+    return { select: vi.fn(() => query) };
+  });
   mocks.rpc.mockImplementation(async (name: string) => {
     if (name === "claim_studio_video_callback") return claimed();
-    if (name === "release_video_slot") return { data: { released: true }, error: null };
+    if (name === "release_studio_video_quota_after_refund") return { data: { ok: true }, error: null };
     return { data: true, error: null };
   });
 });
@@ -60,11 +70,16 @@ describe("fal.ai callback lifecycle", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("rejects a signed user who does not own the matching provider request", async () => {
-    mocks.rpc.mockImplementation(async () => ({ data: { outcome: "owner_mismatch" }, error: null }));
-    const response = await POST(request("ERROR", undefined, "request-1", "00000000-0000-4000-8000-000000000002"));
-    expect(response.status).toBe(403);
-    expect(mocks.rpc).toHaveBeenCalledOnce();
+  it("uses the persisted app owner instead of treating fal.ai's signed user id as an app UUID", async () => {
+    const response = await POST(request("ERROR", undefined, "request-1", "fal-workspace-id"));
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("claim_studio_video_callback", expect.objectContaining({ p_user_id: userId }));
+  });
+
+  it("keeps an unknown request id retryable and does not claim it", async () => {
+    const response = await POST(request("ERROR", undefined, "unknown-request", "fal-workspace-id"));
+    expect(response.status).toBe(503);
+    expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.store).not.toHaveBeenCalled();
   });
 
@@ -92,11 +107,11 @@ describe("fal.ai callback lifecycle", () => {
     expect(mocks.rpc).toHaveBeenCalledOnce();
   });
 
-  it("refunds credits, releases quota, then finalizes an ERROR callback", async () => {
+  it("refunds credits, releases the dedicated quota, then finalizes an ERROR callback", async () => {
     const response = await POST(request("ERROR"));
     expect(response.status).toBe(200);
     expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual([
-      "claim_studio_video_callback", "refund_credit_debit", "release_video_slot", "finish_studio_video_callback",
+      "claim_studio_video_callback", "refund_credit_debit", "release_studio_video_quota_after_refund", "finish_studio_video_callback",
     ]);
     expect(mocks.rpc).toHaveBeenLastCalledWith("finish_studio_video_callback", expect.objectContaining({
       p_generation_id: generation.id,
@@ -164,7 +179,7 @@ describe("fal.ai callback lifecycle", () => {
     const response = await POST(request("OK"));
     expect(response.status).toBe(200);
     expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual([
-      "claim_studio_video_callback", "refund_credit_debit", "release_video_slot", "finish_studio_video_callback",
+      "claim_studio_video_callback", "refund_credit_debit", "release_studio_video_quota_after_refund", "finish_studio_video_callback",
     ]);
   });
 });

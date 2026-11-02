@@ -32,8 +32,14 @@ async function failClaimedGeneration(admin: ReturnType<typeof createAdminClient>
     if (!refundConfirmed)
       return NextResponse.json({ error: "Credit refund is pending retry." }, { status: 503, headers: RETRY_HEADERS });
   }
-  const release = await admin.rpc("release_video_slot", { p_user_id: generation.user_id, p_request_id: generation.id });
-  if (release.error)
+  if (!generation.credit_transaction_id)
+    return NextResponse.json({ error: "Quota release is pending transaction verification." }, { status: 503, headers: RETRY_HEADERS });
+  const release = await admin.rpc("release_studio_video_quota_after_refund", {
+    p_user_id: generation.user_id,
+    p_generation_id: generation.id,
+    p_transaction_id: generation.credit_transaction_id,
+  });
+  if (release.error || (release.data as { ok?: boolean } | null)?.ok !== true)
     return NextResponse.json({ error: "Quota release is pending retry." }, { status: 503, headers: RETRY_HEADERS });
   const saved = await admin.rpc("finish_studio_video_callback", {
     p_generation_id: generation.id, p_lease_token: leaseToken, p_final_status: "failed", p_storage_path: null, p_error: errorMessage,
@@ -60,17 +66,25 @@ export async function POST(request: Request) {
   catch { return NextResponse.json({ error: "Invalid JSON." }, { status: 400 }); }
   const signedRequestId = request.headers.get("x-fal-webhook-request-id");
   const signedUserId = request.headers.get("x-fal-webhook-user-id");
-  if (typeof body.request_id !== "string" || body.request_id !== signedRequestId || body.request_id.length > 256 || !signedUserId)
+  if (typeof body.request_id !== "string" || body.request_id !== signedRequestId || body.request_id.length > 256 || !signedUserId || signedUserId.length > 256)
     return NextResponse.json({ error: "Request ID or signed user is invalid." }, { status: 400 });
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(signedUserId))
-    return NextResponse.json({ error: "Webhook user does not match generation owner." }, { status: 403 });
   if (body.status !== "OK" && body.status !== "ERROR")
     return NextResponse.json({ error: "Unsupported fal.ai webhook status." }, { status: 400 });
 
   const leaseToken = randomUUID();
   const admin = createAdminClient();
+  const owner = await admin.from("studio_generations")
+    .select("id,user_id")
+    .eq("provider_request_id", body.request_id)
+    .maybeSingle();
+  if (owner.error) return NextResponse.json({ error: "Callback lookup is temporarily unavailable." }, { status: 503, headers: RETRY_HEADERS });
+  // The signed user-id belongs to fal.ai, not to the Vendeo account. The
+  // cryptographically signed request_id is correlated to its owner in our DB.
+  // Return retryable status for the brief window before the submitter persists it.
+  if (!owner.data?.id || !owner.data?.user_id)
+    return NextResponse.json({ error: "Video request is not persisted yet." }, { status: 503, headers: RETRY_HEADERS });
   const claim = await admin.rpc("claim_studio_video_callback", {
-    p_request_id: body.request_id, p_user_id: signedUserId, p_callback_status: body.status, p_lease_token: leaseToken,
+    p_request_id: body.request_id, p_user_id: owner.data.user_id, p_callback_status: body.status, p_lease_token: leaseToken,
   });
   if (claim.error || !claim.data)
     return NextResponse.json({ error: "Callback claim is temporarily unavailable." }, { status: 503, headers: RETRY_HEADERS });

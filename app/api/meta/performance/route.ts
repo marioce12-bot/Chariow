@@ -134,14 +134,28 @@ export async function GET(request: Request) {
     .eq("meta_ad_account_id", account.id)
     .eq("platform", "meta")
     .in("external_campaign_id", campaignIds.length ? campaignIds : ["__none__"]) : { data: [] });
-  const { data: launchedVendeoCampaigns } = await (store ? supabase
+  const launchedVendeoCountResult = await (store ? supabase
     .from("ad_campaigns")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
     .eq("store_id", store.id)
     .eq("meta_ad_account_id", account.id)
     .eq("platform", "meta")
-    .not("external_campaign_id", "is", null) : { data: [] });
+    .not("external_campaign_id", "is", null) : { count: 0, error: null });
+  let launchedVendeoCampaignCount = launchedVendeoCountResult.count ?? 0;
+  if (store && launchedVendeoCountResult.error) {
+    // Compatibilité avec les anciennes versions du client/PostgREST : l’ancien
+    // select id ne transfère qu’un champ et reste un fallback exceptionnel.
+    const fallback = await supabase
+      .from("ad_campaigns")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("store_id", store.id)
+      .eq("meta_ad_account_id", account.id)
+      .eq("platform", "meta")
+      .not("external_campaign_id", "is", null);
+    launchedVendeoCampaignCount = fallback.data?.length ?? 0;
+  }
   const launchedById = new Map((launchedCampaigns ?? []).map((row: { external_campaign_id: string; daily_budget: number | null; created_at: string; objective: string | null; effective_objective: string | null }) => [row.external_campaign_id, row]));
   let customerHistory: CustomerHistory = { customerCount: null, customerValue: null, complete: false };
   if (store && launchedCampaigns?.length) {
@@ -325,7 +339,7 @@ export async function GET(request: Request) {
     : null;
   const state = overviewState({
     confirmedSales: confirmedSales.length,
-    vendeoCampaigns: (launchedVendeoCampaigns ?? []).length,
+    vendeoCampaigns: launchedVendeoCampaignCount,
     linkedSales: attributedSalesCount,
   });
   const totalSpendUsd = convertCurrency(attributedSpend, adCurrency, "USD");
@@ -359,7 +373,7 @@ export async function GET(request: Request) {
       attributionCoverage: attributedSalesCount,
       salesCurrencies: chariowRevenueByCurrency.map((item) => item.currency),
       state,
-      vendeoCampaigns: (launchedVendeoCampaigns ?? []).length,
+      vendeoCampaigns: launchedVendeoCampaignCount,
       verifiedSales: attributedSalesCount,
     },
     performances,

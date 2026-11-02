@@ -3,6 +3,13 @@ import { CREDIT_PRICE_XOF, videoCreditCost } from "@/lib/studio/credits";
 import { STUDIO_VIDEO_RESOLUTIONS, isSupportedStudioVideoResolution } from "@/lib/studio/creative-workflows";
 
 describe("Studio video pricing", () => {
+  it("prices every supported duration proportionally", () => {
+    expect(videoCreditCost("480p", 10)).toBe(300);
+    expect(videoCreditCost("480p", 15)).toBe(450);
+    expect(videoCreditCost("720p", 10)).toBe(520);
+    expect(videoCreditCost("720p", 15)).toBe(780);
+  });
+
   it("prices 25-second portrait renders at the two approved tiers", () => {
     expect(videoCreditCost("480p", 25)).toBe(750);
     expect(videoCreditCost("720p", 25)).toBe(1300);
