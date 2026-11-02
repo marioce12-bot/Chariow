@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { signedStudioUrl } from "@/lib/studio/media";
+import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
 import { findStudioVideoRowForUser, isStudioVideoTaskReference } from "@/lib/studio/video-job-reference";
 
 export const runtime = "nodejs";
@@ -63,6 +64,17 @@ export async function GET(_request: Request, { params }: Context) {
       if (marked.error) return NextResponse.json({ error: "Le suivi vidéo est temporairement indisponible." }, { status: 503, headers: { "Cache-Control": "no-store" } });
       if (marked.data) { status = "failed"; metadata = nextMetadata; }
     }
+  }
+
+  if (status === "failed" && metadata.errorCode === "STUDIO_VIDEO_STALE") {
+    if (row.credit_transaction_id) {
+      const refundConfirmed = await confirmCreditTransition(admin, "refund_credit_debit", row.credit_transaction_id, { userId: user.id, amount: row.credits_cost });
+      if (!refundConfirmed) return NextResponse.json({ error: "Remboursement en attente de reprise." }, { status: 503, headers: { "Retry-After": "60", "Cache-Control": "private, no-store" } });
+      creditState = "refunded";
+      metadata = { ...metadata, creditState: "refunded", userMessage: "La vidéo a été arrêtée après un délai trop long. Les crédits ont été libérés." };
+    }
+    const release = await admin.rpc("release_video_slot", { p_user_id: user.id, p_request_id: row.id });
+    if (release.error) return NextResponse.json({ error: "Libération du quota en attente de reprise." }, { status: 503, headers: { "Retry-After": "60", "Cache-Control": "private, no-store" } });
   }
 
   let contentUrl: string | null = null;

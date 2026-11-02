@@ -18,6 +18,7 @@ import { selectVideoModel } from "@/lib/studio/creative-models";
 import { parseStudioProduct } from "@/lib/studio/product-prompt";
 import { packagedVideoProbe } from "@/lib/studio/video-probe-runtime";
 import { studioVideoWorkflow, failQueuedVideoDispatchStep } from "@/lib/studio/video-workflow";
+import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -180,11 +181,11 @@ export async function POST(request: Request) {
     credit_transaction_id: reserved.transaction_id,
   }).select("id").maybeSingle();
   if (inserted.error || !inserted.data) {
-    const refund = await admin.rpc("refund_credit_debit", { transaction_id: reserved.transaction_id });
+    const refundConfirmed = await confirmCreditTransition(admin, "refund_credit_debit", reserved.transaction_id, { userId: user.id, amount: cost });
     await Promise.resolve(admin.rpc("set_studio_video_quota_state", {
       p_user_id: user.id,
       p_generation_id: id,
-      p_state: !refund.error && refund.data === true ? "released" : "uncertain",
+      p_state: refundConfirmed ? "released" : "uncertain",
     })).catch(() => undefined);
     return NextResponse.json({ error: "La tâche vidéo n’a pas pu être enregistrée. Aucun rendu n’a été lancé; l’état du quota/crédit est conservé pour vérification." }, { status: 503 });
   }

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readFalWebhookBody, verifyFalWebhook, FalWebhookVerificationUnavailableError } from "@/lib/ai/fal-webhook";
 import { storeStudioVideoFromUrl } from "@/lib/studio/media";
+import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -27,8 +28,8 @@ type ClaimedGeneration = {
 
 async function failClaimedGeneration(admin: ReturnType<typeof createAdminClient>, generation: ClaimedGeneration, leaseToken: string, errorMessage: string) {
   if (generation.credit_transaction_id) {
-    const refund = await admin.rpc("refund_credit_debit", { transaction_id: generation.credit_transaction_id });
-    if (refund.error || refund.data !== true)
+    const refundConfirmed = await confirmCreditTransition(admin, "refund_credit_debit", generation.credit_transaction_id, { userId: generation.user_id });
+    if (!refundConfirmed)
       return NextResponse.json({ error: "Credit refund is pending retry." }, { status: 503, headers: RETRY_HEADERS });
   }
   const release = await admin.rpc("release_video_slot", { p_user_id: generation.user_id, p_request_id: generation.id });

@@ -51,7 +51,8 @@ describe("generateStudioImage staged execution", () => {
     m.rpc.mockImplementation(async (name: string) => name === "reserve_image_slot" ? { data: { ok: true }, error: null } : name === "reserve_credits" ? { data: { ok: true, transaction_id: "tx" }, error: null } : { error: { code: "NETWORK" } });
     m.provider.mockResolvedValue("https://provider.test/acquired"); m.store.mockResolvedValue("owner/acquired.png");
     const response = await generateStudioImage("owner", { prompt: "tree" }, stage);
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("60");
     expect(m.provider).toHaveBeenCalledTimes(1); expect(m.store).toHaveBeenCalledTimes(1);
     expect(writes).toContainEqual({ storage_path: "owner/acquired.png" });
     expect(writes.some(value => value.status === "completed")).toBe(false);

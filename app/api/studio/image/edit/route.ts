@@ -7,6 +7,7 @@ import { generateFalImage, generateFalImageFromUrl, getAiImageEditModel } from "
 import { imageCreditCost } from "@/lib/studio/credits";
 import { signedStudioUrl, storeStudioImage } from "@/lib/studio/media";
 import { buildImageEditInstruction } from "@/lib/studio/image-edit-prompt";
+import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
 
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
@@ -52,8 +53,8 @@ export async function POST(request: Request) {
       : await generateFalImage(editedPrompt, "square", { ...options, outputFormat: options.outputFormat as "png" | "jpeg" });
     const storagePath = await storeStudioImage(imageUrl, user.id, generation.id, options.outputFormat || "png");
     const signedUrl = await signedStudioUrl(storagePath, user.id);
-    const debit = await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
-    if (debit.error || debit.data !== true) throw new Error("Credit completion failed");
+    const debitConfirmed = await confirmCreditTransition(admin, "complete_credit_debit", reserveResult.transaction_id, { userId: user.id, amount: cost });
+    if (!debitConfirmed) throw new Error("Credit completion failed");
     const quotaCompletion = await admin.rpc("complete_image_slot", { p_user_id: user.id, p_request_id: generation.id });
     if (quotaCompletion.error || quotaCompletion.data?.completed !== true) throw new Error("Image quota completion failed");
     const saved = await admin.from("studio_generations").update({ status: "completed", storage_path: storagePath })
@@ -61,18 +62,18 @@ export async function POST(request: Request) {
     if (saved.error || !saved.data?.length) throw new Error("Studio edit state could not be saved");
     return NextResponse.json({ imageUrl: signedUrl, generationId: generation.id, cost });
   } catch (error) {
-    const refund = await admin.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });
+    const refundConfirmed = await confirmCreditTransition(admin, "refund_credit_debit", reserveResult.transaction_id, { userId: user.id, amount: cost });
     const release = await admin.rpc("release_image_slot", { p_user_id: user.id, p_request_id: generation.id });
     const failed = await admin.from("studio_generations")
       .update({ status: "failed", error: error instanceof Error ? error.message : "Erreur de modification" })
       .eq("id", generation.id).eq("user_id", user.id).select("id");
-    if (refund.error || refund.data !== true || release.error || failed.error || !failed.data?.length) {
+    if (!refundConfirmed || release.error || failed.error || !failed.data?.length) {
       console.error("Studio image edit compensation is pending", {
-        refund: refund.error?.code ?? (refund.data === true ? null : "not_confirmed"),
+        refund: refundConfirmed ? null : "not_confirmed",
         release: release.error?.code ?? null,
         state: failed.error?.code ?? (failed.data?.length ? null : "not_saved"),
       });
-      return NextResponse.json({ error: "L'opération a échoué; la compensation est en cours de reprise." }, { status: 503 });
+      return NextResponse.json({ error: "L'opération a échoué; la compensation est en cours de reprise." }, { status: 503, headers: { "Retry-After": "60", "Cache-Control": "private, no-store" } });
     }
     return NextResponse.json({ error: "Impossible de modifier l'image pour le moment." }, { status: 502 });
   }

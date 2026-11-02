@@ -20,8 +20,8 @@ describe("Locked studio video preparation routes", () => {
     expect(response.status).toBe(200); expect(data.locked).toBe(true);
     expect(data.plan.segments.map((s: { duration: number }) => s.duration)).toEqual([15,10]);
     expect(askText).toHaveBeenCalledTimes(2);
-    expect(askText.mock.calls[0][1].order).toEqual(["groq"]);
-    expect(askText.mock.calls[1][1].order).toEqual(["groq"]);
+    expect(askText.mock.calls[0][1].order).toEqual(["openrouter"]);
+    expect(askText.mock.calls[1][1].order).toEqual(["openrouter"]);
     expect(askText.mock.calls[0][1].responseSchema.name).toBe("ugc_product_analysis");
     expect(askText.mock.calls[1][1].responseSchema.name).toBe("ugc_creative_direction");
   });
@@ -58,8 +58,8 @@ describe("Locked studio video preparation routes", () => {
       code: "analyse_invalide",
       keyPath: "characters[0].look",
       validationType: "invalid_value",
-      expected: "marqueur explicite positif dans look: noir/noire, métis/métisse, Black, mixed-race, biracial ou afro-descendant",
-      received: "marqueur explicite absent de look",
+      expected: "marqueur explicite positif noir/noire, métis/métisse, Black, mixed-race, biracial ou afro-descendant",
+      received: "marqueur absent ou nié",
     });
     expect(JSON.stringify(diagnostic.mock.calls)).not.toContain(privateModelText);
     expect(JSON.stringify(data)).not.toContain(privateModelText);

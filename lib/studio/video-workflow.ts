@@ -9,6 +9,7 @@ import { probeVideoFile, validateFinalPortraitVideo } from "@/lib/studio/video-p
 import { packagedVideoBinaries } from "@/lib/studio/video-runtime";
 import { signedStudioUrl, storeStudioVideo } from "@/lib/studio/media";
 import { deleteStudioVideoArtifacts, readStudioVideoArtifact, storeStudioVideoArtifact } from "@/lib/studio/video-artifacts";
+import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
 import type { VideoAdPlan } from "@/lib/studio/video-plan";
 import { isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
 import { falJobReferenceMetadata, storedFalJobReference } from "@/lib/studio/video-job-reference";
@@ -121,8 +122,7 @@ export async function failQueuedVideoDispatchStep(id: string) {
     if (!check.error && check.data?.status === "refunded") creditState = "refunded";
     else if (!check.error && check.data?.status === "completed") creditState = "consumed";
     else if (!check.error && check.data?.status === "pending") {
-      const refund = await createAdminClient().rpc("refund_credit_debit", { transaction_id: row.credit_transaction_id });
-      if (!refund.error && refund.data === true) creditState = "refunded";
+      if (await confirmCreditTransition(createAdminClient(), "refund_credit_debit", row.credit_transaction_id, { userId: row.user_id })) creditState = "refunded";
       else {
         const finalCheck = await createAdminClient().from("credit_transactions").select("status").eq("id", row.credit_transaction_id).maybeSingle();
         if (!finalCheck.error && finalCheck.data?.status === "refunded") creditState = "refunded";
@@ -462,8 +462,8 @@ export async function assembleAndFinalizeVideoStep(id: string, falMergeJobId: st
 
   const transactionId = row.credit_transaction_id;
   if (!transactionId) throw new Error("La réservation de crédits n’est pas enregistrée.");
-  const debit = await createAdminClient().rpc("complete_credit_debit", { transaction_id: transactionId });
-  if (debit.error || debit.data !== true) throw new Error("Le débit final de crédits n’a pas été confirmé.");
+  const debitConfirmed = await confirmCreditTransition(createAdminClient(), "complete_credit_debit", transactionId, { userId: row.user_id });
+  if (!debitConfirmed) throw new Error("Le débit final de crédits n’a pas été confirmé.");
   await patchVideoRow(id, {
     phase: "completed",
     progress: 100,
@@ -500,8 +500,7 @@ export async function failVideoWorkflowStep(id: string, reason: "provider_reject
   const refundEligible = (reason === "provider_rejected" || reason === "provider_failed") && !previousSegmentGenerated;
   if (refundEligible) {
     if (transactionId && transactionStatus === "pending") {
-      const refund = await createAdminClient().rpc("refund_credit_debit", { transaction_id: transactionId });
-      if (!refund.error && refund.data === true) creditState = "refunded";
+      if (await confirmCreditTransition(createAdminClient(), "refund_credit_debit", transactionId, { userId: row.user_id })) creditState = "refunded";
       else {
         const check = await createAdminClient().from("credit_transactions").select("status").eq("id", transactionId).maybeSingle();
         if (!check.error && check.data?.status === "refunded") creditState = "refunded";

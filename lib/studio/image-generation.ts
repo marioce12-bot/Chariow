@@ -10,6 +10,7 @@ import {
   type StudioImageOptions,
 } from "@/lib/ai/fal";
 import { imageCreditCost } from "@/lib/studio/credits";
+import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
 import { storeStudioImage, signedStudioUrl } from "@/lib/studio/media";
 import { fetchReferenceImage } from "@/lib/studio/reference-image";
 import { buildPremiumImagePrompt } from "@/lib/studio/premium-prompt";
@@ -21,6 +22,7 @@ const resolutions = ["hd", "full_hd", "2k", "4k"] as const;
 const orientations = ["square", "landscape", "portrait"] as const;
 const backgrounds = ["auto", "opaque", "transparent"] as const;
 const outputFormats = ["png", "jpeg"] as const;
+const CREDIT_RETRY_HEADERS = { "Retry-After": "60", "Cache-Control": "private, no-store" };
 
 function oneOf<T extends readonly string[]>(
   value: unknown,
@@ -265,8 +267,15 @@ export async function generateStudioImage(
       const stored = await admin.from("studio_generations").update({ storage_path: storagePath }).eq("id", generation.id).eq("user_id", userId);
       if (stored.error) return stagedUncertain(stage, cost, "asset_persistence_error");
     }
-    const debit = await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
-    if (stage && (debit.error || debit.data !== true)) { await setCreditState(admin, userId, generation.id, generationMetadata, "uncertain"); return stagedUncertain(stage, cost, "debit_error"); }
+    const debitConfirmed = await confirmCreditTransition(admin, "complete_credit_debit", reserveResult.transaction_id, { userId, amount: cost });
+    if (!debitConfirmed) {
+      if (stage) {
+        if (!(await setCreditState(admin, userId, generation.id, generationMetadata, "uncertain")))
+          return stagedCreditRetryable(stage, cost, "credit_state_persistence_error");
+        return stagedCreditRetryable(stage, cost, "debit_error");
+      }
+      return NextResponse.json({ error: "Le débit des crédits n’a pas pu être confirmé. Réessaie plus tard." }, { status: 503, headers: CREDIT_RETRY_HEADERS });
+    }
     if (stage && !(await setCreditState(admin, userId, generation.id, generationMetadata, "consumed"))) return stagedUncertain(stage, cost, "persistence_error");
     const quotaCompletion = await admin.rpc("complete_image_slot", { p_user_id: userId, p_request_id: generation.id });
     if (quotaCompletion.error || quotaCompletion.data?.completed !== true)
@@ -286,12 +295,12 @@ export async function generateStudioImage(
       cost,
     });
   } catch (error) {
-    const refund = await admin.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });
+    const refundConfirmed = await confirmCreditTransition(admin, "refund_credit_debit", reserveResult.transaction_id, { userId, amount: cost });
     const quotaRelease = await admin.rpc("release_image_slot", { p_user_id: userId, p_request_id: generation.id });
     if (quotaRelease.error) console.error("Studio image quota release failed", quotaRelease.error.code ?? "unknown");
     if (stage) {
-      const state = refund.error ? "uncertain" : "refunded";
-      if (!(await setCreditState(admin, userId, generation.id, generationMetadata, state))) return stagedUncertain(stage, cost, "persistence_error");
+      const state = refundConfirmed ? "refunded" : "uncertain";
+      if (!(await setCreditState(admin, userId, generation.id, generationMetadata, state))) return stagedCreditRetryable(stage, cost, "credit_state_persistence_error");
     }
     await admin
       .from("studio_generations")
@@ -305,6 +314,10 @@ export async function generateStudioImage(
       error instanceof Error ? error.message : "Erreur de génération d'image.";
     if (stage) console.error("Studio staged image", { taskId: stage.taskId, step: stage.step, status: 502, errorCode: "provider_error", creditState: "uncertain", cost });
     else console.error("fal.ai studio image error", message);
+    if (!refundConfirmed) {
+      if (stage) return stagedCreditRetryable(stage, cost, "refund_error");
+      return NextResponse.json({ error: "La génération a échoué, mais le remboursement n’a pas pu être confirmé." }, { status: 503, headers: CREDIT_RETRY_HEADERS });
+    }
     return NextResponse.json(
       { error: "Impossible de générer l'image pour le moment." },
       { status: 502 },
@@ -320,4 +333,8 @@ async function setCreditState(admin: any, userId: string, id: string, metadata: 
 function stagedUncertain(stage: { taskId: string; step: number }, cost: number, errorCode = "stage_uncertain") {
   console.error("Studio staged image", { taskId: stage.taskId, step: stage.step, status: 409, errorCode, creditState: "uncertain", cost });
   return NextResponse.json({ error: "Cette étape nécessite une vérification manuelle.", code: "STUDIO_STAGE_UNCERTAIN" }, { status: 409 });
+}
+function stagedCreditRetryable(stage: { taskId: string; step: number }, cost: number, errorCode: string) {
+  console.error("Studio staged image credit transition pending retry", { taskId: stage.taskId, step: stage.step, status: 503, errorCode, creditState: "uncertain", amount: cost });
+  return NextResponse.json({ error: "La transition des crédits est en attente de reprise.", code: "STUDIO_CREDIT_TRANSITION_UNCONFIRMED" }, { status: 503, headers: CREDIT_RETRY_HEADERS });
 }
