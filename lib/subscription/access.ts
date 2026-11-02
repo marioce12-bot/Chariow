@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const PLANS_REQUIRED_MESSAGE = "Ton essai gratuit est terminé. Active ton abonnement pour continuer.";
+const PLANS_REQUIRED_MESSAGE = "Ton abonnement Vendeo a expiré. Réactive-le depuis la section Abonnement pour continuer.";
 
 /**
  * Règle d'accès unique, vérifiée en temps réel (sans dépendre du cron) :

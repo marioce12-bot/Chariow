@@ -7,6 +7,7 @@
 @import "./styles/ai.css";
 @import "./styles/notifications.css";
 @import "./styles/desktop-polish.css";
+@import "./styles/subscription-expired.css";
 
 
 /* Admin console navigation and responsive shell overrides. */

@@ -16,17 +16,23 @@ const facts = "Disponible au format PDF. Des exercices accompagnent chaque chapi
 const input = (description: string) => ({ product: { name: "Atlas", description }, mediaType: "video", videoMode: "slideshow", duration: 25, aspectRatio: "9:16", musicId: "", locale: "fr" });
 beforeEach(() => { vi.clearAllMocks(); vi.stubEnv("VENDEO_SLIDESHOW_TTS_ENABLED", "false"); vi.stubEnv("VENDEO_SLIDESHOW_TTS_TEST_ALLOWED", "false"); mocks.subscription.mockResolvedValue(null); mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert: mocks.insert }); });
 describe("free slideshow preparation routes", () => {
-  it("returns one short explanation with technical details, with no AI call or database write", async () => {
+  it("returns an actionable shop-description message with no AI call or database write", async () => {
     const response = await prepare(request(input("")));
     expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ code: "INSUFFICIENT_PRODUCT_DETAILS", error: "Complète la description ci-dessous, puis appuie sur Relancer.", details: expect.stringContaining("insuffisantes") });
+    const body = await response.json();
+    expect(body).toMatchObject({ code: "INSUFFICIENT_PRODUCT_DETAILS", error: expect.stringContaining("Revois-la dans ta boutique"), details: expect.stringContaining("insuffisantes") });
+    expect(body.error).toContain("appuie à nouveau sur « Créer »");
+    expect(body.error).not.toContain("Relancer");
     expect(mocks.ask).not.toHaveBeenCalled(); expect(mocks.from).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.worker).not.toHaveBeenCalled();
   });
   it("replans supplemented text without creating a task, calling AI or spending credits", async () => {
     expect((await prepare(request(input("")))).status).toBe(400);
     const response = await prepare(request(input(facts)));
     expect(response.status).toBe(200);
-    expect((await response.json()).slideshow.slides).toHaveLength(5);
+    const body = await response.json();
+    expect(body.slideshow).toMatchObject({ ready: true, duration: 25, aspectRatio: "9:16", slideCount: 5 });
+    expect(body).not.toHaveProperty("prompt");
+    expect(body.slideshow).not.toHaveProperty("slides");
     expect(mocks.ask).not.toHaveBeenCalled(); expect(mocks.from).not.toHaveBeenCalled(); expect(mocks.insert).not.toHaveBeenCalled(); expect(mocks.worker).not.toHaveBeenCalled();
   });
   it("rejects even a direct task request with duplicate facts before insertion or dispatch", async () => {

@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { askGemini, askImole } = vi.hoisted(() => ({ askGemini: vi.fn(), askImole: vi.fn() }));
-vi.mock("@/lib/ai/gemini", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/ai/gemini")>(), askGemini }));
-vi.mock("@/lib/ai/imole", () => ({ askImole }));
+const { askOpenRouter } = vi.hoisted(() => ({ askOpenRouter: vi.fn() }));
+vi.mock("@/lib/ai/openrouter", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/ai/openrouter")>(), askOpenRouter }));
 vi.mock("@/lib/auth", () => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/chariow/analytics", () => ({ getChariowSnapshot: vi.fn(), serializeChariowContext: vi.fn() }));
 vi.mock("@/lib/ai/format", () => ({ cleanAiText: (text: string) => text }));
@@ -14,7 +13,7 @@ vi.mock("@/lib/shop/chat", () => ({ VITRINE_PROMPT: "", processVitrineAnswer: ({
 vi.mock("@/lib/chariow/chat-product", () => ({ resolveCampaignAnswer: (answer: string) => answer }));
 import { requireUser } from "@/lib/auth";
 import { POST, maxDuration } from "@/app/api/chat/route";
-import { GeminiApiError } from "@/lib/ai/gemini";
+import { OpenRouterApiError } from "@/lib/ai/openrouter";
 
 function makeSupabase() {
   const db: Record<string, any> = { history: [] };
@@ -35,16 +34,16 @@ describe("POST /api/chat provider selection", () => {
   beforeEach(() => {
     vi.clearAllMocks(); supabase = makeSupabase();
     vi.mocked(requireUser).mockResolvedValue({ supabase: supabase as any, user: { id: "user-1" }, response: null } as any);
-    askGemini.mockResolvedValue("Réponse en français");
+    askOpenRouter.mockResolvedValue("Réponse en français");
   });
-  it("sends chronological prior turns and current French message to Gemini 3.6; never calls Imole", async () => {
+  it("sends chronological prior turns and current French message to OpenRouter", async () => {
     supabase.history = [{ role: "user", content: "Première question" }, { role: "assistant", content: "Première réponse" }];
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Et ensuite ?", conversationId: "conversation-1" }) }));
     expect(response.status).toBe(200);
-    const [messages, options] = askGemini.mock.calls[0];
-    expect(options).toEqual({ model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW", overloadRetries: 2 });
+    const [messages, options] = askOpenRouter.mock.calls[0];
+    expect(options).toEqual({ timeoutMs: 60000, overloadRetries: 2 });
     expect(messages.slice(-3).map((m: any) => [m.role, m.content])).toEqual([["user", "Première question"], ["assistant", "Première réponse"], ["user", "Et ensuite ?"]]);
-    expect(askImole).not.toHaveBeenCalled();
+    expect(askOpenRouter).toHaveBeenCalledTimes(1);
   });
   it("mémorise un échange français de cinq tours, dont le budget en XOF, dans la même conversation", async () => {
     const turns = [
@@ -55,7 +54,7 @@ describe("POST /api/chat provider selection", () => {
       { user: "Utilise « Des recettes simples pour toute la famille ».", assistant: "C'est noté : la publicité utilisera ce texte, au Sénégal, pour les femmes de 25 à 40 ans, avec un budget de 5 000 XOF par jour pendant 7 jours." },
     ];
     for (const turn of turns) {
-      askGemini.mockResolvedValueOnce(turn.assistant);
+      askOpenRouter.mockResolvedValueOnce(turn.assistant);
       const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: turn.user, conversationId: "conversation-1" }) }));
       expect(response.status).toBe(200);
       const payload = await response.json();
@@ -64,32 +63,29 @@ describe("POST /api/chat provider selection", () => {
     }
     expect(supabase.history).toHaveLength(10);
     expect(supabase.history.filter(({ role }: any) => role === "user").map(({ content }: any) => content)).toContain("Mon budget est de 5 000 XOF par jour pendant 7 jours.");
-    const finalHistory = askGemini.mock.calls[4][0];
+    const finalHistory = askOpenRouter.mock.calls[4][0];
     expect(finalHistory.slice(-2).map((item: any) => [item.role, item.content])).toEqual([["assistant", turns[3].assistant], ["user", turns[4].user]]);
     expect(finalHistory.at(-1)).toMatchObject({ role: "user", content: turns[4].user });
     expect(finalHistory.some((item: any) => item.content?.includes("5 000 XOF"))).toBe(true);
-    expect(askGemini).toHaveBeenCalledTimes(5);
-    expect(askImole).not.toHaveBeenCalled();
+    expect(askOpenRouter).toHaveBeenCalledTimes(5);
   });
-  it.each(["quota 429", "model 404", "timeout", "empty response"])("returns controlled failure for Gemini %s without provider fallback", async (failure) => {
-    askGemini.mockRejectedValue(new Error(failure));
+  it.each(["quota 429", "model 404", "timeout", "empty response"])("returns controlled failure for OpenRouter %s without provider fallback", async (failure) => {
+    askOpenRouter.mockRejectedValue(new Error(failure));
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Bonjour" }) }));
     expect(response.status).toBe(502);
-    expect(askGemini).toHaveBeenCalledTimes(1);
-    expect(askGemini.mock.calls[0][1]).toEqual({ model: "gemini-3.6-flash", timeoutMs: 60000, thinkingLevel: "LOW", overloadRetries: 2 });
-    expect(askImole).not.toHaveBeenCalled();
+    expect(askOpenRouter).toHaveBeenCalledTimes(1);
+    expect(askOpenRouter.mock.calls[0][1]).toEqual({ timeoutMs: 60000, overloadRetries: 2 });
   });
-  it.each(["fr", "en"])("explains persistent overload in %s without a provider fallback or extra quota consumption", async (locale) => {
-    askGemini.mockRejectedValue(new GeminiApiError("high demand", 503));
+  it.each(["fr", "en"])("explains persistent OpenRouter overload in %s without a fallback or extra quota consumption", async (locale) => {
+    askOpenRouter.mockRejectedValue(new OpenRouterApiError(503));
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Bonjour", locale }) }));
     expect(response.status).toBe(503);
     expect(response.headers.get("Retry-After")).toBe("15");
     const payload = await response.json();
     expect(payload).toMatchObject({ code: "AI_OVERLOADED", conversationId: "conversation-1" });
     expect(payload.error).toContain(locale === "en" ? "high demand" : "saturé");
-    expect(askGemini).toHaveBeenCalledTimes(1);
+    expect(askOpenRouter).toHaveBeenCalledTimes(1);
     expect(supabase.rpc).toHaveBeenCalledTimes(1);
     expect(supabase.history).toHaveLength(1);
-    expect(askImole).not.toHaveBeenCalled();
   });
 });

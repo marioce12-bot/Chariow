@@ -12,8 +12,8 @@ describe("mobile Assistant dock destination", () => {
       .map(([markup]) => markup)
       .find((markup) => markup.includes('data-onboarding="Vendeo AI"'));
     expect(button).toBeTruthy();
-    expect(button).toContain("<Brain size={24} strokeWidth={2}");
-    expect(button).toContain('setActive("Vendeo AI")');
+    expect(button).toContain("<Brain size={26} strokeWidth={2}");
+    expect(button).toContain('navigateToSection("Vendeo AI")');
     expect(button).toContain('active === "Vendeo AI"');
     expect(dashboard).not.toContain("mobile-assistant-bubble");
     expect(mobileCss).not.toContain("mobile-assistant-bubble");
@@ -30,10 +30,13 @@ describe("mobile Assistant dock destination", () => {
     expect(mobileCss).toContain("outline: 3px solid #6b45e8;");
   });
 
-  it("keeps normal dock destination colors and a raised Studio icon", () => {
+  it("keeps normal dock destination colors and the Studio dock item", () => {
     expect(mobileCss).toMatch(/\.dashboard-platform \.mobile-nav \.nav-btn\s*\{[\s\S]*?color:\s*#08090c;/);
     expect(mobileCss).toMatch(/\.dashboard-platform \.mobile-nav \.nav-btn\.active\s*\{[\s\S]*?color:\s*#103ef8;/);
-    expect(mobileCss).toContain(".dashboard-platform .mobile-nav .nav-btn-studio svg");
-    expect(mobileCss).toContain(".dashboard-platform .mobile-nav .nav-btn-studio.active svg");
+    const studioButton = [...navMarkup.matchAll(/<button\b[\s\S]*?<\/button>/g)]
+      .map(([markup]) => markup)
+      .find((markup) => markup.includes('data-onboarding="Studio"'));
+    expect(studioButton).toContain("nav-btn-studio");
+    expect(studioButton).toContain("<Palette size={24} strokeWidth={2}");
   });
 });

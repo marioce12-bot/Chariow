@@ -10,6 +10,7 @@ vi.mock("@/lib/studio/slideshow-server", () => ({ isPreviewEnabled: () => true }
 vi.mock("@/lib/studio/background-tasks", () => ({ TASK_TYPE: "test", logTaskEvent: vi.fn(), publicTask: async (row: unknown) => row }));
 vi.mock("@/lib/studio/slideshow-plan", async (original) => ({ ...await original<object>(), buildSlideshowPlan: mocks.plan }));
 vi.mock("@/lib/studio/slideshow-voice", () => ({
+  SlideshowVoiceUnavailableError: class extends Error {},
   assertSlideshowVoiceAllowed: mocks.gate,
   buildSlideshowVoicePlan: mocks.voice,
   slideshowVoiceAvailability: () => ({ available: false, voiceoverEnabled: false }),
@@ -45,7 +46,7 @@ describe("server-only preparation diagnostics", () => {
   ])("classifies a voice gate refusal without changing the public response: %s", async (message, reason) => {
     mocks.gate.mockImplementation(() => { throw new Error(message); });
     const response = await POST(request());
-    expect(response.status).toBe(400); expect(await response.json()).toEqual({ error: slideshowPublicFailure("fr") });
+    expect(response.status).toBe(400); expect(await response.json()).toEqual({ error: slideshowPublicFailure("fr"), locale: "fr" });
     expect(diagnostic()).toEqual({ event: "studio_preparation_failed", taskId: id, stage: "voice_gate", reason, status: 400 });
     expect(warn).toHaveBeenCalledOnce(); noEffects();
   });
@@ -68,7 +69,7 @@ describe("server-only preparation diagnostics", () => {
   it.each([new Error("PRIVATE_EXCEPTION token=PRIVATE_TOKEN"), { code: "PRIVATE_CODE", message: "PRIVATE_EXCEPTION" }, "PRIVATE_EXCEPTION"])("redacts arbitrary exceptions", async (error) => {
     mocks.plan.mockImplementation(() => { throw error; });
     const response = await POST(request());
-    expect(response.status).toBe(400); expect(await response.json()).toEqual({ error: slideshowPublicFailure("fr") });
+    expect(response.status).toBe(400); expect(await response.json()).toEqual({ error: slideshowPublicFailure("fr"), locale: "fr" });
     expect(diagnostic()).toMatchObject({ stage: "slideshow_plan", reason: "UNEXPECTED_PREPARATION_ERROR" }); noEffects();
   });
   it("does not log successful preparation or execute the scheduled workflow", async () => {

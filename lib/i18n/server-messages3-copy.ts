@@ -73,7 +73,7 @@ const rows = [
   ["serverMessage.text209", "Sélection d’utilisateurs invalide.", "Invalid user selection."],
   ["serverMessage.text212", "Sélectionne un compte Meta Ads", "Select a Meta Ads account"],
   ["serverMessage.text215", "Sélectionne une page Facebook avant de lancer la campagne", "Select a Facebook page before launching the campaign"],
-  ["serverMessage.text218", "Ton essai gratuit est terminé. Active ton abonnement pour continuer.", "Your free trial has ended. Activate your subscription to continue."],
+  ["serverMessage.text218", "Ton abonnement Vendeo a expiré. Réactive-le depuis la section Abonnement pour continuer.", "Your Vendeo subscription has expired. Reactivate it in the Subscription section to continue."],
   ["serverMessage.text221", "Trop d'envois, réessaie dans une minute", "Too many submissions; try again in one minute"],
   ["serverMessage.text224", "Un paiement SasPay est requis pour changer de plan", "A SasPay payment is required to change plans"],
   ["serverMessage.text227", "Vente non enregistrée", "Sale not recorded"],

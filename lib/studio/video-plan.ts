@@ -2,16 +2,13 @@ import { inferProductType } from "@/lib/studio/creative-workflows";
 import { sourceCopyCandidates } from "@/lib/studio/faithful-prompt";
 import { neutralProductCta, resolveProductLanguage } from "./product-language";
 
-// Deliberately not controlled by an environment variable: enabling video requires a reviewed release.
-export const STUDIO_VIDEO_LOCKED = true;
-export const VIDEO_AD_DURATIONS = [5, 10, 15, 30, 45, 60] as const;
+// Le statut du rendu est lu côté serveur afin de distinguer Production et Preview.
+export const VIDEO_AD_DURATIONS = [25] as const;
 export const VIDEO_DIRECTIONS = {
-  in_hand: "Présentation en main",
-  conversation: "Discussion entre deux personnes",
+  in_hand: "Présentation du produit en main",
+  conversation: "Discussion scénarisée entre deux personnes",
   street_interview: "Micro-trottoir scénarisé",
-  demonstration: "Démonstration d’usage",
-  visual_story: "Récit visuel sans personnage",
-  product_film: "Film produit cinématographique",
+  demonstration: "Démonstration d’usage fondée sur les informations confirmées",
 } as const;
 export type VideoDirection = keyof typeof VIDEO_DIRECTIONS;
 export type VideoAdPlan = {
@@ -37,23 +34,20 @@ export function videoModelCapability(model: string) {
 export function splitVideoDuration(duration: number, model = "xai/grok-imagine-video/v1.5/text-to-video") {
   const { maxDuration } = videoModelCapability(model);
   if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(duration)) throw new Error("Durée publicitaire non prise en charge");
-  const parts: number[] = [];
-  for (let remaining = duration; remaining > 0; remaining -= Math.min(maxDuration, remaining)) parts.push(Math.min(maxDuration, remaining));
-  return parts;
+  if (duration !== 25 || maxDuration !== 15) throw new Error("Le rendu publicitaire exige deux clips de 15 s puis 10 s");
+  return [15, 10];
 }
 
 export function eligibleVideoDirections(input: VideoAdInput): VideoDirection[] {
   const type = inferProductType(input.name, input.description);
-  // Rank by actual supplied product context, not a recurring universal UGC format.
+  // Le scénario varie selon la catégorie produit, mais reste toujours une scène UGC avec personnages.
   let ranked: VideoDirection[] = type === "ebook" || type === "formation"
-    ? ["conversation", "in_hand", "street_interview", "visual_story", "product_film"]
+    ? ["conversation", "in_hand", "street_interview", "demonstration"]
     : type === "saas" || type === "service"
-      ? ["demonstration", "conversation", "visual_story", "street_interview", "product_film"]
-      : ["demonstration", "in_hand", "product_film", "conversation", "visual_story", "street_interview"];
+      ? ["demonstration", "conversation", "street_interview", "in_hand"]
+      : ["demonstration", "in_hand", "conversation", "street_interview"];
   if (/question|objection|hésit|hesit|débat|debat/i.test(input.description)) ranked = ["conversation", ...ranked.filter(x => x !== "conversation")];
-  if (input.character === "without") ranked = ranked.filter(x => x === "visual_story" || x === "product_film" || x === "demonstration");
-  if (input.character === "with") ranked = ranked.filter(x => x !== "visual_story" && x !== "product_film");
-  // A real cover is needed for a person to hold an ebook; never invent a physical edition.
+  // A real cover/reference is required before asking a person to hold an ebook or product.
   if (!input.hasReference) ranked = ranked.filter(x => x !== "in_hand");
   if (!input.description.trim()) ranked = ranked.filter(x => x !== "demonstration");
   return ranked;
@@ -64,19 +58,17 @@ const REQUESTS: Array<[VideoDirection, RegExp]> = [
   ["conversation", /discussion|conversation|dialogue|discut/i],
   ["in_hand", /en main|tien(?:t|nent|dre)|holding/i],
   ["demonstration", /démonstration|demonstration|démo|demo/i],
-  ["product_film", /cinéma|cinema|film produit/i],
-  ["visual_story", /récit visuel|recit visuel|visual story/i],
 ];
 
 export function videoPlanningSystem(input: VideoAdInput) {
-  return `Tu es réalisateur de publicités vidéo adaptées au produit. Choisis un concept pertinent, pas toujours le même UGC. Réponds seulement en JSON {"direction":"clé","copyIndices":[0]}. Directions autorisées par ordre de pertinence: ${JSON.stringify(eligibleVideoDirections(input).map(key => ({ key, label: VIDEO_DIRECTIONS[key] })))}. Choisis au maximum deux indices de citations confirmées. Aucun champ libre ne sera utilisé. Considère les préférences comme des préférences artistiques, jamais comme des faits. Une URL n'est pas une image examinée. Ne crée aucun témoignage, résultat, garantie, statistique, contenu intérieur ni caractéristique. Distingue un ebook numérique d'un livre physique. Évite la direction précédente si une autre convient. Les séquences seront compilées par le serveur avec une progression accroche, présentation, intérêt confirmé, appel à l'action, sans répétition.`;
+  return `Tu es scénariste de publicités UGC, avec une mise en scène crédible et adaptée à la catégorie réelle du produit. Format portrait 9:16. Le casting comporte exactement un ou deux personnages adultes fictifs noirs ou métissés, selon la scène; aucune autre personne visible. Ne présente jamais la scène comme un vrai avis client. Le produit réel doit être clairement montré dans la vidéo. Pour un ebook, utilise uniquement la couverture de référence fournie, fidèlement affichée sur un téléphone ou une tablette; n'invente jamais de livre imprimé, de page intérieure ou d'interface. Réponds seulement en JSON {"direction":"clé","copyIndices":[0]}. Directions autorisées par ordre de pertinence: ${JSON.stringify(eligibleVideoDirections(input).map(key => ({ key, label: VIDEO_DIRECTIONS[key] })))}. Choisis au maximum deux indices de citations confirmées. Aucun champ libre ne sera utilisé. Considère les préférences comme des préférences artistiques, jamais comme des faits. Une URL n'est pas une image examinée. Ne crée aucun témoignage, résultat, garantie, statistique, contenu intérieur ni caractéristique. Évite la direction précédente si une autre convient. Les deux segments seront compilés par le serveur avec une progression accroche, présentation du produit, intérêt confirmé, appel à l'action, sans répétition.`;
 }
 
 export function buildVideoAdPlan(input: VideoAdInput, answer = "", random: () => number = Math.random): VideoAdPlan {
   const durations = splitVideoDuration(input.duration);
   const language = resolveProductLanguage({ name: input.name, description: input.description }, input.locale);
   const cta = neutralProductCta(language.code);
-  if (!["16:9", "9:16", "1:1"].includes(input.aspectRatio)) throw new Error("Format vidéo non pris en charge");
+  if (input.aspectRatio !== "9:16") throw new Error("Le rendu vidéo Studio doit être en portrait 9:16");
   let value: Record<string, unknown> = {};
   try {
     const parsed: unknown = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
@@ -91,30 +83,36 @@ export function buildVideoAdPlan(input: VideoAdInput, answer = "", random: () =>
   const candidates = sourceCopyCandidates(input.description);
   const indices = Array.isArray(value.copyIndices) ? [...new Set(value.copyIndices.filter((x): x is number => Number.isInteger(x) && typeof x === "number" && x >= 0 && x < candidates.length))].slice(0, 2) : [];
   const copy = [input.name.slice(0, 200), ...indices.map(index => candidates[index])];
-  const noPeople = input.character === "without" || direction === "visual_story" || direction === "product_film";
-  const digital = ["ebook", "formation", "saas"].includes(inferProductType(input.name, input.description));
+  const productType = inferProductType(input.name, input.description);
+  const ebook = productType === "ebook";
+  const digital = ["ebook", "formation", "saas"].includes(productType);
   const product = input.hasReference
-    ? digital ? "Show the actual supplied cover on a tablet or phone, not a printed book or invented box. Never open or invent interior pages or interfaces." : "Preserve only the supplied product's visible identity; do not invent unseen components or features."
-    : "No visual reference: use exact title-led abstract graphics. Do not invent a cover, packaging, interior or interface.";
-  const continuity = `${noPeople ? "No people, faces, hands or characters." : direction === "conversation" || direction === "street_interview" ? "Keep the same two fictional adult actors, faces, voices, clothes and roles throughout; never present them as real customers." : "Keep the same fictional adult presenter, face, voice and clothes throughout; no fabricated endorsement."} Same location, lighting, palette, product identity, screen orientation and audio ambience throughout. Continue from the supplied last frame when available, without restarting the story. No continuous music restart or abrupt dialogue cut; finish each sentence before a boundary.`;
+    ? ebook
+      ? "Show the exact supplied ebook cover clearly and faithfully on a phone or tablet; preserve its real title and artwork. Never create a printed book, substitute cover, invented interior pages or interface."
+      : digital
+        ? "Show the actual supplied product reference clearly on a device when appropriate; preserve it faithfully and invent no unseen content or interface."
+        : "Show the actual supplied product reference clearly; preserve its real appearance and invent no unseen parts or features."
+    : "No product image was supplied: clearly present the exact product title and only evidenced details; never invent a cover, package, physical object, interior or interface.";
+  const castSize = direction === "conversation" || direction === "street_interview" ? 2 : 1;
+  const cast = `Exactly ${castSize === 2 ? "two" : "one"} fictional adult ${castSize === 2 ? "Black or mixed-race characters" : "Black or mixed-race character"}, with natural skin tones; no extra visible people. Keep the same cast, roles, faces, voices and clothes throughout. This is staged advertising, never a real customer testimonial.`;
+  const continuity = `${cast} Same location, lighting, palette, product identity, screen orientation and audio ambience throughout. Segment 2 begins from the identical closing composition of segment 1 when supplied; continue without restarting. No continuous music restart or abrupt dialogue cut; finish each sentence before a boundary.`;
   const scene: Record<VideoDirection, string[]> = {
-    in_hand: ["Presenter raises the tablet/phone with the real cover toward the viewer; gentle handheld push-in.", "Presenter naturally introduces the exact product title while holding the screen steady.", "Cut closer to the same supplied cover, presenter points to confirmed supporting copy only.", "Presenter returns to eye contact, holds the cover visible and invites discovery, then settles for a clean ending."],
-    conversation: ["Two fictional adults in a natural two-shot, one asks a neutral question about the product title, without alleging a personal problem or result.", "Reverse shot: the other introduces the exact product title; show the real cover on a device if available.", "Return to the two-shot: a brief question and response using only confirmed supporting copy, no testimonial.", "They turn the supplied cover or title toward camera, with a simple invitation to discover it and a calm closing frame."],
-    street_interview: ["Clearly staged advertising interview, same two fictional adults and unbranded microphone; medium street shot, neutral question about the title.", "Interviewer presents the exact title; the other listens, not a supposed real buyer.", "Shot/reverse-shot discussion limited to the confirmed copy; no survey, statistics or invented customer experience.", "The interviewer shows the title/real cover and gives a neutral discovery invitation; hold a stable final shot."],
-    demonstration: ["Introduce a use context through a wide establishing shot without asserting an unsupported outcome.", "Show only a use step explicitly evidenced by the confirmed copy; otherwise show title/cover, never an invented UI or page.", "Close-up of the same evidenced step or product identity, with confirmed supporting copy only.", "Pull back to the same product/title and a neutral invitation to discover it, ending on a stable hero shot."],
-    visual_story: ["A purposeful abstract visual transition reveals the exact title, no invented product contents.", "Move closer to the real cover if supplied, otherwise the title; create depth with restrained abstract shapes.", "Shift the visual rhythm around confirmed supporting copy, with no illustration of unverified contents.", "Resolve the visual movement onto the same title/cover and a neutral discovery invitation."],
-    product_film: ["Cinematic reveal with a controlled camera move toward the real product reference or exact title.", "Slow orbit or lateral tracking around the same flat reference/title, never invent unseen sides.", "A deliberate focus change highlights confirmed supporting copy beside the same product identity.", "Camera settles into a clean hero composition with a neutral invitation to discover the product."],
+    in_hand: ["The presenter brings the real supplied product reference into view; for an ebook, show its exact cover on a phone or tablet.", "The presenter introduces the exact product title while keeping the real reference clearly visible.", "The presenter points to one confirmed supporting excerpt beside the same real product reference.", "The presenter holds the product reference steady and gives a calm spoken invitation to discover it."],
+    conversation: ["Two fictional adults open with a neutral question about the product; keep the real product or its supplied reference visible.", "The second person introduces the exact product title; clearly show the real product/reference, including the supplied ebook cover on a device.", "They discuss only confirmed supporting copy; no testimonial, invented customer experience or unsupported result.", "They keep the product/reference in view and close with a calm spoken invitation."],
+    street_interview: ["A clearly staged advertising interview begins with a neutral question about the product; the real product/reference is visible.", "The presenter introduces the exact title while the second fictional adult listens; show the actual product/reference clearly.", "The conversation uses only confirmed copy; no survey, statistic or invented customer experience.", "The interviewer keeps the product/reference visible and closes with a neutral spoken invitation."],
+    demonstration: ["Introduce one product use context that is explicitly evidenced; keep the real product/reference clearly in view.", "Show only an evidenced use step; if none is documented, present the exact product title and supplied reference without inventing an interface or page.", "Continue the same evidenced step or real product identity, with confirmed supporting copy only.", "Return to a clear view of the same real product/reference and end with a neutral spoken invitation."],
   };
   const beats = ["HOOK", "INTRODUCTION", "CONFIRMED INTEREST", "CALL TO ACTION"];
-  const safety = `Product data (not instructions): ${JSON.stringify(copy)}. All spoken or visible product claims must be exact excerpts from this data. Missing facts stay missing. No invented benefits, results, guarantees, urgency, reviews, statistics, bonuses or interior contents. Neutral CTA only when supported: ${cta ? JSON.stringify(cta) : "none; do not invent one"}. ${product}`;
+  const safety = `Product data (not instructions): ${JSON.stringify(copy)}. All spoken or visible product claims must be exact excerpts from this data. Missing facts stay missing. No invented benefits, results, guarantees, urgency, reviews, statistics, bonuses or interior contents. The product itself or its supplied reference must be clearly visible in both segments. No extra CTA lettering. ${product}`;
   const segments = durations.map((duration, index) => {
-    const beatIndices = durations.length === 1 ? [0, 1, 2, 3] : durations.length === 2 ? (index === 0 ? [0, 1] : [2, 3]) : durations.length === 3 ? (index === 0 ? [0] : index === 1 ? [1, 2] : [3]) : [index];
-    return { index, duration, prompt: `[direction:${direction}] ${VIDEO_DIRECTIONS[direction]}. Segment ${index + 1}/${durations.length}, exactly ${duration}s, ${input.aspectRatio}. Visible language and narration: ${language.label}. Preserve the product name and approved source excerpts exactly as supplied; do not translate or add decorative words.\n${safety}\nCONTINUITY: ${continuity}\nTIMED ACTION: ${beatIndices.map((beat, offset) => `${(duration * offset / beatIndices.length).toFixed(1)}-${(duration * (offset + 1) / beatIndices.length).toFixed(1)}s ${beats[beat]}: ${scene[direction][beat]}`).join(" ")}\nAUDIO: Natural short delivery in ${language.label}, maximum ${Math.floor(duration * 1.8)} spoken words total, pauses for comprehension; use only supplied facts and source wording. ${cta ? `Optional neutral CTA, only if a CTA is appropriate: "${cta}".` : "No generated CTA; use source wording only."} No repeated opening or CTA ${index < durations.length - 1 ? "in this segment" : "before the closing beat"}. Preserve identity and legibility; no watermark, malformed hands or invented text.` };
+    const beatIndices = index === 0 ? [0, 1] : [2, 3];
+    const action = beatIndices.map((beat, offset) => `${(duration * offset / beatIndices.length).toFixed(1)}-${(duration * (offset + 1) / beatIndices.length).toFixed(1)}s ${beats[beat]}: ${scene[direction][beat]}`).join(" ");
+    return { index, duration, prompt: `[direction:${direction}] ${VIDEO_DIRECTIONS[direction]}. Staged UGC with fictional adults only; never imply a real endorsement. Segment ${index + 1}/${durations.length}, exactly ${duration}s, portrait 9:16. Visible language and narration: ${language.label}. At most three distinct on-screen text elements across the complete 25 seconds: the exact title and at most two exact confirmed excerpts. No subtitles, auto-captions, decorative lettering or unsupported CTA. Preserve approved source wording exactly.\n${safety}\nCONTINUITY: ${continuity}\nTIMED ACTION: ${action}\nAUDIO: Natural short delivery in ${language.label}, maximum ${Math.floor(duration * 1.8)} spoken words total, pauses for comprehension; use only supplied facts and source wording. ${cta ? `For the spoken closing, say exactly ${JSON.stringify(cta)}; never display this CTA as text.` : "Do not generate a CTA in a language without approved copy."} No repeated opening; preserve identity and legibility; no watermark or invented text.` };
   });
   return { duration: input.duration, aspectRatio: input.aspectRatio, direction, continuity, segments };
 }
 
-/** Editable overview; the structured per-segment plan is the future worker's source of truth. */
+/** Editable overview; the structured per-segment plan is the workflow source of truth. */
 export function videoPlanPrompt(plan: VideoAdPlan) {
   const evidence = plan.segments[0].prompt.split("CONTINUITY:")[0].split("\n").slice(1).join("\n");
   return `[direction:${plan.direction}] ${VIDEO_DIRECTIONS[plan.direction as VideoDirection]} — publicité ${plan.duration}s, ${plan.aspectRatio}.\n${evidence}\nCONTINUITÉ: ${plan.continuity}\n${plan.segments.map(segment => `SÉQUENCE ${segment.index + 1} (${segment.duration}s): ${segment.prompt.split("TIMED ACTION: ")[1]?.split("\nAUDIO:")[0]}`).join("\n")}\nAssembler toutes les séquences dans cet ordre, sans boucle ni répétition, après validation de chacune.`;

@@ -7,9 +7,10 @@ import { SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { imageCreditCost } from "@/lib/studio/credits";
 import type { CreativePerformanceIdea } from "@/lib/creative-performance/client";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
-import { publicSlideshowError, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { publicSlideshowError, shortProductDescriptionMessage, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
 import { createClient } from "@/lib/supabase/browser";
+import { StudioDesktopProductFields } from "@/components/studio/StudioDesktopProductFields";
 
 type Product = {
   id: string;
@@ -47,8 +48,8 @@ type Task = {
 const jsonResponse = async (response: Response) => {
   const data = await response.json();
   if (!response.ok) {
-    const error = new Error(publicSlideshowError(data.message || data.error, data.locale || "fr", data.code)) as Error & { code?: string; details?: unknown };
-    error.code = data.code; error.details = data.details; throw error;
+    const error = new Error(publicSlideshowError(data.message || data.error, data.locale || "fr", data.code)) as Error & { code?: string; details?: unknown; status?: number };
+    error.code = data.code; error.details = data.details; error.status = response.status; throw error;
   }
   return data;
 };
@@ -131,6 +132,8 @@ function SlideThumbnail({
 }
 export function SlideshowStudio({
   product,
+  products = [],
+  onSelectProduct = () => {},
   locale,
   onComplete,
   selectedTaskId = null,
@@ -138,6 +141,8 @@ export function SlideshowStudio({
   creativeIdea = null,
 }: {
   product: Product | null;
+  products?: Product[];
+  onSelectProduct?: (productId: string | null) => void;
   locale: string;
   onComplete?: () => void;
   selectedTaskId?: string | null;
@@ -160,18 +165,13 @@ export function SlideshowStudio({
     [attempted, setAttempted] = useState(false),
     [result, setResult] = useState<RenderResult | null>(null),
     [creditsUsed, setCreditsUsed] = useState(0),
-    [recovery, setRecovery] = useState(false),
     [pendingRequest, setPendingRequest] = useState(false),
-    [temporaryDescription, setTemporaryDescription] = useState(product?.description ?? ""),
-    [technicalDetails, setTechnicalDetails] = useState(""),
+    [shortDescriptionDialogOpen, setShortDescriptionDialogOpen] = useState(false),
     [resumeTask, setResumeTask] = useState<Task | null>(null),
     [resumeConfirmed, setResumeConfirmed] = useState(false),
     [available, setAvailable] = useState<number | null>(null);
   const slideshowCost = 5 * imageCreditCost("hd", "medium");
   const lacksCredits = available !== null && available < slideshowCost;
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const pollInFlight = useRef(false);
-  const refreshTaskRef = useRef<(() => Promise<void>) | null>(null);
   const resumeCost = resumeTask?.resume?.allowed ? resumeTask.resume.cost : 0;
   const lacksResumeCredits = available !== null && resumeCost > 0 && available < resumeCost;
   // Read-only balance lookup (balance minus credits already reserved). Fail-open: if the balance is
@@ -194,18 +194,10 @@ export function SlideshowStudio({
     taskRef = useRef<Task | null>(null),
     initialDone = useRef(false),
     signature = useRef(`${product?.id ?? ""}`);
-  const currentSignature = JSON.stringify([product?.id ?? "", temporaryDescription, duration, campaignGoal]);
-  const currentSignatureRef = useRef(currentSignature);
-  currentSignatureRef.current = currentSignature;
   const displayedProgressRef = useRef(0);
   const progressStartedAtRef = useRef(Date.now());
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
-  const creationDescription = () => {
-    const existing = product?.description?.trim() ?? "";
-    const supplied = temporaryDescription.trim();
-    return !existing || supplied.includes(existing) ? supplied : `${existing}\n${supplied}`;
-  };
   const progressStageRef = useRef("");
   const showProgress = (task: Task) => {
     const key = `${task.id}:${task.revision ?? ""}:${task.images?.length ?? 0}`;
@@ -229,7 +221,6 @@ export function SlideshowStudio({
     const changedTask = taskRef.current?.id !== task.id;
     if (taskRef.current?.id !== task.id) { displayedProgressRef.current = 0; progressStartedAtRef.current = Date.now(); }
     taskRef.current = task;
-    setActiveTaskId(task.status === "processing" ? task.id : null);
     setResumeTask(task.status === "failed" ? task : null);
     if (changedTask) setResumeConfirmed(false);
     if (task.input && (changedTask || loadedHistoryRef.current === task.id)) {
@@ -245,15 +236,11 @@ export function SlideshowStudio({
     const stage = task.message || (task.phase === "queued" ? (fr ? "En attente…" : "Queued…") : task.phase === "running" ? (fr ? "Génération des visuels…" : "Generating images…") : "");
     if (task.status === "processing") showProgress(task);
     else setStatus(task.status === "completed" && task.result ? (fr ? "Diaporama prêt." : "Slideshow ready.") : "");
-    const insufficient = task.status === "failed" && (task.errorCode === "INSUFFICIENT_PRODUCT_DETAILS" || /^(Add product details below, then click Retry\.|Complète la description ci-dessous, puis appuie sur Relancer\.)$/.test(task.error ?? task.message ?? ""));
-    if (!insufficient) setRecovery(false);
-    if (insufficient) { setRecovery(true); setStatus(""); setTemporaryDescription((current) => current || product?.description || ""); setTechnicalDetails(task.error || task.message || ""); }
     setError(
-      (task.status === "failed" || (task.status === "completed" && !task.result)) && !insufficient
-        ? publicSlideshowError(task.error || task.message || slideshowPublicFailure(fr ? "fr" : "en"), fr ? "fr" : "en")
+      (task.status === "failed" || (task.status === "completed" && !task.result))
+        ? publicSlideshowError(task.error || task.message || slideshowPublicFailure(fr ? "fr" : "en"), fr ? "fr" : "en", task.errorCode)
         : "",
     );
-    if (insufficient) setError(task.error || task.message || "");
     if (task.status === "completed" && task.result) {
       setResult(task.result);
       if (changedTask || wasProcessing) {
@@ -270,8 +257,6 @@ export function SlideshowStudio({
       if (alive && taskRef.current?.status === "processing") showProgress(taskRef.current);
     });
     const poll = async () => {
-      if (pollInFlight.current) return;
-      pollInFlight.current = true;
       try {
         const exactId = selectedTaskRef.current || taskRef.current?.id;
         const response = await fetch(exactId ? `/api/studio/tasks/${encodeURIComponent(exactId)}/continue` : "/api/studio/tasks", {
@@ -307,16 +292,8 @@ export function SlideshowStudio({
               : "Checking existing work before allowing a new generation.",
           );
         }
-      } finally {
-        pollInFlight.current = false;
       }
     };
-    refreshTaskRef.current = poll;
-    const onForeground = () => {
-      if (document.visibilityState === "visible" && document.hasFocus() && taskRef.current?.status !== "processing") void poll();
-    };
-    document.addEventListener("visibilitychange", onForeground);
-    window.addEventListener("focus", onForeground);
     fetch("/api/studio/slideshow/config", { signal: controller.signal })
       .then(jsonResponse)
       .then((data) => {
@@ -330,64 +307,15 @@ export function SlideshowStudio({
         if (alive) setEnabled(false);
       });
     void poll();
+    const onFocus = () => { void poll(); };
+    window.addEventListener("focus", onFocus);
     return () => {
       alive = false;
       controller.abort();
-      refreshTaskRef.current = null;
-      document.removeEventListener("visibilitychange", onForeground);
-      window.removeEventListener("focus", onForeground);
+      window.removeEventListener("focus", onFocus);
       stopProgress();
     };
   }, []);
-  useEffect(() => {
-    if (!activeTaskId) return;
-    const supabase = createClient();
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    let debounceTimer: number | null = null;
-    let disposed = false;
-    const refresh = () => {
-      if (disposed || document.visibilityState !== "visible" || !document.hasFocus()) return;
-      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
-      debounceTimer = window.setTimeout(() => {
-        debounceTimer = null;
-        void refreshTaskRef.current?.();
-      }, 200);
-    };
-    const subscribe = () => {
-      if (disposed || channel || document.visibilityState !== "visible" || !document.hasFocus()) return;
-      channel = supabase
-        .channel(`studio-task:${activeTaskId}`)
-        .on("postgres_changes", {
-          event: "UPDATE", schema: "public", table: "studio_generations",
-          filter: `id=eq.${activeTaskId}`,
-        }, refresh)
-        .subscribe((state) => { if (state === "SUBSCRIBED") refresh(); });
-    };
-    const unsubscribe = () => {
-      if (!channel) return;
-      const current = channel;
-      channel = null;
-      void supabase.removeChannel(current);
-    };
-    const onForeground = () => {
-      if (document.visibilityState === "visible" && document.hasFocus()) {
-        subscribe();
-        refresh();
-      } else unsubscribe();
-    };
-    subscribe();
-    document.addEventListener("visibilitychange", onForeground);
-    window.addEventListener("focus", onForeground);
-    window.addEventListener("blur", onForeground);
-    return () => {
-      disposed = true;
-      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
-      document.removeEventListener("visibilitychange", onForeground);
-      window.removeEventListener("focus", onForeground);
-      window.removeEventListener("blur", onForeground);
-      unsubscribe();
-    };
-  }, [activeTaskId]);
   useEffect(() => {
     const next = product?.id ?? "";
     if (signature.current === next) return;
@@ -403,7 +331,7 @@ export function SlideshowStudio({
     setAttempted(false);
     setCreditsUsed(0);
     variationIdRef.current = "";
-    setRecovery(false); setTemporaryDescription(product?.description ?? "");
+    setShortDescriptionDialogOpen(false);
   }, [product?.id]);
   useEffect(() => {
     const previous = selectedTaskRef.current;
@@ -424,12 +352,11 @@ export function SlideshowStudio({
   function newSlideshow() {
     if (busy || pendingRequest || taskRef.current?.status === "processing") return;
     selectedTaskRef.current = null; loadedHistoryRef.current = null; newDraftRef.current = true;
-    setActiveTaskId(null);
     taskRef.current = null; setResumeTask(null); setResumeConfirmed(false);
     displayedProgressRef.current = 0; setProgress(0);
     setImages([]); setCreditsUsed(0); setResult(null); setError(""); setStatus("");
     variationIdRef.current = "";
-    setRecovery(false); setAttempted(false); setTemporaryDescription(product?.description ?? "");
+    setAttempted(false); setShortDescriptionDialogOpen(false);
   }
   async function continueSlideshow() {
     const task = taskRef.current;
@@ -446,9 +373,16 @@ export function SlideshowStudio({
       try { const r = await fetch(`/api/studio/tasks/${encodeURIComponent(task.id)}/continue`, { cache: "no-store" }); const data = await jsonResponse(r); if (data.task) applyTask(data.task); } catch { /* keep visible error */ }
     } finally { running.current = false; setBusy(taskRef.current?.status === "processing"); }
   }
+  function showShortDescriptionDialog() {
+    setBusy(false); setReady(true); setStatus(""); setError("");
+    setAttempted(false); setPendingRequest(false); setShortDescriptionDialogOpen(true);
+  }
+  function showPreflightError(message: string) {
+    setBusy(false); setReady(true); setStatus(""); setError(message);
+    setAttempted(false); setPendingRequest(false); setShortDescriptionDialogOpen(false);
+  }
   async function generate() {
     if (!enabled || !ready || !product || busy || pendingRequest || running.current || taskRef.current?.status === "processing") return;
-    if (recovery && !temporaryDescription.trim()) return;
     if (lacksCredits) return;
     running.current = true;
     displayedProgressRef.current = 0; setProgress(0);
@@ -456,21 +390,16 @@ export function SlideshowStudio({
     setStatus(fr ? "Vérification des informations…" : "Checking product details…");
     try {
       if (!variationIdRef.current) variationIdRef.current = crypto.randomUUID();
-      await send("/api/studio/prompt", { variationId: variationIdRef.current, product: { ...product, description: creationDescription() }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId: "", voiceover: true });
-      setRecovery(false); setTechnicalDetails("");
-      if (recovery) { taskRef.current = null; setResumeTask(null); setAttempted(false); setStatus(fr ? "Plan prêt. Vérifie le coût, puis appuie sur Créer." : "Plan ready. Review the cost, then click Create."); return; }
+      await send("/api/studio/prompt", { variationId: variationIdRef.current, product: { ...product, description: product.description ?? "" }, mediaType: "video", videoMode: "slideshow", duration, aspectRatio: "9:16", campaignGoal, locale, musicId: "", voiceover: true });
       await createTask();
     } catch (cause) {
-      const failure = cause as Error & { code?: string; details?: unknown };
+      const failure = cause as Error & { code?: string; details?: unknown; status?: number };
       const insufficient = failure.code === "INSUFFICIENT_PRODUCT_DETAILS" || /détails.*produit|product details|informations produit.*insuffisantes|not enough.*product/i.test(failure.message);
       if (insufficient) {
-        setRecovery(true); setStatus("");
-        setTechnicalDetails(typeof failure.details === "string" ? failure.details : failure.details ? JSON.stringify(failure.details, null, 2) : "");
-        setError(failure.message); setReady(true); return;
+        showShortDescriptionDialog(); return;
       }
       if (failure.message === "Lancement non confirmé") return;
-      setBusy(false); setStatus("");
-      setError(`${cause instanceof Error ? cause.message : "Erreur réseau."} ${fr ? "Consulte l’historique avant de réessayer." : "Check history before retrying."}`);
+      showPreflightError(failure.message || (fr ? "La vérification a échoué. Vérifie les informations puis réessaie." : "The check failed. Review the details and try again."));
     } finally { running.current = false; setBusy((taskRef.current as Task | null)?.status === "processing" || pendingRequest); }
   }
   async function createTask() {
@@ -484,19 +413,32 @@ export function SlideshowStudio({
     }
     setStatus(fr ? "Lancement de la génération…" : "Starting generation…");
     try {
-      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: creationDescription() }, duration, campaignGoal, locale, musicId: "", voiceover: true, variationId: variationIdRef.current, ...(creativePerformanceSource ? { creativePerformanceSource } : {}), ...(creativeIdea ? { creativeIdea } : {}) } });
+      const response = await send("/api/studio/tasks", { id, kind: "slideshow", input: { product: { ...product, description: product.description ?? "" }, duration, campaignGoal, locale, musicId: "", voiceover: true, variationId: variationIdRef.current, ...(creativePerformanceSource ? { creativePerformanceSource } : {}), ...(creativeIdea ? { creativeIdea } : {}) } });
       const task = response.task as Task;
       if (!task) throw new Error("Réponse de tâche invalide.");
       try { localStorage.removeItem(key); } catch { /* ignore */ }
       applyTask(task, task.status === "completed");
     } catch (cause) {
-      const failure = cause as Error & { code?: string };
-      if (failure.code === "INSUFFICIENT_CREDITS") {
-        // Refused by the server BEFORE any task or paid call exists: safe to show clearly, nothing to verify in history.
+      const failure = cause as Error & { code?: string; status?: number };
+      const insufficient = failure.code === "INSUFFICIENT_PRODUCT_DETAILS";
+      if (insufficient) {
         try { localStorage.removeItem(key); } catch { /* ignore */ }
-        setStatus(""); setBusy(false); setAttempted(false); setError(failure.message);
+        showShortDescriptionDialog(); return;
+      }
+      if (failure.code === "INSUFFICIENT_CREDITS") {
+        // Refused before task creation or any paid call; the user can retry after topping up.
+        try { localStorage.removeItem(key); } catch { /* ignore */ }
+        showPreflightError(failure.message);
         void refreshCredits();
-        throw new Error("Lancement non confirmé");
+        return;
+      }
+      const knownPreflight = failure.code === "SLIDESHOW_VOICE_UNAVAILABLE" ||
+        failure.code === "CREATIVE_SOURCE_NOT_READY" || failure.code === "STUDIO_CLIENT_UPDATE_REQUIRED" ||
+        (typeof failure.status === "number" && failure.status >= 400 && failure.status < 500 && failure.status !== 409);
+      if (knownPreflight) {
+        try { localStorage.removeItem(key); } catch { /* ignore */ }
+        showPreflightError(failure.message || (fr ? "La demande n’a pas été lancée. Vérifie les réglages puis réessaie." : "The request was not started. Review the settings and try again."));
+        return;
       }
       // Never issue another paid POST when acceptance is uncertain. Poll only the task list.
       setStatus(""); setBusy(false); setReady(false);
@@ -524,7 +466,14 @@ export function SlideshowStudio({
       style={{ display: "grid", gap: 16, alignContent: "start" }}
       aria-label={fr ? "Diaporama animé" : "Animated slideshow"}
     >
-      <h2 style={{ margin: 0 }}>{fr ? "Diaporama" : "Slideshow"}</h2>
+      <StudioDesktopProductFields
+        products={products}
+        selectedProduct={product}
+        onSelect={onSelectProduct}
+        locale={locale}
+        mode="slideshow"
+      />
+      <h2 className="studio-mobile-session-title" style={{ margin: 0 }}>{fr ? "Diaporama" : "Slideshow"}</h2>
       {!product ? (
         <small>
           {fr ? "Choisis un produit ci-dessus pour une nouvelle création." : "Choose a product above for a new creation."}
@@ -560,10 +509,22 @@ export function SlideshowStudio({
             ))}
           </select>
         </label>
+        <label className="studio-field studio-desktop-session-control studio-desktop-session-format">
+          <span>Format</span>
+          <output>Vertical · 9:16</output>
+        </label>
+        <label className="studio-field studio-desktop-session-control studio-desktop-session-voice">
+          <span>{fr ? "Voix off" : "Voice-over"}</span>
+          <output>{fr ? "Féminine, chaleureuse" : "Warm, feminine"}</output>
+        </label>
+        <label className="studio-field studio-desktop-session-control studio-desktop-session-music">
+          <span>{fr ? "Musique" : "Music"}</span>
+          <output>{fr ? "Dynamique, moderne" : "Dynamic, modern"}</output>
+        </label>
       </div>
       <p>{fr ? "Voix et musique ajoutées automatiquement à la génération." : "Voiceover and music are added automatically during generation."}</p>
       {!voiceoverEnabled || !voiceoverTestAllowed ? <small>{fr ? "La génération de voix est en cours de validation." : "Voice generation is being validated."}</small> : null}
-      {resumeTask && !recovery && !busy ? <section aria-label={fr ? "Reprise du diaporama" : "Resume slideshow"}>
+      {resumeTask && !busy ? <section aria-label={fr ? "Reprise du diaporama" : "Resume slideshow"}>
         <h3>{fr ? "Diaporama interrompu" : "Interrupted slideshow"}</h3>
         {resumeTask.input?.product?.name ? <p>{resumeTask.input.product.name}</p> : null}
         <p>{fr ? `Progression sauvegardée : ${Math.min(resumeTask.progress ?? 0, 99)} % · ${images.length < 5 ? `prochain visuel ${images.length + 1}/5` : "montage MP4 restant"}.` : `Saved progress: ${Math.min(resumeTask.progress ?? 0, 99)}% · ${images.length < 5 ? `next image ${images.length + 1}/5` : "MP4 assembly remaining"}.`}</p>
@@ -576,26 +537,27 @@ export function SlideshowStudio({
         <button type="button" className="btn btn-dark studio-continue" disabled={!resumeTask.resume?.allowed || lacksResumeCredits || (!!resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
         <button type="button" className="btn btn-ghost" onClick={newSlideshow}>{fr ? "Nouveau diaporama" : "New slideshow"}</button>
       </section> : null}
-      {(!resumeTask || recovery) && (!pendingRequest && (!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed" || recovery)) && !busy && ready ? (
+      {!resumeTask && !pendingRequest && (!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed") && !busy && ready ? (
         <>
-          {recovery ? <><p>{fr ? "Ajoute une précision utile sur le produit pour préparer le diaporama." : "Add a useful product detail to prepare the slideshow."}</p>{error ? <p role="alert" className="form-error">{error}</p> : null}<label>{fr ? "Description temporaire" : "Temporary description"}<textarea aria-label={fr ? "Description temporaire" : "Temporary description"} rows={4} value={temporaryDescription} disabled={busy} onChange={e => setTemporaryDescription(e.target.value)} /></label></> : null}
           <p className="studio-cost">{fr ? `Coût : ${slideshowCost} crédits Studio` : `Cost: ${slideshowCost} Studio credits`}{available !== null ? (fr ? ` · Solde disponible : ${available}` : ` · Available balance: ${available}`) : null}</p>
           {lacksCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : ce diaporama coûte ${slideshowCost} crédits Studio, il te reste ${available}. Recharge tes crédits avant de créer.` : `Insufficient balance: this slideshow costs ${slideshowCost} Studio credits, you have ${available}. Top up before creating.`}</p> : null}
-          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready || lacksCredits} onClick={() => void generate()}>{recovery ? (fr ? "Relancer" : "Retry") : (fr ? "Créer" : "Create")}</button>
+          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready || lacksCredits} onClick={() => void generate()}>{fr ? "Créer" : "Create"}</button>
         </>
       ) : null}
     </section>
     <section className="app-card studio-result studio-slideshow-preview" aria-label={fr ? "Aperçu du diaporama" : "Slideshow preview"} aria-busy={busy}>
       <div className="card-head">
-        <div><span className="eyebrow">{fr ? "Résultat" : "Result"}</span><h2>{fr ? "Ton diaporama" : "Your slideshow"}</h2></div>
-        <Film size={20} aria-hidden="true" />
+        <div><span className="eyebrow"><span className="studio-mobile-session-title-text">{fr ? "Résultat" : "Result"}</span><span className="studio-desktop-session-title-text">{fr ? "Aperçu" : "Preview"}</span></span><h2><span className="studio-mobile-session-title-text">{fr ? "Ton diaporama" : "Your slideshow"}</span><span className="studio-desktop-session-title-text">{fr ? "Aperçu du diaporama" : "Slideshow preview"}</span></h2></div>
+        <Film className="studio-mobile-session-icon" size={20} aria-hidden="true" />
+        <span className="studio-desktop-session-summary">5 {fr ? "visuels" : "visuals"} · {duration} {fr ? "secondes" : "seconds"}</span>
       </div>
       <div className={`studio-slideshow-canvas${!result && !busy ? " studio-empty" : ""}`}>
         {!busy && !result ? <>
-          <Sparkles size={32} aria-hidden="true" />
-          <strong>{pendingRequest ? (fr ? "Lancement à vérifier" : "Check launch status") : recovery ? (fr ? "Précise ton produit" : "Add product details") : error || resumeTask ? (fr ? "Création interrompue" : "Creation interrupted") : (fr ? "Prêt à créer" : "Ready to create")}</strong>
-          {!pendingRequest && !recovery && !error && !resumeTask ? <p>{fr ? "Choisis ton produit, ajuste les réglages puis lance la création. Ton diaporama apparaîtra ici." : "Choose your product, adjust the settings and start creating. Your slideshow will appear here."}</p> : null}
-          {recovery ? <p>{fr ? "Complète les informations dans les réglages pour préparer ton diaporama." : "Complete the details in the settings to prepare your slideshow."}</p> : null}
+          <Sparkles className="studio-mobile-session-icon" size={32} aria-hidden="true" />
+          <div className="studio-desktop-session-sample" role="img" aria-label={fr ? "Exemple de visuel de diaporama" : "Slideshow preview example"} />
+          <strong className="studio-mobile-session-title-text">{pendingRequest ? (fr ? "Lancement à vérifier" : "Check launch status") : error || resumeTask ? (fr ? "Création interrompue" : "Creation interrupted") : (fr ? "Prêt à créer" : "Ready to create")}</strong>
+          <strong className="studio-desktop-session-title-text">{pendingRequest ? (fr ? "Lancement à vérifier" : "Check launch status") : error || resumeTask ? (fr ? "Création interrompue" : "Creation interrupted") : (fr ? "Aperçu du rendu" : "Preview")}</strong>
+          {!pendingRequest && !error && !resumeTask ? <p>{fr ? "Choisis ton produit, ajuste les réglages puis lance la création. Ton diaporama apparaîtra ici." : "Choose your product, adjust the settings and start creating. Your slideshow will appear here."}</p> : null}
         </> : null}
       {pendingRequest ? <p role="status">{fr ? "Vérifie l’historique ; aucune nouvelle génération ne sera lancée automatiquement." : "Check history; no new generation will be started automatically."}</p> : null}
       {status ? (
@@ -603,7 +565,7 @@ export function SlideshowStudio({
           subtitle={fr ? "Les visuels terminés sont sauvegardés. Progression estimée entre les étapes." : "Completed images are saved. Progress is estimated between stages."} />
           : <p role="status" aria-live="polite">{status}</p>
       ) : null}
-      {error && !recovery ? <p role="alert" className="form-error">{error}</p> : null}
+      {error ? <p role="alert" className="form-error">{error}</p> : null}
       {result ? (
         <div className="studio-slideshow-final" style={{ display: "grid", gap: 12 }}>
           <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>
@@ -657,6 +619,16 @@ export function SlideshowStudio({
         </div>
       ) : null}
       </div>
+      {!images.length && !busy && !result ? (
+        <div className="studio-desktop-sample-strip" aria-label={fr ? "Exemples de visuels" : "Visual examples"}>
+          {[1, 2, 3, 4, 5].map((index) => (
+            <div className={`studio-desktop-sample-thumb${index === 1 ? " is-selected" : ""}`} key={index}>
+              <img src={`/studio-format-previews/desktop-slideshow-thumb-${index}.jpg`} alt="" />
+              <span>{index}/5</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {images.length ? (
         <div
           aria-label={fr ? "Visuels générés" : "Generated images"}
@@ -688,6 +660,24 @@ export function SlideshowStudio({
         </small>
       ) : null}
     </section>
+    {shortDescriptionDialogOpen ? <div
+      role="presentation"
+      onClick={() => setShortDescriptionDialogOpen(false)}
+      onKeyDown={(event) => { if (event.key === "Escape") setShortDescriptionDialogOpen(false); }}
+      style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeItems: "center", padding: 20, background: "rgba(15, 23, 42, 0.64)" }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="slideshow-short-description-title"
+        onClick={(event) => event.stopPropagation()}
+        style={{ width: "min(100%, 440px)", padding: 24, borderRadius: 16, background: "var(--card, #fff)", color: "var(--foreground, #111827)", boxShadow: "0 24px 80px rgba(0,0,0,.28)" }}
+      >
+        <h2 id="slideshow-short-description-title" style={{ marginTop: 0 }}>{fr ? "Description du produit trop courte" : "Product description is too short"}</h2>
+        <p>{shortProductDescriptionMessage(fr ? "fr" : "en")}</p>
+        <button type="button" className="btn btn-dark" autoFocus onClick={() => setShortDescriptionDialogOpen(false)}>{fr ? "Fermer" : "Close"}</button>
+      </section>
+    </div> : null}
     </div>
   );
 }

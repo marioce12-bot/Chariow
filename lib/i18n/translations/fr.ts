@@ -87,7 +87,7 @@ export const fr: Dict = {
       tooManyForEmail: "Trop de demandes pour cet email. Réessaie dans {seconds}s.",
     },
     chat: {
-      trialEnded: "Ton essai gratuit est terminé.", activate: "Activer l'abonnement",
+      trialEnded: "Ton abonnement Vendeo a expiré.", activate: "Réactiver l'abonnement",
       sales: "Ventes", spend: "Dépenses pub", roas: "ROAS réel",
       eyebrow: "Centre de décision", title: "Que veux-tu faire aujourd'hui ?", launchSuggestion: "Tu veux lancer une campagne ?", launchSuggestionPrompt: "Je veux préparer la création d’une campagne. Aide-moi à définir les éléments nécessaires, sans la lancer.",
       desc: "Vendeo croise tes ventes, tes pubs et ta rentabilité pour te dire quoi faire ensuite.",
@@ -113,7 +113,7 @@ export const fr: Dict = {
       cap3: "Générer une affiche produit prête à publier", cap4: "Résumer ton activité récente en langage simple",
       tipTitle: "Astuce", tipText: "Sois précis dans tes questions. Plutôt que « comment ça va ? », essaie « quelle campagne perd de l'argent cette semaine ? ».",
       placeholder: "Pose ta question...", placeholderBlocked: "Active ton abonnement pour continuer",
-      trialEndedMessage: "Ton essai gratuit est terminé. Active ton abonnement pour continuer.",
+      trialEndedMessage: "Ton abonnement Vendeo a expiré. Réactive-le depuis la section Abonnement pour continuer.",
       error: "Une erreur est survenue.", send: "Envoyer", sending: "Envoi en cours",
       launchSubmitting: "Transmission de la campagne…",
       launchSent: "Campagne envoyée",

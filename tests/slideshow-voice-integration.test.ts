@@ -44,10 +44,16 @@ describe("nouveaux diaporamas avec voix", () => {
     const response = await POST(request(slideshowInput(false)));
     expect(response.status).toBe(200); expect(insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.render).not.toHaveBeenCalled();
   });
-  it("bloque avant insertion, image ou voix tant que le test réel n’est pas autorisé", async () => {
-    const insert = vi.fn(); mocks.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
+  it("laisse une création normale démarrer en Preview sans drapeaux test-only", async () => {
+    const insertedRow = { id, user_id: "owner", status: "processing", metadata: { type: TASK_TYPE, taskKind: "slideshow", input: { voiceover: true }, revision: 0, phase: "queued" } };
+    const insert = vi.fn(() => ({ select: () => ({ single: async () => ({ data: insertedRow, error: null }) }) }));
+    mocks.from.mockImplementation((table) => table === "credit_accounts"
+      ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { balance: 500, reserved: 0 }, error: null }) }) }) }
+      : { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }), insert });
     const response = await POST(new Request("https://preview.test/api/studio/tasks", { method: "POST", body: JSON.stringify({ id, kind: "slideshow", input: { voiceover: true, product: { name: "Guide", description: "Disponible au format PDF. Le guide comporte huit chapitres consacrés à la préparation du jardin. Chaque chapitre présente trois exercices pratiques, une liste de matériel et un calendrier saisonnier. Les fiches expliquent le choix des graines, la préparation du sol, l’arrosage régulier, la rotation des cultures et la récolte. Les illustrations montrent des plantations en pots et en pleine terre. Le téléchargement permet une lecture hors connexion sur téléphone ou tablette." }, duration: 25, musicId: "", locale: "fr" } }) }));
-    expect(response.status).toBe(400); expect(insert).not.toHaveBeenCalled(); expect(mocks.after).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled();
+    expect(response.status).toBe(202);
+    expect(insert).toHaveBeenCalledOnce(); expect(mocks.after).toHaveBeenCalledOnce();
+    expect(mocks.generate).not.toHaveBeenCalled(); expect(mocks.render).not.toHaveBeenCalled();
   });
   it("un worker voix running n’est jamais réexécuté après une réponse ambiguë", async () => {
     const row = { id, user_id: "owner", status: "processing", metadata: { type: TASK_TYPE, taskKind: "slideshow", input: { voiceover: true }, phase: "running", revision: 6 } };
@@ -76,7 +82,7 @@ describe("nouveaux diaporamas avec voix", () => {
     expect(body).not.toHaveProperty("details");
     expect(JSON.stringify(body)).not.toMatch(/20\.09|25s|95%|technical|stack/i);
     expect(body.code).toBe("INSUFFICIENT_PRODUCT_DETAILS");
-    expect(body.error).toMatch(/description est trop courte.*25 s.*aucune image.*aucun crédit/i);
+    expect(body.error).toMatch(/description du produit est trop courte.*25 s.*aucune image.*aucun crédit/i);
     expect(insert).not.toHaveBeenCalled();
     expect(mocks.after).not.toHaveBeenCalled();
   });

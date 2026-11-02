@@ -95,9 +95,9 @@ export async function waitForMetaVideo(input: { videoId: string; accessToken: st
 }
 
 /** Envoie la vidéo à Meta et attend qu'elle soit prête. À appeler AVANT de créer la campagne pour ne pas laisser de campagne orpheline en cas d'échec. */
-export async function prepareMetaCreativeVideo(input: { accountId: string; accessToken: string; videoUrl: string; name?: string }): Promise<{ videoId: string; thumbnailUrl: string }> {
+export async function prepareMetaCreativeVideo(input: { accountId: string; accessToken: string; videoUrl: string; name?: string; timeoutMs?: number }): Promise<{ videoId: string; thumbnailUrl: string }> {
   const videoId = await uploadMetaAdVideo(input);
-  const { thumbnailUrl } = await waitForMetaVideo({ videoId, accessToken: input.accessToken });
+  const { thumbnailUrl } = await waitForMetaVideo({ videoId, accessToken: input.accessToken, timeoutMs: input.timeoutMs });
   return { videoId, thumbnailUrl };
 }
 

@@ -34,11 +34,11 @@ describe("Assistant campaign action proposals", () => {
     expect(context).toContain("jamais actif");
     expect(context).toContain("ordre explicite");
   });
-  it("keeps Gemini 3.6 and does not introduce an Imole fallback or server mutations in chat", () => {
+  it("uses OpenRouter without a provider fallback or server mutations in chat", () => {
     const route = readFileSync("app/api/chat/route.ts", "utf8");
-    expect(route).toContain('model: "gemini-3.6-flash"');
-    expect(route).toContain("timeoutMs: 60000, thinkingLevel: \"LOW\"");
-    expect(route).not.toMatch(/askImole|from.*imole/);
+    expect(route).toContain("askOpenRouter");
+    expect(route).toContain("timeoutMs: 60000, overloadRetries: 2");
+    expect(route).not.toMatch(/askGemini|from.*gemini|askImole|from.*imole/);
     expect(route).toContain("resolveCampaignActionProposal");
     expect(route).not.toContain("executeCampaignAction");
   });
