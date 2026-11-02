@@ -35,6 +35,14 @@ describe("credit RPC transition confirmation", () => {
     }));
   });
 
+  it("accepts a null refund return when the transaction is already refunded", async () => {
+    const admin = mockAdmin({ data: null, error: null }, {
+      data: { status: "refunded", credits: 12, user_id: "user-1" }, error: null,
+    });
+    await expect(confirmCreditTransition(admin, "refund_credit_debit", "tx-1")).resolves.toBe(true);
+    expect(admin.query.eq).toHaveBeenCalledWith("id", "tx-1");
+  });
+
   it("does not treat false as a successful refund while the transaction remains pending", async () => {
     const admin = mockAdmin({ data: false, error: null }, {
       data: { status: "pending", credits: 12, user_id: "user-1" }, error: null,
