@@ -98,9 +98,9 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [planProp]);
-  // Fragment scopes the in-memory key by storeId but is never sent to the API;
-  // GET /api/ad-campaigns remains user-authorized and unchanged.
-  const campaignsUrl = storeId ? `/api/ad-campaigns#store=${encodeURIComponent(storeId)}` : null;
+  // Scope the shared in-memory key by storeId. The API already authorizes and
+  // filters this optional parameter, so the overview and this list deduplicate.
+  const campaignsUrl = storeId ? `/api/ad-campaigns?store_id=${encodeURIComponent(storeId)}` : null;
   const campaignsQuery = useNavigationData<{ campaigns?: AdCampaign[] }>(campaignsUrl, { freshMs: 5 * 60_000, refreshIntervalMs: 5 * 60_000, visibleOnly: true });
   const navigationCache = useNavigationCache();
   const campaigns = Array.isArray(campaignsQuery.data?.campaigns) ? campaignsQuery.data.campaigns : [];

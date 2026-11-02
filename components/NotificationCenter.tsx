@@ -5,22 +5,22 @@ import { useCallback, useEffect, useState } from "react";
 
 export function NotificationCenter({ onOpen }: { onOpen: () => void }) {
   const [unread, setUnread] = useState(0);
+  const NOTIFICATION_POLL_MS = 60_000;
   const load = useCallback(async () => {
     const response = await fetch("/api/notifications", { cache: "no-store" });
     const data = await response.json().catch(() => ({}));
     if (response.ok) setUnread(Number(data.unreadCount ?? 0));
   }, []);
   useEffect(() => {
-    const intervalMs = 12 * 60_000;
     let lastLoadedAt = 0;
     const foreground = () => document.visibilityState === "visible" && document.hasFocus();
     const refreshIfDue = () => {
-      if (!foreground() || Date.now() - lastLoadedAt < intervalMs) return;
+      if (!foreground() || Date.now() - lastLoadedAt < NOTIFICATION_POLL_MS) return;
       lastLoadedAt = Date.now();
       void load();
     };
     refreshIfDue();
-    const timer = window.setInterval(refreshIfDue, intervalMs);
+    const timer = window.setInterval(refreshIfDue, NOTIFICATION_POLL_MS);
     document.addEventListener("visibilitychange", refreshIfDue);
     window.addEventListener("focus", refreshIfDue);
     return () => {

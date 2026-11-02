@@ -114,7 +114,10 @@ export function OverviewHome({
       && selectedPeriodAnalytics?.kpis.period.from === selectedRange.from
       && selectedPeriodAnalytics?.kpis.period.to === selectedRange.to,
   );
-  const campaignReading = useNavigationData<{ campaigns: CampaignSummary[] }>("/api/ad-campaigns", { version: campaignsVersion });
+  const store = stores.find((item) => item.id === selectedStoreId) ?? stores[0];
+  const storeId = store?.id ?? selectedStoreId;
+  const campaignsUrl = storeId ? `/api/ad-campaigns?store_id=${encodeURIComponent(storeId)}` : null;
+  const campaignReading = useNavigationData<{ campaigns: CampaignSummary[] }>(campaignsUrl, { version: campaignsVersion });
   const alertReading = useNavigationData<{ alerts: PersistentAlert[] }>("/api/alerts");
   const data = (periodDays === 30 ? rolling30Analytics : selectedPeriodMatches ? selectedPeriodAnalytics : null) ?? analytics;
   const campaigns = campaignReading.data?.campaigns ?? [];
@@ -127,10 +130,6 @@ export function OverviewHome({
   // Ce composant n'est monté qu'après le premier chargement (côté navigateur) : on lit donc
   // l'heure de l'appareil tout de suite, sans décalage serveur / navigateur ni salutation provisoire.
   const [now, setNow] = useState<Date>(() => new Date());
-
-  const store = stores.find((item) => item.id === selectedStoreId) ?? stores[0];
-  const storeId = store?.id ?? selectedStoreId;
-
 
   // Salutation : on met l'heure à jour toutes les 10 minutes (matin → après-midi → soirée).
   useEffect(() => {
