@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowRight, Bell, CheckCheck, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
+import { createClient } from "@/lib/supabase/browser";
+import { subscribeUserNotifications, type RealtimeNotification } from "@/lib/notifications/realtime";
 
 type NotificationItem = { id: string; type: "admin" | "autopilot" | "system"; title: string; body: string; action_url: string | null; read_at: string | null; created_at: string };
 
@@ -12,7 +14,7 @@ function formatDate(value: string, locale: "fr" | "en") {
   return new Date(value).toLocaleString(locale === "fr" ? "fr-FR" : "en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function NotificationsView({ onBack }: { onBack: () => void }) {
+export function NotificationsView({ onBack, userId }: { onBack: () => void; userId?: string | null }) {
   const { locale, t } = useI18n();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +31,14 @@ export function NotificationsView({ onBack }: { onBack: () => void }) {
     finally { setLoading(false); }
   }, [locale]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!userId) return;
+    return subscribeUserNotifications(createClient(), userId, (notification: RealtimeNotification) => {
+      setItems((current) => current.some((item) => item.id === notification.id) ? current : [notification, ...current].slice(0, 50));
+    }, (status) => {
+      if ((status === "CHANNEL_ERROR" || status === "TIMED_OUT") && document.visibilityState === "visible") void load();
+    });
+  }, [load, userId]);
 
   async function markRead(id: string) {
     setItems((current) => current.map((item) => item.id === id ? { ...item, read_at: new Date().toISOString() } : item));

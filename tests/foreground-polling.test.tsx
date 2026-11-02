@@ -39,7 +39,7 @@ describe("foreground polling", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await act(async () => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    await tick(12 * 60_000 - 1);
+    await tick(60_000 - 1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await tick(1);
     expect(fetchMock).toHaveBeenCalledTimes(3);

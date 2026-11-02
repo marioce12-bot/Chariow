@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { syncMetaCampaignStatuses } from "@/lib/meta/campaign-status-sync";
 import { syncMetaInsights } from "@/lib/meta/sync";
@@ -22,10 +23,16 @@ export async function POST(request: Request) {
   if (!account) return NextResponse.json({ error: "Aucun compte Meta Ads connecté" }, { status: 404 });
   if (isMetaReconnectRequired(account.last_sync_error)) return NextResponse.json(RECONNECT_RESPONSE, { status: 409 });
 
+  // The browser/session client is intentionally retained for ownership checks
+  // above. The sync itself is a trusted server operation: meta_insights_daily
+  // has no user INSERT/UPDATE policy, so using the session client causes a
+  // 42501 RLS failure and makes the sync retry the same Meta data repeatedly.
+  const syncClient = createAdminClient();
+
   let campaignStatus: unknown;
   try {
     campaignStatus = await syncMetaCampaignStatuses({
-      supabase,
+      supabase: syncClient,
       accountId: account.id,
       metaAccountId: account.meta_account_id,
       accessToken: decryptSecret(account.access_token_encrypted),
@@ -41,7 +48,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const synced = await syncMetaInsights(supabase, account, from, to);
+    const synced = await syncMetaInsights(syncClient, account, from, to);
     await supabase.from("meta_ad_accounts").update({ last_sync_error: null }).eq("id", account.id).eq("user_id", user.id);
     return NextResponse.json({ synced, campaignStatus, from, to });
   } catch (syncError) {

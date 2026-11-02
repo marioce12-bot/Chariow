@@ -68,12 +68,28 @@ export async function GET(request: Request) {
 
   const adCurrency = String(account.currency || "").trim().toUpperCase();
   if (!adCurrency) return NextResponse.json({ error: "La devise du compte publicitaire n’est pas renseignée" }, { status: 409 });
-  const { data: insightRows, error } = await supabase
-    .from("meta_insights_daily")
-    .select("level,entity_id,entity_name,impressions,clicks,spend,conversions,conversion_value")
-    .eq("ad_account_id", account.id)
-    .gte("date_start", from)
-    .lte("date_start", to);
+  // Prefer the database-side aggregate to avoid transferring one row per
+  // entity/day. Keep a compatibility fallback until the additive migration is
+  // installed in the target Supabase project.
+  let { data: insightRows, error } = await supabase.rpc("dashboard_meta_campaign_daily", {
+    p_ad_account_id: account.id,
+    p_from: from,
+    p_to: to,
+  });
+  if (error) {
+    console.warn("Meta aggregate RPC unavailable; using compatibility query", error.message);
+    const fallback = await supabase
+      .from("meta_insights_daily")
+      .select("level,entity_id,entity_name,impressions,clicks,spend,conversions,conversion_value")
+      .eq("ad_account_id", account.id)
+      .eq("level", "campaign")
+      .gte("date_start", from)
+      .lte("date_start", to);
+    insightRows = fallback.data;
+    error = fallback.error;
+  } else {
+    insightRows = (insightRows ?? []).map((row: Record<string, unknown>) => ({ ...row, level: "campaign" }));
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const storesQuery = supabase.from("stores").select("id").eq("user_id", user.id).eq("is_active", true).in("platform", ["chariow", "shopify"]);
