@@ -29,6 +29,11 @@ export type ChariowProduct = {
   price: number | string | null;
   currency: string | null;
   status: string | null;
+  category?: string;
+  type?: string;
+  tags?: string[];
+  images?: string[];
+  shop?: string;
   image: string | null;
   url: string | null;
   // true quand `url` n'est pas le lien produit réel mais un repli vers l'accueil

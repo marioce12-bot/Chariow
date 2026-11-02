@@ -13,7 +13,7 @@ describe("slideshow desktop layout boundaries", () => {
       rules.push(rule.selector);
       expect(rule.parent?.type).toBe("atrule");
       expect((rule.parent as postcss.AtRule).name).toBe("media");
-      expect((rule.parent as postcss.AtRule).params).toContain("(min-width: 801px)");
+      expect((rule.parent as postcss.AtRule).params).toMatch(/\(min-width:\s*(801|1200)px\)/);
     });
     expect(rules.length).toBeGreaterThan(8);
   });

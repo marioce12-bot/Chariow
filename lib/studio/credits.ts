@@ -18,10 +18,13 @@ export function imageCreditCost(resolution: keyof typeof IMAGE_COSTS, quality: k
   return Math.ceil((baseCost * 4) / 3);
 }
 
-// Coût vidéo par seconde selon la résolution réellement choisie.
-const VIDEO_RATE_PER_SECOND: Record<string, number> = { "480p": 15, "720p": 25, "1080p": 38 };
+// Tarifs Studio validés : 750 crédits pour 25 s en 480p, 1 300 en 720p.
+const VIDEO_RATE_PER_SECOND: Record<string, number> = { "480p": 30, "720p": 52 };
 export function videoCreditCost(resolution: string, duration: number) {
-  return duration * (VIDEO_RATE_PER_SECOND[resolution] ?? 38);
+  const rate = VIDEO_RATE_PER_SECOND[resolution];
+  if (!rate) throw new Error("Cette résolution vidéo n’a pas de tarif Studio validé.");
+  if (!Number.isInteger(duration) || duration <= 0) throw new Error("Durée vidéo invalide.");
+  return duration * rate;
 }
 
 export function creditPrice(credits: number) {
