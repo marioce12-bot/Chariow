@@ -12,7 +12,7 @@ import { logPreparationFailure } from "@/lib/studio/preparation-diagnostics";
 import { shortProductDescriptionMessage, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { resolveProductLanguage } from "@/lib/studio/product-language";
 import { inferProductType } from "@/lib/studio/creative-workflows";
-import { isStudioVideoRenderEnabledForPreview } from "@/lib/studio/video-feature";
+import { isStudioVideoEnabled } from "@/lib/studio/video-feature";
 import {
   CREATIVE_STYLES, CREATIVE_COMPOSITIONS, sourceCopyCandidates,
   parseCreativePlan, compileFaithfulPrompt,
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
       const prompt = compileUgcPrompt(generatorInput, result.creative);
       assemblyStage = "provider_plan_assembly";
       const plan = compileUgcProviderPlan(generatorInput, result.creative);
-      return NextResponse.json({ prompt, ...result, plan, preparedUgc: signPreparedUgc(user.id, generatorInput, result, prompt), contentLanguage, locked: !isStudioVideoRenderEnabledForPreview() });
+      return NextResponse.json({ prompt, ...result, plan, preparedUgc: signPreparedUgc(user.id, generatorInput, result, prompt), contentLanguage, locked: !(await isStudioVideoEnabled()) });
     } catch (error) {
       const diagnostic = error instanceof UgcPromptGenerationError
         ? { stage: error.stage, type: error.details.type ?? "validation_error", keyPath: error.details.path ?? null, httpStatus: error.details.httpStatus ?? null }
