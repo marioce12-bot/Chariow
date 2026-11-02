@@ -495,7 +495,7 @@ function DashboardWorkspace() {
           <div className="dashboard-header-context"><span>{w("workspace")}</span><span aria-hidden="true">/</span><strong>{active === "Vue d'ensemble" ? w("preview") : locale === "en" ? ({"Radar marché":"Market radar","Performance publicitaire":"Recommendations","Relances WhatsApp":"WhatsApp follow-ups","Mes boutiques":"My stores","Paramètres":"Settings","Comptes publicitaires":"Ad accounts","Rapports":"Reports","Abonnement":"Subscription","Suggestions et notes":"Suggestions and feedback"}[active] ?? active) : active === "Performance publicitaire" ? "Recommandation" : active}</strong></div>
           <DashboardHeaderNavigation active={active} onChange={(section) => section === "Paramètres" ? openSettingsIndex() : navigateToSection(section)} />
           <div className="app-user">
-            <NotificationCenter onOpen={() => setActive("Notifications")} />
+            <NotificationCenter userId={notificationUserId} onOpen={() => setActive("Notifications")} />
              <button type="button" data-onboarding="mobile-more-trigger" className={`mobile-more-trigger ${moreOpen || ["Radar marché", "Rapports", "Relances WhatsApp", "Performance publicitaire", "Paramètres"].includes(active) ? "active" : ""}`} aria-label={w("moreOptions")} aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
             </button>
@@ -565,7 +565,7 @@ function DashboardWorkspace() {
           ) : active === "Suggestions et notes" ? (
             <MobileSettingsView onNavigate={navigateToSection} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="feedback" />
           ) : active === "Notifications" ? (
-            <NotificationsView onBack={() => setActive(previousSection)} />
+            <NotificationsView userId={notificationUserId} onBack={() => setActive(previousSection)} />
           ) : (
             <OverviewHome
               key={activeStoreId}
