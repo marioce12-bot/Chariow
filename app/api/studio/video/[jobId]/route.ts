@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { signedStudioUrl } from "@/lib/studio/media";
+import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
 
 const MAX_WAIT_MS = 12 * 60_000;
 const TIMEOUT_ERROR = "La génération a dépassé le délai normal et a été abandonnée.";
@@ -52,8 +53,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
   // terminal timeout state was saved; this avoids silently stranding credits.
   if (status === "failed" && savedError === TIMEOUT_ERROR) {
     if (generation.credit_transaction_id) {
-      const refund = await admin.rpc("refund_credit_debit", { transaction_id: generation.credit_transaction_id });
-      if (refund.error || refund.data !== true) return NextResponse.json({ error: "Remboursement en attente de reprise." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+      const refundConfirmed = await confirmCreditTransition(admin, "refund_credit_debit", generation.credit_transaction_id, { userId: user.id });
+      if (!refundConfirmed) return NextResponse.json({ error: "Remboursement en attente de reprise." }, { status: 503, headers: { "Retry-After": "60", "Cache-Control": "private, no-store" } });
     }
     const release = await admin.rpc("release_video_slot", { p_user_id: user.id, p_request_id: generation.id });
     if (release.error) return NextResponse.json({ error: "Libération du quota en attente de reprise." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
