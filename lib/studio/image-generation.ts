@@ -266,7 +266,14 @@ export async function generateStudioImage(
       if (stored.error) return stagedUncertain(stage, cost, "asset_persistence_error");
     }
     const debit = await admin.rpc("complete_credit_debit", { transaction_id: reserveResult.transaction_id });
-    if (stage && (debit.error || debit.data !== true)) { await setCreditState(admin, userId, generation.id, generationMetadata, "uncertain"); return stagedUncertain(stage, cost, "debit_error"); }
+    if (debit.error || debit.data !== true) {
+      if (stage) {
+        await setCreditState(admin, userId, generation.id, generationMetadata, "uncertain");
+        return stagedUncertain(stage, cost, "debit_error");
+      }
+      console.error("Studio image credit completion is uncertain", debit.error?.code ?? "not_confirmed");
+      return NextResponse.json({ error: "Le débit des crédits n’a pas pu être confirmé. Réessaie plus tard." }, { status: 503 });
+    }
     if (stage && !(await setCreditState(admin, userId, generation.id, generationMetadata, "consumed"))) return stagedUncertain(stage, cost, "persistence_error");
     const quotaCompletion = await admin.rpc("complete_image_slot", { p_user_id: userId, p_request_id: generation.id });
     if (quotaCompletion.error || quotaCompletion.data?.completed !== true)
@@ -287,10 +294,11 @@ export async function generateStudioImage(
     });
   } catch (error) {
     const refund = await admin.rpc("refund_credit_debit", { transaction_id: reserveResult.transaction_id });
+    const refundConfirmed = !refund.error && refund.data === true;
     const quotaRelease = await admin.rpc("release_image_slot", { p_user_id: userId, p_request_id: generation.id });
     if (quotaRelease.error) console.error("Studio image quota release failed", quotaRelease.error.code ?? "unknown");
     if (stage) {
-      const state = refund.error ? "uncertain" : "refunded";
+      const state = refundConfirmed ? "refunded" : "uncertain";
       if (!(await setCreditState(admin, userId, generation.id, generationMetadata, state))) return stagedUncertain(stage, cost, "persistence_error");
     }
     await admin
@@ -305,6 +313,11 @@ export async function generateStudioImage(
       error instanceof Error ? error.message : "Erreur de génération d'image.";
     if (stage) console.error("Studio staged image", { taskId: stage.taskId, step: stage.step, status: 502, errorCode: "provider_error", creditState: "uncertain", cost });
     else console.error("fal.ai studio image error", message);
+    if (!refundConfirmed) {
+      console.error("Studio image refund is uncertain", refund.error?.code ?? "not_confirmed");
+      if (stage) return stagedUncertain(stage, cost, "refund_error");
+      return NextResponse.json({ error: "La génération a échoué, mais le remboursement n’a pas pu être confirmé." }, { status: 503 });
+    }
     return NextResponse.json(
       { error: "Impossible de générer l'image pour le moment." },
       { status: 502 },

@@ -53,7 +53,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ jobId: str
   if (status === "failed" && savedError === TIMEOUT_ERROR) {
     if (generation.credit_transaction_id) {
       const refund = await admin.rpc("refund_credit_debit", { transaction_id: generation.credit_transaction_id });
-      if (refund.error) return NextResponse.json({ error: "Remboursement en attente de reprise." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+      if (refund.error || refund.data !== true) return NextResponse.json({ error: "Remboursement en attente de reprise." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
     }
     const release = await admin.rpc("release_video_slot", { p_user_id: user.id, p_request_id: generation.id });
     if (release.error) return NextResponse.json({ error: "Libération du quota en attente de reprise." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
