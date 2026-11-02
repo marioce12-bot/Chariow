@@ -7,6 +7,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/lib/i18n/i18n";
+import { trackSuccessfulRegistration } from "@/lib/meta-pixel";
 
 export function Auth({ mode, configurationError = false, successRedirect = "/dashboard" }: { mode: "login" | "register" | "forgot"; configurationError?: boolean; successRedirect?: string }) {
   const { t , locale } = useI18n();
@@ -74,6 +75,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
         return;
       }
       if (register) {
+        trackSuccessfulRegistration();
         // Notification administrateur, sans bloquer la suite (fire-and-forget).
         void fetch("/api/emails/signup", {
           method: "POST",
