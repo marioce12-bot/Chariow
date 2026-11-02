@@ -38,6 +38,8 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   const result = {
     accountStatus: null as number | null,
     accountStatusSaved: false,
+    campaignInventoryComplete: false,
+    activeCampaigns: 0,
     checked: 0,
     updated: 0,
     errors: 0,
@@ -53,7 +55,6 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   } catch (error) {
     if (isMetaAuthenticationError(error)) throw error;
     result.errors += 1;
-    console.error("Meta account status sync failed", error instanceof Error ? error.message : "unknown error");
   }
 
   const campaigns: CampaignRow[] = [];
@@ -72,7 +73,6 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
     const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
     if (error) {
       result.errors += 1;
-      console.error("Meta campaign status query failed", error.message);
       return result;
     }
 
@@ -88,10 +88,11 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
   let inventory: Awaited<ReturnType<typeof fetchMetaCampaignList>>;
   try {
     inventory = await fetchMetaCampaignList(graphAccountId(input.metaAccountId), input.accessToken);
+    result.campaignInventoryComplete = true;
+    result.activeCampaigns = inventory.filter((campaign) => campaign.effectiveStatus === "ACTIVE").length;
   } catch (error) {
     if (isMetaAuthenticationError(error)) throw error;
     result.errors += 1;
-    console.error("Meta campaign inventory incomplete; skipping reconciliation", error instanceof Error ? error.message : "unknown error");
     for (const campaign of campaigns.filter((row) => ["active", "review", "preparing"].includes(row.status))) {
       let update = input.supabase.from("ad_campaigns").update({ status: "unknown", external_error: null }).eq("id", campaign.id);
       if (input.userId) update = update.eq("user_id", input.userId);
@@ -169,7 +170,6 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
         }
         if (!mapped) {
           // État Meta non reconnu : on laisse le statut tel quel, mais on le trace pour pouvoir l'ajouter au mapping.
-          console.warn("Meta campaign status sync: effective_status non reconnu", campaign.id, effectiveStatus || "(vide)");
           continue;
         }
         const priorLifecycle = getMetaCampaignLifecycle(campaign.status, campaign.external_error);
@@ -202,7 +202,6 @@ export async function syncMetaCampaignStatuses(input: SyncInput) {
           const { error: unknownError } = await update;
           if (!unknownError) result.updated += 1;
         }
-        console.error("Meta campaign status sync failed", error instanceof Error ? error.message : "unknown error");
       }
     }
   }));

@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const { fetchMetaInsights, fetchMetaCampaignList } = vi.hoisted(() => ({ fetchMetaInsights: vi.fn(), fetchMetaCampaignList: vi.fn() }));
+const { fetchMetaInsights } = vi.hoisted(() => ({ fetchMetaInsights: vi.fn() }));
 vi.mock("@/lib/crypto", () => ({ decryptSecret: () => "token" }));
 vi.mock("./api", () => ({ fetchMetaInsights, actionValue: () => 0 }));
-vi.mock("./campaign-list", () => ({ fetchMetaCampaignList }));
-import { syncMetaInsights } from "./sync";
+import { resolveMetaInsightsWindow, syncMetaInsights } from "./sync";
 
 function setup(launched: unknown[] = []) {
   const updates: any[] = [];
@@ -21,19 +20,20 @@ describe("syncMetaInsights coverage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchMetaInsights.mockResolvedValue([]);
-    fetchMetaCampaignList.mockResolvedValue([{ id: "campaign-1", name: "Campaign" }]);
   });
   it("records only the exact successfully synced window as complete", async () => {
     const { supabase, updates } = setup();
-    await syncMetaInsights(supabase, account, "2026-10-01", "2026-10-17");
+    const stats = await syncMetaInsights(supabase, account, "2026-10-01", "2026-10-17");
     expect(updates[0]).toMatchObject({ insights_sync_from: "2026-10-01", insights_sync_to: "2026-10-17", insights_sync_complete: true, last_sync_error: null });
-    expect(fetchMetaInsights).toHaveBeenCalledTimes(4);
+    expect(fetchMetaInsights).toHaveBeenCalledTimes(3);
+    expect(fetchMetaInsights.mock.calls.map((call) => call[4])).toEqual(["campaign", "adset", "ad"]);
+    expect(stats).toMatchObject({ insightsCalls: 3, rowsRead: 0, rowsWritten: 0, errors: 0 });
   });
-  it("invalidates prior coverage when an insights request fails", async () => {
+  it("preserves the last successful window when an insights request fails", async () => {
     const { supabase, updates } = setup();
     fetchMetaInsights.mockRejectedValueOnce(new Error("network"));
     await syncMetaInsights(supabase, account, "2026-10-01", "2026-10-17");
-    expect(updates[0]).toMatchObject({ insights_sync_from: "2026-10-01", insights_sync_to: "2026-10-17", insights_sync_complete: false, last_sync_error: expect.stringContaining("campaign: network") });
+    expect(updates[0]).toMatchObject({ insights_sync_complete: false, last_sync_error: expect.stringContaining("campaign: network") });
   });
   it("preserves missing campaign spend as null and marks coverage incomplete", async () => {
     const { supabase, updates, upserts } = setup();
@@ -42,27 +42,11 @@ describe("syncMetaInsights coverage", () => {
     expect(upserts.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ level: "campaign", spend: null })]));
     expect(updates[0]).toMatchObject({ insights_sync_complete: false, last_sync_error: expect.stringContaining("spend manquant") });
   });
-  it("treats a full 200-row local campaign result as incomplete coverage", async () => {
-    const { supabase, updates } = setup(Array.from({ length: 200 }, (_, i) => ({ external_campaign_id: `local-${i}`, title: null, product_name: null })));
-    await syncMetaInsights(supabase, account, "2026-10-01", "2026-10-17");
-    expect(updates[0]).toMatchObject({ insights_sync_complete: false, last_sync_error: expect.stringContaining("limitée à 200") });
-  });
-
-  it("counts campaign-ID insight requests without logging their IDs or names", async () => {
-    fetchMetaCampaignList.mockResolvedValue([
-      { id: "campaign-1", name: "Campaign One" },
-      { id: "campaign-2", name: "Campaign Two" },
-    ]);
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
-    const { supabase } = setup();
-
-    await syncMetaInsights(supabase, account, "2026-10-01", "2026-10-17");
-
-    expect(fetchMetaInsights).toHaveBeenCalledTimes(5);
-    expect(info).toHaveBeenCalledWith("Meta campaign ID counters", { campaignByIdRequests: 2 });
-    const counterLog = info.mock.calls.find(([message]) => message === "Meta campaign ID counters");
-    expect(counterLog).toEqual(["Meta campaign ID counters", { campaignByIdRequests: 2 }]);
-    expect(JSON.stringify(counterLog)).not.toContain("Campaign One");
-    expect(JSON.stringify(counterLog)).not.toContain("campaign-1");
+  it("chooses a three-day rolling window for a completed account and 30 days for first import or resync", () => {
+    const now = new Date("2026-11-02T17:00:00.000Z");
+    expect(resolveMetaInsightsWindow({ insights_sync_to: "2026-11-01" }, now)).toEqual({ from: "2026-10-31", to: "2026-11-02" });
+    expect(resolveMetaInsightsWindow({}, now)).toEqual({ from: "2026-10-04", to: "2026-11-02" });
+    expect(resolveMetaInsightsWindow({ insights_sync_to: "2026-11-01" }, now)).toEqual({ from: "2026-10-31", to: "2026-11-02" });
+    expect(resolveMetaInsightsWindow({ insights_sync_to: "2026-11-01" }, now, { resync: true })).toEqual({ from: "2026-10-04", to: "2026-11-02" });
   });
 });

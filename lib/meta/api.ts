@@ -79,20 +79,29 @@ export async function fetchMetaInsights(accountId: string, accessToken: string, 
       ? ["adset_id", "adset_name"]
       : ["ad_id", "ad_name"];
   const fields = [...identityFields, "impressions", "reach", "clicks", "spend", "ctr", "cpc", "cpm", "actions", "action_values", "purchase_roas"].join(",");
-  console.info("Meta insights request", { level, fields, from, to });
   const url = graphUrl(`${accountId}/insights`, { fields, level, time_range: JSON.stringify({ since: from, until: to }), time_increment: "1", limit: "500", access_token: accessToken });
   const rows: MetaInsight[] = [];
   let next: string | null = url.toString();
-  let graphPages = 0;
   while (next) {
-    const response: Response = await fetchMetaGraph(next, { cache: "no-store" });
-    graphPages += 1;
-    const json = await response.json().catch(() => ({}));
-    if (!response.ok) throw createMetaGraphError(json?.error, response.status, `Meta insights request failed (${response.status})`);
+    let response: Response | null = null;
+    let json: Record<string, any> = {};
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      response = await fetchMetaGraph(next, { cache: "no-store" });
+      json = await response.json().catch(() => ({}));
+      const error = json?.error as Record<string, unknown> | undefined;
+      const code = Number(error?.code);
+      const throttled = response.status === 429 || [4, 17, 32, 613].includes(code) || error?.is_transient === true;
+      if (response.ok || !throttled || attempt === 3) break;
+      const retryAfter = Number(response.headers.get("retry-after"));
+      const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(30_000, retryAfter * 1000)
+        : Math.min(8_000, 1_000 * (2 ** attempt));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    if (!response?.ok) throw createMetaGraphError(json?.error, response?.status ?? 500, `Meta insights request failed (${response?.status ?? 500})`);
     if (Array.isArray(json.data)) rows.push(...json.data as MetaInsight[]);
     next = typeof json?.paging?.next === "string" ? json.paging.next : null;
   }
-  console.info("Meta Graph page counters", { graphPages });
   return rows;
 }
 
