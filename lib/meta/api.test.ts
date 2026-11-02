@@ -21,10 +21,10 @@ describe("actionValue", () => {
   });
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
-describe("fetchMetaInsights counters", () => {
-  it("counts Graph pages while logging only the page counter", async () => {
+describe("fetchMetaInsights", () => {
+  it("follows Graph pagination without emitting per-page logs", async () => {
     const fetch = vi.spyOn(globalThis, "fetch");
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     fetch
@@ -38,10 +38,18 @@ describe("fetchMetaInsights counters", () => {
 
     expect(rows).toHaveLength(2);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(info).toHaveBeenCalledWith("Meta Graph page counters", { graphPages: 2 });
-    const counterLog = info.mock.calls.find(([message]) => message === "Meta Graph page counters");
-    expect(counterLog).toEqual(["Meta Graph page counters", { graphPages: 2 }]);
-    expect(JSON.stringify(counterLog)).not.toContain("test-access-token");
-    expect(JSON.stringify(counterLog)).not.toContain("act_1");
+    expect(info).not.toHaveBeenCalled();
+  });
+
+  it("retries a Meta rate-limit response with bounded exponential backoff", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.spyOn(globalThis, "fetch");
+    fetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 4, message: "Application request limit reached" } }), { status: 429 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: "insight-1" }] }), { status: 200 }));
+
+    const pending = fetchMetaInsights("act_1", "test-access-token", "2026-10-01", "2026-10-02", "campaign");
+    await vi.advanceTimersByTimeAsync(1_000);
+    await expect(pending).resolves.toHaveLength(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });

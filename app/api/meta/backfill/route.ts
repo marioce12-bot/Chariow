@@ -99,7 +99,7 @@ export async function POST(request: Request) {
 
   try {
     const synced = await syncMetaInsights(supabase, account, chunk.from, chunk.to);
-    if (synced.some((result) => result.error)) throw new Error("Certaines campagnes Meta n’ont pas pu être importées.");
+    if (synced.errors > 0) throw new Error("Les insights Meta n’ont pas pu être importés intégralement.");
     const patch = chunk.done
       ? { backfill_status: "complete", last_backfill_at: new Date().toISOString(), backfill_started_at: null, backfill_next_from: null }
       : { backfill_status: "in_progress", backfill_started_at: null, backfill_next_from: chunk.nextFrom };

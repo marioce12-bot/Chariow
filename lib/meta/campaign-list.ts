@@ -26,12 +26,10 @@ export async function fetchMetaCampaignList(accountId: string, accessToken: stri
   const campaigns: MetaCampaignRef[] = [];
   let next: string | null = url.toString();
   const visited = new Set<string>();
-  let graphPages = 0;
   while (next && campaigns.length < maxCampaigns) {
     if (visited.has(next)) throw new Error("Meta campaigns pagination did not advance");
     visited.add(next);
     const response: Response = await fetchMetaGraph(next);
-    graphPages += 1;
     const json = await response.json().catch(() => ({}));
     if (!response.ok) throw createMetaGraphError(json?.error, response.status, `Meta campaigns request failed (${response.status})`);
     if (json.error || !Array.isArray(json.data)) throw new Error("Meta campaigns inventory response is incomplete");
@@ -46,6 +44,5 @@ export async function fetchMetaCampaignList(accountId: string, accessToken: stri
     next = typeof json?.paging?.next === "string" ? json.paging.next : null;
   }
   const result = Number.isFinite(maxCampaigns) ? campaigns.slice(0, maxCampaigns) : campaigns;
-  console.info("Meta campaign inventory counters", { campaigns: result.length, graphPages });
   return result;
 }
