@@ -16,6 +16,9 @@
 4. `app/api/meta/performance/route.ts` : utilisation préférentielle d’un RPC d’agrégation, avec fallback temporaire vers l’ancienne lecture tant que la migration n’est pas installée.
 5. `supabase/migrations/20261102111500_dashboard_egress_aggregates.sql` : trois fonctions additives préparées, non appliquées à distance : ventes journalières, dépenses Meta par campagne, et résumé des attributions.
 6. `tests/foreground-polling.test.tsx` : scénario explicite du délai de 60 secondes.
+7. `components/NotificationCenter.tsx`, `components/NotificationsView.tsx` et `lib/notifications/realtime.ts` : écoute des `INSERT` via Supabase Realtime. Le compteur et la liste sont mis à jour sans re-télécharger les 50 notifications; le polling de 60 secondes ne subsiste que pendant le court délai où l’identité utilisateur n’est pas encore disponible.
+
+La publication Realtime a été activée en Production pour `public.user_notifications`. Les policies RLS existantes restent inchangées et continuent de limiter les lignes à `auth.uid() = user_id`.
 
 ## Estimation prudente
 
@@ -30,7 +33,7 @@
 - `npx tsc --noEmit --incremental false --pretty false` : OK.
 - Tests ciblés : 4 fichiers, 16 tests passés.
 - `git diff --check` : OK.
-- Aucune migration distante n’a été appliquée. La migration SQL doit d’abord être revue, testée en Preview et appliquée séparément.
+- La publication Realtime a été appliquée en Production et vérifiée. La migration d’agrégats dashboard reste, elle, non appliquée à distance et doit d’abord être revue/testée en Preview.
 
 ## Points restant à traiter
 
