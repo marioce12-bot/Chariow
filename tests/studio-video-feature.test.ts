@@ -1,5 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { isStudioVideoRenderEnabledForPreview } from "@/lib/studio/video-feature";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isStudioVideoEnabled, isStudioVideoRenderEnabledForPreview, resetStudioVideoFlagCacheForTests } from "@/lib/studio/video-feature";
+
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+const mockedCreateAdminClient = vi.mocked(createAdminClient);
 
 const originalEnv = {
   VERCEL_ENV: process.env.VERCEL_ENV,
@@ -13,6 +17,8 @@ function setEnv(key: keyof typeof originalEnv, value: string | undefined) {
 }
 
 afterEach(() => {
+  resetStudioVideoFlagCacheForTests();
+  mockedCreateAdminClient.mockReset();
   for (const [key, value] of Object.entries(originalEnv)) {
     setEnv(key as keyof typeof originalEnv, value);
   }
@@ -61,5 +67,27 @@ describe("Studio video render gate", () => {
     setEnv("NEXT_PUBLIC_STUDIO_VIDEO_RENDER_ENABLED", publicFlag);
 
     expect(isStudioVideoRenderEnabledForPreview()).toBe(enabled);
+  });
+
+  it("reads the production flag and caches it", async () => {
+    setEnv("VERCEL_ENV", "production");
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { enabled: true }, error: null });
+    mockedCreateAdminClient.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({ maybeSingle }),
+        }),
+      }),
+    } as never);
+
+    await expect(isStudioVideoEnabled()).resolves.toBe(true);
+    await expect(isStudioVideoEnabled()).resolves.toBe(true);
+    expect(maybeSingle).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed when the runtime flag cannot be read", async () => {
+    setEnv("VERCEL_ENV", "production");
+    mockedCreateAdminClient.mockImplementation(() => { throw new Error("missing table"); });
+    await expect(isStudioVideoEnabled()).resolves.toBe(false);
   });
 });

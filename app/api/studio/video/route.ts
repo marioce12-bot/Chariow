@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/shop/rate-limit";
 import { videoCreditCost } from "@/lib/studio/credits";
 import { STUDIO_VIDEO_RESOLUTIONS, inferProductType, isSupportedStudioVideoResolution } from "@/lib/studio/creative-workflows";
-import { isStudioVideoRenderEnabledForPreview } from "@/lib/studio/video-feature";
+import { isStudioVideoEnabled } from "@/lib/studio/video-feature";
 import { videoModelCapability } from "@/lib/studio/video-plan";
 import { assertFalVideoPromptWithinSafeLimit, isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
 import { generateUgcCreative, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
@@ -25,8 +25,8 @@ export const maxDuration = 60;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function GET() {
-  if (!isStudioVideoRenderEnabledForPreview()) {
-    return NextResponse.json({ ready: false, locked: true, code: "STUDIO_VIDEO_LOCKED" }, { status: 423, headers: { "Cache-Control": "no-store" } });
+  if (!(await isStudioVideoEnabled())) {
+    return NextResponse.json({ ready: false, locked: true, code: "STUDIO_VIDEO_LOCKED", error: "La génération vidéo est temporairement indisponible." }, { status: 423, headers: { "Cache-Control": "no-store" } });
   }
   const ffprobePath = packagedVideoProbe();
   if (!ffprobePath) {
@@ -39,9 +39,8 @@ export async function POST(request: Request) {
   const { user, response } = await requireUser();
   if (!user) return response;
 
-  // Only Production is enabled; Preview flags never grant access.
-  if (!isStudioVideoRenderEnabledForPreview()) {
-    return NextResponse.json({ error: "La génération vidéo est disponible uniquement en Production.", code: "STUDIO_VIDEO_LOCKED", locked: true }, { status: 423 });
+  if (!(await isStudioVideoEnabled())) {
+    return NextResponse.json({ error: "La génération vidéo est temporairement indisponible.", code: "STUDIO_VIDEO_LOCKED", locked: true }, { status: 423, headers: { "Cache-Control": "no-store" } });
   }
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const id = typeof body?.id === "string" ? body.id : "";
