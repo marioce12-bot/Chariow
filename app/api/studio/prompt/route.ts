@@ -1,15 +1,24 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
-import { buildVideoAdPlan, videoPlanPrompt, videoPlanningSystem, VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
+import { VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
+import { generateUgcCreative, missingUgcProductInfoFields, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
+import { ugcProviderRateLimitResponse } from "@/lib/studio/ugc-provider-errors";
+import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
+import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
+import { signPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
 import { buildSlideshowPlan, InsufficientProductDetailsError, SLIDESHOW_DURATIONS } from "@/lib/studio/slideshow-plan";
 import { logPreparationFailure } from "@/lib/studio/preparation-diagnostics";
-import { slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
+import { shortProductDescriptionMessage, slideshowPublicFailure } from "@/lib/studio/slideshow-errors";
 import { resolveProductLanguage } from "@/lib/studio/product-language";
+import { inferProductType } from "@/lib/studio/creative-workflows";
+import { isStudioVideoRenderEnabledForPreview } from "@/lib/studio/video-feature";
 import {
   CREATIVE_STYLES, CREATIVE_COMPOSITIONS, sourceCopyCandidates,
   parseCreativePlan, compileFaithfulPrompt,
 } from "@/lib/studio/faithful-prompt";
+
+export const maxDuration = 60;
 
 function systemPrompt() {
   return `Tu es directeur artistique de publicités produit, pas rédacteur de faits ou de contenu produit.
@@ -28,7 +37,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const product = body?.product && typeof body.product === "object" ? body.product as Record<string, unknown> : null;
   const name = typeof product?.name === "string" ? product.name.trim().slice(0, 200) : "";
-  if (!name) return NextResponse.json({ error: "Choisis d'abord un produit." }, { status: 400 });
+  if (!name) return NextResponse.json({ code: "infos_produit_manquantes", missingFields: ["product.name"], error: body?.locale === "en" ? "Choose a product before preparing a UGC scenario." : "Choisis d’abord un produit pour préparer le scénario UGC." }, { status: 400 });
 
   const orientation = body?.orientation === "landscape" ? "landscape" : body?.orientation === "portrait" ? "portrait" : "square";
   const background = body?.background === "transparent" ? "transparent" : body?.background === "opaque" ? "opaque" : "auto";
@@ -46,34 +55,82 @@ export async function POST(request: Request) {
 
   if (body?.mediaType === "video") {
     const isSlideshow = body?.videoMode === "slideshow";
-    const duration = Number(body?.duration ?? (isSlideshow ? 25 : 15));
+    const duration = Number(body?.duration ?? 25);
     if (!((isSlideshow ? SLIDESHOW_DURATIONS : VIDEO_AD_DURATIONS) as readonly number[]).includes(duration)) return NextResponse.json({ error: "Durée vidéo non prise en charge." }, { status: 400 });
     const aspectRatio = body?.aspectRatio ?? "9:16";
-    if (!["16:9", "9:16", "1:1"].includes(aspectRatio)) return NextResponse.json({ error: "Format vidéo non pris en charge." }, { status: 400 });
-    const input: VideoAdInput = { name, description, hasReference: Boolean(productImage), duration, aspectRatio, character, userBrief, previousPrompt, locale: body?.locale === "en" ? "en" : "fr" };
+    if (aspectRatio !== "9:16") return NextResponse.json({ error: "Le prompt vidéo Studio doit être en portrait 9:16." }, { status: 400 });
+    const input: VideoAdInput = { name, description, hasReference: Boolean(productImage), duration, aspectRatio, character: "with", userBrief, previousPrompt, locale: body?.locale === "en" ? "en" : "fr" };
     if (body?.videoMode === "slideshow") {
       try {
         const slideshow = buildSlideshowPlan({ ...input, campaignGoal: body?.campaignGoal, variationId: typeof body?.variationId === "string" ? body.variationId.slice(0, 100) : "default" }, typeof body?.musicId === "string" ? body.musicId.slice(0, 30) : undefined);
-        return NextResponse.json({ prompt: slideshow.prompt, slideshow, contentLanguage, locked: true });
+        return NextResponse.json({ slideshow: { ready: true, duration: slideshow.duration, aspectRatio: slideshow.aspectRatio, slideCount: slideshow.slides.length }, contentLanguage, locked: true });
       } catch (error) {
         logPreparationFailure(typeof body?.variationId === "string" ? body.variationId : "", "prompt_plan", error);
         if (error instanceof InsufficientProductDetailsError) return NextResponse.json({
           code: error.code,
-          error: body?.locale === "en" ? "Add product details below, then click Retry." : "Complète la description ci-dessous, puis appuie sur Relancer.",
+          error: shortProductDescriptionMessage(body?.locale, duration),
+          locale: body?.locale === "en" ? "en" : "fr",
           details: error.message,
         }, { status: 400 });
         return NextResponse.json({ error: slideshowPublicFailure(body?.locale) }, { status: 400 });
       }
     }
-    let videoAnswer = "";
+    const generatorInput = normalizeUgcInput(product, { ...body?.ugcOptions, duration }, body?.locale, userBrief, previousPrompt);
+    if (inferProductType(name, description) === "ebook" && !generatorInput.product.images?.length) {
+      return NextResponse.json({ error: "Sélectionne la couverture réelle de l’ebook avant de préparer son scénario vidéo.", code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" }, { status: 400 });
+    }
+    const missingFields = missingUgcProductInfoFields(generatorInput);
+    if (missingFields.length) return NextResponse.json({
+      code: "infos_produit_manquantes",
+      missingFields,
+      error: body?.locale === "en"
+        ? "Add a product description or at least a category, product type, or tags before preparing this scenario."
+        : "Ajoute une description produit ou au moins une catégorie, un type ou des étiquettes avant de préparer le scénario.",
+    }, { status: 400 });
+    let assemblyStage = "model_generation";
     try {
-      videoAnswer = await askText([
-        { role: "system", content: videoPlanningSystem(input) },
-        { role: "user", content: JSON.stringify({ productName: name, confirmedProductCopy: candidates.map((text, index) => ({ index, text })), hasReference: Boolean(productImage), artisticPreferencesOnly: userBrief, previousDirectionOnly: previousPrompt, duration, aspectRatio, character }) },
-      ], { order: ["imole", "groq", "gemini"] });
-    } catch { /* The constrained local planner is usable even when the text service is unavailable. */ }
-    const plan = buildVideoAdPlan(input, videoAnswer);
-    return NextResponse.json({ prompt: videoPlanPrompt(plan), plan, contentLanguage, locked: true });
+      const result = await generateUgcCreative(generatorInput);
+      assemblyStage = "editable_prompt_assembly";
+      const prompt = compileUgcPrompt(generatorInput, result.creative);
+      assemblyStage = "provider_plan_assembly";
+      const plan = compileUgcProviderPlan(generatorInput, result.creative);
+      return NextResponse.json({ prompt, ...result, plan, preparedUgc: signPreparedUgc(user.id, generatorInput, result, prompt), contentLanguage, locked: !isStudioVideoRenderEnabledForPreview() });
+    } catch (error) {
+      const diagnostic = error instanceof UgcPromptGenerationError
+        ? { stage: error.stage, type: error.details.type ?? "validation_error", keyPath: error.details.path ?? null, httpStatus: error.details.httpStatus ?? null }
+        : { stage: assemblyStage, type: error instanceof Error ? error.name : "unknown_error" };
+      console.error("Studio UGC preparation failed", diagnostic);
+      if (error instanceof UgcPromptGenerationError && error.details.type === "missing_product_info") {
+        return NextResponse.json({
+          error: body?.locale === "en" ? "Add the missing product details before preparing the scenario." : "Ajoute les informations produit manquantes avant de préparer le scénario.",
+          code: "infos_produit_manquantes", missingFields: error.details.missingFields ?? [],
+        }, { status: 400 });
+      }
+      if (error instanceof UgcPromptGenerationError && error.stage.endsWith("_provider")) {
+        const rateLimit = ugcProviderRateLimitResponse(error, body?.locale);
+        if (rateLimit) return NextResponse.json(rateLimit.body, { status: 429, headers: rateLimit.headers });
+        const httpStatus = error.details.httpStatus ?? null;
+        return NextResponse.json({
+          error: body?.locale === "en"
+            ? `The text model could not prepare the scenario${httpStatus ? ` (HTTP ${httpStatus})` : " (no HTTP status received)"}. No rendering was started.`
+            : `Le service IA n’a pas pu préparer le scénario${httpStatus ? ` (HTTP ${httpStatus})` : " (aucun statut HTTP reçu)"}. Aucun rendu n’a été lancé.`,
+          code: "erreur_modele", httpStatus,
+        }, { status: 502 });
+      }
+      if (error instanceof UgcPromptGenerationError && /(?:_validation|_json)$/.test(error.stage)) {
+        const details = error.details;
+        const path = details.path ?? "$";
+        const validationType = details.type ?? "invalid_output";
+        const errorMessage = body?.locale === "en"
+          ? `The generated ${error.stage.startsWith("creative") ? "creative direction" : "product analysis"} is invalid at ${path}${details.expected ? `: expected ${details.expected}, received ${details.received ?? "unknown"}` : "."}`
+          : `La réponse générée (${error.stage.startsWith("creative") ? "direction créative" : "analyse produit"}) est invalide au champ ${path}${details.expected ? ` : attendu ${details.expected}, reçu ${details.received ?? "inconnu"}` : "."}`;
+        return NextResponse.json({ error: errorMessage, code: "analyse_invalide", keyPath: path, validationType, expected: details.expected, received: details.received }, { status: 422 });
+      }
+      return NextResponse.json({
+        error: body?.locale === "en" ? "An internal error prevented scenario preparation. No rendering was started." : "Une erreur interne a empêché la préparation du scénario. Aucun rendu n’a été lancé.",
+        code: "erreur_preparation",
+      }, { status: 500 });
+    }
   }
 
   let answer: string;

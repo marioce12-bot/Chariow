@@ -92,11 +92,10 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
   const [activeMetaPreview, setActiveMetaPreview] = useState("MOBILE_FEED_STANDARD");
   const [metaPreviewLoading, setMetaPreviewLoading] = useState<Record<string, boolean>>({});
   const [metaPreviewErrors, setMetaPreviewErrors] = useState<Record<string, string>>({});
-  // Hash de l'image côté Meta (même compte + même visuel) : obtenu dès l'étape 2 (ou au premier
-  // aperçu) puis renvoyé aux suivants pour ne pas renvoyer l'image à Meta pour chaque placement.
-  const metaImageHashRef = useRef<{ key: string; hash: string } | null>(null);
-  // Envoi de l'image en cours (démarré à l'étape 2) : l'étape 5 l'attend au lieu de le refaire.
-  const metaImageHashPendingRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
+  // Média déjà préparé chez Meta pour le couple compte + URL : hash d'image ou vidéo + miniature.
+  const metaMediaPreparationRef = useRef<{ key: string; imageHash?: string; videoId?: string; videoThumbnailUrl?: string } | null>(null);
+  // Préparation du média en cours (démarrée à l'étape 2) : l'étape 5 l'attend au lieu de la refaire.
+  const metaMediaPreparationPendingRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
   // Aperçus déjà générés (même contenu + même placement) : revenir à l'étape 5 est instantané.
   const metaPreviewCacheRef = useRef<Map<string, { preview: MetaPreview; at: number }>>(new Map());
 
@@ -118,7 +117,7 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
       return Promise.resolve();
     }
     const hashKey = `${state.metaAdAccountId}|${state.mediaUrl}`;
-    const knownHash = metaImageHashRef.current?.key === hashKey ? metaImageHashRef.current.hash : undefined;
+    const knownMedia = metaMediaPreparationRef.current?.key === hashKey ? metaMediaPreparationRef.current : null;
     setMetaPreviewLoading((current) => ({ ...current, [formatId]: true }));
     setMetaPreviewErrors((current) => {
       const next = { ...current };
@@ -135,7 +134,9 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
         format: formatId,
         link: state.destinationUrl,
         image_url: state.mediaUrl,
-        image_hash: knownHash,
+        image_hash: knownMedia?.imageHash,
+        video_id: knownMedia?.videoId,
+        video_thumbnail_url: knownMedia?.videoThumbnailUrl,
         message: state.adText,
         headline: state.title || state.product?.name || "",
         call_to_action: state.callToAction,
@@ -144,7 +145,11 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.preview) throw new Error(data?.error || "Aperçu Meta indisponible");
-        if (typeof data.image_hash === "string" && data.image_hash) metaImageHashRef.current = { key: hashKey, hash: data.image_hash };
+        if (typeof data.image_hash === "string" && data.image_hash) {
+          metaMediaPreparationRef.current = { key: hashKey, imageHash: data.image_hash };
+        } else if (typeof data.video_id === "string" && typeof data.video_thumbnail_url === "string") {
+          metaMediaPreparationRef.current = { key: hashKey, videoId: data.video_id, videoThumbnailUrl: data.video_thumbnail_url };
+        }
         metaPreviewCacheRef.current.set(cacheKey, { preview: data.preview as MetaPreview, at: Date.now() });
         if (!isCancelled()) setMetaPreviews((current) => ({ ...current, [formatId]: data.preview as MetaPreview }));
       })
@@ -159,13 +164,13 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
       });
   };
 
-  // Dès que le visuel et le compte Meta sont connus (étape 2), on envoie l'image à Meta en
-  // arrière-plan : à l'étape 5, le hash est déjà prêt et les aperçus partent sans attendre.
+  // Dès que le visuel et le compte Meta sont connus (étape 2), on prépare le média chez Meta
+  // en arrière-plan : image_hash pour une image, video_id + miniature pour une vidéo.
   // Doit rester déclaré avant l'effet des aperçus ci-dessous (ordre d'exécution des effets).
   useEffect(() => {
     if (step < 2 || state.platform !== "meta" || !state.metaAdAccountId || !state.mediaUrl) return;
     const hashKey = `${state.metaAdAccountId}|${state.mediaUrl}`;
-    if (metaImageHashRef.current?.key === hashKey || metaImageHashPendingRef.current?.key === hashKey) return;
+    if (metaMediaPreparationRef.current?.key === hashKey || metaMediaPreparationPendingRef.current?.key === hashKey) return;
     const promise = fetch("/api/ad-campaigns/previews", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -174,16 +179,18 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
         if (response.ok && typeof data.image_hash === "string" && data.image_hash) {
-          metaImageHashRef.current = { key: hashKey, hash: data.image_hash };
+          metaMediaPreparationRef.current = { key: hashKey, imageHash: data.image_hash };
+        } else if (response.ok && typeof data.video_id === "string" && typeof data.video_thumbnail_url === "string") {
+          metaMediaPreparationRef.current = { key: hashKey, videoId: data.video_id, videoThumbnailUrl: data.video_thumbnail_url };
         }
       })
       .catch(() => {
-        // best-effort : sans hash, le premier aperçu enverra l'image lui-même
+        // best-effort : le premier aperçu pourra retenter la préparation du média.
       })
       .finally(() => {
-        if (metaImageHashPendingRef.current?.key === hashKey) metaImageHashPendingRef.current = null;
+        if (metaMediaPreparationPendingRef.current?.key === hashKey) metaMediaPreparationPendingRef.current = null;
       });
-    metaImageHashPendingRef.current = { key: hashKey, promise };
+    metaMediaPreparationPendingRef.current = { key: hashKey, promise };
   }, [step, state.platform, state.metaAdAccountId, state.mediaUrl]);
 
   useEffect(() => {
@@ -195,11 +202,10 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
     setMetaPreviews({});
     setMetaPreviewErrors({});
     setActiveMetaPreview(firstFormat);
-    // Si l'image est encore en cours d'envoi (démarré à l'étape 2), on l'attend plutôt que de la renvoyer.
-    // Sinon le premier format part seul : il envoie l'image à Meta et récupère son hash. Les autres
-    // partent ensuite en parallèle avec ce hash, donc changer d'onglet ensuite n'attend plus Meta.
+    // Si le média est encore en cours de préparation (démarrée à l'étape 2), on l'attend plutôt que de le renvoyer.
+    // Le premier format part seul ; les suivants partagent le hash ou l'ID vidéo + miniature obtenus.
     void (async () => {
-      const pending = metaImageHashPendingRef.current;
+      const pending = metaMediaPreparationPendingRef.current;
       if (pending && pending.key === `${state.metaAdAccountId}|${state.mediaUrl}`) await pending.promise;
       if (cancelled) return;
       await fetchMetaPreview(ids[0], isCancelled);

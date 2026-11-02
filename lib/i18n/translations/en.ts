@@ -87,7 +87,7 @@ export const en: Dict = {
       tooManyForEmail: "Too many requests for this email. Try again in {seconds}s.",
     },
     chat: {
-      trialEnded: "Your free trial has ended.", activate: "Activate subscription",
+      trialEnded: "Your Vendeo subscription has expired.", activate: "Reactivate subscription",
       sales: "Sales", spend: "Ad spend", roas: "Real ROAS",
       eyebrow: "Decision center", title: "What do you want to do today?", launchSuggestion: "Want to launch a campaign?", launchSuggestionPrompt: "I want to prepare a new campaign. Help me define the required details, but do not launch it.",
       desc: "Vendeo cross-references your sales, ads and profitability to tell you what to do next.",
@@ -113,7 +113,7 @@ export const en: Dict = {
       cap3: "Generate a ready-to-publish product poster", cap4: "Summarize your recent activity in plain language",
       tipTitle: "Tip", tipText: "Be specific in your questions. Instead of \"how's it going?\", try \"which campaign is losing money this week?\".",
       placeholder: "Ask your question...", placeholderBlocked: "Activate your subscription to continue",
-      trialEndedMessage: "Your free trial has ended. Activate your subscription to continue.",
+      trialEndedMessage: "Your Vendeo subscription has expired. Reactivate it in the Subscription section to continue.",
       error: "Something went wrong.", send: "Send", sending: "Sending",
       launchSubmitting: "Submitting campaign…",
       launchSent: "Campaign sent",

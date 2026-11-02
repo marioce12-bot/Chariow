@@ -3,9 +3,11 @@ import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { META_GRAPH_BASE_URL } from "@/lib/meta/api";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
+import { isVideoMediaUrl, prepareMetaCreativeVideo } from "@/lib/meta/ad-video";
 import { LEGACY_META_CTA, normalizeMetaCta } from "@/lib/meta/cta";
 
-export const maxDuration = 30;
+// La préparation d'une vidéo peut attendre jusqu'à 55 s le traitement de Meta.
+export const maxDuration = 60;
 
 // Les identifiants doivent figurer dans la liste ad_format acceptée par Meta
 // pour /generatepreviews (ex. FACEBOOK_STORY_MOBILE, pas FACEBOOK_STORY).
@@ -26,6 +28,20 @@ function graphError(json: Record<string, unknown>, status: number) {
   return typeof error?.message === "string" ? error.message : `Meta preview failed (${status})`;
 }
 
+function validVideoId(value: unknown): string {
+  return typeof value === "string" && /^[A-Za-z0-9._-]{1,128}$/.test(value.trim()) ? value.trim() : "";
+}
+
+function validThumbnailUrl(value: unknown): string {
+  if (typeof value !== "string") return "";
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
 export async function POST(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
@@ -34,11 +50,12 @@ export async function POST(request: Request) {
   const pageId = typeof body?.meta_page_id === "string" ? body.meta_page_id : "";
   const link = typeof body?.link === "string" ? body.link.trim() : "";
   const imageUrl = typeof body?.image_url === "string" ? body.image_url.trim() : "";
-  // Hash déjà obtenu par un aperçu précédent (même compte, même image) : évite de
-  // retélécharger puis renvoyer l'image à Meta pour chaque placement.
+  const isVideo = isVideoMediaUrl(imageUrl);
+  // Hash Meta pour les images ; ID vidéo Meta et miniature générée pour les vidéos.
   const providedHash = typeof body?.image_hash === "string" && /^[A-Za-z0-9]{8,64}$/.test(body.image_hash.trim()) ? body.image_hash.trim() : "";
-  // Mode préparation : envoie seulement l'image à Meta et renvoie son hash (appelé dès l'étape 2,
-  // avant que la page, le lien ou le texte soient connus), pour que les aperçus de l'étape 5 partent vite.
+  const providedVideoId = validVideoId(body?.video_id);
+  const providedVideoThumbnailUrl = validThumbnailUrl(body?.video_thumbnail_url);
+  // Mode préparation : l'étape 2 prépare le bon type de média pour les aperçus de l'étape 5.
   const prepareOnly = body?.prepare_only === true;
   if (prepareOnly ? !accountRowId || !imageUrl : !accountRowId || !pageId || !link || !imageUrl) {
     return NextResponse.json({ error: "Compte Meta, page, lien et visuel requis pour générer les aperçus." }, { status: 400 });
@@ -57,6 +74,10 @@ export async function POST(request: Request) {
   const accountId = `act_${String(account.meta_account_id).replace(/^act_/, "")}`;
 
   if (prepareOnly) {
+    if (isVideo) {
+      const prepared = await prepareMetaCreativeVideo({ accountId, accessToken, videoUrl: imageUrl });
+      return NextResponse.json({ video_id: prepared.videoId, video_thumbnail_url: prepared.thumbnailUrl });
+    }
     const prepared = await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl });
     return NextResponse.json({ image_hash: prepared.imageHash ?? null });
   }
@@ -69,22 +90,48 @@ export async function POST(request: Request) {
     : Boolean(format);
   if (!format || !allowedForPlacement) return NextResponse.json({ error: "Placement Meta invalide." }, { status: 400 });
 
-  // Comme au vrai lancement : on envoie l'image à Meta (image_hash) au lieu de lui faire
-  // télécharger une URL signée. Les placements Instagram n'arrivent pas à la charger par URL
-  // (image vide ou cassée dans l'aperçu). Repli sur l'URL si l'envoi échoue.
-  const imageHash = providedHash || (await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl })).imageHash;
-  const creative = {
-    object_story_spec: {
-      page_id: pageId,
-      link_data: {
-        link,
-        message: typeof body?.message === "string" ? body.message : "",
-        name: typeof body?.headline === "string" ? body.headline : "",
-        ...(imageHash ? { image_hash: imageHash } : { picture: imageUrl }),
-        call_to_action: { type: normalizeMetaCta(body?.call_to_action) ?? LEGACY_META_CTA, value: { link } },
+  const message = typeof body?.message === "string" ? body.message : "";
+  const headline = typeof body?.headline === "string" ? body.headline : "";
+  const callToAction = { type: normalizeMetaCta(body?.call_to_action) ?? LEGACY_META_CTA, value: { link } };
+  let creative: Record<string, unknown>;
+  let mediaResult: { image_hash?: string | null; video_id?: string; video_thumbnail_url?: string };
+
+  if (isVideo) {
+    // Meta exige video_data.video_id et la miniature de la vidéo ; une URL MP4
+    // ne doit jamais être envoyée comme link_data.picture.
+    const prepared = providedVideoId && providedVideoThumbnailUrl
+      ? { videoId: providedVideoId, thumbnailUrl: providedVideoThumbnailUrl }
+      : await prepareMetaCreativeVideo({ accountId, accessToken, videoUrl: imageUrl, timeoutMs: 35_000 });
+    creative = {
+      object_story_spec: {
+        page_id: pageId,
+        video_data: {
+          video_id: prepared.videoId,
+          image_url: prepared.thumbnailUrl,
+          message,
+          title: headline,
+          call_to_action: callToAction,
+        },
       },
-    },
-  };
+    };
+    mediaResult = { video_id: prepared.videoId, video_thumbnail_url: prepared.thumbnailUrl };
+  } else {
+    // Pour les images, utiliser image_hash évite les échecs de chargement des URLs signées dans Instagram.
+    const imageHash = providedHash || (await prepareMetaCreativeImage({ userId: user.id, accountId, accessToken, imageUrl })).imageHash;
+    creative = {
+      object_story_spec: {
+        page_id: pageId,
+        link_data: {
+          link,
+          message,
+          name: headline,
+          ...(imageHash ? { image_hash: imageHash } : { picture: imageUrl }),
+          call_to_action: callToAction,
+        },
+      },
+    };
+    mediaResult = { image_hash: imageHash ?? null };
+  }
 
   const url = new URL(`${META_GRAPH_BASE_URL}/${accountId}/generatepreviews`);
   url.searchParams.set("creative", JSON.stringify(creative));
@@ -100,7 +147,7 @@ export async function POST(request: Request) {
       console.warn("Meta preview rejected", format.id, graphError(json, result.status));
       return NextResponse.json({ error: "Meta n'a pas pu générer cet aperçu pour ce placement." }, { status: 502 });
     }
-    return NextResponse.json({ preview: { id: format.id, label: format.label, html: row.body }, image_hash: imageHash ?? null });
+    return NextResponse.json({ preview: { id: format.id, label: format.label, html: row.body }, ...mediaResult });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "AbortError";
     console.warn("Meta preview format unavailable", format.id, error instanceof Error ? error.message : error);

@@ -10,6 +10,7 @@ type GeminiResponse = {
   candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   error?: { message?: string };
 };
+type JsonSchema = Record<string, unknown>;
 
 // L'API Gemini (Google AI Studio) a un palier gratuit généreux — clé à créer sur
 // https://aistudio.google.com/apikey, à mettre dans GEMINI_API_KEY.
@@ -112,13 +113,27 @@ async function toGeminiPayload(messages: ChatMessage[]) {
   return {
     contents,
     ...(systemText ? { systemInstruction: { parts: [{ text: systemText }] } } : {}),
-    generationConfig: { temperature: 0.4 } as { temperature: number; thinkingConfig?: { thinkingLevel: "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" } },
+    generationConfig: { temperature: 0.4 } as {
+      temperature: number;
+      thinkingConfig?: { thinkingLevel: "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" };
+      responseFormat?: { text: { mimeType: "APPLICATION_JSON"; schema: JsonSchema } };
+    },
   };
+}
+
+function addGeminiPropertyOrdering(schema: JsonSchema): JsonSchema {
+  const properties = schema.properties;
+  if (!properties || typeof properties !== "object" || Array.isArray(properties)) return schema;
+  const orderedProperties = Object.fromEntries(Object.entries(properties as Record<string, unknown>).map(([key, child]) => [
+    key,
+    child && typeof child === "object" && !Array.isArray(child) ? addGeminiPropertyOrdering(child as JsonSchema) : child,
+  ]));
+  return { ...schema, propertyOrdering: Object.keys(properties as Record<string, unknown>), properties: orderedProperties };
 }
 
 // `timeoutMs` permet à l'appelant d'ajuster l'attente au temps qu'il lui reste avant la
 // limite de sa propre fonction (voir maxDuration dans app/api/chat/route.ts).
-export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: number; model?: string; overloadRetries?: number; thinkingLevel?: "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" } = {}) {
+export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: number; model?: string; overloadRetries?: number; thinkingLevel?: "MINIMAL" | "LOW" | "MEDIUM" | "HIGH"; responseSchema?: JsonSchema } = {}) {
   const { apiKey, baseUrl, model: configuredModel } = getConfig();
   const model = options.model || configuredModel;
   const controller = new AbortController();
@@ -126,6 +141,14 @@ export async function askGemini(messages: ChatMessage[], options: { timeoutMs?: 
 
   try {
     const payload = await toGeminiPayload(messages);
+    if (options.responseSchema) {
+      payload.generationConfig = {
+        ...payload.generationConfig,
+        responseFormat: {
+          text: { mimeType: "APPLICATION_JSON", schema: addGeminiPropertyOrdering(options.responseSchema) },
+        },
+      };
+    }
     if (options.thinkingLevel) {
       payload.generationConfig = { ...payload.generationConfig, thinkingConfig: { thinkingLevel: options.thinkingLevel } };
     }

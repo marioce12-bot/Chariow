@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { TrialPaywallModal } from "@/components/TrialPaywallModal";
+import { SubscriptionExpiredNotice } from "@/components/SubscriptionExpiredNotice";
 
 // Garde monté dans app/dashboard/layout.tsx : lit l'état réel de l'abonnement côté serveur
-// (GET /api/subscription) et affiche la pop-up NON fermable dès que le compte
-// est 'past_due' (essai de 5 jours ou abonnement de 30 jours expiré).
+// (GET /api/subscription) et affiche une bannière si le plan Vendeo est expiré.
 // Il revérifie à chaque changement de page et au retour sur l'onglet
 // pour éviter un accès prolongé.
 export function SubscriptionPaywallGate() {
@@ -38,5 +37,5 @@ export function SubscriptionPaywallGate() {
     };
   }, [pathname]);
 
-  return <TrialPaywallModal subscription={subscription} />;
+  return <SubscriptionExpiredNotice subscription={subscription} />;
 }

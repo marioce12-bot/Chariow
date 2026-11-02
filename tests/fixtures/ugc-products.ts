@@ -1,0 +1,51 @@
+export const representativeUgcProducts = [
+  {
+    name: "Carnet Botanique",
+    description: "Guide numérique PDF consacré aux bases du jardinage en pots.",
+    category: "Jardin",
+    type: "digital",
+    tags: ["ebook"],
+  },
+  {
+    name: "Cours Excel Essentiel",
+    description: "Formation vidéo d’initiation aux fonctions de base d’Excel.",
+    category: "Formation",
+    type: "formation",
+    tags: ["vidéo", "tableur"],
+  },
+  {
+    name: "Trousse Créa Locale",
+    description: "Trousse en toile avec fermeture éclair.",
+    category: "Accessoires",
+    type: "physique",
+    tags: ["toile"],
+  },
+  {
+    name: "Savon Doux Karité",
+    description: "Savon artisanal au beurre de karité.",
+    category: "Soin",
+    type: "physique",
+    tags: ["savon"],
+  },
+  {
+    name: "Séance Photo Famille",
+    description: "Séance photo familiale en extérieur sur rendez-vous.",
+    category: "Photographie",
+    type: "service",
+    tags: ["portrait"],
+  },
+  {
+    name: "Mélange Épices Mijoté",
+    description: "Mélange d’épices en sachet; ingrédients détaillés sur l’étiquette.",
+    category: "Cuisine",
+    type: "physique",
+    tags: ["épices"],
+  },
+  {
+    name: "Modèle Budget Mensuel",
+    description: "Tableur téléchargeable pour suivre les dépenses mensuelles.",
+    category: "Organisation",
+    type: "digital",
+    tags: ["tableur", "budget"],
+  },
+] as const;

@@ -16,7 +16,7 @@ describe("studio product language", () => {
     expect(prompt).not.toContain("French headline");
     const faithful = compileFaithfulPrompt({ evidence: { name: "Daily Learning Guide", description: englishDescription, hasReference: false }, candidates: [], plan: { style: "minimal", composition: "spacious", copyIndices: [] }, orientation: "square", background: "auto", character: "auto", locale: "fr" });
     expect(faithful).toContain("Visible language: English");
-    const input: VideoAdInput = { name: "Daily Learning Guide", description: englishDescription, hasReference: false, duration: 5, aspectRatio: "9:16", character: "auto", locale: "fr" };
+    const input: VideoAdInput = { name: "Daily Learning Guide", description: englishDescription, hasReference: false, duration: 25, aspectRatio: "9:16", character: "auto", locale: "fr" };
     const video = buildVideoAdPlan(input, '{"direction":"visual_story"}').segments[0].prompt;
     expect(video).toContain("Visible language and narration: English");
     expect(video).toContain('"Discover more"');
@@ -27,7 +27,7 @@ describe("studio product language", () => {
     const brief = buildCreativeBrief({ name: "Guide pratique", description: frenchDescription }, "", "image");
     expect(brief.productLanguage).toBe("French");
     expect(briefToPrompt(brief, "image", false, "poster")).toContain("Visible language: French");
-    const video = buildVideoAdPlan({ name: "Guide pratique", description: frenchDescription, hasReference: false, duration: 5, aspectRatio: "9:16", character: "auto", locale: "en" }, '{"direction":"visual_story"}').segments[0].prompt;
+    const video = buildVideoAdPlan({ name: "Guide pratique", description: frenchDescription, hasReference: false, duration: 25, aspectRatio: "9:16", character: "auto", locale: "en" }, '{"direction":"visual_story"}').segments[0].prompt;
     expect(video).toContain("Visible language and narration: French");
     expect(video).toContain('"Découvrir"');
   });
@@ -36,7 +36,7 @@ describe("studio product language", () => {
     const brief = buildCreativeBrief({ name: "Guía de aprendizaje", description: spanishDescription }, "", "image");
     expect(brief.productLanguage).toBe("Spanish");
     expect(briefToPrompt(brief, "image", false, "poster")).toContain("Visible language: Spanish");
-    const video = buildVideoAdPlan({ name: "Guía de aprendizaje", description: spanishDescription, hasReference: false, duration: 5, aspectRatio: "9:16", character: "auto", locale: "en" }, '{"direction":"visual_story"}').segments[0].prompt;
+    const video = buildVideoAdPlan({ name: "Guía de aprendizaje", description: spanishDescription, hasReference: false, duration: 25, aspectRatio: "9:16", character: "auto", locale: "en" }, '{"direction":"visual_story"}').segments[0].prompt;
     expect(video).toContain("Visible language and narration: Spanish");
     expect(video).toContain('"Descubre más"');
     expect(video).not.toContain('"Discover more"');
