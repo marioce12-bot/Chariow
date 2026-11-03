@@ -55,8 +55,15 @@ export async function POST(request: Request) {
 
   if (body?.mediaType === "video") {
     const isSlideshow = body?.videoMode === "slideshow";
-    const duration = Number(body?.duration ?? 25);
-    if (!((isSlideshow ? SLIDESHOW_DURATIONS : VIDEO_AD_DURATIONS) as readonly number[]).includes(duration)) return NextResponse.json({ error: "Durée vidéo non prise en charge." }, { status: 400 });
+    const allowedDurations = isSlideshow ? SLIDESHOW_DURATIONS : VIDEO_AD_DURATIONS;
+    const duration = Number(body?.duration ?? (isSlideshow ? 25 : 10));
+    if (!(allowedDurations as readonly number[]).includes(duration)) {
+      const keyPath = isSlideshow ? "duration" : "options.duration";
+      const error = body?.locale === "en"
+        ? `Invalid ${keyPath}: allowed durations are ${allowedDurations.join(", ")} seconds.`
+        : `Durée invalide pour ${keyPath} : valeurs autorisées ${allowedDurations.join(", ")} secondes.`;
+      return NextResponse.json({ error, code: "invalid_input", keyPath, supported: allowedDurations }, { status: 400 });
+    }
     const aspectRatio = body?.aspectRatio ?? "9:16";
     if (aspectRatio !== "9:16") return NextResponse.json({ error: "Le prompt vidéo Studio doit être en portrait 9:16." }, { status: 400 });
     const input: VideoAdInput = { name, description, hasReference: Boolean(productImage), duration, aspectRatio, character: "with", userBrief, previousPrompt, locale: body?.locale === "en" ? "en" : "fr" };
@@ -104,6 +111,14 @@ export async function POST(request: Request) {
         return NextResponse.json({
           error: body?.locale === "en" ? "Add the missing product details before preparing the scenario." : "Ajoute les informations produit manquantes avant de préparer le scénario.",
           code: "infos_produit_manquantes", missingFields: error.details.missingFields ?? [],
+        }, { status: 400 });
+      }
+      if (error instanceof UgcPromptGenerationError && error.stage === "input") {
+        return NextResponse.json({
+          error: error.message,
+          code: error.details.type ?? "invalid_input",
+          keyPath: error.details.path ?? null,
+          expected: error.details.expected,
         }, { status: 400 });
       }
       if (error instanceof UgcPromptGenerationError && error.stage.endsWith("_provider")) {

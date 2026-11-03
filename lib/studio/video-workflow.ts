@@ -346,7 +346,8 @@ export async function extractVideoContinuityFrameFallbackStep(id: string) {
   try {
     const clipPath = path.join(dir, "segment-0.mp4");
     await writeFile(clipPath, await readStudioVideoArtifact(metadata.segment0StoragePath));
-    extractedPath = await extractLastFrame({ url: clipPath, duration: 15, index: 0 }, binaries.ffmpegPath);
+    const plan = metadata.plan as VideoAdPlan | undefined;
+    extractedPath = await extractLastFrame({ url: clipPath, duration: plan?.segments?.[0]?.duration ?? 15, index: 0 }, binaries.ffmpegPath);
     const framePath = await storeStudioVideoArtifact(row.user_id, id, "continuity-frame.png", await readFile(extractedPath), "image/png");
     await patchVideoRow(id, { continuityFramePath: framePath, continuityFrameState: "fallback", phase: "continuity_ready", progress: 48 });
     return framePath;

@@ -21,6 +21,10 @@ const analysis = { product_type: "digital", niche: "jardin", target_audience: "a
 afterEach(() => vi.unstubAllEnvs());
 
 describe("UGC deterministic provider adapter", () => {
+  it("defaults an omitted duration to the 10-second Studio selector value", () => {
+    expect(normalizeUgcInput(input.product, {}, "fr").options.duration).toBe(10);
+  });
+
   it("preserves product-specific camera, dialogue and references in exactly 15+10 seconds", () => {
     const prompt = compileUgcPrompt(input, creative);
     expect(prompt).toContain("Terrasse à Cotonou");

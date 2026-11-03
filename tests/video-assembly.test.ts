@@ -45,4 +45,20 @@ describe("assembleVideo (real ffmpeg)", () => {
       }
     } finally { await rm(dir, { recursive: true, force: true }); }
   }, 180_000);
+
+  it.each([
+    [10, [10]],
+    [15, [15]],
+    [25, [15, 10]],
+  ])("accepts a valid %i-second clip plan", async (duration, segmentDurations) => {
+    const plan = { duration, aspectRatio: "9:16", direction: "", continuity: "", segments: segmentDurations.map((segmentDuration, index) => ({ index, duration: segmentDuration, prompt: "test" })) } as VideoAdPlan;
+    await expect(assembleVideo([], plan, { outputPath: "/tmp/video.mp4" })).rejects.toThrow("Set ffmpegPath and ffprobePath");
+  });
+
+  it("rejects unsupported or mismatched plans before requiring ffmpeg", async () => {
+    const unsupported = { duration: 30, aspectRatio: "9:16", direction: "", continuity: "", segments: [15, 15].map((duration, index) => ({ index, duration, prompt: "test" })) } as VideoAdPlan;
+    const mismatched = { duration: 10, aspectRatio: "9:16", direction: "", continuity: "", segments: [{ index: 0, duration: 15, prompt: "test" }] } as VideoAdPlan;
+    await expect(assembleVideo([], unsupported, { outputPath: "/tmp/video.mp4" })).rejects.toThrow(/durée vidéo prise en charge/);
+    await expect(assembleVideo([], mismatched, { outputPath: "/tmp/video.mp4" })).rejects.toThrow(/totalisent cette durée/);
+  });
 });

@@ -28,7 +28,7 @@ export function normalizeUgcInput(rawProduct: unknown, rawOptions: unknown, loca
     },
     options: {
       language: language && language !== "auto" ? language : resolveProductLanguage({ name, description }, typeof locale === "string" ? locale : "fr").label,
-      duration: Number(options.duration ?? 25), tone: text(options.tone, 100) || "naturel",
+      duration: Number(options.duration ?? 10), tone: text(options.tone, 100) || "naturel",
       platform: text(options.platform, 60) || "Reels",
       angle: text(options.angle, 120),
     },

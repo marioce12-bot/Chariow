@@ -76,24 +76,48 @@ describe("génération créative UGC déterministe", () => {
     expect(result.characters[0].id).toBe("c1");
   });
 
-  it.each([15, 20, 25, 30])("construit cinq plans contigus pour une vidéo de %i secondes", duration => {
+  it.each([10, 15, 25])("construit les beats contigus prévus pour une vidéo de %i secondes", duration => {
     const shots = timing(duration);
-    expect(shots).toHaveLength(5);
+    expect(shots).toHaveLength(duration === 10 ? 4 : 5);
     expect(shots[0].start).toBe(0);
-    expect(shots[4].end).toBe(duration);
-    expect(shots[4].end - shots[4].start).toBeGreaterThanOrEqual(3);
-    expect(shots[4].end - shots[4].start).toBeLessThanOrEqual(5);
-    for (let i = 1; i < shots.length; i++) expect(shots[i].start).toBe(shots[i - 1].end);
+    expect(shots.at(-1)!.end).toBe(duration);
+    expect(shots.at(-1)!.end - shots.at(-1)!.start).toBeGreaterThanOrEqual(3);
+    expect(shots.at(-1)!.end - shots.at(-1)!.start).toBeLessThanOrEqual(5);
+    for (let i = 0; i < shots.length; i++) {
+      expect(shots[i].start).toBeGreaterThanOrEqual(0);
+      expect(shots[i].end).toBeLessThanOrEqual(duration);
+      if (i > 0) expect(shots[i].start).toBe(shots[i - 1].end);
+    }
   });
 
-  it.each([15, 20, 30])("génère un dialogue déterministe sous le plafond pour une vidéo de %i secondes", duration => {
+  it.each([10, 15, 25])("génère un dialogue déterministe sous le plafond pour une vidéo de %i secondes", duration => {
     const result = validateUgcCreative(draft({
       hook: { text: "mot ".repeat(13), visual: "La présentatrice ouvre son téléphone." },
       shortLines: ["ligne ".repeat(13), "autre ".repeat(13), "texte ".repeat(13)],
     }), input("Guide Excel Facile", duration));
     const spoken = result.shots.map(shot => shot.dialogue).join(" ");
     expect(spoken.trim().split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(Math.floor(duration * 1.8));
-    expect(result.shots).toHaveLength(5);
+    expect(result.shots).toHaveLength(duration === 10 ? 4 : 5);
+  });
+
+  it("construit un scénario 10 s en quatre beats 2/2/3/3, avec hook, CTA et au plus 18 mots", () => {
+    const result = validateUgcCreative(draft(), input("Guide Excel Facile", 10));
+    expect(result.shots.map(({ type }) => type)).toEqual(["hook", "problem", "solution", "cta"]);
+    expect(result.shots.map(({ start, end }) => end - start)).toEqual([2, 2, 3, 3]);
+    expect(result.shots[0].dialogue).toBe(result.hook.text);
+    expect(result.shots.at(-1)?.dialogue).toBe(result.cta);
+    expect(result.cta).toContain("Guide Excel Facile");
+    expect(result.shots.map(shot => shot.dialogue).join(" ").trim().split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(18);
+  });
+
+  it.each([5, 12, 30, "abc"])("rejette clairement la durée invalide %s avant l’appel au modèle", async duration => {
+    const candidateDuration = typeof duration === "number" ? duration : Number(duration);
+    const invalidInput = { ...input(), options: { ...input().options, duration: candidateDuration } };
+    await expect(generateUgcCreative(invalidInput)).rejects.toMatchObject({
+      stage: "input", details: { type: "invalid_input", path: "options.duration", expected: "10 | 15 | 25 secondes" },
+    });
+    await expect(generateUgcCreative(invalidInput)).rejects.toThrow(/options\.duration.*10, 15, 25/);
+    expect(askText).not.toHaveBeenCalled();
   });
 
   it("insère toujours le nom exact du produit dans les plans et le CTA, même si le modèle l’omet", () => {
