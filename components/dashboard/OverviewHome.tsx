@@ -148,10 +148,33 @@ export function OverviewHome({
   ].filter((card) => !dismissedFeatureCards.has(card.id));
   const [featureCardIndex, setFeatureCardIndex] = useState(0);
   const visibleFeatureCard = featureCards.length ? featureCards[featureCardIndex % featureCards.length] : null;
+  const featureTouchStartX = useRef<number | null>(null);
 
   useEffect(() => {
     if (featureCardIndex >= featureCards.length && featureCards.length > 0) setFeatureCardIndex(0);
   }, [featureCards.length, featureCardIndex]);
+  useEffect(() => {
+    if (featureCards.length < 2) return;
+    const timer = window.setInterval(() => setFeatureCardIndex((current) => (current + 1) % featureCards.length), 6500);
+    return () => window.clearInterval(timer);
+  }, [featureCards.length]);
+
+  function moveFeatureCard(direction: 1 | -1) {
+    if (featureCards.length < 2) return;
+    setFeatureCardIndex((current) => (current + direction + featureCards.length) % featureCards.length);
+  }
+
+  function handleFeatureTouchStart(event: React.TouchEvent<HTMLElement>) {
+    featureTouchStartX.current = event.touches[0]?.clientX ?? null;
+  }
+
+  function handleFeatureTouchEnd(event: React.TouchEvent<HTMLElement>) {
+    const startX = featureTouchStartX.current;
+    featureTouchStartX.current = null;
+    const endX = event.changedTouches[0]?.clientX;
+    if (startX === null || endX === undefined || Math.abs(endX - startX) < 45) return;
+    moveFeatureCard(endX < startX ? 1 : -1);
+  }
 
   const [localPeriodDays, setLocalPeriodDays] = useState(30);
   const periodDays = selectedPeriodDays ?? localPeriodDays;
@@ -352,8 +375,8 @@ export function OverviewHome({
       </section>
 
       {visibleFeatureCard ? (
-        <section className="overview-feature-discovery" aria-label={tr("Découvrir les fonctionnalités", "Discover features")}>
-          <div className={`overview-feature-card overview-feature-card--${visibleFeatureCard.className}`}>
+        <section className="overview-feature-discovery" aria-label={tr("Découvrir les fonctionnalités", "Discover features")} onTouchStart={handleFeatureTouchStart} onTouchEnd={handleFeatureTouchEnd}>
+          <div key={visibleFeatureCard.id} className={`overview-feature-card overview-feature-card--${visibleFeatureCard.className}`}>
             <div className="overview-feature-card-icon"><visibleFeatureCard.Icon size={22} aria-hidden="true" /></div>
             <div className="overview-feature-card-content">
               <h2>{visibleFeatureCard.title}</h2>
