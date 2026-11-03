@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const { fetchMetaInsights } = vi.hoisted(() => ({ fetchMetaInsights: vi.fn() }));
+const { fetchMetaInsights, fetchMetaCampaignList, MetaCampaignIdentityUnsupportedError } = vi.hoisted(() => ({
+  fetchMetaInsights: vi.fn(),
+  fetchMetaCampaignList: vi.fn(),
+  MetaCampaignIdentityUnsupportedError: class extends Error {},
+}));
 vi.mock("@/lib/crypto", () => ({ decryptSecret: () => "token" }));
-vi.mock("./api", () => ({ fetchMetaInsights, actionValue: () => 0 }));
+vi.mock("./api", () => ({ fetchMetaInsights, MetaCampaignIdentityUnsupportedError, actionValue: () => 0 }));
+vi.mock("./campaign-list", () => ({ fetchMetaCampaignList }));
 import { resolveMetaInsightsWindow, syncMetaInsights } from "./sync";
 
 function setup(launched: unknown[] = []) {
@@ -20,6 +25,7 @@ describe("syncMetaInsights coverage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchMetaInsights.mockResolvedValue([]);
+    fetchMetaCampaignList.mockResolvedValue([]);
   });
   it("records only the exact successfully synced window as complete", async () => {
     const { supabase, updates } = setup();
@@ -41,6 +47,37 @@ describe("syncMetaInsights coverage", () => {
     await syncMetaInsights(supabase, account, "2026-10-01", "2026-10-17");
     expect(upserts.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ level: "campaign", spend: null })]));
     expect(updates[0]).toMatchObject({ insights_sync_complete: false, last_sync_error: expect.stringContaining("spend manquant") });
+  });
+  it("falls back by campaign ID when account-level campaign rows omit identity", async () => {
+    const { supabase, upserts, updates } = setup();
+    fetchMetaInsights.mockImplementation(async (node: string, _token: string, _from: string, _to: string, level: string) => {
+      if (node === "act_123" && level === "campaign") return [{ date_start: "2026-10-01", date_stop: "2026-10-01", spend: "4" }];
+      if (node === "campaign-1" && level === "campaign") return [{ date_start: "2026-10-01", date_stop: "2026-10-01", spend: "4" }];
+      return [];
+    });
+    fetchMetaCampaignList.mockResolvedValue([{ id: "campaign-1", name: "Campagne test" }]);
+
+    const stats = await syncMetaInsights(supabase, account, "2026-10-01", "2026-10-17");
+
+    expect(fetchMetaInsights).toHaveBeenCalledTimes(4);
+    expect(fetchMetaInsights).toHaveBeenLastCalledWith("campaign-1", "token", "2026-10-01", "2026-10-17", "campaign", { includeCampaignIdentity: false });
+    expect(upserts.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ level: "campaign", entity_id: "campaign-1", entity_name: "Campagne test" })]));
+    expect(stats).toMatchObject({ insightsCalls: 4, rowsRead: 2, rowsWritten: 1, errors: 0, campaignFallbackRequests: 1 });
+    expect(updates[0]).toMatchObject({ insights_sync_complete: true, insights_sync_to: "2026-10-17" });
+  });
+  it("falls back by campaign ID when a Meta token rejects identity fields", async () => {
+    const { supabase, upserts } = setup();
+    fetchMetaInsights.mockImplementation(async (node: string, _token: string, _from: string, _to: string, level: string) => {
+      if (node === "act_123" && level === "campaign") throw new MetaCampaignIdentityUnsupportedError("field not supported");
+      if (node === "campaign-1" && level === "campaign") return [{ date_start: "2026-10-01", date_stop: "2026-10-01", spend: "4" }];
+      return [];
+    });
+    fetchMetaCampaignList.mockResolvedValue([{ id: "campaign-1", name: "Campagne test" }]);
+
+    const stats = await syncMetaInsights(supabase, account, "2026-10-01", "2026-10-17");
+
+    expect(stats).toMatchObject({ insightsCalls: 4, rowsWritten: 1, errors: 0, campaignFallbackRequests: 1 });
+    expect(upserts.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ level: "campaign", entity_id: "campaign-1" })]));
   });
   it("chooses a three-day rolling window for a completed account and 30 days for first import or resync", () => {
     const now = new Date("2026-11-02T17:00:00.000Z");

@@ -68,13 +68,23 @@ export async function fetchMetaPageAccessToken(pageId: string, accessToken: stri
   return json.access_token;
 }
 
-export async function fetchMetaInsights(accountId: string, accessToken: string, from: string, to: string, level: "campaign" | "adset" | "ad") {
-  // Do not request campaign_id/campaign_name: some Meta account tokens reject
-  // these fields even when the insight level is campaign (#100). The API
-  // returns the level identity when available; the sync layer can fallback to
-  // the entity id or the requested range when it is omitted.
+export class MetaCampaignIdentityUnsupportedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MetaCampaignIdentityUnsupportedError";
+  }
+}
+
+export async function fetchMetaInsights(
+  accountId: string,
+  accessToken: string,
+  from: string,
+  to: string,
+  level: "campaign" | "adset" | "ad",
+  options: { includeCampaignIdentity?: boolean } = {},
+) {
   const identityFields = level === "campaign"
-    ? []
+    ? options.includeCampaignIdentity === false ? [] : ["campaign_id", "campaign_name"]
     : level === "adset"
       ? ["adset_id", "adset_name"]
       : ["ad_id", "ad_name"];
@@ -98,7 +108,13 @@ export async function fetchMetaInsights(accountId: string, accessToken: string, 
         : Math.min(8_000, 1_000 * (2 ** attempt));
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-    if (!response?.ok) throw createMetaGraphError(json?.error, response?.status ?? 500, `Meta insights request failed (${response?.status ?? 500})`);
+    if (!response?.ok) {
+      const graphError = json?.error as Record<string, unknown> | undefined;
+      if (level === "campaign" && options.includeCampaignIdentity !== false && Number(graphError?.code) === 100) {
+        throw new MetaCampaignIdentityUnsupportedError(typeof graphError?.message === "string" ? graphError.message : "Meta refuse les champs campaign_id/campaign_name");
+      }
+      throw createMetaGraphError(graphError, response?.status ?? 500, `Meta insights request failed (${response?.status ?? 500})`);
+    }
     if (Array.isArray(json.data)) rows.push(...json.data as MetaInsight[]);
     next = typeof json?.paging?.next === "string" ? json.paging.next : null;
   }

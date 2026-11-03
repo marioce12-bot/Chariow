@@ -1,5 +1,6 @@
 import { decryptSecret } from "@/lib/crypto";
-import { fetchMetaInsights, actionValue } from "./api";
+import { fetchMetaCampaignList } from "./campaign-list";
+import { actionValue, fetchMetaInsights, MetaCampaignIdentityUnsupportedError } from "./api";
 import type { MetaInsight } from "./types";
 import { isMetaAuthenticationError } from "./graph";
 
@@ -11,6 +12,8 @@ function dateValue(value: unknown, fallback: string) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : fallback;
 }
 type Level = "campaign" | "adset" | "ad";
+type CampaignTarget = { id: string; name: string | null };
+const MAX_CONCURRENT_CAMPAIGN_REQUESTS = 5;
 async function upsertInsightRows<T extends object>(supabase: any, rows: Array<T | null>) {
   const safeRows = rows.filter((row): row is T => row !== null);
   if (!safeRows.length) return;
@@ -37,6 +40,62 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message.slice(0, 200) : "erreur";
 }
 
+async function getCampaignTargets(supabase: any, account: { id: string; meta_account_id: string }, accessToken: string) {
+  const targets = new Map<string, string | null>();
+  for (const campaign of await fetchMetaCampaignList(`act_${account.meta_account_id}`, accessToken)) {
+    targets.set(campaign.id, campaign.name);
+  }
+  const { data: localCampaigns, error } = await supabase.from("ad_campaigns")
+    .select("external_campaign_id,title,product_name")
+    .eq("meta_ad_account_id", account.id)
+    .eq("platform", "meta")
+    .not("external_campaign_id", "is", null)
+    .limit(200);
+  if (error) throw error;
+  if ((localCampaigns ?? []).length >= 200) throw new Error("liste des campagnes locales limitée à 200; fallback incomplet");
+  for (const campaign of (localCampaigns ?? []) as Array<{ external_campaign_id: string; title: string | null; product_name: string | null }>) {
+    targets.set(campaign.external_campaign_id, campaign.title || campaign.product_name || targets.get(campaign.external_campaign_id) || null);
+  }
+  return [...targets].map(([id, name]) => ({ id, name }));
+}
+
+async function syncCampaignsById(
+  supabase: any,
+  account: { id: string },
+  accessToken: string,
+  from: string,
+  to: string,
+  targets: CampaignTarget[],
+) {
+  const insights: Array<{ target: CampaignTarget; rows: MetaInsight[] }> = [];
+  const errors: string[] = [];
+  let nextIndex = 0;
+  let campaignSpendMissing = false;
+  const worker = async () => {
+    while (nextIndex < targets.length) {
+      const target = targets[nextIndex++];
+      try {
+        const rows = await fetchMetaInsights(target.id, accessToken, from, to, "campaign", { includeCampaignIdentity: false });
+        if (rows.some((row) => row.spend === null || row.spend === undefined || row.spend === "")) campaignSpendMissing = true;
+        insights.push({ target, rows });
+      } catch (error) {
+        if (isMetaAuthenticationError(error)) throw error;
+        errors.push(`${target.id}: ${errorText(error)}`);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT_CAMPAIGN_REQUESTS, targets.length) }, worker));
+
+  const rowsRead = insights.reduce((total, item) => total + item.rows.length, 0);
+  const rows = insights.flatMap(({ target, rows: campaignRows }) =>
+    campaignRows.map((row) => buildRow(account, "campaign", row, from, to, target)).filter((row) => row !== null),
+  );
+  for (let index = 0; index < rows.length; index += 500) {
+    await upsertInsightRows(supabase, rows.slice(index, index + 500));
+  }
+  return { rowsRead, rowsWritten: rows.length, errors, campaignSpendMissing };
+}
+
 export async function syncMetaInsights(supabase: any, account: { id: string; meta_account_id: string; access_token_encrypted: string }, from: string, to: string) {
   const errors: string[] = [];
   let campaignSpendMissing = false;
@@ -44,25 +103,55 @@ export async function syncMetaInsights(supabase: any, account: { id: string; met
   let rowsRead = 0;
   let rowsWritten = 0;
   let insightsCalls = 0;
+  let campaignFallbackRequests = 0;
+  let campaignFallbackRequired: "unsupported_identity" | "missing_identity" | null = null;
   try {
     const accessToken = decryptSecret(account.access_token_encrypted);
     for (const level of ["campaign", "adset", "ad"] as const) {
       insightsCalls += 1;
       try {
-        // One account-wide paginated query per reporting level replaces the
-        // repeated campaign-ID queries while preserving campaign/adset/ad views.
+        // Normal path: one account-wide paginated request per reporting level.
+        // Request campaign identity so its rows remain addressable for upsert.
         const insights = await fetchMetaInsights(`act_${account.meta_account_id}`, accessToken, from, to, level);
         rowsRead += insights.length;
+        const rows = insights.map((insight: MetaInsight) => buildRow(account, level, insight, from, to)).filter((row) => row !== null);
+        if (level === "campaign" && insights.length > 0 && rows.length !== insights.length) {
+          // Some tokens omit identity despite a successful response: never silently lose those rows.
+          campaignFallbackRequired = "missing_identity";
+          continue;
+        }
         if (level === "campaign") {
           querySucceeded = true;
           campaignSpendMissing = insights.some((insight: MetaInsight) => insight.spend === null || insight.spend === undefined || insight.spend === "");
         }
-        const rows = insights.map((insight: MetaInsight) => buildRow(account, level, insight, from, to)).filter(Boolean);
         rowsWritten += rows.length;
         await upsertInsightRows(supabase, rows);
       } catch (error) {
         if (isMetaAuthenticationError(error)) throw error;
+        if (level === "campaign" && error instanceof MetaCampaignIdentityUnsupportedError) {
+          campaignFallbackRequired = "unsupported_identity";
+          continue;
+        }
         errors.push(`${level}: ${errorText(error)}`);
+      }
+    }
+
+    if (campaignFallbackRequired) {
+      const targets = await getCampaignTargets(supabase, account, accessToken);
+      if (targets.length === 0) {
+        errors.push("identifiants de campagnes indisponibles pour le fallback Meta");
+      } else {
+        campaignFallbackRequests = targets.length;
+        insightsCalls += targets.length;
+        const fallback = await syncCampaignsById(supabase, account, accessToken, from, to, targets);
+        rowsRead += fallback.rowsRead;
+        rowsWritten += fallback.rowsWritten;
+        errors.push(...fallback.errors);
+        campaignSpendMissing ||= fallback.campaignSpendMissing;
+        if (campaignFallbackRequired === "missing_identity" && fallback.rowsWritten === 0) {
+          errors.push("les lignes Insights campagne ne contenaient aucun identifiant exploitable");
+        }
+        if (fallback.errors.length === 0) querySucceeded = true;
       }
     }
   } catch (error) {
@@ -82,7 +171,7 @@ export async function syncMetaInsights(supabase: any, account: { id: string; met
   }
   const { error: accountUpdateError } = await supabase.from("meta_ad_accounts").update(accountPatch).eq("id", account.id);
   if (accountUpdateError) throw accountUpdateError;
-  return { insightsCalls, rowsRead, rowsWritten, errors: errors.length };
+  return { insightsCalls, rowsRead, rowsWritten, errors: errors.length, campaignFallbackRequests };
 }
 
 export function resolveMetaInsightsWindow(
