@@ -4,6 +4,7 @@ import { CHAT_NAVIGATION_TARGETS, resolveChatNavigationForAssistantReply, resolv
 describe("Assistant navigation requests", () => {
   it.each([
     ["Où voir les rapports ?", "Rapports"],
+    ["Ou voir les rapports ?", "Rapports"],
     ["Comment lancer les relances WhatsApp ?", "Relances WhatsApp"],
     ["Where can I view my campaigns?", "Performance publicitaire"],
     ["Où consulter les recommandations ?", "Performance publicitaire"],
@@ -32,6 +33,9 @@ describe("Assistant navigation requests", () => {
     "Quels sont mes rapports cette semaine ?",
     "Combien reste-t-il sur mon abonnement ?",
     "Bonjour, peux-tu analyser mes ventes ?",
+    "J’ai vu les rapports ou les ventes hier.",
+    "Quels rapports as-tu vus ?",
+    "Comment améliorer mes publicités ?",
   ])("does not add a navigation destination to ordinary help/data requests: %s", (question) => {
     expect(resolveChatNavigationRequest(question)).toBeNull();
   });
