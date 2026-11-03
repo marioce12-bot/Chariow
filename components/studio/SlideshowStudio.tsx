@@ -48,8 +48,11 @@ type Task = {
 const jsonResponse = async (response: Response) => {
   const data = await response.json();
   if (!response.ok) {
-    const error = new Error(publicSlideshowError(data.message || data.error, data.locale || "fr", data.code)) as Error & { code?: string; details?: unknown; status?: number };
-    error.code = data.code; error.details = data.details; error.status = response.status; throw error;
+    const error = new Error(publicSlideshowError(data.message || data.error, data.locale || "fr", data.code)) as Error & { code?: string; details?: unknown; status?: number; required?: number; balance?: number };
+    error.code = data.code; error.details = data.details; error.status = response.status;
+    if (typeof data.required === "number") error.required = data.required;
+    if (typeof data.balance === "number") error.balance = data.balance;
+    throw error;
   }
   return data;
 };
@@ -139,6 +142,8 @@ export function SlideshowStudio({
   selectedTaskId = null,
   creativePerformanceSource = null,
   creativeIdea = null,
+  onInsufficientCredits,
+  onCreditsUpdated,
 }: {
   product: Product | null;
   products?: Product[];
@@ -148,6 +153,8 @@ export function SlideshowStudio({
   selectedTaskId?: string | null;
   creativePerformanceSource?: Record<string, unknown> | null;
   creativeIdea?: CreativePerformanceIdea | null;
+  onInsufficientCredits?: (required: number, available: number) => void;
+  onCreditsUpdated?: (balance: number, reserved: number) => void;
 }) {
   const fr = locale !== "en",
     [enabled, setEnabled] = useState(false),
@@ -176,14 +183,19 @@ export function SlideshowStudio({
   const lacksResumeCredits = available !== null && resumeCost > 0 && available < resumeCost;
   // Read-only balance lookup (balance minus credits already reserved). Fail-open: if the balance is
   // unavailable or malformed, the UI does not block and the server (which re-checks) decides.
-  const refreshCredits = () =>
-    fetch("/api/studio/credits", { cache: "no-store" })
-      .then(jsonResponse)
-      .then((data) => {
-        if (typeof data?.balance !== "number") return;
-        setAvailable(Math.max(0, data.balance - (typeof data.reserved === "number" ? data.reserved : 0)));
-      })
-      .catch(() => undefined);
+  const refreshCredits = async (): Promise<number | null> => {
+    try {
+      const data = await fetch("/api/studio/credits", { cache: "no-store" }).then(jsonResponse);
+      if (typeof data?.balance !== "number") return null;
+      const reserved = typeof data.reserved === "number" ? data.reserved : 0;
+      const nextAvailable = Math.max(0, data.balance - reserved);
+      setAvailable(nextAvailable);
+      onCreditsUpdated?.(data.balance, reserved);
+      return nextAvailable;
+    } catch {
+      return null;
+    }
+  };
   const variationIdRef = useRef("");
   const newDraftRef = useRef(false);
   const selectedTaskRef = useRef(selectedTaskId);
@@ -361,7 +373,11 @@ export function SlideshowStudio({
   async function continueSlideshow() {
     const task = taskRef.current;
     if (running.current || busy || !task?.resume?.allowed || (task.resume.requiresConfirmation && !resumeConfirmed)) return;
-    if (available !== null && task.resume.cost > 0 && available < task.resume.cost) return;
+    if (available !== null && task.resume.cost > 0 && available < task.resume.cost) {
+      if (onInsufficientCredits) onInsufficientCredits(task.resume.cost, available);
+      else setError(fr ? `Solde insuffisant : la reprise coûte ${task.resume.cost} crédits Studio, il te reste ${available}. Recharge tes crédits pour continuer.` : `Insufficient balance: resuming costs ${task.resume.cost} Studio credits, you have ${available}. Top up to continue.`);
+      return;
+    }
     running.current = true; setBusy(true); setError("");
     try {
       const data = await send(`/api/studio/tasks/${encodeURIComponent(task.id)}/continue`, { expectedRevision: task.revision, confirmCost: task.resume.cost });
@@ -383,8 +399,18 @@ export function SlideshowStudio({
   }
   async function generate() {
     if (!enabled || !ready || !product || busy || pendingRequest || running.current || taskRef.current?.status === "processing") return;
-    if (lacksCredits) return;
     running.current = true;
+    const freshAvailable = await refreshCredits();
+    const currentAvailable = freshAvailable ?? available;
+    if (currentAvailable !== null && currentAvailable < slideshowCost) {
+      const message = fr
+        ? `Solde insuffisant : ce diaporama coûte ${slideshowCost} crédits Studio, il te reste ${currentAvailable}. Recharge tes crédits avant de créer.`
+        : `Insufficient balance: this slideshow costs ${slideshowCost} Studio credits, you have ${currentAvailable}. Top up before creating.`;
+      if (onInsufficientCredits) onInsufficientCredits(slideshowCost, currentAvailable);
+      else showPreflightError(message);
+      running.current = false;
+      return;
+    }
     displayedProgressRef.current = 0; setProgress(0);
     setBusy(true); setAttempted(true); setError(""); setImages([]); setResult(null);
     setStatus(fr ? "Vérification des informations…" : "Checking product details…");
@@ -419,7 +445,7 @@ export function SlideshowStudio({
       try { localStorage.removeItem(key); } catch { /* ignore */ }
       applyTask(task, task.status === "completed");
     } catch (cause) {
-      const failure = cause as Error & { code?: string; status?: number };
+      const failure = cause as Error & { code?: string; status?: number; required?: number; balance?: number };
       const insufficient = failure.code === "INSUFFICIENT_PRODUCT_DETAILS";
       if (insufficient) {
         try { localStorage.removeItem(key); } catch { /* ignore */ }
@@ -428,7 +454,11 @@ export function SlideshowStudio({
       if (failure.code === "INSUFFICIENT_CREDITS") {
         // Refused before task creation or any paid call; the user can retry after topping up.
         try { localStorage.removeItem(key); } catch { /* ignore */ }
-        showPreflightError(failure.message);
+        setBusy(false); setReady(true); setStatus(""); setAttempted(false); setPendingRequest(false); setError("");
+        const required = typeof failure.required === "number" ? failure.required : slideshowCost;
+        const currentAvailable = typeof failure.balance === "number" ? failure.balance : (available ?? 0);
+        if (onInsufficientCredits) onInsufficientCredits(required, currentAvailable);
+        else showPreflightError(failure.message);
         void refreshCredits();
         return;
       }
@@ -531,17 +561,17 @@ export function SlideshowStudio({
         <p>{fr ? `${images.length}/5 visuels conservés · ${creditsUsed} crédits déjà utilisés. Les visuels terminés ne seront pas recréés.` : `${images.length}/5 images preserved · ${creditsUsed} credits already used. Completed images will not be recreated.`}</p>
         {resumeTask.resume?.allowed ? <>
           <p>{fr ? `Coût restant de la reprise : ${resumeTask.resume.cost} crédits Studio.` : `Remaining resume cost: ${resumeTask.resume.cost} Studio credits.`}</p>
-          {lacksResumeCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : la reprise coûte ${resumeCost} crédits Studio, il te reste ${available}. Recharge tes crédits pour continuer.` : `Insufficient balance: resuming costs ${resumeCost} Studio credits, you have ${available}. Top up to continue.`}</p> : null}
+          {lacksResumeCredits && !onInsufficientCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : la reprise coûte ${resumeCost} crédits Studio, il te reste ${available}. Recharge tes crédits pour continuer.` : `Insufficient balance: resuming costs ${resumeCost} Studio credits, you have ${available}. Top up to continue.`}</p> : null}
           {resumeTask.resume.requiresConfirmation ? <label><input type="checkbox" checked={resumeConfirmed} onChange={e => setResumeConfirmed(e.target.checked)} />{fr ? `J’autorise la reprise pour ${resumeTask.resume.cost} crédits maximum.` : `I authorize resuming for up to ${resumeTask.resume.cost} credits.`}</label> : null}
         </> : <p>{fr ? `L’état de l’étape manquante n’est pas confirmé. La reprise reste bloquée pour éviter une nouvelle facturation. Coût restant estimé : ${resumeTask.resume?.cost ?? "—"} crédits, non autorisé tant que cette étape n’est pas vérifiée. Les visuels terminés sont conservés.` : `The missing stage is unconfirmed. Resuming is blocked to prevent another charge. Estimated remaining cost: ${resumeTask.resume?.cost ?? "—"} credits, not authorized until the stage is verified. Completed images are preserved.`}</p>}
-        <button type="button" className="btn btn-dark studio-continue" disabled={!resumeTask.resume?.allowed || lacksResumeCredits || (!!resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
+        <button type="button" className="btn btn-dark studio-continue" disabled={!resumeTask.resume?.allowed || (!!resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
         <button type="button" className="btn btn-ghost" onClick={newSlideshow}>{fr ? "Nouveau diaporama" : "New slideshow"}</button>
       </section> : null}
       {!resumeTask && !pendingRequest && (!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed") && !busy && ready ? (
         <>
           <p className="studio-cost">{fr ? `Coût : ${slideshowCost} crédits Studio` : `Cost: ${slideshowCost} Studio credits`}{available !== null ? (fr ? ` · Solde disponible : ${available}` : ` · Available balance: ${available}`) : null}</p>
-          {lacksCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : ce diaporama coûte ${slideshowCost} crédits Studio, il te reste ${available}. Recharge tes crédits avant de créer.` : `Insufficient balance: this slideshow costs ${slideshowCost} Studio credits, you have ${available}. Top up before creating.`}</p> : null}
-          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready || lacksCredits} onClick={() => void generate()}>{fr ? "Créer" : "Create"}</button>
+          {lacksCredits && !onInsufficientCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : ce diaporama coûte ${slideshowCost} crédits Studio, il te reste ${available}. Recharge tes crédits avant de créer.` : `Insufficient balance: this slideshow costs ${slideshowCost} Studio credits, you have ${available}. Top up before creating.`}</p> : null}
+          <button type="button" className="btn btn-dark studio-generate" disabled={!product || busy || !ready} onClick={() => void generate()}>{fr ? "Créer" : "Create"}</button>
         </>
       ) : null}
     </section>

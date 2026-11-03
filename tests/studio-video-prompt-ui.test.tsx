@@ -290,4 +290,38 @@ describe("Studio UGC prompt generation UI", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("shows the shared shortfall modal for video without creating a job", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/studio/video") return { ok: true, status: 200, json: async () => ({ ready: true, callback: false }) };
+      if (url === "/api/account/preferences") return reply({ locale: "fr" });
+      if (url === "/api/studio/tasks") return reply({ tasks: [] });
+      if (url.startsWith("/api/studio/history")) return reply({ items: [], nextCursor: null });
+      if (url === "/api/studio/credits") return reply({ balance: 20, reserved: 0 });
+      return reply({});
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const { container, root } = setup();
+    try {
+      await render(root);
+      await click(container.querySelector<HTMLButtonElement>('article[data-studio-format="video"] button')!);
+      const durationSelect = [...container.querySelectorAll<HTMLSelectElement>("select")].find(select => [...select.options].map(option => option.value).join(",") === "10,15,25");
+      expect(durationSelect).toBeTruthy();
+      await act(async () => { durationSelect!.value = "25"; durationSelect!.dispatchEvent(new Event("change", { bubbles: true })); });
+      const textarea = container.querySelector<HTMLTextAreaElement>(".studio-prompt-box textarea")!;
+      await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "Créer une vidéo produit"); textarea.dispatchEvent(new Event("input", { bubbles: true })); });
+      const generateButton = container.querySelector<HTMLButtonElement>(".studio-generate")!;
+      expect(generateButton.disabled).toBe(false);
+      await click(generateButton);
+      const insufficient = container.querySelector('[role="alertdialog"]');
+      expect(insufficient?.textContent).toContain("750");
+      expect(insufficient?.textContent).toContain("20");
+      expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      vi.unstubAllGlobals();
+    }
+  });
 });
