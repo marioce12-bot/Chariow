@@ -59,12 +59,12 @@ beforeEach(() => {
 });
 
 describe("responsive Vendeo dashboard guide", () => {
-  it("follows the five mobile dock destinations with Assistant and Recommendation in the dock", () => {
+  it("follows the five mobile dock destinations with Assistant and Market radar in the dock", () => {
     expect(MOBILE_DASHBOARD_TOUR_STEPS.slice(0, 5).map((step) => step.target)).toEqual([
-      "Vue d'ensemble", "Pub", "Studio", "Vendeo AI", "Performance publicitaire",
+      "Vue d'ensemble", "Pub", "Studio", "Vendeo AI", "Radar marché",
     ]);
     expect(MOBILE_DASHBOARD_TOUR_STEPS.slice(0, 5).map((step) => step.activeSection)).toEqual([
-      "Vue d'ensemble", "Pub", "Studio", "Vendeo AI", "Performance publicitaire",
+      "Vue d'ensemble", "Pub", "Studio", "Vendeo AI", "Radar marché",
     ]);
     expect(MOBILE_DASHBOARD_TOUR_STEPS[3]).toMatchObject({
       id: "assistant",
@@ -72,14 +72,14 @@ describe("responsive Vendeo dashboard guide", () => {
       targetSelector: '.mobile-nav [data-onboarding="Vendeo AI"]',
       activeSection: "Vendeo AI",
     });
-    expect(MOBILE_DASHBOARD_TOUR_STEPS[4].fr).toContain("Recommandation");
+    expect(MOBILE_DASHBOARD_TOUR_STEPS[4]).toMatchObject({ id: "market-radar", target: "Radar marché", activeSection: "Radar marché", targetSelector: '.mobile-nav [data-onboarding="Radar marché"]' });
     expect(MOBILE_DASHBOARD_TOUR_STEPS.some((step) => /performance visuel|creative performance|bulle|bubble/i.test(`${step.fr} ${step.en} ${step.body} ${step.english}`))).toBe(false);
   });
 
   it("opens the actual overflow menu for menu destinations and leaves settings for its general index", () => {
     const menuSteps = MOBILE_DASHBOARD_TOUR_STEPS.filter((step) => step.menuTarget);
     expect(menuSteps.map((step) => step.menuTarget)).toEqual([
-      "Relances WhatsApp", "Radar marché", "Performance publicitaire", "Rapports",
+      "Relances WhatsApp", "Performance publicitaire", "Rapports",
     ]);
     for (const step of menuSteps) {
       expect(step.openMobileMenu).toBe(true);
@@ -151,7 +151,7 @@ describe("responsive Vendeo dashboard guide", () => {
     expect(host?.querySelector(".vendeo-tour-assistant-icon svg")).toBeTruthy();
     expect(host?.querySelector("#vendeo-welcome-title")?.classList.contains("vendeo-tour-assistant-title")).toBe(true);
     await nextStep();
-    expect(title()).toContain("Recommandation");
+    expect(title()).toContain("Radar marché");
     await nextStep();
     expect(title()).toContain("Relances WhatsApp");
     expect(transitions.at(-1)).toMatchObject({ openMobileMenu: true, menuTarget: "Relances WhatsApp", target: "mobile-menu:Relances WhatsApp" });

@@ -242,7 +242,6 @@ function DashboardWorkspace() {
 
   const userFirstName = userName ? (userName.trim().split(/\s+/)[0] || "créateur") : null;
   const {
-    hasNewRecommendation,
     reportRecommendation,
   } = usePerformanceRecommendationBadges({ userId: notificationUserId, storeId: activeStoreId, activeSection: active });
   const reportCampaignRecommendation = useCallback((storeId: string, signature: string | null) => {
@@ -643,9 +642,9 @@ function DashboardWorkspace() {
               <Palette size={24} strokeWidth={2} aria-hidden="true" />
               <span>{locale === "en" ? "Studio" : "Studio"}</span>
             </button>
-            <button type="button" data-onboarding="Performance publicitaire" aria-label={hasNewRecommendation ? (locale === "en" ? "Recommendation, new suggestion" : "Recommandation, nouvelle proposition") : undefined} title={locale === "en" ? "Recommendations" : "Recommandation"} aria-current={active === "Performance publicitaire" ? "page" : undefined} className={`nav-btn nav-btn-recommendation ${active === "Performance publicitaire" ? "active" : ""}${hasNewRecommendation ? " nav-btn-has-notification" : ""}`} onClick={() => navigateToSection("Performance publicitaire")}>
-              <BarChart3 size={24} strokeWidth={2} aria-hidden="true" />
-              <span>{locale === "en" ? "Recommendations" : "Recommandation"}</span>
+            <button type="button" data-onboarding="Radar marché" aria-label={locale === "en" ? "Market radar" : "Radar marché"} title={locale === "en" ? "Market radar" : "Radar marché"} aria-current={active === "Radar marché" ? "page" : undefined} className={`nav-btn nav-btn-radar ${active === "Radar marché" ? "active" : ""}`} onClick={() => navigateToSection("Radar marché")}>
+              <Lightbulb size={24} strokeWidth={2} aria-hidden="true" />
+              <span>{locale === "en" ? "Market radar" : "Radar"}</span>
             </button>
           </nav>
          </>

@@ -10,11 +10,11 @@ const sectionMarkup = readFileSync(new URL("../components/dashboard/sections.tsx
 const campaignRecommendationMarkup = readFileSync(new URL("../components/dashboard/CampaignPerformanceTab.tsx", import.meta.url), "utf8");
 
 describe("mobile dashboard navigation", () => {
-  it("keeps the five requested destinations in order, with Assistant and Recommendation in the dock", () => {
+  it("keeps the five requested destinations in order, with Assistant and Market radar in the dock", () => {
     const buttons = [...navMarkup.matchAll(/<button\b[\s\S]*?<\/button>/g)].map(([button]) => button);
     expect(buttons).toHaveLength(5);
     expect(buttons.map((button) => button.match(/data-onboarding="([^"]+)"/)?.[1])).toEqual([
-      "Vue d'ensemble", "Pub", "Vendeo AI", "Studio", "Performance publicitaire",
+      "Vue d'ensemble", "Pub", "Vendeo AI", "Studio", "Radar marché",
     ]);
     expect(buttons[0]).toContain('onClick={() => setActive("Vue d\'ensemble")');
     for (const button of buttons.slice(1)) expect(button).toContain("onClick={() => navigateToSection(");
@@ -27,11 +27,9 @@ describe("mobile dashboard navigation", () => {
     expect(buttons[3]).toContain('className={`nav-btn nav-btn-studio');
     expect(buttons[3]).toContain('<Palette size={24} strokeWidth={2}');
     expect(buttons[3]).toContain('locale === "en" ? "Studio" : "Studio"');
-    expect(buttons[4]).toContain('locale === "en" ? "Recommendations" : "Recommandation"');
-    expect(buttons[4]).toContain("hasNewRecommendation");
-    expect(buttons[4]).toContain("nav-btn-has-notification");
-    expect(buttons.slice(0, 4).every((button) => !button.includes("nav-btn-has-notification"))).toBe(true);
-    expect(buttons[4]).toContain('navigateToSection("Performance publicitaire")');
+    expect(buttons[4]).toContain('locale === "en" ? "Market radar" : "Radar"');
+    expect(buttons[4]).toContain("nav-btn-radar");
+    expect(buttons[4]).toContain('navigateToSection("Radar marché")');
     expect(navMarkup).toContain('aria-label={w("mobileNav")}');
     expect(navMarkup.match(/type="button"/g)).toHaveLength(5);
     expect(navMarkup).toContain("mobile-nav-visible");
@@ -66,13 +64,13 @@ describe("mobile dashboard navigation", () => {
     expect(css).not.toContain(".dashboard-platform .mobile-nav .nav-btn-studio svg");
     expect(css).toContain("top: -18px");
     expect(css).toContain("transform: translateX(-50%)");
-    expect(css).toContain(".dashboard-platform .mobile-nav .nav-btn-recommendation span");
+    expect(css).toContain(".dashboard-platform .mobile-nav .nav-btn-radar span");
     expect(css).toContain("text-overflow: ellipsis");
     expect(css).not.toContain("nav-btn:nth-child(4) svg");
   });
 
   it("keeps 24px destination icons, raised Assistant sizing, safe-area clearance and narrow-screen support", () => {
-    expect(navMarkup.match(/<(Grid2X2|Megaphone|Palette|BarChart3) size=\{24\} strokeWidth=\{2\}/g)).toHaveLength(4);
+    expect(navMarkup.match(/<(Grid2X2|Megaphone|Palette|Lightbulb) size=\{24\} strokeWidth=\{2\}/g)).toHaveLength(4);
     expect(navMarkup).toContain('<Brain size={26} strokeWidth={2}');
     const iconsRule = css.match(/\.dashboard-platform \.mobile-nav \.nav-btn svg \{([^}]*)\}/)?.[1] ?? "";
     expect(iconsRule).toContain("height: 24px;");

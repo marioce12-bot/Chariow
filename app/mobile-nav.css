@@ -54,7 +54,7 @@
     white-space: nowrap;
   }
 
-  .dashboard-platform .mobile-nav .nav-btn-recommendation span {
+  .dashboard-platform .mobile-nav .nav-btn-radar span {
     font-size: 9px;
     letter-spacing: -0.25px;
   }
@@ -77,20 +77,6 @@
   .dashboard-platform .mobile-nav .nav-btn.nav-btn-guide-highlight svg {
     color: #4c21f6;
     stroke-width: 2.5;
-  }
-
-  .dashboard-platform .mobile-nav .nav-btn-has-notification::after {
-    background: #e11d48;
-    border: 2px solid rgba(255, 255, 255, 0.96);
-    border-radius: 50%;
-    box-shadow: 0 1px 4px rgba(30, 41, 59, 0.18);
-    content: "";
-    height: 8px;
-    position: absolute;
-    right: calc(50% - 19px);
-    top: 7px;
-    width: 8px;
-    z-index: 4;
   }
 
   .dashboard-platform .mobile-nav .nav-btn:focus-visible {
@@ -154,7 +140,7 @@
     font-size: 9px;
   }
 
-  .dashboard-platform .mobile-nav .nav-btn-recommendation span {
+  .dashboard-platform .mobile-nav .nav-btn-radar span {
     font-size: 8px;
   }
 }
