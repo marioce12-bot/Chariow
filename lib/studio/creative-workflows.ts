@@ -80,3 +80,12 @@ export function inferProductType(name: string, description?: string): ProductTyp
   }
   return "autre";
 }
+
+export function isEbookProduct(name: string, description = "", type = "", category = "") {
+  const fold = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const declaredType = fold(type);
+  const declaredContext = fold(`${type} ${category}`);
+  if (/\b(?:ebook|e book|pdf|downloadable)\b/u.test(declaredContext)) return true;
+  if (declaredType && declaredType !== "digital") return false;
+  return inferProductType(name, description) === "ebook";
+}

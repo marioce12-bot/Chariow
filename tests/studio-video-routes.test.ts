@@ -32,7 +32,7 @@ describe("Locked studio video preparation routes", () => {
     const data = await response.json();
     expect(response.status).toBe(200);
     expect(data.prompt).toContain(product.name);
-    expect(data.prompt).toContain("15–20s");
+    expect(data.prompt).toContain("21–25s");
     expect(data.prompt).toContain("DIALOGUE EXACT: «");
     expect(typeof data.prompt).toBe("string");
     expect(askText).toHaveBeenCalledTimes(1);

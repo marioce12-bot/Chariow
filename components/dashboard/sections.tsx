@@ -163,6 +163,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [orientation, setOrientation] = useState("square");
   const [background, setBackground] = useState("auto");
   const [duration, setDuration] = useState<typeof VIDEO_AD_DURATIONS[number]>(10);
+  const [videoPromptDuration, setVideoPromptDuration] = useState<number | null>(null);
+  const promptDurationChanged = kind === "video" && videoPromptDuration !== null && videoPromptDuration !== duration;
   const videoCallbackUnavailable = duration !== 25 && !videoCallbackReady;
   const [videoResolution, setVideoResolution] = useState<typeof STUDIO_VIDEO_RESOLUTIONS[number]>(STUDIO_VIDEO_RESOLUTIONS[0]);
   const [aspectRatio, setAspectRatio] = useState("9:16");
@@ -515,6 +517,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       lastGeneratedPromptRef.current = result.prompt;
       if (kind === "video") {
         preparedUgcRef.current = typeof result.preparedUgc === "string" ? result.preparedUgc : null;
+        setVideoPromptDuration(duration);
         setPromptGenerationFailed(false);
       }
       setPrompt(result.prompt);
@@ -537,6 +540,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     if (generatingRef.current) return;
     if (kind === "image" && (!imageRecoveryReadyRef.current || ["processing", "awaiting_media"].includes(imageTask?.status ?? ""))) return;
     if (kind === "video" && promptGenerationFailed) return;
+    if (kind === "video" && promptDurationChanged) {
+      setError(locale === "en" ? "Duration changed: regenerate the prompt." : "Durée modifiée : régénère le prompt.");
+      return;
+    }
     if (kind === "video" && videoRenderLocked) {
       setError(locale === "en" ? "Video generation is not available yet." : "La génération vidéo reste indisponible.");
       return;
@@ -720,6 +727,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       setPromptGenerationFailed(false);
       setError("");
       setPrompt("");
+      setVideoPromptDuration(null);
     }
   };
   const openStudioMode = (mode: "image" | "slideshow" | "video") => {
@@ -729,6 +737,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       setPrompt("");
       lastGeneratedPromptRef.current = null;
       preparedUgcRef.current = null;
+      setVideoPromptDuration(null);
       setPromptGenerationFailed(false);
     }
     setDesktopHistoryExpanded(false);
@@ -816,8 +825,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             <small>{prompt.length}/4 000</small>
           </label>
           {kind === "video" && promptGenerationFailed ? <p className="studio-cost" role="status" aria-live="polite">{locale === "en" ? "No video was started and no video credits were charged for this prompt attempt." : "Aucun rendu vidéo n’a été lancé et aucun crédit vidéo n’a été débité pour cette tentative de prompt."}</p> : null}
-
-          {kind === "video" ? <div className="studio-video-prompt-action studio-video-prompt-action--desktop">{selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : promptGenerationFailed ? "Régénérer" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}</div> : null}
+          {kind === "video" && promptDurationChanged ? <p className="studio-cost" role="status" aria-live="polite">{locale === "en" ? "Duration changed: regenerate the prompt." : "Durée modifiée : régénère le prompt."}</p> : null}
 
           {kind === "image" ? (
             <div className="studio-options">
@@ -832,11 +840,11 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             <>
               <div className="studio-options studio-video-options-mobile">
                 <div className="studio-field"><span>{locale === "en" ? "Video style" : "Style vidéo"}</span><strong>UGC</strong><small>{locale === "en" ? "Product-specific scenario with one or two fictional adult Black or mixed-race characters." : "Scénario adapté au produit, avec un ou deux personnages adultes fictifs noirs ou métissés."}</small></div>
-                {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : promptGenerationFailed ? "Régénérer" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
                 <StudioSelect label={t("studio.duration")} value={String(duration)} onChange={(value) => setDuration(Number(value) as typeof VIDEO_AD_DURATIONS[number])} options={VIDEO_AD_DURATIONS.map((value) => [String(value), `${value} s`])} />
                 <StudioSelect label={t("studio.resolution")} value={videoResolution} onChange={(value) => setVideoResolution(value as typeof STUDIO_VIDEO_RESOLUTIONS[number])} options={STUDIO_VIDEO_RESOLUTIONS.map((value) => [value, value])} />
                 {selectedProduct?.image ? <p className="studio-cost" style={{ marginTop: 8 }}>{t("studio.coverStart")}</p> : null}
                 <div className="studio-field"><span>{t("studio.format")}</span><strong>Portrait · 9:16</strong><small>{locale === "en" ? "Fixed vertical format" : "Format vertical fixe"}</small></div>
+                {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : promptGenerationFailed ? "Régénérer" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
               </div>
               <div className="studio-options studio-video-options-desktop">
                 <div className="studio-field studio-video-style"><span>{locale === "en" ? "Video style" : "Style vidéo"}</span><strong>UGC</strong><small>{locale === "en" ? "Product-specific scenario with one or two fictional adult Black or mixed-race characters." : "Scénario adapté au produit, avec un ou deux personnages adultes fictifs noirs ou métissés."}</small></div>
@@ -850,13 +858,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
                   </div>
                 </div>
           {selectedProduct?.image ? <p className="studio-cost" style={{ marginTop: 8 }}>{t("studio.coverStart")}</p> : null}
+                {selectedProduct ? <div className="studio-video-prompt-action studio-video-prompt-action--desktop"><button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : promptGenerationFailed ? "Régénérer" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button></div> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
               </div>
             </>
           )}
 
           {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
           {kind === "video" ? <p className="studio-video-desktop-note">Voix et musique ajoutées automatiquement à la génération.</p> : null}
-          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady) || (kind === "video" && (promptGenerationFailed || videoRenderLocked || videoCallbackUnavailable || !creditsLoaded || availableCredits < videoCostEstimate))}>
+          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady) || (kind === "video" && (promptGenerationFailed || promptDurationChanged || videoRenderLocked || videoCallbackUnavailable || !creditsLoaded || availableCredits < videoCostEstimate))}>
             <Sparkles size={17} /> {kind === "video" ? videoRenderLocked ? "Rendu vidéo verrouillé sur cette Preview" : videoCallbackUnavailable ? (locale === "en" ? "fal.ai callback required for 10/15 s" : "Callback fal.ai requis pour 10/15 s") : loading ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…") : locale === "en" ? "Generate video" : "Créer la vidéo" : loading && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : t("studio.createImage")}
           </button>
           {kind === "image" ? <><p className="studio-cost">{t("studio.imageCost")}</p>

@@ -9,7 +9,7 @@ import { STUDIO_VIDEO_RESOLUTIONS, inferProductType, isSupportedStudioVideoResol
 import { isStudioVideoEnabled } from "@/lib/studio/video-feature";
 import { VIDEO_AD_DURATIONS, videoModelCapability } from "@/lib/studio/video-plan";
 import { assertFalVideoPromptWithinSafeLimit, isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
-import { UgcPromptGenerationError, validateUgcPrompt } from "@/lib/studio/ugc-prompt-generator";
+import { readUgcTimeline, UgcPromptGenerationError, validateUgcPrompt } from "@/lib/studio/ugc-prompt-generator";
 import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
 import { compileUgcPrompt, compileUgcProviderPlan, extractUgcNarrative } from "@/lib/studio/ugc-provider-assembler";
 import { readPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
@@ -81,6 +81,16 @@ export async function POST(request: Request) {
   product.imageUrl = input.product.images?.[0] ?? null;
   if (prompt.length > 4_000) return NextResponse.json({ error: "Le prompt vidéo dépasse la longueur autorisée." }, { status: 400 });
   if (!prompt) return NextResponse.json({ error: "Rédige ou génère le prompt vidéo avant de lancer le rendu." }, { status: 400 });
+  const timeline = readUgcTimeline(extractUgcNarrative(prompt));
+  const promptDuration = timeline.at(-1)?.end;
+  if (timeline.length && promptDuration !== duration) {
+    return NextResponse.json({
+      code: "ugc_duration_mismatch",
+      promptDuration,
+      selectedDuration: duration,
+      error: `Le prompt correspond à ${promptDuration} s, mais ${duration} s est sélectionné. Régénère le prompt avant le rendu.`,
+    }, { status: 400 });
+  }
   if (inferProductType(product.name, product.description) === "ebook" && !product.imageUrl) {
     return NextResponse.json({ error: "Ajoute ou sélectionne la couverture réelle de l’ebook pour qu’elle soit fidèlement présentée sur un téléphone ou une tablette.", code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" }, { status: 400 });
   }

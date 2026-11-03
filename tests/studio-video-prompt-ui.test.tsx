@@ -128,6 +128,52 @@ describe("Studio UGC prompt generation UI", () => {
     }
   });
 
+  it("blocks rendering after a duration change until the prompt is regenerated", async () => {
+    const promptPosts: Array<Record<string, unknown>> = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/studio/video") return { ok: true, status: 200, json: async () => ({ ready: true, callback: true }) };
+      if (url === "/api/studio/prompt" && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body));
+        promptPosts.push(payload);
+        return reply({ prompt: `Prompt généré pour ${payload.duration} secondes.`, preparedUgc: `prepared:${payload.duration}`, locked: false, contentLanguage: { code: "fr", label: "French" } });
+      }
+      if (url === "/api/account/preferences") return reply({ locale: "fr" });
+      if (url === "/api/studio/tasks") return reply({ tasks: [] });
+      if (url.startsWith("/api/studio/history")) return reply({ items: [], nextCursor: null });
+      if (url === "/api/studio/credits") return reply({ balance: 2_000, reserved: 0 });
+      return reply({});
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const { container, root } = setup();
+    try {
+      await render(root);
+      await click(container.querySelector<HTMLButtonElement>('article[data-studio-format="video"] button')!);
+      await click(button(container, element => element.textContent?.includes("Générer le prompt") ?? false)!);
+      const durationSelect = [...container.querySelectorAll<HTMLSelectElement>("select")].find(select => [...select.options].map(option => option.value).join(",") === "10,15,25");
+      expect(durationSelect).toBeTruthy();
+      await act(async () => {
+        durationSelect!.value = "15";
+        durationSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      const createVideo = container.querySelector<HTMLButtonElement>(".studio-generate");
+      expect(container.textContent).toContain("Durée modifiée : régénère le prompt.");
+      expect(createVideo?.disabled).toBe(true);
+      expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
+
+      await click(button(container, element => element.textContent?.includes("Générer le prompt") ?? false)!);
+      expect(promptPosts).toHaveLength(2);
+      expect(promptPosts[1]).toMatchObject({ duration: 15 });
+      expect(container.textContent).not.toContain("Durée modifiée : régénère le prompt.");
+      expect(createVideo?.disabled).toBe(false);
+      expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("shows only product-specific AI responses for selected products, with no generic seed or character-profile control", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -135,8 +181,8 @@ describe("Studio UGC prompt generation UI", () => {
         const payload = JSON.parse(String(init.body));
         const name = payload.product.name as string;
         const prompt = name === "Guide Excel Facile"
-          ? "HOOK: Ouvre Guide Excel Facile sur son téléphone. SCÈNE: coin lecture; accessoires: couverture réelle et téléphone. SCRIPT: je consulte un exercice. CTA: retrouve le guide dans la boutique."
-          : "HOOK: Savon Karité Kora posé près du lavabo. SCÈNE: salle de bain; accessoires: savon et serviette. SCRIPT: je découvre sa texture. CTA: découvre Savon Karité Kora dans la boutique.";
+          ? "HOOK: Ouvre Guide Excel Facile sur son téléphone. SCÈNE: coin lecture; dernier temps, couverture réelle sur téléphone tenu face caméra en gros plan net. SCRIPT: je consulte un exercice. CTA: télécharge Guide Excel Facile dès maintenant."
+          : "HOOK: Savon Karité Kora posé près du lavabo. SCÈNE: salle de bain; accessoires: savon et serviette. SCRIPT: je découvre sa texture. CTA: commande Savon Karité Kora dès maintenant.";
         return reply({ prompt, preparedUgc: `prepared:${name}`, locked: true, contentLanguage: { code: "fr", label: "French" }, plan: { segments: [] } });
       }
       if (url === "/api/account/preferences") return reply({ locale: "fr" });
@@ -157,6 +203,12 @@ describe("Studio UGC prompt generation UI", () => {
       const promptField = container.querySelector<HTMLTextAreaElement>("#studio-photo-panel textarea");
       expect(promptField).toBeTruthy();
       expect(promptField!.value).toBe("");
+      const mobileOptions = container.querySelector<HTMLElement>(".studio-video-options-mobile");
+      const durationSelect = [...(mobileOptions?.querySelectorAll<HTMLSelectElement>("select") ?? [])].find(select => [...select.options].map(option => option.value).join(",") === "10,15,25");
+      const mobileGenerate = mobileOptions?.querySelector<HTMLButtonElement>(".studio-insert-btn");
+      expect(durationSelect).toBeTruthy();
+      expect(mobileGenerate).toBeTruthy();
+      expect(Boolean(durationSelect!.compareDocumentPosition(mobileGenerate!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
       expect(container.textContent).not.toContain("Mise en scène UGC naturelle et dynamique");
       expect(container.textContent).not.toContain("Profil souhaité");
       expect(container.querySelector('input[placeholder*="entrepreneuse"]')).toBeNull();
@@ -164,8 +216,8 @@ describe("Studio UGC prompt generation UI", () => {
       const generatePrompt = () => button(container, (element) => element.textContent?.includes("Générer le prompt") ?? false);
       await click(generatePrompt()!);
       expect(promptField!.value).toContain("Guide Excel Facile");
-      expect(promptField!.value).toContain("couverture réelle et téléphone");
-      expect(promptField!.value).toContain("CTA: retrouve le guide");
+      expect(promptField!.value).toContain("couverture réelle sur téléphone tenu face caméra");
+      expect(promptField!.value).toContain("CTA: télécharge Guide Excel Facile");
 
       const soapProduct = button(container, (element) => element.closest(".studio-product-list") !== null && element.textContent?.includes("Savon Karité Kora") === true);
       expect(soapProduct).toBeTruthy();
@@ -174,7 +226,7 @@ describe("Studio UGC prompt generation UI", () => {
       expect(promptField!.value).toContain("Savon Karité Kora");
       expect(promptField!.value).toContain("salle de bain");
       expect(promptField!.value).toContain("savon et serviette");
-      expect(promptField!.value).toContain("CTA: découvre Savon Karité Kora");
+      expect(promptField!.value).toContain("CTA: commande Savon Karité Kora");
 
       const promptPosts = fetcher.mock.calls.filter(([url, options]) => String(url) === "/api/studio/prompt" && options?.method === "POST");
       expect(promptPosts).toHaveLength(2);

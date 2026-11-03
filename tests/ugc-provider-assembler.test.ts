@@ -24,12 +24,20 @@ const narrative = (duration = 25) => {
       "0–5s | ACTION: Une adulte fictive ouvre la porte du balcon; CAMÉRA: plan vertical rapproché; DIALOGUE EXACT: «Tu aimerais cultiver quelques aromates chez toi ?»",
       "5–10s | ACTION: Elle observe les pots; CAMÉRA: travelling doux vers les jardinières; DIALOGUE EXACT: «Je regarde comment organiser mon petit espace.»",
       "10–15s | ACTION: Elle prend le guide sur son téléphone; CAMÉRA: gros plan sur la vraie couverture; DIALOGUE EXACT: «Ce guide parle de plantes en pots.»",
-      "15–20s | ACTION: Elle compare le téléphone aux jardinières; CAMÉRA: retour au visage; DIALOGUE EXACT: «Je parcours les conseils sur mon balcon.»",
-      "20–25s | ACTION: Elle sourit et montre l'écran; CAMÉRA: plan poitrine stable; DIALOGUE EXACT: «Découvre Guide Jardin en Pots dans la boutique.»",
+      "15–21s | ACTION: Elle compare le téléphone aux jardinières; CAMÉRA: retour au visage; DIALOGUE EXACT: «Je parcours les conseils sur mon balcon.»",
+      "21–25s | ACTION: couverture réelle de Guide Jardin en Pots sur téléphone tenu face caméra, titre et illustration intacts; CAMÉRA: gros plan net centré; DIALOGUE EXACT: «Télécharge Guide Jardin en Pots maintenant.»",
+    ]
+    : duration === 15
+    ? [
+      "0–4s | ACTION: Elle observe ses jardinières; CAMÉRA: plan vertical; DIALOGUE EXACT: «Tu aimerais cultiver quelques aromates ?»",
+      "4–8s | ACTION: Elle prend le téléphone; CAMÉRA: plan rapproché; DIALOGUE EXACT: «Je regarde comment organiser mon espace.»",
+      "8–11.5s | ACTION: Elle ouvre le guide; CAMÉRA: gros plan sur la couverture; DIALOGUE EXACT: «Les conseils parlent du jardin en pots.»",
+      "11.5–15s | ACTION: couverture réelle sur téléphone face caméra; CAMÉRA: gros plan net centré; DIALOGUE EXACT: «Télécharge Guide Jardin en Pots maintenant.»",
     ]
     : [
-      `0–${duration / 2}s | ACTION: Elle observe ses jardinières; CAMÉRA: plan vertical; DIALOGUE EXACT: «Tu aimerais cultiver quelques aromates ?»`,
-      `${duration / 2}–${duration}s | ACTION: Elle consulte le guide; CAMÉRA: gros plan sur la couverture réelle; DIALOGUE EXACT: «Découvre Guide Jardin en Pots dans la boutique.»`,
+      "0–3s | ACTION: Elle observe ses jardinières; CAMÉRA: plan vertical; DIALOGUE EXACT: «Tu aimerais cultiver quelques aromates ?»",
+      "3–6.5s | ACTION: Elle prend le téléphone; CAMÉRA: plan rapproché; DIALOGUE EXACT: «Je regarde comment organiser mon espace.»",
+      "6.5–10s | ACTION: couverture réelle du guide sur téléphone face caméra; CAMÉRA: gros plan net centré; DIALOGUE EXACT: «Télécharge Guide Jardin en Pots maintenant.»",
     ];
   return `Scène: un balcon lumineux, jardinières et arrosoir.\nPersonnages: une adulte fictive, naturelle et curieuse.\nDéroulé ${duration} secondes:\n${lines.join("\n")}`;
 };
@@ -46,6 +54,8 @@ describe("assembleur du prompt UGC texte libre", () => {
     expect(prompt).toContain('"titre":"Guide Jardin en Pots"');
     expect(prompt).toContain("portrait 9:16");
     expect(prompt).toContain("adultes fictifs uniquement");
+    expect(prompt).toContain("DERNIER TEMPS: appel à l'action pour télécharger");
+    expect(prompt).toContain("couverture réelle sur téléphone ou tablette tenu face caméra, en gros plan net");
     expect(prompt).toContain("watermark inventé");
     expect(prompt).toContain("Scène: un balcon lumineux");
     expect(prompt).not.toMatch(/^\s*\{/);
@@ -67,7 +77,7 @@ describe("assembleur du prompt UGC texte libre", () => {
     expect(plan.segments[0].prompt).toContain("cultiver quelques aromates");
     expect(plan.segments[0].prompt).toContain("Ce guide parle de plantes en pots.");
     expect(plan.segments[1].prompt).toContain("Je parcours les conseils sur mon balcon.");
-    expect(plan.segments[1].prompt).toContain("Découvre Guide Jardin en Pots");
+    expect(plan.segments[1].prompt).toContain("Télécharge Guide Jardin en Pots");
     expect(plan.segments[1].prompt).not.toContain("Tu aimerais cultiver");
     for (const segment of plan.segments) {
       expect(Array.from(segment.prompt).length).toBeLessThanOrEqual(3600);
