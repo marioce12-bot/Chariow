@@ -25,8 +25,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const title = typeof body?.title === "string" ? body.title.trim() : "";
   const message = typeof (body?.message ?? body?.body) === "string" ? String(body.message ?? body.body).trim() : "";
-  if (body?.audience !== "all" && body?.audience !== "selected") return NextResponse.json({ error: "Choisis les destinataires." }, { status: 400 });
-  const audience = body.audience as "all" | "selected";
+  if (body?.audience !== "all" && body?.audience !== "beginner" && body?.audience !== "selected") return NextResponse.json({ error: "Choisis les destinataires." }, { status: 400 });
+  const audience = body.audience as "all" | "beginner" | "selected";
   const rawIds = body.user_ids;
   if (audience === "selected" && (!Array.isArray(rawIds) || rawIds.some((id: unknown) => typeof id !== "string" || !UUID.test(id)))) return NextResponse.json({ error: "Sélection d’utilisateurs invalide." }, { status: 400 });
   const userIds = Array.isArray(rawIds) ? [...new Set<string>(rawIds)] : [];
@@ -38,13 +38,17 @@ export async function POST(request: Request) {
   if (userIds.length > MAX_RECIPIENTS) return NextResponse.json({ error: `Limite de ${MAX_RECIPIENTS} destinataires par envoi.` }, { status: 400 });
   const service = createAdminClient();
   let recipients: string[] = [];
-  if (audience === "all") {
-    const { count, error } = await service.from("profiles").select("id", { count: "exact", head: true });
+  if (audience === "all" || audience === "beginner") {
+    let countQuery = service.from("profiles").select("id", { count: "exact", head: true });
+    if (audience === "beginner") countQuery = countQuery.in("experience_level", ["beginner", "some_experience"]);
+    const { count, error } = await countQuery;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if ((count ?? 0) > MAX_RECIPIENTS) return NextResponse.json({ error: `Plus de ${MAX_RECIPIENTS} utilisateurs : sélectionne un groupe de destinataires.` }, { status: 400 });
     // Supabase caps each response at 1,000 rows. Never silently truncate a broadcast.
     for (let offset = 0; offset < (count ?? 0); offset += 500) {
-      const { data, error: pageError } = await service.from("profiles").select("id").order("id").range(offset, offset + 499);
+      let pageQuery = service.from("profiles").select("id").order("id").range(offset, offset + 499);
+      if (audience === "beginner") pageQuery = pageQuery.in("experience_level", ["beginner", "some_experience"]);
+      const { data, error: pageError } = await pageQuery;
       if (pageError) return NextResponse.json({ error: pageError.message }, { status: 500 });
       recipients.push(...(data ?? []).map((item) => item.id));
     }

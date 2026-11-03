@@ -47,6 +47,7 @@ import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
 import { StoreConnectionGate, shouldShowStoreConnectionGate } from "./dashboard/StoreConnectionGate";
 import { SaleCelebration } from "./dashboard/SaleCelebration";
 import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
+import { TrainingInvitation } from "./TrainingInvitation";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
@@ -239,6 +240,7 @@ function DashboardWorkspace() {
   // null tant que le nom n'est pas connu : la salutation reste en skeleton (pas de « Bonjour créateur » provisoire).
   const [userName, setUserName] = useState<string | null>(null);
   const [notificationUserId, setNotificationUserId] = useState<string | null>(null);
+  const [experienceLevel, setExperienceLevel] = useState<string>("experienced");
 
   const userFirstName = userName ? (userName.trim().split(/\s+/)[0] || "créateur") : null;
   const {
@@ -373,7 +375,8 @@ function DashboardWorkspace() {
     client.auth.getUser().then(({ data }) => {
       if (cancelled) return;
       setNotificationUserId(data.user?.id ?? null);
-      const metadata = data.user?.user_metadata as { full_name?: string; name?: string; first_name?: string } | undefined;
+      const metadata = data.user?.user_metadata as { full_name?: string; name?: string; first_name?: string; experience_level?: string } | undefined;
+      setExperienceLevel(["beginner", "some_experience", "experienced", "expert"].includes(metadata?.experience_level ?? "") ? metadata?.experience_level ?? "experienced" : "experienced");
       const name = metadata?.full_name ?? metadata?.name ?? metadata?.first_name ?? data.user?.email?.split("@")[0];
       setUserName(name || "créateur");
     }).catch(() => {
@@ -584,6 +587,8 @@ function DashboardWorkspace() {
           ) : active === "Suggestions et notes" ? (
             <MobileSettingsView onNavigate={navigateToSection} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="feedback" />
           ) : (
+            <>
+            <TrainingInvitation experienceLevel={experienceLevel} subscription={subscription} />
             <OverviewHome
               key={activeStoreId}
               stores={stores}
@@ -606,6 +611,7 @@ function DashboardWorkspace() {
               loading={storeDataLoading}
               storeSelector={<div className="dashboard-overview-mobile-store" data-onboarding="store"><DashboardStoreSelector mobile stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} /></div>}
             />
+            </>
           )}
          </section>
          {wizardOpen && activeStoreId ? (

@@ -39,6 +39,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
     const email = String(form.get("email") ?? "");
     const password = String(form.get("password") ?? "");
     const fullName = String(form.get("fullName") ?? "");
+    const experienceLevel = String(form.get("experienceLevel") ?? "experienced");
     if (register && form.get("acceptedLegal") !== "on") {
       setError(locale === "en" ? "Please accept the Terms and Privacy Policy to create an account." : "Veuillez accepter les Conditions et la Politique de confidentialité pour créer un compte.");
       return;
@@ -62,7 +63,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
       const result = forgot
         ? await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password` })
         : register
-          ? await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } })
+          ? await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName, experience_level: experienceLevel } } })
           : await supabase.auth.signInWithPassword({ email, password });
 
       if (result.error) {
@@ -108,6 +109,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
         {submitted ? <div className="auth-success">{successMessage}</div> : (
           <form onSubmit={submit}>
             {register && <div className="form-group"><label htmlFor="fullName">{t("auth.fullName")}</label><input id="fullName" name="fullName" required placeholder="Aïcha" /></div>}
+            {register && <div className="form-group"><label htmlFor="experienceLevel">{locale === "en" ? "Your experience with digital products" : "Ton expérience avec les produits digitaux"}</label><select id="experienceLevel" name="experienceLevel" defaultValue="beginner" required><option value="beginner">{locale === "en" ? "I am just starting" : "Je débute complètement"}</option><option value="some_experience">{locale === "en" ? "I have some experience" : "J’ai quelques notions"}</option><option value="experienced">{locale === "en" ? "I already have experience" : "J’ai déjà de l’expérience"}</option><option value="expert">{locale === "en" ? "I am experienced and want to manage my business" : "Je suis expérimenté et je veux mieux gérer mon business"}</option></select></div>}
             <div className="form-group"><label htmlFor="email">{t("auth.email")}</label><input id="email" name="email" required type="email" placeholder={t("optionsExtra.text5")} /></div>
             {!forgot && <div className="form-group"><label htmlFor="password">{t("auth.password")}</label><input id="password" name="password" required type="password" placeholder={t("auth.passwordPlaceholder")} minLength={8} /></div>}
             {register && <label className="legal-consent"><input type="checkbox" name="acceptedLegal" required /><span><ShieldCheck size={14} aria-hidden="true" /> {t("auth.consent")} <Link href="/terms" target="_blank">{t("auth.terms")}</Link> {t("auth.and")} <Link href="/privacy" target="_blank">{t("auth.privacy")}</Link>.</span></label>}

@@ -188,6 +188,26 @@ export async function GET(request: Request) {
     }
     invalidateUserStoreList(user.id);
 
+    if (!upErr) {
+      const { data: profile } = await supabase.from("profiles").select("experience_level").eq("id", user.id).maybeSingle();
+      if (profile?.experience_level === "beginner" || profile?.experience_level === "some_experience") {
+        const { count } = await supabase.from("user_notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id).eq("type", "admin")
+          .eq("metadata->>kind", "training_invitation");
+        if (!count) {
+          await supabase.from("user_notifications").insert({
+            user_id: user.id,
+            type: "admin",
+            title: "Découvre la formation Vendeo",
+            body: "Un pack de guides PDF pratiques t’attend pour comprendre le marché, créer tes produits digitaux, utiliser Vendeo et lancer tes campagnes. Consulte l’aperçu depuis ton tableau de bord.",
+            action_url: "/dashboard",
+            metadata: { kind: "training_invitation", source: "first_chariow_connection" },
+          });
+        }
+      }
+    }
+
     await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
 
     return redirectToDashboard(upErr ? "chariow=failed" : "chariow=connected");
