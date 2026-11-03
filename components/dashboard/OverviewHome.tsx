@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock, Megaphone, Package, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock, Lightbulb, Megaphone, MessageSquare, Package, Sparkles, X, XCircle } from "lucide-react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
 import { getGreeting } from "@/lib/greetings";
 import type { ReactNode } from "react";
@@ -76,6 +76,8 @@ export function OverviewHome({
   campaignsVersion,
   loading = false,
   onNavigate,
+  dismissedFeatureCards = new Set<string>(),
+  onDismissFeatureCard,
   storeSelector,
   selectedPeriodDays,
   onPeriodDaysChange,
@@ -97,6 +99,8 @@ export function OverviewHome({
   /** Vrai tant que les données de la boutique et l'abonnement ne sont pas arrivés. */
   loading?: boolean;
   onNavigate?: (section: string) => void;
+  dismissedFeatureCards?: Set<string>;
+  onDismissFeatureCard?: (cardId: string) => void;
   storeSelector?: ReactNode;
   selectedPeriodDays?: number;
   onPeriodDaysChange?: (days: number) => void;
@@ -104,6 +108,50 @@ export function OverviewHome({
   const { locale , t } = useI18n();
   const en = locale === "en";
   const tr = (fr: string, english: string) => (en ? english : fr);
+  const featureCards = [
+    {
+      id: "studio",
+      className: "studio",
+      Icon: Sparkles,
+      title: tr("Envie de générer une vidéo ou une image pour ton produit ?", "Want to create a video or image for your product?"),
+      description: tr("C’est facile avec le Studio.", "It’s easy with Studio."),
+      action: tr("Tester le Studio", "Try Studio"),
+      section: "Studio",
+    },
+    {
+      id: "ads",
+      className: "ads",
+      Icon: Megaphone,
+      title: tr("Lance tes publicités en quelques minutes.", "Launch your ads in just a few minutes."),
+      description: tr("Vendeo t’aide à toucher les bons acheteurs.", "Vendeo helps you reach the right buyers."),
+      action: tr("Lancer une pub", "Launch an ad"),
+      section: "Pub",
+    },
+    {
+      id: "assistant",
+      className: "assistant",
+      Icon: MessageSquare,
+      title: tr("Besoin d’une idée ou d’un conseil pour ta boutique ?", "Need an idea or advice for your store?"),
+      description: tr("Ton assistant IA est là pour t’aider.", "Your AI assistant is here to help."),
+      action: tr("Parler à l’assistant", "Talk to the assistant"),
+      section: "Vendeo AI",
+    },
+    {
+      id: "radar",
+      className: "radar",
+      Icon: Lightbulb,
+      title: tr("Trouve ton prochain produit gagnant.", "Find your next winning product."),
+      description: tr("Teste les tendances avec le Radar marché.", "Test trends with Market radar."),
+      action: tr("Explorer le Radar", "Explore Market radar"),
+      section: "Radar marché",
+    },
+  ].filter((card) => !dismissedFeatureCards.has(card.id));
+  const [featureCardIndex, setFeatureCardIndex] = useState(0);
+  const visibleFeatureCard = featureCards.length ? featureCards[featureCardIndex % featureCards.length] : null;
+
+  useEffect(() => {
+    if (featureCardIndex >= featureCards.length && featureCards.length > 0) setFeatureCardIndex(0);
+  }, [featureCards.length, featureCardIndex]);
 
   const [localPeriodDays, setLocalPeriodDays] = useState(30);
   const periodDays = selectedPeriodDays ?? localPeriodDays;
@@ -302,6 +350,23 @@ export function OverviewHome({
           </div>
         </div>
       </section>
+
+      {visibleFeatureCard ? (
+        <section className="overview-feature-discovery" aria-label={tr("Découvrir les fonctionnalités", "Discover features")}>
+          <div className={`overview-feature-card overview-feature-card--${visibleFeatureCard.className}`}>
+            <div className="overview-feature-card-icon"><visibleFeatureCard.Icon size={22} aria-hidden="true" /></div>
+            <div className="overview-feature-card-content">
+              <h2>{visibleFeatureCard.title}</h2>
+              <p>{visibleFeatureCard.description}</p>
+              <button type="button" onClick={() => onNavigate?.(visibleFeatureCard.section)}>{visibleFeatureCard.action} <ArrowRight size={15} aria-hidden="true" /></button>
+            </div>
+            <button type="button" className="overview-feature-card-close" aria-label={tr("Fermer cette carte", "Close this card")} onClick={() => onDismissFeatureCard?.(visibleFeatureCard.id)}><X size={20} aria-hidden="true" /></button>
+          </div>
+          {featureCards.length > 1 ? <div className="overview-feature-dots" aria-label={tr("Navigation des fonctionnalités", "Feature navigation")}>
+            {featureCards.map((card, index) => <button type="button" key={card.id} className={index === featureCardIndex % featureCards.length ? "active" : ""} aria-label={`${index + 1} / ${featureCards.length}`} aria-current={index === featureCardIndex % featureCards.length ? "true" : undefined} onClick={() => setFeatureCardIndex(index)} />)}
+          </div> : null}
+        </section>
+      ) : null}
 
       {onNavigate ? <div className="overview-business-shortcuts" aria-label={t("sweep3.text143")}>
         <button type="button" onClick={() => onNavigate("Relances WhatsApp")}><span className="overview-shortcut-icon recovery"><Clock size={20} /></span><span><strong>{t("sweep3.text146")}</strong><small>{t("sweep1.text147")}</small></span><span aria-hidden="true">↗</span></button>

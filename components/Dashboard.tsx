@@ -123,6 +123,7 @@ function DashboardWorkspace() {
   // Suivi anonyme du temps passé par section (alimente l'onglet « Usage de l'app » de la console admin).
   useUsageTracking(active);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [dismissedFeatureCards, setDismissedFeatureCards] = useState<Set<string>>(() => new Set());
   const [guideMenuTarget, setGuideMenuTarget] = useState<string | null>(null);
   const [guideAssistantHighlight, setGuideAssistantHighlight] = useState(false);
   useEffect(() => {
@@ -260,6 +261,9 @@ function DashboardWorkspace() {
       return;
     }
     setActive(section);
+  }
+  function dismissFeatureCard(cardId: string) {
+    setDismissedFeatureCards((current) => new Set(current).add(cardId));
   }
   function navigateFromAssistant(section: ChatNavigationSection) {
     if (section === "Paramètres") { openSettingsIndex(); return; }
@@ -598,6 +602,8 @@ function DashboardWorkspace() {
               selectedPeriodDays={overviewPeriodDays}
               onPeriodDaysChange={setOverviewPeriodDays}
               onNavigate={navigateToSection}
+              dismissedFeatureCards={dismissedFeatureCards}
+              onDismissFeatureCard={dismissFeatureCard}
               loading={storeDataLoading}
               storeSelector={<div className="dashboard-overview-mobile-store" data-onboarding="store"><DashboardStoreSelector mobile stores={stores} selectedStoreId={activeStoreId} onChange={changeStore} loading={loadingData} /></div>}
             />
