@@ -63,7 +63,7 @@ describe("Studio UGC prompt generation UI", () => {
 
   it.each([
     { status: 200, readiness: { ready: true, callback: true }, expectedLabel: "Créer la vidéo" },
-    { status: 423, readiness: { ready: false, locked: true }, expectedLabel: "Rendu vidéo verrouillé sur cette Preview" },
+    { status: 423, readiness: { ready: false, locked: true }, expectedLabel: "" },
   ])("uses the server render gate status $status without starting a video job", async ({ status, readiness, expectedLabel }) => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
@@ -84,7 +84,12 @@ describe("Studio UGC prompt generation UI", () => {
       await click(videoChoice!);
       const generateButton = container.querySelector<HTMLButtonElement>(".studio-generate");
 
-      expect(generateButton?.textContent).toContain(expectedLabel);
+      if (status === 423) {
+        expect(generateButton).toBeNull();
+        expect(container.textContent).not.toContain("Rendu vidéo verrouillé sur cette Preview");
+      } else {
+        expect(generateButton?.textContent).toContain(expectedLabel);
+      }
       expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
     } finally {
       await act(async () => root.unmount());
@@ -267,6 +272,7 @@ describe("Studio UGC prompt generation UI", () => {
       await click(container.querySelector<HTMLButtonElement>('article[data-studio-format="video"] button')!);
       const promptField = container.querySelector<HTMLTextAreaElement>("#studio-photo-panel textarea")!;
       const create = () => button(container, el => el.textContent?.includes("Créer la vidéo") ?? false);
+      expect(container.textContent).not.toContain("Rendu vidéo verrouillé sur cette Preview");
       await click(button(container, el => el.textContent?.includes("Générer le prompt") ?? false)!);
       expect(container.textContent).toContain("OpenRouter limite temporairement les requêtes de ce modèle. Attends 45 secondes");
       expect(button(container, el => el.textContent?.includes("Régénérer") ?? false)).toBeTruthy();
@@ -276,6 +282,8 @@ describe("Studio UGC prompt generation UI", () => {
       await click(button(container, el => el.textContent?.includes("Régénérer") ?? false)!);
       expect(promptField.value).toContain("Guide Excel Facile");
       expect(promptField.value).toContain("DIALOGUE EXACT");
+      const retryBody = JSON.parse(String(fetcher.mock.calls.filter(([url, options]) => String(url) === "/api/studio/prompt" && options?.method === "POST")[1][1]?.body));
+      expect(retryBody).not.toHaveProperty("previousPrompt");
     } finally {
       await act(async () => root.unmount());
       container.remove();

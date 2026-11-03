@@ -30,6 +30,7 @@ export type UgcPromptFailureRule =
   | "timeline_incomplete"
   | "segment_boundary"
   | "wrong_beat_count"
+  | "timeline_boundaries_mismatch"
   | "word_count_mismatch"
   | "final_cta_missing"
   | "final_cta_timing"
@@ -58,6 +59,8 @@ export class UgcPromptGenerationError extends Error {
       upstreamMessage?: string;
       upstreamProvider?: string;
       missingFields?: string[];
+      expectedBeats?: number;
+      actualBeats?: number;
     },
   ) {
     super(message);
@@ -137,9 +140,9 @@ function extractQuotedDialogue(prompt: string) {
 }
 
 function durationContract(duration: number) {
-  if (duration === 10) return { beats: 3, minWords: 22, maxWords: 28, finalStart: 6.5, finalEnd: 10, finalMaxWords: 11 };
-  if (duration === 15) return { beats: 4, minWords: 35, maxWords: 42, finalStart: 11.5, finalEnd: 15, finalMaxWords: 11 };
-  return { beats: 5, minWords: 58, maxWords: 68, finalStart: 21, finalEnd: 25, finalMaxWords: 11 };
+  if (duration === 10) return { beats: 3, ranges: [[0, 3], [3, 6.5], [6.5, 10]], minWords: 22, maxWords: 28, finalStart: 6.5, finalEnd: 10, finalMaxWords: 11 };
+  if (duration === 15) return { beats: 4, ranges: [[0, 3.5], [3.5, 7.5], [7.5, 11.5], [11.5, 15]], minWords: 35, maxWords: 42, finalStart: 11.5, finalEnd: 15, finalMaxWords: 11 };
+  return { beats: 5, ranges: [[0, 5], [5, 10], [10, 15], [15, 21], [21, 25]], minWords: 58, maxWords: 68, finalStart: 21, finalEnd: 25, finalMaxWords: 11 };
 }
 
 function spokenWordCount(value: string) {
@@ -178,7 +181,8 @@ function durationInstructions(input: UgcGeneratorInput) {
       : kind === "physique" || kind === "mode" || kind === "food"
         ? language === "fr" ? "commander le produit" : "order the product"
         : language === "fr" ? "découvrir le produit" : "discover the product";
-  return `CONTRAT DE DURÉE: exactement ${contract.beats} temps horodatés; ${contract.minWords} à ${contract.maxWords} mots prononcés au total; dernier temps/CTA entre ${contract.finalStart} et ${contract.finalEnd} secondes; réplique finale de ${contract.finalMaxWords} mots maximum. Une seule invitation finale, invitant explicitement à ${action}. Pour un ebook, le dernier plan montre la couverture réelle sur un téléphone ou une tablette tenu face caméra, en gros plan net, centrée, titre et illustration intacts. Pour un autre produit, le dernier plan montre sa vraie référence à l'écran. Pour 25 secondes, respecte la coupure 15 s + 10 s.`;
+  const exactRanges = contract.ranges.map(([start, end]) => `${start}–${end}`).join(", ");
+  return `CONTRAT DE DURÉE: exactement ${contract.beats} temps horodatés, avec ces plages fixes à recopier sans les modifier: ${exactRanges} secondes, dans cet ordre. N'ajoute aucune plage et ne redécoupe pas les temps. ${contract.minWords} à ${contract.maxWords} mots prononcés au total; dernier temps/CTA entre ${contract.finalStart} et ${contract.finalEnd} secondes; réplique finale de ${contract.finalMaxWords} mots maximum. Une seule invitation finale, invitant explicitement à ${action}. Pour un ebook, le dernier plan montre la couverture réelle sur un téléphone ou une tablette tenu face caméra, en gros plan net, centrée, titre et illustration intacts. Pour un autre produit, le dernier plan montre sa vraie référence à l'écran. Pour 25 secondes, respecte la coupure 15 s + 10 s.`;
 }
 
 const KNOWN_FILLER_LINES = new Set([
@@ -191,8 +195,8 @@ function inputSourceText(input: UgcGeneratorInput) {
   return [input.product.name, input.product.description, input.product.content, input.product.price, input.product.currency, input.product.category, input.product.type, ...input.product.tags, input.product.shop].join(" ");
 }
 
-function failValidation(type: UgcPromptFailureRule, path: string): never {
-  throw new UgcPromptGenerationError("Le prompt généré ne respecte pas un contrôle de qualité.", "validation", { type, path });
+function failValidation(type: UgcPromptFailureRule, path: string, extra: { expectedBeats?: number; actualBeats?: number } = {}): never {
+  throw new UgcPromptGenerationError("Le prompt généré ne respecte pas un contrôle de qualité.", "validation", { type, path, ...extra });
 }
 
 export function validateUgcPrompt(raw: unknown, input: UgcGeneratorInput): string {
@@ -210,7 +214,10 @@ export function validateUgcPrompt(raw: unknown, input: UgcGeneratorInput): strin
   if (duration === 25 && !entries.some(entry => entry.end === 15) ) failValidation("segment_boundary", "timeline");
 
   const contract = durationContract(duration);
-  if (entries.length !== contract.beats) failValidation("wrong_beat_count", "timeline.beats");
+  if (entries.length !== contract.beats) failValidation("wrong_beat_count", "timeline.beats", { expectedBeats: contract.beats, actualBeats: entries.length });
+  if (entries.some((entry, index) => entry.start !== contract.ranges[index][0] || entry.end !== contract.ranges[index][1])) {
+    failValidation("timeline_boundaries_mismatch", "timeline.boundaries");
+  }
   const dialogues = extractQuotedDialogue(prompt);
   if (dialogues.length !== entries.length) failValidation("timeline_incomplete", "timeline.dialogue");
   if (dialogues.some(line => KNOWN_FILLER_LINES.has(fold(line)))) failValidation("known_filler", "dialogue");
@@ -299,8 +306,9 @@ function providerFailure(error: unknown): UgcPromptGenerationError {
 
 function correctionMessage(rule: UgcPromptFailureRule, input: UgcGeneratorInput) {
   const contract = durationContract(Number(input.options.duration));
-  const specific = rule === "wrong_beat_count"
-    ? `La durée est ${input.options.duration}s: tu dois produire exactement ${contract.beats} lignes de temps, ni plus ni moins; les plages doivent rester contiguës et couvrir exactement ${input.options.duration}s.`
+  const exactRanges = contract.ranges.map(([start, end]) => `${start}–${end}`).join(", ");
+  const specific = rule === "wrong_beat_count" || rule === "timeline_boundaries_mismatch"
+    ? `La durée est ${input.options.duration}s: tu dois produire exactement ces ${contract.beats} lignes de temps, en recopiant exactement ces bornes: ${exactRanges}s. Ne crée aucune autre plage.`
     : `Corrige précisément le contrôle « ${rule} » en respectant le contrat de durée déjà donné.`;
   return `${specific} Réponds avec le prompt vidéo directement en texte libre, sans JSON, sans commentaire ni bloc de code.`;
 }
@@ -340,6 +348,14 @@ export async function generateUgcPrompt(input: UgcGeneratorInput): Promise<strin
         return prompt;
       } catch (error) {
         lastError = error instanceof UgcPromptGenerationError ? error : new UgcPromptGenerationError("Le texte généré n’a pas passé les contrôles.", "validation", { type: "empty_output" });
+        if (lastError.details.type === "wrong_beat_count") {
+          console.warn("Studio UGC timeline beat-count mismatch", {
+            duration: Number(input.options.duration),
+            expectedBeats: lastError.details.expectedBeats ?? durationContract(Number(input.options.duration)).beats,
+            actualBeats: lastError.details.actualBeats ?? null,
+            attempt: attempts,
+          });
+        }
         if (attempt < retryLimit(lastError.details.type) && Date.now() < deadline) {
           messages.push({ role: "assistant", content: typeof result === "string" ? result : "" });
           messages.push({ role: "user", content: correctionMessage(lastError.details.type, input) });

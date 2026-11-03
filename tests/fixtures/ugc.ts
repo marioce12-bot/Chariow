@@ -22,7 +22,7 @@ const padTotal = (dialogues: string[], target: number) => {
 const boundsFor = (duration: number) => duration === 10
   ? [[0, 3], [3, 6.5], [6.5, 10]]
   : duration === 15
-    ? [[0, 4], [4, 8], [8, 11.5], [11.5, 15]]
+    ? [[0, 3.5], [3.5, 7.5], [7.5, 11.5], [11.5, 15]]
     : [[0, 5], [5, 10], [10, 15], [15, 21], [21, 25]];
 
 const isEbook = (payload: PromptPayload, name: string) =>
