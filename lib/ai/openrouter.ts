@@ -107,10 +107,11 @@ export async function askOpenRouter(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const retries = Math.min(2, Math.max(0, Math.floor(options.overloadRetries ?? 0)));
-  const body = JSON.stringify({
-    model,
-    ...(fallbackModels.length ? { models: fallbackModels } : {}),
-    messages: toOpenRouterMessages(messages),
+  const requestMessages = toOpenRouterMessages(messages);
+  const buildBody = (selectedModel: string, remainingFallbacks: string[]) => JSON.stringify({
+    model: selectedModel,
+    ...(remainingFallbacks.length ? { models: remainingFallbacks } : {}),
+    messages: requestMessages,
     temperature: 0.4,
     stream: false,
     ...(options.responseSchema ? {
@@ -126,27 +127,34 @@ export async function askOpenRouter(
   });
 
   try {
-    for (let attempt = 0; ; attempt++) {
-      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
-      const response = await fetch(OPENROUTER_CHAT_COMPLETIONS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body,
-        signal: controller.signal,
-        cache: "no-store",
-      });
-      if (!response.ok) {
-        if (response.status === 503 && attempt < retries) {
-          await waitForRetry(1000 * 2 ** attempt, controller.signal);
-          continue;
+    modelAttempts: for (let modelIndex = 0; modelIndex <= fallbackModels.length; modelIndex++) {
+      const selectedModel = modelIndex === 0 ? model : fallbackModels[modelIndex - 1];
+      const remainingFallbacks = fallbackModels.slice(modelIndex);
+      const body = buildBody(selectedModel, remainingFallbacks);
+      for (let attempt = 0; ; attempt++) {
+        if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+        const response = await fetch(OPENROUTER_CHAT_COMPLETIONS_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body,
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          if (response.status === 503 && attempt < retries) {
+            await waitForRetry(1000 * 2 ** attempt, controller.signal);
+            continue;
+          }
+          const errorBody = await response.json().catch(() => null) as {
+            error?: { code?: string | number; message?: string; metadata?: { provider_name?: string } };
+          } | null;
+          const upstream = errorBody?.error;
+        if ([408, 429, 500, 502, 503, 504].includes(response.status) && modelIndex < fallbackModels.length) {
+          continue modelAttempts;
         }
-        const errorBody = await response.json().catch(() => null) as {
-          error?: { code?: string | number; message?: string; metadata?: { provider_name?: string } };
-        } | null;
-        const upstream = errorBody?.error;
         throw new OpenRouterApiError(
           response.status,
           response.headers.get("retry-after") ?? undefined,
@@ -154,17 +162,19 @@ export async function askOpenRouter(
           safeDiagnostic(upstream?.message),
           safeDiagnostic(upstream?.metadata?.provider_name, 80),
         );
+        }
+        const data = (await response.json().catch(() => ({}))) as OpenRouterResponse;
+        const content = data.choices?.[0]?.message?.content;
+        const answer = typeof content === "string"
+          ? content
+          : Array.isArray(content)
+            ? content.filter((part) => part.type === "text").map((part) => part.text ?? "").join("")
+            : "";
+        if (!answer.trim()) throw new Error("OpenRouter returned an empty response");
+        return answer.trim();
       }
-      const data = (await response.json().catch(() => ({}))) as OpenRouterResponse;
-      const content = data.choices?.[0]?.message?.content;
-      const answer = typeof content === "string"
-        ? content
-        : Array.isArray(content)
-          ? content.filter((part) => part.type === "text").map((part) => part.text ?? "").join("")
-          : "";
-      if (!answer.trim()) throw new Error("OpenRouter returned an empty response");
-      return answer.trim();
     }
+    throw new Error("OpenRouter models exhausted");
   } finally {
     clearTimeout(timeout);
   }

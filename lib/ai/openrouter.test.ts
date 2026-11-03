@@ -82,6 +82,7 @@ const failure = (status = 503) => new Response(JSON.stringify({ error: { message
 
   it("captures a bounded upstream error diagnostic while redacting credentials", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubEnv("OPENROUTER_FALLBACK_MODELS", "none");
     const response = new Response(JSON.stringify({ error: {
       code: "rate_limit_exceeded",
       message: "Rate limit exceeded for model; token sk-or-v1-secret-value was rejected",
@@ -112,13 +113,13 @@ const failure = (status = 503) => new Response(JSON.stringify({ error: { message
     expect(fetchMock.mock.calls[1]).toEqual(fetchMock.mock.calls[0]);
   });
 
-  it("does not retry other HTTP errors or ambiguous network failures", async () => {
+  it("does not retry other HTTP errors when fallbacks are explicitly disabled or ambiguous network failures", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-key");
     const rateLimited = failure(429);
     rateLimited.headers.set("retry-after", "60");
     const fetchMock = vi.fn().mockResolvedValue(rateLimited);
     vi.stubGlobal("fetch", fetchMock);
-    await expect(askOpenRouter(messages, { overloadRetries: 2 })).rejects.toMatchObject({ status: 429, retryAfter: "60" });
+    await expect(askOpenRouter(messages, { overloadRetries: 2, fallbackModels: [] })).rejects.toMatchObject({ status: 429, retryAfter: "60" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const networkError = new TypeError("fetch failed");
@@ -128,8 +129,22 @@ const failure = (status = 503) => new Response(JSON.stringify({ error: { message
     expect(networkFetch).toHaveBeenCalledTimes(1);
   });
 
+  it("switches to the next model when the primary model is rate limited", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    const rateLimited = failure(429);
+    rateLimited.headers.set("retry-after", "60");
+    const fetchMock = vi.fn().mockResolvedValueOnce(rateLimited).mockResolvedValueOnce(success("Réponse de secours"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(askOpenRouter(messages, { model: "google/gemini-2.5-flash-lite", fallbackModels: ["openai/gpt-4o-mini"] })).resolves.toBe("Réponse de secours");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ model: "google/gemini-2.5-flash-lite", models: ["openai/gpt-4o-mini"] });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ model: "openai/gpt-4o-mini" });
+  });
+
   it("preserves an OpenRouter 429 and Retry-After through askText without provider fallback", async () => {
     vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubEnv("OPENROUTER_FALLBACK_MODELS", "none");
     const rateLimited = failure(429);
     rateLimited.headers.set("retry-after", "45");
     const fetchMock = vi.fn().mockResolvedValue(rateLimited);

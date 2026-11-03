@@ -381,6 +381,17 @@ export async function POST(request: Request) {
         conversationTitle,
       }, { status: 503, headers: { "Retry-After": "15" } });
     }
+    if (openRouterError instanceof OpenRouterApiError && openRouterError.status === 429) {
+      const retryAfter = openRouterError.retryAfter && /^\d+$/.test(openRouterError.retryAfter) ? openRouterError.retryAfter : "30";
+      return NextResponse.json({
+        error: body?.locale === "en"
+          ? "The AI models are temporarily rate limited. Please try again in a few moments."
+          : "Les modèles IA sont temporairement limités. Réessaie dans quelques instants.",
+        code: "AI_RATE_LIMITED",
+        conversationId,
+        conversationTitle,
+      }, { status: 503, headers: { "Retry-After": retryAfter } });
+    }
     return NextResponse.json({ error: "Le service IA est temporairement indisponible. Réessaie dans quelques instants." }, { status: 502 });
   }
   answer = cleanAiText(answer, { preserveStrong: true });

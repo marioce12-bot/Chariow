@@ -76,6 +76,13 @@ describe("POST /api/chat provider selection", () => {
     expect(askOpenRouter).toHaveBeenCalledTimes(1);
     expect(askOpenRouter.mock.calls[0][1]).toEqual({ timeoutMs: 60000, overloadRetries: 2 });
   });
+  it("explains a persistent OpenRouter rate limit with its retry delay", async () => {
+    askOpenRouter.mockRejectedValue(new OpenRouterApiError(429, "45"));
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Bonjour" }) }));
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("45");
+    await expect(response.json()).resolves.toMatchObject({ code: "AI_RATE_LIMITED" });
+  });
   it.each(["fr", "en"])("explains persistent OpenRouter overload in %s without a fallback or extra quota consumption", async (locale) => {
     askOpenRouter.mockRejectedValue(new OpenRouterApiError(503));
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Bonjour", locale }) }));
