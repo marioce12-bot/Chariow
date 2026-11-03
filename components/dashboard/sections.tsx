@@ -172,6 +172,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [imageLoaded, setImageLoaded] = useState(false);
   const [videoJob, setVideoJob] = useState<StudioVideoJob | null>(null);
   const videoRequestIdRef = useRef<string | null>(null);
+  const videoNotFoundRetryRef = useRef<{ id: string; attempts: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const stopProgressRef = useRef<(() => void) | null>(null);
@@ -422,6 +423,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         const result = await response.json().catch(() => ({}));
         if (!active) return;
         if (response.ok && typeof result?.status === "string") {
+          videoNotFoundRetryRef.current = null;
           setVideoJob(result);
           if (typeof result.error === "string") setError(result.error);
           if (["completed", "failed", "cancelled"].includes(result.status)) {
@@ -431,12 +433,17 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           }
         }
         else if (response.status === 404) {
-          const message = typeof result.error === "string" ? result.error : (locale === "en" ? "Video task not found. Check history and credits before starting another request." : "Tâche vidéo introuvable. Vérifie l’historique et les crédits avant toute nouvelle demande.");
+          const previous = videoNotFoundRetryRef.current?.id === videoJob.id ? videoNotFoundRetryRef.current.attempts : 0;
+          const attempts = previous + 1;
+          if (attempts <= 4) {
+            videoNotFoundRetryRef.current = { id: videoJob.id, attempts };
+            return;
+          }
+          videoNotFoundRetryRef.current = null;
+          const message = locale === "en" ? "The video is still being prepared. Check the history to follow it; no new generation was started." : "La vidéo est toujours en préparation. Vérifie l’historique pour suivre son état ; aucun nouveau rendu n’a été lancé.";
           setError(message);
-          setVideoJob((current) => current?.id === videoJob.id ? { ...current, status: "failed", error: message } : current);
+          setVideoJob(null);
           void loadHistory(true);
-          const credits = await fetch("/api/studio/credits").then((creditResponse) => creditResponse.ok ? creditResponse.json() : null).catch(() => null);
-          if (active && credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
         }
         else if (result.error) setError(result.error);
       } catch {
@@ -614,6 +621,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       else {
         if (typeof result.jobId !== "string" || !result.jobId) throw new Error("La tâche vidéo n'a pas pu être enregistrée.");
         videoRequestIdRef.current = null;
+        videoNotFoundRetryRef.current = null;
         setVideoJob({ id: result.jobId, status: result.status || "queued" });
       }
       if (kind === "video") {
@@ -880,7 +888,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           {imageUrl ? <><div className={editSubmitting ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imageUrl} alt={t("studio.yourImage")} decoding="async" onLoad={() => { setImageLoaded(true); setGenerationProgress(100); }} onError={() => { setImageLoaded(false); setGenerationProgress((current) => Math.min(current, 95)); setError(t("studio.imageLoadError")); }} /></div><div className="studio-result-actions"><button className="btn btn-ghost" onClick={() => void downloadMedia(imageUrl, "vendeo-studio-image.png")}>{t("studio.downloadImage")}</button><button className="btn btn-ghost" onClick={() => setEditOpen(true)} disabled={editSubmitting}>{t("studio.edit")}</button></div>{editOpen ? <div className="studio-edit-box"><label><span>{t("sweep3.text212")}</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} disabled={editSubmitting} /></label><small>{t("sweep1.text213")}</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editSubmitting || !editInstruction.trim()}>{editSubmitting ? t("optionsExtra.text22") : t("studio.edit")}</button><button className="btn btn-ghost" onClick={() => { setEditOpen(false); setEditInstruction(""); }} disabled={editSubmitting}>{t("workspaceExtra.cancel")}</button></div></div> : null}</> : null}
           {videoReady ? <><video className="studio-media" src={videoJob.contentUrl ?? undefined} controls playsInline /><VideoDownloadButton url={videoJob.contentUrl!} filename="vendeo-studio-video.mp4" locale={locale}>{t("studio.downloadVideo")}</VideoDownloadButton></> : null}
           {kind === "video" && videoJob?.status === "failed" && videoJob.error ? <p className="form-error" role="alert">{videoJob.error}</p> : null}
-          {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>{kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Image created" : "Image créée") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Checking your creation" : "Vérification de ta création") : t("chat.posterGenerating")}</strong><p role="status">{kind === "image" && imageTrackingIssue ? (locale === "en" ? "Tracking is temporarily unavailable. Checking automatically; do not start another generation." : "Suivi temporairement indisponible. Vérification automatique en cours ; ne relance pas de génération.") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Retrieving the saved image. No new generation or credit charge." : "Récupération de l’image enregistrée. Aucune nouvelle génération ni dépense de crédits.") : videoJob ? t("dynamicExtra.videoStatus", { status: (videoJob.status) }) : t("optionsExtra.text23")}</p>{kind === "image" && loading && !imageTrackingIssue && imageTask?.status !== "awaiting_media" ? <div className="studio-generation-progress"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}</>  : kind === "video" ? <><div className="studio-video-sample" role="img" aria-label={locale === "en" ? "Sample video preview" : "Exemple d’aperçu vidéo"}><span aria-hidden="true">▶</span></div><div className="studio-video-empty-copy"><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></div></> : <><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></>}</div> : null}
+          {!imageUrl && !videoReady ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>{kind === "video" && videoJob?.status === "failed" ? (locale === "en" ? "Video generation failed" : "La génération vidéo a échoué") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Image created" : "Image créée") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Checking your creation" : "Vérification de ta création") : t("chat.posterGenerating")}</strong><p role="status">{kind === "video" && videoJob?.status === "failed" ? (locale === "en" ? "Check the history for the final status." : "Vérifie l’historique pour connaître l’état final.") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Tracking is temporarily unavailable. Checking automatically; do not start another generation." : "Suivi temporairement indisponible. Vérification automatique en cours ; ne relance pas de génération.") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Retrieving the saved image. No new generation or credit charge." : "Récupération de l’image enregistrée. Aucune nouvelle génération ni dépense de crédits.") : videoJob ? t("dynamicExtra.videoStatus", { status: (videoJob.status) }) : t("optionsExtra.text23")}</p>{kind === "image" && loading && !imageTrackingIssue && imageTask?.status !== "awaiting_media" ? <div className="studio-generation-progress"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}</>  : kind === "video" ? <><div className="studio-video-sample" role="img" aria-label={locale === "en" ? "Sample video preview" : "Exemple d’aperçu vidéo"}><span aria-hidden="true">▶</span></div><div className="studio-video-empty-copy"><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></div></> : <><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></>}</div> : null}
           {imageUrl && kind === "image" ? <div className="studio-generation-progress" aria-live="polite"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}
           {kind === "video" ? <section className="studio-video-cost-card" aria-label={locale === "en" ? "Estimated cost" : "Coût estimé"}><div className="studio-video-cost-icon"><Layers size={22} aria-hidden="true" /></div><div><span className="eyebrow">{locale === "en" ? "Estimated cost" : "Coût estimé"}</span><strong>{videoCostEstimate} {t("studio.credits")}</strong><small>{locale === "en" ? `Final duration · ${duration} seconds · ${videoResolution} · portrait 9:16` : `Durée finale · ${duration} secondes · ${videoResolution} · portrait 9:16`}</small><small>{videoCostPriceXof.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF · {locale === "en" ? "Available balance" : "Solde disponible"} · {creditsLoaded ? availableCredits : locale === "en" ? "loading…" : "chargement…"} {t("studio.credits")}</small></div></section> : null}
         </section>

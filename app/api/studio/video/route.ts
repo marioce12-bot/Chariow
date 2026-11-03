@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   if (existingError) return NextResponse.json({ error: "Impossible de vérifier cette demande vidéo." }, { status: 503 });
   if (existing) {
     if (existing.user_id !== user.id) return NextResponse.json({ error: "Demande vidéo indisponible." }, { status: 409 });
-    return NextResponse.json({ jobId: existing.video_job_id || existing.id, status: existing.status, cost: existing.credits_cost, progress: existing.metadata?.progress ?? 0 }, { status: 202, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ jobId: existing.id, status: existing.status, cost: existing.credits_cost, progress: existing.metadata?.progress ?? 0 }, { status: 202, headers: { "Cache-Control": "no-store" } });
   }
 
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
