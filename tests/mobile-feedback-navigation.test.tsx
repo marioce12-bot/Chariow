@@ -101,9 +101,4 @@ function button(text: string) {
     expect(container.querySelector(".settings-index")).toBeTruthy();
   });
 
-  it("routes notifications from the app settings group", async () => {
-    await mount();
-    await act(async () => button(translate("fr", "notifications.title")).click());
-    expect(navigate).toHaveBeenCalledWith("Notifications");
-  });
 });

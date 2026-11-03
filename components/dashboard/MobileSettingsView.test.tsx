@@ -28,13 +28,13 @@ describe("Settings index SSR", () => {
     language.locale = locale;
     const html = render();
     expect(html.match(/class="settings-group"/g)).toHaveLength(2);
-    expect(html.match(/class="settings-option-row"/g)).toHaveLength(9);
+    expect(html.match(/class="settings-option-row"/g)).toHaveLength(8);
     expect(html).toContain(`placeholder="${translate(locale, "settings.searchPlaceholder")}"`);
     expect(html).toContain(translate(locale, "settings.appSection"));
     expect(html).toContain(translate(locale, "settings.shopSection"));
     expect(html).toContain(translate(locale, "settings.appearance"));
     expect(html).toContain(translate(locale, "settings.language.title"));
-    expect(html).toContain(translate(locale, "notifications.title"));
+    expect(html).not.toContain(translate(locale, "notifications.title"));
     expect(html).not.toContain('data-settings-panel="appearance"');
     expect(html).not.toContain('role="tab"');
   });

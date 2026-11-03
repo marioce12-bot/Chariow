@@ -3,7 +3,7 @@
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, BarChart3, Bell, Bot, CreditCard, Plus, Search, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Layers, Video, Languages, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, Bot, CreditCard, Plus, Search, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Layers, Video, Languages, ExternalLink } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { FeedbackView } from "@/components/FeedbackView";
@@ -1572,7 +1572,6 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
       items: [
         { id: "appearance", title: t("settings.appearance"), description: t("settings.themeDescription"), keywords: "theme couleur clair sombre", icon: <Sun size={18} />, onSelect: () => setMobileSettingsSection("appearance") },
         { id: "language", title: t("settings.language.title"), description: t("settings.language.subtitle"), keywords: "langue français anglais language", icon: <Languages size={18} />, onSelect: () => setMobileSettingsSection("language") },
-        { id: "notifications", title: t("notifications.title"), description: t("notifications.description"), keywords: "push alertes notifications", icon: <Bell size={18} />, onSelect: () => onNavigate("Notifications") },
         { id: "feedback", title: t("sweep3.text293"), description: t("settings.feedbackDescription"), keywords: "suggestion avis feedback notes", icon: <MessageSquare size={18} />, onSelect: () => setMobileSettingsSection("feedback") },
         { id: "about", title: t("settings.aboutLegal"), description: t("settings.aboutDescription"), keywords: "à propos légal conditions confidentialité about legal", icon: <Lightbulb size={18} />, onSelect: () => setMobileSettingsSection("about") },
         { id: "session", title: t("settings.session"), description: t("settings.leaveOrDelete"), keywords: "déconnexion supprimer compte session sign out delete", icon: <LogOut size={18} />, onSelect: () => setMobileSettingsSection("session") },
