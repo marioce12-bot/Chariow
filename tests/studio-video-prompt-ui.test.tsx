@@ -137,7 +137,7 @@ describe("Studio UGC prompt generation UI", () => {
         const prompt = name === "Guide Excel Facile"
           ? "HOOK: Ouvre Guide Excel Facile sur son téléphone. SCÈNE: coin lecture; accessoires: couverture réelle et téléphone. SCRIPT: je consulte un exercice. CTA: retrouve le guide dans la boutique."
           : "HOOK: Savon Karité Kora posé près du lavabo. SCÈNE: salle de bain; accessoires: savon et serviette. SCRIPT: je découvre sa texture. CTA: découvre Savon Karité Kora dans la boutique.";
-        return reply({ prompt, preparedUgc: `prepared:${name}`, analysis: { assumptions: [] }, creative: { assumptions: [] } });
+        return reply({ prompt, preparedUgc: `prepared:${name}`, locked: true, contentLanguage: { code: "fr", label: "French" }, plan: { segments: [] } });
       }
       if (url === "/api/account/preferences") return reply({ locale: "fr" });
       if (url === "/api/studio/tasks") return reply({ tasks: [] });
@@ -187,6 +187,43 @@ describe("Studio UGC prompt generation UI", () => {
       expect(secondRequest.ugcOptions).not.toHaveProperty("characterProfile");
       expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
       expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/tasks" && options?.method === "POST")).toBe(false);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows a safe preparation failure, blocks rendering, then succeeds on explicit retry", async () => {
+    let fail = true;
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/studio/prompt" && init?.method === "POST") return fail
+        ? { ok: false, status: 502, json: async () => ({ code: "ugc_prompt_generation_failed", error: "Le scénario n’a pas pu être généré, réessaie.", failureRule: "provider" }) }
+        : reply({ prompt: "0–3s | Accroche Guide Excel Facile. DIALOGUE EXACT: «Bonjour.»", preparedUgc: "prepared:retry", locked: true, contentLanguage: { code: "fr", label: "French" }, plan: { segments: [] } });
+      if (url === "/api/studio/video") return { ok: true, status: 200, json: async () => ({ ready: true, callback: true }) };
+      if (url === "/api/account/preferences") return reply({ locale: "fr" });
+      if (url === "/api/studio/tasks") return reply({ tasks: [] });
+      if (url.startsWith("/api/studio/history")) return reply({ items: [], nextCursor: null });
+      if (url === "/api/studio/credits") return reply({ balance: 2_000, reserved: 0 });
+      return reply({});
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const { container, root } = setup();
+    try {
+      await render(root);
+      await click(container.querySelector<HTMLButtonElement>('article[data-studio-format="video"] button')!);
+      const promptField = container.querySelector<HTMLTextAreaElement>("#studio-photo-panel textarea")!;
+      const create = () => button(container, el => el.textContent?.includes("Créer la vidéo") ?? false);
+      await click(button(container, el => el.textContent?.includes("Générer le prompt") ?? false)!);
+      expect(container.textContent).toContain("Le scénario n’a pas pu être généré, réessaie.");
+      expect(button(container, el => el.textContent?.includes("Régénérer") ?? false)).toBeTruthy();
+      expect(create()?.disabled).toBe(true);
+      expect(fetcher.mock.calls.some(([url, options]) => ["/api/studio/video", "/api/studio/tasks"].includes(String(url)) && options?.method === "POST")).toBe(false);
+      fail = false;
+      await click(button(container, el => el.textContent?.includes("Régénérer") ?? false)!);
+      expect(promptField.value).toContain("Guide Excel Facile");
+      expect(promptField.value).toContain("DIALOGUE EXACT");
     } finally {
       await act(async () => root.unmount());
       container.remove();

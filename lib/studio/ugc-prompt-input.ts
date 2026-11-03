@@ -10,6 +10,7 @@ function image(value: unknown) {
     return url.toString();
   } catch { return ""; }
 }
+
 export function normalizeUgcInput(rawProduct: unknown, rawOptions: unknown, locale: unknown, userBrief = "", previousPrompt = ""): UgcGeneratorInput {
   const product = rawProduct && typeof rawProduct === "object" ? rawProduct as Record<string, unknown> : {};
   const options = rawOptions && typeof rawOptions === "object" ? rawOptions as Record<string, unknown> : {};
@@ -19,20 +20,25 @@ export function normalizeUgcInput(rawProduct: unknown, rawOptions: unknown, loca
   const images = [...new Set([product.image, product.imageUrl, ...(Array.isArray(product.images) ? product.images : [])].map(value => image(typeof value === "object" && value ? (value as Record<string, unknown>).url : value)).filter(Boolean))].slice(0, 5);
   return {
     product: {
-      name, description,
+      name,
+      description,
       content: text(product.content, 5000),
       price: typeof product.price === "number" || typeof product.price === "string" ? String(product.price).slice(0, 40) : "",
-      currency: text(product.currency, 10), category: named(product.category, 150),
-      images, type: text(product.type ?? product.product_type, 60),
+      currency: text(product.currency, 10),
+      category: named(product.category, 150),
+      images,
+      type: text(product.type ?? product.product_type, 60),
       tags: (Array.isArray(product.tags) ? product.tags : typeof product.tags === "string" ? product.tags.split(",") : []).map(value => named(value, 60)).filter(Boolean).slice(0, 12),
       shop: named(product.shop ?? product.store, 200),
     },
     options: {
       language: language && language !== "auto" ? language : resolveProductLanguage({ name, description }, typeof locale === "string" ? locale : "fr").label,
-      duration: Number(options.duration ?? 10), tone: text(options.tone, 100) || "naturel",
+      duration: Number(options.duration ?? 10),
+      tone: text(options.tone, 100) || "naturel",
       platform: text(options.platform, 60) || "Reels",
       angle: text(options.angle, 120),
     },
-    userBrief: text(userBrief, 4000), previousPrompt: text(previousPrompt, 4000),
+    userBrief: text(userBrief, 4000),
+    previousPrompt: text(previousPrompt, 4000),
   };
 }

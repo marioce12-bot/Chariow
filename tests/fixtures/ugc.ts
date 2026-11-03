@@ -1,62 +1,62 @@
-export const ugcAnalysis = (_name: string) => ({
-  product_type: "digital" as const, niche: "guide pratique", target_audience: "Adultes francophones",
-  core_problem: null, main_benefit: null, emotion_dominante: "curiosité", usage_context: "consultation sur téléphone",
-  visual_assets: ["couverture fournie"], price_positioning: "accessible" as const,
-  objections_probables: ["contenu adapté ?"], risks: ["ne pas promettre un résultat"], assumptions: [], confirmed_fact_ids: [0],
-});
-
-const scriptFor = (name: string, duration: number, english: boolean) => {
-  if (duration === 10) return english
-    ? [`Need a place to start with ${name}?`, "I pause and look at its supplied reference.", `Find ${name} in the shop.`]
-    : [`Tu cherches par où commencer avec ${name} ?`, "Je m'arrête un instant et regarde sa référence.", `Retrouve ${name} dans la boutique.`];
-  if (duration === 15) return english
-    ? [`Looking for a way to begin exploring ${name} today?`, "I pause and look around my everyday workspace.", "I pick up the supplied reference and turn it gently.", `Find ${name} in the shop whenever you want to explore.`]
-    : [`Tu cherches une idée pour commencer avec ${name} aujourd'hui ?`, "Je m'arrête un instant et regarde autour de moi.", "Je prends la référence et la tourne doucement.", `Retrouve ${name} dans la boutique si tu veux le découvrir.`];
-  return english
-    ? [`Have you wanted to explore ${name}, but felt unsure where to start?`, "I stop beside my open notebook and look over my first notes.", `I pick up ${name} and calmly read the reference shown on the screen.`, "I take a moment to compare that idea with what I wanted to explore.", `Find ${name} in the shop if you would like to learn more.`]
-    : [`Tu as déjà eu envie de découvrir ${name}, sans savoir par où commencer ?`, "Je m'arrête devant mon carnet ouvert et regarde mes premières notes.", `Je prends ${name} et relis tranquillement la référence affichée sur l'écran.`, "Je prends un instant pour comparer cette idée à ce que je voulais explorer.", `Retrouve ${name} dans la boutique si tu veux en savoir davantage.`];
+type PromptPayload = {
+  product?: { title?: string; name?: string; description?: string; product?: { name?: string } };
+  options?: { duration?: number; language?: string };
+  language?: string;
+  duration?: number;
 };
 
-export const ugcCreative = (name: string, language = "French", duration = 25, description = "") => {
-  const english = language.toLowerCase().startsWith("english") || language.toLowerCase() === "en";
-  const lines = scriptFor(name, duration, english);
-  const ends = duration === 10 ? [3, 7, 10] : duration === 15 ? [4, 8, 12, 15] : [4, 9, 15, 20, 25];
-  const types = duration === 10 ? ["hook", "product", "cta"] : duration === 15 ? ["hook", "problem", "product", "cta"] : ["hook", "problem", "turning_point", "product", "cta"];
-  let start = 0;
-  const shots = lines.map((dialogue, index) => {
-    const end = ends[index];
-    const shot = {
-      start, end, type: types[index], visual: `La référence réelle de ${name} dans un contexte quotidien`,
-      action: "Elle baisse les yeux vers la scène, saisit la référence puis la tourne vers la caméra.",
-      dialogue, camera: "selfie vertical avec léger rapprochement", emotion: ["curiosité", "hésitation", "déclic", "intérêt", "confiance"][index],
-    };
-    start = end;
-    return shot;
-  });
-  const subject = `${name} ${description}`.toLowerCase();
-  const location = /jardin|plante|botan/i.test(subject) ? "balcon avec jardinières"
-    : /cuisine|recette|épice|epice/i.test(subject) ? "cuisine près du plan de travail"
-    : /savon|soin|beauté|beaute/i.test(subject) ? "salle de bain près du lavabo"
-    : /photo|portrait/i.test(subject) ? "extérieur pour une séance photo"
-    : "coin d'étude à la maison";
-  const themeWord = name.match(/[\p{L}]{4,}/u)?.[0] ?? name;
-  const characters = [{ id: "c1", age: "30", gender: "femme", look: "femme noire adulte", outfit: "chemise simple", personality: "curieuse", role: "présentatrice fictive" }];
-  const creative = {
-    angle: "Une situation quotidienne et une découverte",
-    link_theme: english ? `The setting reflects the product topic ${themeWord} from its supplied record.` : `La scène reprend le thème ${themeWord} indiqué dans la fiche produit.`,
-    hook: { text: lines[0], visual: "Le personnage hésite puis regarde la référence." },
-    scene: { location, lighting: "lumière naturelle", mood: "curieux et quotidien", props: ["téléphone", "carnet"], characters }, shots,
-  };
-  Object.defineProperty(creative, "characters", { value: characters, enumerable: false });
-  Object.defineProperty(creative, "cta", { value: lines.at(-1), enumerable: false });
-  return creative as typeof creative & { characters: typeof characters; cta: string };
+const frenchBeats = (duration: number, name: string) => {
+  if (duration === 10) return [
+    `0–3s | ACTION: Une adulte fictive remarque ${name}; CAMÉRA: plan vertical rapproché; DIALOGUE EXACT: «Tu cherches une idée pour ta routine ?»`,
+    `3–7s | ACTION: Elle prend ${name} et regarde son étiquette; CAMÉRA: léger travelling; DIALOGUE EXACT: «Je découvre ${name} dans mon quotidien.»`,
+    `7–10s | ACTION: Elle montre le produit à l'écran; CAMÉRA: plan stable; DIALOGUE EXACT: «Retrouve ${name} dans la boutique.»`,
+  ];
+  if (duration === 15) return [
+    `0–5s | ACTION: Une adulte fictive observe ${name}; CAMÉRA: plan vertical; DIALOGUE EXACT: «Tu aimerais découvrir ${name} ?»`,
+    `5–10s | ACTION: Elle prend le produit; CAMÉRA: plan rapproché; DIALOGUE EXACT: «Je regarde ce qui est indiqué sur sa fiche.»`,
+    `10–15s | ACTION: Elle montre ${name}; CAMÉRA: plan poitrine; DIALOGUE EXACT: «Retrouve ${name} dans la boutique.»`,
+  ];
+  return [
+    `0–5s | ACTION: Une adulte fictive entre dans la scène; CAMÉRA: plan vertical; DIALOGUE EXACT: «Tu aimerais découvrir ${name} ?»`,
+    `5–10s | ACTION: Elle observe le produit; CAMÉRA: mouvement doux; DIALOGUE EXACT: «Je prends le temps de regarder sa fiche.»`,
+    `10–15s | ACTION: Elle consulte la référence réelle; CAMÉRA: gros plan; DIALOGUE EXACT: «Je découvre les informations disponibles.»`,
+    `15–20s | ACTION: Elle poursuit sa scène; CAMÉRA: retour au visage; DIALOGUE EXACT: «Je vois comment le présenter simplement.»`,
+    `20–25s | ACTION: Elle conclut face caméra; CAMÉRA: plan stable; DIALOGUE EXACT: «Retrouve ${name} dans la boutique.»`,
+  ];
 };
 
-export const ugcFixtureResponse = (messages: Array<{ content: string }>) => {
-  const system = messages[0]?.content ?? "";
-  let payload: { product?: { name?: string; description?: string; product?: { name?: string } }; duration?: number; language?: string } = {};
-  try { payload = JSON.parse(messages[messages.length - 1]?.content ?? "{}"); } catch { /* use safe fixture defaults */ }
-  const name = payload.product?.product?.name ?? payload.product?.name ?? "Guide pratique";
-  if (system.includes("Tu es analyste produit")) return JSON.stringify(ugcAnalysis(name));
-  return JSON.stringify(ugcCreative(name, payload.language === "en" ? "English" : "French", payload.duration ?? 25, payload.product?.description ?? ""));
+const englishBeats = (duration: number, name: string) => {
+  if (duration === 10) return [
+    `0–3s | ACTION: A fictional adult notices ${name}; CAMERA: vertical close shot; DIALOGUE EXACT: «Do you want a new idea for your routine?»`,
+    `3–7s | ACTION: They pick up ${name}; CAMERA: gentle move; DIALOGUE EXACT: «I look at ${name} as part of my day.»`,
+    `7–10s | ACTION: They show the product; CAMERA: steady shot; DIALOGUE EXACT: «Find ${name} in the shop.»`,
+  ];
+  if (duration === 15) return [
+    `0–5s | ACTION: A fictional adult looks at ${name}; CAMERA: vertical shot; DIALOGUE EXACT: «Would you like to discover ${name}?»`,
+    `5–10s | ACTION: They pick up the product; CAMERA: close shot; DIALOGUE EXACT: «I read the details on its page.»`,
+    `10–15s | ACTION: They show ${name}; CAMERA: medium shot; DIALOGUE EXACT: «Find ${name} in the shop.»`,
+  ];
+  return [
+    `0–5s | ACTION: A fictional adult enters the scene; CAMERA: vertical shot; DIALOGUE EXACT: «Would you like to discover ${name}?»`,
+    `5–10s | ACTION: They look at the product; CAMERA: gentle move; DIALOGUE EXACT: «I take a moment to read the details.»`,
+    `10–15s | ACTION: They show the real reference; CAMERA: close shot; DIALOGUE EXACT: «I look at the available information.»`,
+    `15–20s | ACTION: They continue the scene; CAMERA: return to face; DIALOGUE EXACT: «I see how to present it simply.»`,
+    `20–25s | ACTION: They finish facing camera; CAMERA: steady shot; DIALOGUE EXACT: «Find ${name} in the shop.»`,
+  ];
+};
+
+/** Plain-text model fixture; image Studio keeps its separate constrained selection contract. */
+export const ugcFixtureResponse = (messages: Array<{ role?: string; content: string }>) => {
+  let payload: PromptPayload = {};
+  try {
+    const userMessage = [...messages].reverse().find(message => message.role === "user");
+    payload = JSON.parse(userMessage?.content ?? "{}");
+  } catch { /* route tests may provide a raw prompt; the fixture stays plain text */ }
+  const name = payload.product?.title ?? payload.product?.product?.name ?? payload.product?.name ?? "Guide pratique";
+  if (!payload.options) return `Create an image prompt for ${name}. Preserve the exact product name and use only the supplied reference.`;
+  const duration = Number(payload.options.duration ?? 10);
+  const english = /^(?:en|english|anglais)$/i.test(payload.options.language ?? payload.language ?? "");
+  const beats = english ? englishBeats(duration, name) : frenchBeats(duration, name);
+  const title = english ? `UGC video prompt for ${name} — ${duration} seconds.` : `Scénario vidéo UGC pour ${name} — ${duration} secondes.`;
+  return `${title}\nScene: ${english ? "A product-specific everyday moment." : "Un moment quotidien adapté au produit."}\n${beats.join("\n")}`;
 };

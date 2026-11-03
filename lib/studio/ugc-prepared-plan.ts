@@ -1,15 +1,35 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { UgcCreativeDirection, UgcGeneratorInput, UgcProductAnalysis } from "./ugc-prompt-generator";
+import type { UgcGeneratorInput } from "./ugc-prompt-generator";
 
-type Prepared = { version: 1; userId: string; expires: number; input: UgcGeneratorInput; analysis: UgcProductAnalysis; creative: UgcCreativeDirection; prompt: string };
+type Prepared = {
+  version: 2;
+  userId: string;
+  expires: number;
+  product: UgcGeneratorInput["product"];
+  options: UgcGeneratorInput["options"];
+  narrative: string;
+  prompt: string;
+};
+
 const key = () => process.env.STUDIO_UGC_SIGNING_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const signature = (payload: string, secret: string) => createHmac("sha256", secret).update(payload).digest("base64url");
-export function signPreparedUgc(userId: string, input: UgcGeneratorInput, result: {analysis: UgcProductAnalysis; creative: UgcCreativeDirection}, prompt: string) {
+
+export function signPreparedUgc(userId: string, input: UgcGeneratorInput, narrative: string, prompt: string) {
   const secret = key();
   if (!secret) return null;
-  const payload = Buffer.from(JSON.stringify({ version: 1, userId, expires: Date.now() + 30 * 60_000, input, ...result, prompt } satisfies Prepared)).toString("base64url");
+  const value: Prepared = {
+    version: 2,
+    userId,
+    expires: Date.now() + 30 * 60_000,
+    product: input.product,
+    options: input.options,
+    narrative,
+    prompt,
+  };
+  const payload = Buffer.from(JSON.stringify(value)).toString("base64url");
   return `${payload}.${signature(payload, secret)}`;
 }
+
 export function readPreparedUgc(token: unknown, userId: string, input: UgcGeneratorInput, prompt: string): Prepared | null {
   const secret = key();
   if (!secret || typeof token !== "string" || token.length > 100_000) return null;
@@ -20,8 +40,9 @@ export function readPreparedUgc(token: unknown, userId: string, input: UgcGenera
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
   try {
     const value = JSON.parse(Buffer.from(payload, "base64url").toString()) as Prepared;
-    if (value.version !== 1 || value.userId !== userId || value.expires < Date.now() || value.prompt !== prompt) return null;
-    if (JSON.stringify(value.input.product) !== JSON.stringify(input.product) || JSON.stringify(value.input.options) !== JSON.stringify(input.options)) return null;
+    if (value.version !== 2 || value.userId !== userId || value.expires < Date.now() || value.prompt !== prompt) return null;
+    if (JSON.stringify(value.product) !== JSON.stringify(input.product) || JSON.stringify(value.options) !== JSON.stringify(input.options)) return null;
+    if (typeof value.narrative !== "string" || !value.narrative.trim()) return null;
     return value;
   } catch { return null; }
 }
