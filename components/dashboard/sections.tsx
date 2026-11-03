@@ -25,7 +25,7 @@ import { DiagnosticFunnel } from "@/components/vendeo/DiagnosticFunnel";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
 import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
-import { CREDIT_PRICE_XOF, videoCreditCost } from "@/lib/studio/credits";
+import { CREDIT_PRICE_XOF, IMAGE_COSTS, imageCreditCost, videoCreditCost } from "@/lib/studio/credits";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
 import { STUDIO_VIDEO_RESOLUTIONS } from "@/lib/studio/creative-workflows";
 import { VIDEO_AD_DURATIONS } from "@/lib/studio/video-plan";
@@ -183,11 +183,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const imageRecoveryReadyRef = useRef(false);
   const imageTaskIdRef = useRef<string | null>(null);
   const [error, setError] = useState("");
+  const [insufficientCredits, setInsufficientCredits] = useState<{ required: number; available: number } | null>(null);
+  const [rechargeError, setRechargeError] = useState("");
   const [balance, setBalance] = useState(0);
   const [reservedCredits, setReservedCredits] = useState(0);
   const [creditsLoaded, setCreditsLoaded] = useState(false);
   const videoCostEstimate = videoCreditCost(videoResolution, duration);
   const videoCostPriceXof = Math.round(videoCostEstimate * CREDIT_PRICE_XOF);
+  const imageCostEstimate = imageCreditCost(imageResolution as keyof typeof IMAGE_COSTS, quality as keyof typeof IMAGE_COSTS.hd);
   const availableCredits = Math.max(0, balance - reservedCredits);
   const [creditAmount, setCreditAmount] = useState("200");
   const [rechargeOpen, setRechargeOpen] = useState(false);
@@ -231,6 +234,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   // (évite une boucle de re-render infinie sur l'effet ci-dessous).
   const reconciledJobsRef = useRef<Set<string>>(new Set());
   useEffect(() => () => { stopProgressRef.current?.(); stopProgressRef.current = null; }, []);
+  useEffect(() => {
+    if (!rechargeOpen && !insufficientCredits) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setRechargeOpen(false); setInsufficientCredits(null); }
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [rechargeOpen, insufficientCredits]);
 
   // Restore the server-owned photo task after mount/refresh. This is deliberately
   // a GET only: an unknown response must never silently start a second billable job.
@@ -562,12 +573,19 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       setError(locale === "en" ? "Configure the fal.ai callback before generating a 10 or 15 second video. No credits were reserved." : "Configure le callback fal.ai avant de créer une vidéo de 10 ou 15 s. Aucun crédit n’a été réservé.");
       return;
     }
-    if (kind === "video" && (!creditsLoaded || availableCredits < videoCostEstimate)) {
-      setError(locale === "en" ? `Insufficient available credits: ${videoCostEstimate} required, ${availableCredits} available. No purchase was started.` : `Solde disponible insuffisant : ${videoCostEstimate} crédits requis, ${availableCredits} disponibles. Aucun achat n’a été lancé.`);
-      return;
-    }
     if (!prompt.trim()) {
       setError(kind === "image" ? t("sweep1.text201") : t("sweep2.text202"));
+      return;
+    }
+    const requiredCredits = kind === "image" ? imageCostEstimate : videoCostEstimate;
+    const refreshedAvailable = await refreshStudioCredits();
+    const currentAvailable = refreshedAvailable ?? (creditsLoaded ? availableCredits : null);
+    if (currentAvailable === null) {
+      setError(locale === "en" ? "Could not verify the Studio credit balance. Please retry." : "Impossible de vérifier le solde de crédits Studio. Réessaie.");
+      return;
+    }
+    if (currentAvailable < requiredCredits) {
+      showInsufficientCredits(requiredCredits, currentAvailable);
       return;
     }
     let photoStillProcessing = false;
@@ -598,6 +616,13 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok && kind === "video" && [400, 402, 423].includes(response.status)) videoRequestIdRef.current = null;
+      if (!response.ok && (response.status === 402 || result.code === "INSUFFICIENT_CREDITS")) {
+        const required = typeof result.required === "number" ? result.required : requiredCredits;
+        const available = typeof result.balance === "number" ? result.balance : currentAvailable;
+        showInsufficientCredits(required, available);
+        void refreshStudioCredits();
+        return;
+      }
       if (!response.ok) throw new Error(result.error || "La génération a échoué.");
       if (kind === "image") {
         const task = result.task;
@@ -625,10 +650,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         videoNotFoundRetryRef.current = null;
         setVideoJob({ id: result.jobId, status: result.status || "queued" });
       }
-      if (kind === "video") {
-        const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
-        if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
-      }
+      if (kind === "video") void refreshStudioCredits();
     } catch (generationError) {
       if (kind === "image") { imageRecoveryReadyRef.current = false; setImageRecoveryReady(false); }
       stopProgressRef.current?.();
@@ -647,16 +669,38 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     }
   }
 
+  async function refreshStudioCredits(): Promise<number | null> {
+    try {
+      const response = await fetch("/api/studio/credits", { cache: "no-store" });
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (typeof data?.balance !== "number") return null;
+      const reserved = typeof data.reserved === "number" ? data.reserved : 0;
+      setBalance(data.balance);
+      setReservedCredits(reserved);
+      setCreditsLoaded(true);
+      return Math.max(0, data.balance - reserved);
+    } catch {
+      return null;
+    }
+  }
+
+  function showInsufficientCredits(required: number, available: number) {
+    setError("");
+    setRechargeError("");
+    setInsufficientCredits({ required: Math.max(0, Math.ceil(required)), available: Math.max(0, Math.floor(available)) });
+  }
+
   async function recharge() {
     const credits = Number(creditAmount);
-    if (!Number.isInteger(credits) || credits < 200) { setError(t("sweep1.text204")); return; }
+    if (!Number.isInteger(credits) || credits < 200) { setRechargeError(t("sweep1.text204")); return; }
     setRecharging(true);
     try {
       const response = await fetch("/api/studio/credits/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credits }) });
       const result = await response.json();
       if (!response.ok || !result.payment?.url) throw new Error(result.error || "Paiement indisponible.");
       window.location.href = result.payment.url;
-    } catch (rechargeError) { setError(rechargeError instanceof Error ? rechargeError.message : t("optionsExtra.text20")); setRecharging(false); }
+    } catch (cause) { setRechargeError(cause instanceof Error ? cause.message : t("optionsExtra.text20")); setRecharging(false); }
   }
 
   const rechargeCredits = Number(creditAmount);
@@ -807,6 +851,12 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       </section>
       <button type="button" className="studio-mobile-back" onClick={() => setMobileStudioMode(null)}><ArrowLeft size={16} aria-hidden="true" /> {locale === "en" ? "Choose another format" : "Choisir un autre format"}</button>
 
+      <div className="studio-balance studio-credits-toolbar" aria-label={locale === "en" ? "Studio credit balance" : "Solde de crédits Studio"}>
+        <div><span className="eyebrow">{locale === "en" ? "Available Studio credits" : "Crédits Studio disponibles"}</span><strong>{creditsLoaded ? availableCredits : locale === "en" ? "…" : "…"} {t("studio.credits")}</strong></div>
+        <button type="button" className="btn btn-ghost" onClick={() => { setRechargeError(""); setRechargeOpen(true); }}>{locale === "en" ? "Top up" : "Recharger"}</button>
+        <small>{locale === "en" ? "Available in image, slideshow and video sessions." : "Solde partagé entre les sessions image, diaporama et vidéo."}</small>
+      </div>
+
       <div className="studio-tabs" role="tablist" aria-label={t("sweep2.text205")}>
         <button type="button" role="tab" id="studio-photo-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo" && kind === "image"} className={studioTab === "photo" && kind === "image" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("photo"); setKind("image"); }}><ImageIcon size={17} /> Photo</button>
         <button type="button" role="tab" id="studio-slideshow-tab" aria-controls="studio-slideshow-panel" aria-selected={studioTab === "slideshow"} className={studioTab === "slideshow" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("slideshow"); }}><ImageIcon size={17} /> {locale === "en" ? "Slideshow" : "Diaporama"}</button>
@@ -814,7 +864,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       </div>
       <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => selectProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => selectProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => selectProduct(null)} aria-label={t("sweep3.text206")}>×</button>{selectedProduct.image ? <em>{kind === "video" ? t("studio.coverRef") : t("studio.imageReferenceNote")}</em> : null}</div> : null}</section>
       <div id="studio-slideshow-panel" ref={slideshowPanelRef} tabIndex={-1} role="tabpanel" aria-labelledby="studio-slideshow-tab" hidden={studioTab !== "slideshow"}>
-        <SlideshowStudio product={selectedProduct} products={products} onSelectProduct={(productId) => selectProduct(products.find((product) => product.id === productId) ?? null)} locale={locale} selectedTaskId={selectedSlideshowTaskId} onComplete={() => void loadHistory(true)} />
+        <SlideshowStudio product={selectedProduct} products={products} onSelectProduct={(productId) => selectProduct(products.find((product) => product.id === productId) ?? null)} locale={locale} selectedTaskId={selectedSlideshowTaskId} onComplete={() => void loadHistory(true)} onInsufficientCredits={showInsufficientCredits} onCreditsUpdated={(nextBalance, nextReserved) => { setBalance(nextBalance); setReservedCredits(nextReserved); setCreditsLoaded(true); }} />
       </div>
       <div id="studio-photo-panel" role="tabpanel" aria-labelledby={kind === "video" ? "studio-video-tab" : "studio-photo-tab"} hidden={studioTab !== "photo"}>
       <div className={`studio-grid${kind === "video" ? " studio-video-grid" : ""}`}>
@@ -876,11 +926,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
           {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
           {kind === "video" ? <p className="studio-video-desktop-note">Voix et musique ajoutées automatiquement à la génération.</p> : null}
-          {!(kind === "video" && videoRenderLocked) ? <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady) || (kind === "video" && (promptGenerationFailed || promptDurationChanged || videoRenderLocked || videoCallbackUnavailable || !creditsLoaded || availableCredits < videoCostEstimate))}>
+          {!(kind === "video" && videoRenderLocked) ? <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady) || (kind === "video" && (promptGenerationFailed || promptDurationChanged || videoRenderLocked || videoCallbackUnavailable || !creditsLoaded))}>
             <Sparkles size={17} /> {kind === "video" ? videoCallbackUnavailable ? (locale === "en" ? "fal.ai callback required for 10/15 s" : "Callback fal.ai requis pour 10/15 s") : loading ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…") : locale === "en" ? "Generate video" : "Créer la vidéo" : loading && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : t("studio.createImage")}
           </button> : null}
-          {kind === "image" ? <><p className="studio-cost">{t("studio.imageCost")}</p>
-          <div className="studio-balance"><div><span className="eyebrow">{t("studio.balance")}</span><strong>{balance} {t("studio.credits")}</strong></div><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(true)}>{t("studio.recharge")}</button><small>{t("studio.balanceHint")}</small>{rechargeOpen ? <div className="studio-recharge-panel"><div><strong>{t("studio.recharge")}</strong><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} aria-label={t("wizardExtra.close")}>×</button></div><label className="studio-field"><span>{t("sweep1.text84")}</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} autoFocus /></label><p>{t("finalExtra.text18")} {" "}<strong>{rechargePrice ? `${rechargePrice.toLocaleString("fr-FR")} XOF` : "—"}</strong></p><small>{t("sweep3.text209")}</small><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? t("sweep1.text210") : t("sweep2.text211")}</button></div> : null}</div></> : <div className="studio-video-cost-inline"><p className="studio-cost">Coût estimé : <strong>{videoCostEstimate} crédits Studio · {videoCostPriceXof.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF</strong> ({duration} s, {videoResolution}, portrait 9:16). Solde disponible : <strong>{creditsLoaded ? availableCredits : locale === "en" ? "loading…" : "chargement…"}</strong> {t("studio.credits")}.</p><p className="studio-cost">Aucun achat supplémentaire ne sera lancé. La génération est refusée automatiquement si le solde disponible ne couvre pas ce coût.</p></div>}
+          {kind === "image" ? <p className="studio-cost">{locale === "en" ? "Estimated image cost" : "Coût estimé de l’image"} : <strong>{imageCostEstimate} {t("studio.credits")}</strong> ({imageResolution}, {quality}).</p> : <div className="studio-video-cost-inline"><p className="studio-cost">Coût estimé : <strong>{videoCostEstimate} crédits Studio · {videoCostPriceXof.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF</strong> ({duration} s, {videoResolution}, portrait 9:16).</p><p className="studio-cost">{locale === "en" ? "The server re-checks the available balance before reserving credits." : "Le solde est revérifié côté serveur avant toute réservation de crédits."}</p></div>}
         </section>
         {kind === "video" ? <section className="studio-video-cost-card studio-video-cost-card--desktop" aria-label={locale === "en" ? "Estimated cost" : "Coût estimé"}><div className="studio-video-cost-icon"><Layers size={22} aria-hidden="true" /></div><div><span className="eyebrow">{locale === "en" ? "Estimated cost" : "Coût estimé"}</span><strong>{videoCostEstimate} {t("studio.credits")}</strong><small>{locale === "en" ? `Final duration · ${duration} seconds · portrait 9:16` : `Durée finale · ${duration} secondes · portrait 9:16`}</small><small>{videoCostPriceXof.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF</small></div></section> : null}
 
@@ -901,6 +950,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       </section> : null}
       <div className="studio-history-toolbar"><span className="eyebrow">{t("overview.history")}</span><div><button className={historyKind === "all" ? "active" : ""} onClick={() => setHistoryKind("all")}>{t("sweep1.text216")}</button><button className={historyKind === "image" ? "active" : ""} onClick={() => setHistoryKind("image")}>Images</button><button className={historyKind === "video" ? "active" : ""} onClick={() => setHistoryKind("video")}>{locale === "en" ? "Videos / Slideshows" : "Vidéos / Diaporamas"}</button></div><button type="button" className="studio-history-expand" aria-expanded={desktopHistoryExpanded} onClick={() => setDesktopHistoryExpanded((expanded) => !expanded)}>{desktopHistoryExpanded ? (locale === "en" ? "Show less" : "Réduire") : (locale === "en" ? "View all slideshows →" : "Voir tous les diaporamas →")}</button></div>
       <section className="studio-history">{history.length ? history.map((item) => { const slideshow = isSlideshow(item); const title = slideshow ? (locale === "en" ? "Slideshow" : "Diaporama") : item.kind === "image" ? "Image" : t("studio.video"); const finalCaption = slideshow ? [typeof item.metadata?.duration === "number" ? `${item.metadata.duration}s` : null, typeof item.sourceImageCount === "number" ? `${item.sourceImageCount} ${locale === "en" ? "source images" : "images sources"}` : null].filter(Boolean).join(" · ") : ""; return <article className="studio-history-card" key={item.id} data-status={item.status} data-actions-open={historyActionsOpenId === item.id} tabIndex={0} role="group" aria-label={`${title}: ${item.prompt.slice(0, 90)}`} onClick={() => openHistoryItem(item)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); openHistoryItem(item); } }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{slideshow && item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={title} loading="lazy" decoding="async" /> : item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt={t("wizardExtra.step.creation")} loading="lazy" decoding="async" /> : item.mediaUrl && item.kind === "video" ? <video src={`${item.mediaUrl}#t=0.5`} muted playsInline preload="metadata" aria-label={t("sweep3.text218")} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{title}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "…" : ""}</p><small>{finalCaption ? `${finalCaption} · ` : ""}{new Date(item.created_at).toLocaleString("fr-FR")} · {item.credits_cost} {" "}{t("sweep1.text219")} <span className="studio-history-status" data-status={item.status}>{item.status === "processing" ? t("optionsExtra.text24") : item.status === "failed" ? t("overview.importFailed") : item.status === "cancelled" ? (locale === "en" ? "Cancelled" : "Annulé") : t("adsExtra.status.completed")}</span></small></div><button type="button" className="studio-history-menu" aria-label={locale === "en" ? "Creation actions" : "Actions de la création"} aria-expanded={historyActionsOpenId === item.id} onClick={(event) => { event.stopPropagation(); setHistoryActionsOpenId((current) => current === item.id ? null : item.id); }}>…</button><div className="studio-history-actions"><button type="button" onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>{t("sweep2.text220")}</button>{item.kind === "image" ? <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditOpen(true); }}>{t("studio.edit")}</button> : null}<button type="button" onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette création ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>{t("ads.correction.deleteCampaign")}</button></div></article>; }) : <div className="studio-history-empty">{t("sweep3.text221")}</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? t("adminExtra.notifications.loading") : t("optionsExtra.text25")}</button> : null}</section>
+      {insufficientCredits ? <div className="studio-credit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setInsufficientCredits(null); }}><section className="studio-credit-modal" role="alertdialog" aria-modal="true" aria-labelledby="studio-insufficient-title" onKeyDown={(event) => { if (event.key === "Escape") setInsufficientCredits(null); }}><div className="studio-credit-modal-head"><div><span className="eyebrow">{locale === "en" ? "Studio credits" : "Crédits Studio"}</span><h2 id="studio-insufficient-title">{locale === "en" ? "Not enough credits" : "Crédits insuffisants"}</h2></div><button type="button" className="studio-recharge-close" onClick={() => setInsufficientCredits(null)} aria-label={locale === "en" ? "Close" : "Fermer"}>×</button></div><p>{locale === "en" ? `This generation needs ${insufficientCredits.required} Studio credits. You have ${insufficientCredits.available} available.` : `Cette génération nécessite ${insufficientCredits.required} crédits Studio. Tu en as ${insufficientCredits.available} disponibles.`}</p><div className="studio-credit-modal-actions"><button type="button" className="btn btn-ghost" onClick={() => setInsufficientCredits(null)}>{locale === "en" ? "Not now" : "Pas maintenant"}</button><button type="button" className="btn btn-dark" onClick={() => { setInsufficientCredits(null); setRechargeError(""); setRechargeOpen(true); }}>{locale === "en" ? "Top up credits" : "Recharger les crédits"}</button></div></section></div> : null}
+      {rechargeOpen ? <div className="studio-credit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !recharging) setRechargeOpen(false); }}><section className="studio-credit-modal studio-topup-modal" role="dialog" aria-modal="true" aria-labelledby="studio-topup-title" onKeyDown={(event) => { if (event.key === "Escape" && !recharging) setRechargeOpen(false); }}><div className="studio-credit-modal-head"><div><span className="eyebrow">{locale === "en" ? "Secure checkout" : "Paiement sécurisé"}</span><h2 id="studio-topup-title">{locale === "en" ? "Top up Studio credits" : "Recharger les crédits Studio"}</h2></div><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} disabled={recharging} aria-label={locale === "en" ? "Close" : "Fermer"}>×</button></div><label className="studio-field"><span>{locale === "en" ? "Credits to add" : "Nombre de crédits à recharger"}</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => { setCreditAmount(event.target.value); setRechargeError(""); }} autoFocus disabled={recharging} /></label><p>{locale === "en" ? "Amount to pay" : "Montant à payer"} · <strong>{rechargePrice ? `${rechargePrice.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF` : "—"}</strong></p><small>{locale === "en" ? "Minimum top-up: 200 credits. Credits are added after payment confirmation." : "Recharge minimale : 200 crédits. Les crédits sont ajoutés après confirmation du paiement."}</small>{rechargeError ? <p className="form-error" role="alert">{rechargeError}</p> : null}<div className="studio-credit-modal-actions"><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(false)} disabled={recharging}>{locale === "en" ? "Cancel" : "Annuler"}</button><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? (locale === "en" ? "Opening payment…" : "Ouverture du paiement…") : (locale === "en" ? "Pay now" : "Payer maintenant")}</button></div></section></div> : null}
     </div>
   );
 }

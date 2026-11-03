@@ -308,4 +308,22 @@ describe("Studio image generation progress", () => {
     expect(fetchMock.mock.calls.filter(([url]) => url.includes("?id="))).toHaveLength(0);
   });
 
+
+  it("shows shared balance, explains an image credit shortfall and opens the top-up form", async () => {
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => url === "/api/studio/credits"
+      ? response({ balance: 5, reserved: 0 }) : original(url, init));
+    render();
+    await clickGenerate();
+    expect(container.querySelector(".studio-credits-toolbar")?.textContent).toContain("5");
+    const insufficient = container.querySelector('[role="alertdialog"]');
+    expect(insufficient?.textContent).toContain("20");
+    expect(insufficient?.textContent).toContain("5");
+    expect(fetchMock.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && init?.method === "POST")).toHaveLength(0);
+    await act(async () => { insufficient?.querySelector<HTMLButtonElement>(".btn-dark")?.click(); });
+    const recharge = container.querySelector('[role="dialog"]');
+    expect(recharge?.textContent).toContain("Recharger les crédits Studio");
+    expect(recharge?.querySelector<HTMLInputElement>('input[type="number"]')?.value).toBe("200");
+    expect(recharge?.textContent).toContain("Payer maintenant");
+  });
 });

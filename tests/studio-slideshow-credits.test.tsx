@@ -13,7 +13,7 @@ const config = () => response({ enabled: true, voiceoverEnabled: true, voiceover
 let container: HTMLDivElement;
 let root: Root;
 let fetcher: ReturnType<typeof vi.fn>;
-const mount = async () => act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={product} /></I18nProvider>));
+const mount = async (props: { onInsufficientCredits?: (required: number, available: number) => void; onCreditsUpdated?: (balance: number, reserved: number) => void } = {}) => act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={product} {...props} /></I18nProvider>));
 const tasksPosts = () => fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST");
 const setup = (balance: unknown, taskPost?: (init: RequestInit) => Response) => {
   fetcher.mockImplementation(async (url: string, init?: RequestInit) => {
@@ -42,20 +42,28 @@ afterEach(() => {
 });
 
 describe("SlideshowStudio : solde de crédits avant lancement", () => {
-  it("bloque Créer et explique pourquoi quand le solde disponible est inférieur au coût", async () => {
+  it("garde Créer cliquable et n’envoie aucune génération quand le solde est insuffisant", async () => {
     setup({ balance: 80, reserved: 0, transactions: [] });
     await mount();
-    expect(createButton()!.disabled).toBe(true);
+    expect(createButton()!.disabled).toBe(false);
     expect(container.textContent).toContain("Solde insuffisant");
     expect(container.textContent).toContain("il te reste 80");
-    await act(async () => { createButton()!.click(); });
+    await act(async () => { createButton()!.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(tasksPosts()).toHaveLength(0);
   });
   it("tient compte des crédits réservés", async () => {
     setup({ balance: 150, reserved: 80, transactions: [] });
     await mount();
-    expect(createButton()!.disabled).toBe(true);
+    expect(createButton()!.disabled).toBe(false);
     expect(container.textContent).toContain("il te reste 70");
+  });
+  it("signale le coût requis et le disponible au parent sans lancer le diaporama", async () => {
+    const onInsufficientCredits = vi.fn();
+    setup({ balance: 80, reserved: 0, transactions: [] });
+    await mount({ onInsufficientCredits });
+    await act(async () => { createButton()!.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(onInsufficientCredits).toHaveBeenCalledWith(100, 80);
+    expect(tasksPosts()).toHaveLength(0);
   });
   it("laisse Créer actif et affiche le solde quand il couvre le coût", async () => {
     setup({ balance: 500, reserved: 0, transactions: [] });
