@@ -13,6 +13,11 @@ type StructuredJsonSchema = { name: string; schema: Record<string, unknown> };
 
 const OPENROUTER_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
+// Modèles de secours essayés par OpenRouter (dans l'ordre) quand le modèle principal est
+// limité (429), indisponible ou en erreur. Le 2e est d'une autre famille pour ne pas
+// dépendre de la même capacité Google.
+const DEFAULT_FALLBACK_MODELS = ["google/gemini-2.5-flash", "openai/gpt-4o-mini"];
+const MAX_FALLBACK_MODELS = 2;
 const DEFAULT_TIMEOUT_MS = 25_000;
 const MAX_IMAGES_PER_MESSAGE = 2;
 
@@ -40,6 +45,19 @@ function safeDiagnostic(value: unknown, maxLength = 240): string | undefined {
 
 export function getOpenRouterModel() {
   return process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
+}
+
+/**
+ * Modèles de secours envoyés à OpenRouter via le paramètre `models`.
+ * Variable d'environnement OPENROUTER_FALLBACK_MODELS : liste séparée par des virgules ;
+ * vide ou « none » pour désactiver le secours.
+ */
+export function getOpenRouterFallbackModels(primaryModel: string): string[] {
+  const raw = process.env.OPENROUTER_FALLBACK_MODELS;
+  const configured = raw === undefined ? DEFAULT_FALLBACK_MODELS : raw.split(",");
+  if (configured.length === 1 && configured[0].trim().toLowerCase() === "none") return [];
+  return Array.from(new Set(configured.map((model) => model.trim()).filter((model) => model && model !== primaryModel)))
+    .slice(0, MAX_FALLBACK_MODELS);
 }
 
 function getApiKey() {
@@ -79,15 +97,19 @@ function waitForRetry(delayMs: number, signal: AbortSignal) {
 
 export async function askOpenRouter(
   messages: ChatMessage[],
-  options: { timeoutMs?: number; model?: string; overloadRetries?: number; responseSchema?: StructuredJsonSchema } = {}
+  options: { timeoutMs?: number; model?: string; fallbackModels?: string[]; overloadRetries?: number; responseSchema?: StructuredJsonSchema } = {}
 ) {
   const apiKey = getApiKey();
   const model = options.model?.trim() || getOpenRouterModel();
+  const fallbackModels = options.fallbackModels
+    ? options.fallbackModels.map((fallback) => fallback.trim()).filter((fallback) => fallback && fallback !== model).slice(0, MAX_FALLBACK_MODELS)
+    : getOpenRouterFallbackModels(model);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const retries = Math.min(2, Math.max(0, Math.floor(options.overloadRetries ?? 0)));
   const body = JSON.stringify({
     model,
+    ...(fallbackModels.length ? { models: fallbackModels } : {}),
     messages: toOpenRouterMessages(messages),
     temperature: 0.4,
     stream: false,
