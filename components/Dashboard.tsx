@@ -548,9 +548,9 @@ function DashboardWorkspace() {
             <DashboardSkeleton />
           ) : dashboardDataUnavailable ? (
             <section className="app-card dashboard-data-unavailable" role="status" aria-live="polite">
-              <span className="eyebrow">{isOffline ? w("offlineTitle") : w("connectionErrorTitle")}</span>
-              <h2>{isOffline ? w("offlineTitle") : w("connectionErrorTitle")}</h2>
-              <p>{isOffline ? w("offlineDetails") : w("connectionErrorDetails")}</p>
+              <span className="eyebrow">{w("networkUnavailableTitle")}</span>
+              <h2>{w("networkUnavailableTitle")}</h2>
+              <p>{w("networkUnavailableDetails")}</p>
               <button type="button" className="btn-primary" onClick={() => window.location.reload()}>{w("retry")}</button>
             </section>
           ) : snapshotView && storeDataLoading ? (

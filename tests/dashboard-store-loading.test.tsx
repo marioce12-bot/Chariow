@@ -59,6 +59,7 @@ describe("store loading skeletons", () => {
     expect(dashboard).toContain("setStoresLoadFailed(true)");
     expect(dashboard).toContain("dashboardDataUnavailable");
     expect(dashboard).toContain("shouldShowStoreConnectionGate");
-    expect(dashboard).toContain('w("offlineDetails")');
+    expect(dashboard).toContain('w("networkUnavailableDetails")');
+    expect(translate("fr", "workspaceExtra.networkUnavailableTitle")).toBe("Connexion réseau indisponible");
   });
 });
