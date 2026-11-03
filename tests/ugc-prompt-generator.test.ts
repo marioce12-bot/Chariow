@@ -9,7 +9,6 @@ const input = (duration = 10, product?: Partial<UgcGeneratorInput["product"]>): 
   userBrief: "Dans une salle de bain lumineuse, avec une serviette blanche.", previousPrompt: "Ancienne variation à éviter.",
 });
 
-const wordCount = (value: string) => value.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*(?:-[\p{L}\p{N}]+)*/gu)?.length ?? 0;
 const promptFor = (duration: number, options: { title?: string; ebook?: boolean; finalDialogue?: string; finalVisual?: string } = {}) => {
   const title = options.title ?? "Savon Kora";
   const ebook = options.ebook ?? false;
@@ -21,9 +20,6 @@ const promptFor = (duration: number, options: { title?: string; ebook?: boolean;
       : ["Tu cherches une idée pour ta routine sans savoir par où commencer ?", "Je prends le produit et j'observe attentivement sa forme dans la lumière.", "Je le tourne doucement et prends le temps d'observer les détails en lumière naturelle.", "Je choisis un décor simple, rapproche le produit et le garde visible devant la caméra."];
   const final = options.finalDialogue ?? (ebook ? `Télécharge ${title} dès maintenant.` : `Commande ${title} maintenant.`);
   const allDialogues = [...dialogue, final];
-  const minima: Record<number, number> = { 10: 22, 15: 35, 25: 58 };
-  const current = allDialogues.reduce((sum, line) => sum + wordCount(line), 0);
-  if (current < minima[duration]) allDialogues[0] += ` ${Array.from({ length: minima[duration] - current }, () => "vraiment").join(" ")}`;
   const defaultVisual = ebook
     ? "ACTION: couverture réelle sur téléphone tenu face caméra, titre et illustration intacts, gros plan net centré"
     : "ACTION: vraie référence du produit tenue face caméra, clairement visible à l'écran";
@@ -35,20 +31,16 @@ beforeEach(() => askText.mockReset());
 
 describe("générateur UGC texte libre avec règles de durée ciblées", () => {
   it.each([
-    { duration: 10, beats: 3, min: 22, max: 28, contract: /exactement 3 temps.*plages fixes.*0–3, 3–6\.5, 6\.5–10.*22 à 28 mots.*6\.5 et 10 secondes/ },
-    { duration: 15, beats: 4, min: 35, max: 42, contract: /exactement 4 temps.*plages fixes.*0–3\.5, 3\.5–7\.5, 7\.5–11\.5, 11\.5–15.*35 à 42 mots.*11\.5 et 15 secondes/ },
-    { duration: 25, beats: 5, min: 58, max: 68, contract: /exactement 5 temps.*plages fixes.*0–5, 5–10, 10–15, 15–21, 21–25.*58 à 68 mots.*21 et 25 secondes/ },
-  ])("respecte le contrat $duration s: $beats temps et budget vocal", async ({ duration, beats, min, max, contract }) => {
+    { duration: 10, beats: 3, contract: /exactement 3 temps.*plages fixes.*0–3, 3–6\.5, 6\.5–10.*dialogue court et naturel.*appel à l'action final/ },
+    { duration: 15, beats: 4, contract: /exactement 4 temps.*plages fixes.*0–3\.5, 3\.5–7\.5, 7\.5–11\.5, 11\.5–15.*dialogue court et naturel.*appel à l'action final/ },
+    { duration: 25, beats: 5, contract: /exactement 5 temps.*plages fixes.*0–5, 5–10, 10–15, 15–21, 21–25.*dialogue court et naturel.*appel à l'action final/ },
+  ])("respecte le contrat $duration s: $beats temps sans quota de mots", async ({ duration, beats, contract }) => {
     const expected = promptFor(duration);
     askText.mockResolvedValueOnce(expected);
     await expect(generateUgcPrompt(input(duration))).resolves.toBe(expected);
     const entries = readUgcTimeline(expected);
     expect(entries).toHaveLength(beats);
-    const spoken = [...expected.matchAll(/DIALOGUE EXACT:\s*[«“"]([^»”"]+)[»”"]/gi)].map(match => match[1]);
-    const totalWords = spoken.reduce((sum, line) => sum + wordCount(line), 0);
-    expect(totalWords).toBeGreaterThanOrEqual(min);
-    expect(totalWords).toBeLessThanOrEqual(max);
-    expect(spoken.at(-1)).toMatch(/Commande Savon Kora maintenant/);
+    expect(expected).toMatch(/Commande Savon Kora maintenant/);
     expect(validateUgcPrompt(expected, input(duration))).toBe(expected);
     expect(askText).toHaveBeenCalledTimes(1);
     const [messages, options] = askText.mock.calls[0];
@@ -89,13 +81,11 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     expect(askText.mock.calls[1][0].at(-1).content).toContain("final_cta_missing");
   });
 
-  it("relance une fois si la réplique finale dépasse les 11 mots de son créneau", async () => {
+  it("accepte une réplique finale longue si le CTA est présent", async () => {
     const invalid = promptFor(10, { finalDialogue: "Commande Savon Kora dès maintenant dans la boutique tout près de chez toi" });
-    const valid = promptFor(10);
-    askText.mockResolvedValueOnce(invalid).mockResolvedValueOnce(valid);
-    await expect(generateUgcPrompt(input())).resolves.toBe(valid);
-    expect(askText).toHaveBeenCalledTimes(2);
-    expect(askText.mock.calls[1][0].at(-1).content).toContain("final_cta_too_long");
+    askText.mockResolvedValueOnce(invalid);
+    await expect(generateUgcPrompt(input())).resolves.toBe(invalid);
+    expect(askText).toHaveBeenCalledTimes(1);
   });
 
   it("fait primer le brief et réserve previousPrompt à la variation", async () => {

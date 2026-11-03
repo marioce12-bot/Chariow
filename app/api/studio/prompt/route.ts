@@ -146,9 +146,7 @@ export async function POST(request: Request) {
           : failureRule === "wrong_beat_count"
             ? `L’IA a renvoyé un mauvais nombre de temps. Il en faut exactement ${expected} pour ${duration} secondes; régénère le prompt.`
             : `L’IA a utilisé des bornes de temps incorrectes. Régénère le prompt pour appliquer le découpage fixe de ${duration} secondes.`;
-      } else if (failureRule === "word_count_mismatch") publicError = locale === "en"
-        ? "The AI's dialogue did not fit the required duration. Regenerate the prompt."
-        : "Les dialogues générés ne respectaient pas le nombre de mots prévu pour cette durée. Régénère le prompt.";
+      }
       const status = ugcError?.details.type === "provider_timeout" ? 504
         : ugcError?.details.httpStatus === 429 ? 429
           : 502;
