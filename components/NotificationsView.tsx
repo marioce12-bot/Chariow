@@ -2,13 +2,13 @@
 
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
-import { ArrowRight, Bell, CheckCheck, ExternalLink } from "lucide-react";
+import { ArrowRight, Bell, CheckCheck, ExternalLink, Send } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
 import { createClient } from "@/lib/supabase/browser";
 import { subscribeUserNotifications, type RealtimeNotification } from "@/lib/notifications/realtime";
 
-type NotificationItem = { id: string; type: "admin" | "autopilot" | "system"; title: string; body: string; action_url: string | null; read_at: string | null; created_at: string };
+type NotificationItem = { id: string; type: "admin" | "autopilot" | "system"; title: string; body: string; action_url: string | null; category?: string; replies_enabled?: boolean; read_at: string | null; created_at: string };
 
 function formatDate(value: string, locale: "fr" | "en") {
   return new Date(value).toLocaleString(locale === "fr" ? "fr-FR" : "en-US", { dateStyle: "medium", timeStyle: "short" });
@@ -19,6 +19,9 @@ export function NotificationsView({ onBack, userId }: { onBack: () => void; user
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [replyId, setReplyId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [replyMessage, setReplyMessage] = useState("");
   const unread = items.filter((item) => !item.read_at).length;
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -48,6 +51,14 @@ export function NotificationsView({ onBack, userId }: { onBack: () => void; user
     setItems((current) => current.map((item) => ({ ...item, read_at: item.read_at ?? new Date().toISOString() })));
     await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ all: true }) });
   }
+  async function sendReply(notificationId: string) {
+    if (!replyText.trim()) return;
+    setReplyMessage("");
+    const response = await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notification_id: notificationId, body: replyText }) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) { setReplyMessage(data.error || t("adminExtra.notifications.loadError")); return; }
+    setReplyText(""); setReplyId(null); setReplyMessage(locale === "en" ? "Reply sent." : "Réponse envoyée.");
+  }
 
   return <div className="notifications-page">
     <style>{`.mobile-nav{display:none !important}`}</style>
@@ -57,7 +68,7 @@ export function NotificationsView({ onBack, userId }: { onBack: () => void; user
     <section className="app-card notifications-card">
       {unread ? <div className="card-head"><div><h2>{`${unread} ${t("adminExtra.notifications.unreadCount")}`}</h2></div><button type="button" className="notifications-mark-all" onClick={() => void markAllRead()}><CheckCheck size={15} /> {t("adminExtra.notifications.markAll")}</button></div> : null}
       {loading ? <p className="hint-line">{t("adminExtra.notifications.loading")}</p> : error ? <p className="settings-inline-message settings-account-error">{localizeSystemMessage(error, locale)}</p> : !items.length ? <div className="notifications-empty"><Bell size={28} /><strong>{t("adminExtra.notifications.empty")}</strong></div> : <div className="notifications-page-list" aria-label={t("adminExtra.notifications.list")}>{items.map((item) => {
-        const content = <><div className="notifications-page-item-head"><strong>{item.title}</strong><span className="notifications-read-state">{item.read_at ? (t("adminExtra.notifications.read")) : (t("adminExtra.notifications.unread"))}</span></div><time className="notifications-item-date" dateTime={item.created_at}>{formatDate(item.created_at, locale)}</time><p>{item.body}</p>{item.action_url ? <span className="notification-action"><ExternalLink size={13} /> {t("notifications.open")}</span> : null}</>;
+        const content = <><div className="notifications-page-item-head"><strong>{item.title}</strong><span className="notifications-read-state">{item.category ? item.category : "general"} · {item.read_at ? (t("adminExtra.notifications.read")) : (t("adminExtra.notifications.unread"))}</span></div><time className="notifications-item-date" dateTime={item.created_at}>{formatDate(item.created_at, locale)}</time><p>{item.body}</p>{item.action_url ? <span className="notification-action"><ExternalLink size={13} /> {t("notifications.open")}</span> : null}{item.replies_enabled ? <button type="button" className="notifications-reply-button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setReplyId(replyId === item.id ? null : item.id); setReplyMessage(""); void markRead(item.id); }}>{locale === "en" ? "Reply" : "Répondre"}</button> : null}{replyId === item.id ? <form className="notifications-reply-form" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); void sendReply(item.id); }} onClick={(event) => event.stopPropagation()}><textarea value={replyText} onChange={(event) => setReplyText(event.target.value)} maxLength={2000} placeholder={locale === "en" ? "Your reply…" : "Ta réponse…"} required /><button type="submit"><Send size={13} /> {locale === "en" ? "Send" : "Envoyer"}</button></form> : null}{replyMessage && replyId === null ? <small className="notifications-reply-status">{replyMessage}</small> : null}</>;
         return item.action_url ? <Link href={item.action_url} key={item.id} className={`notifications-page-item ${item.read_at ? "read" : "unread"}`} onClick={() => void markRead(item.id)}>{content}</Link> : <button type="button" key={item.id} className={`notifications-page-item ${item.read_at ? "read" : "unread"}`} onClick={() => void markRead(item.id)}>{content}</button>;
       })}</div>}
     </section>

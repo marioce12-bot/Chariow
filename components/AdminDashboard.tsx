@@ -18,6 +18,8 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Store,
+  Megaphone,
   TriangleAlert,
   Users,
 } from "lucide-react";
@@ -431,6 +433,34 @@ function Overview({
         : "Boutiques + Meta · tous états",
       icon: Plug,
       color: "blue",
+    },
+    {
+      label: en ? "Users with a connected store" : "Utilisateurs avec une boutique",
+      value: fmt(data.metrics.connectedUsersWithStore),
+      note: en ? "At least one active store" : "Au moins une boutique active",
+      icon: Store,
+      color: "green",
+    },
+    {
+      label: en ? "Connected stores" : "Boutiques connectées",
+      value: fmt(data.metrics.connectedStores),
+      note: en ? "Active Chariow stores" : "Boutiques Chariow actives",
+      icon: Store,
+      color: "blue",
+    },
+    {
+      label: en ? "Users with an ad account" : "Utilisateurs avec un compte publicitaire",
+      value: fmt(data.metrics.connectedUsersWithAdAccount),
+      note: en ? "At least one active ad account" : "Au moins un compte publicitaire actif",
+      icon: Megaphone,
+      color: "violet",
+    },
+    {
+      label: en ? "Connected ad accounts" : "Comptes publicitaires connectés",
+      value: fmt(data.metrics.connectedAdAccounts),
+      note: en ? "All connected advertising platforms" : "Toutes les plateformes publicitaires",
+      icon: Megaphone,
+      color: "amber",
     },
     {
       label: en ? "Active subscriptions" : "Abonnements actifs",

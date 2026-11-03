@@ -122,6 +122,7 @@ export async function GET() {
       .order("created_at", { ascending: false })
       .limit(100),
   ]);
+  const connectionMetrics = await service.rpc("admin_connection_metrics");
   const firstError = [
     profiles,
     stores,
@@ -135,6 +136,7 @@ export async function GET() {
     paymentEvents,
     businessMetrics,
     payouts,
+    connectionMetrics,
   ].find((result) => result.error)?.error;
   if (firstError)
     return NextResponse.json({ error: "Console unavailable" }, { status: 500 });
@@ -181,6 +183,10 @@ export async function GET() {
       subscriptions: subscriptions.count ?? subscriptions.data?.length ?? 0,
       messages: messages.count ?? 0,
       metaAccounts: metaAccounts.count ?? metaAccounts.data?.length ?? 0,
+      connectedUsersWithStore: Number(connectionMetrics.data?.users_with_store ?? 0),
+      connectedUsersWithAdAccount: Number(connectionMetrics.data?.users_with_ad_account ?? 0),
+      connectedStores: Number(connectionMetrics.data?.connected_stores ?? 0),
+      connectedAdAccounts: Number(connectionMetrics.data?.connected_ad_accounts ?? 0),
     },
     business: businessMetrics.data ?? {},
     users: usersWithBalances,

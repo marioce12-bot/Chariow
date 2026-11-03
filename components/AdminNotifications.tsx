@@ -9,7 +9,7 @@ import "./admin-notifications.css";
 import { fetchAdminJson, adminReadError } from "@/lib/admin-fetch";
 
 type User = { id: string; full_name: string | null; email: string | null };
-type Item = { id: string; title: string; body: string; created_at: string; metadata?: { broadcast_id?: string }; profiles?: { email?: string | null; full_name?: string | null } | null };
+type Item = { id: string; title: string; body: string; category?: string; replies_enabled?: boolean; created_at: string; metadata?: { broadcast_id?: string }; profiles?: { email?: string | null; full_name?: string | null } | null };
 
 export function AdminNotifications({ totalUsers, refreshRevision = 0 }: { totalUsers: number; refreshRevision?: number }) {
   const { t , locale } = useI18n();
@@ -26,6 +26,8 @@ export function AdminNotifications({ totalUsers, refreshRevision = 0 }: { totalU
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [actionUrl, setActionUrl] = useState("");
+  const [category, setCategory] = useState("general");
+  const [repliesEnabled, setRepliesEnabled] = useState(false);
   const [history, setHistory] = useState<Item[]>([]);
   const [historyError, setHistoryError] = useState("");
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -70,16 +72,16 @@ export function AdminNotifications({ totalUsers, refreshRevision = 0 }: { totalU
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    const count = audience === "all" ? totalUsers : selected.length;
+    const count = audience === "all" || audience === "beginner" ? totalUsers : selected.length;
     if (!count || !window.confirm(t("dynamicExtra.confirmSend", { title: (title.trim()), count: (count) }))) return;
     setBusy(true); setMessage("");
     try {
-      const response = await fetch("/api/admin/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, message: body, action_url: actionUrl, audience, user_ids: selected.map((user) => user.id) }) });
+      const response = await fetch("/api/admin/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, message: body, action_url: actionUrl, audience, category, replies_enabled: repliesEnabled, user_ids: selected.map((user) => user.id) }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || t("adminComplete.sendImpossible"));
       const push = result.push;
       const pushSummary = push?.error ? push.error : push ? t("dynamicExtra.pushSummary", { accepted: (push.accepted), failed: (push.failed), expired: (push.expired), unsubscribed: (push.unsubscribedUsers) }) : t("adminComplete.pushUnavailable");
-      setMessage(t("dynamicExtra.messagesSent", { count: (result.sent), summary: (pushSummary) })); setTitle(""); setBody(""); setActionUrl(""); setSelected([]);
+      setMessage(t("dynamicExtra.messagesSent", { count: (result.sent), summary: (pushSummary) })); setTitle(""); setBody(""); setActionUrl(""); setCategory("general"); setRepliesEnabled(false); setSelected([]);
       await loadHistory();
     } catch (error) { setMessage(error instanceof Error ? error.message : t("adminComplete.retryVerify")); }
     finally { setBusy(false); }
@@ -106,6 +108,8 @@ export function AdminNotifications({ totalUsers, refreshRevision = 0 }: { totalU
           <label>{t("adminComplete.title")}<input maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} required /></label>
           <label>{t("adminComplete.internalLink")}<input maxLength={300} placeholder="/dashboard" value={actionUrl} onChange={(event) => setActionUrl(event.target.value)} pattern="^(/[^/].*|/)?$" /></label>
           <label>Message<textarea maxLength={4000} value={body} onChange={(event) => setBody(event.target.value)} required /></label>
+          <label>{locale === "en" ? "Category" : "Catégorie"}<select value={category} onChange={(event) => setCategory(event.target.value)}><option value="general">{locale === "en" ? "General" : "Général"}</option><option value="announcement">{locale === "en" ? "Announcement" : "Annonce"}</option><option value="update">{locale === "en" ? "Product update" : "Mise à jour"}</option><option value="training">{locale === "en" ? "Training" : "Formation"}</option><option value="important">{locale === "en" ? "Important" : "Important"}</option><option value="community">{locale === "en" ? "Community" : "Communauté"}</option></select></label>
+          <label className="admin-notification-reply-toggle"><input type="checkbox" checked={repliesEnabled} onChange={(event) => setRepliesEnabled(event.target.checked)} /> {locale === "en" ? "Allow users to reply to this message" : "Autoriser les utilisateurs à répondre à ce message"}</label>
           <label>{t("adminComplete.recipients")}<select value={audience} onChange={(event) => setAudience(event.target.value)}><option value="all">{t("sweep3.text98")}{totalUsers})</option><option value="beginner">{locale === "en" ? "Beginners and some experience" : "Débutants et quelques notions"}</option><option value="selected">{t("adminComplete.chooseUsers")}</option></select></label>
           {audience === "selected" && <fieldset className="admin-recipient-picker"><legend>{t("sweep1.text99")}{" "}{selected.length}</legend>
             <div className="admin-recipient-chips">{selected.map((user) => <button type="button" key={user.id} onClick={() => toggle(user)} aria-label={`${locale === "en" ? "Remove" : "Retirer"} ${user.email || user.full_name || user.id}`}>{user.email || user.full_name || user.id}<X size={13} /></button>)}</div>
@@ -119,7 +123,7 @@ export function AdminNotifications({ totalUsers, refreshRevision = 0 }: { totalU
           <button className="admin-btn admin-btn-primary" disabled={busy || !title.trim() || !body.trim() || (audience === "selected" ? !selected.length : !totalUsers)}>{busy ? t("adminExtra.push.sending") : t("dynamicExtra.sendTo", { count: (audience === "selected" ? selected.length : totalUsers) })}</button>
         </form>
       </section>
-      <section className="admin-card"><div className="admin-card-head"><div><h3>{t("adminComplete.recentAdminMessages")}</h3><p className="admin-help">{t("adminComplete.historyDesc")}</p></div><FileText size={17} /></div>
+          <section className="admin-card"><div className="admin-card-head"><div><h3>{t("adminComplete.recentAdminMessages")}</h3><p className="admin-help">{t("adminComplete.historyDesc")}</p></div><FileText size={17} /></div>
         {historyError ? <div role="alert"><p>{localizeSystemMessage(historyError, locale)}</p><button type="button" className="admin-btn admin-btn-soft" onClick={() => void loadHistory()}>{t("adminExtra.admin.retry")}</button></div> : historyLoading ? <p role="status">{t("adminComplete.historyLoading")}</p> : <div className="admin-notification-history">{history.length ? history.map((item) => <article className="admin-notification-history-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p><small>{item.profiles?.full_name || item.profiles?.email || t("adminComplete.user")} · {new Date(item.created_at).toLocaleString(locale === "en" ? "en-US" : "fr-FR")}</small><div className="admin-notification-delete"><button type="button" disabled={deleting !== null} onClick={() => void remove(item)}><Trash2 size={14} />{deleting === item.id ? t("adminExtra.push.deleting") : t("adminExtra.push.delete")}</button>{item.metadata?.broadcast_id && <button type="button" disabled={deleting !== null} onClick={() => void remove(item, true)}>{t("adminComplete.removeAll")}</button>}</div></article>) : <div className="admin-empty">{t("adminComplete.noMessages")}</div>}</div>}
       </section>
     </div>

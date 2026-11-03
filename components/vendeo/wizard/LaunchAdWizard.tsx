@@ -11,6 +11,7 @@ import { Step2NetworkCreative, type Step2FooterState } from "./Step2NetworkCreat
 import { Step3Audience } from "./Step3Audience";
 import { Step4Budget } from "./Step4Budget";
 import { Step5Payment } from "./Step5Payment";
+import { ChannelSelector } from "./ChannelSelector";
 import { useI18n } from "@/lib/i18n/i18n";
 
 interface LaunchAdWizardProps {
@@ -85,6 +86,7 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
         : { ...DEFAULT_WIZARD_STATE, storeId, product: initialProduct ?? null, destinationUrl: initialProduct?.url ?? "" }
   ));
   const [step2Footer, setStep2Footer] = useState<Step2FooterState | null>(null);
+  const [channelReady, setChannelReady] = useState(false);
   const [mounted, setMounted] = useState(false);
   // Aperçus Meta : état indexé par format pour que chaque onglet ait son propre
   // chargement / erreur, et que tous les formats puissent se charger en parallèle.
@@ -288,7 +290,8 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
               <span>{en ? "Everything is pre-filled from the original. Change what you want: the original campaign is not modified." : "Tout est pré-rempli à partir de l'original. Modifie ce que tu veux : la campagne d'origine n'est pas modifiée."}</span>
             </div>
           ) : null}
-          {step === 1 && <Step1Product state={state} patch={patch} onNext={next} />}
+          <ChannelSelector state={state} patch={patch} onReadyChange={setChannelReady} en={en} />
+          {step === 1 && <Step1Product state={state} patch={patch} onNext={() => { if (channelReady) next(); }} />}
           {step === 2 && (
             <Step2NetworkCreative
               state={state}

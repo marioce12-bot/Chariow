@@ -13,7 +13,7 @@ export async function GET() {
   const { admin, response } = await requireAdmin(["super_admin", "support"]);
   if (!admin) return response ?? NextResponse.json({ error: "Accès administrateur requis" }, { status: 403 });
   const { data, error } = await createAdminClient().from("user_notifications")
-    .select("id,user_id,type,title,body,action_url,read_at,created_at,metadata,profiles(email,full_name)")
+    .select("id,user_id,type,title,body,action_url,category,replies_enabled,read_at,created_at,metadata,profiles(email,full_name)")
     .eq("type", "admin").order("created_at", { ascending: false }).limit(100);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ notifications: data ?? [] });
@@ -25,6 +25,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const title = typeof body?.title === "string" ? body.title.trim() : "";
   const message = typeof (body?.message ?? body?.body) === "string" ? String(body.message ?? body.body).trim() : "";
+  const category = typeof body?.category === "string" && ["general", "announcement", "update", "training", "important", "community"].includes(body.category) ? body.category : "general";
+  const repliesEnabled = body?.replies_enabled === true;
   if (body?.audience !== "all" && body?.audience !== "beginner" && body?.audience !== "selected") return NextResponse.json({ error: "Choisis les destinataires." }, { status: 400 });
   const audience = body.audience as "all" | "beginner" | "selected";
   const rawIds = body.user_ids;
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
   }
   if (!recipients.length) return NextResponse.json({ error: "Aucun destinataire disponible." }, { status: 400 });
   const broadcastId = randomUUID();
-  const rows = recipients.map((user_id) => ({ user_id, type: "admin", title, body: message, action_url: actionUrl || null, metadata: { audience, sent_by: admin.id, broadcast_id: broadcastId } }));
+  const rows = recipients.map((user_id) => ({ user_id, type: "admin", title, body: message, action_url: actionUrl || null, category, replies_enabled: repliesEnabled, metadata: { audience, sent_by: admin.id, broadcast_id: broadcastId } }));
   const { error } = await service.from("user_notifications").insert(rows);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (admin.id !== "password-admin") await writeAdminAudit(supabase, admin.id, "notification_sent", "user_notifications", null, { audience, recipient_count: recipients.length, title, broadcast_id: broadcastId });
