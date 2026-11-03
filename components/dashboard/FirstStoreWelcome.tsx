@@ -35,10 +35,10 @@ function getIsMobileSnapshot() {
   return window.matchMedia ? window.matchMedia(MOBILE_QUERY).matches : window.innerWidth <= 760;
 }
 
-export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss, onTourStepChange }: {
+export function FirstStoreWelcome({ stage, subscription, onTryStudio, onDismiss, onTourStepChange }: {
   stage: "welcome" | "tour";
   subscription: SubscriptionData | null;
-  onStart: () => void;
+  onTryStudio: () => void;
   onDismiss: () => void;
   onTourStepChange: (step: DashboardTourStep | null) => void;
 }) {
@@ -145,12 +145,8 @@ export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss, onT
     setStep(nextStep);
   }
   const welcomeDescription = en
-    ? isMobile
-      ? "Your first store is connected. We’ll follow the five mobile tabs in order; open the Assistant from the bottom dock."
-      : "Your first store is connected. Let’s follow the desktop sidebar and top navigation together."
-    : isMobile
-      ? "Ta première boutique est connectée. Le parcours suit les cinq onglets mobiles dans l’ordre; l’Assistant est accessible depuis le dock du bas."
-      : "Ta première boutique est connectée. Découvrons ensemble la navigation latérale et les outils en haut de l’écran.";
+    ? "Your Chariow store is connected. Your free trial and Studio credits are ready to use."
+    : "Ta boutique Chariow est connectée. Ton essai gratuit et tes crédits Studio sont prêts à être utilisés.";
   const showAssistantGuideIcon = isMobile && stage === "tour" && current.id === "assistant";
 
   return <div className={`vendeo-welcome-layer ${stage === "tour" ? "vendeo-tour-layer" : ""} ${isMobile ? "vendeo-tour-mobile" : "vendeo-tour-desktop"} ${stage === "tour" && current.menuTarget ? "vendeo-tour-menu-step" : ""}`}>
@@ -170,15 +166,16 @@ export function FirstStoreWelcome({ stage, subscription, onStart, onDismiss, onT
       {stage === "welcome" ? <>
         <span className="vendeo-welcome-symbol"><PartyPopper size={32} aria-hidden="true" /></span>
         <span className="vendeo-welcome-connected"><Check size={14} aria-hidden="true" />{en ? "Store connected" : "Boutique connectée"}</span>
-        <h2 id="vendeo-welcome-title">{en ? "Congratulations, you’re all set!" : "Félicitations, tout est prêt !"}</h2>
-        <p id="vendeo-welcome-description">{welcomeDescription}</p>
-        <div className="vendeo-welcome-trial"><strong>{en ? "Your current free trial" : "Ton essai gratuit en cours"}</strong>
-          <p>{trialActive ? (en ? "Enjoy your current free trial to discover Vendeo." : "Profite de ton essai gratuit en cours pour découvrir Vendeo.") : (en ? "New trials are 5 days. See Subscription for your current trial status." : "Les nouveaux essais durent 5 jours. Retrouve l’état actuel de ton essai dans Abonnement.")}</p>
+          <h2 id="vendeo-welcome-title">{en ? "Congratulations, your store is connected!" : "Félicitations, ta boutique est connectée !"}</h2>
+          <p id="vendeo-welcome-description">{welcomeDescription}</p>
+        <div className="vendeo-welcome-trial"><strong>{en ? "Your welcome benefits" : "Tes avantages de bienvenue"}</strong>
+          <p>{en ? "5 days of free trial and 100 Studio credits are offered to you." : "5 jours d’essai gratuit et 100 crédits Studio te sont offerts."}</p>
+          {!trialActive && <small>{en ? "Your current trial status is available in Subscription." : "Retrouve l’état actuel de ton essai dans Abonnement."}</small>}
           {validEnd && <small>{en ? "Trial end date: " : "Fin de l’essai : "}{validEnd.toLocaleDateString(en ? "en-GB" : "fr-FR", { day: "numeric", month: "long", year: "numeric" })}</small>}
-          <small>{en ? "Connecting a store does not restart or extend the trial. Studio credits and ad budgets are separate." : "La connexion ne redémarre ni ne prolonge l’essai. Les crédits Studio et le budget publicitaire sont distincts."}</small>
+          <small>{en ? "Your Studio credits and advertising budget are separate." : "Tes crédits Studio et ton budget publicitaire sont distincts."}</small>
         </div>
-        <button className="btn btn-dark vendeo-welcome-primary" type="button" onClick={onStart}>{en ? "Show me around" : "Découvrir mon espace"}<ArrowRight size={17} aria-hidden="true" /></button>
-        <button className="vendeo-welcome-skip" type="button" onClick={onDismiss}>{en ? "Explore on my own" : "Explorer par moi-même"}</button>
+        <button className="btn btn-dark vendeo-welcome-primary" type="button" onClick={onTryStudio}>{en ? "Try Studio" : "Essayer le Studio"}<ArrowRight size={17} aria-hidden="true" /></button>
+        <button className="vendeo-welcome-skip" type="button" onClick={onDismiss}>{en ? "Explore my workspace" : "Explorer mon espace"}</button>
       </> : <>
         <div className="vendeo-tour-progress" aria-label={en ? `Step ${safeStep + 1} of ${tourSteps.length}` : `Étape ${safeStep + 1} sur ${tourSteps.length}`}><span>{en ? "YOUR WORKSPACE" : "TON ESPACE"}</span><strong>{safeStep + 1} / {tourSteps.length}</strong></div>
         <div className="vendeo-tour-track" aria-hidden="true"><span style={{ width: `${(safeStep + 1) / tourSteps.length * 100}%` }} /></div>

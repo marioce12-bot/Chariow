@@ -667,7 +667,7 @@ function DashboardWorkspace() {
       </div>
     </main>
     {needsStoreConnection && <StoreConnectionGate stores={stores} failed={["failed", "expired", "revoked"].includes(searchParams.get("chariow") ?? "")} onSignOut={signOut} onConnectStart={onboarding.beginConnection} />}
-    {onboardingOpen && <FirstStoreWelcome stage={onboarding.stage as "welcome" | "tour"} subscription={subscription} onStart={() => { setActive(DEFAULT_DASHBOARD_SECTION); setMoreOpen(false); setGuideMenuTarget(null); onboarding.startTour(); }} onDismiss={() => { handleTourStepChange(null); onboarding.dismiss(); }} onTourStepChange={handleTourStepChange} />}
+    {onboardingOpen && <FirstStoreWelcome stage={onboarding.stage as "welcome" | "tour"} subscription={subscription} onTryStudio={() => { handleTourStepChange(null); setActive("Studio"); setMoreOpen(false); setGuideMenuTarget(null); onboarding.dismiss(); }} onDismiss={() => { handleTourStepChange(null); onboarding.dismiss(); }} onTourStepChange={handleTourStepChange} />}
     </>
   );
 }
