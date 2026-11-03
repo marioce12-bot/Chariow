@@ -4,6 +4,13 @@ type UiDict = Record<string, string>;
 
 export const uiTranslations: Record<Locale, UiDict> = {
   fr: {
+    "pwaInstall.title": "Installe Vendeo sur ton téléphone",
+    "pwaInstall.androidDescription": "Accède plus vite à ton espace depuis ton écran d’accueil.",
+    "pwaInstall.iosDescription": "Ajoute Vendeo à ton écran d’accueil pour l’utiliser comme une app.",
+    "pwaInstall.iosSteps": "Appuie sur Partager, puis « Sur l’écran d’accueil ».",
+    "pwaInstall.install": "Installer l’app",
+    "pwaInstall.installing": "Installation…",
+    "pwaInstall.close": "Fermer",
     "launch.title": "Envie de lancer un nouveau produit ?",
     "launch.description": "Crée et lance une campagne Meta ou TikTok optimisée par l'IA en 2 minutes.",
     "launch.button": "Lancer une pub maintenant",
@@ -140,6 +147,13 @@ export const uiTranslations: Record<Locale, UiDict> = {
     "notifications.back": "Retour",
   },
   en: {
+    "pwaInstall.title": "Install Vendeo on your phone",
+    "pwaInstall.androidDescription": "Open your workspace faster from your home screen.",
+    "pwaInstall.iosDescription": "Add Vendeo to your home screen and use it like an app.",
+    "pwaInstall.iosSteps": "Tap Share, then “Add to Home Screen”.",
+    "pwaInstall.install": "Install app",
+    "pwaInstall.installing": "Installing…",
+    "pwaInstall.close": "Close",
     "launch.title": "Ready to launch a new product?",
     "launch.description": "Create and launch an AI-optimized Meta or TikTok campaign in 2 minutes.",
     "launch.button": "Launch an ad now",

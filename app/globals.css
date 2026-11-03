@@ -9,6 +9,20 @@
 @import "./styles/desktop-polish.css";
 @import "./styles/subscription-expired.css";
 
+/* Installation PWA : le composant ne cible que les téléphones, jamais les écrans desktop. */
+.mobile-pwa-install { align-items:flex-start; background:#fff; border:1px solid #dce4f3; border-radius:18px; bottom:max(16px,env(safe-area-inset-bottom)); box-shadow:0 18px 48px rgba(0,12,46,.2); display:flex; gap:12px; left:14px; max-width:calc(100vw - 28px); padding:14px 42px 14px 14px; position:fixed; right:14px; z-index:100; }
+.mobile-pwa-install__icon { align-items:center; background:linear-gradient(135deg,#ede9fe,#dbeafe); border-radius:12px; display:flex; flex:none; height:46px; justify-content:center; overflow:hidden; width:46px; }
+.mobile-pwa-install__icon img { border-radius:10px; display:block; height:42px; width:42px; }
+.mobile-pwa-install__content { min-width:0; }
+.mobile-pwa-install__content h2 { color:var(--ink,#000c2e); font-size:14px; letter-spacing:-.02em; margin:1px 0 4px; }
+.mobile-pwa-install__content p { color:var(--muted,#64748b); font-size:11px; line-height:1.45; margin:0; }
+.mobile-pwa-install__steps { background:#f1f5ff; border-radius:9px; color:var(--ink,#000c2e)!important; margin-top:7px!important; padding:8px 10px; }
+.mobile-pwa-install__action { background:var(--vendeo-gradient,linear-gradient(135deg,#8f2afb,#103ef8,#029bfc)); border:0; border-radius:9px; color:#fff; cursor:pointer; font:inherit; font-size:11px; font-weight:800; margin-top:10px; padding:9px 13px; }
+.mobile-pwa-install__action:disabled { cursor:wait; opacity:.65; }
+.mobile-pwa-install__close { background:transparent; border:0; color:#64748b; cursor:pointer; font-size:22px; line-height:1; padding:3px 8px; position:absolute; right:5px; top:5px; }
+.mobile-pwa-install__close:focus-visible,.mobile-pwa-install__action:focus-visible { outline:3px solid #8ca5ff; outline-offset:2px; }
+@media (min-width:768px) { .mobile-pwa-install { display:none; } }
+
 
 /* Admin console navigation and responsive shell overrides. */
 .admin-shell { overflow-x: clip; }

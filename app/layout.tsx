@@ -5,6 +5,7 @@ import "./sale-modal.css";
 import "./page-headings.css";
 import "./mobile-nav.css";
 import { PwaRegister } from "./PwaRegister";
+import { MobilePwaInstall } from "./MobilePwaInstall";
 import { MetaRegistrationTracker } from "@/components/MetaRegistrationTracker";
 import { I18nProvider } from "@/lib/i18n/i18n";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
@@ -63,8 +64,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <script dangerouslySetInnerHTML={{ __html: langInitScript }} />
         <PwaRegister />
-        <MetaRegistrationTracker />
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          <MobilePwaInstall />
+          <MetaRegistrationTracker />
+          {children}
+        </I18nProvider>
       </body>
     </html>
   );
