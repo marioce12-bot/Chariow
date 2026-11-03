@@ -32,7 +32,7 @@ describe("Locked studio video preparation routes", () => {
     const creativeMessages = askText.mock.calls[1][0] as Array<{ role: string; content: string }>;
     const modelPayload = JSON.parse(creativeMessages[1].content);
     expect(modelPayload.options).not.toHaveProperty("characterProfile");
-    expect(creativeMessages[0].content).toContain("Choisis toi-même un ou deux adultes fictifs noirs ou métissés");
+    expect(creativeMessages[0].content).toContain("Choisis un ou deux adultes fictifs noirs ou métissés, avec marqueur explicite dans look et rôle fictif");
   });
   it("accepts an explicit Afro-descendant look through the complete UGC route", async () => {
     const creative = ugcCreative(product.name);
@@ -44,26 +44,21 @@ describe("Locked studio video preparation routes", () => {
     expect(data.creative.characters[0].look).toBe(creative.characters[0].look);
     expect(askText).toHaveBeenCalledTimes(2);
   });
-  it("returns a redacted look-specific diagnostic when only gender carries the casting label", async () => {
+  it("signals the safe fallback when the look marker remains invalid after one retry", async () => {
     const privateModelText = "MODEL_RAW_RESPONSE_MUST_NOT_BE_LOGGED";
     const creative = ugcCreative(product.name);
     creative.characters[0].look = `${privateModelText}: peau foncée, cheveux naturels`;
     creative.characters[0].gender = "Black woman";
-    askText.mockResolvedValueOnce(JSON.stringify(ugcAnalysis(product.name))).mockResolvedValueOnce(JSON.stringify(creative));
+    askText.mockResolvedValueOnce(JSON.stringify(ugcAnalysis(product.name))).mockResolvedValueOnce(JSON.stringify(creative)).mockResolvedValueOnce(JSON.stringify(creative));
     const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
     const response = await prompt(request({ mediaType: "video", duration: 25, product }));
     const data = await response.json();
-    expect(response.status).toBe(422);
-    expect(data).toMatchObject({
-      code: "analyse_invalide",
-      keyPath: "characters[0].look",
-      validationType: "invalid_value",
-      expected: "marqueur explicite positif noir/noire, métis/métisse, Black, mixed-race, biracial ou afro-descendant",
-      received: "marqueur absent ou nié",
-    });
+    expect(response.status).toBe(200);
+    expect(data.scenarioFallback).toBe(true);
+    expect(data.creative.characters[0].look).toMatch(/noire|Black/i);
     expect(JSON.stringify(diagnostic.mock.calls)).not.toContain(privateModelText);
     expect(JSON.stringify(data)).not.toContain(privateModelText);
-    expect(askText).toHaveBeenCalledTimes(2);
+    expect(askText).toHaveBeenCalledTimes(3);
     diagnostic.mockRestore();
   });
   it("ignores the legacy Motion Design preference and keeps prompt planning in UGC", async () => {
