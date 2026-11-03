@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ugcAnalysis, ugcCreative, ugcFixtureResponse } from "@/tests/fixtures/ugc";
+import { ugcFixtureResponse } from "@/tests/fixtures/ugc";
 const { requireUser, askText } = vi.hoisted(() => ({ requireUser: vi.fn(), askText: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/ai/text", () => ({ askText }));
 import { POST as prompt } from "@/app/api/studio/prompt/route";
 import { POST as generate } from "@/app/api/studio/video/route";
 const request = (body: unknown) => new Request("https://preview.example/api/studio/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-const product = { name: "Ebook guide", description: "Disponible au format PDF. Des exercices accompagnent chaque chapitre. La lecture est possible sans connexion.", image: "https://cdn.chariow.com/cover.png" };
+const product = { name: "Ebook guide", description: "Ce guide présente le jardinage urbain sur balcon. Il explique comment cultiver du basilic et du thym en pots. Une section compare les contenants adaptés aux petits espaces. Un chapitre décrit l’arrosage des plantes aromatiques. Le contenu aborde la récolte des feuilles et leur conservation.", content: "Conseils pour faire pousser des herbes aromatiques dans de petits espaces.", image: "https://cdn.chariow.com/cover.png" };
 beforeEach(() => { vi.clearAllMocks(); requireUser.mockResolvedValue({ user: { id: "test" } }); askText.mockImplementation((messages: Array<{ content: string }>) => Promise.resolve(ugcFixtureResponse(messages))); });
 describe("Locked studio video preparation routes", () => {
   it("blocks actual video creation before credit or provider access", async () => {
@@ -19,56 +19,24 @@ describe("Locked studio video preparation routes", () => {
     const data = await response.json();
     expect(response.status).toBe(200); expect(data.locked).toBe(true);
     expect(data.plan.segments.map((s: { duration: number }) => s.duration)).toEqual([15,10]);
-    expect(askText).toHaveBeenCalledTimes(2);
+    expect(askText).toHaveBeenCalledTimes(1);
     expect(askText.mock.calls[0][1].order).toEqual(["openrouter"]);
-    expect(askText.mock.calls[1][1].order).toEqual(["openrouter"]);
-    expect(askText.mock.calls[0][1].responseSchema.name).toBe("ugc_product_analysis");
-    expect(askText.mock.calls[1][1].responseSchema.name).toBe("ugc_creative_direction");
+    expect(askText.mock.calls[0][1]).not.toHaveProperty("responseSchema");
+    expect(typeof data.prompt).toBe("string");
+    expect(data).not.toHaveProperty("analysis");
+    expect(data).not.toHaveProperty("creative");
+    expect(data).not.toHaveProperty("scenarioFallback");
   });
-  it("lets the AI choose the cast instead of accepting a user profile", async () => {
+  it("returns a direct French text prompt for the exact product name", async () => {
     const response = await prompt(request({ mediaType: "video", duration: 25, product, ugcOptions: { characterProfile: "Entrepreneuse de 30 ans" } }));
-    expect(response.status).toBe(200);
-    expect(askText).toHaveBeenCalledTimes(2);
-    const creativeMessages = askText.mock.calls[1][0] as Array<{ role: string; content: string }>;
-    const modelPayload = JSON.parse(creativeMessages[1].content);
-    expect(modelPayload.options).not.toHaveProperty("characterProfile");
-    expect(creativeMessages[0].content).toContain("Choisis un ou deux adultes fictifs noirs ou métissés, avec marqueur explicite dans look et rôle fictif");
-  });
-  it("accepts an explicit Afro-descendant look through the complete UGC route", async () => {
-    const creative = ugcCreative(product.name);
-    creative.characters[0].look = "Afro-descendante, peau brune et cheveux naturels";
-    askText.mockResolvedValueOnce(JSON.stringify(ugcAnalysis(product.name))).mockResolvedValueOnce(JSON.stringify(creative));
-    const response = await prompt(request({ mediaType: "video", duration: 25, product }));
     const data = await response.json();
     expect(response.status).toBe(200);
-    expect(data.creative.characters[0].look).toBe(creative.characters[0].look);
-    expect(askText).toHaveBeenCalledTimes(2);
-  });
-  it("signals the safe fallback when the look marker remains invalid after one retry", async () => {
-    const privateModelText = "MODEL_RAW_RESPONSE_MUST_NOT_BE_LOGGED";
-    const creative = ugcCreative(product.name);
-    creative.characters[0].look = `${privateModelText}: peau foncée, cheveux naturels`;
-    creative.characters[0].gender = "Black woman";
-    askText.mockResolvedValueOnce(JSON.stringify(ugcAnalysis(product.name))).mockResolvedValueOnce(JSON.stringify(creative)).mockResolvedValueOnce(JSON.stringify(creative));
-    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
-    const response = await prompt(request({ mediaType: "video", duration: 25, product }));
-    const data = await response.json();
-    expect(response.status).toBe(200);
-    expect(data.scenarioFallback).toBe(true);
-    expect(data.creative.characters[0].look).toMatch(/noire|Black/i);
-    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain(privateModelText);
-    expect(JSON.stringify(data)).not.toContain(privateModelText);
-    expect(askText).toHaveBeenCalledTimes(3);
-    diagnostic.mockRestore();
-  });
-  it("ignores the legacy Motion Design preference and keeps prompt planning in UGC", async () => {
-    const response = await prompt(request({ mediaType: "video", videoStyle: "motion_design", duration: 25, product }));
-    const data = await response.json();
-    expect(response.status).toBe(200);
-    expect(data.locked).toBe(true);
-    expect(data.plan.segments[0].prompt).toContain("Black or mixed-race");
-    expect(askText).toHaveBeenCalledTimes(2);
     expect(data.prompt).toContain(product.name);
+    expect(data.prompt).toContain("15–20s");
+    expect(data.prompt).toContain("DIALOGUE EXACT: «");
+    expect(typeof data.prompt).toBe("string");
+    expect(askText).toHaveBeenCalledTimes(1);
+    expect(askText.mock.calls[0][1]).not.toHaveProperty("responseSchema");
   });
   it("prepares the slideshow without even calling the text model", async () => {
     const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 25, product }));
@@ -94,34 +62,17 @@ describe("Locked studio video preparation routes", () => {
     expect((await prompt(request({ mediaType: "video", videoMode: "slideshow", duration, product }))).status).toBe(400);
     expect(askText).not.toHaveBeenCalled();
   });
-  it("returns a distinct model error and HTTP status without leaking provider text", async () => {
-    askText.mockRejectedValue(new Error("offline"));
-    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("returns a sanitized generation failure without prompt, plan, or fallback", async () => {
+    askText.mockRejectedValue(new Error("MODEL_RAW_RESPONSE_MUST_NOT_BE_LOGGED"));
     const response = await prompt(request({ mediaType: "video", duration: 25, product }));
-    expect(response.status).toBe(502);
-    expect(await response.json()).toMatchObject({ code: "erreur_modele", httpStatus: null });
-    expect(diagnostic).toHaveBeenCalledWith("Studio UGC preparation failed", {
-      stage: "product_analysis_provider",
-      type: "provider_error", keyPath: null, httpStatus: null,
-    });
-    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain("offline");
-    diagnostic.mockRestore();
-  });
-  it("returns the failing analysis key and type for a known invalid mocked model response", async () => {
-    const privateModelText = "MODEL_RAW_RESPONSE_MUST_NOT_BE_LOGGED";
-    askText.mockResolvedValueOnce(JSON.stringify({
-      ...ugcAnalysis(product.name), price_positioning: [], assumptions: [privateModelText],
-    }));
-    const diagnostic = vi.spyOn(console, "error").mockImplementation(() => {});
-    const response = await prompt(request({ mediaType: "video", duration: 25, product }));
-    expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({
-      code: "analyse_invalide", keyPath: "price_positioning", validationType: "type_mismatch",
-      expected: "string", received: "array",
-    });
-    expect(JSON.stringify(diagnostic.mock.calls)).not.toContain(privateModelText);
-    expect(askText).toHaveBeenCalledTimes(1);
-    diagnostic.mockRestore();
+    const data = await response.json();
+    expect([502, 504]).toContain(response.status);
+    expect(data).toMatchObject({ code: "ugc_prompt_generation_failed", error: "Le scénario n’a pas pu être généré, réessaie.", failureRule: expect.any(String) });
+    expect(data).not.toHaveProperty("prompt");
+    expect(data).not.toHaveProperty("plan");
+    expect(data).not.toHaveProperty("scenarioFallback");
+    expect(JSON.stringify(data)).not.toContain("MODEL_RAW_RESPONSE_MUST_NOT_BE_LOGGED");
+    expect(askText.mock.calls.length).toBeLessThanOrEqual(3);
   });
   it("returns missing product fields before calling any model", async () => {
     const response = await prompt(request({
@@ -131,7 +82,7 @@ describe("Locked studio video preparation routes", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
       code: "infos_produit_manquantes",
-      missingFields: ["product.description", "product.category", "product.type", "product.tags"],
+      missingFields: ["product.description", "product.content"],
     });
     expect(askText).not.toHaveBeenCalled();
   });

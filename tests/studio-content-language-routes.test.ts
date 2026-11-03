@@ -51,12 +51,11 @@ describe("Studio product language is independent of interface locale", () => {
     const body = await response.json();
     expect(body.locked).toBe(true);
     expect(body.contentLanguage.code).toBe("en");
-    for (const segment of body.plan.segments) {
-      expect(segment.prompt).toContain("language English");
-      expect(segment.prompt).toContain(english.name);
-      expect(segment.prompt).not.toContain("Retrouve le guide");
-    }
-    expect(askText).toHaveBeenCalledTimes(2);
+    expect(body.prompt).toContain(english.name);
+    expect(body.prompt).toContain("0–5s");
+    expect(body.prompt).toContain("DIALOGUE EXACT: «");
+    expect(askText).toHaveBeenCalledTimes(1);
+    expect(askText.mock.calls[0][1]).not.toHaveProperty("responseSchema");
   });
 
   it("does not interpret French retouch instructions as translation", () => {

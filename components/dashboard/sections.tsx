@@ -153,8 +153,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [videoTone, setVideoTone] = useState("naturel");
   const [videoPlatform, setVideoPlatform] = useState("Reels");
   const [videoAngle, setVideoAngle] = useState("");
-  const [ugcAssumptions, setUgcAssumptions] = useState<string[]>([]);
-  const [scenarioNotice, setScenarioNotice] = useState("");
+  const [promptGenerationFailed, setPromptGenerationFailed] = useState(false);
   const preparedUgcRef = useRef<string | null>(null);
   const ugcOptions = { language: videoLanguage, tone: videoTone, platform: videoPlatform, angle: videoAngle };
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
@@ -469,16 +468,16 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     }
   }
 
-  // Génère, avec la même IA que l'assistant, un prompt structuré à partir des
-  // infos du produit choisi. Le prompt remplace la description : changer de
-  // produit puis re-cliquer régénère donc tout, sans rien effacer à la main.
-  // Si l'utilisateur a écrit ses propres consignes (texte différent du dernier
-  // prompt généré), elles sont transmises à l'IA pour être intégrées.
+  // L'image conserve sa génération de prompt actuelle; pour la vidéo, le
+  // scénariste renvoie directement le texte libre, avant tout rendu facturable.
   async function insertProductInfo() {
     if (!selectedProduct || promptGenerating) return;
     setPromptGenerating(true);
     setError("");
-    setScenarioNotice("");
+    setPromptGenerationFailed(false);
+    if (kind === "video") preparedUgcRef.current = null;
+    let responseReceived = false;
+    let retryableVideoFailure = false;
     try {
       const current = prompt.trim();
       const userBrief = current && current !== lastGeneratedPromptRef.current ? current : "";
@@ -507,17 +506,28 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           previousPrompt: lastGeneratedPromptRef.current ?? undefined,
         }),
       });
+      responseReceived = true;
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || typeof result.prompt !== "string") throw new Error(result.error || "Impossible de générer le prompt.");
-      setScenarioNotice(result.scenarioFallback ? (locale === "en" ? "The simplified fallback scenario was used. Review it before generating the video." : "Scénario simplifié utilisé après une tentative de correction. Relis-le avant de lancer le rendu vidéo.") : "");
+      if (!response.ok || typeof result.prompt !== "string") {
+        retryableVideoFailure = kind === "video" && (result.code === "ugc_prompt_generation_failed" || response.status >= 500);
+        throw new Error(result.error || "Impossible de générer le prompt.");
+      }
       lastGeneratedPromptRef.current = result.prompt;
       if (kind === "video") {
         preparedUgcRef.current = typeof result.preparedUgc === "string" ? result.preparedUgc : null;
-        setUgcAssumptions([...new Set<string>([...(result.analysis?.assumptions ?? []), ...(result.creative?.assumptions ?? [])].filter((item: unknown): item is string => typeof item === "string"))]);
+        setPromptGenerationFailed(false);
       }
       setPrompt(result.prompt);
     } catch (promptError) {
-      setError(promptError instanceof Error ? promptError.message : t("sweep3.text200"));
+      if (kind === "video") {
+        preparedUgcRef.current = null;
+        setPromptGenerationFailed(true);
+        setError(retryableVideoFailure || !responseReceived
+          ? (locale === "en" ? "The scenario could not be generated. Please try again." : "Le scénario n’a pas pu être généré, réessaie.")
+          : (promptError instanceof Error ? promptError.message : t("sweep3.text200")));
+      } else {
+        setError(promptError instanceof Error ? promptError.message : t("sweep3.text200"));
+      }
     } finally {
       setPromptGenerating(false);
     }
@@ -526,6 +536,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   async function generate() {
     if (generatingRef.current) return;
     if (kind === "image" && (!imageRecoveryReadyRef.current || ["processing", "awaiting_media"].includes(imageTask?.status ?? ""))) return;
+    if (kind === "video" && promptGenerationFailed) return;
     if (kind === "video" && videoRenderLocked) {
       setError(locale === "en" ? "Video generation is not available yet." : "La génération vidéo reste indisponible.");
       return;
@@ -566,7 +577,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(kind === "image"
           ? { id: crypto.randomUUID(), kind: "image", input: { prompt, quality, resolution: imageResolution, orientation, background, outputFormat: background === "transparent" ? "png" : "jpeg", referenceUrls, ...(selectedProduct ? { product: { id: selectedProduct.id, name: selectedProduct.name } } : {}) } }
-          : { id: videoRequestId, prompt, duration, resolution: videoResolution, aspectRatio, videoStyle, locale, ugcOptions, preparedUgc: preparedUgcRef.current, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description ? htmlDescriptionToText(selectedProduct.description) : undefined, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null, category: selectedProduct.category, type: selectedProduct.type, tags: selectedProduct.tags, images: selectedProduct.images, shop: selectedProduct.shop } : undefined }),
+          : { id: videoRequestId, prompt, duration, resolution: videoResolution, aspectRatio, videoStyle, locale, ugcOptions, preparedUgc: preparedUgcRef.current, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description ? htmlDescriptionToText(selectedProduct.description) : undefined, content: selectedProduct.content ? htmlDescriptionToText(selectedProduct.content) : undefined, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null, category: selectedProduct.category, type: selectedProduct.type, tags: selectedProduct.tags, images: selectedProduct.images, shop: selectedProduct.shop } : undefined }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok && kind === "video" && [400, 402, 423].includes(response.status)) videoRequestIdRef.current = null;
@@ -704,6 +715,12 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const selectProduct = (product: typeof products[number] | null) => {
     setSelectedSlideshowTaskId(null);
     setSelectedProduct(product);
+    if (kind === "video") {
+      preparedUgcRef.current = null;
+      setPromptGenerationFailed(false);
+      setError("");
+      setPrompt("");
+    }
   };
   const openStudioMode = (mode: "image" | "slideshow" | "video") => {
     if (mode === "video") {
@@ -712,7 +729,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       setPrompt("");
       lastGeneratedPromptRef.current = null;
       preparedUgcRef.current = null;
-      setUgcAssumptions([]);
+      setPromptGenerationFailed(false);
     }
     setDesktopHistoryExpanded(false);
     setHistoryActionsOpenId(null);
@@ -773,7 +790,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       <div className="studio-tabs" role="tablist" aria-label={t("sweep2.text205")}>
         <button type="button" role="tab" id="studio-photo-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo" && kind === "image"} className={studioTab === "photo" && kind === "image" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("photo"); setKind("image"); }}><ImageIcon size={17} /> Photo</button>
         <button type="button" role="tab" id="studio-slideshow-tab" aria-controls="studio-slideshow-panel" aria-selected={studioTab === "slideshow"} className={studioTab === "slideshow" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; setStudioTab("slideshow"); }}><ImageIcon size={17} /> {locale === "en" ? "Slideshow" : "Diaporama"}</button>
-        <button type="button" role="tab" id="studio-video-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo" && kind === "video"} className={studioTab === "photo" && kind === "video" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; if (kind !== "video") { setPrompt(""); lastGeneratedPromptRef.current = null; preparedUgcRef.current = null; setUgcAssumptions([]); setAspectRatio("9:16"); } setStudioTab("photo"); setKind("video"); setError(""); }}><Video size={17} /> {t("studio.video")}</button>
+        <button type="button" role="tab" id="studio-video-tab" aria-controls="studio-photo-panel" aria-selected={studioTab === "photo" && kind === "video"} className={studioTab === "photo" && kind === "video" ? "active" : ""} onClick={() => { studioTabTouchedRef.current = true; if (kind !== "video") { setPrompt(""); lastGeneratedPromptRef.current = null; preparedUgcRef.current = null; setPromptGenerationFailed(false); setAspectRatio("9:16"); } setStudioTab("photo"); setKind("video"); setError(""); }}><Video size={17} /> {t("studio.video")}</button>
       </div>
       <section className="studio-product-picker"><div className="studio-product-heading"><span className="eyebrow">{t("studio.product")}</span>{products.length > 6 ? <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder={t("studio.search")} /> : null}</div>{products.length ? <div className="studio-product-list"><button type="button" className={!selectedProduct ? "selected" : ""} onClick={() => selectProduct(null)}><Package size={18} /><span>{t("studio.noProduct")}</span></button>{products.filter((product) => !productSearch || product.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => <button type="button" key={product.id} className={selectedProduct?.id === product.id ? "selected" : ""} onClick={() => selectProduct(product)}>{product.image ? <img src={product.image} alt="" /> : <Package size={18} />}<span>{product.name}</span><small>{product.price ? `${product.price} ${product.currency ?? ""}` : ""}</small></button>)}</div> : <small>{t("studio.noProductText")}</small>}{selectedProduct ? <div className="studio-product-chip">{t("studio.selected")} {selectedProduct.name} <button type="button" onClick={() => selectProduct(null)} aria-label={t("sweep3.text206")}>×</button>{selectedProduct.image ? <em>{kind === "video" ? t("studio.coverRef") : t("studio.imageReferenceNote")}</em> : null}</div> : null}</section>
       <div id="studio-slideshow-panel" ref={slideshowPanelRef} tabIndex={-1} role="tabpanel" aria-labelledby="studio-slideshow-tab" hidden={studioTab !== "slideshow"}>
@@ -793,15 +810,14 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
             <span>{t("studio.describe")}</span>
             <div className="studio-prompt-box">
-              <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={kind === "image" ? t("studio.describeImage") : t("studio.describeVideo")} maxLength={4000} rows={7} readOnly={promptGenerating} aria-busy={promptGenerating} />
+              <textarea value={prompt} onChange={(event) => { setPrompt(event.target.value); if (kind === "video") preparedUgcRef.current = null; }} placeholder={kind === "image" ? t("studio.describeImage") : t("studio.describeVideo")} maxLength={4000} rows={7} readOnly={promptGenerating} aria-busy={promptGenerating} />
               {promptGenerating ? <div className="studio-prompt-status" role="status" aria-live="polite"><Sparkles size={14} /><b>{t("studio.insertProductInfoLoading")}</b><i /><i /><i /></div> : null}
             </div>
             <small>{prompt.length}/4 000</small>
           </label>
-          {kind === "video" && ugcAssumptions.length ? <details className="studio-cost"><summary>Hypothèses de mise en scène — pas des faits produit</summary><ul>{ugcAssumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}</ul></details> : null}
-          {kind === "video" && scenarioNotice ? <p className="studio-cost" role="status" aria-live="polite">{scenarioNotice}</p> : null}
+          {kind === "video" && promptGenerationFailed ? <p className="studio-cost" role="status" aria-live="polite">{locale === "en" ? "No video was started and no video credits were charged for this prompt attempt." : "Aucun rendu vidéo n’a été lancé et aucun crédit vidéo n’a été débité pour cette tentative de prompt."}</p> : null}
 
-          {kind === "video" ? <div className="studio-video-prompt-action studio-video-prompt-action--desktop">{selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}</div> : null}
+          {kind === "video" ? <div className="studio-video-prompt-action studio-video-prompt-action--desktop">{selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : promptGenerationFailed ? "Régénérer" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}</div> : null}
 
           {kind === "image" ? (
             <div className="studio-options">
@@ -816,7 +832,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             <>
               <div className="studio-options studio-video-options-mobile">
                 <div className="studio-field"><span>{locale === "en" ? "Video style" : "Style vidéo"}</span><strong>UGC</strong><small>{locale === "en" ? "Product-specific scenario with one or two fictional adult Black or mixed-race characters." : "Scénario adapté au produit, avec un ou deux personnages adultes fictifs noirs ou métissés."}</small></div>
-                {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
+                {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : promptGenerationFailed ? "Régénérer" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
                 <StudioSelect label={t("studio.duration")} value={String(duration)} onChange={(value) => setDuration(Number(value) as typeof VIDEO_AD_DURATIONS[number])} options={VIDEO_AD_DURATIONS.map((value) => [String(value), `${value} s`])} />
                 <StudioSelect label={t("studio.resolution")} value={videoResolution} onChange={(value) => setVideoResolution(value as typeof STUDIO_VIDEO_RESOLUTIONS[number])} options={STUDIO_VIDEO_RESOLUTIONS.map((value) => [value, value])} />
                 {selectedProduct?.image ? <p className="studio-cost" style={{ marginTop: 8 }}>{t("studio.coverStart")}</p> : null}
@@ -840,7 +856,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
 
           {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
           {kind === "video" ? <p className="studio-video-desktop-note">Voix et musique ajoutées automatiquement à la génération.</p> : null}
-          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady) || (kind === "video" && (videoRenderLocked || videoCallbackUnavailable || !creditsLoaded || availableCredits < videoCostEstimate))}>
+          <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady) || (kind === "video" && (promptGenerationFailed || videoRenderLocked || videoCallbackUnavailable || !creditsLoaded || availableCredits < videoCostEstimate))}>
             <Sparkles size={17} /> {kind === "video" ? videoRenderLocked ? "Rendu vidéo verrouillé sur cette Preview" : videoCallbackUnavailable ? (locale === "en" ? "fal.ai callback required for 10/15 s" : "Callback fal.ai requis pour 10/15 s") : loading ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…") : locale === "en" ? "Generate video" : "Créer la vidéo" : loading && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : t("studio.createImage")}
           </button>
           {kind === "image" ? <><p className="studio-cost">{t("studio.imageCost")}</p>

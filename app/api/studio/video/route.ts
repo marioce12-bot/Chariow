@@ -9,10 +9,9 @@ import { STUDIO_VIDEO_RESOLUTIONS, inferProductType, isSupportedStudioVideoResol
 import { isStudioVideoEnabled } from "@/lib/studio/video-feature";
 import { VIDEO_AD_DURATIONS, videoModelCapability } from "@/lib/studio/video-plan";
 import { assertFalVideoPromptWithinSafeLimit, isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
-import { generateUgcCreative, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
-import { ugcProviderRateLimitResponse } from "@/lib/studio/ugc-provider-errors";
+import { UgcPromptGenerationError, validateUgcPrompt } from "@/lib/studio/ugc-prompt-generator";
 import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
-import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
+import { compileUgcPrompt, compileUgcProviderPlan, extractUgcNarrative } from "@/lib/studio/ugc-provider-assembler";
 import { readPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
 import { selectVideoModel } from "@/lib/studio/creative-models";
 import { parseStudioProduct } from "@/lib/studio/product-prompt";
@@ -81,6 +80,7 @@ export async function POST(request: Request) {
   const input = normalizeUgcInput(body?.product, { ...(body?.ugcOptions && typeof body.ugcOptions === "object" ? body.ugcOptions : {}), duration }, body?.locale, prompt);
   product.imageUrl = input.product.images?.[0] ?? null;
   if (prompt.length > 4_000) return NextResponse.json({ error: "Le prompt vidéo dépasse la longueur autorisée." }, { status: 400 });
+  if (!prompt) return NextResponse.json({ error: "Rédige ou génère le prompt vidéo avant de lancer le rendu." }, { status: 400 });
   if (inferProductType(product.name, product.description) === "ebook" && !product.imageUrl) {
     return NextResponse.json({ error: "Ajoute ou sélectionne la couverture réelle de l’ebook pour qu’elle soit fidèlement présentée sur un téléphone ou une tablette.", code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" }, { status: 400 });
   }
@@ -104,24 +104,23 @@ export async function POST(request: Request) {
   catch { return NextResponse.json({ error: "Le modèle vidéo configuré n’est pas vérifié pour cette Preview." }, { status: 503 }); }
 
   const userBrief = prompt.slice(0, 4_000);
+  let narrative: string;
   let composedPrompt: string;
-  let creativeResult: Awaited<ReturnType<typeof generateUgcCreative>>;
   let plan;
   try {
     const prepared = readPreparedUgc(body?.preparedUgc, user.id, input, prompt);
-    creativeResult = prepared ?? await generateUgcCreative(input);
-    composedPrompt = prepared?.prompt ?? compileUgcPrompt(input, creativeResult.creative);
-    plan = compileUgcProviderPlan(input, creativeResult.creative);
+    narrative = prepared?.narrative ?? extractUgcNarrative(prompt);
+    validateUgcPrompt(narrative, input);
+    composedPrompt = prepared?.prompt ?? compileUgcPrompt(input, narrative);
+    plan = compileUgcProviderPlan(input, narrative);
     // Fail closed before reserving credits if a future compiler change exceeds the safe provider budget.
     for (const segment of plan.segments) assertFalVideoPromptWithinSafeLimit(segment.prompt);
   } catch (error) {
-    const rateLimit = error instanceof UgcPromptGenerationError ? ugcProviderRateLimitResponse(error, body?.locale) : null;
-    if (rateLimit) return NextResponse.json(rateLimit.body, { status: 429, headers: rateLimit.headers });
-    if (error instanceof UgcPromptGenerationError && error.stage === "input") {
-      return NextResponse.json({ error: error.message, code: error.details.type ?? "invalid_input", keyPath: error.details.path ?? null }, { status: 400 });
-    }
     if (isFalVideoInputRejectedError(error)) {
       return NextResponse.json({ error: "Le prompt vidéo dépasse la limite sûre du fournisseur. Aucun crédit n’a été réservé.", code: error.code }, { status: 400 });
+    }
+    if (error instanceof UgcPromptGenerationError) {
+      console.info("Studio video prompt rejected", { stage: error.stage, type: error.details.type, keyPath: error.details.path ?? null });
     }
     return NextResponse.json({ error: "Le prompt vidéo n’a pas pu être préparé." }, { status: 400 });
   }
@@ -175,8 +174,7 @@ export async function POST(request: Request) {
     userPrompt: userBrief,
     videoStyle,
     product: product ?? null,
-    ugcAnalysis: creativeResult.analysis,
-    ugcCreative: creativeResult.creative,
+    ugcScenario: narrative,
     plan,
     resolution,
     aspectRatio,

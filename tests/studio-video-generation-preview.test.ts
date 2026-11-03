@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ugcAnalysis, ugcCreative, ugcFixtureResponse } from "@/tests/fixtures/ugc";
+import { ugcFixtureResponse } from "@/tests/fixtures/ugc";
 
 type Row = Record<string, any>;
 const mocks = vi.hoisted(() => ({
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   studioVideoWorkflow: vi.fn(),
   failQueuedVideoDispatchStep: vi.fn(),
   askText: vi.fn(),
+  isStudioVideoEnabled: vi.fn(),
 }));
 
 vi.mock("next/server", async (importOriginal) => {
@@ -29,6 +30,7 @@ vi.mock("@/lib/ai/text", () => ({ askText: mocks.askText }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock("@/lib/subscription/access", () => ({ requireActiveSubscription: mocks.requireActiveSubscription }));
 vi.mock("@/lib/shop/rate-limit", () => ({ rateLimit: mocks.rateLimit }));
+vi.mock("@/lib/studio/video-feature", () => ({ isStudioVideoEnabled: mocks.isStudioVideoEnabled }));
 vi.mock("@/lib/studio/video-probe-runtime", () => ({ packagedVideoProbe: mocks.packagedVideoProbe }));
 vi.mock("@/lib/ai/fal", () => ({
   getAiVideoTextModel: () => "xai/grok-imagine-video/v1.5/text-to-video",
@@ -47,11 +49,20 @@ import { countFalVideoPromptCharacters, FAL_VIDEO_PROMPT_SAFE_MAX_CHARS } from "
 const originalVercelEnv = process.env.VERCEL_ENV;
 const originalRenderFlag = process.env.STUDIO_VIDEO_RENDER_ENABLED;
 const originalFalKey = process.env.FAL_API_KEY;
+const originalCloudinaryImport = process.env.STUDIO_MEDIA_CLOUDINARY_IMPORT;
+const originalCloudinaryCloud = process.env.CLOUDINARY_CLOUD_NAME;
+const originalCloudinaryKey = process.env.CLOUDINARY_API_KEY;
+const originalCloudinarySecret = process.env.CLOUDINARY_API_SECRET;
+const originalFalWebhook = process.env.FAL_WEBHOOK_URL;
 const originalSigningSecret = process.env.STUDIO_UGC_SIGNING_SECRET;
 const requestId = "11111111-1111-4111-8111-111111111111";
+const promptFor = (duration: number, marker = "Scénario vidéo UGC", productName = "Tasse en céramique") => {
+  const bounds = duration === 10 ? [[0, 3], [3, 7], [7, 10]] : duration === 15 ? [[0, 5], [5, 10], [10, 15]] : [[0, 5], [5, 10], [10, 15], [15, 20], [20, 25]];
+  return `${marker} pour ${productName} — ${duration} secondes\n${bounds.map(([start, end], index) => `${start}–${end}s | ACTION: Une adulte fictive montre ${productName}; CAMÉRA: plan vertical naturel; DIALOGUE EXACT: «${index === 0 ? `Tu aimerais découvrir ${productName} ?` : index === bounds.length - 1 ? `Retrouve ${productName} dans la boutique.` : "Je prends le temps de regarder les détails."}»`).join("\n")}`;
+};
 const baseBody = {
   id: requestId,
-  prompt: "Présenter clairement le produit dans une courte publicité.",
+  prompt: promptFor(25),
   duration: 25,
   resolution: "480p",
   aspectRatio: "9:16",
@@ -92,10 +103,12 @@ function makeAdmin() {
 }
 
 function request(body: Row) {
+  const normalized = { ...body };
+  if (normalized.prompt === baseBody.prompt && normalized.duration !== 25) normalized.prompt = promptFor(Number(normalized.duration));
   return new Request("https://preview.example/api/studio/video", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(normalized),
   });
 }
 
@@ -103,6 +116,11 @@ function enablePreview() {
   process.env.VERCEL_ENV = "preview";
   process.env.STUDIO_VIDEO_RENDER_ENABLED = "true";
   process.env.FAL_API_KEY = "test-only-key";
+  process.env.STUDIO_MEDIA_CLOUDINARY_IMPORT = "true";
+  process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
+  process.env.CLOUDINARY_API_KEY = "test-key";
+  process.env.CLOUDINARY_API_SECRET = "test-secret";
+  process.env.FAL_WEBHOOK_URL = "https://preview.example/api/webhooks/fal";
 }
 
 beforeEach(() => {
@@ -117,6 +135,7 @@ beforeEach(() => {
   mocks.createAdminClient.mockReturnValue(admin);
   mocks.requireActiveSubscription.mockResolvedValue(null);
   mocks.rateLimit.mockReturnValue(false);
+  mocks.isStudioVideoEnabled.mockResolvedValue(true);
   mocks.packagedVideoProbe.mockReturnValue("/mock/ffprobe");
   process.env.STUDIO_UGC_SIGNING_SECRET = "fake-test-signing-secret-only";
   mocks.askText.mockImplementation((messages: Array<{ content: string }>) => Promise.resolve(ugcFixtureResponse(messages)));
@@ -133,6 +152,16 @@ afterEach(() => {
   else process.env.STUDIO_VIDEO_RENDER_ENABLED = originalRenderFlag;
   if (originalFalKey === undefined) delete process.env.FAL_API_KEY;
   else process.env.FAL_API_KEY = originalFalKey;
+  if (originalCloudinaryImport === undefined) delete process.env.STUDIO_MEDIA_CLOUDINARY_IMPORT;
+  else process.env.STUDIO_MEDIA_CLOUDINARY_IMPORT = originalCloudinaryImport;
+  if (originalCloudinaryCloud === undefined) delete process.env.CLOUDINARY_CLOUD_NAME;
+  else process.env.CLOUDINARY_CLOUD_NAME = originalCloudinaryCloud;
+  if (originalCloudinaryKey === undefined) delete process.env.CLOUDINARY_API_KEY;
+  else process.env.CLOUDINARY_API_KEY = originalCloudinaryKey;
+  if (originalCloudinarySecret === undefined) delete process.env.CLOUDINARY_API_SECRET;
+  else process.env.CLOUDINARY_API_SECRET = originalCloudinarySecret;
+  if (originalFalWebhook === undefined) delete process.env.FAL_WEBHOOK_URL;
+  else process.env.FAL_WEBHOOK_URL = originalFalWebhook;
   if (originalSigningSecret === undefined) delete process.env.STUDIO_UGC_SIGNING_SECRET;
   else process.env.STUDIO_UGC_SIGNING_SECRET = originalSigningSecret;
   vi.clearAllMocks();
@@ -143,15 +172,14 @@ describe("Studio video Preview generation", () => {
     enablePreview();
     const response = await videoReadiness();
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ready: true, binaries: { ffprobe: true }, assembly: "fal-merge-with-audio-safe-fallback", duration: 25, aspectRatio: "9:16", segmentDurations: [15, 10] });
+    expect(await response.json()).toEqual({ ready: true, storage: "cloudinary-remote-import", provider: true, callback: true, callbackRequiredDurations: [10, 15], assembly: "fal-merge", supportedDurations: [10, 15, 25], aspectRatio: "9:16" });
     expect(admin.from).not.toHaveBeenCalled();
     expect(admin.rpc).not.toHaveBeenCalled();
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
   it("keeps runtime readiness locked in Production", async () => {
-    process.env.VERCEL_ENV = "production";
-    process.env.STUDIO_VIDEO_RENDER_ENABLED = "true";
+    mocks.isStudioVideoEnabled.mockResolvedValue(false);
     const response = await videoReadiness();
     expect(response.status).toBe(423);
     expect(admin.from).not.toHaveBeenCalled();
@@ -160,8 +188,7 @@ describe("Studio video Preview generation", () => {
   });
 
   it("remains locked outside Preview, even if the server flag is present", async () => {
-    process.env.VERCEL_ENV = "production";
-    process.env.STUDIO_VIDEO_RENDER_ENABLED = "true";
+    mocks.isStudioVideoEnabled.mockResolvedValue(false);
     const response = await generateVideo(request(baseBody));
     expect(response.status).toBe(423);
     expect(admin.from).not.toHaveBeenCalled();
@@ -193,8 +220,8 @@ describe("Studio video Preview generation", () => {
     expect(response.status).toBe(202);
     expect(insertedRows[0].metadata.videoStyle).toBe("ugc");
     expect(insertedRows[0].options.videoStyle).toBe("ugc");
-    expect(insertedRows[0].metadata.plan.segments[0].prompt).toContain("UGC staged advertising");
-    expect(mocks.askText).toHaveBeenCalledTimes(2);
+    expect(insertedRows[0].metadata.plan.segments[0].prompt).toContain("CLIP 1/2");
+    expect(mocks.askText).not.toHaveBeenCalled();
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
@@ -235,15 +262,15 @@ describe("Studio video Preview generation", () => {
   it("compiles 15s + 10s prompts safely before reserving credits, even for long product data and brief", async () => {
     enablePreview();
     const description = Array.from({ length: 60 }, (_, index) => `Fait produit ${index + 1}: le guide est disponible au format PDF.`).join(" ").slice(0, 4000);
-    const prompt = "Mise en scène UGC naturelle avec rythme soutenu. ".repeat(100).slice(0, 4000);
+    const prompt = `${"Mise en scène UGC naturelle avec rythme soutenu. ".repeat(12)}\n${promptFor(25, "Scénario détaillé", "Guide ebook cuisine")}`;
     const response = await generateVideo(request({ ...baseBody, prompt, product: { name: "Guide ebook cuisine", description, imageUrl: "https://cdn.chariow.com/ebook-cover.png" } }));
     expect(response.status).toBe(202);
     expect(insertedRows[0].metadata.plan.segments.map((segment: Row) => segment.duration)).toEqual([15, 10]);
     for (const segment of insertedRows[0].metadata.plan.segments) {
       expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
       expect(segment.prompt).toContain("Guide ebook cuisine");
-      expect(segment.prompt).toContain("supplied exact ebook cover clearly");
-      expect(segment.prompt).toContain("Black or mixed-race");
+      expect(segment.prompt).toContain("exact ebook cover clearly");
+      expect(segment.prompt).toContain("casting noir ou métissé");
     }
     expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 750, request_id: requestId }));
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
@@ -254,97 +281,56 @@ describe("Studio video Preview generation", () => {
     const preparedResponse = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
     const prepared = await preparedResponse.json();
     expect(preparedResponse.status).toBe(200);
-    expect(mocks.askText).toHaveBeenCalledTimes(2);
+    expect(mocks.askText).toHaveBeenCalledTimes(1);
     mocks.askText.mockClear();
     const render = await generateVideo(request({ ...baseBody, prompt: prepared.prompt, preparedUgc: prepared.preparedUgc }));
     expect(render.status).toBe(202);
     expect(mocks.askText).not.toHaveBeenCalled();
   });
 
-  it("retries one 69-word dialogue once, then signals the simplified fallback before quota or rendering", async () => {
+  it("keeps prompt preparation out of credits and rendering", async () => {
     enablePreview();
-    const validAnalysis = {
-      product_type: "physique", niche: "céramique", target_audience: "adultes", core_problem: null,
-      main_benefit: null, emotion_dominante: "curiosité", usage_context: "boire", visual_assets: [],
-      price_positioning: "accessible", objections_probables: ["usage"], risks: [], assumptions: [], confirmed_fact_ids: [0],
-    };
-    const longCreative = ugcCreative("Tasse en céramique");
-    const mandatoryWords = `${longCreative.hook.text} ${longCreative.cta}`.trim().split(/\s+/).length;
-    const fillers = 69 - mandatoryWords;
-    const middleCounts = [Math.floor(fillers / 3), Math.floor(fillers / 3), fillers - 2 * Math.floor(fillers / 3)];
-    longCreative.shots = longCreative.shots.map((shot, index) => ({
-      ...shot,
-      dialogue: index === 0 ? longCreative.hook.text : index === 4 ? longCreative.cta : Array(middleCounts[index - 1]).fill("mot").join(" "),
-    }));
-    expect(longCreative.shots.map(shot => shot.dialogue.trim()).join(" ").split(/\s+/)).toHaveLength(69);
-    mocks.askText.mockResolvedValueOnce(JSON.stringify(validAnalysis))
-      .mockResolvedValueOnce(JSON.stringify(longCreative))
-      .mockResolvedValueOnce(JSON.stringify(longCreative));
-
     const response = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
     const result = await response.json();
-
     expect(response.status).toBe(200);
-    expect(result).toMatchObject({ scenarioFallback: true });
-    expect(result.creative.assumptions).toContain("Scénario simplifié de dernier recours.");
-    expect(mocks.askText).toHaveBeenCalledTimes(3);
-    expect(mocks.askText.mock.calls[2][0].map((message: { content: string }) => message.content).join(" ")).toContain("69 mots");
+    expect(typeof result.prompt).toBe("string");
+    expect(result.prompt).toContain("Tasse en céramique");
+    expect(mocks.askText).toHaveBeenCalledTimes(1);
     expect(admin.rpc).not.toHaveBeenCalled();
     expect(insertedRows).toHaveLength(0);
-    expect(mocks.afterCallbacks).toHaveLength(0);
-    expect(mocks.start).not.toHaveBeenCalled();
-    expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
-  it("returns provider 429 and Retry-After without retrying, reserving credits, or starting a render", async () => {
+  it("sanitizes failed prompt preparation without reserving credits", async () => {
     enablePreview();
-    mocks.askText.mockResolvedValueOnce(JSON.stringify(ugcAnalysis("Tasse en céramique")))
-      .mockRejectedValueOnce(Object.assign(new Error("simulated provider rate limit"), { status: 429, retryAfter: "45" }));
-
+    mocks.askText.mockRejectedValue(new Error("secret provider failure"));
     const response = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
     const result = await response.json();
-
-    expect(response.status).toBe(429);
-    expect(response.headers.get("Retry-After")).toBe("45");
-    expect(result).toMatchObject({ code: "STUDIO_UGC_PROVIDER_RATE_LIMITED", httpStatus: 429, retryAfter: "45" });
-    expect(result.error).toContain("Attends au moins 45 secondes");
-    expect(result.error).toContain("Aucune relance automatique");
-    expect(mocks.askText).toHaveBeenCalledTimes(2);
+    expect([502, 504]).toContain(response.status);
+    expect(result).toMatchObject({ code: "ugc_prompt_generation_failed", error: "Le scénario n’a pas pu être généré, réessaie.", failureRule: expect.any(String) });
+    expect(JSON.stringify(result)).not.toContain("secret provider failure");
+    expect(mocks.askText.mock.calls.length).toBeLessThanOrEqual(3);
     expect(admin.rpc).not.toHaveBeenCalled();
     expect(insertedRows).toHaveLength(0);
-    expect(mocks.afterCallbacks).toHaveLength(0);
-    expect(mocks.start).not.toHaveBeenCalled();
-    expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
-  it("keeps a provider 429 distinct on the direct render route before quota or workflow dispatch", async () => {
+  it("never invokes text generation from direct render", async () => {
     enablePreview();
-    mocks.askText.mockResolvedValueOnce(JSON.stringify(ugcAnalysis("Tasse en céramique")))
-      .mockRejectedValueOnce(Object.assign(new Error("simulated provider rate limit"), { status: 429, retryAfter: "30" }));
-
-    const response = await generateVideo(request(baseBody));
-    const result = await response.json();
-
-    expect(response.status).toBe(429);
-    expect(response.headers.get("Retry-After")).toBe("30");
-    expect(result).toMatchObject({ code: "STUDIO_UGC_PROVIDER_RATE_LIMITED", httpStatus: 429, retryAfter: "30" });
-    expect(mocks.askText).toHaveBeenCalledTimes(2);
-    expect(admin.rpc).not.toHaveBeenCalled();
-    expect(insertedRows).toHaveLength(0);
-    expect(mocks.afterCallbacks).toHaveLength(0);
-    expect(mocks.start).not.toHaveBeenCalled();
-    expect(mocks.createFalVideo).not.toHaveBeenCalled();
+    const response = await generateVideo(request({ ...baseBody, prompt: promptFor(25, "Texte édité par l'utilisateur") }));
+    expect(response.status).toBe(202);
+    expect(mocks.askText).not.toHaveBeenCalled();
+    expect(insertedRows[0].metadata.plan.segments[0].prompt).toContain("Texte édité par l'utilisateur");
   });
 
-  it.each(["tampered-token", "edited-prompt"] as const)("regenerates with exactly two mocked LLM calls for %s", async mode => {
+  it("uses an edited textarea prompt as plain user input without text-model calls", async () => {
     enablePreview();
-    const preparedResponse = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
-    const prepared = await preparedResponse.json();
-    mocks.askText.mockClear();
-    const body = { ...baseBody, prompt: mode === "edited-prompt" ? `${prepared.prompt} edited` : prepared.prompt, preparedUgc: mode === "tampered-token" ? `${prepared.preparedUgc}x` : prepared.preparedUgc };
-    const render = await generateVideo(request(body));
-    expect(render.status).toBe(202);
-    expect(mocks.askText).toHaveBeenCalledTimes(2);
+    const prompt = promptFor(25, "Texte modifié dans le textarea.");
+    const response = await generateVideo(request({ ...baseBody, prompt }));
+    expect(response.status).toBe(202);
+    expect(mocks.askText).not.toHaveBeenCalled();
+    for (const segment of insertedRows[0].metadata.plan.segments) {
+      expect(segment.prompt).toContain("Texte modifié dans le textarea.");
+      expect(segment.prompt).toContain("CLIP");
+    }
   });
 
   it("defaults to UGC when the legacy style is omitted", async () => {
@@ -376,20 +362,22 @@ describe("Studio video Preview generation", () => {
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
-  it("fails closed before reserving if ffprobe is unavailable", async () => {
+  it("defers local ffprobe readiness to the durable workflow instead of calling Fal inline", async () => {
     enablePreview();
     mocks.packagedVideoProbe.mockReturnValue(null);
     const response = await generateVideo(request(baseBody));
-    expect(response.status).toBe(503);
-    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(response.status).toBe(202);
+    expect(insertedRows).toHaveLength(1);
+    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ request_id: requestId }));
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
-  it("rejects durations other than the exact 25-second assembled output before reservation", async () => {
+  it("supports a 15-second single-segment prompt when its provider callback is configured", async () => {
     enablePreview();
     const response = await generateVideo(request({ ...baseBody, duration: 15 }));
-    expect(response.status).toBe(400);
-    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(response.status).toBe(202);
+    expect(insertedRows[0].metadata.plan.segments.map((segment: Row) => segment.duration)).toEqual([15]);
+    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ request_id: requestId }));
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 

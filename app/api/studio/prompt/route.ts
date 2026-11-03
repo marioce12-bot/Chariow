@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
-import { createSimplifiedUgcCreative, generateUgcCreative, missingUgcProductInfoFields, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
-import { ugcProviderRateLimitResponse } from "@/lib/studio/ugc-provider-errors";
+import { generateUgcPrompt, missingUgcProductInfoFields, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
 import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
 import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
 import { signPreparedUgc } from "@/lib/studio/ugc-prepared-plan";
@@ -44,7 +43,7 @@ export async function POST(request: Request) {
   const description = typeof product?.description === "string" ? product.description.trim().slice(0, 3_000) : "";
   const contentLanguage = resolveProductLanguage({ name, description }, body?.locale);
   const productImage = typeof product?.image === "string" && /^https:\/\//i.test(product.image) ? product.image.slice(0, 2_000) : "";
-  const userBrief = typeof body?.userBrief === "string" ? body.userBrief.trim().slice(0, 1_500) : "";
+  const userBrief = typeof body?.userBrief === "string" ? body.userBrief.trim().slice(0, 4_000) : "";
   const previousPrompt = typeof body?.previousPrompt === "string" ? body.previousPrompt.trim().slice(0, 4_000) : "";
   const requested = body?.character === "with" ? "with" : body?.character === "without" ? "without" : "auto";
   const character = requested === "auto" && /sans personne|sans personnage|pas de personne|pas de personnage|aucune personne|no person|without (a )?(person|people|character)/i.test(userBrief) ? "without" : requested;
@@ -91,76 +90,38 @@ export async function POST(request: Request) {
       code: "infos_produit_manquantes",
       missingFields,
       error: body?.locale === "en"
-        ? "Add a product description or at least a category, product type, or tags before preparing this scenario."
-        : "Ajoute une description produit ou au moins une catégorie, un type ou des étiquettes avant de préparer le scénario.",
+        ? "Add meaningful product details; a generic type or category alone is not enough to identify the product theme."
+        : "Ajoute des informations produit suffisamment précises : un type ou une catégorie générique ne suffit pas à identifier le thème.",
     }, { status: 400 });
     let assemblyStage = "model_generation";
     try {
-      const result = await generateUgcCreative(generatorInput);
+      const narrative = await generateUgcPrompt(generatorInput);
       assemblyStage = "editable_prompt_assembly";
-      const prompt = compileUgcPrompt(generatorInput, result.creative);
+      const prompt = compileUgcPrompt(generatorInput, narrative);
       assemblyStage = "provider_plan_assembly";
-      const plan = compileUgcProviderPlan(generatorInput, result.creative);
-      return NextResponse.json({ prompt, ...result, plan, preparedUgc: signPreparedUgc(user.id, generatorInput, result, prompt), contentLanguage, locked: !(await isStudioVideoEnabled()) });
+      const plan = compileUgcProviderPlan(generatorInput, narrative);
+      return NextResponse.json({ prompt, plan, preparedUgc: signPreparedUgc(user.id, generatorInput, narrative, prompt), contentLanguage, locked: !(await isStudioVideoEnabled()) });
     } catch (error) {
       const diagnostic = error instanceof UgcPromptGenerationError
-        ? { stage: error.stage, type: error.details.type ?? "validation_error", keyPath: error.details.path ?? null, httpStatus: error.details.httpStatus ?? null }
-        : { stage: assemblyStage, type: error instanceof Error ? error.name : "unknown_error" };
+        ? { stage: error.stage, type: error.details.type, keyPath: error.details.path ?? null, httpStatus: error.details.httpStatus ?? null }
+        : { stage: assemblyStage, type: error instanceof Error ? error.name : "unknown_error", keyPath: null, httpStatus: null };
       console.error("Studio UGC preparation failed", diagnostic);
-      if (error instanceof UgcPromptGenerationError && error.details.type === "missing_product_info") {
-        return NextResponse.json({
-          error: body?.locale === "en" ? "Add the missing product details before preparing the scenario." : "Ajoute les informations produit manquantes avant de préparer le scénario.",
-          code: "infos_produit_manquantes", missingFields: error.details.missingFields ?? [],
-        }, { status: 400 });
-      }
       if (error instanceof UgcPromptGenerationError && error.stage === "input") {
         return NextResponse.json({
           error: error.message,
           code: error.details.type ?? "invalid_input",
           keyPath: error.details.path ?? null,
-          expected: error.details.expected,
         }, { status: 400 });
       }
-      if (error instanceof UgcPromptGenerationError
-        && (error.stage === "creative_direction_json" || error.stage === "creative_direction_validation")) {
-        const simplified = createSimplifiedUgcCreative(generatorInput);
-        const prompt = compileUgcPrompt(generatorInput, simplified.creative);
-        const plan = compileUgcProviderPlan(generatorInput, simplified.creative);
-        console.warn("Studio UGC simplified scenario fallback", { reason: error.details.type ?? error.stage });
-        return NextResponse.json({
-          prompt, ...simplified, plan,
-          preparedUgc: signPreparedUgc(user.id, generatorInput, simplified, prompt),
-          contentLanguage, locked: !(await isStudioVideoEnabled()), scenarioFallback: true,
-        });
-      }
-      if (error instanceof UgcPromptGenerationError && error.stage.endsWith("_provider")) {
-        if (error.details.type === "model_timeout") return NextResponse.json({
-          error: body?.locale === "en" ? "The UGC writer did not respond within 20 seconds. No rendering was started; please try again." : "Le scénariste UGC n’a pas répondu dans les 20 secondes. Aucun rendu n’a été lancé; réessaie.",
-          code: "assistant_timeout",
-        }, { status: 504 });
-        const rateLimit = ugcProviderRateLimitResponse(error, body?.locale);
-        if (rateLimit) return NextResponse.json(rateLimit.body, { status: 429, headers: rateLimit.headers });
-        const httpStatus = error.details.httpStatus ?? null;
-        return NextResponse.json({
-          error: body?.locale === "en"
-            ? `The text model could not prepare the scenario${httpStatus ? ` (HTTP ${httpStatus})` : " (no HTTP status received)"}. No rendering was started.`
-            : `Le service IA n’a pas pu préparer le scénario${httpStatus ? ` (HTTP ${httpStatus})` : " (aucun statut HTTP reçu)"}. Aucun rendu n’a été lancé.`,
-          code: "erreur_modele", httpStatus,
-        }, { status: 502 });
-      }
-      if (error instanceof UgcPromptGenerationError && /(?:_validation|_json)$/.test(error.stage)) {
-        const details = error.details;
-        const path = details.path ?? "$";
-        const validationType = details.type ?? "invalid_output";
-        const errorMessage = body?.locale === "en"
-          ? `The generated ${error.stage.startsWith("creative") ? "creative direction" : "product analysis"} is invalid at ${path}${details.expected ? `: expected ${details.expected}, received ${details.received ?? "unknown"}` : "."}`
-          : `La réponse générée (${error.stage.startsWith("creative") ? "direction créative" : "analyse produit"}) est invalide au champ ${path}${details.expected ? ` : attendu ${details.expected}, reçu ${details.received ?? "inconnu"}` : "."}`;
-        return NextResponse.json({ error: errorMessage, code: "analyse_invalide", keyPath: path, validationType, expected: details.expected, received: details.received }, { status: 422 });
-      }
+      const failureRule = error instanceof UgcPromptGenerationError ? error.details.type : "prompt_assembly_error";
+      const status = error instanceof UgcPromptGenerationError && error.details.type === "provider_timeout" ? 504
+        : error instanceof UgcPromptGenerationError && error.details.httpStatus === 429 ? 429
+          : 502;
       return NextResponse.json({
-        error: body?.locale === "en" ? "An internal error prevented scenario preparation. No rendering was started." : "Une erreur interne a empêché la préparation du scénario. Aucun rendu n’a été lancé.",
-        code: "erreur_preparation",
-      }, { status: 500 });
+        error: body?.locale === "en" ? "The scenario could not be generated. Please try again." : "Le scénario n’a pas pu être généré, réessaie.",
+        code: "ugc_prompt_generation_failed",
+        failureRule,
+      }, { status });
     }
   }
 
