@@ -1,13 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ugcFixtureResponse } from "@/tests/fixtures/ugc";
 const { requireUser, askText, renderer, credits } = vi.hoisted(() => ({ requireUser: vi.fn(), askText: vi.fn(), renderer: vi.fn(), credits: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/ai/text", () => ({ askText: (...args: unknown[]) => askText(...args) }));
 import { POST } from "@/app/api/studio/prompt/route";
 const product = { name: "Savon Kora", description: "Savon fabriqué artisanalement au Bénin.", content: "Savon doux pour routine", price: 2500, currency: "XOF", category: "Beauté", type: "physique", tags: ["savon"], shop: "Kora", image: "https://example.test/savon.jpg" };
-const promptFor = (duration: number) => {
-  const bounds = duration === 10 ? [[0, 3], [3, 7], [7, 10]] : duration === 15 ? [[0, 4], [4, 9], [9, 15]] : [[0, 5], [5, 10], [10, 15], [15, 20], [20, 25]];
-  return `Scénario vidéo UGC — ${duration} secondes\n${bounds.map(([a, b], i) => `${a}–${b}s | ACTION: routine avec Savon Kora; CAMÉRA: plan vertical; DIALOGUE EXACT: «${i === 0 ? "Tu cherches un savon artisanal pour ta routine ?" : i === bounds.length - 1 ? "Découvre Savon Kora dans la boutique Kora." : "Je prends Savon Kora et regarde son étiquette."}»`).join("\n")}`;
-};
+const promptFor = (duration: number) => ugcFixtureResponse([{ role: "user", content: JSON.stringify({ product: { title: product.name, description: product.description, type: product.type, category: product.category }, options: { duration, language: "français" } }) }]);
 const request = (body: unknown) => new Request("https://preview.example/api/studio/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 const bodyFor = (duration: number | string) => ({ product, mediaType: "video", duration, aspectRatio: "9:16", locale: "fr", userBrief: "Plan dans une salle de bain claire", previousPrompt: "Variation uniquement" });
 beforeEach(() => { vi.clearAllMocks(); requireUser.mockResolvedValue({ user: { id: "test-user" } }); });
@@ -26,7 +24,7 @@ describe("API Studio UGC texte libre", () => {
     expect(payload.userBrief).toBe("Plan dans une salle de bain claire"); expect(payload.previousPrompt).toBe("Variation uniquement");
     expect(askText.mock.calls[0][1].responseSchema).toBeUndefined();
     expect(askText).toHaveBeenCalledTimes(1);
-    if (duration === 25) expect(result.prompt).toMatch(/15–20s/);
+    if (duration === 25) expect(result.prompt).toMatch(/15–21s/);
   });
   it.each([5, 12, 30, "abc"]) ("rejette la durée invalide %s avant tout appel modèle", async duration => {
     const response = await POST(request(bodyFor(duration))); expect(response.status).toBe(400);

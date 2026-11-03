@@ -57,8 +57,8 @@ const originalFalWebhook = process.env.FAL_WEBHOOK_URL;
 const originalSigningSecret = process.env.STUDIO_UGC_SIGNING_SECRET;
 const requestId = "11111111-1111-4111-8111-111111111111";
 const promptFor = (duration: number, marker = "Scénario vidéo UGC", productName = "Tasse en céramique") => {
-  const bounds = duration === 10 ? [[0, 3], [3, 7], [7, 10]] : duration === 15 ? [[0, 5], [5, 10], [10, 15]] : [[0, 5], [5, 10], [10, 15], [15, 20], [20, 25]];
-  return `${marker} pour ${productName} — ${duration} secondes\n${bounds.map(([start, end], index) => `${start}–${end}s | ACTION: Une adulte fictive montre ${productName}; CAMÉRA: plan vertical naturel; DIALOGUE EXACT: «${index === 0 ? `Tu aimerais découvrir ${productName} ?` : index === bounds.length - 1 ? `Retrouve ${productName} dans la boutique.` : "Je prends le temps de regarder les détails."}»`).join("\n")}`;
+  const response = ugcFixtureResponse([{ role: "user", content: JSON.stringify({ product: { title: productName, description: "Produit réel pour un scénario de démonstration.", type: /ebook|guide/i.test(productName) ? "ebook" : "physique", category: "" }, options: { duration, language: "français" } }) }]);
+  return response.replace("Scénario vidéo UGC", marker);
 };
 const baseBody = {
   id: requestId,
@@ -269,7 +269,7 @@ describe("Studio video Preview generation", () => {
     for (const segment of insertedRows[0].metadata.plan.segments) {
       expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
       expect(segment.prompt).toContain("Guide ebook cuisine");
-      expect(segment.prompt).toContain("exact ebook cover clearly");
+      expect(segment.prompt).toContain("show the supplied exact ebook cover on a phone/tablet");
       expect(segment.prompt).toContain("casting noir ou métissé");
     }
     expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 750, request_id: requestId }));
@@ -286,6 +286,18 @@ describe("Studio video Preview generation", () => {
     const render = await generateVideo(request({ ...baseBody, prompt: prepared.prompt, preparedUgc: prepared.preparedUgc }));
     expect(render.status).toBe(202);
     expect(mocks.askText).not.toHaveBeenCalled();
+  });
+
+  it("rejects a prompt timeline whose duration differs from the selected duration before quota or credits", async () => {
+    enablePreview();
+    const stalePrompt = `${promptFor(25)}\nVariation éditée`;
+    const response = await generateVideo(request({ ...baseBody, prompt: stalePrompt, duration: 15 }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "ugc_duration_mismatch", promptDuration: 25, selectedDuration: 15 });
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(insertedRows).toHaveLength(0);
+    expect(mocks.askText).not.toHaveBeenCalled();
+    expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
   it("keeps prompt preparation out of credits and rendering", async () => {
