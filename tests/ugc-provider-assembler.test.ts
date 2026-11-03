@@ -6,15 +6,15 @@ import type { UgcCreativeDirection, UgcProductAnalysis } from "@/lib/studio/ugc-
 
 const input = normalizeUgcInput({ name: "Ebook Jardin", description: "Disponible au format PDF.", price: 5000, currency: "XOF", category: "Jardin", type: "digital", tags: ["ebook"], image: "https://cdn.example.com/cover.png", shop: "Jardin Kora" }, { duration: 25, language: "fr", tone: "fun", platform: "TikTok" }, "fr");
 const creative: UgcCreativeDirection = {
-  assumptions: ["Décor de terrasse supposé."], angle: "Découverte", hook: { text: "Voici Ebook Jardin.", visual: "Montre sa couverture." },
-  scene: { location: "Terrasse à Cotonou", lighting: "matin", mood: "curieux", props: ["téléphone"] },
+  assumptions: ["Décor de terrasse supposé."], angle: "Découverte", link_theme: "La terrasse évoque l’univers Jardin indiqué dans la fiche produit.", hook: { text: "Voici Ebook Jardin.", visual: "Montre sa couverture." },
+  scene: { location: "Terrasse à Cotonou", lighting: "matin", mood: "curieux", props: ["téléphone"], characters: [{ id: "a", age: "32", gender: "femme", look: "noire", outfit: "chemise verte", personality: "curieuse", role: "présentatrice fictive" }] },
   characters: [{ id: "a", age: "32", gender: "femme", look: "noire", outfit: "chemise verte", personality: "curieuse", role: "présentatrice fictive" }],
   shots: [
-    { start: 0, end: 3, type: "hook", visual: "Vraie couverture Ebook Jardin", action: "montre le téléphone", dialogue: "Voici Ebook Jardin.", camera: "selfie vertical" },
-    { start: 3, end: 8, type: "problem", visual: "Regarde son jardin", action: "désigne les plantes", dialogue: "Envie de découvrir le jardinage ?", camera: "plan poitrine" },
-    { start: 8, end: 15, type: "solution", visual: "Couverture exacte", action: "rapproche le téléphone", dialogue: "Ce guide existe au format PDF.", camera: "gros plan produit" },
-    { start: 15, end: 21, type: "proof", visual: "Référence réelle lisible", action: "maintient l’écran", dialogue: "Voici sa référence.", camera: "travelling léger vers le téléphone" },
-    { start: 21, end: 25, type: "cta", visual: "Visage et référence", action: "regarde le spectateur", dialogue: "Découvre-le sur la boutique.", camera: "selfie" },
+    { start: 0, end: 3, type: "hook", visual: "Vraie couverture Ebook Jardin", action: "montre le téléphone", dialogue: "Voici Ebook Jardin.", camera: "selfie vertical", emotion: "curiosité" },
+    { start: 3, end: 8, type: "problem", visual: "Regarde son jardin", action: "désigne les plantes", dialogue: "Envie de découvrir le jardinage ?", camera: "plan poitrine", emotion: "hésitation" },
+    { start: 8, end: 15, type: "solution", visual: "Couverture exacte", action: "rapproche le téléphone", dialogue: "Ce guide existe au format PDF.", camera: "gros plan produit", emotion: "déclic" },
+    { start: 15, end: 21, type: "proof", visual: "Référence réelle lisible", action: "maintient l’écran", dialogue: "Voici sa référence.", camera: "travelling léger vers le téléphone", emotion: "intérêt" },
+    { start: 21, end: 25, type: "cta", visual: "Visage et référence", action: "regarde le spectateur", dialogue: "Découvre-le sur la boutique.", camera: "selfie", emotion: "confiance" },
   ], cta: "Découvre-le sur la boutique.", negative_prompt: "pas de couverture inventée, pas de faux avis, pas de watermark",
 };
 const analysis = { product_type: "digital", niche: "jardin", target_audience: "adultes", core_problem: null, main_benefit: null, emotion_dominante: "curiosité", usage_context: "lecture", visual_assets: ["couverture"], price_positioning: "accessible", objections_probables: ["contenu ?"], risks: ["résultat non garanti"], assumptions: [], confirmed_facts: ["name: Ebook Jardin"] } as UgcProductAnalysis;

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
 import { VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
-import { generateUgcCreative, missingUgcProductInfoFields, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
+import { createSimplifiedUgcCreative, generateUgcCreative, missingUgcProductInfoFields, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
 import { ugcProviderRateLimitResponse } from "@/lib/studio/ugc-provider-errors";
 import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
 import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
@@ -121,7 +121,23 @@ export async function POST(request: Request) {
           expected: error.details.expected,
         }, { status: 400 });
       }
+      if (error instanceof UgcPromptGenerationError
+        && (error.stage === "creative_direction_json" || error.stage === "creative_direction_validation")) {
+        const simplified = createSimplifiedUgcCreative(generatorInput);
+        const prompt = compileUgcPrompt(generatorInput, simplified.creative);
+        const plan = compileUgcProviderPlan(generatorInput, simplified.creative);
+        console.warn("Studio UGC simplified scenario fallback", { reason: error.details.type ?? error.stage });
+        return NextResponse.json({
+          prompt, ...simplified, plan,
+          preparedUgc: signPreparedUgc(user.id, generatorInput, simplified, prompt),
+          contentLanguage, locked: !(await isStudioVideoEnabled()), scenarioFallback: true,
+        });
+      }
       if (error instanceof UgcPromptGenerationError && error.stage.endsWith("_provider")) {
+        if (error.details.type === "model_timeout") return NextResponse.json({
+          error: body?.locale === "en" ? "The UGC writer did not respond within 20 seconds. No rendering was started; please try again." : "Le scénariste UGC n’a pas répondu dans les 20 secondes. Aucun rendu n’a été lancé; réessaie.",
+          code: "assistant_timeout",
+        }, { status: 504 });
         const rateLimit = ugcProviderRateLimitResponse(error, body?.locale);
         if (rateLimit) return NextResponse.json(rateLimit.body, { status: 429, headers: rateLimit.headers });
         const httpStatus = error.details.httpStatus ?? null;

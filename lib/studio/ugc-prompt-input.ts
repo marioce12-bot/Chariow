@@ -20,6 +20,7 @@ export function normalizeUgcInput(rawProduct: unknown, rawOptions: unknown, loca
   return {
     product: {
       name, description,
+      content: text(product.content, 5000),
       price: typeof product.price === "number" || typeof product.price === "string" ? String(product.price).slice(0, 40) : "",
       currency: text(product.currency, 10), category: named(product.category, 150),
       images, type: text(product.type ?? product.product_type, 60),

@@ -8,15 +8,15 @@ export type StructuredJsonSchema = { name: string; schema: Record<string, unknow
 
 const DEFAULT_ORDER: TextProvider[] = ["groq", "imole", "gemini"];
 
-const PROVIDERS: Record<TextProvider, (messages: TextMessage[], responseSchema?: StructuredJsonSchema, model?: string) => Promise<string>> = {
+const PROVIDERS: Record<TextProvider, (messages: TextMessage[], responseSchema?: StructuredJsonSchema, model?: string, timeoutMs?: number) => Promise<string>> = {
   groq: (messages, responseSchema) => askGroq(messages, { responseSchema }),
   imole: (messages) => askImole(messages),
   gemini: (messages, responseSchema) => askGemini(messages, { responseSchema: responseSchema?.schema }),
-  openrouter: (messages, responseSchema, model) => askOpenRouter(messages, { responseSchema, model }),
+  openrouter: (messages, responseSchema, model, timeoutMs) => askOpenRouter(messages, { responseSchema, model, timeoutMs }),
 };
 
 export class TextProviderError extends Error {
-  constructor(message: string, readonly status?: number, readonly failedProviders: TextProvider[] = [], readonly retryAfter?: string) {
+  constructor(message: string, readonly status?: number, readonly failedProviders: TextProvider[] = [], readonly retryAfter?: string, readonly timedOut = false) {
     super(message);
     this.name = "TextProviderError";
   }
@@ -40,21 +40,23 @@ function getRetryAfter(error: unknown): string | undefined {
 
 // Génération texte avec secours en cascade. Les logs ne contiennent ni la réponse
 // du modèle ni le détail brut de l'erreur fournisseur : uniquement fournisseur, type et statut.
-export async function askText(messages: TextMessage[], options: { order?: TextProvider[]; responseSchema?: StructuredJsonSchema; model?: string } = {}) {
+export async function askText(messages: TextMessage[], options: { order?: TextProvider[]; responseSchema?: StructuredJsonSchema; model?: string; timeoutMs?: number } = {}) {
   const order = Array.from(new Set(options.order?.length ? options.order : DEFAULT_ORDER));
   const failures: TextProvider[] = [];
   let lastStatus: number | undefined;
   let lastRetryAfter: string | undefined;
+  let timedOut = false;
 
   for (const provider of order) {
     if (provider === "groq" && !hasGroqKey()) continue;
     try {
-      const answer = await PROVIDERS[provider](messages, options.responseSchema, options.model);
+      const answer = await PROVIDERS[provider](messages, options.responseSchema, options.model, options.timeoutMs);
       if (answer?.trim()) return answer.trim();
       throw new Error("empty response");
     } catch (error) {
       lastStatus = getHttpStatus(error);
       lastRetryAfter = getRetryAfter(error);
+      timedOut ||= error instanceof Error && (error.name === "AbortError" || /timed?\s*out|timeout/i.test(error.message));
       const errorType = error instanceof Error ? error.name : "unknown_error";
       console.error(`AI text provider error (${provider})`, { status: lastStatus ?? null, errorType });
       failures.push(provider);
@@ -64,5 +66,5 @@ export async function askText(messages: TextMessage[], options: { order?: TextPr
   const message = failures.length
     ? `Tous les fournisseurs IA texte ont échoué (${failures.join(", ")})`
     : "Aucun fournisseur IA texte n'est disponible";
-  throw new TextProviderError(message, lastStatus, failures, lastRetryAfter);
+  throw new TextProviderError(message, lastStatus, failures, lastRetryAfter, timedOut);
 }

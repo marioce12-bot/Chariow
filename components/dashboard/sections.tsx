@@ -139,7 +139,7 @@ function StudioFormatPreviewVideo({ src, poster }: { src: string; poster: string
   );
 }
 
-export function StudioView({ products }: { products: Array<{ id: string; name: string; description?: string | null; price?: number | string | null; currency?: string | null; image?: string | null; category?: string; type?: string; tags?: string[]; images?: string[]; shop?: string }> }) {
+export function StudioView({ products }: { products: Array<{ id: string; name: string; description?: string | null; content?: string | null; price?: number | string | null; currency?: string | null; image?: string | null; category?: string; type?: string; tags?: string[]; images?: string[]; shop?: string }> }) {
   const { t, locale } = useI18n();
   const [promptGenerating, setPromptGenerating] = useState(false);
   const [kind, setKind] = useState<"image" | "video">("image");
@@ -154,6 +154,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [videoPlatform, setVideoPlatform] = useState("Reels");
   const [videoAngle, setVideoAngle] = useState("");
   const [ugcAssumptions, setUgcAssumptions] = useState<string[]>([]);
+  const [scenarioNotice, setScenarioNotice] = useState("");
   const preparedUgcRef = useRef<string | null>(null);
   const ugcOptions = { language: videoLanguage, tone: videoTone, platform: videoPlatform, angle: videoAngle };
   const [referenceFiles, setReferenceFiles] = useState<File[]>([]);
@@ -477,6 +478,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     if (!selectedProduct || promptGenerating) return;
     setPromptGenerating(true);
     setError("");
+    setScenarioNotice("");
     try {
       const current = prompt.trim();
       const userBrief = current && current !== lastGeneratedPromptRef.current ? current : "";
@@ -486,6 +488,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         body: JSON.stringify({
           product: {
             name: selectedProduct.name,
+            content: selectedProduct.content ? htmlDescriptionToText(selectedProduct.content) : undefined,
             price: selectedProduct.price ?? undefined,
             currency: selectedProduct.currency ?? undefined,
             description: selectedProduct.description ? htmlDescriptionToText(selectedProduct.description) : undefined,
@@ -506,6 +509,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || typeof result.prompt !== "string") throw new Error(result.error || "Impossible de générer le prompt.");
+      setScenarioNotice(result.scenarioFallback ? (locale === "en" ? "The simplified fallback scenario was used. Review it before generating the video." : "Scénario simplifié utilisé après une tentative de correction. Relis-le avant de lancer le rendu vidéo.") : "");
       lastGeneratedPromptRef.current = result.prompt;
       if (kind === "video") {
         preparedUgcRef.current = typeof result.preparedUgc === "string" ? result.preparedUgc : null;
@@ -795,6 +799,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             <small>{prompt.length}/4 000</small>
           </label>
           {kind === "video" && ugcAssumptions.length ? <details className="studio-cost"><summary>Hypothèses de mise en scène — pas des faits produit</summary><ul>{ugcAssumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}</ul></details> : null}
+          {kind === "video" && scenarioNotice ? <p className="studio-cost" role="status" aria-live="polite">{scenarioNotice}</p> : null}
 
           {kind === "video" ? <div className="studio-video-prompt-action studio-video-prompt-action--desktop">{selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}</div> : null}
 
