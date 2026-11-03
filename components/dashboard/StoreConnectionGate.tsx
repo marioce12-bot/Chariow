@@ -20,6 +20,22 @@ export function getChariowConnectTarget(stores: StoreData[]) {
   return existing ? `/api/integrations/chariow/connect?store_id=${encodeURIComponent(existing.id)}` : "/api/integrations/chariow/connect";
 }
 
+export function shouldShowStoreConnectionGate({
+  stores,
+  loading,
+  loadFailed,
+  offline,
+  subscriptionExpired,
+}: {
+  stores: StoreData[];
+  loading: boolean;
+  loadFailed: boolean;
+  offline: boolean;
+  subscriptionExpired: boolean;
+}) {
+  return !loading && !loadFailed && !offline && !subscriptionExpired && !hasConnectedCommerceStore(stores);
+}
+
 export function StoreConnectionGate({ stores, failed, onSignOut, onConnectStart }: { stores: StoreData[]; failed: boolean; onSignOut: () => void; onConnectStart?: () => void | Promise<void> }) {
   const { locale } = useI18n();
   const en = locale === "en";

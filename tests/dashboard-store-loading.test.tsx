@@ -54,4 +54,11 @@ describe("store loading skeletons", () => {
     expect(recovery).toContain('<SkeletonRows count={4} label={t("sweep3.text173")} />');
     expect(translate("fr", "sweep3.text173")).toBe("Chargement des relances");
   });
+
+  it("keeps a failed store request out of the connection gate", () => {
+    expect(dashboard).toContain("setStoresLoadFailed(true)");
+    expect(dashboard).toContain("dashboardDataUnavailable");
+    expect(dashboard).toContain("shouldShowStoreConnectionGate");
+    expect(dashboard).toContain('w("offlineDetails")');
+  });
 });

@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import type { StoreData } from "@/components/dashboard/shared";
 const language = vi.hoisted(() => ({ locale: "fr" }));
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: language.locale }) }));
-import { StoreConnectionGate, hasConnectedChariowStore, getChariowConnectTarget } from "@/components/dashboard/StoreConnectionGate";
+import { StoreConnectionGate, hasConnectedChariowStore, getChariowConnectTarget, shouldShowStoreConnectionGate } from "@/components/dashboard/StoreConnectionGate";
 const { JSDOM } = require("jsdom");
 const store = (status: string, platform = "chariow"): StoreData => ({ id: "shop/1", platform, store_name: "Test", is_active: true, mcp_url: null, connection_status: status });
 let root: ReturnType<typeof createRoot> | undefined;
@@ -35,6 +35,11 @@ describe("store connection gate", () => {
     for (const status of ["pending", "failed", "expired", "revoked", "disconnected"]) expect(hasConnectedChariowStore([store(status)])).toBe(false);
     expect(hasConnectedChariowStore([store("connected", "selar")])).toBe(false);
     expect(hasConnectedChariowStore([store("failed"), store("connected")])).toBe(true);
+  });
+  it("does not mistake offline or failed store loading for a missing connection", () => {
+    expect(shouldShowStoreConnectionGate({ stores: [], loading: false, loadFailed: true, offline: false, subscriptionExpired: false })).toBe(false);
+    expect(shouldShowStoreConnectionGate({ stores: [], loading: false, loadFailed: false, offline: true, subscriptionExpired: false })).toBe(false);
+    expect(shouldShowStoreConnectionGate({ stores: [], loading: false, loadFailed: false, offline: false, subscriptionExpired: false })).toBe(true);
   });
   it("preserves the existing Chariow connection target helper", () => {
     expect(getChariowConnectTarget([])).toBe("/api/integrations/chariow/connect");
