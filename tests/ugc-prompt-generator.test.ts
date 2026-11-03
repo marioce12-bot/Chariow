@@ -13,7 +13,7 @@ const wordCount = (value: string) => value.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p
 const promptFor = (duration: number, options: { title?: string; ebook?: boolean; finalDialogue?: string; finalVisual?: string } = {}) => {
   const title = options.title ?? "Savon Kora";
   const ebook = options.ebook ?? false;
-  const bounds = duration === 10 ? [[0, 3], [3, 6.5], [6.5, 10]] : duration === 15 ? [[0, 4], [4, 8], [8, 11.5], [11.5, 15]] : [[0, 5], [5, 10], [10, 15], [15, 21], [21, 25]];
+  const bounds = duration === 10 ? [[0, 3], [3, 6.5], [6.5, 10]] : duration === 15 ? [[0, 3.5], [3.5, 7.5], [7.5, 11.5], [11.5, 15]] : [[0, 5], [5, 10], [10, 15], [15, 21], [21, 25]];
   const dialogue = duration === 10
     ? ["Tu cherches une idée nouvelle pour ta routine ?", "Je prends le produit et l'observe tranquillement."]
     : duration === 15
@@ -35,9 +35,9 @@ beforeEach(() => askText.mockReset());
 
 describe("générateur UGC texte libre avec règles de durée ciblées", () => {
   it.each([
-    { duration: 10, beats: 3, min: 22, max: 28, contract: /exactement 3 temps.*22 à 28 mots.*6\.5 et 10 secondes/ },
-    { duration: 15, beats: 4, min: 35, max: 42, contract: /exactement 4 temps.*35 à 42 mots.*11\.5 et 15 secondes/ },
-    { duration: 25, beats: 5, min: 58, max: 68, contract: /exactement 5 temps.*58 à 68 mots.*21 et 25 secondes/ },
+    { duration: 10, beats: 3, min: 22, max: 28, contract: /exactement 3 temps.*plages fixes.*0–3, 3–6\.5, 6\.5–10.*22 à 28 mots.*6\.5 et 10 secondes/ },
+    { duration: 15, beats: 4, min: 35, max: 42, contract: /exactement 4 temps.*plages fixes.*0–3\.5, 3\.5–7\.5, 7\.5–11\.5, 11\.5–15.*35 à 42 mots.*11\.5 et 15 secondes/ },
+    { duration: 25, beats: 5, min: 58, max: 68, contract: /exactement 5 temps.*plages fixes.*0–5, 5–10, 10–15, 15–21, 21–25.*58 à 68 mots.*21 et 25 secondes/ },
   ])("respecte le contrat $duration s: $beats temps et budget vocal", async ({ duration, beats, min, max, contract }) => {
     const expected = promptFor(duration);
     askText.mockResolvedValueOnce(expected);
@@ -105,6 +105,7 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     ["nombre de temps", (p: string) => p.replace(/6.5–10s[^\n]*/, "6.5–10s | ACTION: vraie référence du produit visible; CAMÉRA: plan vertical"), "timeline_incomplete"],
     ["CTA produit", (p: string) => p.replace("Commande Savon Kora maintenant.", "Découvre Savon Kora maintenant."), "final_cta_missing"],
     ["CTA trop tôt", (p: string) => p.replace("Je prends le produit et l'observe tranquillement.", "Commande le produit et l'observe tranquillement."), "cta_not_final"],
+    ["bornes temporelles", (p: string) => p.replace("3–6.5s", "3–6s").replace("6.5–10s", "6–10s"), "timeline_boundaries_mismatch"],
     ["langue", (p: string) => p.replace("Tu cherches une idée nouvelle pour ta routine ?", "Looking for a new routine idea today?"), "language_mismatch"],
     ["chiffre non sourcé", (p: string) => p.replace("routine ?", "routine en 7 jours ?"), "unsupported_numeric_claim"],
     ["garantie non sourcée", (p: string) => p.replace("idée nouvelle", "idée garantie efficace"), "unsupported_guarantee"],
@@ -127,6 +128,22 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     askText.mockResolvedValue(promptFor(10).replace("6.5–10s", "7–10s"));
     await expect(generateUgcPrompt(input())).rejects.toMatchObject({ name: "UgcPromptGenerationError", stage: "validation", details: { type: expect.any(String) } });
     expect(askText).toHaveBeenCalledTimes(3);
+  });
+
+  it("journalise uniquement les nombres lors d’un mauvais nombre de temps et répète les bornes fixes au retry", async () => {
+    const base = promptFor(10);
+    const finalLine = base.split("\n").at(-1)!;
+    const invalid = `${base.replace(finalLine, finalLine.replace("6.5–10s", "6.5–8s"))}\n${finalLine.replace("6.5–10s", "8–10s")}`;
+    const log = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    askText.mockResolvedValueOnce(invalid).mockResolvedValueOnce(promptFor(10)).mockResolvedValueOnce(promptFor(10));
+    await expect(generateUgcPrompt(input())).resolves.toBe(promptFor(10));
+    expect(askText).toHaveBeenCalledTimes(2);
+    expect(askText.mock.calls[1][0].at(-1).content).toContain("0–3, 3–6.5, 6.5–10");
+    expect(log).toHaveBeenCalledWith("Studio UGC timeline beat-count mismatch", expect.objectContaining({
+      duration: 10, expectedBeats: 3, actualBeats: 4, attempt: 1,
+    }));
+    expect(JSON.stringify(log.mock.calls)).not.toContain("Commande Savon Kora");
+    log.mockRestore();
   });
 
   it("réessaie après un échec provider puis réussit", async () => {

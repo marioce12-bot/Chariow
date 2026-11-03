@@ -110,6 +110,8 @@ export async function POST(request: Request) {
           upstreamMessage: error.details.upstreamMessage ?? null,
           upstreamProvider: error.details.upstreamProvider ?? null,
           retryAfter: error.details.retryAfter ?? null,
+          expectedBeats: error.details.expectedBeats ?? null,
+          actualBeats: error.details.actualBeats ?? null,
         }
         : { stage: assemblyStage, type: error instanceof Error ? error.name : "unknown_error", keyPath: null, httpStatus: null };
       console.error("Studio UGC preparation failed", diagnostic);
@@ -135,11 +137,15 @@ export async function POST(request: Request) {
       else if (failureRule === "provider_auth_error") publicError = locale === "en"
         ? "OpenRouter rejected the configured API key. Check the Production key and its permissions."
         : "OpenRouter refuse la clé API configurée. Vérifie la clé utilisée en Production et ses autorisations.";
-      else if (failureRule === "wrong_beat_count") {
+      else if (failureRule === "wrong_beat_count" || failureRule === "timeline_boundaries_mismatch") {
         const expected = duration === 10 ? 3 : duration === 15 ? 4 : 5;
         publicError = locale === "en"
-          ? `The AI returned the wrong number of scenes. It must return exactly ${expected} for ${duration} seconds; regenerate the prompt.`
-          : `L’IA a renvoyé un mauvais nombre de temps. Il en faut exactement ${expected} pour ${duration} secondes; régénère le prompt.`;
+          ? failureRule === "wrong_beat_count"
+            ? `The AI returned the wrong number of scenes. It must return exactly ${expected} for ${duration} seconds; regenerate the prompt.`
+            : `The AI used incorrect scene boundaries. Regenerate the prompt to apply the fixed ${duration}-second timeline.`
+          : failureRule === "wrong_beat_count"
+            ? `L’IA a renvoyé un mauvais nombre de temps. Il en faut exactement ${expected} pour ${duration} secondes; régénère le prompt.`
+            : `L’IA a utilisé des bornes de temps incorrectes. Régénère le prompt pour appliquer le découpage fixe de ${duration} secondes.`;
       } else if (failureRule === "word_count_mismatch") publicError = locale === "en"
         ? "The AI's dialogue did not fit the required duration. Regenerate the prompt."
         : "Les dialogues générés ne respectaient pas le nombre de mots prévu pour cette durée. Régénère le prompt.";
