@@ -25,22 +25,32 @@ function normalizeQuery(value: string) {
     .replace(/[’']/g, " ");
 }
 
-const DIRECT_NAVIGATION_REQUEST = /\b(?:ou|where|trouver|retrouver|voir|consulter|ouvrir|acceder|aller|emmener|amener|guider|guide|diriger|mener|lancer|lance|demarrer|montre|show|find|view|open|access|go|launch|navigate|get to|take me)\b/;
-const HOW_TO_NAVIGATION_REQUEST = /\b(?:comment|how)\b.*\b(?:trouver|retrouver|voir|consulter|ouvrir|acceder|aller|lancer|find|view|open|access|go|get to|navigate)\b/;
+const WHERE_NAVIGATION_DETAIL = /\b(?:est|sont|se trouve|situe|trouver|retrouver|voir|consulter|ouvrir|acceder|aller|creer|lancer|gerer|manage|find|view|open|access|go|navigate|create|launch)\b/;
+const HOW_TO_NAVIGATION_REQUEST = /\b(?:comment|how)\b.*\b(?:trouver|retrouver|voir|consulter|ouvrir|acceder|aller|gerer|manage|find|view|open|access|go|get to|navigate|create|creer|launch|lancer)\b/;
+const DIRECT_NAVIGATION_COMMAND = /^(?:montre(?:-moi|\s+moi)?|show\s+me|ouvre|open|va\s+(?:a|au|aux|vers)|go\s+to|guide(?:-moi|\s+moi)?|emmene(?:-moi|\s+moi)?|amene(?:-moi|\s+moi)?|take\s+me|navigate\s+to)\b/;
 const CREATE_OR_LAUNCH_REQUEST = /\b(?:creer|creation|preparer|lancer|lance|lancement|publier|create|prepare|launch|start)\b/;
 
 function target(section: ChatNavigationSection) {
   return CHAT_NAVIGATION_TARGETS.find((entry) => entry.section === section) ?? null;
 }
 
+function explicitlyAsksForNavigation(message: string, query: string) {
+  const hasWhereWord = /(?:^|[^\p{L}])(?:où|where)(?=$|[^\p{L}])/iu.test(message);
+  const asksWhere = hasWhereWord && WHERE_NAVIGATION_DETAIL.test(query);
+  // Accepte « Ou voir… » sans accent seulement en début de message, pour ne pas
+  // confondre « ou » (la conjonction) avec « où » dans une phrase ordinaire.
+  const asksWhereWithoutAccent = /^\s*ou\b/i.test(message) && WHERE_NAVIGATION_DETAIL.test(query);
+  return asksWhere || asksWhereWithoutAccent || HOW_TO_NAVIGATION_REQUEST.test(query) || DIRECT_NAVIGATION_COMMAND.test(query);
+}
+
 /**
- * Detecte seulement les demandes d’orientation vers une rubrique connue.
+ * Detecte seulement les demandes explicites d’orientation vers une rubrique connue.
  * Le résultat est une section interne allowlistée, jamais une URL fournie par l’IA.
  */
 export function resolveChatNavigationRequest(message: string): ChatNavigationTarget | null {
   if (!message.trim()) return null;
   const query = normalizeQuery(message);
-  if (!DIRECT_NAVIGATION_REQUEST.test(query) && !HOW_TO_NAVIGATION_REQUEST.test(query)) return null;
+  if (!explicitlyAsksForNavigation(message, query)) return null;
 
   if (/\b(?:rapports?|reports?)\b/.test(query)) return target("Rapports");
   if (/\b(?:relances?|whatsapp|abandon|recovery)\b/.test(query)) return target("Relances WhatsApp");
@@ -62,7 +72,7 @@ export function resolveChatNavigationRequest(message: string): ChatNavigationTar
   return null;
 }
 
-/** Resolve a destination only for an assistant message immediately following a navigation question. */
+/** Resolve a destination only for an assistant message immediately following an explicit navigation request. */
 export function resolveChatNavigationForAssistantReply(
   messages: readonly { role: string; content: string }[],
   assistantMessageIndex: number,
