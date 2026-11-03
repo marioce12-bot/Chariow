@@ -71,6 +71,14 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     expect(prompt).toMatch(/couverture réelle sur téléphone/);
   });
 
+  it("accepte les synonymes visuels dans tout le bloc du dernier temps", () => {
+    const ebookInput = input(10, { name: "Guide Excel Facile", description: "Guide numérique pour apprendre Excel.", type: "ebook", category: "Éducation" });
+    const source = promptFor(10, { title: ebookInput.product.name, ebook: true, finalVisual: "ACTION: la cover est visible" });
+    const finalLine = source.split("\n").at(-1)!;
+    const prompt = source.replace(finalLine, finalLine.replace("; CAMÉRA:", "\nCAMÉRA: plan serré sur mon smartphone et l’écran du mobile;"));
+    expect(validateUgcPrompt(prompt, ebookInput)).toBe(prompt);
+  });
+
   it("relance une fois si le CTA ebook ou la couverture réelle manque", async () => {
     const ebookInput = input(10, { name: "Guide Excel Facile", description: "Guide numérique pour apprendre Excel.", type: "ebook", category: "Éducation" });
     const invalid = promptFor(10, { title: ebookInput.product.name, ebook: true, finalDialogue: "Découvre Guide Excel Facile." });

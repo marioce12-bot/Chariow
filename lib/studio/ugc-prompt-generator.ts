@@ -132,6 +132,12 @@ export function readUgcTimeline(prompt: string): UgcTimelineEntry[] {
   });
 }
 
+function finalTimelineBlock(prompt: string, finalEntry: UgcTimelineEntry) {
+  const lines = prompt.split(/\r?\n/);
+  const finalLineIndex = lines.findIndex(line => line.trim() === finalEntry.line);
+  return finalLineIndex >= 0 ? lines.slice(finalLineIndex).join(" ") : finalEntry.line;
+}
+
 function extractQuotedDialogue(prompt: string) {
   const dialogues: string[] = [];
   const expression = /DIALOGUE\s+EXACT(?:E)?\s*:\s*[«“"]([^»”"]+)[»”"]/gi;
@@ -229,13 +235,22 @@ export function validateUgcPrompt(raw: unknown, input: UgcGeneratorInput): strin
   const ctaVerb = ctaVerbPattern(input);
   if (!ctaVerb.test(fold(finalDialogue))) failValidation("final_cta_missing", "dialogue.finalCta");
   if (dialogues.slice(0, -1).some(dialogue => ctaVerb.test(fold(dialogue)))) failValidation("cta_not_final", "dialogue.cta");
-  const finalVisual = fold(finalEntry.line);
-  const hasFinalReference = isEbookProduct(input.product.name, input.product.description, input.product.type, input.product.category)
-    ? /\b(?:couverture|cover)\b/u.test(finalVisual)
-      && /\b(?:telephone|tablette|phone|tablet)\b/u.test(finalVisual)
-      && /\b(?:gros plan|close up|closeup)\b/u.test(finalVisual)
-    : /(?:vraie reference|reference reelle|produit reel|real reference|real product|actual product)/u.test(finalVisual);
-  if (!hasFinalReference) failValidation("final_cta_missing", "visual.finalReference");
+  const finalVisual = fold(finalTimelineBlock(prompt, finalEntry));
+  const ebook = isEbookProduct(input.product.name, input.product.description, input.product.type, input.product.category);
+  const finalVisualChecks = ebook
+    ? {
+        hasReference: /\b(?:couverture|cover)\b/u.test(finalVisual),
+        hasDevice: /\b(?:telephone|tablette|smartphone|mobile|ecran|phone|tablet)\b/u.test(finalVisual),
+        hasCloseUp: /\b(?:gros plan|plan serre|close up|closeup)\b/u.test(finalVisual),
+      }
+    : {
+        hasReference: /(?:vraie reference|reference reelle|produit reel|real reference|real product|actual product)/u.test(finalVisual),
+      };
+  const hasFinalReference = Object.values(finalVisualChecks).every(Boolean);
+  if (!hasFinalReference) {
+    console.warn("Studio UGC final visual check failed", { ebook, ...finalVisualChecks });
+    failValidation("final_cta_missing", "visual.finalReference");
+  }
 
   const requiredLanguage = languageCode(input);
   const frenchSignals = (text: string) => (text.match(/\b(?:je|tu|vous|le|la|les|des|une|un|du|avec|dans|pour|est|et|sur|ton|ta|votre|découvre|decouvre|regarde|près|pres|boutique|mon|ma|son|sa|cherche|aimerais)\b/giu) ?? []).length;
@@ -307,8 +322,13 @@ function providerFailure(error: unknown): UgcPromptGenerationError {
 function correctionMessage(rule: UgcPromptFailureRule, input: UgcGeneratorInput) {
   const contract = durationContract(Number(input.options.duration));
   const exactRanges = contract.ranges.map(([start, end]) => `${start}–${end}`).join(", ");
+  const ebook = isEbookProduct(input.product.name, input.product.description, input.product.type, input.product.category);
   const specific = rule === "wrong_beat_count" || rule === "timeline_boundaries_mismatch"
     ? `La durée est ${input.options.duration}s: tu dois produire exactement ces ${contract.beats} lignes de temps, en recopiant exactement ces bornes: ${exactRanges}s. Ne crée aucune autre plage.`
+    : rule === "final_cta_missing"
+      ? ebook
+        ? "Corrige précisément le contrôle final_cta_missing: la dernière réplique doit inviter à télécharger l’ebook et le dernier temps doit montrer la couverture sur un téléphone ou une tablette en gros plan net, avec le titre et l’illustration intacts. Décris toute cette action dans le bloc du dernier temps."
+        : "Corrige précisément le contrôle final_cta_missing: la dernière réplique doit contenir l’invitation attendue et le dernier temps doit montrer la vraie référence du produit à l’écran. Décris toute cette action dans le bloc du dernier temps."
     : `Corrige précisément le contrôle « ${rule} » en respectant le contrat de durée déjà donné.`;
   return `${specific} Réponds avec le prompt vidéo directement en texte libre, sans JSON, sans commentaire ni bloc de code.`;
 }
