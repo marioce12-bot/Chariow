@@ -7,10 +7,8 @@ export type MetaCampaignRef = { id: string; name: string | null; effectiveStatus
  * Liste les campagnes d'un compte publicitaire Meta (id + nom), qu'elles aient
  * été lancées depuis Vendeo ou directement depuis Meta Ads Manager.
  *
- * Pourquoi : l'appel d'insights au niveau compte ne demande pas campaign_id
- * (erreur #100 sur certains tokens), donc les lignes « campaign » reviennent
- * sans identifiant et étaient ignorées. Les campagnes créées dans Meta n'avaient
- * ainsi aucune ligne au niveau campagne (ni dépenses, ni clics dans Vendeo).
+ * Sert de fallback lorsque la requête Insights agrégée campaign ne fournit pas
+ * d'identifiants, ou qu'un token refuse campaign_id/campaign_name (#100).
  * En connaissant les IDs, on interroge /{campaign_id}/insights directement.
  *
  * Par défaut Meta ne renvoie pas les campagnes archivées : on les demande

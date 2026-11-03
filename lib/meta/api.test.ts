@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { actionValue, fetchMetaInsights } from "./api";
+import { actionValue, fetchMetaInsights, MetaCampaignIdentityUnsupportedError } from "./api";
 
 describe("actionValue", () => {
   it("retient uniquement le premier type d'achat prioritaire présent", () => {
@@ -24,6 +24,27 @@ describe("actionValue", () => {
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe("fetchMetaInsights", () => {
+  it("requests campaign identity for the account-wide campaign query", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({
+      data: [{ campaign_id: "campaign-1", campaign_name: "Campagne test" }],
+    })));
+
+    await fetchMetaInsights("act_1", "test-access-token", "2026-10-01", "2026-10-02", "campaign");
+
+    const requestUrl = new URL(String(fetch.mock.calls[0][0]));
+    expect(requestUrl.searchParams.get("fields")).toContain("campaign_id");
+    expect(requestUrl.searchParams.get("fields")).toContain("campaign_name");
+  });
+
+  it("signals the sync fallback when Meta rejects campaign identity fields", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({
+      error: { code: 100, message: "Tried accessing nonexisting field (campaign_id)" },
+    }), { status: 400 }));
+
+    await expect(fetchMetaInsights("act_1", "test-access-token", "2026-10-01", "2026-10-02", "campaign"))
+      .rejects.toBeInstanceOf(MetaCampaignIdentityUnsupportedError);
+  });
+
   it("follows Graph pagination without emitting per-page logs", async () => {
     const fetch = vi.spyOn(globalThis, "fetch");
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
