@@ -32,6 +32,16 @@ export const MOBILE_DASHBOARD_TOUR_STEPS: readonly DashboardTourStep[] = [
     english: "Prepare an ad and review your campaigns here. Always check the budget and summary before confirming; this guide does not launch anything.",
   },
   {
+    id: "assistant",
+    target: "Vendeo AI",
+    targetSelector: '.mobile-nav [data-onboarding="Vendeo AI"] svg',
+    activeSection: "Vendeo AI",
+    fr: "Assistant : pose tes questions",
+    en: "Assistant: ask your questions",
+    body: "Ouvre l’Assistant depuis la barre du bas avec l’icône cerveau. Il t’aide à comprendre les informations de ta boutique et à préparer tes prochaines actions.",
+    english: "Open the Assistant from the bottom dock using the brain icon. It helps you understand your store’s information and prepare your next steps.",
+  },
+  {
     id: "studio",
     target: "Studio",
     activeSection: "Studio",
@@ -39,16 +49,6 @@ export const MOBILE_DASHBOARD_TOUR_STEPS: readonly DashboardTourStep[] = [
     en: "Studio: find your creative tools",
     body: "Le Studio regroupe les outils de création. Avant toute génération, vérifie les crédits et le coût affiché : ils sont distincts de l’abonnement.",
     english: "Studio brings together creative tools. Before generating anything, check the displayed credits and cost; they are separate from your subscription.",
-  },
-  {
-    id: "assistant",
-    target: "Vendeo AI",
-    targetSelector: '.mobile-nav [data-onboarding="Vendeo AI"]',
-    activeSection: "Vendeo AI",
-    fr: "Assistant : pose tes questions",
-    en: "Assistant: ask your questions",
-    body: "Ouvre l’Assistant depuis la barre du bas avec l’icône cerveau. Il t’aide à comprendre les informations de ta boutique et à préparer tes prochaines actions.",
-    english: "Open the Assistant from the bottom dock using the brain icon. It helps you understand your store’s information and prepare your next steps.",
   },
   {
     id: "market-radar",
