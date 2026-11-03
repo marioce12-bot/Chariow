@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 
 const NOTIFICATION_COLUMNS = "id,type,title,body,action_url,category,replies_enabled,metadata,read_at,created_at";
+const LEGACY_NOTIFICATION_COLUMNS = "id,type,title,body,action_url,metadata,read_at,created_at";
+
+function missingNotificationEnhancementColumns(error: { code?: string; message?: string }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return error.code === "42703" || error.code === "PGRST204"
+    || ((message.includes("schema cache") || message.includes("column"))
+      && (message.includes("category") || message.includes("replies_enabled")));
+}
 
 export async function GET() {
   const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
@@ -12,6 +20,17 @@ export async function GET() {
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(50);
+  if (error && missingNotificationEnhancementColumns(error)) {
+    const legacy = await supabase
+      .from("user_notifications")
+      .select(LEGACY_NOTIFICATION_COLUMNS)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (legacy.error) return NextResponse.json({ error: legacy.error.message }, { status: 500 });
+    const notifications = (legacy.data ?? []).map((item) => ({ ...item, category: "general", replies_enabled: false }));
+    return NextResponse.json({ notifications, unreadCount: notifications.filter((item) => !item.read_at).length });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ notifications: data ?? [], unreadCount: (data ?? []).filter((item) => !item.read_at).length });
 }
