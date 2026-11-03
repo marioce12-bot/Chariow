@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+let nextNotificationChannelId = 0;
+
 type NotificationInsert = {
   id?: unknown;
   user_id?: unknown;
@@ -50,7 +52,10 @@ export function subscribeUserNotifications(
 ) {
   let active = true;
   const seen = new Set<string>();
-  const channel = client.channel(`user-notifications:${userId}`)
+  // Supabase returns an existing channel for a repeated topic. The dashboard
+  // header and the notifications page can be mounted at the same time, so
+  // each subscriber needs a distinct topic before registering callbacks.
+  const channel = client.channel(`user-notifications:${userId}:${++nextNotificationChannelId}`)
     .on("postgres_changes", {
       event: "INSERT",
       schema: "public",

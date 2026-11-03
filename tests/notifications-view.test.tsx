@@ -73,14 +73,14 @@ describe("NotificationsView", () => {
     const list = container.querySelector('[aria-label="Liste des notifications"]');
     expect(list).not.toBeNull();
     expect(list!.querySelectorAll("span")).toHaveLength(2);
-    expect(Array.from(list!.querySelectorAll("span")).map((span) => span.textContent?.trim())).toEqual(["Non lue", "Lue"]);
+    expect(Array.from(list!.querySelectorAll("span")).map((span) => span.textContent?.trim())).toEqual(["general · Non lue", "general · Lue"]);
     expect(list!.querySelector(".notifications-page-item.unread")?.textContent).toContain("Notification non lue");
     expect(list!.querySelector(".notifications-page-item.read")?.textContent).toContain("Notification déjà lue");
   });
 
-  it("marks an unread button card as read and PATCHes its id", async () => {
+  it("marks an unread card as read and PATCHes its id", async () => {
     await renderAndLoad();
-    const unreadCard = container.querySelector<HTMLButtonElement>("button.notifications-page-item.unread");
+    const unreadCard = container.querySelector<HTMLElement>("article.notifications-page-item.unread");
     expect(unreadCard).not.toBeNull();
 
     await act(async () => {
