@@ -246,12 +246,12 @@ describe("Studio UGC prompt generation UI", () => {
     }
   });
 
-  it("shows a safe preparation failure, blocks rendering, then succeeds on explicit retry", async () => {
+  it("shows the actionable preparation failure, blocks rendering, then succeeds on explicit retry", async () => {
     let fail = true;
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "/api/studio/prompt" && init?.method === "POST") return fail
-        ? { ok: false, status: 502, json: async () => ({ code: "ugc_prompt_generation_failed", error: "Le scénario n’a pas pu être généré, réessaie.", failureRule: "provider" }) }
+        ? { ok: false, status: 429, json: async () => ({ code: "ugc_prompt_generation_failed", error: "OpenRouter limite temporairement les requêtes de ce modèle. Attends 45 secondes puis réessaie; si ça continue, vérifie les limites de requêtes du modèle.", failureRule: "provider_rate_limited", retryAfterSeconds: 45 }) }
         : reply({ prompt: "0–3s | Accroche Guide Excel Facile. DIALOGUE EXACT: «Bonjour.»", preparedUgc: "prepared:retry", locked: true, contentLanguage: { code: "fr", label: "French" }, plan: { segments: [] } });
       if (url === "/api/studio/video") return { ok: true, status: 200, json: async () => ({ ready: true, callback: true }) };
       if (url === "/api/account/preferences") return reply({ locale: "fr" });
@@ -268,7 +268,7 @@ describe("Studio UGC prompt generation UI", () => {
       const promptField = container.querySelector<HTMLTextAreaElement>("#studio-photo-panel textarea")!;
       const create = () => button(container, el => el.textContent?.includes("Créer la vidéo") ?? false);
       await click(button(container, el => el.textContent?.includes("Générer le prompt") ?? false)!);
-      expect(container.textContent).toContain("Le scénario n’a pas pu être généré, réessaie.");
+      expect(container.textContent).toContain("OpenRouter limite temporairement les requêtes de ce modèle. Attends 45 secondes");
       expect(button(container, el => el.textContent?.includes("Régénérer") ?? false)).toBeTruthy();
       expect(create()?.disabled).toBe(true);
       expect(fetcher.mock.calls.some(([url, options]) => ["/api/studio/video", "/api/studio/tasks"].includes(String(url)) && options?.method === "POST")).toBe(false);

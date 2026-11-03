@@ -74,6 +74,29 @@ describe("Locked studio video preparation routes", () => {
     expect(JSON.stringify(data)).not.toContain("MODEL_RAW_RESPONSE_MUST_NOT_BE_LOGGED");
     expect(askText.mock.calls.length).toBeLessThanOrEqual(3);
   });
+  it("explains OpenRouter 429 as a temporary request limit, not an exhausted credit balance", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    askText.mockRejectedValue(Object.assign(new Error("OpenRouter request rejected"), {
+      status: 429, retryAfter: "45", providerErrorCode: "rate_limit_exceeded",
+      providerErrorMessage: "Rate limit exceeded for model", upstreamProvider: "Example Provider",
+    }));
+    const response = await prompt(request({ mediaType: "video", duration: 15, product }));
+    const data = await response.json();
+    expect(response.status).toBe(429);
+    expect(data).toMatchObject({
+      code: "ugc_prompt_generation_failed",
+      failureRule: "provider_rate_limited",
+      retryAfterSeconds: 45,
+      error: expect.stringContaining("limite temporairement les requêtes"),
+    });
+    expect(data.error).not.toContain("crédits");
+    expect(log).toHaveBeenCalledWith("Studio UGC preparation failed", expect.objectContaining({
+      upstreamCode: "rate_limit_exceeded", upstreamMessage: "Rate limit exceeded for model",
+      upstreamProvider: "Example Provider", retryAfter: "45",
+    }));
+    expect(askText).toHaveBeenCalledOnce();
+    log.mockRestore();
+  });
   it("returns missing product fields before calling any model", async () => {
     const response = await prompt(request({
       mediaType: "video", duration: 25,

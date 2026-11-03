@@ -135,6 +135,24 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     expect(askText).toHaveBeenCalledTimes(2);
   });
 
+  it("classe OpenRouter 429 comme limite de requêtes, garde Retry-After et n’envoie pas de retries immédiats", async () => {
+    askText.mockRejectedValueOnce(Object.assign(new Error("OpenRouter refused request"), {
+      status: 429, retryAfter: "45", providerErrorCode: "rate_limit_exceeded",
+      providerErrorMessage: "Rate limit exceeded for model", upstreamProvider: "Example Provider",
+    }));
+    let failure: unknown;
+    try { await generateUgcPrompt(input()); } catch (error) { failure = error; }
+    expect(failure).toMatchObject({
+      stage: "provider",
+      details: {
+        type: "provider_rate_limited", httpStatus: 429, retryAfter: "45",
+        upstreamCode: "rate_limit_exceeded", upstreamMessage: "Rate limit exceeded for model",
+        upstreamProvider: "Example Provider",
+      },
+    });
+    expect(askText).toHaveBeenCalledOnce();
+  });
+
   it("respecte le délai strict de 30 secondes et expose un timeout typé", async () => {
     const clock = vi.spyOn(Date, "now").mockReturnValueOnce(1_000).mockReturnValue(31_000);
     let failure: unknown;
