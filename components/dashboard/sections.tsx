@@ -480,6 +480,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     if (kind === "video") preparedUgcRef.current = null;
     let responseReceived = false;
     let retryableVideoFailure = false;
+    let videoFailureMessage = "";
     try {
       const current = prompt.trim();
       const userBrief = current && current !== lastGeneratedPromptRef.current ? current : "";
@@ -512,6 +513,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       const result = await response.json().catch(() => ({}));
       if (!response.ok || typeof result.prompt !== "string") {
         retryableVideoFailure = kind === "video" && (result.code === "ugc_prompt_generation_failed" || response.status >= 500);
+        if (kind === "video" && typeof result.error === "string") videoFailureMessage = result.error;
         throw new Error(result.error || "Impossible de générer le prompt.");
       }
       lastGeneratedPromptRef.current = result.prompt;
@@ -526,7 +528,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         preparedUgcRef.current = null;
         setPromptGenerationFailed(true);
         setError(retryableVideoFailure || !responseReceived
-          ? (locale === "en" ? "The scenario could not be generated. Please try again." : "Le scénario n’a pas pu être généré, réessaie.")
+          ? (videoFailureMessage || (locale === "en" ? "The scenario could not be generated. Please try again." : "Le scénario n’a pas pu être généré, réessaie."))
           : (promptError instanceof Error ? promptError.message : t("sweep3.text200")));
       } else {
         setError(promptError instanceof Error ? promptError.message : t("sweep3.text200"));

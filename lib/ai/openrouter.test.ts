@@ -80,6 +80,24 @@ const failure = (status = 503) => new Response(JSON.stringify({ error: { message
     await expect(Promise.reject(new OpenRouterApiError(401))).rejects.not.toThrow("test-key");
   });
 
+  it("captures a bounded upstream error diagnostic while redacting credentials", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    const response = new Response(JSON.stringify({ error: {
+      code: "rate_limit_exceeded",
+      message: "Rate limit exceeded for model; token sk-or-v1-secret-value was rejected",
+      metadata: { provider_name: "Example Provider" },
+    } }), { status: 429, headers: { "retry-after": "30" } });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+
+    await expect(askOpenRouter(messages)).rejects.toMatchObject({
+      status: 429,
+      retryAfter: "30",
+      upstreamCode: "rate_limit_exceeded",
+      upstreamMessage: "Rate limit exceeded for model; token [redacted] was rejected",
+      upstreamProvider: "Example Provider",
+    });
+  });
+
   it("retries only explicit 503 responses and keeps the configured model unchanged", async () => {
     vi.useFakeTimers();
     vi.stubEnv("OPENROUTER_API_KEY", "test-key");

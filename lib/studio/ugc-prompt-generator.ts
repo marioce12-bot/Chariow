@@ -40,6 +40,9 @@ export type UgcPromptFailureRule =
   | "unsupported_numeric_claim"
   | "unsupported_guarantee"
   | "provider_error"
+  | "provider_rate_limited"
+  | "provider_credits_required"
+  | "provider_auth_error"
   | "provider_timeout";
 
 export class UgcPromptGenerationError extends Error {
@@ -51,6 +54,9 @@ export class UgcPromptGenerationError extends Error {
       path?: string;
       httpStatus?: number;
       retryAfter?: string;
+      upstreamCode?: string;
+      upstreamMessage?: string;
+      upstreamProvider?: string;
       missingFields?: string[];
     },
   ) {
@@ -274,15 +280,29 @@ function providerFailure(error: unknown): UgcPromptGenerationError {
   const timedOut = value.timedOut === true || value.name === "AbortError" || (error instanceof Error && /timed?\s*out|timeout/i.test(error.message));
   const status = typeof value.status === "number" ? value.status : undefined;
   const retryAfter = typeof value.retryAfter === "string" ? value.retryAfter : undefined;
+  const upstreamCode = typeof value.providerErrorCode === "string" ? value.providerErrorCode : undefined;
+  const upstreamMessage = typeof value.providerErrorMessage === "string" ? value.providerErrorMessage : undefined;
+  const upstreamProvider = typeof value.upstreamProvider === "string" ? value.upstreamProvider : undefined;
+  const type: UgcPromptFailureRule = timedOut ? "provider_timeout"
+    : status === 429 ? "provider_rate_limited"
+      : status === 402 || /credit|balance|payment required/i.test(upstreamMessage ?? "") ? "provider_credits_required"
+        : status === 401 || status === 403 ? "provider_auth_error" : "provider_error";
   return new UgcPromptGenerationError("Le fournisseur de texte UGC n’a pas répondu.", "provider", {
-    type: timedOut ? "provider_timeout" : "provider_error",
+    type,
     httpStatus: status,
     retryAfter,
+    upstreamCode,
+    upstreamMessage,
+    upstreamProvider,
   });
 }
 
-function correctionMessage(rule: UgcPromptFailureRule) {
-  return `La tentative précédente a échoué au contrôle « ${rule} ». Corrige précisément ce point. Réponds avec le prompt vidéo directement en texte libre, sans JSON, sans commentaire ni bloc de code.`;
+function correctionMessage(rule: UgcPromptFailureRule, input: UgcGeneratorInput) {
+  const contract = durationContract(Number(input.options.duration));
+  const specific = rule === "wrong_beat_count"
+    ? `La durée est ${input.options.duration}s: tu dois produire exactement ${contract.beats} lignes de temps, ni plus ni moins; les plages doivent rester contiguës et couvrir exactement ${input.options.duration}s.`
+    : `Corrige précisément le contrôle « ${rule} » en respectant le contrat de durée déjà donné.`;
+  return `${specific} Réponds avec le prompt vidéo directement en texte libre, sans JSON, sans commentaire ni bloc de code.`;
 }
 
 function retryLimit(rule: UgcPromptFailureRule) {
@@ -322,14 +342,14 @@ export async function generateUgcPrompt(input: UgcGeneratorInput): Promise<strin
         lastError = error instanceof UgcPromptGenerationError ? error : new UgcPromptGenerationError("Le texte généré n’a pas passé les contrôles.", "validation", { type: "empty_output" });
         if (attempt < retryLimit(lastError.details.type) && Date.now() < deadline) {
           messages.push({ role: "assistant", content: typeof result === "string" ? result : "" });
-          messages.push({ role: "user", content: correctionMessage(lastError.details.type) });
+          messages.push({ role: "user", content: correctionMessage(lastError.details.type, input) });
           continue;
         }
       }
     } catch (error) {
       lastError = providerFailure(error);
-      if (attempt < UGC_PROMPT_MAX_RETRIES && Date.now() < deadline) {
-        messages.push({ role: "user", content: correctionMessage(lastError.details.type) });
+      if (lastError.details.type !== "provider_rate_limited" && lastError.details.type !== "provider_credits_required" && lastError.details.type !== "provider_auth_error" && attempt < UGC_PROMPT_MAX_RETRIES && Date.now() < deadline) {
+        messages.push({ role: "user", content: correctionMessage(lastError.details.type, input) });
         continue;
       }
     }

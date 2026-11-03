@@ -16,7 +16,16 @@ const PROVIDERS: Record<TextProvider, (messages: TextMessage[], responseSchema?:
 };
 
 export class TextProviderError extends Error {
-  constructor(message: string, readonly status?: number, readonly failedProviders: TextProvider[] = [], readonly retryAfter?: string, readonly timedOut = false) {
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly failedProviders: TextProvider[] = [],
+    readonly retryAfter?: string,
+    readonly timedOut = false,
+    readonly providerErrorCode?: string,
+    readonly providerErrorMessage?: string,
+    readonly upstreamProvider?: string,
+  ) {
     super(message);
     this.name = "TextProviderError";
   }
@@ -45,6 +54,9 @@ export async function askText(messages: TextMessage[], options: { order?: TextPr
   const failures: TextProvider[] = [];
   let lastStatus: number | undefined;
   let lastRetryAfter: string | undefined;
+  let lastProviderErrorCode: string | undefined;
+  let lastProviderErrorMessage: string | undefined;
+  let lastUpstreamProvider: string | undefined;
   let timedOut = false;
 
   for (const provider of order) {
@@ -56,9 +68,23 @@ export async function askText(messages: TextMessage[], options: { order?: TextPr
     } catch (error) {
       lastStatus = getHttpStatus(error);
       lastRetryAfter = getRetryAfter(error);
+      if (error && typeof error === "object") {
+        const providerError = error as { upstreamCode?: unknown; upstreamMessage?: unknown; upstreamProvider?: unknown };
+        lastProviderErrorCode = typeof providerError.upstreamCode === "string" ? providerError.upstreamCode : undefined;
+        lastProviderErrorMessage = typeof providerError.upstreamMessage === "string" ? providerError.upstreamMessage : undefined;
+        lastUpstreamProvider = typeof providerError.upstreamProvider === "string" ? providerError.upstreamProvider : undefined;
+      }
       timedOut ||= error instanceof Error && (error.name === "AbortError" || /timed?\s*out|timeout/i.test(error.message));
       const errorType = error instanceof Error ? error.name : "unknown_error";
-      console.error(`AI text provider error (${provider})`, { status: lastStatus ?? null, errorType });
+      console.error(`AI text provider error (${provider})`, {
+        status: lastStatus ?? null, errorType,
+        ...(provider === "openrouter" ? {
+          upstreamCode: lastProviderErrorCode ?? null,
+          upstreamMessage: lastProviderErrorMessage ?? null,
+          upstreamProvider: lastUpstreamProvider ?? null,
+          retryAfter: lastRetryAfter ?? null,
+        } : {}),
+      });
       failures.push(provider);
     }
   }
@@ -66,5 +92,5 @@ export async function askText(messages: TextMessage[], options: { order?: TextPr
   const message = failures.length
     ? `Tous les fournisseurs IA texte ont échoué (${failures.join(", ")})`
     : "Aucun fournisseur IA texte n'est disponible";
-  throw new TextProviderError(message, lastStatus, failures, lastRetryAfter, timedOut);
+  throw new TextProviderError(message, lastStatus, failures, lastRetryAfter, timedOut, lastProviderErrorCode, lastProviderErrorMessage, lastUpstreamProvider);
 }

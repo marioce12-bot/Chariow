@@ -103,7 +103,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ prompt, plan, preparedUgc: signPreparedUgc(user.id, generatorInput, narrative, prompt), contentLanguage, locked: !(await isStudioVideoEnabled()) });
     } catch (error) {
       const diagnostic = error instanceof UgcPromptGenerationError
-        ? { stage: error.stage, type: error.details.type, keyPath: error.details.path ?? null, httpStatus: error.details.httpStatus ?? null }
+        ? {
+          stage: error.stage, type: error.details.type, keyPath: error.details.path ?? null,
+          httpStatus: error.details.httpStatus ?? null,
+          upstreamCode: error.details.upstreamCode ?? null,
+          upstreamMessage: error.details.upstreamMessage ?? null,
+          upstreamProvider: error.details.upstreamProvider ?? null,
+          retryAfter: error.details.retryAfter ?? null,
+        }
         : { stage: assemblyStage, type: error instanceof Error ? error.name : "unknown_error", keyPath: null, httpStatus: null };
       console.error("Studio UGC preparation failed", diagnostic);
       if (error instanceof UgcPromptGenerationError && error.stage === "input") {
@@ -114,13 +121,36 @@ export async function POST(request: Request) {
         }, { status: 400 });
       }
       const failureRule = error instanceof UgcPromptGenerationError ? error.details.type : "prompt_assembly_error";
-      const status = error instanceof UgcPromptGenerationError && error.details.type === "provider_timeout" ? 504
-        : error instanceof UgcPromptGenerationError && error.details.httpStatus === 429 ? 429
+      const ugcError = error instanceof UgcPromptGenerationError ? error : null;
+      const locale = body?.locale === "en" ? "en" : "fr";
+      const waitSeconds = ugcError?.details.retryAfter && /^\d+$/.test(ugcError.details.retryAfter)
+        ? Math.max(1, Math.min(3600, Number(ugcError.details.retryAfter))) : null;
+      let publicError = locale === "en" ? "The scenario could not be generated. Please try again." : "Le scénario n’a pas pu être généré, réessaie.";
+      if (failureRule === "provider_rate_limited") publicError = locale === "en"
+        ? `OpenRouter temporarily rate-limited this model. Wait${waitSeconds ? ` ${waitSeconds} seconds` : " a minute"} and try again; if it continues, check the model's request limits.`
+        : `OpenRouter limite temporairement les requêtes de ce modèle. Attends${waitSeconds ? ` ${waitSeconds} secondes` : " une minute"} puis réessaie; si ça continue, vérifie les limites de requêtes du modèle.`;
+      else if (failureRule === "provider_credits_required") publicError = locale === "en"
+        ? "OpenRouter reports a credit or payment issue. Check the account balance and billing status."
+        : "OpenRouter signale un problème de crédits ou de paiement. Vérifie le solde et l’état de facturation du compte.";
+      else if (failureRule === "provider_auth_error") publicError = locale === "en"
+        ? "OpenRouter rejected the configured API key. Check the Production key and its permissions."
+        : "OpenRouter refuse la clé API configurée. Vérifie la clé utilisée en Production et ses autorisations.";
+      else if (failureRule === "wrong_beat_count") {
+        const expected = duration === 10 ? 3 : duration === 15 ? 4 : 5;
+        publicError = locale === "en"
+          ? `The AI returned the wrong number of scenes. It must return exactly ${expected} for ${duration} seconds; regenerate the prompt.`
+          : `L’IA a renvoyé un mauvais nombre de temps. Il en faut exactement ${expected} pour ${duration} secondes; régénère le prompt.`;
+      } else if (failureRule === "word_count_mismatch") publicError = locale === "en"
+        ? "The AI's dialogue did not fit the required duration. Regenerate the prompt."
+        : "Les dialogues générés ne respectaient pas le nombre de mots prévu pour cette durée. Régénère le prompt.";
+      const status = ugcError?.details.type === "provider_timeout" ? 504
+        : ugcError?.details.httpStatus === 429 ? 429
           : 502;
       return NextResponse.json({
-        error: body?.locale === "en" ? "The scenario could not be generated. Please try again." : "Le scénario n’a pas pu être généré, réessaie.",
+        error: publicError,
         code: "ugc_prompt_generation_failed",
         failureRule,
+        retryAfterSeconds: waitSeconds,
       }, { status });
     }
   }

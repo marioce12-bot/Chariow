@@ -17,10 +17,25 @@ const DEFAULT_TIMEOUT_MS = 25_000;
 const MAX_IMAGES_PER_MESSAGE = 2;
 
 export class OpenRouterApiError extends Error {
-  constructor(public readonly status: number, public readonly retryAfter?: string) {
+  constructor(
+    public readonly status: number,
+    public readonly retryAfter?: string,
+    public readonly upstreamCode?: string,
+    public readonly upstreamMessage?: string,
+    public readonly upstreamProvider?: string,
+  ) {
     super(`OpenRouter API returned ${status}`);
     this.name = "OpenRouterApiError";
   }
+}
+
+function safeDiagnostic(value: unknown, maxLength = 240): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const safe = value.replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/sk-or-v1-[A-Za-z0-9_-]+/gi, "[redacted]")
+    .replace(/\s+/g, " ").trim();
+  return safe ? safe.slice(0, maxLength) : undefined;
 }
 
 export function getOpenRouterModel() {
@@ -106,7 +121,17 @@ export async function askOpenRouter(
           await waitForRetry(1000 * 2 ** attempt, controller.signal);
           continue;
         }
-        throw new OpenRouterApiError(response.status, response.headers.get("retry-after") ?? undefined);
+        const errorBody = await response.json().catch(() => null) as {
+          error?: { code?: string | number; message?: string; metadata?: { provider_name?: string } };
+        } | null;
+        const upstream = errorBody?.error;
+        throw new OpenRouterApiError(
+          response.status,
+          response.headers.get("retry-after") ?? undefined,
+          upstream?.code === undefined ? undefined : String(upstream.code),
+          safeDiagnostic(upstream?.message),
+          safeDiagnostic(upstream?.metadata?.provider_name, 80),
+        );
       }
       const data = (await response.json().catch(() => ({}))) as OpenRouterResponse;
       const content = data.choices?.[0]?.message?.content;
