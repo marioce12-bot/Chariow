@@ -239,6 +239,12 @@ export async function GET(request: Request) {
   });
   if (combined.ok) combined.headers.set("Cache-Control", "private, max-age=60, stale-while-revalidate=120");
   if ((primaryBody?.store as { platform?: string } | undefined)?.platform === "shopify") return combined;
-  const status = chariowStatus(!monthResponse.ok ? monthBody : !rolling30Response.ok ? rolling30Body : selectedPeriodResponse && !selectedPeriodResponse.ok ? selectedPeriodBody : null);
+  // Une période secondaire peut échouer (par exemple une plage historique
+  // partielle) alors que le dashboard principal est bien chargé. Dans ce cas,
+  // ne pas écrire le cookie d'erreur : sinon ChariowStatusNotice affiche une
+  // fausse alerte de reconnexion alors que la boutique est toujours connectée.
+  const status = monthResponse.ok || rolling30Response.ok
+    ? null
+    : chariowStatus(monthBody ?? rolling30Body);
   return withStatus(combined, status);
 }
