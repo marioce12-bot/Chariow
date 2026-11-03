@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { VideoAdPlan } from "./video-plan";
+import { VIDEO_AD_DURATIONS, type VideoAdPlan } from "./video-plan";
 import type { VideoClip } from "./video-pipeline";
 
 export type AssemblyOptions = { ffmpegPath?: string; ffprobePath?: string; outputPath: string; width?: number; height?: number; fps?: number };
@@ -28,10 +28,16 @@ function localPath(url: string): string {
 
 /** Requires explicitly provisioned ffmpeg/ffprobe binaries; not guaranteed in Vercel runtime. */
 export async function assembleVideo(clips: VideoClip[], plan: VideoAdPlan, options: AssemblyOptions): Promise<{ url: string; duration: number }> {
+  const plannedDuration = plan.segments.reduce((total, segment) => total + segment.duration, 0);
+  if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(plan.duration)
+    || plan.segments.length === 0
+    || plan.segments.some((segment, index) => segment.index !== index || !Number.isFinite(segment.duration) || segment.duration <= 0 || segment.duration > 15)
+    || Math.abs(plannedDuration - plan.duration) > 0.001) {
+    throw new Error("Le plan d’assemblage doit respecter une durée vidéo prise en charge et des segments ordonnés qui totalisent cette durée.");
+  }
   const ffmpeg = options.ffmpegPath ?? process.env.FFMPEG_PATH;
   const ffprobe = options.ffprobePath ?? process.env.FFPROBE_PATH;
   if (!ffmpeg || !ffprobe) throw new Error("Set ffmpegPath and ffprobePath explicitly (or FFMPEG_PATH/FFPROBE_PATH)");
-  if (plan.duration !== 25 || plan.segments.length !== 2 || plan.segments[0]?.duration !== 15 || plan.segments[1]?.duration !== 10) throw new Error("Final video must be exactly 25 seconds from ordered 15s and 10s clips");
   if (clips.length !== plan.segments.length || clips.some((c, i) => c.index !== i || c.index !== plan.segments[i].index)) throw new Error("Clip count/order does not match plan");
   const width = options.width ?? 1280, height = options.height ?? 720, fps = options.fps ?? 30;
   if (width < 2 || height < 2 || fps < 1) throw new Error("Invalid output dimensions or frame rate");
@@ -54,7 +60,7 @@ export async function assembleVideo(clips: VideoClip[], plan: VideoAdPlan, optio
     await writeFile(list, normalized.map(p => `file '${p.replaceAll("'", "'\\''")}'`).join("\n"));
     await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", "-movflags", "+faststart", options.outputPath]);
     const final = await probe(options.outputPath, ffprobe);
-    if (!Number.isFinite(final.duration) || Math.abs(final.duration - 25) > 0.05) throw new Error(`Assembled duration ${final.duration}s differs from exact 25s requirement`);
+    if (!Number.isFinite(final.duration) || Math.abs(final.duration - plan.duration) > 0.05) throw new Error(`Assembled duration ${final.duration}s differs from requested ${plan.duration}s requirement`);
     return { url: options.outputPath, duration: final.duration };
   } finally { await rm(work, { recursive: true, force: true }); }
 }

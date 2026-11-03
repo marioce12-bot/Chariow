@@ -72,7 +72,10 @@ export async function POST(request: Request) {
 
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
   const duration = body?.duration === undefined ? 10 : Number(body.duration);
-  if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(duration)) return NextResponse.json({ error: "Durée vidéo non prise en charge.", supported: VIDEO_AD_DURATIONS }, { status: 400 });
+  if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(duration)) return NextResponse.json({
+    error: `Durée invalide pour duration : valeurs autorisées ${VIDEO_AD_DURATIONS.join(", ")} secondes.`,
+    code: "invalid_input", keyPath: "duration", supported: VIDEO_AD_DURATIONS,
+  }, { status: 400 });
   const product = parseStudioProduct(body?.product);
   if (!product) return NextResponse.json({ error: "Choisis un produit réel de ta boutique pour construire un scénario adapté et le présenter fidèlement." }, { status: 400 });
   const input = normalizeUgcInput(body?.product, { ...(body?.ugcOptions && typeof body.ugcOptions === "object" ? body.ugcOptions : {}), duration }, body?.locale, prompt);
@@ -114,6 +117,9 @@ export async function POST(request: Request) {
   } catch (error) {
     const rateLimit = error instanceof UgcPromptGenerationError ? ugcProviderRateLimitResponse(error, body?.locale) : null;
     if (rateLimit) return NextResponse.json(rateLimit.body, { status: 429, headers: rateLimit.headers });
+    if (error instanceof UgcPromptGenerationError && error.stage === "input") {
+      return NextResponse.json({ error: error.message, code: error.details.type ?? "invalid_input", keyPath: error.details.path ?? null }, { status: 400 });
+    }
     if (isFalVideoInputRejectedError(error)) {
       return NextResponse.json({ error: "Le prompt vidéo dépasse la limite sûre du fournisseur. Aucun crédit n’a été réservé.", code: error.code }, { status: 400 });
     }
