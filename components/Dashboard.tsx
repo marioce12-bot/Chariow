@@ -47,7 +47,7 @@ import { NotificationPermissionPrompt } from "./NotificationPermissionPrompt";
 import { DashboardStoreSelector } from "./dashboard/StoreSelector";
 import "@/app/dashboard-refinement.css";
 import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
-import { StoreConnectionGate, hasConnectedCommerceStore } from "./dashboard/StoreConnectionGate";
+import { StoreConnectionGate, shouldShowStoreConnectionGate } from "./dashboard/StoreConnectionGate";
 import { SaleCelebration } from "./dashboard/SaleCelebration";
 import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
@@ -231,6 +231,7 @@ function DashboardWorkspace() {
   const activeStoreId = (selectedStoreId && stores.some((store) => store.id === selectedStoreId) ? selectedStoreId : stores[0]?.id) ?? null;
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [storesLoadFailed, setStoresLoadFailed] = useState(false);
   // Vrai tant que l'abonnement et les données de la boutique (analytics) n'ont pas fini de charger :
   // la Vue d'ensemble affiche alors des skeletons au lieu de zéros / textes provisoires.
   const [overviewLoading, setOverviewLoading] = useState(true);
@@ -382,32 +383,43 @@ function DashboardWorkspace() {
 
     async function loadDashboard() {
       const preferredStoreId = readSavedStoreId();
-      const [storeResponse, subscriptionResponse] = await Promise.all([
-        fetch("/api/stores"),
-        fetch("/api/subscription"),
-      ]);
-      const storeResult = storeResponse.ok ? await storeResponse.json() : { stores: [] };
-      if (cancelled) return;
-      const nextStores = storeResult.stores ?? [];
-      setStores(nextStores);
+      try {
+        const storeResponse = await fetch("/api/stores");
+        if (!storeResponse.ok) throw new Error("stores request failed");
+        const storeResult = await storeResponse.json();
+        if (cancelled) return;
+        const nextStores = Array.isArray(storeResult?.stores) ? storeResult.stores : [];
+        setStores(nextStores);
+        setStoresLoadFailed(false);
 
-      // Si la boutique mémorisée n'existe plus (supprimée, déconnectée), on se rabat sur la première.
-      const nextSelected = preferredStoreId && nextStores.some((store: StoreData) => store.id === preferredStoreId && store.connection_status === "connected")
-        ? preferredStoreId
-        : nextStores.find((store: StoreData) => store.platform === "chariow" && store.connection_status === "connected")?.id ?? nextStores[0]?.id ?? null;
-      setSelectedStoreId(nextSelected);
+        // Si la boutique mémorisée n'existe plus (supprimée, déconnectée), on se rabat sur la première.
+        const nextSelected = preferredStoreId && nextStores.some((store: StoreData) => store.id === preferredStoreId && store.connection_status === "connected")
+          ? preferredStoreId
+          : nextStores.find((store: StoreData) => store.platform === "chariow" && store.connection_status === "connected")?.id ?? nextStores[0]?.id ?? null;
+        setSelectedStoreId(nextSelected);
+      } catch {
+        if (cancelled) return;
+        // An empty array is a valid successful response only. Keep the store
+        // gate closed when the request itself failed, especially offline.
+        setStoresLoadFailed(true);
+      }
 
-      const subscriptionResult = subscriptionResponse.ok ? await subscriptionResponse.json() : { subscription: null };
-      if (cancelled) return;
-      const nextSubscription = subscriptionResult.subscription ?? null;
-      setSubscription(nextSubscription);
-      setLoadingData(false);
+      try {
+        const subscriptionResponse = await fetch("/api/subscription");
+        const subscriptionResult = subscriptionResponse.ok ? await subscriptionResponse.json() : { subscription: null };
+        if (cancelled) return;
+        setSubscription(subscriptionResult.subscription ?? null);
+      } catch {
+        // Subscription is independent from the store connection gate.
+      }
+      if (!cancelled) setLoadingData(false);
     }
 
     loadDashboard().catch(() => {
       if (!cancelled) {
         setLoadingData(false);
         setOverviewLoading(false);
+        setStoresLoadFailed(true);
       }
     });
     return () => { cancelled = true; };
@@ -460,7 +472,8 @@ function DashboardWorkspace() {
   // before the effect has had a chance to set its loading flag.
   const storeDataLoading = overviewLoading || analyticsStoreId !== activeStoreId;
   const snapshotView = ["Vue d'ensemble", "Rapports", "Studio"].includes(active);
-  const needsStoreConnection = !loadingData && !subscriptionExpired && !hasConnectedCommerceStore(stores);
+  const needsStoreConnection = shouldShowStoreConnectionGate({ stores, loading: loadingData, loadFailed: storesLoadFailed, offline: isOffline, subscriptionExpired });
+  const dashboardDataUnavailable = !loadingData && storesLoadFailed;
 
   const onboarding = useFirstStoreOnboarding({ userId: notificationUserId, stores, loading: loadingData, connected: !subscriptionExpired && !needsStoreConnection && !loadingData });
   const onboardingOpen = onboarding.stage !== "closed" && !needsStoreConnection && !loadingData && !subscriptionExpired;
@@ -531,7 +544,16 @@ function DashboardWorkspace() {
             showExpiredSubscriptionModal();
           }}
         >
-          {loadingData || (snapshotView && storeDataLoading) ? (
+          {loadingData ? (
+            <DashboardSkeleton />
+          ) : dashboardDataUnavailable ? (
+            <section className="app-card dashboard-data-unavailable" role="status" aria-live="polite">
+              <span className="eyebrow">{isOffline ? w("offlineTitle") : w("connectionErrorTitle")}</span>
+              <h2>{isOffline ? w("offlineTitle") : w("connectionErrorTitle")}</h2>
+              <p>{isOffline ? w("offlineDetails") : w("connectionErrorDetails")}</p>
+              <button type="button" className="btn-primary" onClick={() => window.location.reload()}>{w("retry")}</button>
+            </section>
+          ) : snapshotView && storeDataLoading ? (
             <DashboardSkeleton />
           ) : active === "Paramètres" ? (
             <MobileSettingsView key={`${settingsFocus}-${settingsNavigationVersion}`} onNavigate={navigateToSection} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus={settingsFocus === "index" ? undefined : settingsFocus} />
