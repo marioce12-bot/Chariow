@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { notifyAdmin } from "@/lib/email";
+import { notifyAdmin, trackBrevoEvent, upsertBrevoContact } from "@/lib/email";
 
 // Notifie les administrateurs d'une nouvelle inscription. Appelé par le client
 // juste après supabase.auth.signUp. On vérifie que l'utilisateur existe bien en
@@ -17,6 +17,9 @@ export async function POST(request: Request) {
   await notifyAdmin(
     "Nouvelle inscription",
     `<p><strong>${name}</strong> vient de créer un compte avec l'email <strong>${email}</strong>.</p>`
+  );
+  void upsertBrevoContact(email, { FULL_NAME: name, CHARIOW_CONNECTED: false }).then(() =>
+    trackBrevoEvent("vendeo_signup", email, { full_name: name })
   );
 
   return NextResponse.json({ ok: true });

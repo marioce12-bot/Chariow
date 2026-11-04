@@ -4,6 +4,7 @@ import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { ChariowMcpClient } from "@/lib/chariow/mcp-client";
 import { CHARIOW_MCP_URL } from "@/lib/chariow/types";
 import { invalidateUserStoreList } from "@/lib/shop/cache";
+import { updateBrevoContact } from "@/lib/email";
 
 function sanitizeErrorMessage(message: string) {
   // Remove potential sensitive payload and keep it short.
@@ -189,6 +190,8 @@ export async function GET(request: Request) {
     invalidateUserStoreList(user.id);
 
     if (!upErr) {
+      const { data: connectedProfile } = await supabase.from("profiles").select("email").eq("id", user.id).maybeSingle();
+      if (connectedProfile?.email) void updateBrevoContact(connectedProfile.email, { CHARIOW_CONNECTED: true });
       const { data: profile } = await supabase.from("profiles").select("experience_level").eq("id", user.id).maybeSingle();
       if (profile?.experience_level === "beginner" || profile?.experience_level === "some_experience") {
         const { count } = await supabase.from("user_notifications")
