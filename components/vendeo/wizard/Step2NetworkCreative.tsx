@@ -3,7 +3,7 @@
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, ImagePlus, Loader2, Pencil, Sparkles, X } from "lucide-react";
-import type { Platform, WizardState } from "./types";
+import type { WizardState } from "./types";
 import { useI18n } from "@/lib/i18n/i18n";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import { MAX_CAROUSEL_EXTRA_IMAGES } from "@/lib/meta/carousel";
@@ -25,7 +25,7 @@ interface StepProps {
   onAdvanceToStep3: () => void;
 }
 
-type FieldId = "adSetName" | "network" | "account" | "adName" | "media" | "content" | "identity";
+type FieldId = "adSetName" | "account" | "adName" | "media" | "content" | "identity";
 
 function stripHtml(html: string): string {
   return html
@@ -428,7 +428,6 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
         )}
         <div>
           <Row label={en ? "Ad set name" : "Nom de l'ensemble de publicités"} value={state.adSetName || (en ? "New ad set" : "Nouvel ensemble de publicités")} onEdit={() => setEditingField("adSetName")} />
-          <Row label={en ? "Network" : "Réseau"} value={state.platform === "meta" ? "Meta Ads" : state.platform === "tiktok" ? "TikTok Ads" : "Pinterest Ads"} onEdit={() => setEditingField("network")} />
           <Row
             label={en ? "Ad account" : "Compte publicitaire"}
             value={
@@ -501,27 +500,6 @@ export function Step2NetworkCreative({ state, patch, onFooterChange, onBackToSte
           onChange={(e) => patch({ adSetName: e.target.value })}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
         />
-      </div>
-    );
-  }
-
-  if (editingField === "network") {
-    return (
-      <div>
-        <EditorHeader label={en ? "Network" : "Réseau"} />
-        <div className="flex gap-2">
-          {(["meta", "tiktok", "pinterest"] as Platform[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => patch({ platform: p, placement: p === "meta" ? state.placement : "auto" })}
-              className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium capitalize transition ${
-                state.platform === p ? "border-[#6366F1] bg-[#EEF2FF] text-[#3730A3]" : "border-gray-200 text-gray-600"
-              }`}
-            >
-              {p === "meta" ? "Meta Ads" : p === "tiktok" ? "TikTok Ads" : "Pinterest Ads"}
-            </button>
-          ))}
-        </div>
       </div>
     );
   }

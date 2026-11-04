@@ -290,7 +290,7 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
               <span>{en ? "Everything is pre-filled from the original. Change what you want: the original campaign is not modified." : "Tout est pré-rempli à partir de l'original. Modifie ce que tu veux : la campagne d'origine n'est pas modifiée."}</span>
             </div>
           ) : null}
-          <ChannelSelector state={state} patch={patch} onReadyChange={setChannelReady} en={en} />
+          {step === 1 && <ChannelSelector state={state} patch={patch} onReadyChange={setChannelReady} en={en} />}
           {step === 1 && <Step1Product state={state} patch={patch} onNext={() => { if (channelReady) next(); }} />}
           {step === 2 && (
             <Step2NetworkCreative
