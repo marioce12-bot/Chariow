@@ -4,6 +4,8 @@
 // notifications administrateur ci-dessous (via son API HTTP).
 
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+const BREVO_EVENTS_URL = "https://api.brevo.com/v3/events";
+const BREVO_CONTACTS_URL = "https://api.brevo.com/v3/contacts";
 
 type SendEmailInput = {
   to: string | string[];
@@ -58,6 +60,39 @@ export async function notifyAdmin(subject: string, html: string): Promise<void> 
     .filter(Boolean);
   if (recipients.length === 0) return;
   await sendEmail({ to: recipients, subject, html });
+}
+
+/** Starts the Brevo automation; the two-hour wait belongs to Brevo, not Vercel. */
+export async function trackBrevoEvent(eventName: string, email: string, properties: Record<string, unknown> = {}) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return false;
+  try {
+    const response = await fetch(BREVO_EVENTS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "api-key": apiKey },
+      body: JSON.stringify({ event_name: eventName, identifiers: { email }, event_properties: properties }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Brevo event error", error instanceof Error ? error.message : "unknown");
+    return false;
+  }
+}
+
+export async function updateBrevoContact(email: string, attributes: Record<string, unknown>) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return false;
+  try {
+    const response = await fetch(`${BREVO_CONTACTS_URL}/${encodeURIComponent(email)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "api-key": apiKey },
+      body: JSON.stringify({ attributes }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Brevo contact update error", error instanceof Error ? error.message : "unknown");
+    return false;
+  }
 }
 
 export function moneyXOF(value: number): string {

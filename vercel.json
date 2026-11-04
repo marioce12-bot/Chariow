@@ -15,10 +15,6 @@
     {
       "path": "/api/cron/shopify/retention",
       "schedule": "30 3 * * *"
-    },
-    {
-      "path": "/api/cron/onboarding/store-connection-reminder",
-      "schedule": "*/10 * * * *"
     }
   ]
 }
