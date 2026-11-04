@@ -8,6 +8,8 @@ describe("TrainingWelcome", () => {
   it("explains that training is included and remains available after the trial", () => {
     const html = renderToStaticMarkup(<TrainingWelcome subscription={{ status: "trialing", trial_active: true }} onDismiss={vi.fn()} />);
     expect(html).toContain("Apprends tout sur le business des produits digitaux");
+    expect(html).toContain("Comprendre le marché des produits digitaux");
+    expect(html).toContain("Analyser et optimiser ses performances publicitaires");
     expect(html).toContain("Active ton abonnement pour y accéder");
     expect(html).toContain("après ta période d’essai");
     expect(html).toContain("Activer mon abonnement");
