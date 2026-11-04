@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
 import { createClient } from "@/lib/supabase/browser";
 import { subscribeUserNotifications, type RealtimeNotification } from "@/lib/notifications/realtime";
+import { TrainingInvitation } from "@/components/TrainingInvitation";
 
 type NotificationItem = { id: string; type: "admin" | "autopilot" | "system"; title: string; body: string; action_url: string | null; category?: string; replies_enabled?: boolean; read_at: string | null; created_at: string };
 
@@ -14,7 +15,7 @@ function formatDate(value: string, locale: "fr" | "en") {
   return new Date(value).toLocaleString(locale === "fr" ? "fr-FR" : "en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function NotificationsView({ onBack, userId }: { onBack: () => void; userId?: string | null }) {
+export function NotificationsView({ onBack, userId, experienceLevel, subscription }: { onBack: () => void; userId?: string | null; experienceLevel?: string | null; subscription?: { status?: string; trial_active?: boolean } | null }) {
   const { locale, t } = useI18n();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +66,7 @@ export function NotificationsView({ onBack, userId }: { onBack: () => void; user
     <div className="page-top notifications-page-head">
       <button type="button" className="mobile-back-button" onClick={onBack}><ArrowRight size={15} style={{ transform: "rotate(180deg)" }} /> {t("adminExtra.notifications.back")}</button>
     </div>
+    <TrainingInvitation experienceLevel={experienceLevel} subscription={subscription} />
     <section className="app-card notifications-card">
       {unread ? <div className="card-head"><div><h2>{`${unread} ${t("adminExtra.notifications.unreadCount")}`}</h2></div><button type="button" className="notifications-mark-all" onClick={() => void markAllRead()}><CheckCheck size={15} /> {t("adminExtra.notifications.markAll")}</button></div> : null}
       {loading ? <p className="hint-line">{t("adminExtra.notifications.loading")}</p> : error ? <p className="settings-inline-message settings-account-error">{localizeSystemMessage(error, locale)}</p> : !items.length ? <div className="notifications-empty"><Bell size={28} /><strong>{t("adminExtra.notifications.empty")}</strong></div> : <div className="notifications-page-list" aria-label={t("adminExtra.notifications.list")}>{items.map((item) => {

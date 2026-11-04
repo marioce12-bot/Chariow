@@ -44,10 +44,9 @@ import RecoveryPanel from "./dashboard/RecoveryPanel";
 import { DashboardStoreSelector } from "./dashboard/StoreSelector";
 import "@/app/dashboard-refinement.css";
 import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
-import { StoreConnectionGate, shouldShowStoreConnectionGate } from "./dashboard/StoreConnectionGate";
+import { StoreConnectionGate, hasConnectedCommerceStore, shouldShowStoreConnectionGate, STORE_ONBOARDING_STORAGE_KEY } from "./dashboard/StoreConnectionGate";
 import { SaleCelebration } from "./dashboard/SaleCelebration";
 import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
-import { TrainingInvitation } from "./TrainingInvitation";
 import { NotificationCenter } from "./NotificationCenter";
 import { NotificationsView } from "./NotificationsView";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
@@ -347,6 +346,7 @@ function DashboardWorkspace() {
 
 
   async function signOut() {
+    try { window.localStorage.removeItem(STORE_ONBOARDING_STORAGE_KEY); } catch { /* Local storage may be unavailable. */ }
     try {
       const cache = await caches.open("vendeo-shell-v3");
       await cache.delete("/dashboard");
@@ -480,6 +480,11 @@ function DashboardWorkspace() {
   const needsStoreConnection = shouldShowStoreConnectionGate({ stores, loading: loadingData, loadFailed: storesLoadFailed, offline: isOffline, subscriptionExpired });
   const dashboardDataUnavailable = !loadingData && storesLoadFailed;
 
+  useEffect(() => {
+    if (loadingData || !hasConnectedCommerceStore(stores)) return;
+    try { window.localStorage.removeItem(STORE_ONBOARDING_STORAGE_KEY); } catch { /* Local storage may be unavailable. */ }
+  }, [loadingData, stores]);
+
   const onboarding = useFirstStoreOnboarding({ userId: notificationUserId, stores, loading: loadingData, connected: !subscriptionExpired && !needsStoreConnection && !loadingData });
   const onboardingOpen = onboarding.stage !== "closed" && !needsStoreConnection && !loadingData && !subscriptionExpired;
   const handleTourStepChange = useCallback((step: DashboardTourStep | null) => {
@@ -591,10 +596,9 @@ function DashboardWorkspace() {
           ) : active === "Suggestions et notes" ? (
             <MobileSettingsView onNavigate={navigateToSection} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="feedback" />
           ) : active === "Notifications" ? (
-            <NotificationsView onBack={() => setActive(previousSection)} userId={notificationUserId} />
+            <NotificationsView onBack={() => setActive(previousSection)} userId={notificationUserId} experienceLevel={experienceLevel} subscription={subscription} />
           ) : (
             <>
-            <TrainingInvitation experienceLevel={experienceLevel} subscription={subscription} />
             <OverviewHome
               key={activeStoreId}
               stores={stores}

@@ -17,7 +17,8 @@ function getMobilePlatform(): MobilePlatform {
   if (typeof navigator === "undefined") return null;
   const userAgent = navigator.userAgent;
   if (/Android/i.test(userAgent)) return "android";
-  if (/iPhone|iPod/i.test(userAgent)) return "ios";
+  const iPadDesktopMode = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  if (/iPhone|iPad|iPod/i.test(userAgent) || iPadDesktopMode) return "ios";
   return null;
 }
 

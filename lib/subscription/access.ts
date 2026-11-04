@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const PLANS_REQUIRED_MESSAGE = "Ton abonnement Vendeo a expiré. Réactive-le depuis la section Abonnement pour continuer.";
+const PAID_SUBSCRIPTION_REQUIRED_MESSAGE = "Un abonnement Vendeo payant actif est nécessaire pour télécharger la formation complète.";
+
+type SubscriptionAccessRow = { status?: string | null; trial_active?: boolean | null; trial_ends_at?: string | null; current_period_end?: string | null };
+
+export function hasPaidSubscriptionAccess(subscription: SubscriptionAccessRow | null | undefined, now = new Date()): boolean {
+  const today = now.toISOString().slice(0, 10);
+  const periodEnd = subscription?.current_period_end ? String(subscription.current_period_end).slice(0, 10) : null;
+  return subscription?.status === "active" && subscription.trial_active === false && periodEnd !== null && periodEnd >= today;
+}
 
 /**
  * Règle d'accès unique, vérifiée en temps réel (sans dépendre du cron) :
@@ -41,4 +50,17 @@ export async function requireActiveSubscription(userId: string): Promise<NextRes
 
   if (trialOk || subscriptionOk) return null;
   return NextResponse.json({ error: PLANS_REQUIRED_MESSAGE, code: "PLANS_REQUIRED" }, { status: 402 });
+}
+
+/** Full training downloads are a paid-plan benefit, not a free-trial benefit. */
+export async function requirePaidSubscription(userId: string): Promise<NextResponse | null> {
+  const admin = createAdminClient();
+  const { data: subscription } = await admin
+    .from("subscriptions")
+    .select("status, trial_active, current_period_end")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (hasPaidSubscriptionAccess(subscription)) return null;
+  return NextResponse.json({ error: PAID_SUBSCRIPTION_REQUIRED_MESSAGE, code: "PAID_SUBSCRIPTION_REQUIRED" }, { status: 402 });
 }

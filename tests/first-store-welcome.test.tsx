@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FirstStoreWelcome, VENDEO_TOUR_STEPS } from "@/components/dashboard/FirstStoreWelcome";
+import { FirstStoreWelcome, OFFICIAL_WHATSAPP_CHANNEL_URL, VENDEO_TOUR_STEPS } from "@/components/dashboard/FirstStoreWelcome";
 import type { SubscriptionData } from "@/components/dashboard/shared";
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr" }) }));
 let root: Root;
@@ -16,27 +16,30 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 const subscription = { trial_active: true, trial_ends_at: "2099-10-30T12:00:00Z" } as SubscriptionData;
-async function mount(stage: "welcome" | "tour", onDismiss = vi.fn(), onStart = vi.fn()) {
-  await act(async () => root.render(<FirstStoreWelcome stage={stage} subscription={subscription} onStart={onStart} onDismiss={onDismiss} onTourStepChange={vi.fn()} />));
-  return { onDismiss, onStart };
+async function mount(stage: "welcome" | "tour", onDismiss = vi.fn(), onTryStudio = vi.fn()) {
+  await act(async () => root.render(<FirstStoreWelcome stage={stage} subscription={subscription} onTryStudio={onTryStudio} onDismiss={onDismiss} onTourStepChange={vi.fn()} />));
+  return { onDismiss, onTryStudio };
 }
 function button(text: string) { return Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes(text))!; }
 describe("first-store welcome", () => {
-  it("uses a generic current-trial title, shows the actual end date, and avoids a restart promise", async () => {
-    const { onStart } = await mount("welcome");
-    expect(container.textContent).toContain("Félicitations"); expect(container.textContent).toContain("Ton essai gratuit en cours");
-    expect(container.textContent).toContain("Profite de ton essai gratuit en cours");
-    expect(container.textContent).not.toContain("essai gratuit de 5 jours");
-    expect(container.textContent).toContain("30 octobre 2099"); expect(container.textContent).toContain("ne redémarre ni ne prolonge");
-    expect(container.textContent).toContain("crédits Studio");
-    await act(async () => button("Découvrir").click()); expect(onStart).toHaveBeenCalledOnce();
+  it("confirms the connected store, displays trial benefits, and avoids a restart promise", async () => {
+    const { onTryStudio } = await mount("welcome");
+    expect(container.textContent).toContain("Félicitations");
+    expect(container.textContent).toContain("Ta boutique Chariow est connectée");
+    expect(container.textContent).toContain("5 jours d’essai gratuit et 100 crédits Studio te sont offerts");
+    expect(container.textContent).toContain("30 octobre 2099");
+    expect(container.textContent).toContain("Tes crédits Studio et ton budget publicitaire sont distincts");
+    const communityLink = container.querySelector<HTMLAnchorElement>("a.vendeo-welcome-community");
+    expect(communityLink?.getAttribute("href")).toBe(OFFICIAL_WHATSAPP_CHANNEL_URL);
+    expect(communityLink?.getAttribute("target")).toBe("_blank");
+    expect(communityLink?.getAttribute("rel")).toBe("noopener noreferrer");
+    await act(async () => button("Essayer le Studio").click()); expect(onTryStudio).toHaveBeenCalledOnce();
     expect(document.activeElement?.getAttribute("role")).toBe("dialog");
   });
   it("does not announce an expired trial as active", async () => {
-    await act(async () => root.render(<FirstStoreWelcome stage="welcome" subscription={{ ...subscription, trial_active: false, trial_ends_at: "2020-01-01" }} onStart={vi.fn()} onDismiss={vi.fn()} onTourStepChange={vi.fn()} />));
-    expect(container.textContent).not.toContain("Profite de ton essai gratuit en cours");
-    expect(container.textContent).toContain("Les nouveaux essais durent 5 jours");
-    expect(container.textContent).toContain("état actuel de ton essai dans Abonnement");
+    await act(async () => root.render(<FirstStoreWelcome stage="welcome" subscription={{ ...subscription, trial_active: false, trial_ends_at: "2020-01-01" }} onTryStudio={vi.fn()} onDismiss={vi.fn()} onTourStepChange={vi.fn()} />));
+    expect(container.textContent).toContain("Retrouve l’état actuel de ton essai dans Abonnement");
+    expect(container.textContent).toContain("Fin de l’essai :");
   });
   it("supports every tour step, back, completion and Escape", async () => {
     expect(VENDEO_TOUR_STEPS).toHaveLength(14);

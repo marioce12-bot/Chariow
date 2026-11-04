@@ -10,7 +10,7 @@ import { SubscriptionExpiredNotice } from "@/components/SubscriptionExpiredNotic
 // pour éviter un accès prolongé.
 export function SubscriptionPaywallGate() {
   const pathname = usePathname();
-  const [subscription, setSubscription] = useState<{ status: string } | null>(null);
+  const [subscription, setSubscription] = useState<{ status: string; trial_active?: boolean; trial_ends_at?: string | null } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
