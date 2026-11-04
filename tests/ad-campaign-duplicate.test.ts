@@ -40,7 +40,7 @@ describe("wizardStateForDuplicate", () => {
     expect(copy.advantageCreative).toBe(false);
     expect(copy.advantageAudience).toBe(true);
     expect(copy.minAge).toBe(20);
-    expect(copy.maxAge).toBe(40);
+    expect(copy.maxAge).toBe(65);
     expect(copy.dailyBudget).toBe(7);
     expect(copy.durationDays).toBe(3);
     expect(copy.metaAdAccountId).toBe("acc-1");
@@ -73,5 +73,6 @@ describe("wizardStateForDuplicate", () => {
     expect(legacy.callToAction).toBe("LEARN_MORE");
     expect(legacy.advantageCreative).toBe(true);
     expect(legacy.advantageAudience).toBe(false);
+    expect(legacy.maxAge).toBe(40);
   });
 });

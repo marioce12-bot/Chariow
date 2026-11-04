@@ -189,6 +189,7 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   // créative activée, audience désactivée.
   const advantageCreative = campaign.advantage_creative !== false;
   const advantageAudience = campaign.advantage_audience === true;
+  const effectiveMaxAge = advantageAudience ? 65 : Number(campaign.max_age);
   // Vidéo : pas de fonctions Advantage+ créative (retouches d'image, superpositions), et l'annonce
   // est créée directement ACTIVE (voir plus bas).
   const isVideo = isVideoMediaUrl(campaign.media_url);
@@ -247,7 +248,7 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
     // le lancement pour autant — Meta refusera de toute façon la création si besoin.
   }
 
-  await supabase.from("ad_campaigns").update({ meta_ad_account_id: account.id, external_error: null }).eq("id", campaign.id).eq("user_id", userId);
+  await supabase.from("ad_campaigns").update({ meta_ad_account_id: account.id, max_age: effectiveMaxAge, external_error: null }).eq("id", campaign.id).eq("user_id", userId);
   try {
     const campaignName = campaign.title || campaign.product_name || "Campagne Vendeo";
     // Vidéo : envoyée à Meta et traitée AVANT de créer la campagne, pour ne pas laisser de
@@ -267,7 +268,7 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
       // d'audience — retombe sur `countries` (pays entiers) si absent.
       geoTargeting: campaign.geo_targeting ?? null,
       minAge: Number(campaign.min_age),
-      maxAge: Number(campaign.max_age),
+      maxAge: effectiveMaxAge,
       interests: campaign.meta_targeting?.interests ?? [],
       gender: campaign.meta_targeting?.gender ?? null,
       objective: effectiveObjective,

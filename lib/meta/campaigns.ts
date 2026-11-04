@@ -237,7 +237,7 @@ export async function createMetaAdSet(input: {
   const targeting: Record<string, unknown> = {
     geo_locations: geoLocations,
     age_min: input.minAge,
-    age_max: input.maxAge,
+    age_max: input.advantageAudience ? 65 : input.maxAge,
     // Requis par Meta (Graph API v23.0+, subcode 1870227) dès que l'âge min/max
     // n'est pas la config par défaut : il faut dire explicitement si l'audience
     // Advantage+ (élargissement automatique de l'audience par l'IA de Meta) est

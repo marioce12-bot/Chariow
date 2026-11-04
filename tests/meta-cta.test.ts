@@ -101,6 +101,7 @@ describe("createMetaAdSet — audience Advantage+", () => {
   it("l'active quand demandé", async () => {
     const { targeting } = await sentAdSet({ advantageAudience: true });
     expect(targeting.targeting_automation).toEqual({ advantage_audience: 1 });
+    expect(targeting.age_max).toBe(65);
   });
 
   it("laisse Meta choisir automatiquement les placements tout en conservant la destination Web", async () => {

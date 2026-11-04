@@ -74,8 +74,8 @@ export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
           {en ? "Age range" : "Tranche d'âge"} : {state.minAge} – {state.maxAge} {en ? "years" : "ans"}
         </p>
         <div className="flex items-center gap-3">
-          <input type="range" min={13} max={65} value={state.minAge} onChange={(e) => patch({ minAge: Math.min(Number(e.target.value), state.maxAge) })} className="flex-1" />
-          <input type="range" min={13} max={65} value={state.maxAge} onChange={(e) => patch({ maxAge: Math.max(Number(e.target.value), state.minAge) })} className="flex-1" />
+          <input type="range" aria-label={en ? "Minimum age" : "Âge minimum"} min={13} max={65} value={state.minAge} onChange={(e) => patch({ minAge: Math.min(Number(e.target.value), state.maxAge) })} className="flex-1" />
+          <input type="range" aria-label={en ? "Maximum age" : "Âge maximum"} min={13} max={65} value={state.advantageAudience ? 65 : state.maxAge} onChange={(e) => patch({ maxAge: Math.max(Number(e.target.value), state.minAge) })} disabled={state.advantageAudience} className="flex-1 disabled:cursor-not-allowed disabled:opacity-50" />
         </div>
       </div>
 
@@ -143,12 +143,12 @@ export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
 
       {state.platform === "meta" && (
         <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3">
-          <input type="checkbox" checked={state.advantageAudience} onChange={(e) => patch({ advantageAudience: e.target.checked })} className="mt-0.5 h-4 w-4 shrink-0" />
+          <input type="checkbox" checked={state.advantageAudience} onChange={(e) => patch({ advantageAudience: e.target.checked, ...(e.target.checked ? { maxAge: 65 } : {}) })} className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             <span className="block text-sm font-semibold text-gray-700">{en ? "Advantage+ audience" : "Audience Advantage+"}</span>
             <span className="block text-xs text-gray-500">
               {state.advantageAudience
-                ? (en ? "On: Meta may expand beyond your audience settings to find more buyers. Your locations are still respected." : "Activée : Meta peut élargir l’audience au-delà de tes critères pour trouver plus d’acheteurs. Tes lieux restent respectés.")
+                ? (en ? "On: Meta may expand beyond your audience settings to find more buyers. Your locations are still respected, and the maximum age is fixed at 65." : "Activée : Meta peut élargir l’audience au-delà de tes critères pour trouver plus d’acheteurs. Tes lieux restent respectés et l’âge maximal est fixé à 65 ans.")
                 : (en ? "Off: your ad uses the audience settings and locations you chose." : "Désactivée : ta publicité utilise les critères d’audience et les lieux que tu as choisis.")}
             </span>
           </span>

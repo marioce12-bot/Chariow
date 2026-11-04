@@ -233,7 +233,7 @@ export function wizardStateFromCampaign(campaign: EditableCampaign, storeId: str
     locations,
     countries: deriveCountries(locations),
     minAge: campaign.min_age ?? DEFAULT_WIZARD_STATE.minAge,
-    maxAge: campaign.max_age ?? DEFAULT_WIZARD_STATE.maxAge,
+    maxAge: (campaign.advantage_audience ?? DEFAULT_WIZARD_STATE.advantageAudience) ? 65 : campaign.max_age ?? DEFAULT_WIZARD_STATE.maxAge,
     metaGender: campaign.meta_targeting?.gender === "male" || campaign.meta_targeting?.gender === "female" ? campaign.meta_targeting.gender : null,
     metaInterests: Array.isArray(campaign.meta_targeting?.interests) ? campaign.meta_targeting.interests : [],
     dailyBudget: Number(campaign.daily_budget) || DEFAULT_WIZARD_STATE.dailyBudget,
