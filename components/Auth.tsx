@@ -81,12 +81,17 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
       }
       if (register) {
         trackSuccessfulRegistration();
-        // Notification administrateur, sans bloquer la suite (fire-and-forget).
-        void fetch("/api/emails/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, fullName }),
-        });
+        // Attendre la synchronisation Brevo avant la redirection après inscription.
+        try {
+          const response = await fetch("/api/emails/signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, fullName }),
+          });
+          if (!response.ok) console.error("Brevo signup sync failed with status", response.status);
+        } catch (error) {
+          console.error("Brevo signup sync request failed", error instanceof Error ? error.message : "unknown");
+        }
       }
       if (forgot || (register && "session" in result.data && !result.data.session)) {
         setSubmitted(true);

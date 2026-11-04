@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { notifyAdmin, trackBrevoEvent, upsertBrevoContact } from "@/lib/email";
+import { trackBrevoEvent, upsertBrevoContact } from "@/lib/email";
 
-// Notifie les administrateurs d'une nouvelle inscription. Appelé par le client
-// juste après supabase.auth.signUp. On vérifie que l'utilisateur existe bien en
-// base (profiles) avant d'envoyer, pour éviter les notifications abusives.
+// Synchronise le contact et l'événement d'inscription dans Brevo.
+// L'événement démarre l'automatisation; les emails de confirmation restent gérés par Supabase Auth.
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as { email?: string; fullName?: string } | null;
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -14,13 +13,8 @@ export async function POST(request: Request) {
   const { data } = await admin.from("profiles").select("full_name").eq("email", email).maybeSingle();
 
   const name = data?.full_name || body?.fullName?.trim() || "Utilisateur";
-  await notifyAdmin(
-    "Nouvelle inscription",
-    `<p><strong>${name}</strong> vient de créer un compte avec l'email <strong>${email}</strong>.</p>`
-  );
-  void upsertBrevoContact(email, { FULL_NAME: name, CHARIOW_CONNECTED: false }).then(() =>
-    trackBrevoEvent("vendeo_signup", email, { full_name: name })
-  );
+  await upsertBrevoContact(email, { FULL_NAME: name, CHARIOW_CONNECTED: false });
+  await trackBrevoEvent("vendeo_signup", email, { full_name: name });
 
   return NextResponse.json({ ok: true });
 }

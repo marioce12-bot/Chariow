@@ -65,13 +65,20 @@ export async function notifyAdmin(subject: string, html: string): Promise<void> 
 /** Starts the Brevo automation; the two-hour wait belongs to Brevo, not Vercel. */
 export async function trackBrevoEvent(eventName: string, email: string, properties: Record<string, unknown> = {}) {
   const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) return false;
+  if (!apiKey) {
+    console.error("Brevo event skipped: BREVO_API_KEY missing");
+    return false;
+  }
   try {
     const response = await fetch(BREVO_EVENTS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "api-key": apiKey },
       body: JSON.stringify({ event_name: eventName, identifiers: { email }, event_properties: properties }),
     });
+    if (!response.ok) {
+      console.error("Brevo event rejected with status", response.status);
+      return false;
+    }
     return response.ok;
   } catch (error) {
     console.error("Brevo event error", error instanceof Error ? error.message : "unknown");
@@ -81,13 +88,20 @@ export async function trackBrevoEvent(eventName: string, email: string, properti
 
 export async function upsertBrevoContact(email: string, attributes: Record<string, unknown> = {}) {
   const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) return false;
+  if (!apiKey) {
+    console.error("Brevo contact upsert skipped: BREVO_API_KEY missing");
+    return false;
+  }
   try {
     const response = await fetch(BREVO_CONTACTS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "api-key": apiKey },
       body: JSON.stringify({ email, attributes, updateEnabled: true }),
     });
+    if (!response.ok) {
+      console.error("Brevo contact upsert rejected with status", response.status);
+      return false;
+    }
     return response.ok;
   } catch (error) {
     console.error("Brevo contact upsert error", error instanceof Error ? error.message : "unknown");
