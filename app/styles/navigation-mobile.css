@@ -152,11 +152,14 @@ code { background:#e7efe3; border-radius:4px; color:var(--green); font-family:'D
 .form-group { margin-bottom:15px; }
 .form-group label { display:block; font-size:12px; font-weight:700; margin-bottom:7px; }
 .form-group input { background:white; border:1px solid var(--line); border-radius:7px; padding:12px; width:100%; }
+.form-group select { appearance:auto; background:white; border:1px solid var(--line); border-radius:7px; box-sizing:border-box; color:var(--ink); display:block; font:inherit; font-size:16px; min-height:47px; max-width:100%; overflow:hidden; padding:10px 12px; text-overflow:ellipsis; width:100%; }
 .form-group input:focus { border-color:var(--green); outline:2px solid #d8ebcf; }
+.form-group select:focus { border-color:var(--green); outline:2px solid #d8ebcf; }
 .auth-card .btn { border-radius:7px; width:100%; margin-top:5px; }
 .auth-foot { color:var(--muted); font-size:12px; margin-top:22px; text-align:center; }
 .auth-foot a { color:var(--green); font-weight:700; }
 .auth-success { background:#e9f5ff; border-radius:8px; color:#123e75; font-size:13px; line-height:1.6; padding:16px; }
+@media (max-width:600px) { .auth-page { padding:18px 12px; } .auth-card { padding:28px 22px; } .form-group select { font-size:16px; } }
 .legal-consent { align-items:flex-start; color:#64748b; display:flex; font-size:11px; gap:8px; line-height:1.5; margin:18px 0; }
 .legal-consent input { flex:none; margin-top:2px; }
 .legal-consent span { align-items:center; display:flex; flex-wrap:wrap; gap:4px; }
