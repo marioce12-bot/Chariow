@@ -61,17 +61,6 @@ export const MOBILE_DASHBOARD_TOUR_STEPS: readonly DashboardTourStep[] = [
     english: "Explore trends and product ideas in Market radar. Use them as research leads, not as a guarantee of sales.",
   },
   {
-    id: "whatsapp",
-    target: "mobile-menu:Relances WhatsApp",
-    activeSection: "Relances WhatsApp",
-    openMobileMenu: true,
-    menuTarget: "Relances WhatsApp",
-    fr: "Relances WhatsApp",
-    en: "WhatsApp follow-ups",
-    body: "Le menu « … » reste ouvert et met Relances WhatsApp en évidence. Consulte les informations et vérifie les destinataires avant toute action.",
-    english: "The “…” menu stays open and highlights WhatsApp follow-ups. Review the information and recipients before taking any action.",
-  },
-  {
     id: "ad-performance-shortcut",
     target: "mobile-menu:Performance publicitaire",
     activeSection: "Performance publicitaire",
@@ -122,15 +111,6 @@ export const DESKTOP_DASHBOARD_TOUR_STEPS: readonly DashboardTourStep[] = [
     en: "Overview: your key metrics",
     body: "Revenu net, Ventes, Panier moyen et Campagnes en cours restent calculés à partir des données disponibles. Sur ordinateur, les couleurs pastel distinguent les cartes KPI et le graphique Meta est moins haut; les valeurs et données ne changent pas.",
     english: "Net revenue, Sales, Average basket and Running campaigns still use the available data. On desktop, pastel colors distinguish the KPI cards and the Meta chart is shorter; the values and data are unchanged.",
-  },
-  {
-    id: "whatsapp",
-    target: "Relances WhatsApp",
-    activeSection: "Relances WhatsApp",
-    fr: "Relances WhatsApp",
-    en: "WhatsApp follow-ups",
-    body: "Retrouve les outils de relance. Consulte les informations et vérifie les destinataires avant toute action.",
-    english: "Find the follow-up tools here. Review the information and recipients before taking action.",
   },
   {
     id: "assistant",

@@ -45,7 +45,7 @@ Configurer l’application externe avec l’URL de retour ci-dessus et les évé
 - Les commandes test ou annulées ne produisent pas de ventes confirmées. Les commandes intégralement remboursées ne sont pas comptées comme ventes actives. Le détail financier par produit reste inconnu quand un remboursement ne peut pas être alloué précisément.
 - Les visites, taux de conversion, clients uniques et taux de réachat ne sont pas importés avec ces scopes. `null` signifie indisponible, pas zéro.
 - L’attribution publicitaire n’est disponible que si des paramètres UTM identifiables sont réellement présents. Elle n’est pas garantie pour toutes les commandes.
-- Les paniers abandonnés et coordonnées client ne sont pas importés : les relances WhatsApp Shopify sont explicitement indisponibles. Une parité complète de cette fonction nécessite une extension distincte, les approbations de données protégées et le traitement du consentement.
+-
 - Aucun pixel n’est installé dans Shopify par cette connexion. Les pixels présents dans une vitrine Vendeo ne prouvent pas une installation sur le checkout Shopify. Une intégration Shopify Customer Events / canal Meta approprié est à configurer séparément.
 
 ## Synchronisation et validation

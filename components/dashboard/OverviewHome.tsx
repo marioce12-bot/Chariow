@@ -412,9 +412,6 @@ export function OverviewHome({
         </section>
       ) : null}
 
-      {onNavigate ? <div className="overview-business-shortcuts" aria-label={t("sweep3.text143")}>
-        <button type="button" onClick={() => onNavigate("Relances WhatsApp")}><span className="overview-shortcut-icon recovery"><Clock size={20} /></span><span><strong>{t("sweep3.text146")}</strong><small>{t("sweep1.text147")}</small></span><span aria-hidden="true">↗</span></button>
-      </div> : null}
       {/* 2. Liste des campagnes publicitaires */}
       <AdCampaignsList key={campaignsVersion} storeId={storeId ?? null} plan={plan} onNewCampaign={onLaunchAd} />
 

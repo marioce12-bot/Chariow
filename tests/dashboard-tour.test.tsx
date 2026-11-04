@@ -79,7 +79,7 @@ describe("responsive Vendeo dashboard guide", () => {
   it("opens the actual overflow menu for menu destinations and leaves settings for its general index", () => {
     const menuSteps = MOBILE_DASHBOARD_TOUR_STEPS.filter((step) => step.menuTarget);
     expect(menuSteps.map((step) => step.menuTarget)).toEqual([
-      "Relances WhatsApp", "Performance publicitaire", "Rapports",
+      "Performance publicitaire", "Rapports",
     ]);
     for (const step of menuSteps) {
       expect(step.openMobileMenu).toBe(true);
@@ -126,7 +126,7 @@ describe("responsive Vendeo dashboard guide", () => {
   it("uses an independent desktop sequence with desktop-specific overview refinements and navigation", () => {
     expect(DESKTOP_DASHBOARD_TOUR_STEPS[0].target).toBe("store");
     expect(DESKTOP_DASHBOARD_TOUR_STEPS.slice(1, 7).map((step) => step.target)).toEqual([
-      "Vue d'ensemble", "Relances WhatsApp", "Vendeo AI", "Studio", "Pub", "Performance publicitaire",
+      "Vue d'ensemble", "Vendeo AI", "Studio", "Pub", "Performance publicitaire", "Radar marché",
     ]);
     expect(DESKTOP_DASHBOARD_TOUR_STEPS.find((step) => step.id === "home")?.body).toContain("graphique Meta est moins haut");
     expect(DESKTOP_DASHBOARD_TOUR_STEPS.map((step) => step.target)).toContain("Comptes publicitaires");
@@ -153,8 +153,7 @@ describe("responsive Vendeo dashboard guide", () => {
     await nextStep();
     expect(title()).toContain("Radar marché");
     await nextStep();
-    expect(title()).toContain("Relances WhatsApp");
-    expect(transitions.at(-1)).toMatchObject({ openMobileMenu: true, menuTarget: "Relances WhatsApp", target: "mobile-menu:Relances WhatsApp" });
+    expect(title()).toContain("Recommandation");
   });
 
   it("reaches the real general Settings index at the mobile Settings step", async () => {

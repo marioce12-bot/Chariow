@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const ALLOWED_SECTIONS = new Set([
   "Vue d'ensemble", "Vendeo AI", "Studio", "Pub", "Comptes publicitaires",
   "Radar marché", "Performance visuel", "Performance publicitaire", "Mes boutiques", "Rapports", "Abonnement",
-  "Paramètres", "Relances WhatsApp",
+  "Paramètres",
 ]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type TrackBody = { session_id?: unknown; section?: unknown; seconds?: unknown; new_visit?: unknown };

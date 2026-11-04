@@ -30,7 +30,6 @@ vi.mock("@/components/dashboard/sections", () => ({
   StoresView: () => null, SubscriptionView: () => null, Reports: () => null,
 }));
 vi.mock("@/components/dashboard/OverviewHome", () => ({ OverviewHome: () => null }));
-vi.mock("@/components/dashboard/RecoveryPanel", () => ({ default: () => null }));
 vi.mock("@/components/dashboard/SaleCelebration", () => ({ SaleCelebration: () => null }));
 
 import { Dashboard } from "@/components/Dashboard";

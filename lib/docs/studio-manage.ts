@@ -567,51 +567,6 @@ export const studioManageSections: DocSection[] = [
             "en": "Credits may be reserved while a creation runs and then confirmed according to completed stages. A connection failure does not prove that nothing was produced or that credits were restored. Check history and balance before trying again, and request a review using the visible ID if needed."
           }
         ]
-      }
-    ]
-  },
-  {
-    "id": "studio-notifications-recovery",
-    "group": "manage",
-    "title": {
-      "fr": "Relances WhatsApp et notifications",
-      "en": "WhatsApp follow-ups and notifications"
-    },
-    "summary": {
-      "fr": "Préparez les relances de ventes dans WhatsApp et choisissez les notifications de cet appareil, sans confondre message préparé et message envoyé.",
-      "en": "Prepare sales follow-ups in WhatsApp and choose notifications for this device, without confusing a prepared message with a sent one."
-    },
-    "articles": [
-      {
-        "id": "whatsapp-scope",
-        "title": {
-          "fr": "WhatsApp : périmètre réel",
-          "en": "WhatsApp: actual scope"
-        },
-        "paragraphs": [
-          {
-            "fr": "Ouvrez Relances WhatsApp pour consulter les ventes ou abandons proposés à la relance. Lorsqu’un téléphone et un lien de paiement exploitables sont présents, l’action prépare un message et ouvre WhatsApp. Vous devez relire puis envoyer le message vous-même ; préparer le brouillon n’enregistre ni consentement du destinataire ni preuve d’envoi.",
-            "en": "Open WhatsApp follow-ups to review sales or abandoned checkouts offered for follow-up. When a usable phone number and payment link are present, the action prepares a message and opens WhatsApp. You must review and send it yourself; preparing the draft records neither recipient consent nor proof of delivery."
-          },
-          {
-            "fr": "Dans la création publicitaire, « Statut WhatsApp » est un placement Meta. L’interface indique que sa diffusion est accompagnée des Stories Instagram et que le clic ouvre le lien de destination, pas une conversation WhatsApp. Ne le confondez pas avec une alerte personnelle.",
-            "en": "In ad creation, “WhatsApp Status” is a Meta placement. The interface explains it runs alongside Instagram Stories and clicks open the destination link, not a WhatsApp conversation. Do not confuse it with a personal alert."
-          }
-        ],
-        "steps": [
-          {
-            "fr": "Vérifiez la vente concernée, le destinataire et le lien de paiement. Ne contactez que les personnes pour lesquelles vous disposez d’une base et des permissions appropriées.",
-            "en": "Check the sale, recipient and payment link. Contact only people for whom you have an appropriate basis and permissions."
-          },
-          {
-            "fr": "Ouvrez le brouillon WhatsApp, personnalisez-le et envoyez-le seulement après vérification. Respectez toute demande de désinscription ; ne multipliez pas les relances.",
-            "en": "Open the WhatsApp draft, personalize it and send only after review. Respect opt-outs and avoid repeated follow-ups."
-          },
-          {
-            "fr": "Si la fenêtre est bloquée, utilisez l’aperçu du brouillon proposé et vérifiez les réglages de fenêtres surgissantes. Un téléphone ou lien absent peut rendre l’action indisponible.",
-            "en": "If the window is blocked, use the provided draft preview and check popup settings. A missing phone number or payment link can make the action unavailable."
-          }
-        ]
       },
       {
         "id": "notifications-permissions",

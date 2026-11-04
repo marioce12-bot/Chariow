@@ -11,7 +11,6 @@ import {
   Settings,
   Sparkles,
   Store,
-  MessageCircle,
   MessageSquareText,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -34,11 +33,6 @@ export const dashboardPrimaryNavigation: readonly NavigationItem[] = [
     navKey: "nav.overview",
     label: "Vue d'ensemble",
     Icon: LayoutDashboard,
-  },
-  {
-    section: "Relances WhatsApp",
-    label: "Relances WhatsApp",
-    Icon: MessageCircle,
   },
   {
     section: "Vendeo AI",

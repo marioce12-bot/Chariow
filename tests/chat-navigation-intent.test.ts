@@ -5,7 +5,6 @@ describe("Assistant navigation requests", () => {
   it.each([
     ["Où voir les rapports ?", "Rapports"],
     ["Ou voir les rapports ?", "Rapports"],
-    ["Comment lancer les relances WhatsApp ?", "Relances WhatsApp"],
     ["Where can I view my campaigns?", "Performance publicitaire"],
     ["Où consulter les recommandations ?", "Performance publicitaire"],
     ["Où créer une publicité ?", "Pub"],

@@ -4,7 +4,6 @@ export const CHAT_NAVIGATION_TARGETS = [
   { section: "Studio", labelFr: "Studio", labelEn: "Studio", routeLabelFr: "Studio", routeLabelEn: "Studio" },
   { section: "Performance publicitaire", labelFr: "Recommandation", labelEn: "Recommendations", routeLabelFr: "Recommandation", routeLabelEn: "Recommendations" },
   { section: "Vendeo AI", labelFr: "Assistant", labelEn: "Assistant", routeLabelFr: "Assistant", routeLabelEn: "Assistant" },
-  { section: "Relances WhatsApp", labelFr: "Relances WhatsApp", labelEn: "WhatsApp follow-ups", routeLabelFr: "Relances WhatsApp", routeLabelEn: "WhatsApp follow-ups" },
   { section: "Radar marché", labelFr: "Radar marché", labelEn: "Market radar", routeLabelFr: "Radar marché", routeLabelEn: "Market radar" },
   { section: "Rapports", labelFr: "Rapports", labelEn: "Reports", routeLabelFr: "Rapports", routeLabelEn: "Reports" },
   { section: "Paramètres", labelFr: "Paramètres", labelEn: "Settings", routeLabelFr: "Paramètres", routeLabelEn: "Settings" },
@@ -53,7 +52,6 @@ export function resolveChatNavigationRequest(message: string): ChatNavigationTar
   if (!explicitlyAsksForNavigation(message, query)) return null;
 
   if (/\b(?:rapports?|reports?)\b/.test(query)) return target("Rapports");
-  if (/\b(?:relances?|whatsapp|abandon|recovery)\b/.test(query)) return target("Relances WhatsApp");
   if (/\b(?:radar|market radar)\b/.test(query) && /\b(?:marche|market)\b/.test(query)) return target("Radar marché");
   if (/\b(?:parametres?|settings?|preferences?)\b/.test(query)) return target("Paramètres");
   if (/\b(?:comptes? publicitaires?|ad accounts?|ads accounts?)\b/.test(query)) return target("Comptes publicitaires");

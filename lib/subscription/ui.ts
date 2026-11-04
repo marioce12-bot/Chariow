@@ -11,7 +11,6 @@ export const SUBSCRIPTION_GATED_SECTIONS = new Set([
   "Radar marché",
   "Mes boutiques",
   "Rapports",
-  "Relances WhatsApp",
 ]);
 
 export function isVendeoSubscriptionExpired(subscription: { status?: string } | null | undefined): boolean {

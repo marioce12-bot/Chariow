@@ -47,13 +47,6 @@ describe("store loading skeletons", () => {
     expect(css).toContain("animation: none");
   });
 
-  it("uses skeletons for the route fallback and recovery data", () => {
-    const page = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
-    const recovery = readFileSync(new URL("../components/dashboard/RecoveryPanel.tsx", import.meta.url), "utf8");
-    expect(page).toContain("fallback={<DashboardSkeleton />}");
-    expect(recovery).toContain('<SkeletonRows count={4} label={t("sweep3.text173")} />');
-    expect(translate("fr", "sweep3.text173")).toBe("Chargement des relances");
-  });
 
   it("keeps a failed store request out of the connection gate", () => {
     expect(dashboard).toContain("setStoresLoadFailed(true)");

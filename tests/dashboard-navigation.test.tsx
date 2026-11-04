@@ -12,14 +12,13 @@ import { DashboardHeaderNavigation, DashboardPrimaryNavigation } from "@/compone
 describe("dashboard desktop navigation", () => {
   it("keeps nine primary destinations and replaces the visual section with Recommendation", () => {
     const html = renderToStaticMarkup(<DashboardPrimaryNavigation active="Accueil" onChange={() => {}} />);
-    expect((html.match(/<button/g) ?? []).length).toBe(9);
+    expect((html.match(/<button/g) ?? []).length).toBe(8);
     expect((html.match(/dashboard-nav-group/g) ?? []).length).toBe(3);
     expect(html).toContain("Recommandation");
     expect(html).not.toContain("Performance visuel");
     expect(html).toContain("Suggestions et notes");
     expect(html).toContain("Accueil");
     expect(html).not.toContain("Bénéfices nets");
-    expect(html).toContain("Relances WhatsApp");
     expect(html).not.toContain("Pilotage auto");
     expect(html).not.toContain("nav.stores");
     expect(html).not.toContain("nav.adAccounts");
@@ -77,8 +76,8 @@ describe("dashboard desktop navigation", () => {
     const menu = source.slice(source.indexOf('<div className="mobile-more-menu"'), source.indexOf("</div>", source.indexOf('<div className="mobile-more-menu"')));
     expect(source).not.toContain('className="mobile-autopilot-trigger"');
     expect(source).not.toContain('setActive("Pilotage auto")');
-    expect((menu.match(/role="menuitem"/g) ?? [])).toHaveLength(5);
-    for (const item of ['w("whatsapp")', 'Radar marché', 'Performance publicitaire', 'workspaceExtra.reports', 'workspaceExtra.settings']) expect(menu).toContain(item);
+    expect((menu.match(/role="menuitem"/g) ?? [])).toHaveLength(3);
+    for (const item of ['Performance publicitaire', 'workspaceExtra.reports', 'workspaceExtra.settings']) expect(menu).toContain(item);
     expect(menu).not.toContain("Bénéfices nets");
     expect(menu).not.toContain("Performance visuel");
     expect(menu).not.toContain('workspaceExtra.subscription');
