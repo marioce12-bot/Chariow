@@ -98,7 +98,18 @@ html[data-theme="dark"] .mobile-nav .nav-btn.active { color:#8fb0ff; }
 .notifications-reply-status { color:#15803d; display:block; margin-top:8px; }
 .notifications-empty { align-items:center; color:var(--muted); display:flex; flex-direction:column; gap:12px; padding:65px 20px; text-align:center; }
 .notifications-empty svg { color:#4c21f6; }
-@media (max-width:600px) { .notifications-page-head { display:block; } .notifications-page-head .mobile-back-button { margin-top:16px; } .training-message-card { align-items:flex-start; flex-wrap:wrap; } .training-preview-button { margin-left:56px; } .messages-toolbar { align-items:flex-start; flex-direction:column; } .notifications-card { padding:14px; } .notifications-page-list { gap:14px; } .notifications-page-item { padding:16px; } .notifications-page-item.unread { padding-left:13px; } .notifications-page-item-head { display:flex; gap:8px; flex-wrap:wrap; } .notifications-page-item-head strong { font-size:15px; } .notifications-page-item p { font-size:14px; } }
+.notifications-training-card { margin-top:0; }
+.training-message-card { box-sizing:border-box; min-width:0; width:100%; }
+.training-message-card > div { flex:1 1 180px; min-width:0; }
+.training-message-card .eyebrow { letter-spacing:.12em; }
+.training-message-card h2,.training-message-card p { overflow-wrap:anywhere; }
+.notifications-detail-back { margin:0 0 22px; }
+.notifications-detail-heading { margin:18px 0 22px; }
+.notifications-detail-heading h1 { margin:8px 0 0; }
+.notifications-message-detail { margin-top:4px; padding:24px; }
+.notifications-message-detail h1 { font-size:clamp(22px,4vw,30px); line-height:1.2; margin:12px 0; overflow-wrap:anywhere; }
+.notifications-message-detail > p { font-size:15px; line-height:1.75; }
+@media (max-width:600px) { .notifications-page-head { display:block; } .notifications-page-head .mobile-back-button { margin-top:16px; } .notifications-training-card { display:grid; grid-template-columns:42px minmax(0,1fr); align-items:start; gap:12px; padding:15px; } .notifications-training-card .training-message-icon { grid-column:1; grid-row:1; } .notifications-training-card > div { grid-column:2; grid-row:1; min-width:0; } .notifications-training-card .training-preview-button { grid-column:2; grid-row:2; justify-self:start; margin:0; max-width:100%; } .messages-toolbar { align-items:flex-start; flex-direction:column; } .notifications-card { padding:14px; } .notifications-page-list { gap:14px; } .notifications-page-item { padding:16px; } .notifications-page-item.unread { padding-left:13px; } .notifications-page-item-head { display:flex; gap:8px; flex-wrap:wrap; } .notifications-page-item-head strong { font-size:15px; } .notifications-page-item p { font-size:14px; } .notifications-message-detail { padding:18px; } }
 html[data-theme="dark"] .training-message-card { background:linear-gradient(135deg,#101a40,#0b1734); border-color:#2c3e76; }
 html[data-theme="dark"] .training-message-card h2 { color:#e8edff; }
 html[data-theme="dark"] .messages-filters button { background:#29384e; color:#d0d9e8; }
