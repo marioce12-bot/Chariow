@@ -4,22 +4,13 @@ import { BookOpen, Check, Download, Lock, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { OPEN_SUBSCRIPTION_SECTION_EVENT } from "@/lib/subscription/ui";
 import { useI18n } from "@/lib/i18n/i18n";
+import { TRAINING_GUIDES } from "@/lib/training-guides";
 import "./training-invitation.css";
 
 type Props = {
   experienceLevel?: string | null;
   subscription?: { status?: string; trial_active?: boolean } | null;
 };
-
-const GUIDES = [
-  { number: "01", fr: "Comprendre le marché des produits digitaux", en: "Understand the digital-product market", frDescription: "Identifier une vraie demande et utiliser le Radar marché.", enDescription: "Identify real demand and use Market Radar." },
-  { number: "02", fr: "Trouver et analyser une opportunité", en: "Find and assess an opportunity", frDescription: "Passer d’une idée intéressante à une offre exploitable.", enDescription: "Turn a promising idea into a viable offer." },
-  { number: "03", fr: "Configurer son compte Meta Ads", en: "Set up a Meta Ads account", frDescription: "Préparer Business Manager, compte publicitaire et connexion à Vendeo.", enDescription: "Prepare Business Manager, an ad account, and its Vendeo connection." },
-  { number: "04", fr: "Créer un ebook et son contenu", en: "Create an ebook and its content", frDescription: "Structurer, rédiger et exporter un produit digital avec Manus et les outils IA.", enDescription: "Plan, write, and export a digital product with Manus and AI tools." },
-  { number: "05", fr: "Créer des visuels avec Studio", en: "Create visuals with Studio", frDescription: "Préparer un prompt, choisir un format et contrôler les crédits utilisés.", enDescription: "Prepare a prompt, choose a format, and track the credits used." },
-  { number: "06", fr: "Préparer et lancer une campagne", en: "Prepare and launch a campaign", frDescription: "Choisir l’objectif, le budget, l’audience et vérifier le récapitulatif.", enDescription: "Choose the objective, budget, and audience, then review the summary." },
-  { number: "07", fr: "Analyser et optimiser ses performances", en: "Analyze and optimize performance", frDescription: "Lire les indicateurs Vendeo et décider quoi améliorer.", enDescription: "Read Vendeo metrics and decide what to improve." },
-] as const;
 
 export function TrainingInvitation({ experienceLevel, subscription }: Props) {
   const { locale } = useI18n();
@@ -81,7 +72,7 @@ export function TrainingInvitation({ experienceLevel, subscription }: Props) {
       <Sparkles size={19} className="training-sparkle" aria-hidden="true" />
     </div>
     <p className="training-invitation-lead">{copy.lead}</p>
-    <div className="training-guide-list">{GUIDES.map((guide) => <article key={guide.number} className="training-guide-item">
+    <div className="training-guide-list">{TRAINING_GUIDES.map((guide) => <article key={guide.number} className="training-guide-item">
       <span>{guide.number}</span>
       <div><strong>{en ? guide.en : guide.fr}</strong><p>{en ? guide.enDescription : guide.frDescription}</p></div>
       {subscribed ? <Check size={16} aria-label={copy.available} /> : <Lock size={15} aria-label={copy.lockedLabel} />}

@@ -3,6 +3,7 @@
 import { ArrowRight, BookOpen, Check, Lock, X } from "lucide-react";
 import { OPEN_SUBSCRIPTION_SECTION_EVENT } from "@/lib/subscription/ui";
 import { useI18n } from "@/lib/i18n/i18n";
+import { trainingGuideTitles } from "@/lib/training-guides";
 import "@/app/first-store-welcome.css";
 
 type Props = {
@@ -27,6 +28,7 @@ export function TrainingWelcome({ subscription, onDismiss }: Props) {
       <span className="vendeo-welcome-connected"><Check size={14} aria-hidden="true" />{en ? "Training included" : "Formation incluse"}</span>
       <h2 id="vendeo-training-welcome-title">{en ? "Learn everything about digital products" : "Apprends tout sur le business des produits digitaux"}</h2>
       <p>{en ? "A practical training pack is included with your Vendeo subscription: market research, product creation, advertising and performance." : "Une formation pratique est incluse dans ton abonnement Vendeo : marché, création de produits, publicité et analyse des performances."}</p>
+      <p className="training-poster-accessible">{en ? `The seven ebooks in the pack are: ${trainingGuideTitles("en")}.` : `Les sept ebooks du pack sont : ${trainingGuideTitles("fr")}.`}</p>
       <div className="vendeo-welcome-trial vendeo-training-welcome-note">
         <strong>{en ? "Activate your subscription to access it" : "Active ton abonnement pour y accéder"}</strong>
         <p>{en ? "You can skip this message. If you activate your subscription after the free trial, the training will still be waiting for you automatically." : "Tu peux passer ce message. Si tu actives ton abonnement après ta période d’essai, la formation restera automatiquement accessible."}</p>

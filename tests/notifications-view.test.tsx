@@ -119,9 +119,13 @@ describe("NotificationsView", () => {
     await act(async () => { trainingFilter.click(); });
     const card = container.querySelector(".notifications-training-card");
     expect(card).not.toBeNull();
+    expect(card!.querySelector(".training-poster-accessible")?.textContent).toContain("Créer un ebook utile avec l’IA");
+    expect(card!.querySelector(".training-poster-accessible")?.textContent).toContain("Analyser et optimiser ses performances publicitaires");
     expect(container.querySelector(".messages-toolbar")!.compareDocumentPosition(card!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await act(async () => { (card!.querySelector("button") as HTMLButtonElement).click(); });
     expect(container.querySelector(".notifications-detail-heading h1")?.textContent).toBe("Pack formation");
+    expect(container.querySelector(".training-guide-list")?.textContent).toContain("Créer un ebook utile avec l’IA");
+    expect(container.querySelector(".training-guide-list")?.textContent).toContain("Analyser et optimiser ses performances publicitaires");
     expect(container.querySelector(".notifications-detail-back")?.textContent).toContain("Retour");
   });
 
