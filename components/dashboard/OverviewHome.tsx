@@ -15,6 +15,7 @@ import type { AnalyticsData, ProductData, StoreData, SubscriptionData } from "./
 import "@/app/dashboard-overview.css";
 import { useNavigationData } from "./NavigationDataCache";
 import { getDashboardAnalyticsRange } from "@/lib/dashboard-analytics-periods";
+import { OFFICIAL_WHATSAPP_CHANNEL_URL } from "@/components/dashboard/FirstStoreWelcome";
 
 /**
  * Nouvelle "Vue d'ensemble" : simple, accueillante et multi-canaux.
@@ -146,6 +147,15 @@ export function OverviewHome({
       description: tr("Teste les tendances avec le Radar marché.", "Test trends with Market radar."),
       action: tr("Explorer le Radar", "Explore Market radar"),
       section: "Radar marché",
+    },
+    {
+      id: "whatsapp-channel",
+      className: "whatsapp-channel",
+      Icon: MessageSquare,
+      title: tr("Rejoins la chaîne WhatsApp de Vendeo.", "Join Vendeo’s WhatsApp channel."),
+      description: tr("Retrouve nos conseils et les actualités de la communauté.", "Get tips and community updates."),
+      action: tr("Rejoindre la chaîne", "Join the channel"),
+      section: "WhatsApp",
     },
     ...(experienceLevel === "beginner" || experienceLevel === "some_experience" ? [{
       id: "training",
@@ -392,7 +402,7 @@ export function OverviewHome({
             <div className="overview-feature-card-content">
               <h2>{visibleFeatureCard.title}</h2>
               <p>{visibleFeatureCard.description}</p>
-              <button type="button" onClick={() => onNavigate?.(visibleFeatureCard.section)}>{visibleFeatureCard.action} <ArrowRight size={15} aria-hidden="true" /></button>
+              <button type="button" onClick={() => visibleFeatureCard.id === "whatsapp-channel" ? window.open(OFFICIAL_WHATSAPP_CHANNEL_URL, "_blank", "noopener,noreferrer") : onNavigate?.(visibleFeatureCard.section)}>{visibleFeatureCard.action} <ArrowRight size={15} aria-hidden="true" /></button>
             </div>
             <button type="button" className="overview-feature-card-close" aria-label={tr("Fermer cette carte", "Close this card")} onClick={() => onDismissFeatureCard?.(visibleFeatureCard.id)}><X size={20} aria-hidden="true" /></button>
           </div>
