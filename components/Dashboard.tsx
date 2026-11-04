@@ -47,6 +47,7 @@ import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
 import { StoreConnectionGate, hasConnectedCommerceStore, shouldShowStoreConnectionGate, STORE_ONBOARDING_STORAGE_KEY } from "./dashboard/StoreConnectionGate";
 import { SaleCelebration } from "./dashboard/SaleCelebration";
 import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
+import { TrainingWelcome } from "./dashboard/TrainingWelcome";
 import { NotificationCenter } from "./NotificationCenter";
 import { NotificationsView } from "./NotificationsView";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
@@ -243,6 +244,7 @@ function DashboardWorkspace() {
   const [userName, setUserName] = useState<string | null>(null);
   const [notificationUserId, setNotificationUserId] = useState<string | null>(null);
   const [experienceLevel, setExperienceLevel] = useState<string>("experienced");
+  const [trainingNextSection, setTrainingNextSection] = useState<string | null>(null);
 
   const userFirstName = userName ? (userName.trim().split(/\s+/)[0] || "créateur") : null;
   const {
@@ -487,6 +489,17 @@ function DashboardWorkspace() {
 
   const onboarding = useFirstStoreOnboarding({ userId: notificationUserId, stores, loading: loadingData, connected: !subscriptionExpired && !needsStoreConnection && !loadingData });
   const onboardingOpen = onboarding.stage !== "closed" && !needsStoreConnection && !loadingData && !subscriptionExpired;
+  const beginnerProfile = experienceLevel === "beginner" || experienceLevel === "some_experience";
+  function openTrainingMessage(nextSection: string | null = null) {
+    setTrainingNextSection(nextSection);
+    onboarding.showTraining();
+  }
+  function closeTrainingMessage() {
+    const nextSection = trainingNextSection;
+    setTrainingNextSection(null);
+    onboarding.dismiss();
+    if (nextSection) setActive(nextSection);
+  }
   const handleTourStepChange = useCallback((step: DashboardTourStep | null) => {
     if (!step) {
       setMoreOpen(false);
@@ -608,6 +621,7 @@ function DashboardWorkspace() {
               selectedPeriodAnalytics={dashboardAnalyticsData?.periodSnapshot ?? null}
               selectedPeriodLoading={analyticsReading.loading && overviewPeriodDays !== 30}
               userFirstName={userFirstName}
+              experienceLevel={experienceLevel}
               plan={(subscription?.plan ?? "starter") as PlanId}
               selectedStoreId={selectedStoreId}
               onLaunchAd={launchAd}
@@ -682,7 +696,8 @@ function DashboardWorkspace() {
       </div>
     </main>
     {needsStoreConnection && <StoreConnectionGate stores={stores} failed={["failed", "expired", "revoked"].includes(searchParams.get("chariow") ?? "")} onSignOut={signOut} onConnectStart={onboarding.beginConnection} />}
-    {onboardingOpen && <FirstStoreWelcome stage={onboarding.stage as "welcome" | "tour"} subscription={subscription} onTryStudio={() => { handleTourStepChange(null); setActive("Studio"); setMoreOpen(false); setGuideMenuTarget(null); onboarding.dismiss(); }} onDismiss={() => { handleTourStepChange(null); onboarding.dismiss(); }} onTourStepChange={handleTourStepChange} />}
+    {onboardingOpen && onboarding.stage === "training" ? <TrainingWelcome subscription={subscription} onDismiss={closeTrainingMessage} /> : null}
+    {onboardingOpen && onboarding.stage !== "training" && <FirstStoreWelcome stage={onboarding.stage as "welcome" | "tour"} subscription={subscription} onTryStudio={() => { if (beginnerProfile) openTrainingMessage("Studio"); else { handleTourStepChange(null); setActive("Studio"); setMoreOpen(false); setGuideMenuTarget(null); onboarding.dismiss(); } }} onDismiss={() => { handleTourStepChange(null); if (beginnerProfile && onboarding.stage === "welcome") openTrainingMessage(); else onboarding.dismiss(); }} onTourStepChange={handleTourStepChange} />}
     </>
   );
 }

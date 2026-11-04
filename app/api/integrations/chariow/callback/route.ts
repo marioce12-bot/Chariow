@@ -193,15 +193,16 @@ export async function GET(request: Request) {
       if (profile?.experience_level === "beginner" || profile?.experience_level === "some_experience") {
         const { count } = await supabase.from("user_notifications")
           .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id).eq("type", "admin")
-          .eq("metadata->>kind", "training_invitation");
+          .eq("user_id", user.id).eq("dedupe_key", "training_invitation");
         if (!count) {
           await supabase.from("user_notifications").insert({
             user_id: user.id,
             type: "admin",
-            title: "Découvre la formation Vendeo",
-            body: "Un pack de guides PDF pratiques t’attend pour comprendre le marché, créer tes produits digitaux, utiliser Vendeo et lancer tes campagnes. Consulte l’aperçu depuis ton tableau de bord.",
-            action_url: "/dashboard",
+            title: "Pack formation",
+            body: "Apprends les bases du business des produits digitaux grâce à la formation incluse dans ton abonnement Vendeo. Consulte l’aperçu depuis Messages.",
+            action_url: null,
+            category: "training",
+            dedupe_key: "training_invitation",
             metadata: { kind: "training_invitation", source: "first_chariow_connection" },
           });
         }

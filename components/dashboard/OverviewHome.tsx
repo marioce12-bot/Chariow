@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock, Lightbulb, Megaphone, MessageSquare, Package, Sparkles, X, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowRight, BookOpen, CheckCircle2, Clock, Lightbulb, Megaphone, MessageSquare, Package, Sparkles, X, XCircle } from "lucide-react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
 import { getGreeting } from "@/lib/greetings";
 import type { ReactNode } from "react";
@@ -69,6 +69,7 @@ export function OverviewHome({
   selectedPeriodAnalytics,
   selectedPeriodLoading = false,
   userFirstName,
+  experienceLevel,
   plan,
   selectedStoreId,
   onLaunchAd,
@@ -89,6 +90,7 @@ export function OverviewHome({
   selectedPeriodAnalytics: AnalyticsData;
   selectedPeriodLoading?: boolean;
   userFirstName: string | null;
+  experienceLevel?: string | null;
   plan: PlanId;
   selectedStoreId: string | null;
   onLaunchAd: () => void;
@@ -145,6 +147,15 @@ export function OverviewHome({
       action: tr("Explorer le Radar", "Explore Market radar"),
       section: "Radar marché",
     },
+    ...(experienceLevel === "beginner" || experienceLevel === "some_experience" ? [{
+      id: "training",
+      className: "training",
+      Icon: BookOpen,
+      title: tr("Apprends tout sur le business des produits digitaux.", "Learn everything about the digital-product business."),
+      description: tr("Découvre le pack de formation inclus dans ton abonnement.", "Discover the training pack included in your subscription."),
+      action: tr("Voir la formation", "View training"),
+      section: "Notifications",
+    }] : []),
   ].filter((card) => !dismissedFeatureCards.has(card.id));
   const [featureCardIndex, setFeatureCardIndex] = useState(0);
   const visibleFeatureCard = featureCards.length ? featureCards[featureCardIndex % featureCards.length] : null;
