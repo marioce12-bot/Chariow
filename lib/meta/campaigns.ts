@@ -4,6 +4,7 @@ import { isOwnCloudinaryUrl, prepareMetaPlacementImages } from "./ad-image";
 import { buildPlacementCreativeParams, placementVariantsEnabled } from "./placement-spec";
 import { LEGACY_META_CTA, normalizeMetaCta } from "./cta";
 import { buildCarouselObjectStorySpec, type CarouselCard } from "./carousel";
+import { buildMetaAudienceFields } from "@/lib/ad-campaigns/meta-targeting";
 
 type GraphResponse = Record<string, unknown>;
 
@@ -217,6 +218,9 @@ export async function createMetaAdSet(input: {
   /** Audience Advantage+ : Meta peut élargir l'audience au-delà du ciblage (âge, centres d'intérêt).
    *  Désactivée par défaut pour garder exactement l'âge et les lieux choisis. */
   advantageAudience?: boolean;
+  /** Ciblage Meta facultatif : intérêt(s) provenant de la recherche Meta et genre choisi. */
+  interests?: Array<{ id: string; name: string }>;
+  gender?: "male" | "female" | null;
 }) {
   const hasPreciseTargeting = !!(input.geoTargeting && ((input.geoTargeting.regions?.length ?? 0) > 0 || (input.geoTargeting.cities?.length ?? 0) > 0));
   const geoLocations: Record<string, unknown> = hasPreciseTargeting
@@ -244,6 +248,7 @@ export async function createMetaAdSet(input: {
     // créative — voir ADVANTAGE_CREATIVE_FEATURES plus bas.)
     targeting_automation: { advantage_audience: input.advantageAudience ? 1 : 0 },
   };
+  Object.assign(targeting, buildMetaAudienceFields({ gender: input.gender ?? null, interests: input.interests ?? [] }));
   // Omit publisher_platforms and per-placement positions: Meta selects eligible placements automatically.
 
   const objective = input.objective ?? "traffic";

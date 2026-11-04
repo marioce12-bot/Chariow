@@ -5,41 +5,59 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 18px;
+  justify-content: flex-start;
+  gap: 12px;
   width: 100%;
-  padding: 11px 18px;
-  background: #b42318;
-  border-bottom: 1px solid #7f1d1d;
-  color: #fff;
-  box-shadow: 0 5px 18px rgba(127, 29, 29, .22);
+  padding: 12px max(18px, calc((100vw - 1180px) / 2));
+  background: #f8f8ff;
+  border-bottom: 1px solid #e7e8f3;
+  color: #20243a;
+  box-shadow: 0 4px 16px rgba(26, 33, 71, .06);
   font-size: 13px;
   line-height: 1.4;
 }
+.vendeo-expired-symbol,
+.vendeo-expired-dialog-symbol {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: #5544dd;
+  background: linear-gradient(145deg, #eeeaff, #e9f2ff);
+}
+.vendeo-expired-symbol { width: 38px; height: 38px; border-radius: 12px; }
 .vendeo-expired-banner-copy {
   display: flex;
   align-items: baseline;
+  flex: 1;
   flex-wrap: wrap;
   gap: 4px 10px;
+  min-width: 0;
   max-width: 1100px;
 }
-.vendeo-expired-banner-copy strong { font-weight: 800; }
+.vendeo-expired-banner-copy strong { color: #20243a; font-weight: 800; }
+.vendeo-expired-banner-copy span { color: #626b80; }
 .vendeo-expired-banner-action,
 .vendeo-expired-dialog-action {
   flex: none;
-  border: 1px solid rgba(255, 255, 255, .7);
-  border-radius: 8px;
-  background: #fff;
-  color: #991b1b;
-  padding: 8px 13px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(110deg, #5141d8, #315bea);
+  color: #fff;
+  padding: 10px 15px;
   font: inherit;
   font-weight: 750;
   cursor: pointer;
+  transition: background .15s ease, transform .15s ease, opacity .15s ease;
 }
-.vendeo-expired-banner-action:hover { background: #fff1f0; }
+.vendeo-expired-banner-action:hover:not(:disabled),
+.vendeo-expired-dialog-action:hover:not(:disabled) { background: linear-gradient(110deg, #4333c6, #254bd1); }
+.vendeo-expired-banner-action:active:not(:disabled),
+.vendeo-expired-dialog-action:active:not(:disabled) { transform: translateY(1px); }
+.vendeo-expired-banner-action:disabled,
+.vendeo-expired-dialog-action:disabled { cursor: wait; opacity: .7; }
 .vendeo-expired-banner-action:focus-visible,
 .vendeo-expired-dialog-action:focus-visible,
-.vendeo-expired-close:focus-visible { outline: 3px solid #fecaca; outline-offset: 3px; }
+.vendeo-expired-close:focus-visible { outline: 3px solid #aaa4ff; outline-offset: 3px; }
 .vendeo-expired-backdrop {
   position: fixed;
   inset: 0;
@@ -48,29 +66,32 @@
   place-items: center;
   padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
   background: rgba(24, 24, 27, .64);
+  backdrop-filter: blur(4px);
 }
 .vendeo-expired-dialog {
   position: relative;
   box-sizing: border-box;
   width: min(100%, 460px);
-  padding: 28px;
-  border: 1px solid #fecaca;
-  border-radius: 16px;
+  padding: 30px;
+  border: 1px solid #e5e7f2;
+  border-radius: 22px;
   background: #fff;
   color: #202124;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, .3);
+  box-shadow: 0 24px 80px rgba(23, 31, 70, .24);
 }
+.vendeo-expired-dialog-symbol { width: 52px; height: 52px; margin-bottom: 18px; border-radius: 16px; }
 .vendeo-expired-eyebrow {
-  color: #b42318;
+  color: #5544dd;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: .1em;
+  letter-spacing: .08em;
   text-transform: uppercase;
 }
-.vendeo-expired-dialog h2 { margin: 9px 36px 10px 0; color: #7f1d1d; font-size: 22px; line-height: 1.25; }
-.vendeo-expired-dialog p { margin: 0 0 22px; color: #52525b; font-size: 14px; line-height: 1.6; }
-.vendeo-expired-dialog-action { border-color: #b42318; background: #b42318; color: #fff; }
-.vendeo-expired-dialog-action:hover { background: #991b1b; }
+.vendeo-expired-dialog h2 { margin: 9px 36px 10px 0; color: #20243a; font-size: 23px; line-height: 1.25; letter-spacing: -.025em; }
+.vendeo-expired-dialog p { margin: 0 0 20px; color: #626b80; font-size: 14px; line-height: 1.65; }
+.vendeo-expired-dialog-action { width: 100%; min-height: 48px; }
+.vendeo-expired-dialog .vendeo-expired-error { margin: -4px 0 14px; padding: 11px 12px; border: 1px solid #f0d8bb; border-radius: 11px; background: #fff8ef; color: #875115; font-size: 13px; }
+.vendeo-expired-reassurance { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 14px; color: #768099; font-size: 11px; line-height: 1.4; text-align: center; }
 .vendeo-expired-close {
   position: absolute;
   top: 12px;
@@ -89,11 +110,13 @@
   cursor: pointer;
 }
 @media (max-width: 640px) {
-  .vendeo-expired-banner { align-items: center; gap: 10px; padding: 9px 10px; font-size: 11px; }
+  .vendeo-expired-banner { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 8px 10px; padding: 10px 12px; font-size: 11px; }
+  .vendeo-expired-symbol { width: 34px; height: 34px; border-radius: 11px; }
   .vendeo-expired-banner-copy { display: block; min-width: 0; }
   .vendeo-expired-banner-copy strong,
   .vendeo-expired-banner-copy span { display: block; }
   .vendeo-expired-banner-copy span { margin-top: 2px; }
-  .vendeo-expired-banner-action { padding: 7px 9px; font-size: 11px; }
-  .vendeo-expired-dialog { padding: 24px 20px; }
+  .vendeo-expired-banner-action { grid-column: 2; justify-self: start; padding: 8px 12px; font-size: 11px; }
+  .vendeo-expired-dialog { padding: 26px 20px; border-radius: 19px; }
+  .vendeo-expired-dialog h2 { font-size: 21px; }
 }

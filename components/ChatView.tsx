@@ -81,6 +81,8 @@ type LaunchPayload = {
   countries?: string[] | null;
   ageMin?: number | null;
   ageMax?: number | null;
+  gender?: "male" | "female" | null;
+  interests?: string[] | null;
   message?: string | null;
   headline?: string | null;
   linkUrl?: string | null;
@@ -654,6 +656,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
           countries: payload.countries,
           ageMin: payload.ageMin,
           ageMax: payload.ageMax,
+          gender: payload.platform === "meta" ? payload.gender ?? null : null,
+          interests: payload.platform === "meta" ? payload.interests ?? [] : [],
           message: payload.message,
           headline: payload.headline,
           linkUrl,
@@ -971,6 +975,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
               <div className="chat-launch-row"><span>{t("chat.launchObjective")}</span><strong>{launchPayload?.objective ? OBJECTIVE_LABELS[launchPayload.objective] ?? launchPayload.objective : "—"}</strong></div>
               <div className="chat-launch-row"><span>{t("chat.launchCountries")}</span><strong>{launchPayload?.countries?.length ? launchPayload.countries.join(", ") : "—"}</strong></div>
               <div className="chat-launch-row"><span>{t("chat.launchAge")}</span><strong>{launchPayload?.ageMin != null || launchPayload?.ageMax != null ? `${launchPayload?.ageMin ?? 18}–${launchPayload?.ageMax ?? 65} ans` : "—"}</strong></div>
+              {launchPayload?.platform === "meta" ? <div className="chat-launch-row"><span>{locale === "en" ? "Gender" : "Genre"}</span><strong>{launchPayload.gender === "female" ? (locale === "en" ? "Women only" : "Femmes uniquement") : launchPayload.gender === "male" ? (locale === "en" ? "Men only" : "Hommes uniquement") : (locale === "en" ? "All genders" : "Femmes et hommes")}</strong></div> : null}
+              {launchPayload?.platform === "meta" ? <div className="chat-launch-row"><span>{locale === "en" ? "Interests" : "Centres d’intérêt"}</span><strong>{launchPayload.interests?.length ? launchPayload.interests.join(", ") : (locale === "en" ? "No additional filter" : "Aucun filtre supplémentaire")}</strong></div> : null}
               <div className="chat-launch-row chat-launch-message"><span>{t("chat.launchMessage")}</span><strong>{launchPayload?.message ?? "—"}</strong></div>
             </div>
             {launchImageUrls.length === 1 ? (

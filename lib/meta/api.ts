@@ -233,3 +233,32 @@ export async function searchMetaGeoLocations(query: string, accessToken: string)
     })
     .filter((row) => row.key && row.name && row.countryCode);
 }
+
+
+export interface MetaInterestSuggestion {
+  id: string;
+  name: string;
+  audienceSize?: number;
+}
+
+/** Recherche des intérêts disponibles dans l’outil de ciblage détaillé Meta. */
+export async function searchMetaInterests(query: string, accessToken: string): Promise<MetaInterestSuggestion[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+  const response = await fetchMetaGraph(graphUrl("search", {
+    type: "adinterest",
+    q: trimmed.slice(0, 100),
+    limit: "15",
+    access_token: accessToken,
+  }), { cache: "no-store" });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) throw createMetaGraphError(json?.error, response.status, "Recherche de centres d’intérêt Meta indisponible");
+  const rows = Array.isArray(json.data) ? json.data as Array<Record<string, unknown>> : [];
+  return rows.flatMap((row): MetaInterestSuggestion[] => {
+    const id = typeof row.id === "string" ? row.id : "";
+    const name = typeof row.name === "string" ? row.name.trim() : "";
+    if (!/^\d{1,30}$/.test(id) || !name) return [];
+    const audienceSize = Number(row.audience_size);
+    return [{ id, name, ...(Number.isFinite(audienceSize) && audienceSize > 0 ? { audienceSize } : {}) }];
+  });
+}

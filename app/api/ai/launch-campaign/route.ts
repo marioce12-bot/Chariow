@@ -5,7 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { toUsd } from "@/lib/currency";
 import { createMetaCampaign, createMetaAdSet, createMetaAd, createMetaCreative, createMetaCarouselCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
-import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue } from "@/lib/meta/api";
+import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue, searchMetaInterests } from "@/lib/meta/api";
+import { resolveExactMetaInterests, type MetaGenderTarget } from "@/lib/ad-campaigns/meta-targeting";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 import { createMetaVideoCreative, isVideoMediaUrl, prepareMetaCreativeVideo } from "@/lib/meta/ad-video";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
@@ -29,6 +30,8 @@ type LaunchBody = {
   countries?: string[];
   ageMin?: number;
   ageMax?: number;
+  gender?: MetaGenderTarget | null;
+  interests?: string[];
   message?: string; // texte de la créative
   headline?: string;
   linkUrl?: string; // lien de la page de redirection (page de vente de l'utilisateur) — OBLIGATOIRE
@@ -173,6 +176,23 @@ export async function POST(request: Request) {
   }
   const accessToken = decryptSecret(account.access_token_encrypted);
   const accountId = `act_${(body.adAccountId || account.meta_account_id).replace(/^act_/, "")}`;
+  const gender: MetaGenderTarget | null = body.gender === "male" || body.gender === "female" ? body.gender : null;
+  const requestedInterests = Array.isArray(body.interests)
+    ? Array.from(new Set(body.interests.filter((value): value is string => typeof value === "string").map((value) => value.trim().slice(0, 100)).filter(Boolean))).slice(0, 10)
+    : [];
+  let metaInterests: Array<{ id: string; name: string }> = [];
+  if (requestedInterests.length) {
+    try {
+      const matches = await Promise.all(requestedInterests.map((query) => searchMetaInterests(query, accessToken)));
+      const resolved = resolveExactMetaInterests(requestedInterests, matches.flat());
+      if (resolved.missing.length) {
+        return NextResponse.json({ error: `Meta ne propose pas ces centres d’intérêt exacts : ${resolved.missing.join(", ")}. Modifie-les ou retire-les avant de lancer.`, code: "META_INTEREST_NOT_FOUND" }, { status: 422 });
+      }
+      metaInterests = resolved.resolved;
+    } catch {
+      return NextResponse.json({ error: "Impossible de vérifier les centres d’intérêt auprès de Meta. La campagne n’a pas été créée; réessaie.", code: "META_INTEREST_SEARCH_FAILED" }, { status: 502 });
+    }
+  }
 
   // Objectif Ventes : l'ad set doit optimiser sur l'événement Achat (OFFSITE_CONVERSIONS + pixel +
   // PURCHASE). Sans objectif ni pixel transmis, createMetaAdSet retombe sur « Trafic »
@@ -295,6 +315,8 @@ export async function POST(request: Request) {
       countries,
       minAge,
       maxAge,
+      interests: metaInterests,
+      gender,
       // Optimisation de l'ad set : Ventes = événement Achat du pixel ; sinon l'objectif choisi.
       objective,
       pixelId: objective === "sales" ? pixelId : null,
@@ -388,6 +410,7 @@ export async function POST(request: Request) {
       destination_url: trackedLinkUrl,
       call_to_action: callToAction,
       countries,
+      meta_targeting: { gender, interests: metaInterests },
       min_age: minAge,
       max_age: maxAge,
       daily_budget: dailyBudget,

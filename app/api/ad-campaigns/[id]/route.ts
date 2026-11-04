@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
+import { sanitizeMetaTargeting } from "@/lib/ad-campaigns/meta-targeting";
 import { normalizeMetaCta } from "@/lib/meta/cta";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { linkCampaignMedia } from "@/lib/creative-performance/placements";
@@ -38,6 +39,7 @@ export async function PATCH(request: Request, context: Context) {
   if (callToAction) updates.call_to_action = callToAction;
   if (typeof body.advantage_creative === "boolean") updates.advantage_creative = body.advantage_creative;
   if (typeof body.advantage_audience === "boolean") updates.advantage_audience = body.advantage_audience;
+  if ("meta_targeting" in body) updates.meta_targeting = sanitizeMetaTargeting(body.meta_targeting);
   if ("geo_targeting" in body) updates.geo_targeting = sanitizeGeoTargeting(body.geo_targeting);
   const dailyBudget = Number(body.daily_budget);
   const durationDays = Number(body.duration_days);

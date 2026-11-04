@@ -79,7 +79,7 @@ export async function POST(request: Request, context: Context) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const { data: campaign, error: campaignError } = await supabase
     .from("ad_campaigns")
-    .select("id,store_id,title,product_name,platform,objective,effective_objective,daily_budget,duration_days,countries,geo_targeting,min_age,max_age,destination_url,ad_text,media_url,carousel_urls,call_to_action,advantage_creative,advantage_audience,status,external_error,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,pinterest_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
+    .select("id,store_id,title,product_name,platform,objective,effective_objective,daily_budget,duration_days,countries,geo_targeting,meta_targeting,min_age,max_age,destination_url,ad_text,media_url,carousel_urls,call_to_action,advantage_creative,advantage_audience,status,external_error,meta_ad_account_id,meta_page_id,tiktok_ad_account_id,pinterest_ad_account_id,external_campaign_id,external_adset_id,external_ad_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -268,6 +268,8 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
       geoTargeting: campaign.geo_targeting ?? null,
       minAge: Number(campaign.min_age),
       maxAge: Number(campaign.max_age),
+      interests: campaign.meta_targeting?.interests ?? [],
+      gender: campaign.meta_targeting?.gender ?? null,
       objective: effectiveObjective,
       pixelId: effectiveObjective === "sales" ? pixelId : null,
       endTime,

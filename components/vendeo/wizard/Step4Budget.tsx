@@ -2,7 +2,7 @@
 
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import { useState } from "react";
-import { buildGeoTargeting } from "./types";
+import { buildGeoTargeting, buildMetaTargeting } from "./types";
 import type { WizardState } from "./types";
 import { useI18n } from "@/lib/i18n/i18n";
 
@@ -71,6 +71,7 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
             ...(state.carouselUrls.length || state.carouselSaved ? { carousel_urls: state.carouselUrls } : {}),
             countries: state.countries,
             geo_targeting: buildGeoTargeting(state.locations),
+            meta_targeting: state.platform === "meta" ? buildMetaTargeting(state) : null,
             min_age: state.minAge,
             max_age: state.maxAge,
             daily_budget: state.dailyBudget,
@@ -108,6 +109,7 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
           ...(state.carouselUrls.length || state.carouselSaved ? { carousel_urls: state.carouselUrls } : {}),
           countries: state.countries.join(","),
           geo_targeting: buildGeoTargeting(state.locations),
+          meta_targeting: state.platform === "meta" ? buildMetaTargeting(state) : null,
           minAge: state.minAge,
           maxAge: state.maxAge,
           daily_budget: state.dailyBudget,

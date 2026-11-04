@@ -34,21 +34,29 @@ describe("Vendeo subscription expiry notice", () => {
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
   });
 
-  it("opens on a gated-action event and routes its CTA to the Subscription section", async () => {
+  it("opens on a gated-action event and launches the payment checkout from its CTA", async () => {
     const navigate = vi.fn();
+    const paymentFetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "gateway unavailable" }) });
+    vi.stubGlobal("fetch", paymentFetch);
     window.addEventListener(OPEN_SUBSCRIPTION_SECTION_EVENT, navigate);
     await act(async () => root!.render(createElement(SubscriptionExpiredNotice, { subscription: { status: "past_due" } })));
 
     await act(async () => window.dispatchEvent(new Event(SUBSCRIPTION_EXPIRED_MODAL_EVENT)));
     expect(host.querySelector('[role="alertdialog"]')?.textContent).toContain("Ton abonnement Vendeo a expiré");
     expect(host.querySelector("#vendeo-expired-description")?.textContent).toBe("Réactive ton abonnement pour retrouver l’accès aux sections métier. Notifications, Paramètres et Abonnement restent accessibles.");
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain("l’Assistant, les publicités et Studio");
-    const action = [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("Aller à Abonnement"));
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain("l’Assistant, aux publicités et au Studio");
+    const action = [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("Continuer vers le paiement"));
     expect(action).toBeTruthy();
-    await act(async () => action!.click());
+    await act(async () => {
+      action!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
-    expect(navigate).toHaveBeenCalledOnce();
-    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(paymentFetch).toHaveBeenCalledOnce();
+    expect(paymentFetch).toHaveBeenCalledWith("/api/subscription/checkout", expect.objectContaining({ method: "POST" }));
+    expect(navigate).not.toHaveBeenCalled();
+    expect(host.querySelector('[role="alertdialog"]')).not.toBeNull();
+    expect(host.querySelector(".vendeo-expired-error")?.textContent).toBe("Le paiement n’a pas pu démarrer. Vérifie ta connexion puis réessaie.");
     window.removeEventListener(OPEN_SUBSCRIPTION_SECTION_EVENT, navigate);
   });
 

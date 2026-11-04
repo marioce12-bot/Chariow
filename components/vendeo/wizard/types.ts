@@ -3,6 +3,7 @@
 import { WORLD_COUNTRIES } from "@/lib/geo/countries";
 import { DEFAULT_META_CTA, LEGACY_META_CTA, normalizeMetaCta, type MetaCtaType } from "@/lib/meta/cta";
 import { stripVendeoCampaignTracking } from "@/lib/meta/tracking";
+import type { MetaGenderTarget, MetaInterestTarget } from "@/lib/ad-campaigns/meta-targeting";
 
 export type Platform = "meta" | "tiktok" | "pinterest";
 export type Objective = "sales" | "traffic" | "engagement" | "leads";
@@ -73,6 +74,9 @@ export interface WizardState {
   countries: string[];
   minAge: number;
   maxAge: number;
+  /** Filtres Meta facultatifs; null/[] signifie une audience sans filtre supplémentaire. */
+  metaGender: MetaGenderTarget | null;
+  metaInterests: MetaInterestTarget[];
 
   // Étape 4
   dailyBudget: number; // budget net qui alimente réellement la campagne (en $, converti au taux Meta/TikTok du compte)
@@ -103,6 +107,7 @@ export interface EditableCampaign {
   call_to_action?: string | null;
   advantage_creative?: boolean | null;
   advantage_audience?: boolean | null;
+  meta_targeting?: { gender?: MetaGenderTarget | null; interests?: MetaInterestTarget[] } | null;
   countries?: string[] | null;
   geo_targeting?: { countries?: string[]; regions?: { key: string; name: string }[]; cities?: { key: string; name: string }[] } | null;
   min_age?: number | null;
@@ -140,6 +145,8 @@ export const DEFAULT_WIZARD_STATE: WizardState = {
   countries: ["BJ"],
   minAge: 18,
   maxAge: 45,
+  metaGender: null,
+  metaInterests: [],
   dailyBudget: 5, // en $ (minimum 1) : l'ancienne valeur 2000 datait du budget en F CFA
   durationDays: 5,
   campaignId: null,
@@ -176,6 +183,10 @@ export function buildGeoTargeting(locations: GeoLocation[]) {
     regions: locations.filter((l) => l.type === "region").map((l) => ({ key: l.key, name: l.name })),
     cities: locations.filter((l) => l.type === "city").map((l) => ({ key: l.key, name: l.name, radius: 25, distance_unit: "mile" as const })),
   };
+}
+
+export function buildMetaTargeting(state: Pick<WizardState, "metaGender" | "metaInterests">) {
+  return { gender: state.metaGender, interests: state.metaInterests };
 }
 
 /** Reconstruit les lieux ciblés d'une campagne existante (régions/villes si
@@ -223,6 +234,8 @@ export function wizardStateFromCampaign(campaign: EditableCampaign, storeId: str
     countries: deriveCountries(locations),
     minAge: campaign.min_age ?? DEFAULT_WIZARD_STATE.minAge,
     maxAge: campaign.max_age ?? DEFAULT_WIZARD_STATE.maxAge,
+    metaGender: campaign.meta_targeting?.gender === "male" || campaign.meta_targeting?.gender === "female" ? campaign.meta_targeting.gender : null,
+    metaInterests: Array.isArray(campaign.meta_targeting?.interests) ? campaign.meta_targeting.interests : [],
     dailyBudget: Number(campaign.daily_budget) || DEFAULT_WIZARD_STATE.dailyBudget,
     durationDays: campaign.duration_days || DEFAULT_WIZARD_STATE.durationDays,
     campaignId: campaign.id,

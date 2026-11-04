@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { BarChart3, CreditCard, Settings, Store, Grid2X2, Lightbulb, Brain, Palette, LogOut, Megaphone, FileText } from "lucide-react";
+import { BarChart3, CreditCard, Settings, Store, Grid2X2, Lightbulb, Brain, Palette, LogOut, Megaphone, FileText, WifiOff } from "lucide-react";
 
 
 import { ChatView } from "@/components/ChatView";
@@ -568,10 +568,13 @@ function DashboardWorkspace() {
             <DashboardSkeleton />
           ) : dashboardDataUnavailable ? (
             <section className="app-card dashboard-data-unavailable" role="status" aria-live="polite">
-              <span className="eyebrow">{w("networkUnavailableTitle")}</span>
-              <h2>{w("networkUnavailableTitle")}</h2>
-              <p>{w("networkUnavailableDetails")}</p>
-              <button type="button" className="btn-primary" onClick={() => window.location.reload()}>{w("retry")}</button>
+              <span className="dashboard-data-unavailable-icon" aria-hidden="true"><WifiOff size={24} /></span>
+              <div className="dashboard-data-unavailable-copy">
+                <span className="eyebrow">Vendeo · {locale === "en" ? "Connection" : "Connexion"}</span>
+                <h2>{locale === "en" ? "Your workspace couldn't load" : "Ton espace n’a pas pu se charger"}</h2>
+                <p>{w("networkUnavailableDetails")}</p>
+                <button type="button" className="btn-primary" onClick={() => window.location.reload()}>{w("retry")}</button>
+              </div>
             </section>
           ) : snapshotView && storeDataLoading ? (
             <DashboardSkeleton />
