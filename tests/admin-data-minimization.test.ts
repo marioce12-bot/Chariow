@@ -61,7 +61,15 @@ function builder(table: string) {
 function setup() {
   mocks.createAdminClient.mockImplementation(() => ({
     from: (table: string) => builder(table),
-    rpc: () => builder("rpc"),
+    rpc: (name: string) => Promise.resolve(mocks.results[`rpc:${name}`] ?? {
+      data: name === "admin_connection_metrics" ? {
+        users_with_store: 0,
+        users_with_ad_account: 0,
+        connected_stores: 0,
+        connected_ad_accounts: 0,
+      } : {},
+      error: null,
+    }),
   }));
   mocks.requireAdmin.mockResolvedValue({
     admin: {
@@ -315,6 +323,20 @@ describe("admin API response data minimization", () => {
     const response = await getOverview();
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "Console unavailable" });
+  });
+  it("keeps the admin overview available when optional connection metrics are missing", async () => {
+    mocks.results["rpc:admin_connection_metrics"] = {
+      data: null,
+      error: { code: "PGRST202", message: "function is not available" },
+    };
+    const response = await getOverview();
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(Array.isArray(data.users)).toBe(true);
+    expect(data.metrics.connectedUsersWithStore).toBeNull();
+    expect(data.metrics.connectedUsersWithAdAccount).toBeNull();
+    expect(data.metrics.connectedStores).toBeNull();
+    expect(data.metrics.connectedAdAccounts).toBeNull();
   });
   it("requires admin authorization before reading data", async () => {
     mocks.requireAdmin.mockResolvedValue({

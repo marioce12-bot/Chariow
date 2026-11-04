@@ -389,8 +389,8 @@ function Overview({
 }) {
   const { locale } = useI18n();
   const en = locale === "en";
-  const fmt = (value: number | undefined) =>
-    value === undefined
+  const fmt = (value: number | null | undefined) =>
+    value === undefined || value === null
       ? "—"
       : Number(value).toLocaleString(en ? "en-US" : "fr-FR");
   const connectionCount = data.metrics.stores + data.metrics.metaAccounts;

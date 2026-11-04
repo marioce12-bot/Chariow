@@ -6,10 +6,10 @@ export type AdminData = {
     subscriptions: number;
     messages: number;
     metaAccounts: number;
-    connectedUsersWithStore: number;
-    connectedUsersWithAdAccount: number;
-    connectedStores: number;
-    connectedAdAccounts: number;
+    connectedUsersWithStore: number | null;
+    connectedUsersWithAdAccount: number | null;
+    connectedStores: number | null;
+    connectedAdAccounts: number | null;
   };
   business: {
     total_revenue_xof?: number;
