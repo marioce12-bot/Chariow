@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { StoreData } from "./shared";
 
-export type OnboardingStage = "closed" | "welcome" | "tour";
-type Phase = "pending" | "welcome" | "tour" | "done";
+export type OnboardingStage = "closed" | "welcome" | "training" | "tour";
+type Phase = "pending" | "welcome" | "training" | "tour" | "done";
 type Props = { userId: string | null; stores: StoreData[]; loading: boolean; connected: boolean };
 
 async function persist(phase: Phase): Promise<Phase | undefined> {
@@ -47,6 +47,7 @@ export function useFirstStoreOnboarding({ userId, stores, loading, connected }: 
       if (!alive) return;
       setPhase(data.phase);
       if (data.phase === "welcome") setStage("welcome");
+      if (data.phase === "training") setStage("training");
       if (data.phase === "tour") setStage("tour");
       setLoadedUser(userId);
     }).catch(() => { if (alive) setLoadedUser(userId); });
@@ -71,10 +72,14 @@ export function useFirstStoreOnboarding({ userId, stores, loading, connected }: 
     setStage("tour");
     if (!replaying.current) { setPhase("tour"); void save("tour").catch(() => {}); }
   }, [save]);
+  const showTraining = useCallback(() => {
+    setPhase("training"); setStage("training");
+    if (!replaying.current) void save("training").catch(() => {});
+  }, [save]);
   const dismiss = useCallback(() => {
     setStage("closed");
     if (!replaying.current) { setPhase("done"); void save("done").catch(() => {}); }
   }, [save]);
   const replay = useCallback(() => { replaying.current = true; setStage("tour"); }, []);
-  return { stage, beginConnection, startTour, dismiss, replay };
+  return { stage, beginConnection, startTour, showTraining, dismiss, replay };
 }

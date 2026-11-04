@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { subscribeUserNotifications } from "@/lib/notifications/realtime";
@@ -53,8 +53,8 @@ export function NotificationCenter({ onOpen, userId }: { onOpen: () => void; use
   }, [load, userId]);
 
   return (
-    <button type="button" className="notification-trigger" aria-label="Notifications" onClick={onOpen}>
-      <Bell size={17} />
+    <button type="button" className="notification-trigger" aria-label="Messages" title="Messages" onClick={onOpen}>
+      <MessageSquare size={17} />
       {unread > 0 ? <span className="notification-count">{unread > 99 ? "99+" : unread}</span> : null}
     </button>
   );

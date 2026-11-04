@@ -61,11 +61,22 @@ html[data-theme="dark"] .mobile-nav .nav-btn.active { color:#8fb0ff; }
 .notifications-page-head { align-items:flex-start; display:flex; justify-content:space-between; gap:20px; }
 .notifications-page-head h1 { margin-bottom:8px; }
 .notifications-page-head p { color:var(--muted); margin:0; max-width:620px; }
+.notifications-page-head .eyebrow { align-items:center; display:inline-flex; gap:6px; }
+.training-message-card { align-items:center; background:linear-gradient(135deg,#f7f8ff,#fff); border:1px solid #dcdcff; border-radius:14px; display:flex; gap:14px; margin-top:22px; padding:18px; }
+.training-message-icon { align-items:center; background:#e8e4ff; border-radius:12px; color:#4c21f6; display:flex; flex:0 0 42px; height:42px; justify-content:center; width:42px; }
+.training-message-card > div { flex:1; min-width:0; }
+.training-message-card h2 { font-size:17px; margin:3px 0 5px; }
+.training-message-card p { color:var(--muted); font-size:13px; line-height:1.55; margin:0; }
+.training-preview-button { align-items:center; display:inline-flex; flex:none; gap:6px; white-space:nowrap; }
 .notifications-card { margin-top:24px; }
 .notifications-card .card-head { align-items:center; }
 .notifications-card .card-head h2 { font-size:16px; margin:0; }
 .notifications-mark-all { align-items:center; background:transparent; border:0; color:#4c21f6; display:inline-flex; font-size:11px; font-weight:700; gap:6px; }
 .notifications-card .card-head { gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+.messages-toolbar { align-items:center; display:flex; gap:14px; justify-content:space-between; margin-bottom:18px; }
+.messages-filters { display:flex; flex-wrap:wrap; gap:7px; }
+.messages-filters button { background:#f1f3f8; border:1px solid transparent; border-radius:999px; color:#53627b; cursor:pointer; font-size:11px; font-weight:700; padding:7px 11px; }
+.messages-filters button.active { background:#e4dafa; border-color:#b9a6f4; color:#4820ba; }
 .notifications-page-list { display:flex; flex-direction:column; gap:14px; }
 .notifications-page-item { background:#fff; border:1px solid #d5ddeb; border-radius:14px; box-sizing:border-box; color:inherit; display:block; padding:18px; text-align:left; text-decoration:none; width:100%; min-width:0; box-shadow:0 2px 5px rgba(20,35,65,.035); }
 .notifications-page-item:hover { background:#f8faff; border-color:#b9c8de; }
@@ -87,7 +98,11 @@ html[data-theme="dark"] .mobile-nav .nav-btn.active { color:#8fb0ff; }
 .notifications-reply-status { color:#15803d; display:block; margin-top:8px; }
 .notifications-empty { align-items:center; color:var(--muted); display:flex; flex-direction:column; gap:12px; padding:65px 20px; text-align:center; }
 .notifications-empty svg { color:#4c21f6; }
-@media (max-width:600px) { .notifications-page-head { display:block; } .notifications-page-head .mobile-back-button { margin-top:16px; } .notifications-card { padding:14px; } .notifications-page-list { gap:14px; } .notifications-page-item { padding:16px; } .notifications-page-item.unread { padding-left:13px; } .notifications-page-item-head { display:flex; gap:8px; flex-wrap:wrap; } .notifications-page-item-head strong { font-size:15px; } .notifications-page-item p { font-size:14px; } }
+@media (max-width:600px) { .notifications-page-head { display:block; } .notifications-page-head .mobile-back-button { margin-top:16px; } .training-message-card { align-items:flex-start; flex-wrap:wrap; } .training-preview-button { margin-left:56px; } .messages-toolbar { align-items:flex-start; flex-direction:column; } .notifications-card { padding:14px; } .notifications-page-list { gap:14px; } .notifications-page-item { padding:16px; } .notifications-page-item.unread { padding-left:13px; } .notifications-page-item-head { display:flex; gap:8px; flex-wrap:wrap; } .notifications-page-item-head strong { font-size:15px; } .notifications-page-item p { font-size:14px; } }
+html[data-theme="dark"] .training-message-card { background:linear-gradient(135deg,#101a40,#0b1734); border-color:#2c3e76; }
+html[data-theme="dark"] .training-message-card h2 { color:#e8edff; }
+html[data-theme="dark"] .messages-filters button { background:#29384e; color:#d0d9e8; }
+html[data-theme="dark"] .messages-filters button.active { background:#493775; color:#ede3ff; }
 html[data-theme="dark"] .notifications-page-item { background:#111e35; border-color:#35445e; }
 html[data-theme="dark"] .notifications-page-item.unread { background:#25213e; border-color:#67529f; border-left-color:#a88cff; }
 html[data-theme="dark"] .notifications-read-state { background:#29384e; color:#d0d9e8; }
