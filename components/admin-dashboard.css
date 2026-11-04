@@ -1297,6 +1297,12 @@
 .admin-grant-modal .admin-btn-primary { background:#103ef8; color:#fff; border:1px solid #103ef8; box-shadow:none; }
 .admin-grant-modal .admin-btn-soft { background:#fff; color:#000c2e; border:1px solid #dce4f3; }
 .admin-grant-modal [role="alert"] { color:#b91c1c; }
+.admin-delete-user-trigger { color:#b42318 !important; border-color:#fda29b !important; white-space:nowrap; }
+.admin-delete-user-trigger:hover { background:#fff1f0 !important; }
+.admin-delete-user-confirm { min-height:44px; background:#b42318; color:#fff; border:1px solid #b42318; box-shadow:none; }
+.admin-delete-user-confirm:hover:not(:disabled) { background:#912018; border-color:#912018; }
+.admin-delete-user-confirm:disabled { opacity:.55; cursor:not-allowed; }
+.admin-delete-user-modal > p strong { display:block; margin-top:8px; color:#000c2e; overflow-wrap:anywhere; }
 
 /* Subscriptions: keep each account and its action together on narrow screens. */
 .owner-console .admin-subscriptions .admin-row { min-width: 610px; }

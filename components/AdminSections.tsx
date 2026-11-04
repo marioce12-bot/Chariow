@@ -13,6 +13,7 @@ import {
   Receipt,
   Send,
   Sparkles,
+  Trash2,
   UserPlus,
   Users,
   Wallet,
@@ -219,9 +220,15 @@ export function UsersSection({
   const [grantCredits, setGrantCredits] = useState("500");
   const [grantReason, setGrantReason] = useState("");
   const [message, setMessage] = useState("");
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const modalId = useId();
   const modalRef = useRef<HTMLElement>(null);
   const grantTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const deleteModalId = useId();
+  const deleteModalRef = useRef<HTMLElement>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const busyRef = useRef<string | null>(null);
   busyRef.current = busy;
   const [range, setRange] = useState<"all" | "24h" | "7d" | "30d">("all");
@@ -258,6 +265,39 @@ export function UsersSection({
       (grantTriggerRef.current?.isConnected ? grantTriggerRef.current : previouslyFocused)?.focus?.();
     };
   }, [grantUser]);
+  useEffect(() => {
+    if (!deleteUserId) return;
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = "hidden";
+    const frame = window.requestAnimationFrame(() =>
+      deleteModalRef.current
+        ?.querySelector<HTMLElement>("input:not([disabled]), button:not([disabled])")
+        ?.focus(),
+    );
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && busyRef.current === null) {
+        event.preventDefault();
+        setDeleteUserId(null);
+        return;
+      }
+      if (event.key !== "Tab" || !deleteModalRef.current) return;
+      const targets = [...deleteModalRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )].filter((el) => el.getClientRects().length > 0);
+      const first = targets[0], last = targets[targets.length - 1];
+      if (!first) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      (deleteTriggerRef.current?.isConnected ? deleteTriggerRef.current : previouslyFocused)?.focus?.();
+    };
+  }, [deleteUserId]);
   const rangeMs = {
     "24h": 86400000,
     "7d": 604800000,
@@ -275,6 +315,57 @@ export function UsersSection({
       Date.now() - new Date(u.created_at).getTime() <= rangeMs[range]
     );
   });
+  const deleteTarget = data.users.find((user) => user.id === deleteUserId) ?? null;
+  const expectedDeleteConfirmation = deleteTarget?.email?.trim() || deleteTarget?.id || "";
+  const deleteConfirmationMatches = Boolean(expectedDeleteConfirmation) &&
+    deleteConfirmation.trim().toLowerCase() === expectedDeleteConfirmation.toLowerCase();
+  async function deleteAccount(event: React.FormEvent) {
+    event.preventDefault();
+    if (!deleteTarget || !deleteConfirmationMatches) return;
+    setBusy(deleteTarget.id);
+    setDeleteError("");
+    try {
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(deleteTarget.id)}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: deleteConfirmation }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { code?: string } | null;
+        const errors: Record<string, [string, string]> = {
+          admin_account_protected: [
+            "Un compte administrateur ne peut pas être supprimé depuis cette liste.",
+            "An administrator account cannot be deleted from this list.",
+          ],
+          confirmation_mismatch: [
+            "La valeur saisie ne correspond pas au compte.",
+            "The value entered does not match this account.",
+          ],
+          dependency_conflict: [
+            "Des données liées empêchent la suppression de ce compte.",
+            "Related data prevents this account from being deleted.",
+          ],
+        };
+        setDeleteError(
+          errors[payload?.code ?? ""]?.[locale === "en" ? 1 : 0] ??
+            (locale === "en" ? "Account deletion failed." : "La suppression du compte a échoué."),
+        );
+        return;
+      }
+      setDeleteUserId(null);
+      setDeleteConfirmation("");
+      setMessage(locale === "en" ? "Account deleted." : "Compte supprimé.");
+      onRefresh?.();
+    } catch {
+      setDeleteError(
+        locale === "en"
+          ? "Network error. Check the account before retrying."
+          : "Erreur réseau. Vérifiez le compte avant de réessayer.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
   async function activate(user: AdminData["users"][number]) {
     const who = user.email || user.full_name || user.id;
     if (
@@ -468,7 +559,25 @@ export function UsersSection({
                       ? "Grant credits"
                       : "Attribuer des crédits"}
                   </button>
-                </span>
+                  {data.admin.role === "super_admin" && (
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-soft admin-delete-user-trigger"
+                      aria-label={`${locale === "en" ? "Delete account" : "Supprimer le compte"} — ${u.email || u.full_name || u.id}`}
+                      disabled={busy !== null}
+                      onClick={(event) => {
+                        deleteTriggerRef.current = event.currentTarget;
+                        setDeleteUserId(u.id);
+                        setDeleteConfirmation("");
+                        setDeleteError("");
+                        setMessage("");
+                      }}
+                    >
+                      <Trash2 size={15} />
+                      {locale === "en" ? "Delete account" : "Supprimer le compte"}
+                    </button>
+                  )}
+                  </span>
               </div>
             ))}
           </AdminTable>
@@ -533,6 +642,45 @@ export function UsersSection({
               {locale === "en" ? "Cancel" : "Annuler"}
             </button>
           </form>
+          </section>
+        </div>, document.body,
+      )}
+      {deleteUserId && deleteTarget && typeof document !== "undefined" && createPortal(
+        <div className="admin-grant-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget && busy === null) setDeleteUserId(null);
+        }}>
+          <section ref={deleteModalRef} className="admin-grant-modal admin-delete-user-modal" id={deleteModalId} role="alertdialog" aria-modal="true" aria-labelledby={`${deleteModalId}-title`} aria-describedby={`${deleteModalId}-description`}>
+            <h3 id={`${deleteModalId}-title`}>{locale === "en" ? "Delete this account permanently?" : "Supprimer définitivement ce compte ?"}</h3>
+            <p id={`${deleteModalId}-description`}>
+              {locale === "en"
+                ? "This action cannot be undone. The account and data linked to it will be deleted according to the database retention rules. Confirm by entering the exact value below:"
+                : "Cette action est irréversible. Le compte et les données qui lui sont liées seront supprimés selon les règles de conservation de la base. Confirme en saisissant exactement la valeur ci-dessous :"}
+              <strong>{expectedDeleteConfirmation}</strong>
+            </p>
+            {deleteError && <p role="alert">{deleteError}</p>}
+            <form onSubmit={deleteAccount}>
+              <label htmlFor={`${deleteModalId}-confirmation`}>
+                {deleteTarget.email?.trim()
+                  ? locale === "en" ? "Exact email address" : "Adresse e-mail exacte"
+                  : locale === "en" ? "Exact account ID" : "Identifiant exact du compte"}
+                <input
+                  id={`${deleteModalId}-confirmation`}
+                  type={deleteTarget.email?.trim() ? "email" : "text"}
+                  autoComplete="off"
+                  value={deleteConfirmation}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  required
+                />
+              </label>
+              <button className="admin-btn admin-delete-user-confirm" type="submit" disabled={busy !== null || !deleteConfirmationMatches}>
+                {busy === deleteTarget.id
+                  ? locale === "en" ? "Deleting…" : "Suppression…"
+                  : locale === "en" ? "Delete permanently" : "Supprimer définitivement"}
+              </button>
+              <button className="admin-btn admin-btn-soft" type="button" disabled={busy !== null} onClick={() => setDeleteUserId(null)}>
+                {locale === "en" ? "Cancel" : "Annuler"}
+              </button>
+            </form>
           </section>
         </div>, document.body,
       )}

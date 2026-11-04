@@ -46,7 +46,7 @@ async function render(node: React.ReactNode) {
   await act(async () => { root.render(node); });
 }
 function button(label: string) {
-  const result = [...container.querySelectorAll("button")].find((item) => item.textContent?.trim() === label);
+  const result = [...document.querySelectorAll("button")].find((item) => item.textContent?.trim() === label);
   if (!result) throw new Error(`Bouton introuvable: ${label}`);
   return result;
 }
@@ -153,6 +153,41 @@ describe("actions propriétaires dans les sections admin", () => {
       method: "POST",
       body: JSON.stringify({ user_id: "user-1", credits: 100000, reason: "Ajustement approuvé", grant_id: "123e4567-e89b-42d3-a456-426614174000" }),
     }));
+  });
+
+  it("réserve la suppression aux super-admins et exige l’adresse exacte avant le DELETE", async () => {
+    await render(<UsersSection data={data} usage={usage} />);
+    expect(document.querySelector(".admin-delete-user-trigger")).toBeNull();
+
+    const onRefresh = vi.fn();
+    await render(
+      <UsersSection
+        data={{ ...data, admin: { role: "super_admin" } }}
+        usage={usage}
+        onRefresh={onRefresh}
+      />,
+    );
+    await click(button("Supprimer le compte"));
+    expect(document.querySelector('[role="alertdialog"][aria-modal="true"]')?.textContent).toContain("Cette action est irréversible");
+    const submit = button("Supprimer définitivement") as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    await change(input("Adresse e-mail exacte"), "autre@example.test");
+    expect(submit.disabled).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await change(input("Adresse e-mail exacte"), "owner-test@example.test");
+    expect(submit.disabled).toBe(false);
+    await click(submit);
+    await settle();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/admin/users/user-1",
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({ confirmation: "owner-test@example.test" }),
+      }),
+    );
+    expect(onRefresh).toHaveBeenCalledOnce();
+    expect(document.body.textContent).toContain("Compte supprimé.");
   });
 
   it("n’envoie pas un décaissement refusé, transmet le formulaire intact et rend le bouton réutilisable après erreur réseau", async () => {
