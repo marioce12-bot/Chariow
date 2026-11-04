@@ -46,51 +46,50 @@ describe("store connection gate", () => {
     expect(getChariowConnectTarget([store("failed")])).toBe("/api/integrations/chariow/connect?store_id=shop%2F1");
     expect(getChariowConnectTarget([store("connected")])).toBe("/api/integrations/chariow/connect");
   });
-  it("shows both platform cards immediately in French, with Shopify disabled and no custom store", async () => {
+  it("offers the existing-store route and a dedicated guided path for users without a store", async () => {
     setup(); await render();
     const initial = document.querySelector('[role="dialog"]')!.textContent!;
-    expect(initial).toContain("Connecte ta boutique"); expect(initial).toContain("Chariow"); expect(initial).toContain("Shopify");
-    expect(document.querySelector('img[alt="Logo Chariow"]')).toBeTruthy();
-    expect(document.querySelector('[aria-label="Shopify"] svg[aria-label="Logo Shopify"]')).toBeTruthy();
-    expect(document.querySelector('[aria-label="Boutique personnalisée"]')).toBeNull();
-    const shopify = document.querySelector('[aria-label="Shopify"]') as HTMLButtonElement;
-    expect(shopify.disabled).toBe(true);
+    expect(initial).toContain("As-tu déjà une boutique Chariow ?");
+    expect(initial).toContain("J’ai déjà une boutique");
+    expect(initial).toContain("Je n’ai pas encore de boutique");
+    expect(initial).not.toContain("Shopify");
     expect(document.querySelector("input")).toBeNull();
-    const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
-    await act(async () => shopify.click());
-    expect(fetcher).not.toHaveBeenCalled();
+    await click("Je n’ai pas encore de boutique");
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Tu viens peut-être de découvrir une belle opportunité");
+    await click("Continuer");
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Crée ton compte Chariow");
+    expect(document.querySelector('a[href="https://chariow.com"]')?.getAttribute("target")).toBe("_blank");
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("J’ai déjà créé ma boutique");
   });
-  it("renders both platform choices in English", async () => {
+  it("renders the no-store onboarding route in English", async () => {
     language.locale = "en"; setup(); await render();
-    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Connect your store");
-    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Chariow");
-    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Shopify");
-    expect((document.querySelector('[aria-label="Shopify"]') as HTMLButtonElement).disabled).toBe(true);
-    expect(document.querySelector("button[aria-label='Chariow']")).toBeTruthy();
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Do you already have a Chariow store?");
+    await click("I don’t have a store yet");
+    await click("Continue");
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Create or sign in to your Chariow account");
+    expect(document.querySelector('a[href="https://chariow.com"]')?.textContent).toContain("Create a Chariow account");
   });
   it("runs the existing Chariow preflight and shows the same failure without navigating", async () => {
     setup(); const fetcher = vi.fn().mockResolvedValue({ ok: false }); vi.stubGlobal("fetch", fetcher);
     const assign = vi.fn(); vi.stubGlobal("location", { assign });
-    await render(); await click("Chariow");
+    await render(); await click("J’ai déjà une boutique"); await click("Chariow");
     expect(fetcher).toHaveBeenCalledWith("/api/integrations/chariow/connect/check");
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("Impossible de démarrer la connexion. Vérifie ta connexion et réessaie.");
     expect(assign).not.toHaveBeenCalled();
   });
   it("skips the check for an existing store_id and assigns the unchanged target", async () => {
     setup(); const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
-    await render([store("failed")]); await click("Chariow");
+    await render([store("failed")]); await click("J’ai déjà une boutique"); await click("Chariow");
     expect(fetcher).not.toHaveBeenCalled(); expect(document.querySelector('[role="alert"]')).toBeNull();
   });
-  it("focus-traps platform-card focus back to sign-out", async () => {
+  it("focus-traps the initial choices back to sign-out", async () => {
     setup(); await render();
     expect(document.activeElement?.getAttribute("role")).toBe("dialog");
     const dialog = document.querySelector('[role="dialog"]')!;
     const signOut = [...dialog.querySelectorAll("button")].find(button => button.textContent?.includes("Se déconnecter"))!;
-    const shopify = dialog.querySelector('[aria-label="Shopify"]') as HTMLButtonElement;
-    expect(shopify.disabled).toBe(true);
-    const chariow = dialog.querySelector('[aria-label="Chariow"]') as HTMLButtonElement;
+    const existingStore = [...dialog.querySelectorAll("button")].find(button => button.textContent?.includes("J’ai déjà une boutique"))!;
     const event = () => new dom.window.KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true });
-    chariow.focus(); act(() => dialog.dispatchEvent(event()));
+    existingStore.focus(); act(() => dialog.dispatchEvent(event()));
     expect(document.activeElement).toBe(signOut);
     act(() => dialog.dispatchEvent(event())); expect(document.activeElement).toBe(signOut);
     expect(document.querySelector('[role="dialog"]')?.getAttribute("aria-modal")).toBe("true");
@@ -101,13 +100,14 @@ describe("store connection gate", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
     const callback = vi.fn(async () => { await Promise.resolve(); order.push("callback"); });
     await render([], false, vi.fn(), callback);
-    await click("Chariow");
+    await click("J’ai déjà une boutique"); await click("Chariow");
     expect(callback).toHaveBeenCalledOnce();
     expect(order).toEqual(["callback"]);
     expect(readFileSync("components/dashboard/StoreConnectionGate.tsx", "utf8")).toContain("await onConnectStart?.();");
   });
   it("keeps failed auth feedback and sign-out available", async () => {
     setup(); const signOut = vi.fn(); await render([], true, signOut);
+    await click("J’ai déjà une boutique");
     expect(document.querySelector('[role="alert"]')?.textContent).toContain("La connexion n’a pas abouti");
     await click("Se déconnecter"); expect(signOut).toHaveBeenCalledOnce();
   });

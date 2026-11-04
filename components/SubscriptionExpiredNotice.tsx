@@ -4,34 +4,55 @@ import { useEffect, useState } from "react";
 import { OPEN_SUBSCRIPTION_SECTION_EVENT, SUBSCRIPTION_EXPIRED_MODAL_EVENT } from "@/lib/subscription/ui";
 import { useI18n } from "@/lib/i18n/i18n";
 
-type SubscriptionStatus = { status: string } | null;
+type SubscriptionStatus = { status: string; trial_active?: boolean; trial_ends_at?: string | null } | null;
 
 const COPY = {
   fr: {
-    bannerTitle: "Abonnement Vendeo expiré",
-    bannerText: "Réactive ton abonnement pour continuer à utiliser l’Assistant, les publicités et Studio.",
-    bannerAction: "Réactiver",
-    dialogTitle: "Ton abonnement Vendeo a expiré",
-    dialogText: "Réactive ton abonnement pour continuer.",
+    trial: {
+      bannerTitle: "Ton essai gratuit est terminé",
+      bannerText: "Active l’abonnement Vendeo pour retrouver l’accès à l’Assistant, aux publicités et au Studio.",
+      dialogTitle: "La période d’essai gratuite est terminée",
+      dialogText: "Active l’abonnement Vendeo pour continuer à utiliser les sections métier. Notifications, Paramètres et Abonnement restent accessibles.",
+    },
+    paid: {
+      bannerTitle: "Ton abonnement Vendeo a expiré",
+      bannerText: "Réactive ton abonnement pour continuer à utiliser l’Assistant, les publicités et Studio.",
+      dialogTitle: "Ton abonnement Vendeo a expiré",
+      dialogText: "Réactive ton abonnement pour retrouver l’accès aux sections métier. Notifications, Paramètres et Abonnement restent accessibles.",
+    },
+    bannerAction: "Voir l’abonnement",
     dialogAction: "Aller à Abonnement",
     close: "Fermer",
   },
   en: {
-    bannerTitle: "Your Vendeo subscription has expired",
-    bannerText: "Reactivate your subscription to keep using Assistant, Ads, and Studio.",
-    bannerAction: "Reactivate",
-    dialogTitle: "Your Vendeo subscription has expired",
-    dialogText: "Reactivate your subscription to keep using Assistant, Ads, and Studio. You can do this in the Subscription section.",
+    trial: {
+      bannerTitle: "Your free trial has ended",
+      bannerText: "Activate the Vendeo subscription to regain access to Assistant, Ads, and Studio.",
+      dialogTitle: "Your free trial has ended",
+      dialogText: "Activate the Vendeo subscription to keep using business sections. Notifications, Settings, and Subscription remain available.",
+    },
+    paid: {
+      bannerTitle: "Your Vendeo subscription has expired",
+      bannerText: "Reactivate your subscription to keep using Assistant, Ads, and Studio.",
+      dialogTitle: "Your Vendeo subscription has expired",
+      dialogText: "Reactivate your subscription to regain access to business sections. Notifications, Settings, and Subscription remain available.",
+    },
+    bannerAction: "View subscription",
     dialogAction: "Go to Subscription",
     close: "Close",
   },
 } as const;
 
+export function getSubscriptionExpiredCopy(locale: "fr" | "en", subscription: SubscriptionStatus) {
+  const group = locale === "en" ? COPY.en : COPY.fr;
+  return { ...group[subscription?.trial_active === true ? "trial" : "paid"], bannerAction: group.bannerAction, dialogAction: group.dialogAction, close: group.close };
+}
+
 export function SubscriptionExpiredNotice({ subscription }: { subscription: SubscriptionStatus }) {
   const { locale } = useI18n();
-  const copy = locale === "en" ? COPY.en : COPY.fr;
   const [expiredFromAction, setExpiredFromAction] = useState(false);
   const expired = subscription?.status === "past_due" || expiredFromAction;
+  const copy = getSubscriptionExpiredCopy(locale, subscription);
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {

@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { requireUser } from "@/lib/auth";
-import { requireActiveSubscription } from "@/lib/subscription/access";
+import { requirePaidSubscription } from "@/lib/subscription/access";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   const { user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
-  const blocked = await requireActiveSubscription(user.id);
+  const blocked = await requirePaidSubscription(user.id);
   if (blocked) return blocked;
   try {
     const file = await readFile(join(process.cwd(), "training-assets", "formation-vendeo-guides.zip"));

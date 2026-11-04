@@ -27,7 +27,7 @@ async function mountGuide() {
     root!.render(createElement(FirstStoreWelcome, {
       stage: "tour",
       subscription: null,
-      onStart: () => {},
+      onTryStudio: () => {},
       onDismiss: () => {},
       onTourStepChange: (step) => transitions.push(step),
     }));
@@ -61,15 +61,15 @@ beforeEach(() => {
 describe("responsive Vendeo dashboard guide", () => {
   it("follows the five mobile dock destinations with Assistant and Market radar in the dock", () => {
     expect(MOBILE_DASHBOARD_TOUR_STEPS.slice(0, 5).map((step) => step.target)).toEqual([
-      "Vue d'ensemble", "Pub", "Studio", "Vendeo AI", "Radar marché",
+      "Vue d'ensemble", "Pub", "Vendeo AI", "Studio", "Radar marché",
     ]);
     expect(MOBILE_DASHBOARD_TOUR_STEPS.slice(0, 5).map((step) => step.activeSection)).toEqual([
-      "Vue d'ensemble", "Pub", "Studio", "Vendeo AI", "Radar marché",
+      "Vue d'ensemble", "Pub", "Vendeo AI", "Studio", "Radar marché",
     ]);
-    expect(MOBILE_DASHBOARD_TOUR_STEPS[3]).toMatchObject({
+    expect(MOBILE_DASHBOARD_TOUR_STEPS[2]).toMatchObject({
       id: "assistant",
       target: "Vendeo AI",
-      targetSelector: '.mobile-nav [data-onboarding="Vendeo AI"]',
+      targetSelector: '.mobile-nav [data-onboarding="Vendeo AI"] svg',
       activeSection: "Vendeo AI",
     });
     expect(MOBILE_DASHBOARD_TOUR_STEPS[4]).toMatchObject({ id: "market-radar", target: "Radar marché", activeSection: "Radar marché", targetSelector: '.mobile-nav [data-onboarding="Radar marché"]' });
@@ -145,11 +145,11 @@ describe("responsive Vendeo dashboard guide", () => {
     expect(title()).toContain("Pub");
     expect(transitions.at(-1)).toMatchObject({ id: "ads", activeSection: "Pub" });
     await nextStep();
-    expect(title()).toContain("Studio");
-    await nextStep();
     expect(title()).toContain("Assistant");
     expect(host?.querySelector(".vendeo-tour-assistant-icon svg")).toBeTruthy();
     expect(host?.querySelector("#vendeo-welcome-title")?.classList.contains("vendeo-tour-assistant-title")).toBe(true);
+    await nextStep();
+    expect(title()).toContain("Studio");
     await nextStep();
     expect(title()).toContain("Radar marché");
     await nextStep();
