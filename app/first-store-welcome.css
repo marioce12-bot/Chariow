@@ -18,6 +18,7 @@
 .vendeo-welcome-trial p { margin:6px 0; font-size:13px; }
 .vendeo-welcome-trial small { display:block; color:var(--muted,#667085); font-size:11px; line-height:1.6; margin-top:6px; }
 .vendeo-welcome-primary { width:100%; justify-content:center; min-height:46px; }
+.vendeo-welcome-community { display:flex; align-items:center; justify-content:center; gap:6px; margin:12px auto 0; color:#4c21f6; font-size:12px; font-weight:700; text-decoration:none; }
 .vendeo-welcome-skip { display:block; margin:12px auto 0; min-height:36px; border:0; background:transparent; color:var(--muted,#667085); font-size:12px; cursor:pointer; }
 .vendeo-tour-progress { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:28px; font-size:10px; letter-spacing:.09em; color:var(--muted,#667085); }
 .vendeo-tour-progress strong { font-size:12px; letter-spacing:0; color:#6b48e8; }
@@ -28,7 +29,7 @@
 .vendeo-tour-back { display:inline-flex; gap:6px; align-items:center; border:0; background:transparent; color:inherit; font-size:12px; cursor:pointer; }
 .vendeo-tour-back:disabled { opacity:.35; cursor:default; }
 .vendeo-guide-replay { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line,#e5e7eb); border-radius:9px; padding:7px 9px; color:inherit; background:transparent; font:inherit; font-size:12px; cursor:pointer; }
-.vendeo-welcome-layer button:focus-visible,.vendeo-guide-replay:focus-visible { outline:2px solid #8a70ff; outline-offset:3px; }
+.vendeo-welcome-layer button:focus-visible,.vendeo-welcome-layer a:focus-visible,.vendeo-guide-replay:focus-visible { outline:2px solid #8a70ff; outline-offset:3px; }
 @media (max-width:767px) { .vendeo-welcome-layer { padding:16px; } .vendeo-welcome-card { padding:24px 22px; max-height:calc(100dvh - 32px); border-radius:20px; } .vendeo-welcome-card h2 { font-size:25px; } .vendeo-tour-layer { align-items:center; padding-bottom:80px; } .vendeo-tour-layer .vendeo-welcome-card { max-height:calc(100dvh - 112px); } .vendeo-guide-replay { padding:7px; font-size:11px; } }
 html[data-theme="dark"] .vendeo-welcome-card { background:#0b1734; }
 html[data-theme="dark"] .vendeo-welcome-trial strong,html[data-theme="dark"] .vendeo-welcome-brand,html[data-theme="dark"] .vendeo-tour-progress strong { color:#b6a3ff; }

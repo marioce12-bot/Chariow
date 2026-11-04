@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, ArrowRight, Brain, Check, PartyPopper, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Brain, Check, ExternalLink, PartyPopper, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { SubscriptionData } from "./shared";
 import {
@@ -12,6 +12,7 @@ import {
 import "@/app/first-store-welcome.css";
 
 export { VENDEO_TOUR_STEPS } from "./tour-steps";
+export const OFFICIAL_WHATSAPP_CHANNEL_URL = "https://whatsapp.com/channel/0029VbEXMkmAe5VrHf3wVP1b";
 
 const MOBILE_QUERY = "(max-width: 760px)";
 
@@ -155,9 +156,9 @@ export function FirstStoreWelcome({ stage, subscription, onTryStudio, onDismiss,
     <section className={`vendeo-welcome-card ${stage === "tour" && current.menuTarget ? "vendeo-tour-menu-card" : ""}`} style={stage === "tour" && position ? { position: "fixed", ...position, width: isMobile && current.menuTarget ? "min(380px, calc(100% - 32px))" : "min(460px, calc(100% - 32px))" } : undefined} role="dialog" aria-modal="true" aria-labelledby="vendeo-welcome-title" aria-describedby="vendeo-welcome-description" ref={dialog} tabIndex={-1} onKeyDown={event => {
       if (event.key === "Escape") { event.preventDefault(); onDismiss(); }
       if (event.key !== "Tab") return;
-      const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
-      const first = buttons[0], last = buttons[buttons.length - 1];
-      const outside = !buttons.includes(document.activeElement as HTMLButtonElement);
+      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), a[href]"));
+      const first = controls[0], last = controls[controls.length - 1];
+      const outside = !controls.includes(document.activeElement as HTMLElement);
       if (event.shiftKey && (document.activeElement === first || outside)) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && (document.activeElement === last || outside)) { event.preventDefault(); first?.focus(); }
     }}>
@@ -175,6 +176,9 @@ export function FirstStoreWelcome({ stage, subscription, onTryStudio, onDismiss,
           <small>{en ? "Your Studio credits and advertising budget are separate." : "Tes crédits Studio et ton budget publicitaire sont distincts."}</small>
         </div>
         <button className="btn btn-dark vendeo-welcome-primary" type="button" onClick={onTryStudio}>{en ? "Try Studio" : "Essayer le Studio"}<ArrowRight size={17} aria-hidden="true" /></button>
+        <a className="vendeo-welcome-community" href={OFFICIAL_WHATSAPP_CHANNEL_URL} target="_blank" rel="noopener noreferrer">
+          {en ? "Join the official WhatsApp channel" : "Rejoindre la chaîne WhatsApp officielle"}<ExternalLink size={15} aria-hidden="true" />
+        </a>
         <button className="vendeo-welcome-skip" type="button" onClick={onDismiss}>{en ? "Explore my workspace" : "Explorer mon espace"}</button>
       </> : <>
         <div className="vendeo-tour-progress" aria-label={en ? `Step ${safeStep + 1} of ${tourSteps.length}` : `Étape ${safeStep + 1} sur ${tourSteps.length}`}><span>{en ? "YOUR WORKSPACE" : "TON ESPACE"}</span><strong>{safeStep + 1} / {tourSteps.length}</strong></div>

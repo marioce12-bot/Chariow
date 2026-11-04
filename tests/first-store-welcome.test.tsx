@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FirstStoreWelcome, VENDEO_TOUR_STEPS } from "@/components/dashboard/FirstStoreWelcome";
+import { FirstStoreWelcome, OFFICIAL_WHATSAPP_CHANNEL_URL, VENDEO_TOUR_STEPS } from "@/components/dashboard/FirstStoreWelcome";
 import type { SubscriptionData } from "@/components/dashboard/shared";
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr" }) }));
 let root: Root;
@@ -29,6 +29,10 @@ describe("first-store welcome", () => {
     expect(container.textContent).toContain("5 jours d’essai gratuit et 100 crédits Studio te sont offerts");
     expect(container.textContent).toContain("30 octobre 2099");
     expect(container.textContent).toContain("Tes crédits Studio et ton budget publicitaire sont distincts");
+    const communityLink = container.querySelector<HTMLAnchorElement>("a.vendeo-welcome-community");
+    expect(communityLink?.getAttribute("href")).toBe(OFFICIAL_WHATSAPP_CHANNEL_URL);
+    expect(communityLink?.getAttribute("target")).toBe("_blank");
+    expect(communityLink?.getAttribute("rel")).toBe("noopener noreferrer");
     await act(async () => button("Essayer le Studio").click()); expect(onTryStudio).toHaveBeenCalledOnce();
     expect(document.activeElement?.getAttribute("role")).toBe("dialog");
   });
