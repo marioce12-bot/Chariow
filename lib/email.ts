@@ -79,6 +79,22 @@ export async function trackBrevoEvent(eventName: string, email: string, properti
   }
 }
 
+export async function upsertBrevoContact(email: string, attributes: Record<string, unknown> = {}) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return false;
+  try {
+    const response = await fetch(BREVO_CONTACTS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "api-key": apiKey },
+      body: JSON.stringify({ email, attributes, updateEnabled: true }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Brevo contact upsert error", error instanceof Error ? error.message : "unknown");
+    return false;
+  }
+}
+
 export async function updateBrevoContact(email: string, attributes: Record<string, unknown>) {
   const apiKey = process.env.BREVO_API_KEY;
   if (!apiKey) return false;
