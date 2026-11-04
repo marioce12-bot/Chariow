@@ -12,12 +12,12 @@ type SendEmailInput = {
   text?: string;
 };
 
-export async function sendEmail(input: SendEmailInput): Promise<void> {
+export async function sendEmail(input: SendEmailInput): Promise<boolean> {
   const apiKey = process.env.BREVO_API_KEY;
   const from = process.env.EMAIL_FROM;
   if (!apiKey || !from) {
     console.warn("Email non envoyé : BREVO_API_KEY ou EMAIL_FROM manquant.");
-    return;
+    return false;
   }
   try {
     const recipients = (Array.isArray(input.to) ? input.to : [input.to]).map((email) => ({ email }));
@@ -35,9 +35,12 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
     if (!response.ok) {
       const body = await response.text().catch(() => "");
       console.error("Brevo email error", response.status, body);
+      return false;
     }
+    return true;
   } catch (error) {
     console.error("Brevo email send error", error instanceof Error ? error.message : "unknown");
+    return false;
   }
 }
 
