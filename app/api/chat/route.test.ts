@@ -41,7 +41,7 @@ describe("POST /api/chat provider selection", () => {
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Et ensuite ?", conversationId: "conversation-1" }) }));
     expect(response.status).toBe(200);
     const [messages, options] = askOpenRouter.mock.calls[0];
-    expect(messages[0].content).toContain("question facultative");
+    expect(messages[0].content).toContain("demande systématiquement");
     expect(messages[0].content).toContain('les pays déjà recueillis via "countries"');
     expect(messages[0].content).toContain("Ne propose jamais l’orientation sexuelle");
     expect(options).toEqual({ timeoutMs: 60000, overloadRetries: 2 });

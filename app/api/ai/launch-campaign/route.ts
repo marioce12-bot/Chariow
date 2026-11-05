@@ -264,7 +264,8 @@ export async function POST(request: Request) {
   const countries = body.countries?.length ? body.countries : ["BJ"];
   const minAge = body.ageMin ?? 18;
   const maxAge = body.ageMax ?? 65;
-  const durationDays = 1;
+  const requestedDuration = Number(body.durationDays);
+  const durationDays = Number.isFinite(requestedDuration) && requestedDuration > 0 ? Math.min(365, Math.round(requestedDuration)) : 1;
   // Vidéo : le média principal est une vidéo (indiqué par le client, sinon détecté via l'URL).
   // Une vidéo n'est jamais combinée à un carrousel d'images.
   const mediaUrl: string = body.imageUrl;
@@ -320,6 +321,7 @@ export async function POST(request: Request) {
       // Optimisation de l'ad set : Ventes = événement Achat du pixel ; sinon l'objectif choisi.
       objective,
       pixelId: objective === "sales" ? pixelId : null,
+      endTime: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString(),
       status: "ACTIVE",
     });
     const adSetId = String(adSet.id);
