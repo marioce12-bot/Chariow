@@ -231,6 +231,7 @@ describe("Studio image generation progress", () => {
       if (url.startsWith("/api/studio/history?")) return response({ items: [{ id: "video-history", kind: "video", prompt: "", options: {}, status: "processing", credits_cost: 1, video_job_id: "slow-video", created_at: "2026-10-24T12:00:00Z" }], nextCursor: null });
       if (url === "/api/studio/video/slow-video") {
         videoReads++;
+        if (videoReads === 1) return response({ id: "slow-video", status: "processing" });
         pollSignal = init?.signal;
         return new Promise(resolve => { resolveRead = resolve; });
       }
@@ -243,13 +244,54 @@ describe("Studio image generation progress", () => {
     });
     await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(videoReads).toBe(1);
-    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
-    expect(videoReads).toBe(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(videoReads).toBe(2);
 
     act(() => root.unmount());
     expect(pollSignal?.aborted).toBe(true);
     root = createRoot(container);
     await act(async () => { resolveRead(response({ id: "slow-video", status: "processing" })); });
+  });
+
+  it("checks a launched video every 30 seconds for only the first two minutes", async () => {
+    vi.useFakeTimers();
+    const original = fetchMock.getMockImplementation()!;
+    let videoStatusReads = 0;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/studio/video" && init?.method === "POST") return response({ jobId: "video-job", status: "processing" });
+      if (url === "/api/studio/video") return { ok: true, status: 200, json: async () => ({ ready: true, callback: true }) };
+      if (url === "/api/studio/video/video-job") { videoStatusReads++; return response({ id: "video-job", status: "processing" }); }
+      if (url === "/api/studio/credits") return response({ balance: 5000, reserved: 0 });
+      return original(url, init);
+    });
+
+    render();
+    await act(async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>("#studio-video-tab")!.click();
+      for (let i = 0; i < 12; i++) await Promise.resolve();
+    });
+    const textarea = container.querySelector<HTMLTextAreaElement>(".studio-prompt-box textarea")!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      setter?.call(textarea, "Vidéo de promotion");
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(".studio-generate")!.click();
+      for (let i = 0; i < 30; i++) await Promise.resolve();
+    });
+    expect(fetchMock.mock.calls.some(([url, init]) => url === "/api/studio/video" && init?.method === "POST")).toBe(true);
+    expect(videoStatusReads).toBe(0);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(29_999); });
+    expect(videoStatusReads).toBe(0);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(videoStatusReads).toBe(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
+    expect(videoStatusReads).toBe(4);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(videoStatusReads).toBe(4);
   });
 
   it("treats an isolated Realtime reconciliation error as unavailable tracking, not as a failed generation", async () => {
