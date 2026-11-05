@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n";
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import {
@@ -80,7 +80,7 @@ export function AdminDashboard() {
       if (request === usageRequest.current) setUsageLoading(false);
     }
   }
-  async function load() {
+  const load = useCallback(async () => {
     const request = ++overviewRequest.current;
     setLoading(true);
     setError("");
@@ -100,13 +100,32 @@ export function AdminDashboard() {
     } finally {
       if (request === overviewRequest.current) setLoading(false);
     }
-  }
+  }, []);
   useEffect(() => {
     void load();
     return () => {
       overviewRequest.current++;
     };
-  }, []);
+  }, [load]);
+  useEffect(() => {
+    let lastRefresh = 0;
+    const refreshVisibleAdmin = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastRefresh < 1500) return;
+      lastRefresh = now;
+      setRefreshRevision((value) => value + 1);
+      void load();
+    };
+    const timer = window.setInterval(refreshVisibleAdmin, 60_000);
+    window.addEventListener("focus", refreshVisibleAdmin);
+    document.addEventListener("visibilitychange", refreshVisibleAdmin);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshVisibleAdmin);
+      document.removeEventListener("visibilitychange", refreshVisibleAdmin);
+    };
+  }, [load]);
   useEffect(() => {
     void loadUsage(usageDays);
     return () => {

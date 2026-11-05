@@ -203,6 +203,22 @@ describe("tableau de bord propriétaire", () => {
     ).toHaveLength(2);
   });
 
+  it("rafraîchit l’aperçu et les revenus au retour sur l’onglet admin", async () => {
+    const visibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    try {
+      await renderDashboard();
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+      });
+      await settle();
+      expect(fetchMock.mock.calls.filter(([url]) => String(url) === "/api/admin/overview")).toHaveLength(2);
+      expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/admin/revenue"))).toHaveLength(2);
+    } finally {
+      if (visibility) Object.defineProperty(document, "visibilityState", visibility);
+    }
+  });
+
   it("la recherche rapide ouvre la section comptes", async () => {
     await renderDashboard();
     await act(async () => {
