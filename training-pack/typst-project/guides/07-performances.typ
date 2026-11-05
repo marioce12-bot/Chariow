@@ -50,7 +50,7 @@
 - Calculer coût par résultat et ROAS, puis identifier ce qu’ils ne disent pas.
 - Diagnostiquer par étape et décider à partir de données vérifiées.
   #v(0.7cm)
-  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 4 novembre 2026]
+  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 5 novembre 2026]
   ]
   #page(header: none)[
   #outline(title: [Sommaire], depth: 2, indent: 1.1em)
@@ -156,4 +156,4 @@
     #text(size: 9pt, fill: luma(80))[Utilisée pour : Échantillonnage, normalisation et limites de Trends lorsqu’il est utilisé comme signal de marché.]
   ]
   #v(0.35cm)
-  #text(size: 9pt, fill: luma(80))[Sources consultées le 4 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
+  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]

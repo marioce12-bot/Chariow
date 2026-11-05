@@ -50,7 +50,7 @@
 - Attribuer les autorisations selon le travail nécessaire, sans partager de secrets.
 - Vérifier 2FA, facturation et connexions tierces avant le lancement.
   #v(0.7cm)
-  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 4 novembre 2026]
+  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 5 novembre 2026]
   ]
   #page(header: none)[
   #outline(title: [Sommaire], depth: 2, indent: 1.1em)
@@ -161,4 +161,4 @@
     #text(size: 9pt, fill: luma(80))[Utilisée pour : Permissions d’applications et limites de la révocation concernant les données déjà conservées.]
   ]
   #v(0.35cm)
-  #text(size: 9pt, fill: luma(80))[Sources consultées le 4 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
+  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]

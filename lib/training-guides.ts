@@ -48,6 +48,13 @@ export const TRAINING_GUIDES = [
     frDescription: "Lire les indicateurs, calculer le ROAS et choisir une optimisation.",
     enDescription: "Read key metrics, calculate ROAS, and choose the next optimization.",
   },
+  {
+    number: "08",
+    fr: "Créer ses comptes publicitaires",
+    en: "Create your advertising accounts",
+    frDescription: "Créer et préparer ses comptes Meta Ads, Pinterest Ads et TikTok Ads.",
+    enDescription: "Create and prepare Meta Ads, Pinterest Ads, and TikTok Ads accounts.",
+  },
 ] as const;
 
 export function trainingGuideTitles(locale: "fr" | "en"): string {

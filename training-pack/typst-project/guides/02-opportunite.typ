@@ -50,7 +50,7 @@
 - Comparer une proposition de valeur aux options actuelles.
 - Tester une hypothèse prioritaire avec une expérience limitée.
   #v(0.7cm)
-  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 4 novembre 2026]
+  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 5 novembre 2026]
   ]
   #page(header: none)[
   #outline(title: [Sommaire], depth: 2, indent: 1.1em)
@@ -150,4 +150,4 @@
     #text(size: 9pt, fill: luma(80))[Utilisée pour : Règles Meta applicables aux publicités payantes et recommandation de vérifier les politiques en vigueur si l’opportunité est promue sur Meta.]
   ]
   #v(0.35cm)
-  #text(size: 9pt, fill: luma(80))[Sources consultées le 4 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
+  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]

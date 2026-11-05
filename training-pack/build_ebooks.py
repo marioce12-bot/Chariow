@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from zipfile import ZIP_DEFLATED, ZipFile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,7 +84,7 @@ def render_source(data: dict) -> str:
         "  #v(0.2cm)",
         bullet_list(data["outcomes"]),
         "  #v(0.7cm)",
-        '  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 4 novembre 2026]',
+        '  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 5 novembre 2026]',
         "  ]",
         "  #page(header: none)[",
         "  #outline(title: [Sommaire], depth: 2, indent: 1.1em)",
@@ -134,7 +135,7 @@ def render_source(data: dict) -> str:
         ])
     out.extend([
         "  #v(0.35cm)",
-        '  #text(size: 9pt, fill: luma(80))[Sources consultées le 4 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]',
+        '  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]',
     ])
     return "\n".join(out) + "\n"
 
@@ -143,9 +144,10 @@ def main() -> None:
     source_dir = SOURCE_DIR
     source_dir.mkdir(parents=True, exist_ok=True)
     files = sorted(GUIDES.glob("*.json"))
-    if len(files) != 7:
-        raise SystemExit(f"Attendu : 7 fichiers JSON de guide, trouvé : {len(files)}")
+    if len(files) != 8:
+        raise SystemExit(f"Attendu : 8 fichiers JSON de guide, trouvé : {len(files)}")
 
+    outputs: list[Path] = []
     for path in files:
         data = json.loads(path.read_text(encoding="utf-8"))
         source = source_dir / f"{path.stem}.typ"
@@ -159,7 +161,21 @@ def main() -> None:
         )
         if not output.is_file() or output.stat().st_size < 20_000:
             raise SystemExit(f"PDF absent ou trop petit : {output}")
+        outputs.append(output)
         print(f"  OK — {output.stat().st_size:,} octets", flush=True)
+
+    archive_dir = ROOT / "training-assets"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archive = archive_dir / "formation-vendeo-guides.zip"
+    with ZipFile(archive, "w", compression=ZIP_DEFLATED, compresslevel=9) as bundle:
+        for output in outputs:
+            bundle.write(output, arcname=output.name)
+        bundle.writestr(
+            "README.txt",
+            "Pack de formation Vendeo — 8 guides PDF pratiques. "
+            "Les procédures de plateformes évoluent : consultez les sources officielles indiquées dans chaque guide.\n",
+        )
+    print(f"Archive prête : {archive.relative_to(ROOT)} ({archive.stat().st_size:,} octets)", flush=True)
 
 
 if __name__ == "__main__":

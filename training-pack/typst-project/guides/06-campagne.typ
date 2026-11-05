@@ -50,7 +50,7 @@
 - Vérifier offre, destination, audience et création avant de dépenser.
 - Définir plafond, indicateurs, contrôles post-lancement et décision suivante.
   #v(0.7cm)
-  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 4 novembre 2026]
+  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 5 novembre 2026]
   ]
   #page(header: none)[
   #outline(title: [Sommaire], depth: 2, indent: 1.1em)
@@ -151,4 +151,4 @@
     #text(size: 9pt, fill: luma(80))[Utilisée pour : Limites des tendances de recherche lorsqu’elles sont utilisées pour explorer la demande.]
   ]
   #v(0.35cm)
-  #text(size: 9pt, fill: luma(80))[Sources consultées le 4 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
+  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
