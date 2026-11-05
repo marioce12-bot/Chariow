@@ -60,7 +60,7 @@ const copy = {
   notifications: ["Notifications", "Notifications"],
   feedback: ["Suggestions & avis", "Suggestions & feedback"],
   subscriptions: ["Abonnements", "Subscriptions"],
-  purchases: ["Achats & crédits", "Purchases & credits"],
+  purchases: ["Transactions & crédits", "Transactions & credits"],
   payouts: ["Décaissements", "Payouts"],
   audit: ["Journal d’audit", "Audit log"],
 };
