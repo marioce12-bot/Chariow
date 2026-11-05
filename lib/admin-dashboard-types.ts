@@ -111,3 +111,12 @@ export type UsageStats = {
   }>;
   signups_by_day: Array<{ day: string; count: number }>;
 };
+
+export type AdsStats = {
+  total_launched: number;
+  by_platform: { meta: number; tiktok: number; pinterest: number };
+  running_now: number;
+  launched_in_period: number;
+  active_in_period: number;
+  users_with_launch: number;
+};

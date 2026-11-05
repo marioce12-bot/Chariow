@@ -10,15 +10,16 @@ import {
 } from "@/components/AdminSections";
 import type { AdminData, UsageStats } from "@/components/AdminSections";
 
-const localeState = vi.hoisted(() => ({ locale: "fr" }));
+const mocks = vi.hoisted(() => ({ locale: "fr", fetchAdminJson: vi.fn() }));
+vi.mock("@/lib/admin-fetch", () => ({ fetchAdminJson: mocks.fetchAdminJson }));
 vi.mock("@/lib/i18n/i18n", async () => {
   const { translate } = await import("@/lib/i18n/translate");
   return {
     useI18n: () => ({
-      locale: localeState.locale,
-      setLocale: (locale: string) => { localeState.locale = locale; },
+      locale: mocks.locale,
+      setLocale: (locale: string) => { mocks.locale = locale; },
       t: (key: string, vars?: Record<string, string | number>) =>
-        translate(localeState.locale as "fr" | "en", key, vars),
+        translate(mocks.locale as "fr" | "en", key, vars),
     }),
   };
 });
@@ -73,10 +74,11 @@ async function submitForm() {
 }
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
-  localeState.locale = "fr";
+  mocks.locale = "fr";
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
+  mocks.fetchAdminJson.mockReset().mockResolvedValue({ subscriptions: [{ id: "sub-1", user_id: "user-1", plan: "starter", status: "canceled", classification: "expired", profile: { email: "owner-test@example.test", full_name: "Compte Test" }, current_period_start: null, current_period_end: null, trial_ends_at: null, days_left: 0, last_payment_at: null }], counts: { paid: 0, trial: 0, expired: 1 }, newSubscriptionPayments: 0 });
   fetchMock = vi.fn(() => jsonResponse());
   confirmMock = vi.fn(() => true);
   vi.stubGlobal("fetch", fetchMock);
@@ -102,7 +104,7 @@ describe("available Studio credits in user rows", () => {
     expect(cells.map(cell => cell.textContent)).toEqual(["0", (2175).toLocaleString("fr-FR"), "—"]);
     expect(cells.every(cell => cell.getAttribute("data-label") === "Crédits Studio disponibles")).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
-    localeState.locale = "en";
+    mocks.locale = "en";
     await render(<UsersSection data={{ ...data, users }} usage={null} />);
     expect(container.textContent).toContain("Studio credits available");
     expect(container.querySelectorAll(".admin-user-credits")[1].textContent).toBe("2,175");
@@ -124,6 +126,7 @@ describe("actions propriétaires dans les sections admin", () => {
 
   it("active un abonnement après confirmation avec le payload starter attendu et annule sans POST", async () => {
     await render(<SubscriptionsSection data={data} />);
+    await settle();
     confirmMock.mockReturnValueOnce(false);
     await click(button("Activer"));
     expect(fetchMock).not.toHaveBeenCalled();

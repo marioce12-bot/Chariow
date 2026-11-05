@@ -27,7 +27,7 @@ describe("recorded SaaS revenue", () => {
   it.each([
     { metadata: {} }, { metadata: { amount_xof: "2000" } }, { metadata: { amount_xof: -5 } }, { metadata: { amount_xof: 0 } }, { metadata: { amount_xof: Infinity } }, { metadata: { amount_xof: 1.5 } }, { metadata: { amount_xof: 2000, currency: "USD" } }, { provider: "fedapay" }, { transaction_id: null }, { plan: null }, { created_at: "bad" }, { status: "refunded" }, { created_at: "2027-01-01" },
   ])("withholds all totals when evidence is incomplete: %j", (overrides) => {
-    expect(summarizeRevenue([payment(overrides)], [credit()], asOf)).toMatchObject({ complete: false, total: null, subscriptions: null, studio: null, unresolved: 1 });
+    expect(summarizeRevenue([payment(overrides)], [credit()], asOf)).toMatchObject({ complete: false, total: null, subscriptions: null, studio: null, unresolved: 1, unresolvedSamples: [{ table: "payment_events", id: "p", reason: expect.any(String) }] });
   });
   it("never interprets a credit refund as a quantified cash refund", () => {
     expect(summarizeRevenue([], [credit({ kind: "debit", status: "refunded" })], asOf).total).toBe(0);

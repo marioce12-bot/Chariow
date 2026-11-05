@@ -69,10 +69,10 @@ describe("admin SaaS revenue UI", () => {
     await render(); await selectPeriod("7d"); await act(async () => resolveOld({ revenue: summary }));
     expect(container.querySelectorAll(".admin-revenue-grid strong")[2].textContent).toBe("100 XOF");
   });
-  it("shows no misleading total or chart for unresolved evidence", async () => {
+  it("keeps verified-total presentation and the chart visible when evidence is unresolved", async () => {
     mocks.fetchAdminJson.mockResolvedValue({ revenue: { ...summary, complete: false, unresolved: 1, total: null, subscriptions: null, studio: null } }); await render();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("1 écriture");
-    expect(container.textContent).not.toContain("800 XOF"); expect(container.querySelectorAll(".admin-revenue-grid strong")[2].textContent).toBe("—"); expect(container.querySelector("svg")).toBeNull();
+    expect(container.querySelectorAll(".admin-revenue-grid strong")[2].textContent).toBe("—"); expect(container.querySelector("svg")).not.toBeNull(); expect(container.textContent).toContain("800 XOF");
   });
   it("does not render zero while loading or after an API failure", async () => {
     mocks.fetchAdminJson.mockRejectedValue(new Error()); await render();

@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
+import { fetchAdminJson } from "@/lib/admin-fetch";
+import { AdminPeriodPicker } from "./AdminPeriodPicker";
 export type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 import "./admin-user-credits.css";
 
@@ -561,234 +563,120 @@ export function UsersSection({
   );
 }
 
-export function SubscriptionsSection({
-  data,
-  onRefresh,
-}: {
-  data: AdminData;
-  onRefresh?: () => void;
-}) {
+type AdminSubscriptionRow = {
+  id: string; user_id: string; plan: string; status: string; classification: "paid" | "trial" | "expired";
+  profile: { email?: string | null; full_name?: string | null } | null;
+  current_period_start: string | null; current_period_end: string | null; trial_ends_at: string | null;
+  days_left: number; last_payment_at: string | null;
+};
+type SubscriptionPayload = { subscriptions: AdminSubscriptionRow[]; counts: { paid: number; trial: number; expired: number }; newSubscriptionPayments: number };
+export function SubscriptionsSection({ onRefresh }: { data?: AdminData; onRefresh?: () => void }) {
   const { t, locale } = useI18n();
-  const names = new Map(
-    data.users.map((u) => [
-      u.id,
-      u.full_name || u.email || t("adminComplete.noName"),
-    ]),
-  );
+  const en = locale === "en";
+  const [periodQuery, setPeriodQuery] = useState(() => `?period=all&timeZone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`);
+  const [filter, setFilter] = useState<"all" | "paid" | "trial" | "expired">("all");
+  const [payload, setPayload] = useState<SubscriptionPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  async function activate(s: AdminData["subscriptions"][number]) {
-    if (
-      !window.confirm(
-        locale === "en"
-          ? `Activate Vendeo for ${names.get(s.user_id) ?? s.user_id}? The period restarts now and usage counters are reset. No payment is collected.`
-          : `Activer Vendeo pour ${names.get(s.user_id) ?? s.user_id} ? La période redémarre maintenant et les compteurs sont réinitialisés. Aucun paiement n’est prélevé.`,
-      )
-    )
-      return;
-    setBusy(s.id);
-    setMessage("");
+  useEffect(() => {
+    let current = true; setLoading(true); setError(false);
+    fetchAdminJson(`/api/admin/subscriptions${periodQuery}&filter=${filter}`).then(result => {
+      if (!result.counts || !Array.isArray(result.subscriptions)) throw new Error();
+      if (current) { setPayload(result); setLoading(false); }
+    }).catch(() => { if (current) { setError(true); setLoading(false); } });
+    return () => { current = false; };
+  }, [periodQuery, filter, retry]);
+  async function activate(subscription: AdminSubscriptionRow) {
+    const name = subscription.profile?.full_name || subscription.profile?.email || subscription.user_id;
+    if (!window.confirm(en ? `Activate Vendeo for ${name}? The period restarts now and usage counters are reset. No payment is collected.` : `Activer Vendeo pour ${name} ? La période redémarre maintenant et les compteurs sont réinitialisés. Aucun paiement n’est prélevé.`)) return;
+    setBusy(subscription.id); setMessage("");
     try {
-      const response = await fetch("/api/admin/subscriptions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: s.user_id, plan: "starter" }),
-      });
-      setMessage(
-        response.ok
-          ? locale === "en"
-            ? "Subscription activated."
-            : "Abonnement activé."
-          : locale === "en"
-            ? "Activation failed."
-            : "Activation impossible.",
-      );
-      if (response.ok) onRefresh?.();
-    } catch {
-      setMessage(
-        locale === "en"
-          ? "Network error. Check current status before retrying."
-          : "Erreur réseau. Vérifiez l’état actuel avant de réessayer.",
-      );
-    } finally {
-      setBusy(null);
-    }
+      const response = await fetch("/api/admin/subscriptions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: subscription.user_id, plan: "starter" }) });
+      setMessage(response.ok ? (en ? "Subscription activated." : "Abonnement activé.") : (en ? "Activation failed." : "Activation impossible."));
+      if (response.ok) { setRetry(value => value + 1); onRefresh?.(); }
+    } catch { setMessage(en ? "Network error. Check current status before retrying." : "Erreur réseau. Vérifiez l’état actuel avant de réessayer."); }
+    finally { setBusy(null); }
   }
-  return (
-    <section className="admin-card admin-subscriptions">
-      <div className="admin-card-head">
-        <h3>{locale === "en" ? "Subscriptions" : "Abonnements"}</h3>
-        <CreditCard size={17} />
-      </div>
-      {data.subscriptions.length ? (
-        <AdminTable
-          headers={[
-            locale === "en" ? "Account" : "Compte",
-            locale === "en" ? "Plan" : "Offre",
-            t("adminComplete.status"),
-            locale === "en" ? "Period ends" : "Fin de période",
-            locale === "en" ? "Actions" : "Actions",
-          ]}
-        >
-          {data.subscriptions.map((s) => (
-            <div className="admin-row" key={s.id}>
-              <strong className="admin-subscription-account" data-label={locale === "en" ? "Account" : "Compte"}>
-                {names.get(s.user_id) || t("adminComplete.noName")}
-              </strong>
-              <span className="admin-subscription-plan" data-label={locale === "en" ? "Plan" : "Offre"}>{s.plan}</span>
-              <span className="admin-subscription-status" data-label={t("adminComplete.status")}>
-                <span className={`admin-status admin-subscription-state ${s.status}`}>
-                  {({
-                    active: locale === "en" ? "Active" : "Actif",
-                    trialing: locale === "en" ? "Trial" : "En essai",
-                    canceled: locale === "en" ? "Canceled" : "Annulé",
-                    past_due: locale === "en" ? "Past due" : "En retard",
-                    incomplete: locale === "en" ? "Incomplete" : "Incomplet",
-                    incomplete_expired: locale === "en" ? "Expired" : "Expiré",
-                    unpaid: locale === "en" ? "Unpaid" : "Impayé",
-                    paused: locale === "en" ? "Paused" : "En pause",
-                  } as Record<string, string>)[s.status] ?? s.status}
-                </span>
-              </span>
-              <span className="admin-subscription-date" data-label={locale === "en" ? "Period ends" : "Fin de période"}>
-                {s.current_period_end
-                  ? new Date(s.current_period_end).toLocaleDateString(
-                      dateLocale(locale),
-                    )
-                  : "—"}
-              </span>
-              <span className="admin-subscription-actions" data-label={locale === "en" ? "Actions" : "Actions"}>
-                {s.status !== "active" && (
-                  <button
-                    type="button"
-                    className="admin-btn admin-btn-soft"
-                    aria-label={`${locale === "en" ? "Activate" : "Activer"} — ${names.get(s.user_id) || t("adminComplete.noName")}`}
-                    disabled={busy === s.id}
-                    onClick={() => void activate(s)}
-                  >
-                    {locale === "en" ? "Activate" : "Activer"}
-                  </button>
-                )}
-              </span>
-            </div>
-          ))}
-        </AdminTable>
-      ) : (
-        <Empty
-          text={
-            locale === "en"
-              ? "No subscriptions found."
-              : "Aucun abonnement trouvé."
-          }
-        />
-      )}
-      {message && <p role="status">{message}</p>}
-    </section>
-  );
+  const counts = payload?.counts;
+  const tabs = [["all", en ? "All" : "Tous"], ["paid", en ? "Paid" : "Payants"], ["trial", en ? "Trials" : "Essais"], ["expired", en ? "Expired" : "Expirés"]] as const;
+  const date = (value: string | null) => value ? new Date(value).toLocaleDateString(dateLocale(locale)) : "—";
+  return <section className="admin-card admin-subscriptions">
+    <div className="admin-card-head"><h3>{en ? "Subscriptions" : "Abonnements"}</h3><CreditCard size={17} /></div>
+    <div className="admin-kpi-grid">{[
+      [en ? "Current paid" : "Payants en cours", counts?.paid], [en ? "Current trials" : "Essais en cours", counts?.trial],
+      [en ? "Expired" : "Expirés", counts?.expired], [en ? "New subscription payments in period" : "Nouveaux paiements sur la période", payload?.newSubscriptionPayments],
+    ].map(([label, value]) => <article className="admin-kpi" key={String(label)}><small>{label}</small><strong>{value ?? "—"}</strong></article>)}</div>
+    <AdminPeriodPicker onChange={setPeriodQuery} idPrefix="subscriptions-period" />
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }} role="tablist" aria-label={en ? "Subscription status" : "Statut des abonnements"}>{tabs.map(([key, label]) => <button type="button" key={key} className={`admin-btn ${filter === key ? "admin-btn-primary" : "admin-btn-soft"}`} aria-pressed={filter === key} onClick={() => setFilter(key)}>{label}</button>)}</div>
+    {loading && <p role="status">{en ? "Loading subscriptions…" : "Chargement des abonnements…"}</p>}
+    {error && <p role="alert">{en ? "Subscriptions unavailable." : "Abonnements indisponibles."} <button className="admin-btn admin-btn-soft" onClick={() => setRetry(value => value + 1)}>{en ? "Retry" : "Réessayer"}</button></p>}
+    {!loading && !error && (payload?.subscriptions.length ? <AdminTable headers={[en ? "Account" : "Compte", "E-mail", t("adminComplete.status"), en ? "Start" : "Début", en ? "End" : "Fin", en ? "Days left" : "Jours restants", en ? "Last payment" : "Dernier paiement", en ? "Actions" : "Actions"]}>
+      {payload.subscriptions.map(item => <div className="admin-row" key={item.id}>
+        <strong>{item.profile?.full_name || item.profile?.email || item.user_id}</strong><span>{item.profile?.email || "—"}</span>
+        <span><span className={`admin-status ${item.classification}`}>{({ paid: en ? "Paid" : "Payant", trial: en ? "Trial" : "Essai", expired: en ? "Expired" : "Expiré" })[item.classification]}</span></span>
+        <span>{date(item.current_period_start)}</span><span>{date(item.classification === "trial" ? item.trial_ends_at : item.current_period_end)}</span><span>{item.days_left}</span><span>{date(item.last_payment_at)}</span>
+        <span>{item.classification !== "paid" && <button type="button" className="admin-btn admin-btn-soft" aria-label={`${en ? "Activate" : "Activer"} — ${item.profile?.email || item.user_id}`} disabled={busy === item.id} onClick={() => void activate(item)}>{en ? "Activate" : "Activer"}</button>}</span>
+      </div>)}
+    </AdminTable> : <Empty text={en ? "No subscriptions found." : "Aucun abonnement trouvé."} />)}
+    {message && <p role="status">{message}</p>}
+  </section>;
 }
-
+type TransactionRow = { id: string; kind: "subscription" | "credits"; user_id: string | null; email: string | null; full_name: string | null; amount_xof: number | null; credits: number | null; provider: string | null; status: string; is_admin_grant: boolean; created_at: string };
+type TransactionPayload = { transactions: TransactionRow[]; total: number; page: number; pageSize: number; totals: { subscriptions: number; credits: number; amount_xof: number; subscription_amount_xof: number; credits_amount_xof: number; credits_sold: number } };
 export function PurchasesSection({ data }: { data: AdminData }) {
   const { t, locale } = useI18n();
-  const names = new Map(
-    data.users.map((u) => [u.id, u.full_name || u.email || u.id]),
-  );
-  return (
-    <>
-      <section className="admin-card">
-        <div className="admin-card-head">
-          <h3>{t("adminComplete.studioTopups")}</h3>
-          <Wallet size={17} />
-        </div>
-        <p className="admin-help">
-          {locale === "en"
-            ? "Recent credit entries, including free grants. Verified paid revenue is shown in Overview."
-            : "Écritures de crédits récentes, y compris les attributions gratuites. Les revenus payés vérifiés figurent dans la vue d’ensemble."}
-        </p>
-        {data.creditPurchases.length ? (
-          <AdminTable
-            headers={[
-              locale === "en" ? "Account" : "Compte",
-              locale === "en" ? "Credits" : "Crédits",
-              locale === "en" ? "Amount" : "Montant",
-              t("adminComplete.date"),
-            ]}
-          >
-            {data.creditPurchases.map((p) => (
-              <div className="admin-row" key={p.id}>
-                <strong>{names.get(p.user_id)}</strong>
-                <span>
-                  {p.credits.toLocaleString(dateLocale(locale))}{" "}
-                  {t("studio.credits")}
-                </span>
-                <span>
-                  {p.operation === "admin_grant" ||
-                  p.metadata?.provider === "admin_grant"
-                    ? locale === "en"
-                      ? "Admin grant"
-                      : "Attribution admin"
-                    : p.metadata?.amount_xof == null
-                      ? "—"
-                      : money(p.metadata.amount_xof, locale)}
-                </span>
-                <span>
-                  {new Date(p.created_at).toLocaleString(dateLocale(locale))}
-                </span>
-              </div>
-            ))}
-          </AdminTable>
-        ) : (
-          <Empty
-            text={
-              locale === "en"
-                ? "No credit purchases found."
-                : "Aucun achat de crédits trouvé."
-            }
-          />
-        )}
-      </section>
-      <section className="admin-card">
-        <div className="admin-card-head">
-          <h3>
-            {locale === "en" ? "Credit usage" : "Utilisation des crédits"}
-          </h3>
-          <Sparkles size={17} />
-        </div>
-        {data.creditTransactions.length ? (
-          <AdminTable
-            headers={[
-              locale === "en" ? "Account" : "Compte",
-              locale === "en" ? "Operation" : "Opération",
-              locale === "en" ? "Model" : "Modèle",
-              locale === "en" ? "Credits" : "Crédits",
-              t("adminComplete.date"),
-            ]}
-          >
-            {data.creditTransactions.map((x) => (
-              <div className="admin-row" key={x.id}>
-                <strong>{names.get(x.user_id)}</strong>
-                <span>{x.operation || "Studio"}</span>
-                <span>{x.model || "—"}</span>
-                <span>-{x.credits}</span>
-                <span>
-                  {new Date(x.created_at).toLocaleString(dateLocale(locale))}
-                </span>
-              </div>
-            ))}
-          </AdminTable>
-        ) : (
-          <Empty
-            text={
-              locale === "en"
-                ? "No credit usage found."
-                : "Aucune utilisation de crédits trouvée."
-            }
-          />
-        )}
-      </section>
-    </>
-  );
+  const en = locale === "en";
+  const [periodQuery, setPeriodQuery] = useState(() => `?period=all&timeZone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`);
+  const [type, setType] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [page, setPage] = useState(1);
+  const [payload, setPayload] = useState<TransactionPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let current = true; setLoading(true); setError(false);
+    fetchAdminJson(`/api/admin/transactions${periodQuery}&type=${type}&status=${status}&page=${page}`).then(result => {
+      if (!Array.isArray(result.transactions) || typeof result.total !== "number") throw new Error();
+      if (current) { setPayload(result); setLoading(false); }
+    }).catch(() => { if (current) { setError(true); setLoading(false); } });
+    return () => { current = false; };
+  }, [periodQuery, type, status, page, retry]);
+  const pageCount = Math.max(1, Math.ceil((payload?.total ?? 0) / 50));
+  const moneyText = (n: number | null) => n == null ? "—" : money(n, locale);
+  const statuses = ["all", "approved", "completed", "pending", "failed", "cancelled", "refunded"];
+  return <>
+    <section className="admin-card">
+      <div className="admin-card-head"><h3>{en ? "Transactions" : "Transactions"}<Receipt size={17} /></h3></div>
+      <AdminPeriodPicker onChange={value => { setPeriodQuery(value); setPage(1); }} idPrefix="transactions-period" />
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", margin: "12px 0" }}>
+        <label>{en ? "Type" : "Type"}<select value={type} onChange={event => { setType(event.target.value); setPage(1); }}><option value="all">{en ? "All" : "Tout"}</option><option value="subscription">{en ? "Subscriptions" : "Abonnements"}</option><option value="credits">{en ? "Credits" : "Crédits"}</option></select></label>
+        <label>{en ? "Status" : "Statut"}<select value={status} onChange={event => { setStatus(event.target.value); setPage(1); }}>{statuses.map(value => <option key={value} value={value}>{value === "all" ? (en ? "All" : "Tous") : value}</option>)}</select></label>
+      </div>
+      {payload && <p className="admin-help">{en ? `Subscriptions: ${moneyText(payload.totals.subscription_amount_xof)} · Credits: ${moneyText(payload.totals.credits_amount_xof)} · Total: ${moneyText(payload.totals.amount_xof)}` : `Abonnements : ${moneyText(payload.totals.subscription_amount_xof)} · Crédits : ${moneyText(payload.totals.credits_amount_xof)} · Total vérifié : ${moneyText(payload.totals.amount_xof)}`}</p>}
+      {loading && <p role="status">{en ? "Loading transactions…" : "Chargement des transactions…"}</p>}
+      {error && <p role="alert">{en ? "Transactions unavailable." : "Transactions indisponibles."} <button className="admin-btn admin-btn-soft" onClick={() => setRetry(value => value + 1)}>{en ? "Retry" : "Réessayer"}</button></p>}
+      {!loading && !error && (payload?.transactions.length ? <AdminTable headers={[en ? "Account" : "Compte", "E-mail", en ? "Type" : "Type", en ? "Credits" : "Crédits", en ? "Amount" : "Montant", en ? "Provider" : "Fournisseur", t("adminComplete.status"), t("adminComplete.date")]}>
+        {payload.transactions.map(row => <div className="admin-row" key={`${row.kind}-${row.id}`} style={row.is_admin_grant ? { opacity: 0.55 } : undefined}>
+          <strong>{row.full_name || row.email || row.user_id || "—"}</strong><span>{row.email || "—"}</span>
+          <span>{row.is_admin_grant ? (en ? "Gift" : "Cadeau") : row.kind === "subscription" ? (en ? "Subscription" : "Abonnement") : (en ? "Credit purchase" : "Achat de crédits")}</span>
+          <span>{row.credits == null ? "—" : `${row.credits.toLocaleString(dateLocale(locale))} ${t("studio.credits")}`}</span><span>{row.is_admin_grant ? (en ? "Gift" : "Cadeau") : moneyText(row.amount_xof)}</span>
+          <span>{row.provider || "—"}</span><span><span className={`admin-status ${row.status}`}>{row.status}</span></span><span>{new Date(row.created_at).toLocaleString(dateLocale(locale))}</span>
+        </div>)}
+      </AdminTable> : <Empty text={en ? "No transactions found." : "Aucune transaction trouvée."} />)}
+      {payload && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 14 }}><span>{en ? `Page ${page} of ${pageCount} · ${payload.total} transactions` : `Page ${page} sur ${pageCount} · ${payload.total} transactions`}</span><div><button type="button" className="admin-btn admin-btn-soft" disabled={page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>{en ? "Previous" : "Précédent"}</button> <button type="button" className="admin-btn admin-btn-soft" disabled={page >= pageCount} onClick={() => setPage(value => Math.min(pageCount, value + 1))}>{en ? "Next" : "Suivant"}</button></div></div>}
+    </section>
+    <section className="admin-card">
+      <div className="admin-card-head"><h3>{locale === "en" ? "Credit usage" : "Utilisation des crédits"}</h3><Sparkles size={17} /></div>
+      {data.creditTransactions.length ? <AdminTable headers={[locale === "en" ? "Account" : "Compte", locale === "en" ? "Operation" : "Opération", locale === "en" ? "Model" : "Modèle", locale === "en" ? "Credits" : "Crédits", t("adminComplete.date")]}>
+        {data.creditTransactions.map(x => <div className="admin-row" key={x.id}><strong>{data.users.find(user => user.id === (x as any).user_id)?.full_name || data.users.find(user => user.id === (x as any).user_id)?.email || "—"}</strong><span>{x.operation || "Studio"}</span><span>{x.model || "—"}</span><span>-{x.credits}</span><span>{new Date(x.created_at).toLocaleString(dateLocale(locale))}</span></div>)}
+      </AdminTable> : <Empty text={locale === "en" ? "No credit usage found." : "Aucune utilisation de crédits."} />}
+    </section>
+  </>;
 }
-
 export function PayoutsSection({
   data,
   onRefresh,

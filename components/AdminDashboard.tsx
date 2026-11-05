@@ -44,6 +44,7 @@ import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 import "./admin-dashboard.css";
 import { AdminSignupChart } from "./AdminSignupChart";
 import { AdminRevenue } from "./AdminRevenue";
+import { AdminAds } from "./AdminAds";
 
 export function AdminDashboard() {
   const { locale, setLocale } = useI18n();
@@ -51,6 +52,7 @@ export function AdminDashboard() {
   const [active, setActive] = useState("overview");
   const [data, setData] = useState<AdminData | null>(null);
   const [usage, setUsage] = useState<UsageStats | null>(null);
+  const [paidSubscriptions, setPaidSubscriptions] = useState<number | null>(null);
   const [usageDays, setUsageDays] = useState(7);
   const [usageError, setUsageError] = useState("");
   const [usageLoading, setUsageLoading] = useState(false);
@@ -101,6 +103,13 @@ export function AdminDashboard() {
       if (request === overviewRequest.current) setLoading(false);
     }
   }, []);
+  useEffect(() => {
+    let current = true;
+    fetchAdminJson("/api/admin/subscriptions").then(payload => {
+      if (current && Number.isFinite(payload?.counts?.paid)) setPaidSubscriptions(payload.counts.paid);
+    }).catch(() => { if (current) setPaidSubscriptions(null); });
+    return () => { current = false; };
+  }, [refreshRevision]);
   useEffect(() => {
     void load();
     return () => {
@@ -333,9 +342,11 @@ export function AdminDashboard() {
             {active === "overview" && (
               <>
               <AdminRevenue refreshRevision={refreshRevision} />
+              <AdminAds />
               <Overview
                 data={data}
                 usage={usage}
+                paidSubscriptions={paidSubscriptions}
                 days={usageDays}
                 usageLoading={usageLoading}
                 navigate={navigate}
@@ -396,12 +407,14 @@ export function AdminDashboard() {
 function Overview({
   data,
   usage,
+  paidSubscriptions,
   days,
   usageLoading,
   navigate,
 }: {
   data: AdminData;
   usage: UsageStats | null;
+  paidSubscriptions: number | null;
   days: number;
   usageLoading: boolean;
   navigate: (section: string) => void;
@@ -483,10 +496,8 @@ function Overview({
     },
     {
       label: en ? "Active subscriptions" : "Abonnements actifs",
-      value: fmt(data.business.active_subscriptions),
-      note: en
-        ? "Platform subscription metrics"
-        : "Indicateur global des abonnements",
+      value: fmt(paidSubscriptions),
+      note: en ? "Excludes trials" : "Hors essais",
       icon: CreditCard,
       color: "amber",
     },
