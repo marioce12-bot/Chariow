@@ -44,6 +44,9 @@ import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 import "./admin-dashboard.css";
 import { AdminSignupChart } from "./AdminSignupChart";
 import { AdminRevenue } from "./AdminRevenue";
+import { AdminAds } from "./AdminAds";
+import { AdminSubscribers } from "./AdminSubscribers";
+import { AdminTransactions } from "./AdminTransactions";
 
 export function AdminDashboard() {
   const { locale, setLocale } = useI18n();
@@ -333,6 +336,7 @@ export function AdminDashboard() {
             {active === "overview" && (
               <>
               <AdminRevenue refreshRevision={refreshRevision} />
+              <AdminAds refreshRevision={refreshRevision} />
               <Overview
                 data={data}
                 usage={usage}
@@ -371,9 +375,17 @@ export function AdminDashboard() {
             )}
             {active === "feedback" && <AdminFeedbackSection refreshRevision={refreshRevision} />}
             {active === "subscriptions" && (
-              <SubscriptionsSection data={data} onRefresh={() => void load()} />
+              <>
+                <AdminSubscribers refreshRevision={refreshRevision} />
+                <SubscriptionsSection data={data} onRefresh={() => void load()} />
+              </>
             )}
-            {active === "purchases" && <PurchasesSection data={data} />}
+            {active === "purchases" && (
+              <>
+                <AdminTransactions refreshRevision={refreshRevision} />
+                <PurchasesSection data={data} />
+              </>
+            )}
             {active === "payouts" && (
               <PayoutsSection data={data} onRefresh={() => void load()} />
             )}
