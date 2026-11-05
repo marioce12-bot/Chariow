@@ -75,6 +75,16 @@ describe("Studio history reopening", () => {
     expect(container.querySelector(".studio-history-viewer video")?.hasAttribute("playsinline")).toBe(true);
     expect(fetchMock.mock.calls.some(([url, init]) => ["/api/studio/video", "/api/studio/image"].includes(String(url)) && init?.method === "POST")).toBe(false);
   });
+  it("shows the latest completed video in the main video preview", async () => {
+    historyItems = [
+      { id: "newest", kind: "video", prompt: "Nouvelle vidéo", status: "completed", credits_cost: 1, mediaUrl: "https://media.test/newest.mp4", created_at: "2026-01-02" },
+      { id: "older", kind: "video", prompt: "Ancienne vidéo", status: "completed", credits_cost: 1, mediaUrl: "https://media.test/older.mp4", created_at: "2026-01-01" },
+    ];
+    render(); await settle();
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-studio-format="video"] .studio-mobile-choice-select')!.click());
+    await settle();
+    expect(container.querySelector<HTMLVideoElement>(".studio-result video")?.getAttribute("src")).toBe("https://media.test/newest.mp4");
+  });
   it("downloads an existing history MP4 locally without opening its remote URL or creating a generation", async () => {
     const createObjectURL = vi.fn(() => "blob:history-video");
     const revokeObjectURL = vi.fn();
