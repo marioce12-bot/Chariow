@@ -1,7 +1,7 @@
 "use client";
 
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
-import { Activity, ArrowRight, Camera, Copy, FileText, History, Megaphone, Package, Paperclip, Plus, Rocket, ShieldAlert, Sparkles, Target, TrendingUp } from "lucide-react";
+import { ArrowRight, Camera, Copy, FileText, History, Paperclip, Plus, Rocket, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cleanAiText } from "@/lib/ai/format";
 import { NavigationCard } from "@/components/chat/NavigationCard";
@@ -166,11 +166,18 @@ function parseAssistantMessage(rawContent: string): { content: string; launchPay
   return { content: cleanAiText(content, { preserveStrong: true }), launchPayload, campaignAction };
 }
 
+function isExplicitLaunchConfirmation(userMessage: string, previousAssistantMessage?: ChatMessageItem): boolean {
+  const userText = userMessage.trim().toLocaleLowerCase();
+  const assistantText = previousAssistantMessage?.content ?? "";
+  const affirmative = /^(oui|ouais|yes|ok(?:ay)?|d'accord|d accord|c'est bon|ça marche|parfait|je confirme|je valide|vas-y|vas y|go ahead|confirm(?:ed)?|lance(?: la campagne)?|tu peux lancer|you can launch)\b/.test(userText);
+  const refusal = /\b(non|no|pas encore|annule|annuler|ne\s+\w+\s+pas|don't launch|do not launch)\b/.test(userText);
+  const priorConfirmationRequest = /\b(confirm\w*|valid\w*|es-tu d'accord|est-ce bon pour toi|c'est bon.{0,30}\?|tu confirm\w*|souhait\w*.{0,30}lancer|veux.{0,30}lancer|je peux.{0,20}lancer|on lance|do you confirm|shall i launch|ready to launch)/i.test(assistantText);
+  return affirmative && !refusal && priorConfirmationRequest;
+}
+
 // Suggestions de démarrage : chacune correspond à une capacité réellement disponible
 // dans Vendeo AI (verdicts pub, produits, résumé d'activité, génération d'affiche)
 // plutôt qu'à des questions génériques qui ne mèneraient nulle part.
-type QuickPrompt = { icon: React.ReactNode; label: string; prompt?: string; action?: "poster" };
-
 function formatConversationDate(value: string, locale: "fr" | "en") {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -254,7 +261,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
   const [plansRequired, setPlansRequired] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Record<number, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const [quickPromptsOpen, setQuickPromptsOpen] = useState(true);
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -323,15 +329,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
   // atterrissait dans la nouvelle conversation et laissait le bouton d'envoi bloqué.
   const sessionEpochRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
-
-  const AI_QUICK_PROMPTS: QuickPrompt[] = [
-    { icon: <Rocket size={14} />, label: t("chat.launchSuggestion"), prompt: t("chat.launchSuggestionPrompt") },
-    { icon: <Megaphone size={14} />, label: t("chat.qStop"), prompt: t("chat.qStopPrompt") },
-    { icon: <TrendingUp size={14} />, label: t("chat.qScale"), prompt: t("chat.qScalePrompt") },
-    { icon: <Package size={14} />, label: t("chat.qBest"), prompt: t("chat.qBestPrompt") },
-    { icon: <Activity size={14} />, label: t("chat.qSummary"), prompt: t("chat.qSummaryPrompt") },
-    { icon: <Target size={14} />, label: t("chat.qNext"), prompt: t("chat.qNextPrompt") },
-  ];
+  const autoLaunchRef = useRef(false);
 
   const [bottomNode, setBottomNode] = useState<HTMLDivElement | null>(null);
 
@@ -340,7 +338,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     const pending = sessionStorage.getItem(SESSION_STORAGE_PROMPT_KEY);
     if (pending && typeof pending === "string") {
       setInput(pending);
-      setQuickPromptsOpen(false);
       sessionStorage.removeItem(SESSION_STORAGE_PROMPT_KEY);
     }
   }, []);
@@ -419,7 +416,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     setConversationId(null);
     setMessages([]);
     setExpandedMessages({});
-    setQuickPromptsOpen(true);
     setHistoryOpen(false);
   }
 
@@ -461,7 +457,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     }, CHAT_REQUEST_TIMEOUT_MS);
     setSending(true);
     setInput("");
-    setQuickPromptsOpen(false);
     const pendingAttachments = attachments;
     setAttachments([]);
     // Les pièces jointes sont intégrées au message affiché immédiatement : sans ça,
@@ -495,6 +490,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
       }
       if (response.ok && data.message) {
         setMessages((current) => [...current, data.message as ChatMessageItem]);
+        const parsedReply = parseAssistantMessage(data.message.content);
+        if (parsedReply.launchPayload) {
+          const campaignHistory = [...messages, userMessage];
+          autoLaunchRef.current = isExplicitLaunchConfirmation(message, messages.at(-1));
+          openLaunchConfirm(parsedReply.launchPayload, collectLaunchMedia(campaignHistory), campaignHistory);
+        }
         if (data.conversationId) {
           setConversationId(data.conversationId);
           void loadConversations();
@@ -591,7 +592,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
   // Ouvre une popup de confirmation au lieu du formulaire complet : l'IA a déjà
   // collecté toutes les infos dans la conversation, on ne fait que les relire et
   // demander « confirmer et lancer » avant d'envoyer directement sur Meta.
-  function openLaunchConfirm(payload: LaunchPayload | null, fallbackMedia?: LaunchMedia) {
+  function openLaunchConfirm(payload: LaunchPayload | null, fallbackMedia?: LaunchMedia, campaignHistory: ChatMessageItem[] = messages) {
     setLaunchPayload(payload);
     setLaunchCta(normalizeMetaCta(payload?.callToAction) ?? "");
     setLaunchImageUrls(fallbackMedia?.urls ?? []);
@@ -603,7 +604,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     // JSON de l'IA, à défaut depuis les messages de l'utilisateur, à défaut XOF. Les deux
     // restent modifiables dans la popup, et le serveur convertit en dollars.
     setLaunchBudget(payload?.dailyBudget != null ? String(payload.dailyBudget) : "");
-    setLaunchCurrency(normalizeCurrency(payload?.currency) ?? guessCurrencyFromMessages(messages) ?? "XOF");
+    setLaunchCurrency(normalizeCurrency(payload?.currency) ?? guessCurrencyFromMessages(campaignHistory) ?? "XOF");
     setLaunchError(null);
     // Compte par défaut : celui marqué is_selected, sinon l'unique compte actif.
     const accounts = payload?.platform === "pinterest" ? pinterestAccounts : metaAccounts;
@@ -698,6 +699,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     }
   }
 
+  useEffect(() => {
+    if (!launchOpen || !autoLaunchRef.current) return;
+    autoLaunchRef.current = false;
+    void confirmLaunch();
+  }, [launchOpen]);
+
   function copyMessage(index: number, content: string) {
     if (typeof navigator === "undefined" || !navigator.clipboard) return;
     navigator.clipboard
@@ -707,10 +714,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
         window.setTimeout(() => setCopiedIndex((current) => (current === index ? null : current)), 1500);
       })
       .catch(() => {});
-  }
-
-  function handleQuickPrompt(item: QuickPrompt) {
-    if (item.prompt) void send(item.prompt);
   }
 
   const hasConversation = messages.length > 0;
@@ -759,17 +762,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
               <strong>{t("chat.title")}</strong>
               <p>{t("chat.desc")}</p>
               <div className="ai-action-grid">
-                {[
-                  { tone: "red", icon: <ShieldAlert size={18} />, title: t("chat.protectTitle"), text: t("chat.protectText"), prompt: t("chat.protectPrompt") },
-                  { tone: "green", icon: <TrendingUp size={18} />, title: t("chat.opportunityTitle"), text: t("chat.opportunityText"), prompt: t("chat.opportunityPrompt") },
-                  { tone: "blue", icon: <Package size={18} />, title: t("chat.productsTitle"), text: t("chat.productsText"), prompt: t("chat.productsPrompt") },
-                ].map((item) => (
-                  <button type="button" className={`ai-action-card tone-${item.tone}`} key={item.title} onClick={() => void send(item.prompt)} disabled={sending || plansRequired}>
-                    <span className="ai-action-icon">{item.icon}</span>
-                    <span className="ai-action-text"><strong>{item.title}</strong><small>{item.text}</small></span>
-                    <ArrowRight size={16} />
-                  </button>
-                ))}
+                <button type="button" className="ai-action-card tone-blue" onClick={() => void send(t("chat.launchSuggestionPrompt"))} disabled={sending || plansRequired}>
+                  <span className="ai-action-icon"><Rocket size={18} /></span>
+                  <span className="ai-action-text"><strong>{t("chat.launchSuggestion")}</strong></span>
+                  <ArrowRight size={16} />
+                </button>
               </div>
             </div>
           )}
@@ -777,16 +774,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
           {messages.map((message, index) => {
             const isAssistant = message.role !== "user";
             const navigationTarget = isAssistant ? resolveChatNavigationForAssistantReply(messages, index) : null;
-            const { content, launchPayload, campaignAction } = isAssistant
+            const { content, campaignAction } = isAssistant
               ? parseAssistantMessage(message.content)
-              : { content: message.content, launchPayload: null as LaunchPayload | null, campaignAction: null as CampaignActionData | null };
-            const hasLaunchAction = isAssistant && message.content.includes(LAUNCH_TAG);
+              : { content: message.content, campaignAction: null as CampaignActionData | null };
             const isLong = content.length > 520;
             const expanded = expandedMessages[index] === true;
-            // Médias envoyés par l'utilisateur avant ce message (depuis le dernier bouton de lancement) :
-            // ils servent de créative par défaut — une seule image = pub classique, plusieurs = carrousel,
-            // une vidéo = pub vidéo.
-            const launchMedia: LaunchMedia = hasLaunchAction ? collectLaunchMedia(messages.slice(0, index)) : { urls: [], kind: "image" };
             return (
               <div key={index} className={isAssistant ? "chat-bubble assistant" : "chat-bubble user"}>
                 {isAssistant && (
@@ -820,11 +812,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
                   </div>
                 ) : null}
                 {campaignAction ? <CampaignAction data={campaignAction} /> : null}
-                {hasLaunchAction ? (
-                  <button type="button" className="btn btn-dark chat-launch-action" onClick={() => openLaunchConfirm(launchPayload, launchMedia)}>
-                    <Rocket size={15} /> {t("chat.launchNow")}
-                  </button>
-                ) : null}
                 {navigationTarget && onNavigateSection ? <NavigationCard target={navigationTarget} locale={locale} onNavigate={onNavigateSection} /> : null}
                 {(isLong || (isAssistant && content)) && (
                   <div className="chat-bubble-actions">
@@ -881,21 +868,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
               ))}
             </div>
           ) : null}
-          {(quickPromptsOpen || !hasConversation) && !plansRequired && (
-            <div className="chat-quickstart">
-              {AI_QUICK_PROMPTS.map((item) => (
-                <button
-                  type="button"
-                  key={item.label}
-                  className="chat-chip"
-                  onClick={() => handleQuickPrompt(item)}
-                  disabled={sending}
-                >
-                  {item.icon} {item.label}
-                </button>
-              ))}
-            </div>
-          )}
           <form
             onSubmit={(event) => {
               event.preventDefault();
