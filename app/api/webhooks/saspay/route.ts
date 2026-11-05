@@ -37,6 +37,14 @@ function eventContext(event: SasPayEvent) {
   };
 }
 
+function amountMetadata(amountXof: number, originalCurrency: string | undefined) {
+  return {
+    provider: "saspay",
+    amount_xof: amountXof,
+    ...(originalCurrency && originalCurrency !== "XOF" ? { original_currency: originalCurrency } : {}),
+  };
+}
+
 async function recordFailure(admin: ReturnType<typeof createAdminClient>, event: SasPayEvent, reason: string) {
   const context = { ...eventContext(event), reason };
   console.warn("[saspay-webhook] payment_not_processed", context);
@@ -91,12 +99,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Transaction invalide" }, { status: recorded ? 400 : 500 });
   }
 
-  // XAF (and any other non-XOF currency) is deliberately held for manual review.
-  // Do not infer an original checkout amount or perform an automatic conversion.
-  if (data.currency !== "XOF") {
-    const recorded = await recordFailure(admin, event, "currency_not_xof");
+  // XAF has a fixed 1:1 parity with XOF. Accept only the exact nominal XOF price.
+  // Other currencies are held for manual handling; no conversion is inferred here.
+  if (data.currency !== "XOF" && data.currency !== "XAF") {
+    const recorded = await recordFailure(admin, event, "currency_unsupported");
     if (!recorded) return NextResponse.json({ error: "Échec de persistance du paiement à examiner" }, { status: 500 });
-    return NextResponse.json({ received: true, processed: false, reason: "currency_not_xof" });
+    return NextResponse.json({ received: true, processed: false, reason: "currency_unsupported" });
   }
 
   if (data.metadata?.type === "studio_credits") {
@@ -110,7 +118,7 @@ export async function POST(request: Request) {
       const recorded = await recordFailure(admin, event, "credit_payment_validation_failed");
       return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: recorded ? 400 : 500 });
     }
-    const result = await admin.rpc("add_credits", { target_user_id: userId, amount: credits, payment_id: data.id, metadata_value: { provider: "saspay", amount_xof: Number(data.amount) } });
+    const result = await admin.rpc("add_credits", { target_user_id: userId, amount: credits, payment_id: data.id, metadata_value: amountMetadata(Number(data.amount), data.currency) });
     if (result.error) {
       const recorded = await recordFailure(admin, event, "credit_application_failed");
       return NextResponse.json({ error: "Crédits non ajoutés" }, { status: recorded ? 500 : 503 });
@@ -137,7 +145,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: recorded ? 400 : 500 });
   }
 
-  const { error: eventError } = await admin.from("payment_events").insert({ provider: "saspay", provider_event_id: data.id, transaction_id: data.id, user_id: userId, plan, status: "approved", metadata: { provider: "saspay", amount_xof: amount } });
+  const { error: eventError } = await admin.from("payment_events").insert({ provider: "saspay", provider_event_id: data.id, transaction_id: data.id, user_id: userId, plan, status: "approved", metadata: amountMetadata(amount, data.currency) });
   if (eventError?.code === "23505") {
     console.info("[saspay-webhook] duplicate_subscription_payment", { ...eventContext(event), user_id: userId });
     return NextResponse.json({ received: true });
