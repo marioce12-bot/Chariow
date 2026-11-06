@@ -240,9 +240,8 @@ export async function POST(request: Request) {
     // pas : Meta refusera de toute façon la création si le compte est inéligible.
   }
 
-  // Page Facebook : celle transmise par le client si déjà connue, sinon la
-  // première page accessible sur ce compte (API Graph "me/accounts", même appel
-  // que le wizard "Lancer une pub" — voir lib/meta/api.ts:fetchMetaResources).
+  // La page Facebook est choisie explicitement dans la carte de confirmation.
+  // On la vérifie contre les pages réellement accessibles par le compte sélectionné.
   let pageId = body.pageId;
   if (!pageId) {
     const resources = await fetchMetaResources(accountId, accessToken);
@@ -261,6 +260,11 @@ export async function POST(request: Request) {
     }
   }
 
+  if (pageId) {
+    const resources = await fetchMetaResources(accountId, accessToken);
+    const pageExists = resources.pages.some((page) => String((page as { id?: unknown }).id ?? "") === pageId);
+    if (!pageExists) return NextResponse.json({ error: "La page Facebook sélectionnée n'est pas accessible par ce compte publicitaire.", code: "META_PAGE_ACCOUNT_MISMATCH" }, { status: 400 });
+  }
   const countries = body.countries?.length ? body.countries : ["BJ"];
   const minAge = body.ageMin ?? 18;
   const maxAge = body.ageMax ?? 65;

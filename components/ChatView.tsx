@@ -45,7 +45,8 @@ type UsagePatch = { plan?: UsagePlan; status?: string; trial_active?: boolean };
 type ChatAttachment = { url: string; type: "image" | "video" | "document"; name?: string; text?: string; id?: string; uploading?: boolean };
 type ChatMessageItem = { role: string; content: string; imageUrl?: string; attachments?: ChatAttachment[] };
 type ChatUsage = { trialActive: boolean; status: string; plan: string; trialEndsAt?: string | null };
-type MetaAdAccount = { id: string; name: string | null; is_selected?: boolean; currency?: string | null };
+type MetaAdAccount = { id: string; name: string | null; is_selected?: boolean; is_active?: boolean; account_status?: number | null; currency?: string | null };
+type MetaPage = { id: string; name: string | null };
 type PinterestAdAccount = { id: string; name: string | null; is_selected?: boolean };
 type ChatConversation = { id: string; title: string; created_at: string; updated_at: string };
 type ChatApiResponse = {
@@ -287,6 +288,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
   const [metaAccounts, setMetaAccounts] = useState<MetaAdAccount[]>([]);
   const [pinterestAccounts, setPinterestAccounts] = useState<PinterestAdAccount[]>([]);
   const [launchAccountId, setLaunchAccountId] = useState<string | null>(null);
+  const [metaPages, setMetaPages] = useState<MetaPage[]>([]);
+  const [metaPagesLoading, setMetaPagesLoading] = useState(false);
+  const [metaPagesError, setMetaPagesError] = useState<string | null>(null);
+  const [launchPageId, setLaunchPageId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -377,6 +382,43 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
       .catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    if (!launchOpen || launchPayload?.platform !== "meta" || !launchAccountId) {
+      setMetaPages([]);
+      setLaunchPageId(null);
+      setMetaPagesError(null);
+      return;
+    }
+    const account = metaAccounts.find((item) => item.id === launchAccountId);
+    const active = Boolean(account?.is_active !== false && (account?.account_status == null || account.account_status === 1));
+    if (!active) {
+      setMetaPages([]);
+      setLaunchPageId(null);
+      setMetaPagesError(locale === "en" ? "Choose an active Meta ad account." : "Choisis un compte publicitaire Meta actif.");
+      return;
+    }
+    let cancelled = false;
+    setMetaPagesLoading(true);
+    setMetaPagesError(null);
+    setMetaPages([]);
+    setLaunchPageId(null);
+    fetch(`/api/integrations/meta/resources?account_id=${encodeURIComponent(launchAccountId)}`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || (locale === "en" ? "Unable to load Facebook pages." : "Impossible de charger les pages Facebook."));
+        return data;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const pages = Array.isArray(data.pages) ? data.pages.filter((page: MetaPage) => typeof page?.id === "string") : [];
+        setMetaPages(pages);
+        if (pages.length === 1) setLaunchPageId(pages[0].id);
+        if (!pages.length) setMetaPagesError(data.pages_error || (locale === "en" ? "No Facebook page is available for this account." : "Aucune page Facebook disponible pour ce compte."));
+      })
+      .catch((error) => { if (!cancelled) setMetaPagesError(error instanceof Error ? error.message : String(error)); })
+      .finally(() => { if (!cancelled) setMetaPagesLoading(false); });
+    return () => { cancelled = true; };
+  }, [launchOpen, launchPayload?.platform, launchAccountId, metaAccounts, locale]);
   useEffect(() => {
     fetch("/api/integrations/pinterest/accounts")
       .then((r) => (r.ok ? r.json() : { accounts: [] }))
@@ -608,7 +650,14 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     setLaunchError(null);
     // Compte par défaut : celui marqué is_selected, sinon l'unique compte actif.
     const accounts = payload?.platform === "pinterest" ? pinterestAccounts : metaAccounts;
-    setLaunchAccountId(accounts.find((a) => a.is_selected)?.id ?? (accounts.length === 1 ? accounts[0].id : null));
+    const selected = payload?.platform === "pinterest"
+      ? accounts.find((a) => a.is_selected) ?? (accounts.length === 1 ? accounts[0] : undefined)
+      : metaAccounts.find((a) => a.is_selected && a.is_active !== false && (a.account_status == null || a.account_status === 1))
+        ?? metaAccounts.find((a) => a.is_active !== false && (a.account_status == null || a.account_status === 1));
+    setLaunchAccountId(selected?.id ?? null);
+    setLaunchPageId(null);
+    setMetaPages([]);
+    setMetaPagesError(null);
     setLaunchOpen(true);
   }
 
@@ -635,6 +684,14 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     const isPinterest = payload.platform === "pinterest";
     if (!isPinterest && !launchCta) {
       setLaunchError(t("sweep2.text109"));
+      return;
+    }
+    if (!isPinterest && !launchAccountId) {
+      setLaunchError(locale === "en" ? "Choose an active Meta ad account." : "Choisis un compte publicitaire Meta actif.");
+      return;
+    }
+    if (!isPinterest && !launchPageId) {
+      setLaunchError(locale === "en" ? "Choose a Facebook page." : "Choisis une page Facebook.");
       return;
     }
     const isVideo = launchMediaKind === "video";
@@ -672,7 +729,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
           platform: payload.platform ?? "meta",
           callToAction: launchCta || undefined,
           durationDays: payload.durationDays ?? 1,
-          ...(payload.platform === "pinterest" ? { pinterestAdAccountId: launchAccountId ?? undefined } : { metaAdAccountId: launchAccountId ?? undefined }),
+          ...(payload.platform === "pinterest" ? { pinterestAdAccountId: launchAccountId ?? undefined } : { metaAdAccountId: launchAccountId ?? undefined, pageId: launchPageId ?? undefined }),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -1035,23 +1092,30 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
             {launchAccounts.length > 0 ? (
               <label className="chat-launch-account">
                 <span>{t("chat.launchAccount")}</span>
-                {launchAccounts.length > 1 ? (
-                  <select value={launchAccountId ?? ""} disabled={launching} onChange={(event) => setLaunchAccountId(event.target.value || null)}>
-                    <option value="">{t("chat.launchAccountChoose")}</option>
-                    {launchAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>{account.name ?? account.id}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="chat-launch-account-name">{launchAccounts[0].name ?? launchAccounts[0].id}</span>
-                )}
+                <select value={launchAccountId ?? ""} disabled={launching} onChange={(event) => setLaunchAccountId(event.target.value || null)}>
+                  <option value="">{t("chat.launchAccountChoose")}</option>
+                  {launchAccounts.map((account) => {
+                    const active = launchIsPinterest || (account as MetaAdAccount).is_active !== false && ((account as MetaAdAccount).account_status == null || (account as MetaAdAccount).account_status === 1);
+                    return <option key={account.id} value={account.id} disabled={!active}>{`${account.name ?? account.id}${active ? "" : ` (${locale === "en" ? "inactive" : "inactif"})`}`}</option>;
+                  })}
+                </select>
+              </label>
+            ) : null}
+            {!launchIsPinterest && launchAccountId ? (
+              <label className="chat-launch-account">
+                <span>{locale === "en" ? "Facebook page" : "Page Facebook"}</span>
+                <select value={launchPageId ?? ""} disabled={launching || metaPagesLoading || !metaPages.length} onChange={(event) => setLaunchPageId(event.target.value || null)} required>
+                  <option value="">{metaPagesLoading ? (locale === "en" ? "Loading pages…" : "Chargement des pages…") : (locale === "en" ? "Choose a page" : "Choisir une page")}</option>
+                  {metaPages.map((page) => <option key={page.id} value={page.id}>{page.name ?? page.id}</option>)}
+                </select>
+                {metaPagesError ? <small role="alert">{metaPagesError}</small> : null}
               </label>
             ) : null}
             {launching ? <LaunchProgress complete={launchComplete} /> : null}
             {launchError ? <p className="store-error" role="alert">{localizeSystemMessage(launchError, locale)}</p> : null}
             <div className="chat-launch-actions">
               <button type="button" className="btn btn-ghost" disabled={launching} onClick={() => setLaunchOpen(false)}>{t("chat.cancel")}</button>
-              <button type="button" className="btn btn-dark" disabled={launching || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && !launchCta)} onClick={() => void confirmLaunch()}>{launching ? t(launchComplete ? "chat.launchSent" : "chat.launchSubmitting") : t("chat.confirmLaunch")}</button>
+              <button type="button" className="btn btn-dark" disabled={launching || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && (!launchCta || !launchAccountId || !launchPageId))} onClick={() => void confirmLaunch()}>{launching ? t(launchComplete ? "chat.launchSent" : "chat.launchSubmitting") : t("chat.confirmLaunch")}</button>
             </div>
           </div>
         </div>

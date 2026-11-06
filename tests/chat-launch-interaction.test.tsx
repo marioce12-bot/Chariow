@@ -29,6 +29,7 @@ beforeEach(() => {
     if (url === "/api/conversations") return Promise.resolve(ok({ conversations: [] }));
     if (url === "/api/subscription") return Promise.resolve(ok({ subscription: null }));
     if (url.includes("/accounts")) return Promise.resolve(ok({ accounts: [{ id: "account-test", name: "Compte fictif" }] }));
+    if (url.includes("/api/integrations/meta/resources?")) return Promise.resolve(ok({ pages: [{ id: "page-test", name: "Page fictive" }] }));
     throw new Error(`Unexpected request: ${url}`);
   });
   vi.stubGlobal("fetch", requests);
