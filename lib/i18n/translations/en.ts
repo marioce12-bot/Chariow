@@ -85,6 +85,10 @@ export const en: Dict = {
       backToLogin: "Back to login", alreadyAccount: "Already have an account?", forgotPassword: "Forgot password?", noAccount: "No account yet?",
       tooManyRequests: "Too many recent attempts. Wait a moment before resending the email.",
       tooManyForEmail: "Too many requests for this email. Try again in {seconds}s.",
+      emailNotConfirmed: "Your email hasn't been verified yet. We just sent you a new link: check your inbox (and spam folder), then click it to sign in.",
+      emailNotConfirmedCooldown: "Your email hasn't been verified yet. A link was sent recently. Wait {seconds}s, then try again. Check your inbox and spam folder.",
+      resendVerificationLink: "Resend link",
+      verificationResendFailed: "We couldn't send the verification link right now. Please try again shortly.",
     },
     chat: {
       trialEnded: "Your Vendeo subscription has expired.", activate: "Reactivate subscription",

@@ -4,7 +4,7 @@ import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/lib/i18n/i18n";
 import { trackSuccessfulRegistration } from "@/lib/meta-pixel";
@@ -14,27 +14,119 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [verificationNotice, setVerificationNotice] = useState<"sent" | "cooldown" | null>(null);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const register = mode === "register";
   const forgot = mode === "forgot";
 
-  function cooldownKey(email: string) {
-    return `vendeo_auth_cooldown:${mode}:${email.trim().toLowerCase()}`;
+  function cooldownKey(email: string, scope: "login" | "register" | "forgot" = mode) {
+    return `vendeo_auth_cooldown:${scope}:${email.trim().toLowerCase()}`;
   }
 
-  function getCooldownUntil(email: string) {
-    const raw = sessionStorage.getItem(cooldownKey(email));
-    const value = raw ? Number(raw) : 0;
-    return Number.isFinite(value) ? value : 0;
+  function getCooldownUntil(email: string, scope: "login" | "register" | "forgot" = mode) {
+    try {
+      const raw = sessionStorage.getItem(cooldownKey(email, scope));
+      const value = raw ? Number(raw) : 0;
+      return Number.isFinite(value) ? value : 0;
+    } catch {
+      return 0;
+    }
   }
 
-  function setCooldown(email: string, milliseconds: number) {
-    sessionStorage.setItem(cooldownKey(email), String(Date.now() + milliseconds));
+  function setCooldown(email: string, milliseconds: number, scope: "login" | "register" | "forgot" = mode) {
+    try { sessionStorage.setItem(cooldownKey(email, scope), String(Date.now() + milliseconds)); } catch { /* Storage may be unavailable. */ }
+  }
+
+  function getVerificationCooldownUntil(email: string) {
+    return Math.max(getCooldownUntil(email, "login"), getCooldownUntil(email, "register"));
+  }
+
+  function setVerificationCooldown(email: string, milliseconds: number) {
+    const until = Date.now() + milliseconds;
+    setCooldown(email, milliseconds, "login");
+    setCooldown(email, milliseconds, "register");
+    return until;
+  }
+
+  function isRateLimitError(authError: { code?: string | null; message?: string | null }) {
+    return /rate.?limit|exceed|too many|429/i.test(`${authError.code ?? ""} ${authError.message ?? ""}`);
+  }
+
+  async function resendVerificationLink(email: string) {
+    const existingUntil = getVerificationCooldownUntil(email);
+    if (Date.now() < existingUntil) {
+      setVerificationNotice("cooldown");
+      setCooldownUntil(existingUntil);
+      setCooldownRemaining(Math.ceil((existingUntil - Date.now()) / 1000));
+      return;
+    }
+
+    setError("");
+    setSendingEmail(true);
+    try {
+      const supabase = createClient();
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: `${window.location.origin}/auth/confirm?next=/dashboard` },
+      });
+      if (resendError) {
+        if (isRateLimitError(resendError)) {
+          setVerificationNotice("cooldown");
+          setCooldownUntil(setVerificationCooldown(email, 60_000));
+          setError(t("auth.tooManyRequests"));
+        } else {
+          setVerificationNotice(null);
+          setError(t("auth.verificationResendFailed"));
+        }
+        return;
+      }
+      setVerificationNotice("sent");
+      setCooldownUntil(setVerificationCooldown(email, 60_000));
+    } catch {
+      setVerificationNotice(null);
+      setError(t("auth.verificationResendFailed"));
+    } finally {
+      setSendingEmail(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!cooldownUntil) {
+      setCooldownRemaining(0);
+      return;
+    }
+    const updateRemaining = () => {
+      const remaining = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownRemaining(remaining);
+      if (remaining === 0) setVerificationNotice((notice) => notice === "cooldown" ? "sent" : notice);
+    };
+    updateRemaining();
+    const timer = window.setInterval(updateRemaining, 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldownUntil]);
+
+  function showUnconfirmedEmail(email: string) {
+    setVerificationEmail(email);
+    const until = getVerificationCooldownUntil(email);
+    if (Date.now() < until) {
+      setVerificationNotice("cooldown");
+      setCooldownUntil(until);
+      setCooldownRemaining(Math.ceil((until - Date.now()) / 1000));
+      return Promise.resolve();
+    }
+    return resendVerificationLink(email);
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setSubmitted(false);
+    setVerificationNotice(null);
+    setVerificationEmail("");
+    setCooldownUntil(0);
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email") ?? "");
     const password = String(form.get("password") ?? "");
@@ -57,6 +149,8 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
       }
       setSendingEmail(true);
       setCooldown(email, 60_000);
+    } else {
+      setSendingEmail(true);
     }
 
     try {
@@ -71,7 +165,11 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
           : await supabase.auth.signInWithPassword({ email, password });
 
       if (result.error) {
-        if (/rate limit|exceed|too many|429/i.test(result.error.message ?? "")) {
+        if (!register && !forgot && (result.error.code === "email_not_confirmed" || /email not confirmed/i.test(result.error.message ?? ""))) {
+          await showUnconfirmedEmail(email);
+          return;
+        }
+        if (isRateLimitError(result.error)) {
           setCooldown(email, 120_000);
           setError(t("auth.tooManyRequests"));
           return;
@@ -115,6 +213,14 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
         <h1>{title}</h1>
         <p>{description}</p>
         {configurationError && <p className="form-error">{t("auth.configError")}</p>}
+        {verificationNotice && <div className="auth-success" role="status">
+          <p>{verificationNotice === "cooldown" && cooldownRemaining > 0
+            ? t("auth.emailNotConfirmedCooldown", { seconds: cooldownRemaining })
+            : t("auth.emailNotConfirmed")}</p>
+          <button className="btn btn-dark" type="button" onClick={() => void resendVerificationLink(verificationEmail)} disabled={sendingEmail || cooldownRemaining > 0}>
+            {t("auth.resendVerificationLink")}
+          </button>
+        </div>}
         {submitted ? <div className="auth-success">{successMessage}</div> : (
           <form onSubmit={submit}>
             {register && <div className="form-group"><label htmlFor="fullName">{t("auth.fullName")}</label><input id="fullName" name="fullName" required placeholder="Aïcha" /></div>}
@@ -123,7 +229,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
             {!forgot && <div className="form-group"><label htmlFor="password">{t("auth.password")}</label><input id="password" name="password" required type="password" placeholder={t("auth.passwordPlaceholder")} minLength={8} /></div>}
             {register && <label className="legal-consent"><input type="checkbox" name="acceptedLegal" required /><span><ShieldCheck size={14} aria-hidden="true" /> {t("auth.consent")} <Link href="/terms" target="_blank">{t("auth.terms")}</Link> {t("auth.and")} <Link href="/privacy" target="_blank">{t("auth.privacy")}</Link>.</span></label>}
             {error && <p className="form-error">{localizeSystemMessage(error, locale)}</p>}
-            <button className="btn btn-dark" type="submit" disabled={(register || forgot) ? sendingEmail : false}>{forgot ? t("auth.sendLink") : register ? t("auth.createSpace") : t("auth.login")} <ArrowRight size={15} /></button>
+            <button className="btn btn-dark" type="submit" disabled={sendingEmail}>{forgot ? t("auth.sendLink") : register ? t("auth.createSpace") : t("auth.login")} <ArrowRight size={15} /></button>
           </form>
         )}
         {forgot ? <div className="auth-foot"><Link href="/login">{t("auth.backToLogin")}</Link></div> : register ? <div className="auth-foot">{t("auth.alreadyAccount")} <Link href="/login">{t("auth.login")}</Link></div> : <div className="auth-foot"><Link href="/forgot-password">{t("auth.forgotPassword")}</Link><span> · </span>{t("auth.noAccount")} <Link href="/register">{t("auth.createSpace")}</Link></div>}

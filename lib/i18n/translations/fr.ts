@@ -85,6 +85,10 @@ export const fr: Dict = {
       backToLogin: "Retour à la connexion", alreadyAccount: "Déjà un compte ?", forgotPassword: "Mot de passe oublié ?", noAccount: "Pas encore de compte ?",
       tooManyRequests: "Trop de tentatives récentes. Attends un peu avant de renvoyer l'email.",
       tooManyForEmail: "Trop de demandes pour cet email. Réessaie dans {seconds}s.",
+      emailNotConfirmed: "Ton email n'est pas encore validé. On vient de t'envoyer un nouveau lien : vérifie ta boîte de réception (et tes spams), puis clique dessus pour te connecter.",
+      emailNotConfirmedCooldown: "Ton email n'est pas encore validé. Un lien a déjà été envoyé. Attends encore {seconds} s, puis réessaie. Vérifie ta boîte de réception et tes spams.",
+      resendVerificationLink: "Renvoyer le lien",
+      verificationResendFailed: "Impossible d'envoyer le lien de validation pour le moment. Réessaie dans un instant.",
     },
     chat: {
       trialEnded: "Ton abonnement Vendeo a expiré.", activate: "Réactiver l'abonnement",

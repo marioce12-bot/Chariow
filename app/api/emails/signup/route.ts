@@ -13,8 +13,12 @@ export async function POST(request: Request) {
   const { data } = await admin.from("profiles").select("full_name").eq("email", email).maybeSingle();
 
   const name = data?.full_name || body?.fullName?.trim() || "Utilisateur";
-  await upsertBrevoContact(email, { FULL_NAME: name, CHARIOW_CONNECTED: false });
-  await trackBrevoEvent("vendeo_signup", email, { full_name: name });
+  const [contactResult, eventResult] = await Promise.allSettled([
+    upsertBrevoContact(email, { FULL_NAME: name, CHARIOW_CONNECTED: false }),
+    trackBrevoEvent("vendeo_signup", email, { full_name: name }),
+  ]);
+  const contact = contactResult.status === "fulfilled" && contactResult.value;
+  const event = eventResult.status === "fulfilled" && eventResult.value;
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, brevo: { contact, event } });
 }

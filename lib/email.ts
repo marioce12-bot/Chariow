@@ -7,6 +7,20 @@ const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 const BREVO_EVENTS_URL = "https://api.brevo.com/v3/events";
 const BREVO_CONTACTS_URL = "https://api.brevo.com/v3/contacts";
 
+function maskEmailAddress(email: string) {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return "[email masqué]";
+  return `${email[0]}***@${email.slice(at + 1)}`;
+}
+
+function redactBrevoLogText(text: string, email: string, apiKey: string) {
+  const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text
+    .replace(new RegExp(escapedEmail, "gi"), maskEmailAddress(email))
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, maskEmailAddress)
+    .split(apiKey).join("[clé API masquée]");
+}
+
 type SendEmailInput = {
   to: string | string[];
   subject: string;
@@ -69,19 +83,37 @@ export async function trackBrevoEvent(eventName: string, email: string, properti
     console.error("Brevo event skipped: BREVO_API_KEY missing");
     return false;
   }
+  if (!/^[A-Za-z0-9_-]{1,255}$/.test(eventName)) {
+    console.error("Brevo event skipped: invalid event name");
+    return false;
+  }
+  const eventProperties = Object.fromEntries(Object.entries(properties).filter(([key, value]) =>
+    /^[A-Za-z0-9_-]{1,255}$/.test(key)
+      && (typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value))),
+  ));
   try {
     const response = await fetch(BREVO_EVENTS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "api-key": apiKey },
-      body: JSON.stringify({ event_name: eventName, identifiers: { email }, event_properties: properties }),
+      body: JSON.stringify({
+        event_name: eventName,
+        identifiers: { email_id: email },
+        event_date: new Date().toISOString(),
+        event_properties: eventProperties,
+      }),
     });
     if (!response.ok) {
-      console.error("Brevo event rejected with status", response.status);
+      const body = await response.text().catch(() => "");
+      console.error("Brevo event rejected with status", response.status, {
+        email: maskEmailAddress(email),
+        body: redactBrevoLogText(body, email, apiKey),
+      });
       return false;
     }
     return response.ok;
   } catch (error) {
-    console.error("Brevo event error", error instanceof Error ? error.message : "unknown");
+    const message = error instanceof Error ? error.message : "unknown";
+    console.error("Brevo event error", redactBrevoLogText(message, email, apiKey));
     return false;
   }
 }
