@@ -23,7 +23,7 @@ export type StageRecord = {
 };
 // Known no-charge outcomes: credit/subscription preflight refusal or an explicit Gemini
 // 4xx refusal before audio. The render stage can be retried without regenerating images.
-export const NO_CHARGE_ERROR_CODES = ["STUDIO_INSUFFICIENT_CREDITS", "STUDIO_PLANS_REQUIRED", "SLIDESHOW_VOICE_RETRYABLE"];
+export const NO_CHARGE_ERROR_CODES = ["STUDIO_INSUFFICIENT_CREDITS", "STUDIO_PLANS_REQUIRED", "SLIDESHOW_VOICE_RETRYABLE", "VIDEO_ENGINE_UNAVAILABLE"];
 export class StudioTaskError extends Error {
   constructor(public code: string, public status: number | null = null, message?: string) {
     super(message ?? "Le suivi serveur n’a pas pu continuer. Les étapes terminées sont conservées ; aucune étape payante n’est relancée.");
@@ -67,6 +67,7 @@ export type TaskMetadata = {
   httpStatus?: number | null;
   result?: any;
   error?: string;
+  abandoned?: boolean;
 };
 export function taskToken(id: string, revision: number) {
   const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -293,6 +294,7 @@ export async function failTask(
   // drops the render stage instead of marking it uncertain; previously completed images remain intact.
   const noCharge = error instanceof StudioTaskError && NO_CHARGE_ERROR_CODES.includes(error.code);
   const uncertain = row.metadata.phase === "running" && !noCharge;
+  const abandoned = noCharge && (row.metadata.images?.length ?? 0) === 0 && (row.metadata.creditsConsumed ?? 0) === 0;
   logTaskEvent("task_failed", id, row.metadata.revision, { ...row.metadata, creditState: uncertain ? "uncertain" : row.metadata.creditState }, error);
   const failure = await admin
     .from("studio_generations")
@@ -306,6 +308,7 @@ export async function failTask(
         errorCode: code,
         httpStatus: error instanceof StudioTaskError ? error.status : null,
         creditState: uncertain ? "uncertain" : (noCharge ? "confirmed" : (row.metadata.creditState ?? "confirmed")),
+        abandoned,
         stages: (row.metadata.stages ?? [])
           .filter((stage: StageRecord) => !(noCharge && stage.state === "running"))
           .map((stage: StageRecord) => stage.state === "running" ? { ...stage, state: "uncertain", creditState: stage.kind === "image" ? "uncertain" : stage.creditState } : stage),

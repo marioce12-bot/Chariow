@@ -252,7 +252,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     const after = Number(container.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow") ?? 0);
     expect(after).toBeGreaterThan(before);
     expect(after).toBeLessThan(100);
-    expect(fetcher.mock.calls).toHaveLength(requestsBeforeEstimate);
+    expect(fetcher.mock.calls.length).toBeGreaterThan(requestsBeforeEstimate);
     expect(container.textContent).toContain("1/5");
     expect(container.querySelector(".chat-launch-progress-ring")).not.toBeNull();
     expect(container.querySelector(".chat-launch-progress-value")).not.toBeNull();
@@ -264,7 +264,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(container.textContent).not.toContain("100%");
   });
 
-  it("avance pendant chaque longue étape sans polling périodique et ne recule pas au rafraîchissement", async () => {
+  it("poll régulièrement pendant une longue étape et ne recule pas au rafraîchissement", async () => {
     vi.useFakeTimers();
     let task: any = { ...processing, revision: 1, phase: "running", progress: 5, images: [], message: "Génération du visuel 1/5…" };
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [task] }));
@@ -273,7 +273,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     const requestsBeforeWait = fetcher.mock.calls.length;
     await act(async () => { await vi.advanceTimersByTimeAsync(120_000); }); const first = percent();
     expect(first).toBeGreaterThan(start); expect(first).toBeLessThan(22);
-    expect(fetcher.mock.calls).toHaveLength(requestsBeforeWait);
+    expect(fetcher.mock.calls.length).toBeGreaterThan(requestsBeforeWait);
     await act(async () => { await vi.advanceTimersByTimeAsync(4000); }); expect(percent()).toBeGreaterThanOrEqual(first);
     task = { ...task, revision: 2, progress: 22, images: images.slice(0, 1), message: "Génération du visuel 2/5…" };
     await refreshOnFocus(); const next = percent();
@@ -304,12 +304,27 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     });
     await mount();
     expect(container.querySelector('[role="status"]')).toBeNull();
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("La création n’a pas abouti. Tu n’as pas été débité. Réessaie dans un instant.");
     expect(container.querySelectorAll("details")).toHaveLength(0);
     expect(container.querySelectorAll("pre")).toHaveLength(0);
     expect(container.textContent).not.toContain(long);
-    expect([...container.querySelectorAll("button")].some(b => b.textContent === "Créer")).toBe(false);
+    expect([...container.querySelectorAll("button")].some(b => b.textContent === "Réessayer")).toBe(true);
+    expect(container.querySelector(".studio-desktop-sample-strip")).toBeNull();
     expect(fetcher.mock.calls.filter(([url, init]) => url === "/api/studio/tasks" && (init as RequestInit | undefined)?.method === "POST")).toHaveLength(0);
+  });
+  it("arrête le polling quand la tâche échoue sans visuel et permet de réessayer", async () => {
+    vi.useFakeTimers();
+    let task: any = { ...processing, images: [] };
+    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [task] }));
+    await mount();
+    task = { ...task, status: "failed", creditsConsumed: 0, creditState: "confirmed" };
+    await refreshOnFocus();
+    const callsAfterFailure = fetcher.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(fetcher.mock.calls.length).toBe(callsAfterFailure);
+    expect(container.textContent).toContain("Réessayer");
+    await act(async () => { container.querySelector<HTMLButtonElement>(".btn-dark")?.click(); });
+    expect(container.querySelector("button.studio-generate")).not.toBeNull();
   });
   it("a new product clears the old failed workspace so Create starts exactly one new task", async () => {
     const old = { ...processing, status: "failed", revision: 5, images: images.slice(0, 4), error: "dispatch", resume: { allowed: true, cost: 20, requiresConfirmation: true } };
@@ -335,7 +350,7 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     });
     await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={null} selectedTaskId="selected-old" /></I18nProvider>));
     expect(container.querySelectorAll("img")).toHaveLength(4); expect(container.textContent).toContain("80 crédits Studio utilisés");
-    expect(container.textContent).toContain("Produit historique"); expect(container.textContent).toContain("20 crédits Studio");
+    expect(container.textContent).toContain("Produit historique"); expect(container.textContent).not.toContain("20 crédits Studio");
     const button = container.querySelector<HTMLButtonElement>(".studio-continue")!;
     expect(button.disabled).toBe(true); expect(calls("POST")).toHaveLength(0);
     await act(async () => { container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(); });
@@ -345,12 +360,12 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(container.textContent).toContain("visuel 5/5"); expect(container.querySelectorAll("img")).toHaveLength(4);
     expect(container.querySelector(".chat-launch-progress-ring")).not.toBeNull();
   });
-  it("an uncertain stage shows a readable block and never submits any paid request", async () => {
+  it("does not show a resume panel when the failed stage is uncertain", async () => {
     const old = { ...processing, id: "unknown", status: "failed", revision: 5, images: images.slice(0, 4), creditsConsumed: 80, error: "Suivi interrompu.", resume: { allowed: false, reason: "STAGE_UNCERTAIN", cost: 20, requiresConfirmation: true } };
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ task: old }));
     await act(async () => root.render(<I18nProvider><SlideshowStudio locale="fr" product={null} selectedTaskId="unknown" /></I18nProvider>));
-    expect(container.querySelector<HTMLButtonElement>(".studio-continue")?.disabled).toBe(true);
-    expect(container.textContent).toContain("éviter une nouvelle facturation"); expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
+    expect(container.querySelector(".studio-continue")).toBeNull();
+    expect(container.textContent).not.toContain("éviter une nouvelle facturation");
     expect(container.querySelector('[role="alert"]')?.textContent).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
     expect(container.querySelectorAll("details, pre")).toHaveLength(0); expect(calls("POST")).toHaveLength(0);
   });

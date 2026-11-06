@@ -208,6 +208,7 @@ export function SlideshowStudio({
     signature = useRef(`${product?.id ?? ""}`);
   const displayedProgressRef = useRef(0);
   const progressStartedAtRef = useRef(Date.now());
+  const retryableFailure = taskRef.current?.status === "failed" && images.length === 0 && creditsUsed === 0 && taskRef.current.creditState !== "uncertain";
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
   const progressStageRef = useRef("");
@@ -233,7 +234,8 @@ export function SlideshowStudio({
     const changedTask = taskRef.current?.id !== task.id;
     if (taskRef.current?.id !== task.id) { displayedProgressRef.current = 0; progressStartedAtRef.current = Date.now(); }
     taskRef.current = task;
-    setResumeTask(task.status === "failed" ? task : null);
+    const hasVisuals = (task.images?.length ?? 0) > 0;
+    setResumeTask(task.status === "failed" && hasVisuals && task.resume?.allowed ? task : null);
     if (changedTask) setResumeConfirmed(false);
     if (task.input && (changedTask || loadedHistoryRef.current === task.id)) {
       if (task.input.variationId) variationIdRef.current = task.input.variationId;
@@ -248,11 +250,12 @@ export function SlideshowStudio({
     const stage = task.message || (task.phase === "queued" ? (fr ? "En attente…" : "Queued…") : task.phase === "running" ? (fr ? "Génération des visuels…" : "Generating images…") : "");
     if (task.status === "processing") showProgress(task);
     else setStatus(task.status === "completed" && task.result ? (fr ? "Diaporama prêt." : "Slideshow ready.") : "");
-    setError(
-      (task.status === "failed" || (task.status === "completed" && !task.result))
+    const noChargeFailure = task.status === "failed" && !hasVisuals && (task.creditsConsumed ?? 0) === 0 && task.creditState !== "uncertain";
+    setError(noChargeFailure
+      ? (fr ? "La création n’a pas abouti. Tu n’as pas été débité. Réessaie dans un instant." : "The creation did not complete. You were not charged. Try again in a moment.")
+      : ((task.status === "failed" || (task.status === "completed" && !task.result))
         ? publicSlideshowError(task.error || task.message || slideshowPublicFailure(fr ? "fr" : "en"), fr ? "fr" : "en", task.errorCode)
-        : "",
-    );
+        : ""));
     if (task.status === "completed" && task.result) {
       setResult(task.result);
       if (changedTask || wasProcessing) {
@@ -265,10 +268,16 @@ export function SlideshowStudio({
   useEffect(() => {
     const controller = new AbortController();
     let alive = true;
+    let pollInFlight = false;
+    let retryDelay = 4000;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const stopProgress = startEstimatedGenerationProgress(() => {
       if (alive && taskRef.current?.status === "processing") showProgress(taskRef.current);
     });
     const poll = async () => {
+      if (!alive || document.visibilityState === "hidden" || pollInFlight) return;
+      if (timer) { clearTimeout(timer); timer = null; }
+      pollInFlight = true;
       try {
         const exactId = selectedTaskRef.current || taskRef.current?.id;
         const response = await fetch(exactId ? `/api/studio/tasks/${encodeURIComponent(exactId)}/continue` : "/api/studio/tasks", {
@@ -295,6 +304,7 @@ export function SlideshowStudio({
         } else if (!taskRef.current) { setBusy(false); setAttempted(false); }
         initialDone.current = true;
         setReady(true);
+        retryDelay = 4000;
       } catch {
         if (alive && !initialDone.current) {
           setReady(false);
@@ -304,6 +314,11 @@ export function SlideshowStudio({
               : "Checking existing work before allowing a new generation.",
           );
         }
+        retryDelay = Math.min(30_000, retryDelay * 2);
+      } finally {
+        pollInFlight = false;
+        const processing = taskRef.current?.status === "processing";
+        if (alive && processing) timer = setTimeout(() => void poll(), retryDelay);
       }
     };
     fetch("/api/studio/slideshow/config", { signal: controller.signal })
@@ -318,13 +333,17 @@ export function SlideshowStudio({
       .catch(() => {
         if (alive) setEnabled(false);
       });
+    const onFocus = () => { if (document.visibilityState === "visible") void poll(); };
+    const onVisibility = () => { if (document.visibilityState === "visible" && taskRef.current?.status === "processing") void poll(); };
     void poll();
-    const onFocus = () => { void poll(); };
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       alive = false;
       controller.abort();
+      if (timer) clearTimeout(timer);
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
       stopProgress();
     };
   }, []);
@@ -554,17 +573,19 @@ export function SlideshowStudio({
       </div>
       <p>{fr ? "Voix et musique ajoutées automatiquement à la génération." : "Voiceover and music are added automatically during generation."}</p>
       {!voiceoverEnabled || !voiceoverTestAllowed ? <small>{fr ? "La génération de voix est en cours de validation." : "Voice generation is being validated."}</small> : null}
-      {resumeTask && !busy ? <section aria-label={fr ? "Reprise du diaporama" : "Resume slideshow"}>
+      {retryableFailure && !busy ? <section aria-label={fr ? "Création non aboutie" : "Creation did not complete"}>
+        <p role="alert">{fr ? "La création n’a pas abouti. Tu n’as pas été débité. Réessaie dans un instant." : "The creation did not complete. You were not charged. Try again in a moment."}</p>
+        <button type="button" className="btn btn-dark" onClick={newSlideshow}>{fr ? "Réessayer" : "Try again"}</button>
+      </section> : null}
+      {resumeTask && !retryableFailure && !busy ? <section aria-label={fr ? "Reprise du diaporama" : "Resume slideshow"}>
         <h3>{fr ? "Diaporama interrompu" : "Interrupted slideshow"}</h3>
         {resumeTask.input?.product?.name ? <p>{resumeTask.input.product.name}</p> : null}
-        <p>{fr ? `Progression sauvegardée : ${Math.min(resumeTask.progress ?? 0, 99)} % · ${images.length < 5 ? `prochain visuel ${images.length + 1}/5` : "montage MP4 restant"}.` : `Saved progress: ${Math.min(resumeTask.progress ?? 0, 99)}% · ${images.length < 5 ? `next image ${images.length + 1}/5` : "MP4 assembly remaining"}.`}</p>
         <p>{fr ? `${images.length}/5 visuels conservés · ${creditsUsed} crédits déjà utilisés. Les visuels terminés ne seront pas recréés.` : `${images.length}/5 images preserved · ${creditsUsed} credits already used. Completed images will not be recreated.`}</p>
         {resumeTask.resume?.allowed ? <>
-          <p>{fr ? `Coût restant de la reprise : ${resumeTask.resume.cost} crédits Studio.` : `Remaining resume cost: ${resumeTask.resume.cost} Studio credits.`}</p>
           {lacksResumeCredits && !onInsufficientCredits ? <p role="alert" className="form-error">{fr ? `Solde insuffisant : la reprise coûte ${resumeCost} crédits Studio, il te reste ${available}. Recharge tes crédits pour continuer.` : `Insufficient balance: resuming costs ${resumeCost} Studio credits, you have ${available}. Top up to continue.`}</p> : null}
-          {resumeTask.resume.requiresConfirmation ? <label><input type="checkbox" checked={resumeConfirmed} onChange={e => setResumeConfirmed(e.target.checked)} />{fr ? `J’autorise la reprise pour ${resumeTask.resume.cost} crédits maximum.` : `I authorize resuming for up to ${resumeTask.resume.cost} credits.`}</label> : null}
-        </> : <p>{fr ? `L’état de l’étape manquante n’est pas confirmé. La reprise reste bloquée pour éviter une nouvelle facturation. Coût restant estimé : ${resumeTask.resume?.cost ?? "—"} crédits, non autorisé tant que cette étape n’est pas vérifiée. Les visuels terminés sont conservés.` : `The missing stage is unconfirmed. Resuming is blocked to prevent another charge. Estimated remaining cost: ${resumeTask.resume?.cost ?? "—"} credits, not authorized until the stage is verified. Completed images are preserved.`}</p>}
-        <button type="button" className="btn btn-dark studio-continue" disabled={!resumeTask.resume?.allowed || (!!resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
+          {resumeTask.resume.requiresConfirmation ? <label><input type="checkbox" checked={resumeConfirmed} onChange={e => setResumeConfirmed(e.target.checked)} />{fr ? "J’autorise la reprise." : "I authorize resuming."}</label> : null}
+        </> : null}
+        <button type="button" className="btn btn-dark studio-continue" disabled={!!(resumeTask.resume?.requiresConfirmation && !resumeConfirmed)} onClick={() => void continueSlideshow()}>{fr ? "Continuer" : "Continue"}</button>
         <button type="button" className="btn btn-ghost" onClick={newSlideshow}>{fr ? "Nouveau diaporama" : "New slideshow"}</button>
       </section> : null}
       {!resumeTask && !pendingRequest && (!attempted || taskRef.current?.status === "completed" || taskRef.current?.status === "failed") && !busy && ready ? (
@@ -582,7 +603,7 @@ export function SlideshowStudio({
         <span className="studio-desktop-session-summary">5 {fr ? "visuels" : "visuals"} · {duration} {fr ? "secondes" : "seconds"}</span>
       </div>
       <div className={`studio-slideshow-canvas${!result && !busy ? " studio-empty" : ""}`}>
-        {!busy && !result ? <>
+        {!busy && !result && !retryableFailure ? <>
           <Sparkles className="studio-mobile-session-icon" size={32} aria-hidden="true" />
           <div className="studio-desktop-session-sample" role="img" aria-label={fr ? "Exemple de visuel de diaporama" : "Slideshow preview example"} />
           <strong className="studio-mobile-session-title-text">{pendingRequest ? (fr ? "Lancement à vérifier" : "Check launch status") : error || resumeTask ? (fr ? "Création interrompue" : "Creation interrupted") : (fr ? "Prêt à créer" : "Ready to create")}</strong>
@@ -595,7 +616,7 @@ export function SlideshowStudio({
           subtitle={fr ? "Les visuels terminés sont sauvegardés. Progression estimée entre les étapes." : "Completed images are saved. Progress is estimated between stages."} />
           : <p role="status" aria-live="polite">{status}</p>
       ) : null}
-      {error ? <p role="alert" className="form-error">{error}</p> : null}
+      {error && !retryableFailure ? <p role="alert" className="form-error">{error}</p> : null}
       {result ? (
         <div className="studio-slideshow-final" style={{ display: "grid", gap: 12 }}>
           <h3>{fr ? "Ton diaporama est prêt" : "Your slideshow is ready"}</h3>
@@ -649,7 +670,7 @@ export function SlideshowStudio({
         </div>
       ) : null}
       </div>
-      {!images.length && !busy && !result ? (
+      {!images.length && !busy && !result && !attempted && !error && !resumeTask ? (
         <div className="studio-desktop-sample-strip" aria-label={fr ? "Exemples de visuels" : "Visual examples"}>
           {[1, 2, 3, 4, 5].map((index) => (
             <div className={`studio-desktop-sample-thumb${index === 1 ? " is-selected" : ""}`} key={index}>

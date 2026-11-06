@@ -58,16 +58,24 @@ const videoProbeFiles = [
   "./node_modules/ffprobe-static/index.js",
   "./node_modules/ffprobe-static/package.json",
   "./node_modules/ffprobe-static/bin/linux/x64/ffprobe",
+  "./node_modules/.pnpm/ffprobe-static*/node_modules/ffprobe-static/index.js",
+  "./node_modules/.pnpm/ffprobe-static*/node_modules/ffprobe-static/package.json",
+  "./node_modules/.pnpm/ffprobe-static*/node_modules/ffprobe-static/bin/linux/x64/ffprobe",
 ];
 const videoApiFiles = [
   "./node_modules/ffmpeg-static/index.js",
   "./node_modules/ffmpeg-static/package.json",
+  "./node_modules/.pnpm/ffmpeg-static*/node_modules/ffmpeg-static/index.js",
+  "./node_modules/.pnpm/ffmpeg-static*/node_modules/ffmpeg-static/package.json",
   ...videoProbeFiles,
 ];
 const videoRuntimeFiles = [
   "./node_modules/ffmpeg-static/index.js",
   "./node_modules/ffmpeg-static/package.json",
   "./node_modules/ffmpeg-static/ffmpeg",
+  "./node_modules/.pnpm/ffmpeg-static*/node_modules/ffmpeg-static/index.js",
+  "./node_modules/.pnpm/ffmpeg-static*/node_modules/ffmpeg-static/package.json",
+  "./node_modules/.pnpm/ffmpeg-static*/node_modules/ffmpeg-static/ffmpeg",
   ...videoProbeFiles,
 ];
 
@@ -84,6 +92,8 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingIncludes: {
     "/api/studio/video": videoApiFiles,
+    // Actual durable worker in workflow v5: flow -> executeStudioTaskStep -> runTaskStep -> renderSlideshow.
+    "/.well-known/workflow/v1/flow": [...videoRuntimeFiles, "./public/vendeo-logo.webp"],
     "/.well-known/workflow/v1/step": [...videoRuntimeFiles, "./public/vendeo-logo.webp"],
     "/api/studio/slideshow/render": [...videoRuntimeFiles, "./public/vendeo-logo.webp"],
   },

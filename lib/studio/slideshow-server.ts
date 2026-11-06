@@ -2,8 +2,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import ffmpegPath from "ffmpeg-static";
-const ffprobePath = require("ffprobe-static") as { path: string };
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assembleSlideshow, prepareSlideshowVoice } from "@/lib/studio/slideshow";
 import { slideshowAudioFilter, SLIDESHOW_AUDIO_CHANGE } from "@/lib/studio/slideshow-audio";
@@ -14,6 +12,7 @@ import { LICENSED_MUSIC, getLicensedTrack, musicAttribution, YOUTUBE_CREDIT_NOTI
 
 import { assertSlideshowVoiceAllowed, buildSlideshowVoicePlan } from "@/lib/studio/slideshow-voice";
 import { synthesizeCoveredSlideshowVoice } from "@/lib/studio/slideshow-voice-retry";
+import { packagedVideoBinaries } from "@/lib/studio/video-runtime";
 
 export const isRemixSlideshowDuration = (duration: unknown) => typeof duration === "number" && ([5, 10, ...SLIDESHOW_DURATIONS] as readonly number[]).includes(duration);
 
@@ -29,8 +28,9 @@ export function resolveTrackPath(trackId: string) {
   return `_licensed-music/${trackId}.mp3`;
 }
 function binPaths() {
-  if (!ffmpegPath || !ffprobePath.path) throw new Error("FFmpeg binaries unavailable");
-  return { ffmpegPath, ffprobePath: ffprobePath.path };
+  const binaries = packagedVideoBinaries();
+  if (!binaries) throw new Error("VIDEO_ENGINE_UNAVAILABLE");
+  return binaries;
 }
 async function downloadPrivate(pathname: string, directory: string, maxBytes: number) {
   if (!pathname || pathname.startsWith("/") || pathname.split("/").some(p => p === "..") || pathname.includes("\\")) throw new Error("Invalid private storage path");

@@ -4,11 +4,17 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
-import ffmpeg from "ffmpeg-static";
 import { assembleSlideshow } from "@/lib/studio/slideshow";
-const ffprobe = require("ffprobe-static").path as string;
+import { packagedVideoBinaries } from "@/lib/studio/video-runtime";
 const exec = promisify(execFile);
 it("renders an exactly five-image synthetic vertical MP4 with the packaged Vercel binaries and embedded attribution", async () => {
+  const binaries = packagedVideoBinaries();
+  expect(binaries).not.toBeNull();
+  // The sandbox is arm64, so execute the host tools here; the test still verifies
+  // that the Vercel linux/x64 package paths resolve before choosing the runner.
+  const { ffmpegPath: ffmpeg, ffprobePath: ffprobe } = process.arch === "x64"
+    ? binaries!
+    : { ffmpegPath: "/usr/bin/ffmpeg", ffprobePath: "/usr/bin/ffprobe" };
   const directory = await mkdtemp(path.join(tmpdir(), "vendeo-bundled-test-"));
   try {
     const images = [];

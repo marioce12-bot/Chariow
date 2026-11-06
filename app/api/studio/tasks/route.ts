@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   const { data, error } = await query.order("created_at", { ascending: false }).limit(requestedId ? 1 : 10);
   if (error)
     return NextResponse.json({ error: "Suivi indisponible." }, { status: 503 });
-  const tasks = await Promise.all((data ?? []).map(async (row) => {
+  const tasks = await Promise.all((data ?? []).filter((row) => row.metadata?.abandoned !== true).map(async (row) => {
     try { return await publicTask(row); }
     catch { return { id: row.id, kind: row.metadata?.taskKind, status: "tracking_unavailable", trackingUnavailable: true }; }
   }));

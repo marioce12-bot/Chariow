@@ -210,7 +210,8 @@
 .studio-video-cost-card,
 .studio-desktop-session-format,
 .studio-desktop-session-voice,
-.studio-desktop-session-music { display: none; }
+.studio-desktop-session-music,
+.studio-desktop-sample-strip { display: none; }
 .studio-video-options-mobile { display: grid; }
 .studio-video-empty-copy { display: contents; }
 

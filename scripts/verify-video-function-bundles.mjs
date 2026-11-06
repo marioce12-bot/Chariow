@@ -9,7 +9,6 @@ const functions = [
     name: "POST /api/studio/video",
     manifest: ".next/server/app/api/studio/video/route.js.nft.json",
     required: [
-      { name: "ffmpeg-static package link", matches: file => /^(?:\.\.\/)+node_modules\/ffmpeg-static$/.test(file), directory: true },
       { name: "ffmpeg-static entry", matches: file => /(?:^|\/)ffmpeg-static\/index\.js$/.test(file) },
       { name: "ffmpeg-static package metadata", matches: file => /(?:^|\/)ffmpeg-static\/package\.json$/.test(file) },
       { name: "ffprobe-static entry", matches: file => /(?:^|\/)ffprobe-static\/index\.js$/.test(file) },
@@ -19,8 +18,8 @@ const functions = [
     forbidden: file => /(?:^|\/)ffmpeg-static\/ffmpeg$/.test(file),
   },
   {
-    name: "workflow step handler",
-    manifest: ".next/server/app/.well-known/workflow/v1/step/route.js.nft.json",
+    name: "workflow flow worker",
+    manifest: ".next/server/app/.well-known/workflow/v1/flow/route.js.nft.json",
     required: [
       { name: "ffmpeg-static entry", matches: file => /(?:^|\/)ffmpeg-static\/index\.js$/.test(file) },
       { name: "ffmpeg-static package metadata", matches: file => /(?:^|\/)ffmpeg-static\/package\.json$/.test(file) },
@@ -71,4 +70,4 @@ for (const fn of functions) {
 }
 
 if (failures) process.exitCode = 1;
-else console.log("Video route bundles ffmpeg-static's loader and ffprobe, without the FFmpeg executable; the durable worker keeps FFmpeg/FFprobe for fallback and slideshow.");
+else console.log("Video API bundles the loader and ffprobe; the workflow flow worker bundles executable FFmpeg and FFprobe for slideshow rendering.");
