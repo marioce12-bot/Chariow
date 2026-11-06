@@ -244,7 +244,7 @@ describe("Studio image generation progress", () => {
     });
     await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(videoReads).toBe(1);
-    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
     expect(videoReads).toBe(2);
 
     act(() => root.unmount());
@@ -253,7 +253,7 @@ describe("Studio image generation progress", () => {
     await act(async () => { resolveRead(response({ id: "slow-video", status: "processing" })); });
   });
 
-  it("checks a launched video every 30 seconds for only the first two minutes", async () => {
+  it("checks a launched video every 4 seconds for up to 15 minutes", async () => {
     vi.useFakeTimers();
     const original = fetchMock.getMockImplementation()!;
     let videoStatusReads = 0;
@@ -284,14 +284,15 @@ describe("Studio image generation progress", () => {
     expect(fetchMock.mock.calls.some(([url, init]) => url === "/api/studio/video" && init?.method === "POST")).toBe(true);
     expect(videoStatusReads).toBe(0);
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(29_999); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_999); });
     expect(videoStatusReads).toBe(0);
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(videoStatusReads).toBe(1);
-    await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
-    expect(videoStatusReads).toBe(4);
-    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-    expect(videoStatusReads).toBe(4);
+    await act(async () => { await vi.advanceTimersByTimeAsync(896_000); });
+    expect(videoStatusReads).toBe(225);
+    await act(async () => { await vi.advanceTimersByTimeAsync(4_000); });
+    expect(videoStatusReads).toBe(225);
+    expect(container.textContent).toContain("Le suivi vidéo a atteint 15 minutes");
   });
 
   it("treats an isolated Realtime reconciliation error as unavailable tracking, not as a failed generation", async () => {

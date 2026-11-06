@@ -29,7 +29,7 @@ type RenderResult = {
 type Task = {
   id: string;
   kind: string;
-  status: "processing" | "completed" | "failed";
+  status: "processing" | "completed" | "failed" | "cancelled";
   progress?: number;
   message?: string;
   error?: string;
@@ -45,6 +45,9 @@ type Task = {
   input?: { product?: Product; duration?: number; musicId?: string; campaignGoal?: CampaignGoal; locale?: string; variationId?: string };
   resume?: { allowed: boolean; reason: string | null; cost: number; nextStep: string; requiresConfirmation: boolean };
 };
+const SLIDESHOW_REFRESH_INTERVAL_MS = 4_000;
+const SLIDESHOW_REFRESH_WINDOW_MS = 15 * 60_000;
+const SLIDESHOW_REFRESH_TIMEOUT_MESSAGE = "Le suivi du diaporama a atteint 15 minutes. Vérifie l’historique pour connaître l’état final ; aucun nouveau rendu n’a été lancé.";
 const jsonResponse = async (response: Response) => {
   const data = await response.json();
   if (!response.ok) {
@@ -208,6 +211,8 @@ export function SlideshowStudio({
     signature = useRef(`${product?.id ?? ""}`);
   const displayedProgressRef = useRef(0);
   const progressStartedAtRef = useRef(Date.now());
+  const refreshStartedAtRef = useRef<number | null>(null);
+  const refreshTimedOutRef = useRef(false);
   const retryableFailure = taskRef.current?.status === "failed" && images.length === 0 && creditsUsed === 0 && taskRef.current.creditState !== "uncertain";
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
@@ -264,18 +269,33 @@ export function SlideshowStudio({
       }
       if (notify || wasProcessing) onCompleteRef.current?.();
     } else setResult(null);
+    if (task.status === "processing") {
+      if (refreshStartedAtRef.current === null || changedTask) refreshStartedAtRef.current = Date.now();
+      refreshTimedOutRef.current = false;
+    } else {
+      refreshStartedAtRef.current = null;
+      refreshTimedOutRef.current = false;
+    }
   };
   useEffect(() => {
     const controller = new AbortController();
     let alive = true;
     let pollInFlight = false;
-    let retryDelay = 4000;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const stopProgress = startEstimatedGenerationProgress(() => {
       if (alive && taskRef.current?.status === "processing") showProgress(taskRef.current);
     });
     const poll = async () => {
-      if (!alive || document.visibilityState === "hidden" || pollInFlight) return;
+      if (!alive || document.visibilityState === "hidden" || pollInFlight || refreshTimedOutRef.current) return;
+      if (taskRef.current?.status === "processing") {
+        refreshStartedAtRef.current ??= Date.now();
+        if (Date.now() - refreshStartedAtRef.current >= SLIDESHOW_REFRESH_WINDOW_MS) {
+          refreshTimedOutRef.current = true;
+          setBusy(false);
+          setError(SLIDESHOW_REFRESH_TIMEOUT_MESSAGE);
+          return;
+        }
+      }
       if (timer) { clearTimeout(timer); timer = null; }
       pollInFlight = true;
       try {
@@ -304,7 +324,6 @@ export function SlideshowStudio({
         } else if (!taskRef.current) { setBusy(false); setAttempted(false); }
         initialDone.current = true;
         setReady(true);
-        retryDelay = 4000;
       } catch {
         if (alive && !initialDone.current) {
           setReady(false);
@@ -314,11 +333,10 @@ export function SlideshowStudio({
               : "Checking existing work before allowing a new generation.",
           );
         }
-        retryDelay = Math.min(30_000, retryDelay * 2);
       } finally {
         pollInFlight = false;
         const processing = taskRef.current?.status === "processing";
-        if (alive && processing) timer = setTimeout(() => void poll(), retryDelay);
+        if (alive && processing && !refreshTimedOutRef.current) timer = setTimeout(() => void poll(), SLIDESHOW_REFRESH_INTERVAL_MS);
       }
     };
     fetch("/api/studio/slideshow/config", { signal: controller.signal })
