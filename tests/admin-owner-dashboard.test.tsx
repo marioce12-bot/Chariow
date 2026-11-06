@@ -26,6 +26,8 @@ const overview = {
     subscriptions: 4,
     messages: 9,
     metaAccounts: 2,
+    campaignsLaunched: 74,
+    campaignsActive: 3,
   },
   business: { active_subscriptions: 4 },
   users: [
@@ -155,6 +157,19 @@ describe("tableau de bord propriétaire", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "indisponibles",
     );
+  });
+
+  it("affiche — si la lecture des compteurs campagne échoue", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) =>
+      String(input).startsWith("/api/admin/overview")
+        ? json({ ...overview, metrics: { ...overview.metrics, campaignsLaunched: null, campaignsActive: null } })
+        : json(usagePayload),
+    );
+    await renderDashboard();
+    const launched = [...container.querySelectorAll(".admin-kpi")].find((card) => card.textContent?.includes("Campagnes lancées (total)"));
+    const activeCampaigns = [...container.querySelectorAll(".admin-kpi")].find((card) => card.textContent?.includes("Campagnes actives"));
+    expect(launched?.textContent).toContain("—");
+    expect(activeCampaigns?.textContent).toContain("—");
   });
 
   it("affiche l’échec Overview et permet de réessayer sans rester en chargement", async () => {

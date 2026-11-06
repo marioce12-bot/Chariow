@@ -406,7 +406,7 @@ function Overview({
   usageLoading: boolean;
   navigate: (section: string) => void;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const en = locale === "en";
   const fmt = (value: number | null | undefined) =>
     value === undefined || value === null
@@ -480,6 +480,20 @@ function Overview({
       note: en ? "All connected advertising platforms" : "Toutes les plateformes publicitaires",
       icon: Megaphone,
       color: "amber",
+    },
+    {
+      label: t("overviewExtra.campaignsLaunched"),
+      value: fmt(data.metrics.campaignsLaunched),
+      note: en ? "Submitted to an ad platform at least once" : "Soumises au moins une fois à une plateforme",
+      icon: Megaphone,
+      color: "violet",
+    },
+    {
+      label: t("overviewExtra.campaignsActive"),
+      value: fmt(data.metrics.campaignsActive),
+      note: en ? "Status active only" : "Statut active uniquement",
+      icon: Megaphone,
+      color: "green",
     },
     {
       label: en ? "Active subscriptions" : "Abonnements actifs",

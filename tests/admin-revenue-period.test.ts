@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readRevenue, type RevenueRow } from "@/lib/admin-revenue";
 import { resolveRevenuePeriod, type RevenuePeriod } from "@/lib/admin-revenue-period";
+import { planAmount } from "@/lib/plans";
+import { creditPrice } from "@/lib/studio/credits";
 
 const asOf = new Date("2026-10-18T20:00:00.000Z");
 const payment = (id: string, transaction_id: string, created_at: string, amount_xof = 2000, extra: Partial<RevenueRow> = {}): RevenueRow => ({
@@ -77,6 +79,15 @@ describe("admin revenue civil period resolution", () => {
 });
 
 describe("readRevenue period aggregation", () => {
+  it("uses the XOF price grid for XAF and manually backfilled rows when amount_xof is absent", async () => {
+    const result = await readRevenue(mockService({
+      payment_events: [payment("xaf", "subscription-xaf", "2026-10-02T12:00:00Z", 900, { provider: "saspay", metadata: { currency: "XAF" } })],
+      credit_transactions: [credit("manual", "manual-backfill", "2026-10-02T13:00:00Z", 900, { credits: 450, metadata: {} })],
+    }), asOf.toISOString(), period("2026-10-01", "2026-10-03"));
+    expect(result).toMatchObject({ complete: true, subscriptions: planAmount("starter"), studio: creditPrice(450), total: planAmount("starter") + creditPrice(450) });
+    expect(result.series?.find((day) => day.date === "2026-10-02")?.total).toBe(3125);
+  });
+
   it("includes exactly the selected interval's paid SasPay subscriptions and top-ups; excludes free, manual and failed rows", async () => {
     const tables = {
       payment_events: [
@@ -130,7 +141,7 @@ describe("readRevenue period aggregation", () => {
 
   it.each(["amount", "refund"] as const)("fails closed globally on out-of-range %s evidence, even though filtered events appear valid", async kind => {
     const bad = kind === "amount"
-      ? payment("bad", "mismatch", "2026-09-30T12:00:00Z", 400, { metadata: {} })
+      ? payment("bad", "mismatch", "2026-09-30T12:00:00Z", 400, { plan: null, metadata: {} })
       : credit("refund", "refund-id", "2026-09-30T12:00:00Z", 500, { kind: "refund", operation: "credit_refund" });
     const result = await readRevenue(mockService({
       payment_events: [payment("good", "good", "2026-10-02T12:00:00Z", 1000), ...(kind === "amount" ? [bad] : [])],

@@ -21,7 +21,7 @@ const statusLabels = { fr: "Statut", en: "Status" };
 function dataFor(statuses: string[]): AdminData {
   return {
     admin: { role: "admin" },
-    metrics: { users: 0, stores: 0, subscriptions: statuses.length, messages: 0, metaAccounts: 0, connectedUsersWithStore: 0, connectedUsersWithAdAccount: 0, connectedStores: 0, connectedAdAccounts: 0 },
+    metrics: { users: 0, stores: 0, subscriptions: statuses.length, messages: 0, metaAccounts: 0, connectedUsersWithStore: 0, connectedUsersWithAdAccount: 0, connectedStores: 0, connectedAdAccounts: 0, campaignsLaunched: 0, campaignsActive: 0 },
     business: {},
     users: statuses.map((_, i) => ({
       id: `user-${i}`, email: `person-${i}@example.test`, full_name: `Account ${i}`, created_at: "2025-01-01",

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), insert: vi.fn(), update: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), insert: vi.fn(), upsert: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
 vi.mock("@/lib/email", () => ({ notifyAdmin: vi.fn() }));
 import { POST } from "./route";
@@ -26,10 +26,13 @@ beforeEach(() => {
   vi.stubEnv("SASPAY_WEBHOOK_SECRET", secret);
   mocks.rpc.mockResolvedValue({ data: null, error: null });
   mocks.insert.mockResolvedValue({ error: null });
-  mocks.update.mockImplementation(() => ({ eq: async () => ({ error: null }) }));
+  mocks.upsert.mockResolvedValue({ error: null });
   mocks.from.mockImplementation((table: string) => {
-    if (table === "payment_events") return { insert: mocks.insert };
-    if (table === "subscriptions") return { update: mocks.update };
+    if (table === "payment_events") return {
+      insert: mocks.insert,
+      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }),
+    };
+    if (table === "subscriptions") return { upsert: mocks.upsert };
     if (table === "profiles") return {
       select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { email: "user@example.test", full_name: "Test User" }, error: null }) }) }),
     };
@@ -54,12 +57,12 @@ describe("POST /api/webhooks/saspay payment confirmation", () => {
       target_user_id: "user-cm",
       amount: 450,
       payment_id: "credit-any-currency",
-      metadata_value: { provider: "saspay", original_amount: amount, original_currency: currency },
+      metadata_value: { provider: "saspay", amount_xof: 1125, provider_amount: amount, provider_currency: currency },
     });
     expect(mocks.rpc).not.toHaveBeenCalledWith("record_webhook_failure", expect.anything());
   });
 
-  it("activates a signed successful subscription payment in any currency and records the original amount", async () => {
+  it("activates a signed successful subscription payment in any currency and records tariff and provider amounts", async () => {
     const response = await POST(signedRequest(event("subscription-any-currency", "SUCCESS", 4.25, "USD", {
       userId: "user-cm", plan: "starter",
     })));
@@ -71,20 +74,46 @@ describe("POST /api/webhooks/saspay payment confirmation", () => {
       user_id: "user-cm",
       plan: "starter",
       status: "approved",
-      metadata: { provider: "saspay", original_amount: 4.25, original_currency: "USD" },
+      metadata: { provider: "saspay", amount_xof: 2000, provider_amount: 4.25, provider_currency: "USD" },
     }));
-    expect(mocks.update).toHaveBeenCalled();
+    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ user_id: "user-cm", status: "active" }), { onConflict: "user_id" });
+    expect(mocks.upsert.mock.invocationCallOrder[0]).toBeLessThan(mocks.insert.mock.invocationCallOrder[0]);
   });
 
-  it("records amount_xof only for XOF transactions", async () => {
+  it("stores the tariff XOF amount and provider details for credit payments", async () => {
     const response = await POST(signedRequest(event("credit-xof", "SUCCESS", 1125, "XOF", {
       userId: "user-cm", type: "studio_credits", credits: 450,
     })));
 
     expect(response.status).toBe(200);
     expect(mocks.rpc).toHaveBeenCalledWith("add_credits", expect.objectContaining({
-      metadata_value: { provider: "saspay", amount_xof: 1125, original_amount: 1125, original_currency: "XOF" },
+      metadata_value: { provider: "saspay", amount_xof: 1125, provider_amount: 1125, provider_currency: "XOF" },
     }));
+  });
+
+  it("warns but still credits when an XOF provider amount differs from the tariff", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const response = await POST(signedRequest(event("credit-xof-diff", "SUCCESS", 999, "XOF", {
+        userId: "user-cm", type: "studio_credits", credits: 450,
+      })));
+      expect(response.status).toBe(200);
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining("provider_amount_differs_from_credit_price"), expect.anything());
+      expect(mocks.rpc).toHaveBeenCalledWith("add_credits", expect.objectContaining({
+        metadata_value: { provider: "saspay", amount_xof: 1125, provider_amount: 999, provider_currency: "XOF" },
+      }));
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it("does not save a subscription payment event if subscription upsert fails", async () => {
+    mocks.upsert.mockResolvedValueOnce({ error: { code: "DB_DOWN" } });
+    const response = await POST(signedRequest(event("subscription-upsert-fails", "SUCCESS", 2000, "XOF", {
+      userId: "user-cm", plan: "starter",
+    })));
+    expect(response.status).toBe(500);
+    expect(mocks.insert).not.toHaveBeenCalled();
   });
 
   it("does not activate or credit when SasPay status is not SUCCESS", async () => {

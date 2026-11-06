@@ -10,6 +10,8 @@ export type AdminData = {
     connectedUsersWithAdAccount: number | null;
     connectedStores: number | null;
     connectedAdAccounts: number | null;
+    campaignsLaunched: number | null;
+    campaignsActive: number | null;
   };
   business: {
     total_revenue_xof?: number;

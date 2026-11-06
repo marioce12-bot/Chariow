@@ -49,6 +49,8 @@ export async function GET() {
     paymentEvents,
     businessMetrics,
     payouts,
+    launchedCampaigns,
+    activeCampaigns,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -121,6 +123,14 @@ export async function GET() {
       .select("id,amount_xof,recipient_method,status,created_at")
       .order("created_at", { ascending: false })
       .limit(100),
+    service
+      .from("ad_campaigns")
+      .select("id", { count: "exact", head: true })
+      .or("status.in.(paid,submitting,review,active,paused,autopilot_paused,rejected,error,completed,archived,deleted),and(external_campaign_id.not.is.null,status.not.in.(draft,account_required,pending_payment))"),
+    service
+      .from("ad_campaigns")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "active"),
   ]);
   const connectionMetrics = await service.rpc("admin_connection_metrics");
   if (connectionMetrics.error) {
@@ -128,6 +138,8 @@ export async function GET() {
       code: connectionMetrics.error.code ?? "unknown",
     });
   }
+  if (launchedCampaigns.error) console.error("Admin launched campaign count unavailable", { code: launchedCampaigns.error.code ?? "unknown" });
+  if (activeCampaigns.error) console.error("Admin active campaign count unavailable", { code: activeCampaigns.error.code ?? "unknown" });
   const firstError = [
     profiles,
     stores,
@@ -191,6 +203,8 @@ export async function GET() {
       connectedUsersWithAdAccount: connectionMetrics.error ? null : Number(connectionMetrics.data?.users_with_ad_account ?? 0),
       connectedStores: connectionMetrics.error ? null : Number(connectionMetrics.data?.connected_stores ?? 0),
       connectedAdAccounts: connectionMetrics.error ? null : Number(connectionMetrics.data?.connected_ad_accounts ?? 0),
+      campaignsLaunched: launchedCampaigns.error ? null : launchedCampaigns.count ?? null,
+      campaignsActive: activeCampaigns.error ? null : activeCampaigns.count ?? null,
     },
     business: businessMetrics.data ?? {},
     users: usersWithBalances,

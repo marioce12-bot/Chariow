@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readRevenue, summarizeRevenue, type RevenueRow } from "@/lib/admin-revenue";
 import { resolveRevenuePeriod } from "@/lib/admin-revenue-period";
+import { planAmount } from "@/lib/plans";
+import { creditPrice } from "@/lib/studio/credits";
 const asOf = "2026-10-18T20:00:00.000Z";
 const payment = (overrides: Partial<RevenueRow> = {}): RevenueRow => ({ id: "p", provider: "saspay", transaction_id: "tx1", plan: "starter", status: "approved", metadata: { amount_xof: 2000 }, created_at: "2026-10-01T00:00:00Z", ...overrides });
 const credit = (overrides: Partial<RevenueRow> = {}): RevenueRow => ({ id: "c", kind: "purchase", operation: "credit_purchase", external_id: "tx2", status: "completed", metadata: { provider: "saspay", amount_xof: 500 }, created_at: "2026-10-07T20:45:16Z", ...overrides });
@@ -14,7 +16,7 @@ describe("recorded SaaS revenue", () => {
     expect(resolveRevenuePeriod(new URLSearchParams("period=7d"), new Date("2026-10-18T20:00:00Z"))?.start).toBe("2026-10-12");
   });
   it("adds only verified successful subscriptions and paid topups", () => {
-    const summary = summarizeRevenue([payment(), payment({ status: "pending" }), payment({ status: "failed" })], [credit(), credit({ operation: "admin_grant", metadata: { amount_xof: 99999, provider: "admin_grant" } }), credit({ operation: "welcome_credits", metadata: { source: "signup" } }), credit({ kind: "debit", status: "refunded" }), credit({ status: "pending" })], asOf);
+    const summary = summarizeRevenue([payment(), payment({ status: "pending" }), payment({ status: "failed" }), payment({ transaction_id: "manual-grant", metadata: { provider: "admin_grant", amount_xof: 99999 } })], [credit(), credit({ operation: "admin_grant", metadata: { amount_xof: 99999, provider: "admin_grant" } }), credit({ operation: "welcome_credits", metadata: { source: "signup" } }), credit({ kind: "debit", status: "refunded" }), credit({ status: "pending" })], asOf);
     expect(summary).toMatchObject({ subscriptions: 2000, studio: 500, total: 2500, currency: "XOF", complete: true, subscriptionPayments: 1, studioPayments: 1, firstRecordedAt: "2026-10-01T00:00:00Z" });
   });
   it("returns an honest zero for no recorded payments, not active subscription estimates", () => {
@@ -24,8 +26,18 @@ describe("recorded SaaS revenue", () => {
     expect(summarizeRevenue([payment(), payment({ id: "redelivery" })], [credit(), credit({ id: "again" })], asOf)).toMatchObject({ total: 2500, subscriptionPayments: 1, studioPayments: 1 });
     expect(summarizeRevenue([payment()], [credit({ external_id: "tx1" })], asOf).complete).toBe(false);
   });
+  it("uses the XOF price grid for XAF, missing amount_xof and manual backfills without provider metadata", () => {
+    const subscription = payment({ provider: "other", metadata: { currency: "XAF" } });
+    const manualTopup = credit({ external_id: "manual-backfill-1", credits: 450, metadata: {} });
+    const summary = summarizeRevenue([subscription], [manualTopup], asOf);
+    expect(summary).toMatchObject({ complete: true, subscriptions: planAmount("starter"), studio: creditPrice(450), total: planAmount("starter") + creditPrice(450) });
+  });
+  it.each([undefined, "2000", 0, -1, 1.5])("falls back to planAmount when amount_xof is absent or invalid: %s", (amount_xof) => {
+    const summary = summarizeRevenue([payment({ metadata: amount_xof === undefined ? {} : { amount_xof } })], [], asOf);
+    expect(summary).toMatchObject({ complete: true, subscriptions: planAmount("starter"), total: planAmount("starter") });
+  });
   it.each([
-    { metadata: {} }, { metadata: { amount_xof: "2000" } }, { metadata: { amount_xof: -5 } }, { metadata: { amount_xof: 0 } }, { metadata: { amount_xof: Infinity } }, { metadata: { amount_xof: 1.5 } }, { metadata: { amount_xof: 2000, currency: "USD" } }, { provider: "fedapay" }, { transaction_id: null }, { plan: null }, { created_at: "bad" }, { status: "refunded" }, { created_at: "2027-01-01" },
+    { transaction_id: null }, { plan: null }, { created_at: "bad" }, { status: "refunded" }, { created_at: "2027-01-01" },
   ])("withholds all totals when evidence is incomplete: %j", (overrides) => {
     expect(summarizeRevenue([payment(overrides)], [credit()], asOf)).toMatchObject({ complete: false, total: null, subscriptions: null, studio: null, unresolved: 1 });
   });

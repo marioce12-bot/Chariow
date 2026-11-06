@@ -17,7 +17,9 @@ export const overviewCopy: Record<Locale, Record<string, string>> = {
     "overviewExtra.recovered": "Vente rapprochée",
     "overviewExtra.optedOut": "Contact désabonné",
     "overviewExtra.loading": "Chargement impossible",
-    "overviewExtra.actionError": "Action indisponible"
+    "overviewExtra.actionError": "Action indisponible",
+    "overviewExtra.campaignsLaunched": "Campagnes lancées (total)",
+    "overviewExtra.campaignsActive": "Campagnes actives"
   },
   "en": {
     "overviewExtra.recoveryTitle": "A second chance for every cart",
@@ -35,6 +37,8 @@ export const overviewCopy: Record<Locale, Record<string, string>> = {
     "overviewExtra.recovered": "Sale matched",
     "overviewExtra.optedOut": "Contact unsubscribed",
     "overviewExtra.loading": "Unable to load",
-    "overviewExtra.actionError": "Action unavailable"
+    "overviewExtra.actionError": "Action unavailable",
+    "overviewExtra.campaignsLaunched": "Campaigns launched (total)",
+    "overviewExtra.campaignsActive": "Active campaigns"
   }
 };
