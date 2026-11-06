@@ -68,6 +68,7 @@ export async function POST(request: Request) {
   if (!user) return response;
   const body = await request.json().catch(() => null);
   const message = typeof body?.message === "string" ? body.message.trim() : "";
+  const launchFailureNote = typeof body?.launchFailureNote === "string" ? body.launchFailureNote.slice(0, 700) : "";
   if (!message || message.length > 20000) return NextResponse.json({ error: "Le message doit contenir entre 1 et 20 000 caractères" }, { status: 400 });
   // Pièces jointes envoyées par l'utilisateur : images/vidéos (transmises à l'IA
   // comme parts structurées pour qu'elle puisse réellement "voir" le média), et
@@ -337,7 +338,8 @@ export async function POST(request: Request) {
     .select("id,title,product_name,platform,status,external_campaign_id")
     .eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
   const assistantCampaigns: AssistantCampaign[] = managedCampaignError ? [] : (managedCampaigns ?? []);
-  const systemContent = `${boundedSystemContent}${campaignCatalogContext}${campaignManagementContext(assistantCampaigns)}`;
+  const launchFailureContext = launchFailureNote ? `\nMémoire de lancement : ${launchFailureNote}` : "";
+  const systemContent = `${boundedSystemContent}${campaignCatalogContext}${campaignManagementContext(assistantCampaigns)}${launchFailureContext}`;
 
   // L'historique de la conversation en cours est toujours transmis : c'est la mémoire
   // du tunnel de création de campagne. On ne le supprime plus jamais pour économiser
@@ -400,7 +402,7 @@ export async function POST(request: Request) {
   }
   answer = cleanAiText(answer, { preserveStrong: true });
   const userProvidedUrls = (previousHistory ?? []).filter((item) => item.role === "user").map((item) => String(item.content ?? "")).concat(message).flatMap((text) => text.match(/https?:\/\/[^\s<>"\]]+/g) ?? []);
-  answer = resolveCampaignAnswer(answer, campaignCatalog, { userProvidedUrls, locale: body?.locale });
+  answer = resolveCampaignAnswer(answer, campaignCatalog, { userProvidedUrls, locale: body?.locale, conversationId });
   answer = resolveCampaignActionProposal(answer, assistantCampaigns, body?.locale);
   // [[CREE_VITRINE]] : le serveur valide le JSON, crée la vitrine et remplace la balise par le lien.
   // Images jointes (la plus récente d'abord) : le logo est repris depuis là, jamais depuis une URL donnée par l'IA.

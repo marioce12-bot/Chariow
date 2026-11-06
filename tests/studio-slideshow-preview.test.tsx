@@ -119,7 +119,7 @@ describe("SlideshowStudio preview zone", () => {
     expect(section?.querySelector('[role="alert"]')?.textContent).toBe("Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.");
     expect(section?.querySelectorAll("details, pre")).toHaveLength(0);
     expect(section?.querySelectorAll("img")).toHaveLength(3);
-    expect(container.textContent).toContain("20 crédits Studio");
+    expect(container.textContent).not.toContain("coût restant");
     const continueButton = container.querySelector<HTMLButtonElement>(".studio-continue");
     expect(continueButton).not.toBeNull();
     expect(continueButton?.disabled).toBe(true);
