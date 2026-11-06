@@ -22,6 +22,15 @@ const MESSAGES: Record<Status, { title: string; text: string; action: string }> 
 
 type StoreRow = { id: string; platform?: string; connection_status?: string };
 
+export function shouldShowExpiredChariowNotice(stores: StoreRow[]) {
+  const chariowStores = stores.filter((store) => store.platform === "chariow");
+  return chariowStores.length > 0 && !chariowStores.some((store) => store.connection_status === "connected");
+}
+
+function clearStatusCookie() {
+  document.cookie = `${STATUS_COOKIE}=; path=/; max-age=0; samesite=lax`;
+}
+
 function readStatus(): Status | null {
   const raw = document.cookie.split("; ").find((part) => part.startsWith(`${STATUS_COOKIE}=`));
   const value = raw?.split("=")[1];
@@ -40,15 +49,41 @@ export default function ChariowStatusNotice() {
   const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    const check = () => { if (document.visibilityState === "visible" && document.hasFocus()) setStatus(readStatus()); };
-    check();
-    const timer = window.setInterval(check, 30_000);
-    window.addEventListener("focus", check);
-    document.addEventListener("visibilitychange", check);
+    let alive = true;
+    const check = async () => {
+      if (document.visibilityState !== "visible") return;
+      const nextStatus = readStatus();
+      if (nextStatus !== "expired") {
+        if (alive) setStatus(nextStatus);
+        return;
+      }
+      try {
+        const response = await fetch("/api/stores", { cache: "no-store" });
+        if (!response.ok) { if (alive) setStatus(null); return; }
+        const result = await response.json().catch(() => ({}));
+        const stores: StoreRow[] = Array.isArray(result?.stores) ? result.stores : [];
+        if (!shouldShowExpiredChariowNotice(stores)) {
+          clearStatusCookie();
+          if (alive) setStatus(null);
+          return;
+        }
+        if (alive) setStatus("expired");
+      } catch {
+        // Une alerte d’expiration issue d’un cookie ancien n’est pas montrée si l’état
+        // actuel du compte ne peut pas être vérifié. Le prochain focus relancera le contrôle.
+        if (alive) setStatus(null);
+      }
+    };
+    void check();
+    const onFocus = () => { void check(); };
+    const timer = window.setInterval(() => { void check(); }, 30_000);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
     return () => {
+      alive = false;
       window.clearInterval(timer);
-      window.removeEventListener("focus", check);
-      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
     };
   }, []);
 

@@ -11,10 +11,37 @@ type Props = {
   onDismiss: () => void;
 };
 
+export function hasActivePaidTrainingSubscription(subscription: Props["subscription"]) {
+  return subscription?.status === "active" && subscription?.trial_active === false;
+}
+
+export function shouldShowRecurringTrainingWelcome({
+  ready,
+  stage,
+  experienceLevel,
+  connectedStore,
+  subscription,
+  dismissed,
+}: {
+  ready: boolean;
+  stage: string;
+  experienceLevel: string;
+  connectedStore: boolean;
+  subscription: Props["subscription"];
+  dismissed: boolean;
+}) {
+  return ready
+    && stage !== "training"
+    && experienceLevel === "beginner"
+    && connectedStore
+    && !hasActivePaidTrainingSubscription(subscription)
+    && !dismissed;
+}
+
 export function TrainingWelcome({ subscription, onDismiss }: Props) {
   const { locale } = useI18n();
   const en = locale === "en";
-  const subscribed = subscription?.status === "active" && subscription?.trial_active === false;
+  const subscribed = hasActivePaidTrainingSubscription(subscription);
   function openSubscription() {
     window.dispatchEvent(new Event(OPEN_SUBSCRIPTION_SECTION_EVENT));
     onDismiss();

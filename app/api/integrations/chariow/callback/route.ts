@@ -6,6 +6,8 @@ import { CHARIOW_MCP_URL } from "@/lib/chariow/types";
 import { invalidateUserStoreList } from "@/lib/shop/cache";
 import { updateBrevoContact } from "@/lib/email";
 
+const STATUS_COOKIE = "vendeo_chariow_status";
+
 function sanitizeErrorMessage(message: string) {
   // Remove potential sensitive payload and keep it short.
   const cleaned = message.replace(/([A-Za-z0-9_-]{20,})/g, "[redacted]");
@@ -214,7 +216,9 @@ export async function GET(request: Request) {
 
     await supabase.from("oauth_connection_attempts").delete().eq("state", state).eq("user_id", user.id);
 
-    return redirectToDashboard(upErr ? "chariow=failed" : "chariow=connected");
+    const dashboardResponse = redirectToDashboard(upErr ? "chariow=failed" : "chariow=connected");
+    if (!upErr) dashboardResponse.cookies.set(STATUS_COOKIE, "", { path: "/", maxAge: 0, sameSite: "lax" });
+    return dashboardResponse;
   } catch (e) {
     const message = e instanceof Error ? sanitizeErrorMessage(e.message) : "Connexion Chariow impossible";
     console.error("Chariow OAuth callback failed", message);

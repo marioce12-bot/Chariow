@@ -81,5 +81,6 @@ export function useFirstStoreOnboarding({ userId, stores, loading, connected }: 
     if (!replaying.current) { setPhase("done"); void save("done").catch(() => {}); }
   }, [save]);
   const replay = useCallback(() => { replaying.current = true; setStage("tour"); }, []);
-  return { stage, beginConnection, startTour, showTraining, dismiss, replay };
+  const ready = Boolean(userId && loadedUser === userId);
+  return { stage, ready, beginConnection, startTour, showTraining, dismiss, replay };
 }

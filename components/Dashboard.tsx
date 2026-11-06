@@ -46,7 +46,7 @@ import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
 import { StoreConnectionGate, hasConnectedCommerceStore, shouldShowStoreConnectionGate, STORE_ONBOARDING_STORAGE_KEY } from "./dashboard/StoreConnectionGate";
 import { SaleCelebration } from "./dashboard/SaleCelebration";
 import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
-import { TrainingWelcome } from "./dashboard/TrainingWelcome";
+import { hasActivePaidTrainingSubscription, shouldShowRecurringTrainingWelcome, TrainingWelcome } from "./dashboard/TrainingWelcome";
 import { NotificationCenter } from "./NotificationCenter";
 import { NotificationsView } from "./NotificationsView";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
@@ -229,6 +229,7 @@ function DashboardWorkspace() {
   // dans le sélecteur (si elle existe encore), sinon la première. Avant, on prenait toujours stores[0].
   const activeStoreId = (selectedStoreId && stores.some((store) => store.id === selectedStoreId) ? selectedStoreId : stores[0]?.id) ?? null;
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [storesLoadFailed, setStoresLoadFailed] = useState(false);
   // Vrai tant que l'abonnement et les données de la boutique (analytics) n'ont pas fini de charger :
@@ -243,6 +244,7 @@ function DashboardWorkspace() {
   const [notificationUserId, setNotificationUserId] = useState<string | null>(null);
   const [experienceLevel, setExperienceLevel] = useState<string>("experienced");
   const [trainingNextSection, setTrainingNextSection] = useState<string | null>(null);
+  const [loginTrainingDismissed, setLoginTrainingDismissed] = useState(false);
 
   const userFirstName = userName ? (userName.trim().split(/\s+/)[0] || "créateur") : null;
   const {
@@ -374,6 +376,7 @@ function DashboardWorkspace() {
 
   useEffect(() => {
     let cancelled = false;
+    let storeRequestInFlight = false;
     const client = createClient();
     client.auth.getUser().then(({ data }) => {
       if (cancelled) return;
@@ -386,10 +389,11 @@ function DashboardWorkspace() {
       if (!cancelled) setUserName(t("sweep3.text116"));
     });
 
-    async function loadDashboard() {
-      const preferredStoreId = readSavedStoreId();
+    async function refreshStores() {
+      if (storeRequestInFlight) return;
+      storeRequestInFlight = true;
       try {
-        const storeResponse = await fetch("/api/stores");
+        const storeResponse = await fetch("/api/stores", { cache: "no-store" });
         if (!storeResponse.ok) throw new Error("stores request failed");
         const storeResult = await storeResponse.json();
         if (cancelled) return;
@@ -398,6 +402,7 @@ function DashboardWorkspace() {
         setStoresLoadFailed(false);
 
         // Si la boutique mémorisée n'existe plus (supprimée, déconnectée), on se rabat sur la première.
+        const preferredStoreId = readSavedStoreId();
         const nextSelected = preferredStoreId && nextStores.some((store: StoreData) => store.id === preferredStoreId && store.connection_status === "connected")
           ? preferredStoreId
           : nextStores.find((store: StoreData) => store.platform === "chariow" && store.connection_status === "connected")?.id ?? nextStores[0]?.id ?? null;
@@ -407,13 +412,26 @@ function DashboardWorkspace() {
         // An empty array is a valid successful response only. Keep the store
         // gate closed when the request itself failed, especially offline.
         setStoresLoadFailed(true);
+      } finally {
+        storeRequestInFlight = false;
       }
+    }
+
+    const refreshStoresOnReturn = () => {
+      if (document.visibilityState === "visible" && navigator.onLine) void refreshStores();
+    };
+    window.addEventListener("focus", refreshStoresOnReturn);
+    document.addEventListener("visibilitychange", refreshStoresOnReturn);
+
+    async function loadDashboard() {
+      await refreshStores();
 
       try {
-        const subscriptionResponse = await fetch("/api/subscription");
+        const subscriptionResponse = await fetch("/api/subscription", { cache: "no-store" });
         const subscriptionResult = subscriptionResponse.ok ? await subscriptionResponse.json() : { subscription: null };
         if (cancelled) return;
         setSubscription(subscriptionResult.subscription ?? null);
+        setSubscriptionLoaded(subscriptionResponse.ok);
       } catch {
         // Subscription is independent from the store connection gate.
       }
@@ -427,7 +445,11 @@ function DashboardWorkspace() {
         setStoresLoadFailed(true);
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", refreshStoresOnReturn);
+      document.removeEventListener("visibilitychange", refreshStoresOnReturn);
+    };
   }, []);
 
   // Mémorise le choix de boutique à chaque changement, pour le retrouver à la réouverture de l'appli.
@@ -488,6 +510,15 @@ function DashboardWorkspace() {
   const onboarding = useFirstStoreOnboarding({ userId: notificationUserId, stores, loading: loadingData, connected: !subscriptionExpired && !needsStoreConnection && !loadingData });
   const onboardingOpen = onboarding.stage !== "closed" && !needsStoreConnection && !loadingData && !subscriptionExpired;
   const beginnerProfile = experienceLevel === "beginner" || experienceLevel === "some_experience";
+  const recurringTrainingWelcome = shouldShowRecurringTrainingWelcome({
+    ready: onboarding.ready && subscriptionLoaded && !loadingData,
+    stage: onboarding.stage,
+    experienceLevel,
+    connectedStore: !needsStoreConnection && hasConnectedCommerceStore(stores),
+    subscription,
+    dismissed: loginTrainingDismissed,
+  });
+  const trainingWelcomeOpen = (onboardingOpen && onboarding.stage === "training" && !hasActivePaidTrainingSubscription(subscription)) || recurringTrainingWelcome;
   function openTrainingMessage(nextSection: string | null = null) {
     setTrainingNextSection(nextSection);
     onboarding.showTraining();
@@ -495,8 +526,12 @@ function DashboardWorkspace() {
   function closeTrainingMessage() {
     const nextSection = trainingNextSection;
     setTrainingNextSection(null);
+    setLoginTrainingDismissed(true);
     onboarding.dismiss();
     if (nextSection) setActive(nextSection);
+  }
+  function closeLoginTrainingMessage() {
+    setLoginTrainingDismissed(true);
   }
   const handleTourStepChange = useCallback((step: DashboardTourStep | null) => {
     if (!step) {
@@ -694,8 +729,8 @@ function DashboardWorkspace() {
       </div>
     </main>
     {needsStoreConnection && <StoreConnectionGate stores={stores} failed={["failed", "expired", "revoked"].includes(searchParams.get("chariow") ?? "")} onSignOut={signOut} onConnectStart={onboarding.beginConnection} />}
-    {onboardingOpen && onboarding.stage === "training" ? <TrainingWelcome subscription={subscription} onDismiss={closeTrainingMessage} /> : null}
-    {onboardingOpen && onboarding.stage !== "training" && <FirstStoreWelcome stage={onboarding.stage as "welcome" | "tour"} subscription={subscription} onTryStudio={() => { if (beginnerProfile) openTrainingMessage("Studio"); else { handleTourStepChange(null); setActive("Studio"); setMoreOpen(false); setGuideMenuTarget(null); onboarding.dismiss(); } }} onDismiss={() => { handleTourStepChange(null); if (beginnerProfile && onboarding.stage === "welcome") openTrainingMessage(); else onboarding.dismiss(); }} onTourStepChange={handleTourStepChange} />}
+    {trainingWelcomeOpen ? <TrainingWelcome subscription={subscription} onDismiss={onboarding.stage === "training" ? closeTrainingMessage : closeLoginTrainingMessage} /> : null}
+    {onboardingOpen && onboarding.stage !== "training" && !recurringTrainingWelcome && <FirstStoreWelcome stage={onboarding.stage as "welcome" | "tour"} subscription={subscription} onTryStudio={() => { if (beginnerProfile && !hasActivePaidTrainingSubscription(subscription)) openTrainingMessage("Studio"); else { handleTourStepChange(null); setActive("Studio"); setMoreOpen(false); setGuideMenuTarget(null); onboarding.dismiss(); } }} onDismiss={() => { handleTourStepChange(null); if (beginnerProfile && !hasActivePaidTrainingSubscription(subscription) && onboarding.stage === "welcome") openTrainingMessage(); else onboarding.dismiss(); }} onTourStepChange={handleTourStepChange} />}
     </>
   );
 }

@@ -11,9 +11,13 @@ export async function GET() {
   const { user, response } = await requireUser();
   if (!user) return response;
   try {
-    return NextResponse.json({ stores: await getCachedActiveStores(user.id) });
+    const result = NextResponse.json({ stores: await getCachedActiveStores(user.id) });
+    result.headers.set("Cache-Control", "private, no-store, max-age=0");
+    return result;
   } catch {
-    return NextResponse.json({ error: "Impossible de charger les boutiques" }, { status: 500 });
+    const result = NextResponse.json({ error: "Impossible de charger les boutiques" }, { status: 500 });
+    result.headers.set("Cache-Control", "private, no-store, max-age=0");
+    return result;
   }
 }
 
