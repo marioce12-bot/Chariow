@@ -104,8 +104,11 @@ export function StoreOnboarding() {
 }
 
 type StudioVideoJob = { id: string; status: string; contentUrl?: string | null; error?: string; progress?: number; phase?: string };
-const STUDIO_VIDEO_REFRESH_INTERVAL_MS = 30_000;
-const STUDIO_VIDEO_REFRESH_WINDOW_MS = 2 * 60_000;
+const STUDIO_VIDEO_REFRESH_INTERVAL_MS = 4_000;
+const STUDIO_VIDEO_REFRESH_WINDOW_MS = 15 * 60_000;
+const studioVideoRefreshTimeoutMessage = (locale: string) => locale === "en"
+  ? "Video tracking reached 15 minutes. Check history for the final state; no new render was started."
+  : "Le suivi vidéo a atteint 15 minutes. Vérifie l’historique pour connaître l’état final ; aucun nouveau rendu n’a été lancé.";
 type StudioVideoRefreshWindow = { id: string; deadline: number; nextAt: number };
 type StudioHistoryItem = { id: string; kind: "image" | "video"; prompt: string; options: Record<string, string | number>; metadata?: Record<string, unknown> | null; creationType?: "slideshow" | "image" | "video"; thumbnailUrl?: string | null; mediaState?: "ready" | "missing" | "processing" | "failed"; sourceImageCount?: number; status: string; credits_cost: number; storage_path?: string | null; video_job_id?: string | null; mediaUrl?: string | null; created_at: string };
 
@@ -461,8 +464,22 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       ? existingWindow
       : { id: videoJob.id, deadline: now + STUDIO_VIDEO_REFRESH_WINDOW_MS, nextAt: now + STUDIO_VIDEO_REFRESH_INTERVAL_MS };
     videoRefreshWindowRef.current = refreshWindow;
+    const schedule = () => {
+      if (!active || controller.signal.aborted || document.visibilityState === "hidden") return;
+      if (refreshWindow.nextAt > refreshWindow.deadline) {
+        setError(studioVideoRefreshTimeoutMessage(locale));
+        videoRefreshWindowRef.current = null;
+        return;
+      }
+      timer = window.setTimeout(() => void poll(), Math.max(0, refreshWindow.nextAt - Date.now()));
+    };
     const poll = async () => {
-      if (!active || Date.now() > refreshWindow.deadline + 500) return;
+      if (!active || controller.signal.aborted || document.visibilityState === "hidden") return;
+      if (Date.now() > refreshWindow.deadline) {
+        setError(studioVideoRefreshTimeoutMessage(locale));
+        videoRefreshWindowRef.current = null;
+        return;
+      }
       refreshWindow.nextAt += STUDIO_VIDEO_REFRESH_INTERVAL_MS;
       try {
         const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`, { cache: "no-store", signal: controller.signal });
@@ -498,18 +515,28 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       } catch {
         // Retry after the current request settles; cleanup aborts any in-flight read.
       } finally {
-        if (active && !controller.signal.aborted && refreshWindow.nextAt <= refreshWindow.deadline) {
-          timer = window.setTimeout(() => void poll(), Math.max(0, refreshWindow.nextAt - Date.now()));
-        }
+        schedule();
       }
     };
-    if (refreshWindow.nextAt <= refreshWindow.deadline) {
-      timer = window.setTimeout(() => void poll(), Math.max(0, refreshWindow.nextAt - Date.now()));
-    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      if (timer !== null) { window.clearTimeout(timer); timer = null; }
+      void poll();
+    };
+    const onFocus = () => {
+      if (document.visibilityState !== "visible") return;
+      if (timer !== null) { window.clearTimeout(timer); timer = null; }
+      void poll();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onFocus);
+    schedule();
     return () => {
       active = false;
       if (timer !== null) window.clearTimeout(timer);
       controller.abort();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onFocus);
     };
   }, [videoJob?.id, videoJob?.status]);
 

@@ -282,6 +282,19 @@ describe("récupération des tâches serveur SlideshowStudio", () => {
     expect(percent()).toBeGreaterThan(next); expect(percent()).toBeLessThan(39);
     expect(container.textContent).toContain("visuel 2/5"); expect(calls("POST")).toHaveLength(0);
   });
+  it("arrête le suivi après 15 minutes et indique de consulter l’historique sans relancer", async () => {
+    vi.useFakeTimers();
+    fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [processing] }));
+    await mount();
+    const before = fetcher.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(15 * 60_000); });
+    expect(fetcher.mock.calls.length).toBeGreaterThan(before);
+    expect(container.textContent).toContain("Le suivi du diaporama a atteint 15 minutes");
+    const after = fetcher.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(fetcher.mock.calls.length).toBe(after);
+    expect(calls("POST")).toHaveLength(0);
+  });
   it("affiche l'erreur de worker une seule fois et conserve les quatre images", async () => {
     const message = "Le diaporama n’a pas pu être créé. Consultez l’historique avant de réessayer.";
     fetcher.mockImplementation(async (url: string) => url.endsWith("/config") ? config() : response({ tasks: [{ ...processing, status: "failed", images: images.slice(0, 4), message: "Technical worker trace", error: "Technical worker trace", details: "raw details", creditsConsumed: 80 }] }));
