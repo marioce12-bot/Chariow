@@ -21,20 +21,24 @@ import {
 function builder(table: string) {
   const b: any = {};
   let mutation: "insert" | "update" | null = null;
+  let resultKey = table;
   const result = () =>
-    mocks.results[table] ?? { data: [], count: 0, error: null };
+    mocks.results[resultKey] ?? mocks.results[table] ?? { data: [], count: 0, error: null };
   for (const method of [
     "select",
     "order",
     "limit",
     "eq",
     "in",
+    "or",
     "insert",
     "update",
     "single",
   ])
     b[method] = (...args: unknown[]) => {
       mocks.calls.push({ table, method, args });
+      if (table === "ad_campaigns" && method === "or") resultKey = "ad_campaigns:launched";
+      if (table === "ad_campaigns" && method === "eq" && args[0] === "status" && args[1] === "active") resultKey = "ad_campaigns:active";
       if (method === "insert" || method === "update") mutation = method;
       return b;
     };
@@ -337,6 +341,33 @@ describe("admin API response data minimization", () => {
     expect(data.metrics.connectedUsersWithAdAccount).toBeNull();
     expect(data.metrics.connectedStores).toBeNull();
     expect(data.metrics.connectedAdAccounts).toBeNull();
+  });
+  it("returns launched and active campaign aggregates from head-only reads with archived/deleted included and drafts excluded", async () => {
+    mocks.results["ad_campaigns:launched"] = { data: null, count: 74, error: null };
+    mocks.results["ad_campaigns:active"] = { data: null, count: 3, error: null };
+    const response = await getOverview();
+    const data = await response.json();
+    expect(data.metrics.campaignsLaunched).toBe(74);
+    expect(data.metrics.campaignsActive).toBe(3);
+    expect(data).not.toHaveProperty("campaigns");
+    const campaignSelects = mocks.calls.filter((call) => call.table === "ad_campaigns" && call.method === "select");
+    expect(campaignSelects).toHaveLength(2);
+    expect(campaignSelects.map((call) => call.args[1])).toEqual([{ count: "exact", head: true }, { count: "exact", head: true }]);
+    const launchedFilter = String(mocks.calls.find((call) => call.table === "ad_campaigns" && call.method === "or")?.args[0]);
+    expect(launchedFilter).toContain("status.in.(paid,submitting,review,active,paused,autopilot_paused,rejected,error,completed,archived,deleted)");
+    expect(launchedFilter).toContain("and(external_campaign_id.not.is.null,status.not.in.(draft,account_required,pending_payment))");
+    expect(launchedFilter).toContain("status.not.in.(draft,account_required,pending_payment)");
+    expect(mocks.calls.find((call) => call.table === "ad_campaigns" && call.method === "eq")?.args).toEqual(["status", "active"]);
+  });
+  it("marks a failed campaign count unavailable instead of returning zero", async () => {
+    mocks.results["ad_campaigns:launched"] = { data: null, count: null, error: { code: "DB_DOWN", message: "private" } };
+    mocks.results["ad_campaigns:active"] = { data: null, count: 3, error: null };
+    const response = await getOverview();
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.metrics.campaignsLaunched).toBeNull();
+    expect(data.metrics.campaignsActive).toBe(3);
+    expect(JSON.stringify(data)).not.toContain("private");
   });
   it("requires admin authorization before reading data", async () => {
     mocks.requireAdmin.mockResolvedValue({

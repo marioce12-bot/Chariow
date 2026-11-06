@@ -1,9 +1,12 @@
-// Read-only revenue recognition. Never infer payments from plans or credit balances.
+// Read-only revenue recognition from recorded successful transaction rows.
+// A catalog price is used only as an amount fallback when provider metadata is absent.
 import { dateInTimeZone, type RevenuePeriod } from "@/lib/admin-revenue-period";
+import { isPlanId, planAmount } from "@/lib/plans";
+import { creditPrice } from "@/lib/studio/credits";
 export type RevenueRow = {
   id: string; created_at: string; status: string; provider?: string;
   transaction_id?: string | null; plan?: string | null;
-  kind?: string; operation?: string | null; external_id?: string | null;
+  kind?: string; operation?: string | null; external_id?: string | null; credits?: number;
   metadata?: Record<string, unknown> | null;
 };
 export type RevenueSummary = {
@@ -14,32 +17,40 @@ export type RevenueSummary = {
   period?: { preset: string; start: string | null; end: string; startAt: string | null; endAt: string; timeZone: string };
   series?: { date: string; subscriptions: number; studio: number; total: number }[];
 };
-export function summarizeRevenue(payments: RevenueRow[], credits: RevenueRow[], asOf: string, recognized?: (row: RevenueRow, category: "subscriptions" | "studio") => void): RevenueSummary {
+function revenueAmount(row: RevenueRow, category: "subscriptions" | "studio"): number | null {
+  const amount = row.metadata?.amount_xof;
+  if (typeof amount === "number" && Number.isSafeInteger(amount) && amount > 0) return amount;
+  try {
+    if (category === "subscriptions" && isPlanId(row.plan)) return planAmount(row.plan);
+    if (category === "studio" && Number.isSafeInteger(row.credits) && row.credits! >= 200) return creditPrice(row.credits!);
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function summarizeRevenue(payments: RevenueRow[], credits: RevenueRow[], asOf: string, recognized?: (row: RevenueRow, category: "subscriptions" | "studio", amount: number) => void): RevenueSummary {
   const result: RevenueSummary = {
     currency: "XOF", asOf, firstRecordedAt: null, complete: true, unresolved: 0,
     subscriptions: 0, studio: 0, total: 0, subscriptionPayments: 0, studioPayments: 0,
   };
   const seen = new Map<string, string>();
   const unresolved = () => { result.unresolved++; result.complete = false; };
-  function add(row: RevenueRow, category: "subscriptions" | "studio", provider: unknown, paymentId: unknown) {
-    const meta = row.metadata ?? {};
-    const amount = meta.amount_xof;
-    if (provider !== "saspay" || typeof paymentId !== "string" || !paymentId.trim() ||
-      typeof amount !== "number" || !Number.isSafeInteger(amount) || amount <= 0 ||
-      (meta.currency !== undefined && meta.currency !== "XOF") ||
+  function add(row: RevenueRow, category: "subscriptions" | "studio", paymentId: unknown) {
+    const amount = revenueAmount(row, category);
+    if (typeof paymentId !== "string" || !paymentId.trim() || amount === null ||
       !Number.isFinite(Date.parse(row.created_at)) || Date.parse(row.created_at) > Date.parse(asOf)) {
       unresolved(); return;
     }
-    // SasPay's signed success webhook verifies XOF before recording amount_xof.
-    // Use the transaction, not the webhook event id, to deduplicate re-deliveries.
-    const key = `${provider}:${paymentId}`;
+    // Use the transaction identifier, not the webhook event id, to deduplicate re-deliveries.
+    const key = paymentId;
     const fingerprint = `${category}:${amount}`;
     if (seen.has(key)) {
       if (seen.get(key) !== fingerprint) unresolved();
       return;
     }
     seen.set(key, fingerprint);
-    recognized?.(row, category);
+    recognized?.(row, category, amount);
     result[category]! += amount;
     if (!Number.isSafeInteger(result[category])) unresolved();
     if (category === "subscriptions") result.subscriptionPayments++;
@@ -47,9 +58,10 @@ export function summarizeRevenue(payments: RevenueRow[], credits: RevenueRow[], 
     if (!result.firstRecordedAt || Date.parse(row.created_at) < Date.parse(result.firstRecordedAt)) result.firstRecordedAt = row.created_at;
   }
   for (const row of payments) {
+    if (row.metadata?.provider === "admin_grant") continue;
     if (["pending", "failed", "cancelled", "canceled", "declined", "rejected"].includes(row.status)) continue;
-    if (row.status !== "approved" || !row.plan) { unresolved(); continue; }
-    add(row, "subscriptions", row.provider, row.transaction_id);
+    if (row.status !== "approved" || !row.plan || !isPlanId(row.plan)) { unresolved(); continue; }
+    add(row, "subscriptions", row.transaction_id);
   }
   for (const row of credits) {
     // Usage refunds restore credits; they are not monetary refunds.
@@ -59,7 +71,7 @@ export function summarizeRevenue(payments: RevenueRow[], credits: RevenueRow[], 
     // No monetary refund ledger exists today. An unexpected refund blocks the total;
     // never assume that a credit restoration is a cash refund, or guess its amount.
     if (row.kind !== "purchase" || row.operation !== "credit_purchase" || row.status !== "completed") { unresolved(); continue; }
-    add(row, "studio", row.metadata?.provider, row.external_id);
+    add(row, "studio", row.external_id);
   }
   if (!Number.isSafeInteger(result.subscriptions! + result.studio!)) unresolved();
   if (!result.complete) result.subscriptions = result.studio = result.total = null;
@@ -86,13 +98,13 @@ export async function readRevenue(service: any, asOf = new Date().toISOString(),
   }
   const [payments, credits] = await Promise.all([
     read("payment_events", "id,provider,transaction_id,plan,status,metadata,created_at"),
-    read("credit_transactions", "id,kind,operation,external_id,status,metadata,created_at", true),
+    read("credit_transactions", "id,kind,operation,external_id,credits,status,metadata,created_at", true),
   ]);
   if (!period) return summarizeRevenue(payments, credits, asOf);
-  const unique: { row: RevenueRow; category: "subscriptions" | "studio" }[] = [];
+  const unique: { row: RevenueRow; category: "subscriptions" | "studio"; amount: number }[] = [];
   // Recognize once across the full available history through the selected end.
   // A re-delivery must retain its first recording date, even before this range.
-  const verified = summarizeRevenue(payments, credits, period.endAt, (row, category) => unique.push({ row, category }));
+  const verified = summarizeRevenue(payments, credits, period.endAt, (row, category, amount) => unique.push({ row, category, amount }));
   const selectedPeriod = { ...period };
   // Preserve the existing fail-closed policy: unknown payment/refund evidence
   // anywhere in the scanned ledger must never turn into an apparently valid zero.
@@ -114,10 +126,9 @@ export async function readRevenue(service: any, asOf = new Date().toISOString(),
       buckets.set(day, { subscriptions: 0, studio: 0, total: 0 });
     }
     // One pass over recognized unique transactions keeps chart and totals equal.
-    for (const { row, category } of uniqueInRange) {
+    for (const { row, category, amount } of uniqueInRange) {
       const day = dateInTimeZone(row.created_at, period.timeZone);
       const bucket = buckets.get(day) ?? { subscriptions: 0, studio: 0, total: 0 };
-      const amount = row.metadata!.amount_xof as number;
       bucket[category] += amount;
       bucket.total += amount;
       buckets.set(day, bucket);
