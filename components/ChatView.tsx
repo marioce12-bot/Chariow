@@ -285,6 +285,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
   const [launchComplete, setLaunchComplete] = useState(false);
   const launchInFlightRef = useRef(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
+  const [launchFailureNote, setLaunchFailureNote] = useState<string | null>(null);
   const [metaAccounts, setMetaAccounts] = useState<MetaAdAccount[]>([]);
   const [pinterestAccounts, setPinterestAccounts] = useState<PinterestAdAccount[]>([]);
   const [launchAccountId, setLaunchAccountId] = useState<string | null>(null);
@@ -511,7 +512,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, attachments: pendingAttachments, conversationId, locale }),
+        body: JSON.stringify({ message, attachments: pendingAttachments, conversationId, locale, launchFailureNote }),
         signal: controller.signal,
       });
       // Corps lu en texte puis parsé à la main : si le serveur coupe la requête (timeout de la
@@ -734,9 +735,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setLaunchError(data.error ?? "Impossible de lancer la campagne.");
+        const reason = String(data.error ?? "Impossible de lancer la campagne.").slice(0, 500);
+        setLaunchError(reason);
+        setLaunchFailureNote(`Le lancement précédent a échoué (raison : ${reason}), aucune campagne n'a été créée, les informations validées restent valables, ne les redemande pas.`);
         return;
       }
+      setLaunchFailureNote(null);
       setLaunchComplete(true);
       // Briefly show confirmed 100%, never before the server accepts the request.
       await new Promise<void>((resolve) => window.setTimeout(resolve, 500));
@@ -748,7 +752,9 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
       ]);
       setLaunchOpen(false);
     } catch {
-      setLaunchError(t("sweep1.text111"));
+      const reason = t("sweep1.text111");
+      setLaunchError(reason);
+      setLaunchFailureNote(`Le lancement précédent a échoué (raison : ${reason}), aucune campagne n'a été créée, les informations validées restent valables, ne les redemande pas.`);
     } finally {
       launchInFlightRef.current = false;
       setLaunching(false);

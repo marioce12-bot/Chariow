@@ -135,7 +135,7 @@ describe("NotificationsView", () => {
       return { ok: true, json: async () => ({ notifications: [{ ...notifications[0], id: "training-id", category: " Training ", title: "Message de formation" }] }) };
     });
     await renderAndLoad();
-    const trainingFilter = Array.from(container.querySelectorAll(".messages-filters button")).find((button) => button.textContent?.trim() === "Formations")!;
+    const trainingFilter = Array.from(container.querySelectorAll<HTMLButtonElement>(".messages-filters button")).find((button) => button.textContent?.trim() === "Formations")!;
     await act(async () => { trainingFilter.click(); });
     expect(container.querySelector(".notifications-page-list")?.textContent).toContain("Message de formation");
   });

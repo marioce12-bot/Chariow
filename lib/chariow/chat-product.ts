@@ -50,8 +50,7 @@ export function resolveCampaignProduct<T extends CampaignProductPayload>(payload
     const scored = catalog.map((product) => ({ product, score: nameSimilarity(payload.productName as string, product.name) }));
     const maximum = Math.max(0, ...scored.map(({ score }) => score));
     if (maximum < 0.5) return { error: "missing" };
-    const close = scored.filter(({ score }) => score === maximum).map(({ product }) => product);
-    candidates = close;
+    candidates = scored.filter(({ score }) => score === maximum).map(({ product }) => product);
   }
 
   if (typeof payload.storeId === "string" && payload.storeId.trim()) {
@@ -69,14 +68,35 @@ export function resolveCampaignProduct<T extends CampaignProductPayload>(payload
   return { ...payload, productId: product.id, storeId: product.storeId, linkUrl };
 }
 
+function sanitizeJsonControlCharacters(text: string): string {
+  let output = "";
+  let quoted = false;
+  let escaped = false;
+  for (const char of text) {
+    const code = char.charCodeAt(0);
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') quoted = false;
+      if (code < 0x20) {
+        output += char === "\n" ? "\\n" : char === "\r" ? "\\r" : char === "\t" ? "\\t" : `\\u${code.toString(16).padStart(4, "0")}`;
+        continue;
+      }
+    } else if (char === '"') quoted = true;
+    output += char;
+  }
+  return output;
+}
+
 function extractJsonObject(text: string): CampaignProductPayload | null {
-  for (let start = 0; start < text.length; start += 1) {
-    if (text[start] !== "{") continue;
+  const source = text.replace(/```(?:json)?/gi, "");
+  for (let start = 0; start < source.length; start += 1) {
+    if (source[start] !== "{") continue;
     let depth = 0;
     let quoted = false;
     let escaped = false;
-    for (let index = start; index < text.length; index += 1) {
-      const char = text[index];
+    for (let index = start; index < source.length; index += 1) {
+      const char = source[index];
       if (quoted) {
         if (escaped) escaped = false;
         else if (char === "\\") escaped = true;
@@ -89,7 +109,7 @@ function extractJsonObject(text: string): CampaignProductPayload | null {
         depth -= 1;
         if (depth === 0) {
           try {
-            const parsed: unknown = JSON.parse(text.slice(start, index + 1));
+            const parsed: unknown = JSON.parse(sanitizeJsonControlCharacters(source.slice(start, index + 1)));
             return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as CampaignProductPayload : null;
           } catch {
             break;
@@ -101,23 +121,46 @@ function extractJsonObject(text: string): CampaignProductPayload | null {
   return null;
 }
 
+function removeLaunchAnnouncement(text: string): string {
+  return text
+    .replace(/(?:^|\n)\s*(?:parfait\s*[!,]?\s*)?(?:je\s+(?:vais|lance|démarre)|je\s+m['’]apprête\s+à\s+lancer|lancement\s+de\s+la\s+campagne)[^\n.!?]*(?:[.!?]|$)/giu, "")
+    .replace(/(?:^|\n)\s*(?:perfect\s*[!,]?\s*)?(?:i['’]?m\s+(?:launching|starting)|i\s+will\s+launch|launching\s+the\s+campaign)[^\n.!?]*(?:[.!?]|$)/giu, "")
+    .trim();
+}
+
 /** Model launch markers are proposals only: normalize identity before showing a launch action. */
-export function resolveCampaignAnswer(answer: string, catalog: ChatCatalogProduct[], options: { userProvidedUrls?: string[]; locale?: string } = {}): string {
+export function resolveCampaignAnswer(answer: string, catalog: ChatCatalogProduct[], options: { userProvidedUrls?: string[]; locale?: string; conversationId?: string } = {}): string {
   const marker = answer.indexOf("[[LANCE_CAMPAGNE]]");
   if (marker < 0) return answer;
-  const before = answer.slice(0, marker).trim();
+  const before = removeLaunchAnnouncement(answer.slice(0, marker).trim());
   const en = options.locale === "en";
-  const clarify = en ? "Which exact product and store should I promote?" : "Quel produit exact et quelle boutique veux-tu promouvoir ?";
-  const payload = extractJsonObject(answer.slice(marker + "[[LANCE_CAMPAGNE]]".length));
+  const payloadText = answer.slice(marker + "[[LANCE_CAMPAGNE]]".length);
+  const payload = extractJsonObject(payloadText);
+  const rawLength = payloadText.length;
   if (payload) {
     const resolved = resolveCampaignProduct(payload, catalog, options.userProvidedUrls);
     if (!("error" in resolved)) return `${before}${before ? "\n\n" : ""}[[LANCE_CAMPAGNE]]${JSON.stringify(resolved)}`;
-    if (resolved.error === "unavailable") {
-      const unavailable = en
-        ? "The product was found, but its public link is currently unavailable. Check the store connection before continuing."
-        : "Le produit est identifié, mais son lien public est actuellement indisponible. Vérifie la connexion de la boutique avant de continuer.";
-      return `${before}${before ? "\n\n" : ""}${unavailable}`;
-    }
+    console.error("[chat-campaign] product_resolution_failed", {
+      conversation_id: options.conversationId ?? null,
+      reason: resolved.error,
+      product_id: typeof payload.productId === "string" ? payload.productId : null,
+      store_id: typeof payload.storeId === "string" ? payload.storeId : null,
+      raw_json_length: rawLength,
+    });
+    const reason = resolved.error === "missing"
+      ? (en ? "The product was not found in the connected stores." : "Le produit est introuvable dans les boutiques connectées.")
+      : resolved.error === "ambiguous"
+        ? (en ? "Several products match this request. Which exact product and store should I use?" : "Plusieurs produits correspondent. Quel produit exact et quelle boutique veux-tu promouvoir ?")
+        : (en ? "The product was found, but its public link is currently unavailable. The store connection may have expired." : "Le produit est identifié, mais son lien public est indisponible. La connexion de la boutique est peut-être expirée.");
+    return `${before}${before ? "\n\n" : ""}${reason}`;
   }
-  return `${before}${before ? "\n\n" : ""}${clarify}`;
+  console.error("[chat-campaign] product_resolution_failed", {
+    conversation_id: options.conversationId ?? null,
+    reason: "invalid_json",
+    product_id: null,
+    store_id: null,
+    raw_json_length: rawLength,
+  });
+  const invalid = en ? "The campaign information was invalid. Please retry." : "Les informations de campagne sont invalides. Réessaie.";
+  return `${before}${before ? "\n\n" : ""}${invalid}`;
 }
