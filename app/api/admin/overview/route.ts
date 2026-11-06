@@ -25,6 +25,16 @@ function safePurchaseMetadata(metadata: unknown) {
   return Object.keys(safe).length ? safe : undefined;
 }
 
+function safeMetricCount(value: unknown): number | null {
+  const numeric =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number(value)
+        : Number.NaN;
+  return Number.isSafeInteger(numeric) && numeric >= 0 ? numeric : null;
+}
+
 export async function GET() {
   const { supabase, admin, response } = await requireAdmin();
   if (!admin)
@@ -140,6 +150,19 @@ export async function GET() {
   }
   if (launchedCampaigns.error) console.error("Admin launched campaign count unavailable", { code: launchedCampaigns.error.code ?? "unknown" });
   if (activeCampaigns.error) console.error("Admin active campaign count unavailable", { code: activeCampaigns.error.code ?? "unknown" });
+  const rpcValues = connectionMetrics.data as Record<string, unknown> | null;
+  const connectedUsersWithStore = connectionMetrics.error
+    ? null
+    : safeMetricCount(rpcValues?.users_with_store);
+  const connectedUsersWithAdAccount = connectionMetrics.error
+    ? null
+    : safeMetricCount(rpcValues?.users_with_ad_account);
+  const connectedStores = connectionMetrics.error
+    ? null
+    : safeMetricCount(rpcValues?.connected_stores);
+  const connectedAdAccounts = connectionMetrics.error
+    ? null
+    : safeMetricCount(rpcValues?.connected_ad_accounts);
   const firstError = [
     profiles,
     stores,
@@ -199,10 +222,10 @@ export async function GET() {
       subscriptions: subscriptions.count ?? subscriptions.data?.length ?? 0,
       messages: messages.count ?? 0,
       metaAccounts: metaAccounts.count ?? metaAccounts.data?.length ?? 0,
-      connectedUsersWithStore: connectionMetrics.error ? null : Number(connectionMetrics.data?.users_with_store ?? 0),
-      connectedUsersWithAdAccount: connectionMetrics.error ? null : Number(connectionMetrics.data?.users_with_ad_account ?? 0),
-      connectedStores: connectionMetrics.error ? null : Number(connectionMetrics.data?.connected_stores ?? 0),
-      connectedAdAccounts: connectionMetrics.error ? null : Number(connectionMetrics.data?.connected_ad_accounts ?? 0),
+      connectedUsersWithStore,
+      connectedUsersWithAdAccount,
+      connectedStores,
+      connectedAdAccounts,
       campaignsLaunched: launchedCampaigns.error ? null : launchedCampaigns.count ?? null,
       campaignsActive: activeCampaigns.error ? null : activeCampaigns.count ?? null,
     },

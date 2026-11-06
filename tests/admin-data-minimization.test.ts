@@ -328,7 +328,7 @@ describe("admin API response data minimization", () => {
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "Console unavailable" });
   });
-  it("keeps the admin overview available when optional connection metrics are missing", async () => {
+  it("does not replace unavailable connection metrics with zeros or scan account rows", async () => {
     mocks.results["rpc:admin_connection_metrics"] = {
       data: null,
       error: { code: "PGRST202", message: "function is not available" },
@@ -341,6 +341,27 @@ describe("admin API response data minimization", () => {
     expect(data.metrics.connectedUsersWithAdAccount).toBeNull();
     expect(data.metrics.connectedStores).toBeNull();
     expect(data.metrics.connectedAdAccounts).toBeNull();
+    expect(mocks.calls.some((call) => call.table === "tiktok_ad_accounts")).toBe(false);
+    expect(mocks.calls.some((call) => call.table === "pinterest_ad_accounts")).toBe(false);
+    expect(mocks.calls.some((call) => call.table === "reddit_ad_accounts")).toBe(false);
+  });
+  it("maps the database aggregate result to all four connection metrics", async () => {
+    mocks.results["rpc:admin_connection_metrics"] = {
+      data: {
+        users_with_store: 12,
+        users_with_ad_account: 8,
+        connected_stores: 17,
+        connected_ad_accounts: 11,
+      },
+      error: null,
+    };
+    const response = await getOverview();
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.metrics.connectedUsersWithStore).toBe(12);
+    expect(data.metrics.connectedUsersWithAdAccount).toBe(8);
+    expect(data.metrics.connectedStores).toBe(17);
+    expect(data.metrics.connectedAdAccounts).toBe(11);
   });
   it("returns launched and active campaign aggregates from head-only reads with archived/deleted included and drafts excluded", async () => {
     mocks.results["ad_campaigns:launched"] = { data: null, count: 74, error: null };
