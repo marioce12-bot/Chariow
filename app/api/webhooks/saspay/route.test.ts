@@ -3,9 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), insert: vi.fn(), update: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
-vi.mock("@/lib/email", () => ({ notifyAdmin: vi.fn(), moneyXOF: (amount: number) => `${amount} XOF` }));
+vi.mock("@/lib/email", () => ({ notifyAdmin: vi.fn() }));
 import { POST } from "./route";
-import { planAmount } from "@/lib/plans";
 
 const secret = "test-webhook-secret";
 function signedRequest(event: unknown) {
@@ -18,8 +17,8 @@ function signedRequest(event: unknown) {
     body: rawBody,
   });
 }
-function event(id: string, amount: number, currency: string, metadata: Record<string, unknown>) {
-  return { event: "transaction.success", data: { id, status: "SUCCESS", amount, currency, metadata } };
+function event(id: string, status: string, amount: number, currency: string, metadata: Record<string, unknown>) {
+  return { event: "transaction.success", data: { id, status, amount, currency, metadata } };
 }
 
 beforeEach(() => {
@@ -39,9 +38,14 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 
-describe("POST /api/webhooks/saspay currency handling", () => {
-  it("accepts XAF credits at the exact nominal XOF price and stores equivalent XOF plus original currency", async () => {
-    const response = await POST(signedRequest(event("credit-xaf-ok", 1125, "XAF", {
+describe("POST /api/webhooks/saspay payment confirmation", () => {
+  it.each([
+    ["XAF", 1126],
+    ["GHS", 812],
+    ["NGN", 90000],
+    ["USD", 3.75],
+  ])("credits a signed successful payment in %s regardless of converted amount", async (currency, amount) => {
+    const response = await POST(signedRequest(event("credit-any-currency", "SUCCESS", amount, currency, {
       userId: "user-cm", type: "studio_credits", credits: 450,
     })));
 
@@ -49,68 +53,51 @@ describe("POST /api/webhooks/saspay currency handling", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("add_credits", {
       target_user_id: "user-cm",
       amount: 450,
-      payment_id: "credit-xaf-ok",
-      metadata_value: { provider: "saspay", amount_xof: 1125, original_currency: "XAF" },
+      payment_id: "credit-any-currency",
+      metadata_value: { provider: "saspay", original_amount: amount, original_currency: currency },
     });
     expect(mocks.rpc).not.toHaveBeenCalledWith("record_webhook_failure", expect.anything());
-    expect(mocks.from).not.toHaveBeenCalledWith("payment_events");
   });
 
-  it("accepts XAF subscriptions at the exact nominal XOF price and stores original_currency", async () => {
-    const amount = planAmount("starter");
-    const response = await POST(signedRequest(event("subscription-xaf-ok", amount, "XAF", {
+  it("activates a signed successful subscription payment in any currency and records the original amount", async () => {
+    const response = await POST(signedRequest(event("subscription-any-currency", "SUCCESS", 4.25, "USD", {
       userId: "user-cm", plan: "starter",
     })));
 
     expect(response.status).toBe(200);
     expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
       provider: "saspay",
-      transaction_id: "subscription-xaf-ok",
+      transaction_id: "subscription-any-currency",
       user_id: "user-cm",
       plan: "starter",
       status: "approved",
-      metadata: { provider: "saspay", amount_xof: amount, original_currency: "XAF" },
+      metadata: { provider: "saspay", original_amount: 4.25, original_currency: "USD" },
     }));
-    expect(mocks.insert.mock.calls[0][0].metadata).not.toHaveProperty("currency");
+    expect(mocks.update).toHaveBeenCalled();
   });
 
-  it("rejects and records XAF credits when the amount does not exactly match the expected price", async () => {
-    const response = await POST(signedRequest(event("credit-xaf-bad", 1126, "XAF", {
+  it("records amount_xof only for XOF transactions", async () => {
+    const response = await POST(signedRequest(event("credit-xof", "SUCCESS", 1125, "XOF", {
+      userId: "user-cm", type: "studio_credits", credits: 450,
+    })));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("add_credits", expect.objectContaining({
+      metadata_value: { provider: "saspay", amount_xof: 1125, original_amount: 1125, original_currency: "XOF" },
+    }));
+  });
+
+  it("does not activate or credit when SasPay status is not SUCCESS", async () => {
+    const response = await POST(signedRequest(event("failed-payment", "FAILED", 999999, "USD", {
       userId: "user-cm", type: "studio_credits", credits: 450,
     })));
 
     expect(response.status).toBe(400);
     expect(mocks.rpc).toHaveBeenCalledWith("record_webhook_failure", expect.objectContaining({
-      p_transaction_id: "credit-xaf-bad",
+      p_transaction_id: "failed-payment",
       p_reason: "credit_payment_validation_failed",
     }));
     expect(mocks.rpc).not.toHaveBeenCalledWith("add_credits", expect.anything());
-    expect(mocks.from).not.toHaveBeenCalled();
-  });
-
-  it("records an unsupported currency and returns 200 without processing it", async () => {
-    const unsupported = event("payment-ghs", 2000, "GHS", { userId: "user-1", plan: "starter" });
-    const response = await POST(signedRequest(unsupported));
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ received: true, processed: false, reason: "currency_unsupported" });
-    expect(mocks.rpc).toHaveBeenCalledWith("record_webhook_failure", {
-      p_provider: "saspay",
-      p_event: "transaction.success",
-      p_transaction_id: "payment-ghs",
-      p_reason: "currency_unsupported",
-      p_payload: unsupported,
-    });
-    expect(mocks.rpc).not.toHaveBeenCalledWith("add_credits", expect.anything());
-    expect(mocks.insert).not.toHaveBeenCalled();
-    expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.from).not.toHaveBeenCalled();
-  });
-
-  it("returns 500 if an unsupported currency cannot be persisted", async () => {
-    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: "DB_DOWN" } });
-    const response = await POST(signedRequest(event("payment-unknown", 1000, "NGN", { userId: "user-1" })));
-    expect(response.status).toBe(500);
     expect(mocks.from).not.toHaveBeenCalled();
   });
 });

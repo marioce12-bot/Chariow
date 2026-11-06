@@ -1,9 +1,8 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { creditPrice } from "@/lib/studio/credits";
-import { isPlanId, planAmount, computePeriodEnd, type PlanId } from "@/lib/plans";
-import { notifyAdmin, moneyXOF } from "@/lib/email";
+import { isPlanId, computePeriodEnd, type PlanId } from "@/lib/plans";
+import { notifyAdmin } from "@/lib/email";
 
 function validSignature(rawBody: string, signature: string | null, timestamp: string | null) {
   const secret = process.env.SASPAY_WEBHOOK_SECRET;
@@ -37,11 +36,13 @@ function eventContext(event: SasPayEvent) {
   };
 }
 
-function amountMetadata(amountXof: number, originalCurrency: string | undefined) {
+function paymentMetadata(amount: string | number | undefined, currency: string | undefined) {
+  const numericAmount = amount === undefined ? null : Number(amount);
   return {
     provider: "saspay",
-    amount_xof: amountXof,
-    ...(originalCurrency && originalCurrency !== "XOF" ? { original_currency: originalCurrency } : {}),
+    ...(currency === "XOF" && numericAmount !== null && Number.isFinite(numericAmount) ? { amount_xof: numericAmount } : {}),
+    original_amount: amount ?? null,
+    original_currency: currency ?? null,
   };
 }
 
@@ -99,14 +100,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Transaction invalide" }, { status: recorded ? 400 : 500 });
   }
 
-  // XAF has a fixed 1:1 parity with XOF. Accept only the exact nominal XOF price.
-  // Other currencies are held for manual handling; no conversion is inferred here.
-  if (data.currency !== "XOF" && data.currency !== "XAF") {
-    const recorded = await recordFailure(admin, event, "currency_unsupported");
-    if (!recorded) return NextResponse.json({ error: "Échec de persistance du paiement à examiner" }, { status: 500 });
-    return NextResponse.json({ received: true, processed: false, reason: "currency_unsupported" });
-  }
-
   if (data.metadata?.type === "studio_credits") {
     const userId = data.metadata.userId;
     const credits = Number(data.metadata.credits);
@@ -114,20 +107,20 @@ export async function POST(request: Request) {
       const recorded = await recordFailure(admin, event, "credit_metadata_invalid");
       return NextResponse.json({ error: "Métadonnées de crédits manquantes" }, { status: recorded ? 400 : 500 });
     }
-    if (data.status !== "SUCCESS" || Number(data.amount) !== creditPrice(credits)) {
+    if (data.status !== "SUCCESS") {
       const recorded = await recordFailure(admin, event, "credit_payment_validation_failed");
       return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: recorded ? 400 : 500 });
     }
-    const result = await admin.rpc("add_credits", { target_user_id: userId, amount: credits, payment_id: data.id, metadata_value: amountMetadata(Number(data.amount), data.currency) });
+    const result = await admin.rpc("add_credits", { target_user_id: userId, amount: credits, payment_id: data.id, metadata_value: paymentMetadata(data.amount, data.currency) });
     if (result.error) {
       const recorded = await recordFailure(admin, event, "credit_application_failed");
       return NextResponse.json({ error: "Crédits non ajoutés" }, { status: recorded ? 500 : 503 });
     }
-    await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "studio_credits_purchased", resource_name: "credit_account", resource_key: userId, metadata_value: { transaction_id: data.id, credits, amount_xof: Number(data.amount) } });
+    await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "studio_credits_purchased", resource_name: "credit_account", resource_key: userId, metadata_value: { transaction_id: data.id, credits, original_amount: data.amount ?? null, original_currency: data.currency ?? null } });
     const { data: profile } = await admin.from("profiles").select("email,full_name").eq("id", userId).maybeSingle();
     await notifyAdmin(
       "Recharge de crédits Studio",
-      `<p><strong>${profile?.full_name || "Utilisateur"}</strong> (${profile?.email || userId}) a rechargé <strong>${credits} crédits</strong> pour ${moneyXOF(Number(data.amount))}.</p>`
+      `<p><strong>${profile?.full_name || "Utilisateur"}</strong> (${profile?.email || userId}) a rechargé <strong>${credits} crédits</strong> pour ${data.amount ?? "montant non fourni"} ${data.currency ?? "devise non fournie"}.</p>`
     );
     console.info("[saspay-webhook] credit_payment_processed", { ...eventContext(event), user_id: userId, credits });
     return NextResponse.json({ received: true });
@@ -139,13 +132,12 @@ export async function POST(request: Request) {
     const recorded = await recordFailure(admin, event, "subscription_metadata_invalid");
     return NextResponse.json({ error: "Métadonnées de paiement manquantes" }, { status: recorded ? 400 : 500 });
   }
-  const amount = Number(data.amount);
-  if (data.status !== "SUCCESS" || amount !== planAmount(plan)) {
+  if (data.status !== "SUCCESS") {
     const recorded = await recordFailure(admin, event, "subscription_payment_validation_failed");
     return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: recorded ? 400 : 500 });
   }
 
-  const { error: eventError } = await admin.from("payment_events").insert({ provider: "saspay", provider_event_id: data.id, transaction_id: data.id, user_id: userId, plan, status: "approved", metadata: amountMetadata(amount, data.currency) });
+  const { error: eventError } = await admin.from("payment_events").insert({ provider: "saspay", provider_event_id: data.id, transaction_id: data.id, user_id: userId, plan, status: "approved", metadata: paymentMetadata(data.amount, data.currency) });
   if (eventError?.code === "23505") {
     console.info("[saspay-webhook] duplicate_subscription_payment", { ...eventContext(event), user_id: userId });
     return NextResponse.json({ received: true });
@@ -161,13 +153,13 @@ export async function POST(request: Request) {
     const recorded = await recordFailure(admin, event, "subscription_activation_failed");
     return NextResponse.json({ error: "Abonnement non activé" }, { status: recorded ? 500 : 503 });
   }
-  await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "subscription_payment_confirmed", resource_name: "subscription", resource_key: userId, metadata_value: { transaction_id: data.id, plan, amount_xof: amount } });
+  await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "subscription_payment_confirmed", resource_name: "subscription", resource_key: userId, metadata_value: { transaction_id: data.id, plan, original_amount: data.amount ?? null, original_currency: data.currency ?? null } });
   const { data: profile } = await admin.from("profiles").select("email,full_name").eq("id", userId).maybeSingle();
   await notifyAdmin(
     "Nouvel abonnement Vendeo",
-    `<p><strong>${profile?.full_name || "Utilisateur"}</strong> (${profile?.email || userId}) a activé l'abonnement Vendeo (${planLabelForEmail(plan)}) pour ${moneyXOF(amount)}.</p>`
+    `<p><strong>${profile?.full_name || "Utilisateur"}</strong> (${profile?.email || userId}) a activé l'abonnement Vendeo (${planLabelForEmail(plan)}) après confirmation de SasPay : ${data.amount ?? "montant non fourni"} ${data.currency ?? "devise non fournie"}.</p>`
   );
-  console.info("[saspay-webhook] subscription_payment_processed", { ...eventContext(event), user_id: userId, plan, amount_xof: amount });
+  console.info("[saspay-webhook] subscription_payment_processed", { ...eventContext(event), user_id: userId, plan });
   return NextResponse.json({ received: true });
 }
 
