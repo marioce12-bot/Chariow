@@ -434,38 +434,6 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
             ))}
           </svg>
 
-          {/* Légende = campagnes Meta (touche pour voir le détail) */}
-          {metaCampaigns.length > 0 ? (
-            <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
-              <strong style={{ fontSize: 13 }}>{tr(`Campagnes Meta (${metaCampaigns.length})`, `Meta campaigns (${metaCampaigns.length})`)}</strong>
-              {metaCampaigns.map((campaign, index) => {
-                const active = selectedId === campaign.id;
-                return (
-                  <button
-                    key={campaign.id}
-                    type="button"
-                    onClick={() => setSelectedId((current) => (current === campaign.id ? null : campaign.id))}
-                    aria-pressed={active}
-                    style={{ display: "grid", gap: 2, minWidth: 0, width: "100%", textAlign: "left", padding: "7px 8px", border: 0, borderRadius: 8, background: active ? "#EEF4FF" : "transparent", color: "inherit", font: "inherit", cursor: "pointer" }}
-                  >
-                    <span style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, minWidth: 0 }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 0", minWidth: 0 }}>
-                        <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, background: campaignColor(index), flexShrink: 0 }} />
-                        <span style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={campaign.name}>{campaign.name}</span>
-                      </span>
-                      <strong style={{ fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}>{usd(campaign.spendUsd, numberLocale)}</strong>
-                    </span>
-                    {active ? (
-                      <span className="hint-line" style={{ paddingLeft: 18 }}>
-                        {campaign.clicks.toLocaleString(numberLocale)} {tr(t("optionsExtra.text12"), "clicks")} · {campaign.impressions.toLocaleString(numberLocale)} {tr("impressions", "impressions")} · {campaign.conversions.toLocaleString(numberLocale)} conversions
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-
           {/* Courbe : dépense Meta par jour */}
           {showLine ? (
             <div style={{ marginTop: 18 }}>
