@@ -8,7 +8,7 @@ export async function GET(request: Request) {
 
   const requestedStoreId = new URL(request.url).searchParams.get("store_id");
   if (requestedStoreId) {
-    const { data: existingStore, error: existingError } = await supabase.from("stores").select("id").eq("id", requestedStoreId).eq("user_id", user.id).eq("platform", "chariow").eq("is_active", true).maybeSingle();
+    const { data: existingStore, error: existingError } = await supabase.from("stores").select("id").eq("id", requestedStoreId).eq("user_id", user.id).eq("platform", "chariow").maybeSingle();
     if (existingError) return NextResponse.json({ error: "Impossible de vérifier ta boutique Chariow." }, { status: 500 });
     if (!existingStore) return NextResponse.json({ error: "Boutique Chariow introuvable" }, { status: 404 });
     return NextResponse.json({ allowed: true, reconnect: true });

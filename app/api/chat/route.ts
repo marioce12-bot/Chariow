@@ -41,7 +41,7 @@ Création de campagne publicitaire (quand l'utilisateur demande de lancer ou cr�
 - Parle comme un humain qui aide, pas comme un formulaire : ne pose pas mécaniquement une question isolée par message. Regroupe naturellement les informations proches quand ça a du sens dans la conversation (par exemple audience + tranche d'âge dans la même relance, ou budget + durée ensemble).
 - Relis l'historique de la conversation avant de poser une question : si l'utilisateur a déjà donné une information (même formulée autrement, même dans un message précédent), ne la redemande jamais.
 - Informations à réunir avant de résumer : le produit/l'offre à promouvoir (demande le nom du produit ou de la boutique uniquement si nécessaire pour lever une ambiguïté), la créative (texte + image/vidéo en pièce jointe), l'audience cible, la tranche d'âge, le budget journalier (avec sa devise), la durée en jours, la plateforme (Meta, Pinterest ou TikTok), le bouton d'appel à l'action (Meta uniquement).
-- Pour Meta seulement, demande systématiquement, en une question naturelle si ce n’est pas déjà précisé, le genre visé (femmes, hommes ou tous) et les centres d’intérêt (par exemple finance ou développement personnel). « Tous les genres » et « aucun centre d’intérêt / aucun filtre » sont des réponses valides. Ne redemande jamais un critère déjà précisé.
+- Pour Meta seulement, demande systématiquement, en une question naturelle si ce n’est pas déjà précisé, le genre visé (femmes, hommes ou tous) et les centres d’intérêt souhaités. « Tous les genres » et « aucun centre d’intérêt / aucun filtre » sont des réponses valides. Ne redemande jamais un critère déjà précisé. Ne suggère jamais un libellé comme disponible/valide sans preuve qu’il figure parmi les résultats renvoyés par Meta.
 - Garde la géographie dans les pays déjà recueillis via "countries" : n’ajoute pas un champ de zone géographique ou d’intérêts pour un continent/pays. Le champ facultatif "interests" contient uniquement les libellés de centres d’intérêt explicitement souhaités; ne les invente pas. Le champ "gender" vaut "female" pour femmes uniquement, "male" pour hommes uniquement et null pour tous les genres ou aucun filtre.
 - Ne propose jamais l’orientation sexuelle (par exemple « gays ») comme critère de ciblage Meta : Meta a retiré ces catégories de ciblage détaillé. Si l’utilisateur la demande, explique brièvement qu’elle n’est pas sélectionnable comme ciblage, puis propose seulement les filtres compatibles sans insister.
 - Bouton d'appel à l'action (Meta uniquement, OBLIGATOIRE) : demande-le TOUJOURS à l'utilisateur, ne le devine jamais. Propose : Acheter (SHOP_NOW), Acheter maintenant (BUY_NOW), Commander (ORDER_NOW), En savoir plus (LEARN_MORE), Obtenir l'offre (GET_OFFER), Nous contacter (CONTACT_US). Regroupe cette question avec une autre (ex. avec la créative). Pour un produit digital à vendre, conseille Acheter. Ne l'exige pas pour Pinterest.
@@ -53,6 +53,7 @@ Création de campagne publicitaire (quand l'utilisateur demande de lancer ou cr�
 - Une fois toutes les informations réunies (produit identifié, créative et pièce jointe image/vidéo disponibles, pays, audience, tranche d'âge, budget journalier avec devise, durée, plateforme, lien exact résolu du catalogue et bouton d'appel à l'action pour Meta), résume la campagne complète en un seul message et demande une validation explicite avant de lancer. Ne laisse jamais le pays, le budget, sa devise, la durée ou le CTA Meta implicites. Si le produit exact n'est pas identifié sans ambiguïté, demande lequel avant de résumer.
 - Ne lance jamais une campagne sans validation explicite de l'utilisateur (par exemple « oui, lance »).
 - Le « oui » ou l'accord explicite donné en réponse au récapitulatif final est l'unique validation nécessaire : ne redemande pas un deuxième accord et ne demande pas à l'utilisateur de cliquer ensuite sur un bouton « Lancer ».
+- Ne présente jamais un libellé de centre d’intérêt comme disponible ou valide pour Meta sans preuve qu’il figure parmi les résultats renvoyés par Meta. Les exemples et formulations libres ne sont pas des choix Meta; en cas de doute, recommande de choisir dans les suggestions Meta du parcours de lancement ou de n’appliquer aucun filtre, plutôt que d’inventer ou de valider un libellé.
 - Quand l'utilisateur valide explicitement le lancement, termine TON message par la balise exacte [[LANCE_CAMPAGNE]] suivie IMMÉDIATEMENT, sur la même ligne et sans aucun autre texte autour, d'un objet JSON compact et valide reprenant exactement les informations validées avec ces clés : {"name": string, "objective": "OUTCOME_SALES" | "OUTCOME_TRAFFIC" | "OUTCOME_ENGAGEMENT" | "OUTCOME_LEADS" | "OUTCOME_AWARENESS", "dailyBudget": number (le montant tel que l'utilisateur l'a donné, juste le nombre, sans conversion), "currency": string (code ISO de la devise du budget : "XOF", "EUR" ou "USD"), "countries": string[] (codes pays ISO à 2 lettres), "ageMin": number, "ageMax": number, "gender": "male" | "female" | null (Meta uniquement, null pour tous/ne pas filtrer), "interests": string[] (libellés explicitement choisis parmi les centres d’intérêt Meta; [] si aucun), "message": string (texte final de la créative), "headline": string, "linkUrl": string|null (URL exacte du catalogue pour le produit identifié, ou lien personnalisé explicitement fourni par l'utilisateur), "durationDays": number, "platform": "meta" | "pinterest", "callToAction": "SHOP_NOW" | "BUY_NOW" | "ORDER_NOW" | "LEARN_MORE" | "GET_OFFER" | "CONTACT_US" | null, "storeId": string|null, "productId": string|null, "productName": string|null, "storeName": string|null}. Reprends storeId/productId/productName/storeName depuis le catalogue exact, même si l'utilisateur n'a donné que le nom du produit. Pour Pinterest ou en l’absence de ciblage, renseigne gender:null et interests:[] ; pour les autres informations absentes, mets null ; n'invente jamais de chiffre ni de lien. N'écris rien après ce JSON.`;
 
 export async function GET() {
@@ -122,6 +123,13 @@ export async function POST(request: Request) {
     .eq("user_id", user.id)
     .eq("is_active", true)
     .in("platform", ["chariow", "shopify"]);
+  const { data: storeConnections } = await supabase
+    .from("stores")
+    .select("store_name, platform, is_active, connection_status")
+    .eq("user_id", user.id)
+    .in("platform", ["chariow", "shopify"])
+    .order("created_at", { ascending: false })
+    .limit(20);
 
   // Historique AVANT le message courant : on le récupère avant d'insérer le nouveau
   // message pour être certain de sa position et pouvoir garantir que la conversation
@@ -339,7 +347,11 @@ export async function POST(request: Request) {
     .eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
   const assistantCampaigns: AssistantCampaign[] = managedCampaignError ? [] : (managedCampaigns ?? []);
   const launchFailureContext = launchFailureNote ? `\nMémoire de lancement : ${launchFailureNote}` : "";
-  const systemContent = `${boundedSystemContent}${campaignCatalogContext}${campaignManagementContext(assistantCampaigns)}${launchFailureContext}`;
+  const connectionContext = (storeConnections ?? []).map((store) => `${store.store_name} (${store.platform}) : ${store.is_active ? store.connection_status ?? "pending" : "inactive"}`).join("; ");
+  const unavailableStoreContext = connectionContext
+    ? `\nÉtat des connexions boutique (source de vérité, y compris boutiques inactives) : ${connectionContext}. Si l'utilisateur demande une campagne pour une boutique qui n'est pas active et connectée, ou dont l'accès a expiré/été révoqué/a échoué, dis-le explicitement avant de poursuivre et invite-le à la reconnecter depuis Mes boutiques. Ne prétends pas pouvoir lancer pour elle.`
+    : "\nAucune boutique enregistrée. Si l'utilisateur veut lancer une campagne liée à une boutique, explique qu'il doit d'abord connecter une boutique dans Mes boutiques.";
+  const systemContent = `${boundedSystemContent}${unavailableStoreContext}${campaignCatalogContext}${campaignManagementContext(assistantCampaigns)}${launchFailureContext}`;
 
   // L'historique de la conversation en cours est toujours transmis : c'est la mémoire
   // du tunnel de création de campagne. On ne le supprime plus jamais pour économiser

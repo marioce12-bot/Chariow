@@ -41,7 +41,6 @@ export async function GET(request: Request) {
       .eq("id", requestedStoreId)
       .eq("user_id", user.id)
       .eq("platform", "chariow")
-      .eq("is_active", true)
       .maybeSingle();
     if (findErr) return NextResponse.json({ error: findErr.message }, { status: 500 });
     existing = data;
@@ -90,6 +89,7 @@ export async function GET(request: Request) {
     const { error: upErr } = await supabase
       .from("stores")
       .update({
+        is_active: true,
         connection_status: "pending",
         connection_error: null,
         mcp_url: CHARIOW_MCP_URL,

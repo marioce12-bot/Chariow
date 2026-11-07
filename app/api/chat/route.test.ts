@@ -44,6 +44,9 @@ describe("POST /api/chat provider selection", () => {
     expect(messages[0].content).toContain("demande systématiquement");
     expect(messages[0].content).toContain('les pays déjà recueillis via "countries"');
     expect(messages[0].content).toContain("Ne propose jamais l’orientation sexuelle");
+    expect(messages[0].content).toContain("Ne suggère jamais un libellé comme disponible/valide sans preuve qu’il figure parmi les résultats renvoyés par Meta");
+    expect(messages[0].content).toContain("Aucune boutique enregistrée");
+    expect(messages[0].content).not.toContain("finance ou développement personnel");
     expect(options).toEqual({ timeoutMs: 60000, overloadRetries: 2 });
     expect(messages.slice(-3).map((m: any) => [m.role, m.content])).toEqual([["user", "Première question"], ["assistant", "Première réponse"], ["user", "Et ensuite ?"]]);
     expect(askOpenRouter).toHaveBeenCalledTimes(1);
