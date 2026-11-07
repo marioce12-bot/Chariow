@@ -49,6 +49,13 @@ describe("POST /api/chat provider selection", () => {
     expect(messages[0].content).toContain("Tu ne peux pas savoir quels libellés existent chez Meta");
     expect(messages[0].content).toContain("Vendeo vérifiera la correspondance avec Meta dans la carte de confirmation");
     expect(messages[0].content).toContain("Aucune boutique enregistrée");
+    expect(messages[0].content).toContain("Après le « oui » au récapitulatif final, termine par [[LANCE_CAMPAGNE]] et le JSON.");
+    expect(messages[0].content).toContain("puis appuie sur « Confirmer et lancer ». Dis que la carte est prête");
+    expect(messages[0].content).toContain("N'écris jamais « je lance », « campagne lancée » ni « campagne mise à jour » : rien n'est lancé avant ce clic.");
+    expect(messages[0].content).toContain("résume à nouveau la configuration complète et redemande sa validation avant d'émettre [[LANCE_CAMPAGNE]]");
+    expect(messages[0].content).toContain("Ne recopie jamais les valeurs techniques brutes dans la réponse");
+    expect(messages[0].content).not.toContain("est l'unique validation nécessaire");
+    expect(messages[0].content).not.toContain("ne demande pas à l'utilisateur de cliquer ensuite");
     expect(messages[0].content).not.toContain("finance ou développement personnel");
     expect(options).toEqual({ timeoutMs: 60000, overloadRetries: 2 });
     expect(messages.slice(-3).map((m: any) => [m.role, m.content])).toEqual([["user", "Première question"], ["assistant", "Première réponse"], ["user", "Et ensuite ?"]]);
