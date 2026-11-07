@@ -87,6 +87,22 @@ const json = (body: unknown, status = 200) =>
     json: async () => body,
   } as Response);
 const usagePayload = { usage };
+const referralsPayload = {
+  totalReferred: 2,
+  referrerCount: 1,
+  referrers: [
+    {
+      userId: "referrer-1",
+      email: "alice@example.test",
+      fullName: "Alice",
+      referralCount: 2,
+      referredAccounts: [
+        { userId: "friend-1", email: "one@example.test", fullName: "First" },
+        { userId: "friend-2", email: "two@example.test", fullName: "Second" },
+      ],
+    },
+  ],
+};
 let container: HTMLDivElement;
 let root: Root;
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -106,7 +122,9 @@ beforeEach(() => {
       ? json(overview)
       : String(input).startsWith("/api/admin/usage")
         ? json(usagePayload)
-        : json({}),
+        : String(input).startsWith("/api/admin/referrals")
+          ? json(referralsPayload)
+          : json({}),
   );
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -245,6 +263,30 @@ describe("tableau de bord propriétaire", () => {
       "Comptes utilisateurs",
     );
     expect(container.textContent).toContain("Private Person");
+  });
+
+  it("ouvre Parrainage et affiche les comptes parrainés avec leur parrain", async () => {
+    await renderDashboard();
+    await act(async () => {
+      const referralButton = Array.from(
+        container.querySelectorAll<HTMLButtonElement>(
+          ".admin-nav-group button",
+        ),
+      ).find((button) => button.textContent?.trim() === "Parrainage");
+      referralButton?.click();
+    });
+    await settle();
+
+    expect(container.querySelector("h1")?.textContent).toBe("Parrainage");
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).startsWith("/api/admin/referrals"),
+      ),
+    ).toBe(true);
+    expect(container.textContent).toContain("Comptes parrainés");
+    expect(container.textContent).toContain("Alice");
+    expect(container.textContent).toContain("one@example.test");
+    expect(container.textContent).toContain("Second");
   });
 
   it("demande la déconnexion par POST à l’API serveur", async () => {

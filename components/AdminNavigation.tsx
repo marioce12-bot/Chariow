@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   X,
   Users,
+  UserPlus,
   MessageSquareText,
   ShieldCheck,
 } from "lucide-react";
@@ -28,6 +29,7 @@ export const adminNavigationGroups = [
     items: [
       ["overview", LayoutDashboard],
       ["users", Users],
+      ["referrals", UserPlus],
       ["usage", BarChart3],
     ],
   },
@@ -55,6 +57,7 @@ const copy = {
   manage: ["Gestion", "Management"],
   overview: ["Vue d’ensemble", "Overview"],
   users: ["Comptes utilisateurs", "User accounts"],
+  referrals: ["Parrainage", "Referrals"],
   usage: ["Usage de Vendeo", "Vendeo usage"],
   integrations: ["Connexions & synchros", "Connections & sync"],
   notifications: ["Notifications", "Notifications"],

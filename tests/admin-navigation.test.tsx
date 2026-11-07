@@ -57,19 +57,24 @@ afterEach(() => {
 });
 
 describe("navigation propriétaire", () => {
-  it("expose dix destinations dans les groupes Observation, Contrôle et Gestion, avec aria-current", () => {
+  it("expose onze destinations dans les groupes Observation, Contrôle et Gestion, avec aria-current", () => {
     act(() =>
       root.render(<AdminNavigation active="users" onChange={vi.fn()} />),
     );
-    expect(adminSectionKeys).toHaveLength(10);
+    expect(adminSectionKeys).toHaveLength(11);
     expect(
       Array.from(container.querySelectorAll(".admin-nav-group-label")).map(
         (node) => node.textContent,
       ),
     ).toEqual(["Observation", "Contrôle", "Gestion"]);
     expect(container.querySelectorAll(".admin-nav-group button")).toHaveLength(
-      10,
+      11,
     );
+    expect(
+      Array.from(container.querySelectorAll(".admin-nav-group button")).some(
+        (button) => button.textContent === "Parrainage",
+      ),
+    ).toBe(true);
     expect(
       container.querySelector('[aria-current="page"] span')?.textContent,
     ).toBe("Comptes utilisateurs");
@@ -85,6 +90,11 @@ describe("navigation propriétaire", () => {
     expect(
       container.querySelector('[aria-current="page"] span')?.textContent,
     ).toBe("Overview");
+    expect(
+      Array.from(container.querySelectorAll(".admin-nav-group button")).some(
+        (button) => button.textContent === "Referrals",
+      ),
+    ).toBe(true);
   });
 
   it("keeps the legacy header navigation empty", () => {

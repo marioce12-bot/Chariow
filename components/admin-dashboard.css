@@ -1298,6 +1298,29 @@
 .admin-grant-modal .admin-btn-soft { background:#fff; color:#000c2e; border:1px solid #dce4f3; }
 .admin-grant-modal [role="alert"] { color:#b91c1c; }
 
+/* Referral directory: scoped to the owner-only admin console. */
+.owner-console .admin-referral-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.owner-console .admin-referral-list { display: grid; gap: 10px; }
+.owner-console .admin-referral-group { overflow: hidden; border: 1px solid var(--owner-line); border-radius: 10px; background: #fff; }
+.owner-console .admin-referral-group > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; min-height: 66px; padding: 12px 16px; cursor: pointer; list-style: none; }
+.owner-console .admin-referral-group > summary::-webkit-details-marker { display: none; }
+.owner-console .admin-referral-group[open] > summary { border-bottom: 1px solid var(--owner-line); }
+.owner-console .admin-referral-identity { display: grid; min-width: 0; gap: 3px; }
+.owner-console .admin-referral-identity strong { color: #26364e; font-size: 12px; font-weight: 650; overflow-wrap: anywhere; }
+.owner-console .admin-referral-identity small { color: #718096; font-size: 10px; overflow-wrap: anywhere; }
+.owner-console .admin-referral-summary-count { color: #475569; font-size: 11px; white-space: nowrap; }
+.owner-console .admin-referral-group > summary > svg { color: #64748b; transition: transform .15s ease; }
+.owner-console .admin-referral-group[open] > summary > svg { transform: rotate(180deg); }
+.owner-console .admin-referral-group ul { display: grid; gap: 0; margin: 0; padding: 5px 16px 8px; list-style: none; }
+.owner-console .admin-referral-group li { padding: 11px 0; border-bottom: 1px solid #edf1f7; }
+.owner-console .admin-referral-group li:last-child { border-bottom: 0; }
+@media (max-width: 620px) {
+  .owner-console .admin-referral-group > summary { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 12px; }
+  .owner-console .admin-referral-group > summary > svg { grid-column: 2; grid-row: 1; }
+  .owner-console .admin-referral-summary-count { grid-column: 1; grid-row: 2; }
+  .owner-console .admin-referral-group ul { padding-right: 12px; padding-left: 12px; }
+}
+
 /* Subscriptions: keep each account and its action together on narrow screens. */
 .owner-console .admin-subscriptions .admin-row { min-width: 610px; }
 .owner-console .admin-subscriptions .admin-row > * { min-width: 0; overflow-wrap: anywhere; }
