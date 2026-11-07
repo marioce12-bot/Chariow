@@ -136,6 +136,21 @@ function finalTimelineBlock(prompt: string, finalEntry: UgcTimelineEntry) {
   return finalLineIndex >= 0 ? lines.slice(finalLineIndex).join(" ") : finalEntry.line;
 }
 
+function finalReferenceChecks(prompt: string, input: UgcGeneratorInput) {
+  const finalEntry = readUgcTimeline(prompt).at(-1);
+  const finalVisual = finalEntry ? fold(finalTimelineBlock(prompt, finalEntry)) : "";
+  const ebook = productKind(input) !== "pack" && isEbookProduct(input.product.name, input.product.description, input.product.type, input.product.category);
+  return ebook
+    ? {
+        hasReference: /\b(?:couverture|cover)\b/u.test(finalVisual),
+        hasDevice: /\b(?:telephone|tablette|smartphone|mobile|ecran|phone|tablet)\b/u.test(finalVisual),
+        hasCloseUp: /\b(?:gros plan|plan serre|close up|closeup)\b/u.test(finalVisual),
+      }
+    : {
+        hasReference: /(?:vraie reference|reference reelle|produit reel|real reference|real product|actual product)/u.test(finalVisual),
+      };
+}
+
 function extractQuotedDialogue(prompt: string) {
   const dialogues: string[] = [];
   const expression = /DIALOGUE\s+EXACT(?:E)?\s*:\s*[«“"]([^»”"]+)[»”"]/gi;
@@ -189,6 +204,33 @@ function ctaAction(input: UgcGeneratorInput) {
   if (kind === "service" || kind === "evenement") return english ? "book this service or event" : "réserver ce service ou cet événement";
   if (kind === "physique" || kind === "mode" || kind === "food") return english ? "order this product" : "commander ce produit";
   return english ? "discover this product" : "découvrir ce produit";
+}
+
+function deterministicFinalCta(input: UgcGeneratorInput) {
+  const english = languageCode(input) === "en";
+  const kind = productKind(input);
+  const ebook = kind !== "pack" && isEbookProduct(input.product.name, input.product.description, input.product.type, input.product.category);
+  const verb = ebook ? (english ? "download" : "télécharger")
+    : kind === "pack" ? (english ? "enjoy" : "profiter de")
+      : kind === "formation" ? (english ? "access" : "accéder à")
+        : kind === "service" || kind === "evenement" ? (english ? "book" : "réserver")
+          : kind === "physique" || kind === "mode" || kind === "food" ? (english ? "order" : "commander")
+            : (english ? "discover" : "découvrir");
+  const prefix = english ? "Tap the button to" : "Appuie sur le bouton pour";
+  return `${prefix} ${verb} ${input.product.name}.`;
+}
+
+function repairFinalDialogue(prompt: string, input: UgcGeneratorInput) {
+  const checks = finalReferenceChecks(prompt, input);
+  if (!Object.values(checks).every(Boolean)) return null;
+  const entries = readUgcTimeline(prompt);
+  const matches = [...prompt.matchAll(/(DIALOGUE\s+EXACT(?:E)?\s*:\s*[«“"])([^»”"]+)([»”"])/gi)];
+  if (!entries.length || matches.length !== entries.length) return null;
+  const finalMatch = matches.at(-1)!;
+  const start = finalMatch.index;
+  if (start === undefined) return null;
+  const replacement = `${finalMatch[1]}${deterministicFinalCta(input)}${finalMatch[3]}`;
+  return `${prompt.slice(0, start)}${replacement}${prompt.slice(start + finalMatch[0].length)}`;
 }
 
 function durationInstructions(input: UgcGeneratorInput) {
@@ -246,20 +288,10 @@ export function validateUgcPrompt(raw: unknown, input: UgcGeneratorInput): strin
   const ctaVerb = ctaVerbPattern(input);
   if (!ctaVerb.test(fold(finalDialogue)) || !buttonCtaPattern(input).test(fold(finalDialogue))) failValidation("final_cta_missing", "dialogue.finalCta");
   if (dialogues.slice(0, -1).some(dialogue => ctaVerb.test(fold(dialogue)))) failValidation("cta_not_final", "dialogue.cta");
-  const finalVisual = fold(finalTimelineBlock(prompt, finalEntry));
-  const ebook = productKind(input) !== "pack" && isEbookProduct(input.product.name, input.product.description, input.product.type, input.product.category);
-  const finalVisualChecks = ebook
-    ? {
-        hasReference: /\b(?:couverture|cover)\b/u.test(finalVisual),
-        hasDevice: /\b(?:telephone|tablette|smartphone|mobile|ecran|phone|tablet)\b/u.test(finalVisual),
-        hasCloseUp: /\b(?:gros plan|plan serre|close up|closeup)\b/u.test(finalVisual),
-      }
-    : {
-        hasReference: /(?:vraie reference|reference reelle|produit reel|real reference|real product|actual product)/u.test(finalVisual),
-      };
+  const finalVisualChecks = finalReferenceChecks(prompt, input);
   const hasFinalReference = Object.values(finalVisualChecks).every(Boolean);
   if (!hasFinalReference) {
-    console.warn("Studio UGC final visual check failed", { ebook, ...finalVisualChecks });
+    console.warn("Studio UGC final visual check failed", finalVisualChecks);
     failValidation("final_cta_missing", "visual.finalReference");
   }
 
@@ -360,6 +392,7 @@ export async function generateUgcPrompt(input: UgcGeneratorInput): Promise<strin
     { role: "user", content: JSON.stringify(promptPayload(input)) },
   ];
   let lastError: UgcPromptGenerationError | null = null;
+  let lastGeneratedOutput: string | null = null;
   let attempts = 0;
 
   for (let attempt = 0; attempt <= UGC_PROMPT_MAX_RETRIES; attempt++) {
@@ -371,6 +404,7 @@ export async function generateUgcPrompt(input: UgcGeneratorInput): Promise<strin
     attempts++;
     try {
       const result = await askText(messages, { order: ["openrouter"], model: UGC_TEXT_MODEL, timeoutMs });
+      if (typeof result === "string") lastGeneratedOutput = result;
       try {
         const prompt = validateUgcPrompt(result, input);
         console.info("Studio UGC prompt generated", { durationMs: Date.now() - startedAt, retries: attempts - 1, failureRule: null });
@@ -399,6 +433,19 @@ export async function generateUgcPrompt(input: UgcGeneratorInput): Promise<strin
       }
     }
     break;
+  }
+
+  if (lastError?.details.type === "final_cta_missing" && lastGeneratedOutput) {
+    const repaired = repairFinalDialogue(lastGeneratedOutput, input);
+    if (repaired) {
+      try {
+        const prompt = validateUgcPrompt(repaired, input);
+        console.info("Studio UGC final CTA repaired", { durationMs: Date.now() - startedAt, retries: attempts - 1, failureRule: "final_cta_missing" });
+        return prompt;
+      } catch (error) {
+        lastError = error instanceof UgcPromptGenerationError ? error : new UgcPromptGenerationError("Le texte généré n’a pas passé les contrôles.", "validation", { type: "empty_output" });
+      }
+    }
   }
 
   const failure = lastError ?? new UgcPromptGenerationError("Le scénario vidéo n’a pas pu être préparé.", "provider", { type: "provider_error" });
