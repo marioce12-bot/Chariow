@@ -5,10 +5,13 @@ import { searchMetaInterests } from "@/lib/meta/api";
 import {
   buildInterestSearchQueries,
   normalizeInterestLabel,
+  pickBestMetaInterest,
   rankMetaInterestCandidates,
-  resolveExactMetaInterests,
+  type MetaInterestConfidence,
   type MetaInterestTarget,
 } from "@/lib/ad-campaigns/meta-targeting";
+
+type InterestOption = Awaited<ReturnType<typeof searchMetaInterests>>[number];
 
 const SEARCH_FAILED_MESSAGE = "Impossible de vérifier les centres d’intérêt auprès de Meta.";
 
@@ -57,34 +60,52 @@ export async function POST(request: Request) {
   const accessToken = decryptSecret(account.access_token_encrypted);
   let successfulSearches = 0;
   let failedSearches = 0;
+  const search = (query: string) => searchLocale
+    ? searchMetaInterests(query, accessToken, { locale: searchLocale })
+    : searchMetaInterests(query, accessToken);
   const results = await Promise.all(labels.map(async (label) => {
-    const queries = buildInterestSearchQueries(label);
-    const searches = await Promise.allSettled(queries.map((query) => searchLocale
-      ? searchMetaInterests(query, accessToken, { locale: searchLocale })
-      : searchMetaInterests(query, accessToken)));
-    const merged = new Map<string, MetaInterestTarget>();
-    for (const search of searches) {
-      if (search.status === "rejected") {
-        failedSearches += 1;
-        continue;
+    const merged = new Map<string, InterestOption>();
+    const collect = (outcomes: PromiseSettledResult<InterestOption[]>[]) => {
+      for (const outcome of outcomes) {
+        if (outcome.status === "rejected") {
+          failedSearches += 1;
+          continue;
+        }
+        successfulSearches += 1;
+        for (const option of outcome.value) {
+          if (option && typeof option.id === "string" && !merged.has(option.id)) merged.set(option.id, option);
+        }
       }
-      successfulSearches += 1;
-      for (const option of search.value) {
-        if (option && typeof option.id === "string" && !merged.has(option.id)) merged.set(option.id, option);
+    };
+
+    // Étape 1 : uniquement le libellé complet. Étape 2 (repli) seulement si l'étape 1
+    // ne donne ni correspondance exacte ni correspondance hors précision de Meta.
+    collect(await Promise.allSettled([search(label)]));
+    let pick = pickBestMetaInterest(label, Array.from(merged.values()));
+    if (pick?.confidence !== "exact" && pick?.confidence !== "base") {
+      const fallbackQueries = buildInterestSearchQueries(label).slice(1);
+      if (fallbackQueries.length) {
+        collect(await Promise.allSettled(fallbackQueries.map(search)));
+        pick = pickBestMetaInterest(label, Array.from(merged.values()));
       }
     }
-    const candidates = Array.from(merged.values());
-    const exact = resolveExactMetaInterests([label], candidates).resolved[0] ?? null;
-    const suggestions = exact ? [] : rankMetaInterestCandidates(label, candidates, 5);
-    return { label, exact, suggestions };
+
+    const selected: MetaInterestTarget | null = pick ? { id: pick.interest.id, name: pick.interest.name } : null;
+    const confidence: MetaInterestConfidence | null = pick?.confidence ?? null;
+    const suggestions = selected
+      ? []
+      : rankMetaInterestCandidates(label, Array.from(merged.values()), 3);
+    return { label, selected, confidence, suggestions };
   }));
 
-  const exactCount = results.filter((result) => result.exact !== null).length;
+  const exactCount = results.filter((result) => result.confidence === "exact").length;
+  const adaptedCount = results.filter((result) => result.confidence === "base" || result.confidence === "close").length;
   const suggestedCount = results.filter((result) => result.suggestions.length > 0).length;
   if (failedSearches > 0 || labels.length > 0) {
     console.info("meta_interest_resolve", {
       requested: labels.length,
       exact: exactCount,
+      adapted: adaptedCount,
       suggested: suggestedCount,
       failed: failedSearches,
     });
