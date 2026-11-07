@@ -118,7 +118,7 @@ function languageCode(input: UgcGeneratorInput): "fr" | "en" {
 }
 
 export type UgcTimelineEntry = { start: number; end: number; line: string };
-const TIMELINE_LINE = /^\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:-|–|—|to|à)\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:s|sec(?:onde)?s?)\s*(?:\||:|—|-)\s*(.+)$/i;
+const TIMELINE_LINE = /^\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:-|–|—|to|à)\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:s|secs?|second(?:e)?s?)\s*(?:\||:|—|-)\s*(.+)$/i;
 
 export function readUgcTimeline(prompt: string): UgcTimelineEntry[] {
   return prompt.split(/\r?\n/).flatMap(line => {
@@ -257,6 +257,63 @@ function inputSourceText(input: UgcGeneratorInput) {
   return [input.product.name, input.product.description, input.product.content, input.product.price, input.product.currency, input.product.category, input.product.type, ...input.product.tags, input.product.shop].join(" ");
 }
 
+const NUMBER_WORD_VALUES: Record<string, number> = {
+  zero: 0, un: 1, une: 1, one: 1, deux: 2, two: 2, trois: 3, three: 3, quatre: 4, four: 4,
+  cinq: 5, five: 5, six: 6, sept: 7, seven: 7, huit: 8, eight: 8, neuf: 9, nine: 9,
+  dix: 10, ten: 10, onze: 11, eleven: 11, douze: 12, twelve: 12, treize: 13, thirteen: 13,
+  quatorze: 14, fourteen: 14, quinze: 15, fifteen: 15, seize: 16, sixteen: 16,
+  dixsept: 17, seventeen: 17, dixhuit: 18, eighteen: 18, dixneuf: 19, nineteen: 19,
+  vingt: 20, twenty: 20, trente: 30, thirty: 30, quarante: 40, forty: 40, cinquante: 50, fifty: 50,
+  soixante: 60, sixty: 60, soixantedix: 70, seventy: 70, quatrevingt: 80, vingts: 20, eighty: 80,
+  quatrevingtdix: 90, ninety: 90, cent: 100, cents: 100, hundred: 100, mille: 1000, thousand: 1000,
+};
+const NUMBER_WORD = Object.keys(NUMBER_WORD_VALUES).sort((a, b) => b.length - a.length).join("|");
+const QUANTIFIABLE_UNITS = "jours?|days?|semaines?|weeks?|mois|months?|ans|annees?|years?|heures?|hours?|minutes?|secondes?|seconds?|pages?|chapitres?|chapters?|etapes?|steps?|exercices?|exercises?|outils?|tools?|conseils?|tips?|modeles?|models?|modules?|lessons?|lecons?|techniques?|methods?|methodes?|astuces?|questions?|phrases?|solutions?|strategies?|habitudes?|habits?|candidatures?|applications?|objectifs?|goals?|erreurs?|mistakes?|raisons?|reasons?|avantages?|advantages?|benefices?|benefits?|resultats?|results?|points?|facons?|ways?|mouvements?|movements?";
+const SOURCED_NUMBER_WORD = new RegExp(`\\b(${NUMBER_WORD}(?:\\s+(?:(?:et|and)\\s+)?${NUMBER_WORD}){0,3})\\s+(?:${QUANTIFIABLE_UNITS})\\b`, "gu");
+
+function normalizeNumericValue(value: string) {
+  const [integer, fraction = ""] = value.replace(",", ".").split(".");
+  const normalizedInteger = integer.replace(/^0+(?=\d)/, "");
+  const normalizedFraction = fraction.replace(/0+$/, "");
+  return normalizedFraction ? `${normalizedInteger}.${normalizedFraction}` : normalizedInteger;
+}
+
+function parseNumberWords(phrase: string): number | null {
+  const words = phrase.split(/\s+/).filter(word => word !== "et" && word !== "and");
+  const values = words.map(word => NUMBER_WORD_VALUES[word]);
+  if (!words.length || values.some(value => value === undefined)) return null;
+  const parsedValues = values as number[];
+  if (words[0] === "quatre" && (words[1] === "vingt" || words[1] === "vingts")) return 80 + parsedValues.slice(2).reduce((sum, value) => sum + value, 0);
+  let total = 0;
+  let current = 0;
+  for (const value of parsedValues) {
+    if (value === 100 || value === 1000) {
+      total += (current || 1) * value;
+      current = 0;
+    } else {
+      current += value;
+    }
+  }
+  return total + current;
+}
+
+function numericValues(text: string) {
+  const values = new Set((text.match(/\d+(?:[.,]\d+)?/g) ?? []).map(normalizeNumericValue));
+  for (const match of fold(text).matchAll(SOURCED_NUMBER_WORD)) {
+    const value = parseNumberWords(match[1]);
+    if (value !== null) values.add(String(value));
+  }
+  return values;
+}
+
+function productNumbers(source: string) {
+  return numericValues(source);
+}
+
+function promptNumbers(prompt: string) {
+  return [...numericValues(prompt)];
+}
+
 function failValidation(type: UgcPromptFailureRule, path: string, extra: { expectedBeats?: number; actualBeats?: number } = {}): never {
   throw new UgcPromptGenerationError("Le prompt généré ne respecte pas un contrôle de qualité.", "validation", { type, path, ...extra });
 }
@@ -308,10 +365,11 @@ export function validateUgcPrompt(raw: unknown, input: UgcGeneratorInput): strin
   if (!fold(prompt).includes(fold(input.product.name))) failValidation("product_name_missing", "product.name");
 
   const source = inputSourceText(input);
-  const sourceNumbers = new Set([...(source.match(/\d+(?:[.,]\d+)?/g) ?? []), String(duration)].map(value => value.replace(",", ".")));
+  const sourceNumbers = productNumbers(source);
+  sourceNumbers.add(normalizeNumericValue(String(duration)));
   const withoutTimeline = prompt.split(/\r?\n/).map(line => line.replace(TIMELINE_LINE, "$3")).join(" ");
-  const generatedNumbers = withoutTimeline.match(/\d+(?:[.,]\d+)?/g) ?? [];
-  if (generatedNumbers.some(value => !sourceNumbers.has(value.replace(",", ".")))) failValidation("unsupported_numeric_claim", "claims.number");
+  const generatedNumbers = promptNumbers(withoutTimeline);
+  if (generatedNumbers.some(value => !sourceNumbers.has(value))) failValidation("unsupported_numeric_claim", "claims.number");
 
   const sourceFolded = fold(source);
   const guarantees = [...prompt.matchAll(GUARANTEE_PATTERN)].map(match => fold(match[0]));
@@ -367,8 +425,8 @@ function correctionMessage(rule: UgcPromptFailureRule, input: UgcGeneratorInput)
   const ebook = productKind(input) !== "pack" && isEbookProduct(input.product.name, input.product.description, input.product.type, input.product.category);
   const language = languageCode(input);
   const buttonAction = ctaAction(input);
-  const specific = rule === "wrong_beat_count" || rule === "timeline_boundaries_mismatch"
-    ? `La durée est ${input.options.duration}s: tu dois produire exactement ces ${contract.beats} lignes de temps, en recopiant exactement ces bornes: ${exactRanges}s. Ne crée aucune autre plage.`
+  const specific = rule === "timeline_incomplete" || rule === "segment_boundary" || rule === "wrong_beat_count" || rule === "timeline_boundaries_mismatch"
+    ? `La durée est ${input.options.duration}s: produis exactement ces ${contract.beats} lignes, avec ces bornes fixes et contiguës: ${exactRanges}s. Écris une plage par ligne au format « 0–5s | ACTION: ...; CAMÉRA: ...; DIALOGUE EXACT: «...» ». Pour 30 s, la coupure reste exactement 15 s + 15 s. Ne crée aucune autre plage et ne change pas les faits du produit.`
     : rule === "final_cta_missing"
       ? `${language === "en" ? "Correct final_cta_missing: the last dialogue must explicitly say to tap the button to " : "Corrige précisément final_cta_missing: la dernière réplique doit explicitement demander d'appuyer sur le bouton pour "}${buttonAction}, inclure le nom exact du produit, et le dernier temps doit montrer ${ebook ? "la couverture réelle sur un téléphone ou une tablette en gros plan net, titre et illustration intacts" : "la vraie référence du produit"}. Décris toute cette action dans le bloc du dernier temps; n'invente pas de libellé de bouton.`
       : `Corrige précisément le contrôle « ${rule} » en respectant le contrat de durée déjà donné.`;
