@@ -51,15 +51,15 @@ describe("assembleur du prompt UGC texte libre", () => {
     expect(prompt).toContain(UGC_SAFETY_BLOCK_END);
     expect(prompt).toContain("REAL PRODUCT");
     expect(prompt).toContain("FACTS");
-    expect(prompt).toContain("chaque avantage ou promesse présenté dans le dialogue doit être explicitement indiqué dans la description du produit");
-    expect(prompt).toContain("synchronise chaque action ou exemple visuel avec la réplique qui présente l'avantage correspondant");
+    expect(prompt).toContain("Avantages/promesses uniquement dans description, jamais titre/contenu/type/prix/étiquettes");
+    expect(prompt).toContain("synchroniser chaque avantage avec son usage décrit");
     expect(prompt).toContain('"titre":"Guide Jardin en Pots"');
     expect(prompt).toContain("portrait 9:16");
-    expect(prompt).toContain("adultes fictifs uniquement");
-    expect(prompt).toContain("DERNIER TEMPS: appel à l'action pour télécharger");
-    expect(prompt).toContain("couverture réelle sur téléphone ou tablette tenu face caméra, en gros plan net");
-    expect(prompt).toContain("watermark inventé");
-    expect(prompt).toContain("aucun sous-titre, texte incrusté");
+    expect(prompt).toContain("adultes fictifs noirs/métissés uniquement");
+    expect(prompt).toContain("CTA FINAL: Appuie sur le bouton pour télécharger; nom exact, dernier temps seulement");
+    expect(prompt).toContain("Couverture réelle centrée face caméra en gros plan net");
+    expect(prompt).toContain("téléphone/tablette, jamais redessinée");
+    expect(prompt).toContain("aucun sous-titre, texte ajouté, logo ou watermark");
     expect(prompt).toContain("Scène: un balcon lumineux");
     expect(prompt).not.toMatch(/^\s*\{/);
   });
@@ -86,7 +86,7 @@ describe("assembleur du prompt UGC texte libre", () => {
       expect(Array.from(segment.prompt).length).toBeLessThanOrEqual(3600);
       expect(segment.prompt).toContain("REAL PRODUCT");
       expect(segment.prompt).toContain("FACTS");
-      expect(segment.prompt).toContain("adultes fictifs uniquement");
+      expect(segment.prompt).toContain("adultes fictifs noirs/métissés uniquement");
     }
   });
 

@@ -269,7 +269,8 @@ const NUMBER_WORD_VALUES: Record<string, number> = {
 };
 const NUMBER_WORD = Object.keys(NUMBER_WORD_VALUES).sort((a, b) => b.length - a.length).join("|");
 const QUANTIFIABLE_UNITS = "jours?|days?|semaines?|weeks?|mois|months?|ans|annees?|years?|heures?|hours?|minutes?|secondes?|seconds?|pages?|chapitres?|chapters?|etapes?|steps?|exercices?|exercises?|outils?|tools?|conseils?|tips?|modeles?|models?|modules?|lessons?|lecons?|techniques?|methods?|methodes?|astuces?|questions?|phrases?|solutions?|strategies?|habitudes?|habits?|candidatures?|applications?|objectifs?|goals?|erreurs?|mistakes?|raisons?|reasons?|avantages?|advantages?|benefices?|benefits?|resultats?|results?|points?|facons?|ways?|mouvements?|movements?";
-const SOURCED_NUMBER_WORD = new RegExp(`\\b(${NUMBER_WORD}(?:\\s+(?:(?:et|and)\\s+)?${NUMBER_WORD}){0,3})\\s+(?:${QUANTIFIABLE_UNITS})\\b`, "gu");
+const SOURCED_NUMBER_WORD = new RegExp(`\\b(${NUMBER_WORD}(?:\\s+(?:(?:et|and)\\s+)?${NUMBER_WORD}){0,3})\\s+(${QUANTIFIABLE_UNITS})\\b`, "gu");
+const ABSTRACT_ARTICLE_UNIT = /^(?:solutions?|strategies?|objectifs?|avantages?|benefices?|resultats?)$/u;
 
 function normalizeNumericValue(value: string) {
   const [integer, fraction = ""] = value.replace(",", ".").split(".");
@@ -300,6 +301,9 @@ function parseNumberWords(phrase: string): number | null {
 function numericValues(text: string) {
   const values = new Set((text.match(/\d+(?:[.,]\d+)?/g) ?? []).map(normalizeNumericValue));
   for (const match of fold(text).matchAll(SOURCED_NUMBER_WORD)) {
+    // French indefinite articles are not quantified claims about abstract outcomes.
+    // Keep explicit numerals, compound numbers, and measurable "un jour/une page".
+    if (/^(?:un|une)$/u.test(match[1]) && ABSTRACT_ARTICLE_UNIT.test(match[2])) continue;
     const value = parseNumberWords(match[1]);
     if (value !== null) values.add(String(value));
   }
