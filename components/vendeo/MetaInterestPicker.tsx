@@ -14,6 +14,7 @@ export interface MetaInterestPickerProps {
 
 export function MetaInterestPicker({ accountId, value, onChange, max = 10, locale, disabled = false }: MetaInterestPickerProps) {
   const en = locale === "en";
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MetaInterestTarget[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,13 +39,19 @@ export function MetaInterestPicker({ accountId, value, onChange, max = 10, local
     onChange([...value, { id: item.id, name: item.name }]);
     setQuery(""); setResults([]);
   };
-  return <div className="chat-meta-interests">
-    <input type="search" aria-label={en ? "Search Meta interests" : "Rechercher un centre d’intérêt Meta"} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={en ? "Search an interest" : "Rechercher un centre d’intérêt"} autoComplete="off" disabled={disabled || !accountId} />
-    {!accountId && <small>{en ? "Choose a Meta ad account to search interests." : "Choisis un compte Meta Ads pour rechercher des centres d’intérêt."}</small>}
-    {query.trim().length >= 2 && <div role="listbox" aria-label={en ? "Meta interest suggestions" : "Suggestions de centres d’intérêt Meta"}>
-      {loading ? <p>{en ? "Searching Meta…" : "Recherche auprès de Meta…"}</p> : null}
-      {!loading && results.filter((item) => !selected.has(item.id)).map((item) => <button key={item.id} type="button" role="option" aria-selected="false" disabled={disabled || value.length >= max} onClick={() => add(item)}>{item.name}</button>)}
-      {!loading && results.filter((item) => !selected.has(item.id)).length === 0 && <p>{en ? "No Meta interests found." : "Aucun centre d’intérêt Meta trouvé."}</p>}
+  if (!open) {
+    return <div className="chat-launch-interest-picker">
+      <button type="button" className="chat-launch-interest-add" disabled={disabled || value.length >= max} onClick={() => setOpen(true)}>{en ? "+ Add an interest" : "+ Ajouter un centre d’intérêt"}</button>
+    </div>;
+  }
+  const available = results.filter((item) => !selected.has(item.id));
+  return <div className="chat-launch-interest-picker">
+    <input className="chat-launch-interest-input" type="search" aria-label={en ? "Search Meta interests" : "Rechercher un centre d’intérêt Meta"} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={en ? "Search an interest" : "Rechercher un centre d’intérêt"} autoComplete="off" disabled={disabled || !accountId} autoFocus />
+    {!accountId && <p className="chat-launch-interest-muted">{en ? "Choose a Meta ad account to search interests." : "Choisis un compte Meta Ads pour rechercher des centres d’intérêt."}</p>}
+    {query.trim().length >= 2 && <div className="chat-launch-interest-results" role="listbox" aria-label={en ? "Meta interest suggestions" : "Suggestions de centres d’intérêt Meta"}>
+      {loading ? <p className="chat-launch-interest-muted">{en ? "Searching Meta…" : "Recherche auprès de Meta…"}</p> : null}
+      {!loading && available.map((item) => <button key={item.id} type="button" role="option" aria-selected="false" className="chat-launch-interest-result" disabled={disabled || value.length >= max} onClick={() => add(item)}>{item.name}</button>)}
+      {!loading && available.length === 0 && <p className="chat-launch-interest-muted">{en ? "No Meta interests found." : "Aucun centre d’intérêt Meta trouvé."}</p>}
     </div>}
   </div>;
 }
