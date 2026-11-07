@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { actionValue, fetchMetaInsights, MetaCampaignIdentityUnsupportedError } from "./api";
+import { actionValue, fetchMetaInsights, MetaCampaignIdentityUnsupportedError, searchMetaInterests } from "./api";
 
 describe("actionValue", () => {
   it("retient uniquement le premier type d'achat prioritaire présent", () => {
@@ -22,6 +22,16 @@ describe("actionValue", () => {
 });
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+
+describe("searchMetaInterests", () => {
+  it("adds locale only when provided", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ data: [{ id: "123", name: "Éducation" }] })));
+    await searchMetaInterests("éducation", "test-token", { locale: "fr_FR" });
+    expect(new URL(String(fetch.mock.calls[0][0])).searchParams.get("locale")).toBe("fr_FR");
+    await searchMetaInterests("education", "test-token");
+    expect(new URL(String(fetch.mock.calls[1][0])).searchParams.has("locale")).toBe(false);
+  });
+});
 
 describe("fetchMetaInsights", () => {
   it("requests campaign identity for the account-wide campaign query", async () => {
