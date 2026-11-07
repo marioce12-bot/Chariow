@@ -151,7 +151,7 @@ function DashboardWorkspace() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [moreOpen]);
-  const [settingsFocus, setSettingsFocus] = useState<"index" | "appearance" | "accounts">("index");
+  const [settingsFocus, setSettingsFocus] = useState<"index" | "appearance" | "accounts" | "referral">("index");
   const [settingsNavigationVersion, setSettingsNavigationVersion] = useState(0);
   function openSettingsIndex() {
     setSettingsFocus("index");
@@ -262,6 +262,14 @@ function DashboardWorkspace() {
     window.dispatchEvent(new Event(SUBSCRIPTION_EXPIRED_MODAL_EVENT));
   }
   function navigateToSection(section: string) {
+    if (section === "Parrainage") {
+      setSettingsFocus("referral");
+      setSettingsNavigationVersion((version) => version + 1);
+      setMoreOpen(false);
+      setGuideMenuTarget(null);
+      setActive("Paramètres");
+      return;
+    }
     if (subscriptionExpired && SUBSCRIPTION_GATED_SECTIONS.has(section)) {
       showExpiredSubscriptionModal();
       return;

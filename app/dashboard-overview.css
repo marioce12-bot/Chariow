@@ -13,6 +13,7 @@
 .overview-feature-card--radar { background: linear-gradient(135deg, #be123c, #ec4899); }
 .overview-feature-card--whatsapp-channel { background: linear-gradient(135deg, #047857, #10b981); }
 .overview-feature-card--training { background: linear-gradient(135deg, #4c1d95, #7c3aed); }
+.overview-feature-card--referral { background-color: #12213a; background-image: linear-gradient(90deg, rgba(12, 26, 48, .94) 0%, rgba(12, 26, 48, .82) 56%, rgba(12, 26, 48, .3) 100%), url("/landing/digital-creator.webp"); background-position: center 38%; background-size: cover; }
 .overview-feature-card-icon { align-items: center; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.25); border-radius: 12px; display: flex; flex: none; height: 44px; justify-content: center; width: 44px; }
 .overview-feature-card-content { max-width: 680px; padding-right: 24px; }
 .overview-feature-card h2 { color: inherit; font-size: clamp(20px, 3vw, 30px); letter-spacing: -.03em; line-height: 1.1; margin: 0 0 10px; }

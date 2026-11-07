@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRight, BookOpen, CheckCircle2, Clock, Lightbulb, Megaphone, MessageSquare, Package, Sparkles, X, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowRight, BookOpen, CheckCircle2, Clock, Gift, Lightbulb, Megaphone, MessageSquare, Package, Sparkles, X, XCircle } from "lucide-react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
 import { getGreeting } from "@/lib/greetings";
 import type { ReactNode } from "react";
@@ -112,6 +112,15 @@ export function OverviewHome({
   const en = locale === "en";
   const tr = (fr: string, english: string) => (en ? english : fr);
   const featureCards = [
+    {
+      id: "referral",
+      className: "referral",
+      Icon: Gift,
+      title: tr("Le programme de parrainage est disponible.", "The referral program is here."),
+      description: tr("Partage ton lien et retrouve ici tes invitations et tes récompenses.", "Share your link and follow your referrals and rewards here."),
+      action: tr("Découvrir Parrainage", "Explore referrals"),
+      section: "Parrainage",
+    },
     {
       id: "studio",
       className: "studio",
