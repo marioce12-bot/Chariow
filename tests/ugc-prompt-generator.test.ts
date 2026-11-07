@@ -12,12 +12,14 @@ const input = (duration = 10, product?: Partial<UgcGeneratorInput["product"]>): 
 const promptFor = (duration: number, options: { title?: string; ebook?: boolean; finalDialogue?: string; finalVisual?: string } = {}) => {
   const title = options.title ?? "Savon Kora";
   const ebook = options.ebook ?? false;
-  const bounds = duration === 10 ? [[0, 3], [3, 6.5], [6.5, 10]] : duration === 15 ? [[0, 3.5], [3.5, 7.5], [7.5, 11.5], [11.5, 15]] : [[0, 5], [5, 10], [10, 15], [15, 21], [21, 25]];
+  const bounds = duration === 10 ? [[0, 3], [3, 6.5], [6.5, 10]] : duration === 15 ? [[0, 3.5], [3.5, 7.5], [7.5, 11.5], [11.5, 15]] : duration === 30 ? [[0, 5], [5, 10], [10, 15], [15, 20], [20, 25], [25, 30]] : [[0, 5], [5, 10], [10, 15], [15, 21], [21, 25]];
   const dialogue = duration === 10
     ? ["Tu cherches une idée nouvelle pour ta routine ?", "Je prends le produit et l'observe tranquillement."]
     : duration === 15
       ? ["Tu cherches une idée nouvelle pour ta routine ?", "Je prends le produit et l'observe tranquillement.", "Je le tourne doucement et regarde ses détails en lumière naturelle."]
-      : ["Tu cherches une idée pour ta routine sans savoir par où commencer ?", "Je prends le produit et j'observe attentivement sa forme dans la lumière.", "Je le tourne doucement et prends le temps d'observer les détails en lumière naturelle.", "Je choisis un décor simple, rapproche le produit et le garde visible devant la caméra."];
+      : duration === 30
+        ? ["Tu cherches une idée pour ta routine sans savoir par où commencer ?", "Je prends le produit et j'observe attentivement sa forme dans la lumière.", "Je le tourne doucement et prends le temps d'observer les détails en lumière naturelle.", "Je choisis un décor simple et garde le produit visible devant la caméra.", "Je termine avec la référence bien visible."]
+        : ["Tu cherches une idée pour ta routine sans savoir par où commencer ?", "Je prends le produit et j'observe attentivement sa forme dans la lumière.", "Je le tourne doucement et prends le temps d'observer les détails en lumière naturelle.", "Je choisis un décor simple, rapproche le produit et le garde visible devant la caméra."];
   const final = options.finalDialogue ?? (ebook ? `Appuie sur le bouton pour télécharger ${title} dès maintenant.` : `Appuie sur le bouton pour commander ${title} maintenant.`);
   const allDialogues = [...dialogue, final];
   const defaultVisual = ebook
@@ -27,6 +29,24 @@ const promptFor = (duration: number, options: { title?: string; ebook?: boolean;
   return `Scénario vidéo UGC — ${duration} secondes\n${bounds.map(([start, end], i) => `${start}–${end}s | ACTION: ${i === bounds.length - 1 ? finalVisual : "une personne présente le produit dans une scène quotidienne"}; CAMÉRA: plan vertical naturel; DIALOGUE EXACT: «${allDialogues[i]}»`).join("\n")}`;
 };
 
+const syntheticGuideFixtures = [
+  {
+    name: "Comment être recommandé pour un emploi",
+    description: "Guide pratique pour améliorer sa présentation professionnelle et demander une recommandation. La démarche est structurée en trois étapes de préparation d'une candidature.",
+    claim: "Le guide présente 3 étapes pour préparer une candidature.",
+  },
+  {
+    name: "Comment créer une relation avec son enfant",
+    description: "Guide pour aider un parent à construire une relation de confiance avec son enfant, avec cinq exercices de dialogue adaptés au quotidien.",
+    claim: "Ce guide comprend 5 exercices de dialogue parent-enfant.",
+  },
+] as const;
+
+const replaceDialogueAt = (prompt: string, index: number, dialogue: string) => {
+  let current = 0;
+  return prompt.replace(/DIALOGUE EXACT: «[^»]*»/g, match => current++ === index ? `DIALOGUE EXACT: «${dialogue}»` : match);
+};
+
 beforeEach(() => askText.mockReset());
 
 describe("générateur UGC texte libre avec règles de durée ciblées", () => {
@@ -34,6 +54,7 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     { duration: 10, beats: 3, contract: /exactement 3 temps.*plages fixes.*0–3, 3–6\.5, 6\.5–10.*dialogue court et naturel.*appel à l'action final/ },
     { duration: 15, beats: 4, contract: /exactement 4 temps.*plages fixes.*0–3\.5, 3\.5–7\.5, 7\.5–11\.5, 11\.5–15.*dialogue court et naturel.*appel à l'action final/ },
     { duration: 25, beats: 5, contract: /exactement 5 temps.*plages fixes.*0–5, 5–10, 10–15, 15–21, 21–25.*dialogue court et naturel.*appel à l'action final/ },
+    { duration: 30, beats: 6, contract: /exactement 6 temps.*plages fixes.*0–5, 5–10, 10–15, 15–20, 20–25, 25–30.*dialogue court et naturel.*appel à l'action final/ },
   ])("respecte le contrat $duration s: $beats temps sans quota de mots", async ({ duration, beats, contract }) => {
     const expected = promptFor(duration);
     askText.mockResolvedValueOnce(expected);
@@ -55,8 +76,10 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     expect(messages[0].content).toMatch(/synchronise dans le même temps horodaté/i);
     expect(messages[0].content).toMatch(/appuyer sur le bouton/i);
     expect(messages[0].content).toMatch(/jamais des textes incrustés, sous-titres/i);
+    if (duration === 30) expect(messages[0].content).toContain("30 s = 15 s + 15 s");
     expect(expected).not.toMatch(/^\s*\{/);
     if (duration === 25) expect(expected).toMatch(/15–21s/);
+    if (duration === 30) expect(readUgcTimeline(expected).map(({ start, end }) => [start, end])).toEqual([[0, 5], [5, 10], [10, 15], [15, 20], [20, 25], [25, 30]]);
   });
 
   it("accepte un CTA ebook Télécharger avec couverture réelle sur téléphone", () => {
@@ -65,6 +88,58 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     expect(validateUgcPrompt(prompt, ebookInput)).toBe(prompt);
     expect(prompt).toMatch(/Appuie sur le bouton pour télécharger Guide Excel Facile/);
     expect(prompt).toMatch(/couverture réelle sur téléphone/);
+  });
+
+  it.each(syntheticGuideFixtures)("accepte un chiffre repris des données du guide « $name »", guide => {
+    const guideInput = input(30, { name: guide.name, description: guide.description, type: "ebook", category: "Guide pratique" });
+    const prompt = replaceDialogueAt(promptFor(30, { title: guide.name, ebook: true }), 2, guide.claim);
+    expect(validateUgcPrompt(prompt, guideInput)).toBe(prompt);
+  });
+
+  it("rejette toujours un chiffre qui n'est pas dans les données synthétiques du guide emploi", () => {
+    const guide = syntheticGuideFixtures[0];
+    const guideInput = input(30, { name: guide.name, description: guide.description, type: "ebook", category: "Guide pratique" });
+    const prompt = replaceDialogueAt(promptFor(30, { title: guide.name, ebook: true }), 2, "Le guide propose une méthode efficace en 7 jours.");
+    let failure: unknown;
+    try { validateUgcPrompt(prompt, guideInput); } catch (error) { failure = error; }
+    expect(failure).toMatchObject({ stage: "validation", details: { type: "unsupported_numeric_claim", path: "claims.number" } });
+  });
+
+  it("rejette un nombre non sourcé écrit en toutes lettres en français", () => {
+    const guide = syntheticGuideFixtures[0];
+    const guideInput = input(30, { name: guide.name, description: guide.description, type: "ebook", category: "Guide pratique" });
+    const prompt = replaceDialogueAt(promptFor(30, { title: guide.name, ebook: true }), 2, "Le guide promet un résultat en sept jours.");
+    let failure: unknown;
+    try { validateUgcPrompt(prompt, guideInput); } catch (error) { failure = error; }
+    expect(failure).toMatchObject({ stage: "validation", details: { type: "unsupported_numeric_claim", path: "claims.number" } });
+  });
+
+  it("rejette une quantité non sourcée écrite en anglais dans une action", () => {
+    const guide = syntheticGuideFixtures[0];
+    const guideInput = input(30, { name: guide.name, description: guide.description, type: "ebook", category: "Guide pratique" });
+    const prompt = promptFor(30, { title: guide.name, ebook: true }).replace("ACTION: une personne présente le produit dans une scène quotidienne", "ACTION: illustration de seven days");
+    let failure: unknown;
+    try { validateUgcPrompt(prompt, guideInput); } catch (error) { failure = error; }
+    expect(failure).toMatchObject({ stage: "validation", details: { type: "unsupported_numeric_claim", path: "claims.number" } });
+  });
+
+  it("reconnaît les unités anglaises de chronologie tout en conservant la coupure fixe 15 s + 15 s", () => {
+    const productInput = input(30);
+    const prompt = promptFor(30).split("s |").join(" seconds |");
+    expect(readUgcTimeline(prompt).map(({ start, end }) => [start, end])).toEqual([[0, 5], [5, 10], [10, 15], [15, 20], [20, 25], [25, 30]]);
+    expect(validateUgcPrompt(prompt, productInput)).toBe(prompt);
+  });
+
+  it("répète les bornes exactes de 30 s lors du retry après une chronologie incomplète", async () => {
+    const valid = promptFor(30);
+    const incomplete = valid.replace("10–15s", "11–15s");
+    askText.mockResolvedValueOnce(incomplete).mockResolvedValueOnce(valid);
+    await expect(generateUgcPrompt(input(30))).resolves.toBe(valid);
+    expect(askText).toHaveBeenCalledTimes(2);
+    const correction = askText.mock.calls[1][0].at(-1).content;
+    expect(correction).toContain("0–5, 5–10, 10–15, 15–20, 20–25, 25–30");
+    expect(correction).toContain("15 s + 15 s");
+    expect(correction).toContain("ne change pas les faits du produit");
   });
 
   it.each([
