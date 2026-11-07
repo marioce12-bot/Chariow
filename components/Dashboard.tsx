@@ -45,6 +45,7 @@ import "@/app/dashboard-refinement.css";
 import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
 import { StoreConnectionGate, hasConnectedCommerceStore, shouldShowStoreConnectionGate, STORE_ONBOARDING_STORAGE_KEY } from "./dashboard/StoreConnectionGate";
 import { SaleCelebration } from "./dashboard/SaleCelebration";
+import { ReferralBonusPopup } from "./dashboard/ReferralBonusPopup";
 import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
 import { hasActivePaidTrainingSubscription, shouldShowRecurringTrainingWelcome, TrainingWelcome } from "./dashboard/TrainingWelcome";
 import { NotificationCenter } from "./NotificationCenter";
@@ -113,7 +114,7 @@ export function Dashboard() {
     });
     return () => result?.data.subscription.unsubscribe();
   }, []);
-  return <NavigationDataProvider key={identity}><DashboardWorkspace /></NavigationDataProvider>;
+  return <NavigationDataProvider key={identity}><DashboardWorkspace /><ReferralBonusPopup /></NavigationDataProvider>;
 }
 
 function DashboardWorkspace() {
