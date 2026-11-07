@@ -16,6 +16,17 @@ describe("Studio preview media by active session", () => {
     })).toEqual({ imageUrl: null, videoUrl: "https://example.test/video.mp4" });
   });
 
+  it("shows a READY final video and waits for its URL before exposing it", () => {
+    expect(resolveStudioPreviewMedia("video", null, {
+      status: "READY",
+      contentUrl: "https://example.test/ready.mp4",
+    })).toEqual({ imageUrl: null, videoUrl: "https://example.test/ready.mp4" });
+    expect(resolveStudioPreviewMedia("video", null, {
+      status: "ready",
+      contentUrl: null,
+    })).toEqual({ imageUrl: null, videoUrl: null });
+  });
+
   it("keeps an old video out of the image session", () => {
     expect(resolveStudioPreviewMedia("image", "https://example.test/image.jpg", {
       status: "completed",
