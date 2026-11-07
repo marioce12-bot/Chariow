@@ -44,6 +44,7 @@ import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 import "./admin-dashboard.css";
 import { AdminSignupChart } from "./AdminSignupChart";
 import { AdminRevenue } from "./AdminRevenue";
+import { AdminReferralsSection } from "./AdminReferralsSection";
 
 export function AdminDashboard() {
   const { locale, setLocale } = useI18n();
@@ -364,6 +365,9 @@ export function AdminDashboard() {
                   onDaysChange={setUsageDays}
                 />
               </>
+            )}
+            {active === "referrals" && (
+              <AdminReferralsSection refreshRevision={refreshRevision} />
             )}
             {active === "integrations" && <IntegrationsSection data={data} />}
             {active === "notifications" && (
