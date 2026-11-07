@@ -1,5 +1,5 @@
--- Vendeo referral program. This migration is intentionally stored in the repo
--- for review and manual application; it is not applied to any remote database.
+-- Vendeo referral program.
+-- Already applied to Chariow Production as migration 20261107092212; do not reapply.
 
 create table if not exists public.referral_codes (
   user_id uuid primary key references public.profiles(id) on delete cascade,
