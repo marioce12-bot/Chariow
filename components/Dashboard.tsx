@@ -45,6 +45,7 @@ import "@/app/dashboard-refinement.css";
 import { useMobileNavVisibility } from "./dashboard/useMobileNavVisibility";
 import { StoreConnectionGate, hasConnectedCommerceStore, shouldShowStoreConnectionGate, STORE_ONBOARDING_STORAGE_KEY } from "./dashboard/StoreConnectionGate";
 import { SaleCelebration } from "./dashboard/SaleCelebration";
+import { ReferralBonusPopup } from "./dashboard/ReferralBonusPopup";
 import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
 import { hasActivePaidTrainingSubscription, shouldShowRecurringTrainingWelcome, TrainingWelcome } from "./dashboard/TrainingWelcome";
 import { NotificationCenter } from "./NotificationCenter";
@@ -113,7 +114,7 @@ export function Dashboard() {
     });
     return () => result?.data.subscription.unsubscribe();
   }, []);
-  return <NavigationDataProvider key={identity}><DashboardWorkspace /></NavigationDataProvider>;
+  return <NavigationDataProvider key={identity}><DashboardWorkspace /><ReferralBonusPopup /></NavigationDataProvider>;
 }
 
 function DashboardWorkspace() {
@@ -150,7 +151,7 @@ function DashboardWorkspace() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [moreOpen]);
-  const [settingsFocus, setSettingsFocus] = useState<"index" | "appearance" | "accounts">("index");
+  const [settingsFocus, setSettingsFocus] = useState<"index" | "appearance" | "accounts" | "referral">("index");
   const [settingsNavigationVersion, setSettingsNavigationVersion] = useState(0);
   function openSettingsIndex() {
     setSettingsFocus("index");
@@ -261,6 +262,14 @@ function DashboardWorkspace() {
     window.dispatchEvent(new Event(SUBSCRIPTION_EXPIRED_MODAL_EVENT));
   }
   function navigateToSection(section: string) {
+    if (section === "Parrainage") {
+      setSettingsFocus("referral");
+      setSettingsNavigationVersion((version) => version + 1);
+      setMoreOpen(false);
+      setGuideMenuTarget(null);
+      setActive("Paramètres");
+      return;
+    }
     if (subscriptionExpired && SUBSCRIPTION_GATED_SECTIONS.has(section)) {
       showExpiredSubscriptionModal();
       return;
