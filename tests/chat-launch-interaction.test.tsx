@@ -10,17 +10,14 @@ vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: str
 let root: Root;
 let container: HTMLDivElement;
 let resolveLaunch: (value: unknown) => void;
-let resolveResources: ((value: unknown) => void) | null;
-let resolveInterests: ((value: unknown) => void) | null;
 let requests: ReturnType<typeof vi.fn>;
 let assistantReplies: string[];
 let resolverResult: unknown;
 let resolverFails: boolean;
-let pendingResources: Promise<unknown> | null;
-let pendingInterestResolution: Promise<unknown> | null;
+let metaPages: Array<{ id: string; name: string }>;
 const payload = { name: "Test uniquement", message: "Texte de test", platform: "meta", objective: "OUTCOME_TRAFFIC", linkUrl: "https://example.com/produit", dailyBudget: 2000, currency: "XOF", callToAction: "SHOP_NOW", storeId: "store-test", productId: "product-test", interests: ["Jazz"] };
 const launchReply = () => `Prêt [[LANCE_CAMPAGNE]]${JSON.stringify(payload)}`;
-const exactResult = { results: [{ label: "Jazz", exact: { id: "interest-1", name: "Jazz" }, suggestions: [] }] };
+const exactResult = { results: [{ label: "Jazz", selected: { id: "interest-1", name: "Jazz" }, confidence: "exact", suggestions: [] }] };
 const ok = (data: unknown) => ({ ok: true, json: async () => data, text: async () => JSON.stringify(data) });
 const flush = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
 
@@ -35,10 +32,8 @@ beforeEach(() => {
   assistantReplies = ["Réponse en français"];
   resolverResult = exactResult;
   resolverFails = false;
-  pendingResources = null;
-  pendingInterestResolution = null;
-  resolveResources = null;
-  resolveInterests = null;
+  metaPages = [{ id: "page-test", name: "Page fictive" }];
+  resolveLaunch = () => {};
   requests = vi.fn((url: string, _init?: RequestInit) => {
     if (url === "/api/ai/launch-campaign") return new Promise((resolve) => { resolveLaunch = resolve; });
     if (url === "/api/chat") {
@@ -47,9 +42,9 @@ beforeEach(() => {
     }
     if (url === "/api/conversations") return Promise.resolve(ok({ conversations: [] }));
     if (url === "/api/subscription") return Promise.resolve(ok({ subscription: null }));
-    if (url.includes("/api/integrations/meta/accounts") || url.includes("/api/integrations/pinterest/accounts")) return Promise.resolve(ok({ accounts: [{ id: "account-test", name: "Compte fictif" }] }));
-    if (url.includes("/api/integrations/meta/resources?")) return pendingResources ?? Promise.resolve(ok({ pages: [{ id: "page-test", name: "Page fictive" }] }));
-    if (url === "/api/integrations/meta/interest-resolve") return resolverFails ? Promise.reject(new Error("Meta indisponible")) : pendingInterestResolution ?? Promise.resolve(ok(resolverResult));
+    if (url.includes("/api/integrations/meta/accounts") || url.includes("/api/integrations/pinterest/accounts")) return Promise.resolve(ok({ accounts: [{ id: "account-test", name: "Compte fictif", is_selected: true }, { id: "account-other", name: "Autre compte" }] }));
+    if (url.includes("/api/integrations/meta/resources?")) return Promise.resolve(ok({ pages: metaPages }));
+    if (url === "/api/integrations/meta/interest-resolve") return resolverFails ? Promise.reject(new Error("Meta indisponible")) : Promise.resolve(ok(resolverResult));
     if (url.startsWith("/api/integrations/meta/interest-search?")) return Promise.resolve(ok({ results: [{ id: "interest-2", name: "Jazz music" }] }));
     throw new Error(`Unexpected request: ${url}`);
   });
@@ -77,11 +72,21 @@ async function openDialog(reply = launchReply()) {
   return dialog!;
 }
 
+async function openDialogAfterYes() {
+  assistantReplies = ["Confirme-tu que je lance cette campagne ?", launchReply()];
+  await renderChat();
+  await act(async () => container.querySelector<HTMLButtonElement>(".ai-action-card")!.click());
+  await flush();
+  expect(container.querySelector('[role="dialog"]')).toBeNull();
+  await sendText("oui");
+  return container.querySelector<HTMLElement>('[role="dialog"]');
+}
+
 async function startSubmission() {
   const dialog = await openDialog();
   expect(dialog.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe(payload.linkUrl);
   const submit = dialog.querySelector<HTMLButtonElement>(".chat-launch-actions .btn-dark")!;
-  act(() => { submit.click(); submit.click(); });
+  act(() => submit.click());
   await flush();
   return { dialog, submit };
 }
@@ -100,15 +105,22 @@ async function sendText(text: string) {
   await flush();
 }
 
-async function startExplicitAutoLaunch(replies: string[]) {
-  assistantReplies = [...replies];
-  await renderChat();
-  await act(async () => container.querySelector<HTMLButtonElement>(".ai-action-card")!.click());
-  await flush();
-  expect(container.querySelector('[role="dialog"]')).toBeNull();
-  await sendText("oui");
-  await flush();
-  return container.querySelector<HTMLElement>('[role="dialog"]');
+function changeSelect(select: HTMLSelectElement, value: string) {
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set?.call(select, value);
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
+function changeInput(input: HTMLInputElement, value: string) {
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+function selectWithOption(dialog: HTMLElement, value: string) {
+  return [...dialog.querySelectorAll<HTMLSelectElement>("select")].find((select) => [...select.options].some((option) => option.value === value));
 }
 
 describe("launch popup submission with mocked network only", () => {
@@ -124,6 +136,22 @@ describe("launch popup submission with mocked network only", () => {
     expect(JSON.parse(chatRequests[0][1]!.body as string).message).toContain("sans la lancer");
     expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
     expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("shows the confirmation card after a chat yes but never launches until the button is clicked", async () => {
+    const dialog = await openDialogAfterYes();
+    expect(dialog).toBeTruthy();
+    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
+  });
+
+  it("keeps launch manual when the user selects a Facebook page from two pages", async () => {
+    metaPages = [{ id: "page-one", name: "Page 1" }, { id: "page-two", name: "Page 2" }];
+    const dialog = await openDialog();
+    const pageSelect = selectWithOption(dialog, "page-two")!;
+    expect(pageSelect).toBeTruthy();
+    changeSelect(pageSelect, "page-two");
+    await flush();
+    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
   });
 
   it("animates while waiting, submits once, and reaches 100 only after success", async () => {
@@ -145,7 +173,7 @@ describe("launch popup submission with mocked network only", () => {
     expect(body).toMatchObject({ linkUrl: payload.linkUrl, storeId: payload.storeId, productId: payload.productId });
   });
 
-  it("removes progress on failure, shows the error and permits a retry", async () => {
+  it("removes progress on failure, shows the error and permits an explicit retry", async () => {
     const { dialog, submit } = await startSubmission();
     await act(async () => resolveLaunch({ ok: false, json: async () => ({ error: "Erreur simulée" }) }));
     expect(dialog.querySelector('[role="progressbar"]')).toBeNull();
@@ -167,65 +195,72 @@ describe("launch popup submission with mocked network only", () => {
     expect(container.textContent).toContain("Aucun filtre supplémentaire");
   });
 
-  it("submits resolved interest objects, not natural-language labels", async () => {
-    await startSubmission();
+  it("sends one launch request with selected Meta interests as {id, name} objects", async () => {
+    const { dialog } = await startSubmission();
     const body = JSON.parse(requests.mock.calls.find(([url]) => url === "/api/ai/launch-campaign")![1]!.body as string);
     expect(body.interests).toEqual([{ id: "interest-1", name: "Jazz" }]);
+    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(1);
+    expect(dialog).toBeTruthy();
   });
 
-  it("does not preselect approximate Meta suggestions, but lets the user explicitly add one", async () => {
-    resolverResult = { results: [{ label: "Jazz", exact: null, suggestions: [{ id: "interest-2", name: "Jazz music" }] }] };
+  it("does not launch when the account, action button or manually searched interest changes", async () => {
     const dialog = await openDialog();
-    expect(dialog.textContent).toContain("« Jazz » n’a pas été trouvé");
-    expect(dialog.querySelector('button[aria-label="Retirer Jazz music"]')).toBeNull();
-    const suggestion = [...dialog.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === "Jazz music");
-    expect(suggestion).toBeTruthy();
-    act(() => suggestion!.click());
+    changeSelect(selectWithOption(dialog, "account-other")!, "account-other");
+    changeSelect(selectWithOption(dialog, "LEARN_MORE")!, "LEARN_MORE");
     await flush();
-    expect(dialog.querySelector('button[aria-label="Retirer Jazz music"]')).toBeTruthy();
-    const submit = dialog.querySelector<HTMLButtonElement>(".chat-launch-actions .btn-dark")!;
-    act(() => submit.click());
-    const body = JSON.parse(requests.mock.calls.find(([url]) => url === "/api/ai/launch-campaign")![1]!.body as string);
-    expect(body.interests).toEqual([{ id: "interest-2", name: "Jazz music" }]);
+    const addButton = [...dialog.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Ajouter un centre d’intérêt"))!;
+    act(() => addButton.click());
+    const search = dialog.querySelector<HTMLInputElement>('.chat-launch-interest-picker input[type="search"]')!;
+    changeInput(search, "Jazz");
+    await act(async () => { vi.advanceTimersByTime(350); await Promise.resolve(); await Promise.resolve(); });
+    const option = dialog.querySelector<HTMLButtonElement>('.chat-launch-interest-picker [role="option"]')!;
+    expect(option).toBeTruthy();
+    act(() => option.click());
+    await flush();
+    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
   });
 
-  it("shows resolver failures as a soft notice and still allows a manual launch", async () => {
+  it("preselects a close match and explains the adaptation in collapsed details", async () => {
+    resolverResult = { results: [{ label: "Éducation des enfants", selected: { id: "interest-edu", name: "Éducation (enfants et parents)" }, confidence: "close", suggestions: [] }] };
+    const dialog = await openDialog();
+    expect(dialog.querySelector('button[aria-label="Retirer Éducation (enfants et parents)"]')).toBeTruthy();
+    const details = [...dialog.querySelectorAll<HTMLDetailsElement>("details")].find((item) => item.textContent?.includes("adapté(s) à Meta"))!;
+    expect(details.open).toBe(false);
+    act(() => details.querySelector("summary")!.click());
+    expect(details.open).toBe(true);
+    expect(details.textContent).toContain("Éducation des enfants → Éducation (enfants et parents)");
+  });
+
+  it("shows misses with at most three suggestions and does not preselect any", async () => {
+    resolverResult = { results: [{ label: "Jazz", selected: null, confidence: null, suggestions: [
+      { id: "suggestion-1", name: "Jazz festivals" },
+      { id: "suggestion-2", name: "Jazz music" },
+      { id: "suggestion-3", name: "Jazz dance" },
+      { id: "suggestion-4", name: "Jazz radio" },
+    ] }] };
+    const dialog = await openDialog();
+    expect(dialog.textContent).toContain("Introuvable chez Meta : Jazz");
+    expect(dialog.querySelector('button[aria-label="Retirer Jazz festivals"]')).toBeNull();
+    const suggestionsDetails = [...dialog.querySelectorAll<HTMLDetailsElement>("details")].find((item) => item.textContent?.includes("Choisir une suggestion"))!;
+    act(() => suggestionsDetails.querySelector("summary")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(suggestionsDetails.querySelectorAll(".chat-launch-interest-suggestion")).toHaveLength(3);
+    const first = suggestionsDetails.querySelector<HTMLButtonElement>(".chat-launch-interest-suggestion")!;
+    act(() => first.click());
+    expect(dialog.querySelector('button[aria-label="Retirer Jazz festivals"]')).toBeTruthy();
+    expect(dialog.textContent).not.toContain("Introuvable chez Meta : Jazz");
+  });
+
+  it("shows resolver failures discreetly without an alert and still permits manual launch", async () => {
     resolverFails = true;
     const dialog = await openDialog();
     expect(dialog.textContent).toContain("Les centres d’intérêt n’ont pas pu être vérifiés et ne seront pas appliqués");
     expect(dialog.querySelector('[role="alert"]')).toBeNull();
+    expect(dialog.querySelector('[role="status"]')?.className).toContain("chat-launch-interest-error");
     const submit = dialog.querySelector<HTMLButtonElement>(".chat-launch-actions .btn-dark")!;
     expect(submit.disabled).toBe(false);
     act(() => submit.click());
     expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(1);
     const body = JSON.parse(requests.mock.calls.find(([url]) => url === "/api/ai/launch-campaign")![1]!.body as string);
     expect(body.interests).toEqual([]);
-  });
-
-  it("waits for Facebook pages and Meta interest resolution before the one automatic launch", async () => {
-    pendingResources = new Promise((resolve) => { resolveResources = (value) => resolve(ok(value)); });
-    pendingInterestResolution = new Promise((resolve) => { resolveInterests = (value) => resolve(ok(value)); });
-    const dialog = await startExplicitAutoLaunch(["Confirme-tu que je lance cette campagne ?", launchReply()]);
-    expect(dialog).toBeTruthy();
-    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
-    await act(async () => resolveResources!({ pages: [{ id: "page-test", name: "Page fictive" }] }));
-    await flush();
-    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
-    await act(async () => resolveInterests!(exactResult));
-    await flush();
-    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(1);
-  });
-
-  it("cancels a pending auto-launch when the confirmation card is closed", async () => {
-    pendingResources = new Promise((resolve) => { resolveResources = (value) => resolve(ok(value)); });
-    pendingInterestResolution = new Promise((resolve) => { resolveInterests = (value) => resolve(ok(value)); });
-    const dialog = await startExplicitAutoLaunch(["Confirme-tu que je lance cette campagne ?", launchReply()]);
-    expect(dialog).toBeTruthy();
-    act(() => dialog!.querySelector<HTMLButtonElement>(".chat-launch-head button")!.click());
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
-    await act(async () => resolveResources!({ pages: [{ id: "page-test", name: "Page fictive" }] }));
-    await act(async () => resolveInterests!(exactResult));
-    await flush();
-    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
   });
 });

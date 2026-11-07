@@ -70,7 +70,7 @@ describe("chat campaign submission progress", () => {
     expect(source).toContain("launchInFlightRef.current = true;");
     expect(source).toContain("launchInFlightRef.current = false;");
     expect(source).toContain('disabled={launching} onClick={closeLaunch}');
-    expect(source).toContain("autoLaunchRef.current = false;");
+    expect(source).not.toContain("autoLaunchRef");
     expect(source).toContain("{launching ? <LaunchProgress complete={launchComplete} /> : null}");
   });
 });

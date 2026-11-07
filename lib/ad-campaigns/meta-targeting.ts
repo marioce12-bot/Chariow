@@ -19,6 +19,53 @@ export function normalizeInterestLabel(value: string): string {
 
 const INTEREST_STOPWORDS = new Set(["de", "des", "du", "la", "le", "les", "l", "d", "et", "au", "aux", "avec", "son", "sa", "ses", "pour", "en", "un", "une"]);
 
+/** Remove one final parenthetical disambiguation suffix, if present. */
+export function stripInterestDisambiguation(name: string): string {
+  return name.replace(/\s*\([^()]*\)\s*$/, "").trim();
+}
+
+export type MetaInterestConfidence = "exact" | "base" | "close";
+export type MetaInterestCandidate = { id: string; name: string; audienceSize?: number };
+
+/** Select an exact, base-equivalent, or safely related Meta interest. */
+export function pickBestMetaInterest(
+  label: string,
+  candidates: MetaInterestCandidate[],
+): { interest: MetaInterestCandidate; confidence: MetaInterestConfidence } | null {
+  const labelNormalized = normalizeInterestLabel(label);
+  const exact = candidates.find((candidate) => normalizeInterestLabel(candidate.name) === labelNormalized);
+  if (exact) return { interest: exact, confidence: "exact" };
+
+  const prepared = candidates.map((interest) => ({
+    interest,
+    base: normalizeInterestLabel(stripInterestDisambiguation(interest.name)),
+    audienceSize: interest.audienceSize ?? 0,
+  }));
+  const baseMatches = prepared.filter(({ base }) => base === labelNormalized);
+  if (baseMatches.length) {
+    baseMatches.sort((a, b) => b.audienceSize - a.audienceSize || a.interest.name.length - b.interest.name.length || a.interest.name.localeCompare(b.interest.name));
+    return { interest: baseMatches[0].interest, confidence: "base" };
+  }
+
+  const labelWords = labelNormalized.split(/\s+/).filter(Boolean);
+  const closeMatches = prepared.filter(({ base }) => {
+    const baseWords = base.split(/\s+/).filter(Boolean);
+    if (base.length < 5 || !baseWords.length || baseWords.length > labelWords.length) return false;
+    return labelWords.some((_, index) => baseWords.every((word, offset) => labelWords[index + offset] === word));
+  });
+  if (!closeMatches.length) return null;
+  closeMatches.sort((a, b) => b.base.length - a.base.length || b.audienceSize - a.audienceSize ||
+    sharedParentheticalWords(b.interest.name, labelNormalized) - sharedParentheticalWords(a.interest.name, labelNormalized) ||
+    a.interest.name.localeCompare(b.interest.name));
+  return { interest: closeMatches[0].interest, confidence: "close" };
+}
+
+function sharedParentheticalWords(name: string, labelNormalized: string): number {
+  const labelWords = new Set(labelNormalized.split(/\s+/));
+  const parenthetical = name.match(/\(([^()]*)\)\s*$/)?.[1] ?? "";
+  return Array.from(new Set(normalizeInterestLabel(parenthetical).split(/\s+/).filter((word) => word.length >= 4 && labelWords.has(word)))).length;
+}
+
 /** Generate the full search phrase followed by up to three useful words. */
 export function buildInterestSearchQueries(label: string): string[] {
   if (normalizeInterestLabel(label).length < 2) return [];
@@ -46,10 +93,13 @@ export function rankMetaInterestCandidates(
   const seen = new Set<string>();
   return candidates.flatMap((candidate) => {
     if (seen.has(candidate.id)) return [];
-    const normalizedName = normalizeInterestLabel(candidate.name);
-    const candidateWords = new Set(normalizedName.split(/\s+/).filter((word) => word.length >= 4 && !INTEREST_STOPWORDS.has(word)));
-    let score = normalizedName === labelNormalized ? 3 : normalizedName.includes(labelNormalized) || labelNormalized.includes(normalizedName) ? 2 :
-      Array.from(significantWords).some((word) => candidateWords.has(word)) ? 1 : 0;
+    const scoreName = (name: string) => {
+      const normalized = normalizeInterestLabel(name);
+      const words = new Set(normalized.split(/\s+/).filter((word) => word.length >= 4 && !INTEREST_STOPWORDS.has(word)));
+      return normalized === labelNormalized ? 3 : normalized.includes(labelNormalized) || labelNormalized.includes(normalized) ? 2 :
+        Array.from(significantWords).some((word) => words.has(word)) ? 1 : 0;
+    };
+    const score = Math.max(scoreName(candidate.name), scoreName(stripInterestDisambiguation(candidate.name)));
     if (!score) return [];
     seen.add(candidate.id);
     return [{ candidate: { id: candidate.id, name: candidate.name }, score, audienceSize: candidate.audienceSize ?? 0 }];

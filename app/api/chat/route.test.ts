@@ -48,6 +48,13 @@ describe("POST /api/chat provider selection", () => {
     expect(messages[0].content).toContain('"interests": string[] (5 libellés au plus, courts, 1 à 3 mots');
     expect(messages[0].content).toContain("Tu ne peux pas savoir quels libellés existent chez Meta");
     expect(messages[0].content).toContain("Vendeo vérifiera la correspondance avec Meta dans la carte de confirmation");
+    expect(messages[0].content).toContain("Après le « oui » au récapitulatif final");
+    expect(messages[0].content).toContain("puis appuie sur « Confirmer et lancer »");
+    expect(messages[0].content).toContain("rien n'est lancé avant ce clic");
+    expect(messages[0].content).toContain("résume à nouveau la configuration complète");
+    expect(messages[0].content).toContain("Ne recopie jamais les valeurs techniques brutes");
+    expect(messages[0].content).toContain("Utilise des libellés lisibles");
+    expect(messages[0].content).not.toContain("ne demande pas à l'utilisateur de cliquer ensuite sur un bouton « Lancer »");
     expect(messages[0].content).toContain("Aucune boutique enregistrée");
     expect(messages[0].content).not.toContain("finance ou développement personnel");
     expect(options).toEqual({ timeoutMs: 60000, overloadRetries: 2 });
