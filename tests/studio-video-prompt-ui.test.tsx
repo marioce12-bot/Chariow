@@ -99,7 +99,7 @@ describe("Studio UGC prompt generation UI", () => {
     }
   });
 
-  it("requires the fal.ai callback only for 10/15 seconds and preserves the 25-second path", async () => {
+  it("fixes the Studio video duration at 30 seconds without requiring a provider callback", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url === "/api/studio/video") return { ok: true, status: 200, json: async () => ({ ready: true, callback: false }) };
@@ -115,17 +115,15 @@ describe("Studio UGC prompt generation UI", () => {
       await render(root);
       const videoChoice = container.querySelector<HTMLButtonElement>('article[data-studio-format="video"] button');
       await click(videoChoice!);
+      const renderStep = container.querySelector<HTMLElement>(".studio-video-step--render");
+      expect(renderStep?.textContent).toContain("30 secondes");
+      expect(renderStep?.textContent?.replace(/\s/g, "")).toContain("900crédits");
+      expect(renderStep?.textContent?.replace(/\s/g, "")).toContain("2250XOF");
+      expect(renderStep?.querySelectorAll("select")).toHaveLength(1);
+      expect([...container.querySelectorAll<HTMLSelectElement>("select")].some(select => [...select.options].map(option => option.value).join(",") === "10,15,25")).toBe(false);
       const generateButton = container.querySelector<HTMLButtonElement>(".studio-generate");
-      expect(generateButton?.disabled).toBe(true);
-      expect(generateButton?.textContent).toContain("Callback fal.ai requis pour 10/15 s");
-      const durationSelect = [...container.querySelectorAll<HTMLSelectElement>("select")].find(select => [...select.options].map(option => option.value).join(",") === "10,15,25");
-      expect(durationSelect).toBeTruthy();
-      await act(async () => {
-        durationSelect!.value = "25";
-        durationSelect!.dispatchEvent(new Event("change", { bubbles: true }));
-      });
-      expect(generateButton?.disabled).toBe(false);
       expect(generateButton?.textContent).toContain("Créer la vidéo");
+      expect(generateButton?.disabled).toBe(false);
       expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
     } finally {
       await act(async () => root.unmount());
@@ -134,7 +132,7 @@ describe("Studio UGC prompt generation UI", () => {
     }
   });
 
-  it("blocks rendering after a duration change until the prompt is regenerated", async () => {
+  it("always requests a 30-second prompt and exposes no duration selector", async () => {
     const promptPosts: Array<Record<string, unknown>> = [];
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -156,20 +154,11 @@ describe("Studio UGC prompt generation UI", () => {
       await render(root);
       await click(container.querySelector<HTMLButtonElement>('article[data-studio-format="video"] button')!);
       await click(button(container, element => element.textContent?.includes("Générer le prompt") ?? false)!);
-      const durationSelect = [...container.querySelectorAll<HTMLSelectElement>("select")].find(select => [...select.options].map(option => option.value).join(",") === "10,15,25");
-      expect(durationSelect).toBeTruthy();
-      await act(async () => {
-        durationSelect!.value = "15";
-        durationSelect!.dispatchEvent(new Event("change", { bubbles: true }));
-      });
+      expect(promptPosts).toHaveLength(1);
+      expect(promptPosts[0]).toMatchObject({ duration: 30 });
+      expect(container.querySelectorAll(".studio-video-step--render select")).toHaveLength(1);
+      expect(container.querySelector(".studio-video-step--render")?.textContent).toContain("30 secondes");
       const createVideo = container.querySelector<HTMLButtonElement>(".studio-generate");
-      expect(container.textContent).toContain("Durée modifiée : régénère le prompt.");
-      expect(createVideo?.disabled).toBe(true);
-      expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
-
-      await click(button(container, element => element.textContent?.includes("Générer le prompt") ?? false)!);
-      expect(promptPosts).toHaveLength(2);
-      expect(promptPosts[1]).toMatchObject({ duration: 15 });
       expect(container.textContent).not.toContain("Durée modifiée : régénère le prompt.");
       expect(createVideo?.disabled).toBe(false);
       expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
@@ -213,9 +202,9 @@ describe("Studio UGC prompt generation UI", () => {
       const ideaStep = container.querySelector<HTMLElement>(".studio-video-step--idea");
       const creativeStep = container.querySelector<HTMLElement>(".studio-video-step--creative");
       const renderStep = container.querySelector<HTMLElement>(".studio-video-step--render");
-      const durationSelect = [...(renderStep?.querySelectorAll<HTMLSelectElement>("select") ?? [])].find(select => [...select.options].map(option => option.value).join(",") === "10,15,25");
       const generatePromptButton = ideaStep?.querySelector<HTMLButtonElement>(".studio-insert-btn");
-      expect(durationSelect).toBeTruthy();
+      expect(renderStep?.querySelectorAll("select")).toHaveLength(1);
+      expect(renderStep?.textContent).toContain("30 secondes");
       expect(generatePromptButton).toBeTruthy();
       expect(productPicker && ideaStep && (productPicker.compareDocumentPosition(ideaStep) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
       expect(ideaStep && creativeStep && (ideaStep.compareDocumentPosition(creativeStep) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
@@ -244,8 +233,9 @@ describe("Studio UGC prompt generation UI", () => {
       expect(promptPosts).toHaveLength(2);
       const firstRequest = JSON.parse(String(promptPosts[0][1]?.body));
       const secondRequest = JSON.parse(String(promptPosts[1][1]?.body));
-      expect(firstRequest).toMatchObject({ mediaType: "video", videoStyle: "ugc", duration: 10, aspectRatio: "9:16", product: { name: "Guide Excel Facile", image: "https://cdn.chariow.com/cover-excel.png" } });
-      expect([...container.querySelectorAll("select")].some(select => [...select.options].map(option => option.value).join(",") === "10,15,25")).toBe(true);
+      expect(firstRequest).toMatchObject({ mediaType: "video", videoStyle: "ugc", duration: 30, aspectRatio: "9:16", product: { name: "Guide Excel Facile", image: "https://cdn.chariow.com/cover-excel.png" } });
+      expect(secondRequest).toMatchObject({ mediaType: "video", videoStyle: "ugc", duration: 30 });
+      expect([...container.querySelectorAll("select")].some(select => [...select.options].map(option => option.value).join(",") === "10,15,25")).toBe(false);
       expect(firstRequest.ugcOptions).not.toHaveProperty("characterProfile");
       expect(secondRequest).toMatchObject({ mediaType: "video", videoStyle: "ugc", product: { name: "Savon Karité Kora" }, previousPrompt: promptPosts[0] ? expect.any(String) : undefined });
       expect(secondRequest.ugcOptions).not.toHaveProperty("characterProfile");
@@ -313,16 +303,14 @@ describe("Studio UGC prompt generation UI", () => {
     try {
       await render(root);
       await click(container.querySelector<HTMLButtonElement>('article[data-studio-format="video"] button')!);
-      const durationSelect = [...container.querySelectorAll<HTMLSelectElement>("select")].find(select => [...select.options].map(option => option.value).join(",") === "10,15,25");
-      expect(durationSelect).toBeTruthy();
-      await act(async () => { durationSelect!.value = "25"; durationSelect!.dispatchEvent(new Event("change", { bubbles: true })); });
+      expect(container.querySelector(".studio-video-step--render")?.textContent).toContain("30 secondes");
       const textarea = container.querySelector<HTMLTextAreaElement>(".studio-prompt-box textarea")!;
       await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "Créer une vidéo produit"); textarea.dispatchEvent(new Event("input", { bubbles: true })); });
       const generateButton = container.querySelector<HTMLButtonElement>(".studio-generate")!;
       expect(generateButton.disabled).toBe(false);
       await click(generateButton);
       const insufficient = container.querySelector('[role="alertdialog"]');
-      expect(insufficient?.textContent).toContain("750");
+      expect(insufficient?.textContent).toContain("900");
       expect(insufficient?.textContent).toContain("20");
       expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
     } finally {

@@ -3,7 +3,10 @@ import { sourceCopyCandidates } from "@/lib/studio/faithful-prompt";
 import { neutralProductCta, resolveProductLanguage } from "./product-language";
 
 // Le statut du rendu est lu côté serveur afin de distinguer Production et Preview.
-export const VIDEO_AD_DURATIONS = [10, 15, 25] as const;
+export const STUDIO_VIDEO_DURATION = 30 as const;
+export const STUDIO_VIDEO_DURATIONS = [STUDIO_VIDEO_DURATION] as const;
+// Keep durations supported by already-running jobs while Studio submits only 30s.
+export const VIDEO_AD_DURATIONS = [10, 15, 25, STUDIO_VIDEO_DURATION] as const;
 export const VIDEO_DIRECTIONS = {
   in_hand: "Présentation du produit en main",
   conversation: "Discussion scénarisée entre deux personnes",
@@ -35,6 +38,7 @@ export function splitVideoDuration(duration: number, model = "xai/grok-imagine-v
   const { maxDuration } = videoModelCapability(model);
   if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(duration)) throw new Error("Durée publicitaire non prise en charge");
   if (maxDuration !== 15) throw new Error("Durée maximale du modèle vidéo non prise en charge");
+  if (duration === 30) return [15, 15];
   return duration === 25 ? [15, 10] : [duration];
 }
 

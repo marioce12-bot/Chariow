@@ -7,7 +7,7 @@ import { rateLimit } from "@/lib/shop/rate-limit";
 import { videoCreditCost } from "@/lib/studio/credits";
 import { STUDIO_VIDEO_RESOLUTIONS, inferProductType, isSupportedStudioVideoResolution } from "@/lib/studio/creative-workflows";
 import { isStudioVideoEnabled } from "@/lib/studio/video-feature";
-import { VIDEO_AD_DURATIONS, videoModelCapability } from "@/lib/studio/video-plan";
+import { STUDIO_VIDEO_DURATION, STUDIO_VIDEO_DURATIONS, videoModelCapability } from "@/lib/studio/video-plan";
 import { assertFalVideoPromptWithinSafeLimit, isFalVideoInputRejectedError } from "@/lib/studio/fal-video-contract";
 import { readUgcTimeline, UgcPromptGenerationError, validateUgcPrompt } from "@/lib/studio/ugc-prompt-generator";
 import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
@@ -43,7 +43,7 @@ export async function GET() {
   const cloudinaryReady = process.env.STUDIO_MEDIA_CLOUDINARY_IMPORT === "true" && Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
   const providerReady = Boolean(process.env.FAL_API_KEY);
   if (!cloudinaryReady || !providerReady) return NextResponse.json({ ready: false, code: "STUDIO_VIDEO_CONFIG_MISSING", storage: cloudinaryReady, provider: providerReady, callback: Boolean(webhookUrl) }, { status: 503, headers: { "Cache-Control": "no-store" } });
-  return NextResponse.json({ ready: true, storage: "cloudinary-remote-import", provider: true, callback: Boolean(webhookUrl), callbackRequiredDurations: [10, 15], assembly: "fal-merge", supportedDurations: VIDEO_AD_DURATIONS, aspectRatio: "9:16" }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ ready: true, storage: "cloudinary-remote-import", provider: true, callback: Boolean(webhookUrl), callbackRequiredDurations: [], assembly: "fal-merge", supportedDurations: STUDIO_VIDEO_DURATIONS, aspectRatio: "9:16" }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -70,10 +70,10 @@ export async function POST(request: Request) {
   }
 
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
-  const duration = body?.duration === undefined ? 10 : Number(body.duration);
-  if (!(VIDEO_AD_DURATIONS as readonly number[]).includes(duration)) return NextResponse.json({
-    error: `Durée invalide pour duration : valeurs autorisées ${VIDEO_AD_DURATIONS.join(", ")} secondes.`,
-    code: "invalid_input", keyPath: "duration", supported: VIDEO_AD_DURATIONS,
+  const duration = body?.duration === undefined ? STUDIO_VIDEO_DURATION : Number(body.duration);
+  if (!(STUDIO_VIDEO_DURATIONS as readonly number[]).includes(duration)) return NextResponse.json({
+    error: `Durée invalide pour duration : toutes les vidéos Studio durent ${STUDIO_VIDEO_DURATION} secondes.`,
+    code: "invalid_input", keyPath: "duration", supported: STUDIO_VIDEO_DURATIONS,
   }, { status: 400 });
   const product = parseStudioProduct(body?.product);
   if (!product) return NextResponse.json({ error: "Choisis un produit réel de ta boutique pour construire un scénario adapté et le présenter fidèlement." }, { status: 400 });
@@ -106,8 +106,6 @@ export async function POST(request: Request) {
   if (rateLimit(`studio-video:${user.id}`, 3)) return NextResponse.json({ error: "Trop de demandes vidéo. Réessaie dans une minute." }, { status: 429 });
   if (!process.env.FAL_API_KEY) return NextResponse.json({ error: "Le fournisseur vidéo n’est pas configuré pour cette Preview. Aucun crédit n’a été réservé." }, { status: 503 });
   if (process.env.STUDIO_MEDIA_CLOUDINARY_IMPORT !== "true" || !process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) return NextResponse.json({ error: "Le stockage vidéo Cloudinary n’est pas entièrement configuré. Aucun crédit n’a été réservé et aucun fournisseur n’a été appelé.", code: "STUDIO_VIDEO_STORAGE_UNAVAILABLE" }, { status: 503 });
-  const webhookUrl = configuredFalWebhookUrl();
-  if (duration !== 25 && !webhookUrl) return NextResponse.json({ error: "Configure FAL_WEBHOOK_URL vers /api/webhooks/fal pour les vidéos 10/15 s. Aucun crédit n’a été réservé.", code: "STUDIO_VIDEO_WEBHOOK_UNAVAILABLE" }, { status: 503 });
 
   const model = selectVideoModel(Boolean(product?.imageUrl));
   try { videoModelCapability(model); }

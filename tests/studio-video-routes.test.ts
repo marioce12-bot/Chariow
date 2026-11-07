@@ -14,11 +14,12 @@ describe("Locked studio video preparation routes", () => {
     expect(response.status).toBe(423); expect((await response.json()).code).toBe("STUDIO_VIDEO_LOCKED");
     expect(askText).not.toHaveBeenCalled();
   });
-  it("prepares 25s as 15s+10s with a constrained text response only", async () => {
-    const response = await prompt(request({ mediaType: "video", videoMode: "characters", duration: 25, product }));
+  it("prepares 30s as two 15s clips with a constrained text response only", async () => {
+    const response = await prompt(request({ mediaType: "video", videoMode: "characters", duration: 30, product }));
     const data = await response.json();
     expect(response.status).toBe(200); expect(data.locked).toBe(true);
-    expect(data.plan.segments.map((s: { duration: number }) => s.duration)).toEqual([15,10]);
+    expect(data.plan.duration).toBe(30);
+    expect(data.plan.segments.map((s: { duration: number }) => s.duration)).toEqual([15,15]);
     expect(askText).toHaveBeenCalledTimes(1);
     expect(askText.mock.calls[0][1].order).toEqual(["openrouter"]);
     expect(askText.mock.calls[0][1]).not.toHaveProperty("responseSchema");
@@ -28,15 +29,22 @@ describe("Locked studio video preparation routes", () => {
     expect(data).not.toHaveProperty("scenarioFallback");
   });
   it("returns a direct French text prompt for the exact product name", async () => {
-    const response = await prompt(request({ mediaType: "video", duration: 25, product, ugcOptions: { characterProfile: "Entrepreneuse de 30 ans" } }));
+    const response = await prompt(request({ mediaType: "video", duration: 30, product, ugcOptions: { characterProfile: "Entrepreneuse de 30 ans" } }));
     const data = await response.json();
     expect(response.status).toBe(200);
     expect(data.prompt).toContain(product.name);
-    expect(data.prompt).toContain("21–25s");
+    expect(data.prompt).toContain("25–30s");
     expect(data.prompt).toContain("DIALOGUE EXACT: «");
     expect(typeof data.prompt).toBe("string");
     expect(askText).toHaveBeenCalledTimes(1);
     expect(askText.mock.calls[0][1]).not.toHaveProperty("responseSchema");
+  });
+  it("defaults a missing Studio video duration to 30 seconds", async () => {
+    const response = await prompt(request({ mediaType: "video", product }));
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.plan.duration).toBe(30);
+    expect(data.plan.segments.map((segment: { duration: number }) => segment.duration)).toEqual([15, 15]);
   });
   it("prepares the slideshow without even calling the text model", async () => {
     const response = await prompt(request({ mediaType: "video", videoMode: "slideshow", duration: 25, product }));
@@ -47,7 +55,7 @@ describe("Locked studio video preparation routes", () => {
     expect(askText).not.toHaveBeenCalled();
   });
   it("requires a real ebook cover before generating its UGC prompt", async () => {
-    const response = await prompt(request({ mediaType: "video", duration: 25, product: { name: "Ebook guide", description: "Disponible en PDF." } }));
+    const response = await prompt(request({ mediaType: "video", duration: 30, product: { name: "Ebook guide", description: "Disponible en PDF." } }));
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ code: "STUDIO_VIDEO_EBOOK_COVER_REQUIRED" });
     expect(askText).not.toHaveBeenCalled();
@@ -64,7 +72,7 @@ describe("Locked studio video preparation routes", () => {
   });
   it("returns a sanitized generation failure without prompt, plan, or fallback", async () => {
     askText.mockRejectedValue(new Error("MODEL_RAW_RESPONSE_MUST_NOT_BE_LOGGED"));
-    const response = await prompt(request({ mediaType: "video", duration: 25, product }));
+    const response = await prompt(request({ mediaType: "video", duration: 30, product }));
     const data = await response.json();
     expect([502, 504]).toContain(response.status);
     expect(data).toMatchObject({ code: "ugc_prompt_generation_failed", error: "Le scénario n’a pas pu être généré, réessaie.", failureRule: expect.any(String) });
@@ -80,7 +88,7 @@ describe("Locked studio video preparation routes", () => {
       status: 429, retryAfter: "45", providerErrorCode: "rate_limit_exceeded",
       providerErrorMessage: "Rate limit exceeded for model", upstreamProvider: "Example Provider",
     }));
-    const response = await prompt(request({ mediaType: "video", duration: 15, product }));
+    const response = await prompt(request({ mediaType: "video", duration: 30, product }));
     const data = await response.json();
     expect(response.status).toBe(429);
     expect(data).toMatchObject({
@@ -99,7 +107,7 @@ describe("Locked studio video preparation routes", () => {
   });
   it("returns missing product fields before calling any model", async () => {
     const response = await prompt(request({
-      mediaType: "video", duration: 25,
+      mediaType: "video", duration: 30,
       product: { name: "Produit", description: "", category: "", type: "", tags: [] },
     }));
     expect(response.status).toBe(400);
@@ -111,7 +119,7 @@ describe("Locked studio video preparation routes", () => {
   });
   it("validates durations, formats and authentication before preparation", async () => {
     expect((await prompt(request({ mediaType: "video", duration: 61, product }))).status).toBe(400);
-    expect((await prompt(request({ mediaType: "video", duration: 25, aspectRatio: "21:9", product }))).status).toBe(400);
+    expect((await prompt(request({ mediaType: "video", duration: 30, aspectRatio: "21:9", product }))).status).toBe(400);
     requireUser.mockResolvedValue({ user: null, response: new Response("no", { status: 401 }) });
     expect((await generate(request({}))).status).toBe(401);
   });

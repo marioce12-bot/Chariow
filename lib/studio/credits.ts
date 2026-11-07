@@ -18,7 +18,7 @@ export function imageCreditCost(resolution: keyof typeof IMAGE_COSTS, quality: k
   return Math.ceil((baseCost * 4) / 3);
 }
 
-// Tarifs Studio validés : 750 crédits pour 25 s en 480p, 1 300 en 720p.
+// Tarif Studio fixe à 30 s : 900 crédits en 480p, 1 560 en 720p.
 const VIDEO_RATE_PER_SECOND: Record<string, number> = { "480p": 30, "720p": 52 };
 export function videoCreditCost(resolution: string, duration: number) {
   const rate = VIDEO_RATE_PER_SECOND[resolution];

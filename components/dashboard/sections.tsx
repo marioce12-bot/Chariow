@@ -28,7 +28,7 @@ import { LaunchAdWizard } from "@/components/vendeo/wizard";
 import { CREDIT_PRICE_XOF, IMAGE_COSTS, imageCreditCost, videoCreditCost } from "@/lib/studio/credits";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
 import { STUDIO_VIDEO_RESOLUTIONS } from "@/lib/studio/creative-workflows";
-import { VIDEO_AD_DURATIONS } from "@/lib/studio/video-plan";
+import { STUDIO_VIDEO_DURATION } from "@/lib/studio/video-plan";
 import { useI18n } from "@/lib/i18n/i18n";
 import { MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY } from "./shared";
 import { useNavigationCache } from "./NavigationDataCache";
@@ -148,7 +148,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [promptGenerating, setPromptGenerating] = useState(false);
   const [kind, setKind] = useState<"image" | "video">("image");
   const [videoRenderLocked, setVideoRenderLocked] = useState(true);
-  const [videoCallbackReady, setVideoCallbackReady] = useState(false);
   const [studioTab, setStudioTab] = useState<"photo" | "slideshow">("photo");
   const [mobileStudioMode, setMobileStudioMode] = useState<"image" | "slideshow" | "video" | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -166,10 +165,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [imageResolution, setImageResolution] = useState("hd");
   const [orientation, setOrientation] = useState("square");
   const [background, setBackground] = useState("auto");
-  const [duration, setDuration] = useState<typeof VIDEO_AD_DURATIONS[number]>(10);
-  const [videoPromptDuration, setVideoPromptDuration] = useState<number | null>(null);
-  const promptDurationChanged = kind === "video" && videoPromptDuration !== null && videoPromptDuration !== duration;
-  const videoCallbackUnavailable = duration !== 25 && !videoCallbackReady;
+  const duration = STUDIO_VIDEO_DURATION;
   const [videoResolution, setVideoResolution] = useState<typeof STUDIO_VIDEO_RESOLUTIONS[number]>(STUDIO_VIDEO_RESOLUTIONS[0]);
   const [aspectRatio, setAspectRatio] = useState("9:16");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -361,14 +357,12 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     if (kind !== "video") return;
     let active = true;
     setVideoRenderLocked(true);
-    setVideoCallbackReady(false);
     void loadLatestVideo();
     fetch("/api/studio/video", { cache: "no-store" })
       .then(async (response) => {
         const readiness = await response.json().catch(() => null);
         if (active) {
           setVideoRenderLocked(response.status !== 200 || readiness?.ready !== true);
-          setVideoCallbackReady(readiness?.callback === true);
         }
       })
       .catch(() => { if (active) setVideoRenderLocked(true); });
@@ -579,7 +573,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       lastGeneratedPromptRef.current = result.prompt;
       if (kind === "video") {
         preparedUgcRef.current = typeof result.preparedUgc === "string" ? result.preparedUgc : null;
-        setVideoPromptDuration(duration);
         setPromptGenerationFailed(false);
       }
       setPrompt(result.prompt);
@@ -602,16 +595,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     if (generatingRef.current) return;
     if (kind === "image" && (!imageRecoveryReadyRef.current || ["processing", "awaiting_media"].includes(imageTask?.status ?? ""))) return;
     if (kind === "video" && promptGenerationFailed) return;
-    if (kind === "video" && promptDurationChanged) {
-      setError(locale === "en" ? "Duration changed: regenerate the prompt." : "Durée modifiée : régénère le prompt.");
-      return;
-    }
     if (kind === "video" && videoRenderLocked) {
       setError(locale === "en" ? "Video generation is not available yet." : "La génération vidéo reste indisponible.");
-      return;
-    }
-    if (kind === "video" && videoCallbackUnavailable) {
-      setError(locale === "en" ? "Configure the fal.ai callback before generating a 10 or 15 second video. No credits were reserved." : "Configure le callback fal.ai avant de créer une vidéo de 10 ou 15 s. Aucun crédit n’a été réservé.");
       return;
     }
     if (!prompt.trim()) {
@@ -833,7 +818,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       setPromptGenerationFailed(false);
       setError("");
       setPrompt("");
-      setVideoPromptDuration(null);
     }
   };
   const openStudioMode = (mode: "image" | "slideshow" | "video") => {
@@ -843,7 +827,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       setPrompt("");
       lastGeneratedPromptRef.current = null;
       preparedUgcRef.current = null;
-      setVideoPromptDuration(null);
       setPromptGenerationFailed(false);
     }
     setDesktopHistoryExpanded(false);
@@ -936,7 +919,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
                   <small>{prompt.length}/4 000</small>
                 </label>
                 {promptGenerationFailed ? <p className="studio-cost" role="status" aria-live="polite">{locale === "en" ? "No video was started and no video credits were charged for this prompt attempt." : "Aucun rendu vidéo n’a été lancé et aucun crédit vidéo n’a été débité pour cette tentative de prompt."}</p> : null}
-                {promptDurationChanged ? <p className="studio-cost" role="status" aria-live="polite">{locale === "en" ? "Duration changed: regenerate the prompt." : "Durée modifiée : régénère le prompt."}</p> : null}
                 <div className="studio-video-prompt-action studio-video-prompt-action--desktop">
                   {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : promptGenerationFailed ? "Régénérer" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
                 </div>
@@ -964,15 +946,15 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
                   <h3 id="studio-video-step-render-title">{locale === "en" ? "Render" : "Rendu"}</h3>
                 </div>
                 <div className="studio-video-render-controls">
-                  <StudioSelect label={t("studio.duration")} value={String(duration)} onChange={(value) => setDuration(Number(value) as typeof VIDEO_AD_DURATIONS[number])} options={VIDEO_AD_DURATIONS.map((value) => [String(value), `${value} s`])} />
+                  <div className="studio-field"><span>{t("studio.duration")}</span><strong>{locale === "en" ? "30 seconds" : "30 secondes"}</strong><small>{locale === "en" ? "Fixed for every video" : "Durée fixe pour toutes les vidéos"}</small></div>
                   <StudioSelect label={t("studio.resolution")} value={videoResolution} onChange={(value) => setVideoResolution(value as typeof STUDIO_VIDEO_RESOLUTIONS[number])} options={STUDIO_VIDEO_RESOLUTIONS.map((value) => [value, value])} />
                   <div className="studio-field"><span>{t("studio.format")}</span><strong>Portrait · 9:16</strong><small>{locale === "en" ? "Fixed vertical format" : "Format vertical fixe"}</small></div>
                 </div>
                 {selectedProduct?.image ? <p className="studio-cost studio-video-cover-note">{t("studio.coverStart")}</p> : null}
                 <p className="studio-video-desktop-note">Voix et musique ajoutées automatiquement à la génération.</p>
                 {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
-                {!videoRenderLocked ? <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || promptGenerationFailed || promptDurationChanged || videoRenderLocked || videoCallbackUnavailable || !creditsLoaded}>
-                  <Sparkles size={17} /> {videoCallbackUnavailable ? (locale === "en" ? "fal.ai callback required for 10/15 s" : "Callback fal.ai requis pour 10/15 s") : loading ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…") : locale === "en" ? "Generate video" : "Créer la vidéo"}
+                {!videoRenderLocked ? <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || promptGenerationFailed || videoRenderLocked || !creditsLoaded}>
+                  <Sparkles size={17} /> {loading ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…") : locale === "en" ? "Generate video" : "Créer la vidéo"}
                 </button> : null}
                 <section className="studio-video-cost-card studio-video-cost-card--steps" aria-label={locale === "en" ? "Estimated cost" : "Coût estimé"}>
                   <div className="studio-video-cost-icon"><Layers size={22} aria-hidden="true" /></div>
