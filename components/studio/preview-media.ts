@@ -9,6 +9,6 @@ export function resolveStudioPreviewMedia(
 ) {
   return {
     imageUrl: mode === "image" ? imageUrl : null,
-    videoUrl: mode === "video" && videoJob?.status === "completed" ? videoJob.contentUrl ?? null : null,
+    videoUrl: mode === "video" && videoJob && ["completed", "ready"].includes(videoJob.status.toLowerCase()) ? videoJob.contentUrl ?? null : null,
   };
 }

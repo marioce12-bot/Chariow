@@ -27,6 +27,8 @@ import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
 import { CREDIT_PRICE_XOF, IMAGE_COSTS, imageCreditCost, videoCreditCost } from "@/lib/studio/credits";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
+import { readStudioClientSession, writeStudioClientSession, type StudioClientSession } from "@/lib/studio/client-session";
+import { isTerminalStudioVideoStatus, normalizeStudioVideoStatus, startStudioVideoPolling, type StudioVideoPollingHandle, type StudioVideoStatus } from "@/lib/studio/video-polling";
 import { STUDIO_VIDEO_RESOLUTIONS } from "@/lib/studio/creative-workflows";
 import { STUDIO_VIDEO_DURATION } from "@/lib/studio/video-plan";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -103,10 +105,8 @@ export function StoreOnboarding() {
   );
 }
 
-type StudioVideoJob = { id: string; status: string; contentUrl?: string | null; error?: string; progress?: number; phase?: string };
+type StudioVideoJob = StudioVideoStatus;
 const STUDIO_VIDEO_REFRESH_INTERVAL_MS = 30_000;
-const STUDIO_VIDEO_REFRESH_WINDOW_MS = 2 * 60_000;
-type StudioVideoRefreshWindow = { id: string; deadline: number; nextAt: number };
 type StudioHistoryItem = { id: string; kind: "image" | "video"; prompt: string; options: Record<string, string | number>; metadata?: Record<string, unknown> | null; creationType?: "slideshow" | "image" | "video"; thumbnailUrl?: string | null; mediaState?: "ready" | "missing" | "processing" | "failed"; sourceImageCount?: number; status: string; credits_cost: number; storage_path?: string | null; video_job_id?: string | null; mediaUrl?: string | null; created_at: string };
 
 function htmlDescriptionToText(description: string): string {
@@ -172,9 +172,9 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [imageLoaded, setImageLoaded] = useState(false);
   const [videoJob, setVideoJob] = useState<StudioVideoJob | null>(null);
   const videoRequestIdRef = useRef<string | null>(null);
-  const videoNotFoundRetryRef = useRef<{ id: string; attempts: number } | null>(null);
-  const videoRefreshWindowRef = useRef<StudioVideoRefreshWindow | null>(null);
+  const videoPollingHandleRef = useRef<StudioVideoPollingHandle | null>(null);
   const [loading, setLoading] = useState(false);
+  const [studioSessionReady, setStudioSessionReady] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const stopProgressRef = useRef<(() => void) | null>(null);
   const [imageTask, setImageTask] = useState<{ id: string; status: string } | null>(null);
@@ -209,6 +209,80 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const slideshowPanelRef = useRef<HTMLDivElement | null>(null);
   const historyViewerRef = useRef<HTMLElement | null>(null);
   const studioTabTouchedRef = useRef(false);
+  const restoredProductIdRef = useRef<string | null>(null);
+  function persistStudioSession(overrides: Partial<StudioClientSession> = {}) {
+    writeStudioClientSession({
+      version: 1,
+      activeMode: mobileStudioMode,
+      kind,
+      studioTab,
+      prompt,
+      productId: selectedProduct?.id ?? restoredProductIdRef.current,
+      selectedHistoryId,
+      selectedGenerationId,
+      selectedSlideshowTaskId,
+      historyKind: historyKind === "image" || historyKind === "video" ? historyKind : "all",
+      quality,
+      imageResolution,
+      orientation,
+      background,
+      videoResolution,
+      aspectRatio,
+      videoLanguage,
+      videoTone,
+      videoPlatform,
+      videoAngle,
+      videoJobId: videoJob?.id ?? null,
+      videoRequestId: videoRequestIdRef.current,
+      ...overrides,
+    });
+  }
+  useEffect(() => {
+    const saved = readStudioClientSession();
+    if (saved) {
+      setMobileStudioMode(saved.activeMode);
+      setKind(saved.kind);
+      setStudioTab(saved.studioTab);
+      setPrompt(saved.prompt);
+      setHistoryKind(saved.historyKind);
+      setSelectedHistoryId(saved.selectedHistoryId);
+      setSelectedGenerationId(saved.selectedGenerationId);
+      setSelectedSlideshowTaskId(saved.selectedSlideshowTaskId);
+      setQuality(saved.quality);
+      setImageResolution(saved.imageResolution);
+      setOrientation(saved.orientation);
+      setBackground(saved.background);
+      setVideoResolution(saved.videoResolution as typeof STUDIO_VIDEO_RESOLUTIONS[number]);
+      setAspectRatio(saved.aspectRatio);
+      setVideoLanguage(saved.videoLanguage);
+      setVideoTone(saved.videoTone);
+      setVideoPlatform(saved.videoPlatform);
+      setVideoAngle(saved.videoAngle);
+      restoredProductIdRef.current = saved.productId;
+      const restoredProduct = saved.productId ? products.find((product) => product.id === saved.productId) : null;
+      if (restoredProduct) {
+        setSelectedProduct(restoredProduct);
+        restoredProductIdRef.current = null;
+      }
+      videoRequestIdRef.current = saved.videoRequestId;
+      const activeVideoId = saved.videoJobId ?? saved.videoRequestId;
+      if (activeVideoId) setVideoJob({ id: activeVideoId, status: "processing" });
+      studioTabTouchedRef.current = true;
+    }
+    setStudioSessionReady(true);
+  }, []);
+  useEffect(() => {
+    if (!restoredProductIdRef.current || !products.length) return;
+    const restoredProduct = products.find((product) => product.id === restoredProductIdRef.current);
+    if (restoredProduct) {
+      setSelectedProduct(restoredProduct);
+      restoredProductIdRef.current = null;
+    }
+  }, [products]);
+  useEffect(() => {
+    if (!studioSessionReady) return;
+    persistStudioSession();
+  }, [studioSessionReady, mobileStudioMode, kind, studioTab, prompt, selectedProduct?.id, selectedHistoryId, selectedGenerationId, selectedSlideshowTaskId, historyKind, quality, imageResolution, orientation, background, videoResolution, aspectRatio, videoLanguage, videoTone, videoPlatform, videoAngle, videoJob?.id]);
   useEffect(() => {
     if (!selectedHistoryId) return;
     historyViewerRef.current?.focus({ preventScroll: true });
@@ -229,10 +303,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const generatingRef = useRef(false);
   // Dernier prompt produit généré par l'IA (pour distinguer les consignes de l'utilisateur).
   const lastGeneratedPromptRef = useRef<string | null>(null);
-  // Jobs vidéo déjà vérifiés une fois depuis l'historique au chargement de la
-  // page, pour ne relancer la vérification serveur qu'une seule fois par job
-  // (évite une boucle de re-render infinie sur l'effet ci-dessous).
-  const reconciledJobsRef = useRef<Set<string>>(new Set());
   useEffect(() => () => { stopProgressRef.current?.(); stopProgressRef.current = null; }, []);
   useEffect(() => {
     if (!rechargeOpen && !insufficientCredits) return;
@@ -378,7 +448,6 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     if (result) {
       setHistory((previous) => reset ? result.items : [...previous, ...result.items]);
       setHistoryCursor(result.nextCursor ?? null);
-      if (reset && kind === "video") void loadLatestVideo();
     }
     setHistoryLoading(false);
   }
@@ -401,110 +470,76 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   }
   useEffect(() => { void loadHistory(true); }, [historyKind]);
 
-  // Sans ceci, une vidéo qui continue à traiter côté serveur pendant qu'on
-  // ferme ou quitte l'appli restait bloquée sur "processing" pour toujours au
-  // retour : rien ne relançait jamais sa vérification tant que l'utilisateur
-  // ne rouvrait pas explicitement cette création précise. Au chargement (ou
-  // rafraîchissement) de l'historique, on revérifie donc une fois chaque job
-  // vidéo encore "processing" — la route appelée applique déjà la bascule en
-  // "completed"/"failed" (y compris l'abandon après un délai anormalement
-  // long), il suffit de la déclencher.
   useEffect(() => {
-    const pending = history.filter(
-      (item) => item.kind === "video" && item.status === "processing" && item.video_job_id && !reconciledJobsRef.current.has(item.video_job_id),
-    );
-    if (!pending.length) return;
-    pending.forEach((item) => reconciledJobsRef.current.add(item.video_job_id as string));
-    void (async () => {
-      let changed = false;
-      for (const item of pending) {
-        try {
-          const response = await fetch(`/api/studio/video/${encodeURIComponent(item.video_job_id as string)}`);
-          const data = await response.json().catch(() => null);
-          if (response.ok && data?.status) {
-            if (data.status === "processing") {
-              // Toujours en cours : on reprend le polling pour terminer la
-              // génération au lieu de la laisser figée sur "processing".
-              setVideoJob((current) => current ?? { id: item.video_job_id as string, status: "processing" });
-            } else {
-              changed = true;
-            }
-          }
-        } catch {
-          // Vérification en tâche de fond : un échec réseau ici n'empêche pas
-          // de continuer à utiliser le Studio, on retentera à la prochaine
-          // ouverture de la page.
-        }
-      }
-      if (changed) {
-        await loadHistory(true);
-        const credits = await fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).catch(() => null);
-        if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
-      }
-    })();
-  }, [history]);
+    if (kind === "video" || videoJob || loading) return;
+    const pending = history.find((item) => item.kind === "video" && item.status === "processing" && item.video_job_id && item.creationType !== "slideshow" && item.metadata?.type !== "slideshow");
+    if (pending?.video_job_id) setVideoJob({ id: pending.video_job_id, status: "processing" });
+  }, [history, videoJob?.id, kind, loading]);
 
   useEffect(() => {
-    if (!videoJob || ["completed", "failed", "cancelled"].includes(videoJob.status)) return;
-    let active = true;
-    let timer: number | null = null;
-    const controller = new AbortController();
-    const now = Date.now();
-    const existingWindow = videoRefreshWindowRef.current;
-    const refreshWindow = existingWindow?.id === videoJob.id
-      ? existingWindow
-      : { id: videoJob.id, deadline: now + STUDIO_VIDEO_REFRESH_WINDOW_MS, nextAt: now + STUDIO_VIDEO_REFRESH_INTERVAL_MS };
-    videoRefreshWindowRef.current = refreshWindow;
-    const poll = async () => {
-      if (!active || Date.now() > refreshWindow.deadline + 500) return;
-      refreshWindow.nextAt += STUDIO_VIDEO_REFRESH_INTERVAL_MS;
-      try {
-        const response = await fetch(`/api/studio/video/${encodeURIComponent(videoJob.id)}`, { cache: "no-store", signal: controller.signal });
-        const result = await response.json().catch(() => ({}));
-        if (!active) return;
-        if (response.ok && typeof result?.status === "string") {
-          videoNotFoundRetryRef.current = null;
-          setVideoJob(result);
-          if (typeof result.error === "string") setError(result.error);
-          if (["completed", "failed", "cancelled"].includes(result.status)) {
-            refreshWindow.nextAt = Number.POSITIVE_INFINITY;
-            videoRefreshWindowRef.current = null;
-            const credits = await fetch("/api/studio/credits").then((creditResponse) => creditResponse.ok ? creditResponse.json() : null).catch(() => null);
-            if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
-            void loadHistory(true);
-          }
+    const jobId = videoJob?.id;
+    if (!videoJob || !jobId || isTerminalStudioVideoStatus(videoJob.status)) return;
+    let notFoundAttempts = 0;
+    let trackingIssueShown = false;
+    const polling = startStudioVideoPolling<StudioVideoJob>({
+      intervalMs: STUDIO_VIDEO_REFRESH_INTERVAL_MS,
+      fetchStatus: async (signal) => {
+        const response = await fetch(`/api/studio/video/${encodeURIComponent(jobId)}`, { cache: "no-store", signal });
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 404) {
+          notFoundAttempts += 1;
+          const message = locale === "en"
+            ? "The video is still being prepared. Checking again automatically; no new generation was started."
+            : "La vidéo est toujours en préparation. Nouvelle vérification automatique ; aucun nouveau rendu n’a été lancé.";
+          return { id: jobId, status: "processing", ...(notFoundAttempts >= 4 ? { error: message } : {}) };
         }
-        else if (response.status === 404) {
-          const previous = videoNotFoundRetryRef.current?.id === videoJob.id ? videoNotFoundRetryRef.current.attempts : 0;
-          const attempts = previous + 1;
-          if (attempts <= 4) {
-            videoNotFoundRetryRef.current = { id: videoJob.id, attempts };
-            return;
-          }
-          videoNotFoundRetryRef.current = null;
-          const message = locale === "en" ? "The video is still being prepared. Check the history to follow it; no new generation was started." : "La vidéo est toujours en préparation. Vérifie l’historique pour suivre son état ; aucun nouveau rendu n’a été lancé.";
-          setError(message);
-          videoRefreshWindowRef.current = null;
-          setVideoJob(null);
+        if (!response.ok) throw new Error(typeof payload?.error === "string" ? payload.error : "Suivi vidéo temporairement indisponible.");
+        const status = normalizeStudioVideoStatus(jobId, payload);
+        if (!status) throw new Error("Réponse de suivi vidéo invalide.");
+        notFoundAttempts = 0;
+        videoRequestIdRef.current = null;
+        persistStudioSession({ videoJobId: jobId, videoRequestId: null });
+        return status;
+      },
+      onStatus: (status) => {
+        setVideoJob(status);
+        if (status.error) {
+          trackingIssueShown = status.status === "processing";
+          setError(status.error);
+        } else if (trackingIssueShown) {
+          trackingIssueShown = false;
+          setError("");
+        }
+        if (isTerminalStudioVideoStatus(status.status)) {
+          videoRequestIdRef.current = null;
+          persistStudioSession({ videoJobId: jobId, videoRequestId: null });
+          void fetch("/api/studio/credits").then((response) => response.ok ? response.json() : null).then((credits) => {
+            if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
+          }).catch(() => undefined);
           void loadHistory(true);
         }
-        else if (result.error) setError(result.error);
-      } catch {
-        // Retry after the current request settles; cleanup aborts any in-flight read.
-      } finally {
-        if (active && !controller.signal.aborted && refreshWindow.nextAt <= refreshWindow.deadline) {
-          timer = window.setTimeout(() => void poll(), Math.max(0, refreshWindow.nextAt - Date.now()));
-        }
-      }
+      },
+      onError: (pollError) => {
+        if (trackingIssueShown) return;
+        trackingIssueShown = true;
+        setError(pollError instanceof Error ? pollError.message : (locale === "en" ? "Video tracking is temporarily unavailable. It will retry automatically; do not start another generation." : "Le suivi vidéo est temporairement indisponible. Il reprendra automatiquement ; ne relance pas la génération."));
+      },
+    });
+    videoPollingHandleRef.current = polling;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") polling.refresh();
     };
-    if (refreshWindow.nextAt <= refreshWindow.deadline) {
-      timer = window.setTimeout(() => void poll(), Math.max(0, refreshWindow.nextAt - Date.now()));
-    }
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
-      active = false;
-      if (timer !== null) window.clearTimeout(timer);
-      controller.abort();
+      polling.stop();
+      if (videoPollingHandleRef.current === polling) videoPollingHandleRef.current = null;
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
+  }, [videoJob?.id]);
+  useEffect(() => {
+    if (videoJob && isTerminalStudioVideoStatus(videoJob.status)) videoPollingHandleRef.current?.stop();
   }, [videoJob?.id, videoJob?.status]);
 
   async function uploadReferenceFiles() {
@@ -594,6 +629,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   async function generate() {
     if (generatingRef.current) return;
     if (kind === "image" && (!imageRecoveryReadyRef.current || ["processing", "awaiting_media"].includes(imageTask?.status ?? ""))) return;
+    if (kind === "video" && videoJob && !isTerminalStudioVideoStatus(videoJob.status)) return;
     if (kind === "video" && promptGenerationFailed) return;
     if (kind === "video" && videoRenderLocked) {
       setError(locale === "en" ? "Video generation is not available yet." : "La génération vidéo reste indisponible.");
@@ -623,6 +659,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     setError("");
     setImageUrl(null);
     setImageLoaded(false);
+    if (kind === "video") setVideoJob(null);
     setGenerationProgress(kind === "image" ? 3 : 0);
     if (kind === "image") stopProgressRef.current = startEstimatedGenerationProgress(setGenerationProgress);
     try {
@@ -631,7 +668,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
         ? Array.from(new Set([...(uploadedReferenceUrls.length < 3 && selectedProduct?.image ? [selectedProduct.image] : []), ...uploadedReferenceUrls])).slice(0, 3)
         : [];
       const videoRequestId = kind === "video" ? (videoRequestIdRef.current || crypto.randomUUID()) : undefined;
-      if (videoRequestId) videoRequestIdRef.current = videoRequestId;
+      if (videoRequestId) {
+        videoRequestIdRef.current = videoRequestId;
+        persistStudioSession({ videoJobId: null, videoRequestId });
+      }
       const response = await fetch(kind === "image" ? "/api/studio/tasks" : "/api/studio/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -640,7 +680,10 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           : { id: videoRequestId, prompt, duration, resolution: videoResolution, aspectRatio, videoStyle, locale, ugcOptions, preparedUgc: preparedUgcRef.current, product: selectedProduct ? { id: selectedProduct.id, name: selectedProduct.name, description: selectedProduct.description ? htmlDescriptionToText(selectedProduct.description) : undefined, content: selectedProduct.content ? htmlDescriptionToText(selectedProduct.content) : undefined, price: selectedProduct.price ?? undefined, currency: selectedProduct.currency ?? undefined, imageUrl: selectedProduct.image ?? null, category: selectedProduct.category, type: selectedProduct.type, tags: selectedProduct.tags, images: selectedProduct.images, shop: selectedProduct.shop } : undefined }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok && kind === "video" && [400, 402, 423].includes(response.status)) videoRequestIdRef.current = null;
+      if (!response.ok && kind === "video" && [400, 402, 423].includes(response.status)) {
+        videoRequestIdRef.current = null;
+        persistStudioSession({ videoJobId: null, videoRequestId: null });
+      }
       if (!response.ok && (response.status === 402 || result.code === "INSUFFICIENT_CREDITS")) {
         const required = typeof result.required === "number" ? result.required : requiredCredits;
         const available = typeof result.balance === "number" ? result.balance : currentAvailable;
@@ -672,17 +715,11 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       else {
         if (typeof result.jobId !== "string" || !result.jobId) throw new Error("La tâche vidéo n'a pas pu être enregistrée.");
         videoRequestIdRef.current = null;
-        videoNotFoundRetryRef.current = null;
         const initialStatus = result.status || "queued";
         const initialContentUrl = typeof result.contentUrl === "string" ? result.contentUrl : null;
-        if (["completed", "failed", "cancelled"].includes(initialStatus)) {
-          videoRefreshWindowRef.current = null;
-        } else {
-          const startedAt = Date.now();
-          videoRefreshWindowRef.current = { id: result.jobId, deadline: startedAt + STUDIO_VIDEO_REFRESH_WINDOW_MS, nextAt: startedAt + STUDIO_VIDEO_REFRESH_INTERVAL_MS };
-        }
+        persistStudioSession({ videoJobId: result.jobId, videoRequestId: null });
         setVideoJob({ id: result.jobId, status: initialStatus, contentUrl: initialContentUrl });
-        if (["completed", "failed", "cancelled"].includes(initialStatus)) {
+        if (isTerminalStudioVideoStatus(initialStatus)) {
           void loadHistory(true);
         }
       }
@@ -811,6 +848,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     setSelectedHistoryId(item.id);
   };
   const selectProduct = (product: typeof products[number] | null) => {
+    restoredProductIdRef.current = null;
     setSelectedSlideshowTaskId(null);
     setSelectedProduct(product);
     if (kind === "video") {
@@ -953,7 +991,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
                 {selectedProduct?.image ? <p className="studio-cost studio-video-cover-note">{t("studio.coverStart")}</p> : null}
                 <p className="studio-video-desktop-note">Voix et musique ajoutées automatiquement à la génération.</p>
                 {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
-                {!videoRenderLocked ? <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || promptGenerationFailed || videoRenderLocked || !creditsLoaded}>
+                {!videoRenderLocked ? <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={!studioSessionReady || loading || promptGenerating || referenceUploading || promptGenerationFailed || videoRenderLocked || !creditsLoaded || Boolean(videoJob && !isTerminalStudioVideoStatus(videoJob.status))}>
                   <Sparkles size={17} /> {loading ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…") : locale === "en" ? "Generate video" : "Créer la vidéo"}
                 </button> : null}
                 <section className="studio-video-cost-card studio-video-cost-card--steps" aria-label={locale === "en" ? "Estimated cost" : "Coût estimé"}>
@@ -994,7 +1032,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
             </>
           )}
         </section>
-        <section className="app-card studio-result" aria-busy={loading || editSubmitting || Boolean(videoJob && !["completed", "failed", "cancelled"].includes(videoJob.status))}>
+        <section className="app-card studio-result" aria-busy={loading || editSubmitting || Boolean(videoJob && !isTerminalStudioVideoStatus(videoJob.status))}>
           <div className="card-head"><div><span className="eyebrow">{kind === "video" ? <><span className="studio-video-mobile-eyebrow">{t("studio.result")}</span><span className="studio-video-desktop-eyebrow">{locale === "en" ? "Preview" : "Aperçu"}</span></> : t("studio.result")}</span><h2>{kind === "image" ? t("studio.yourImage") : kind === "video" ? <><span className="studio-video-mobile-title">{t("studio.yourVideo")}</span><span className="studio-video-desktop-title">{locale === "en" ? "Video preview" : "Aperçu vidéo"}</span></> : t("studio.yourVideo")}</h2></div>{kind === "image" ? <ImageIcon size={20} /> : kind === "video" ? <><Video className="studio-video-mobile-icon" size={20} /><span className="studio-video-format-badge"><Video size={15} aria-hidden="true" /> Format {aspectRatio}</span></> : <Video size={20} />}</div>
           {imagePreviewUrl ? <><div className={editSubmitting ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imagePreviewUrl} alt={t("studio.yourImage")} decoding="async" onLoad={() => { setImageLoaded(true); setGenerationProgress(100); }} onError={() => { setImageLoaded(false); setGenerationProgress((current) => Math.min(current, 95)); setError(t("studio.imageLoadError")); }} /></div><div className="studio-result-actions"><button className="btn btn-ghost" onClick={() => void downloadMedia(imagePreviewUrl, "vendeo-studio-image.png")}>{t("studio.downloadImage")}</button><button className="btn btn-ghost" onClick={() => setEditOpen(true)} disabled={editSubmitting}>{t("studio.edit")}</button></div>{editOpen ? <div className="studio-edit-box"><label><span>{t("sweep3.text212")}</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} disabled={editSubmitting} /></label><small>{t("sweep1.text213")}</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editSubmitting || !editInstruction.trim()}>{editSubmitting ? t("optionsExtra.text22") : t("studio.edit")}</button><button className="btn btn-ghost" onClick={() => { setEditOpen(false); setEditInstruction(""); }} disabled={editSubmitting}>{t("workspaceExtra.cancel")}</button></div></div> : null}</> : null}
           {videoPreviewUrl ? <><video className="studio-media" src={videoPreviewUrl} controls playsInline /><VideoDownloadButton url={videoPreviewUrl} filename="vendeo-studio-video.mp4" locale={locale}>{t("studio.downloadVideo")}</VideoDownloadButton></> : null}
