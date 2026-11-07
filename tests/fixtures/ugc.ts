@@ -31,24 +31,24 @@ const isEbook = (payload: PromptPayload, name: string) =>
 
 const frenchBeats = (duration: number, name: string, ebook: boolean, productKind: string) => {
   const scripts = duration === 10
-    ? [
+      ? [
         "Tu cherches une idée nouvelle pour ta routine ?",
         "Je prends le produit et l'observe tranquillement.",
-        ebook ? `Télécharge ${name} maintenant.` : productKind === "service" ? `Réserve ${name} maintenant.` : productKind === "physical" ? `Commande ${name} maintenant.` : `Découvre ${name} maintenant.`,
+        ebook ? `Appuie sur le bouton pour télécharger ${name} maintenant.` : productKind === "service" ? `Appuie sur le bouton pour réserver ${name} maintenant.` : productKind === "physical" ? `Appuie sur le bouton pour commander ${name} maintenant.` : `Appuie sur le bouton pour découvrir ${name} maintenant.`,
       ]
     : duration === 15
       ? [
           "Tu cherches une idée nouvelle pour ta routine ?",
           "Je prends le produit et l'observe tranquillement.",
           "Je le tourne doucement et regarde ses détails en lumière naturelle.",
-          ebook ? `Télécharge ${name} dès maintenant.` : productKind === "service" ? `Réserve ${name} dès maintenant.` : productKind === "physical" ? `Commande ${name} dès maintenant.` : `Découvre ${name} dès maintenant.`,
+          ebook ? `Appuie sur le bouton pour télécharger ${name} dès maintenant.` : productKind === "service" ? `Appuie sur le bouton pour réserver ${name} dès maintenant.` : productKind === "physical" ? `Appuie sur le bouton pour commander ${name} dès maintenant.` : `Appuie sur le bouton pour découvrir ${name} dès maintenant.`,
         ]
       : [
           "Tu cherches une idée pour ta routine sans savoir par où commencer ?",
           "Je prends le produit et j'observe attentivement sa forme dans la lumière.",
           "Je le tourne doucement et prends le temps d'observer les détails en lumière naturelle.",
           "Je choisis un décor simple, rapproche le produit et le garde visible devant la caméra.",
-          ebook ? `Télécharge ${name} dès maintenant.` : productKind === "service" ? `Réserve ${name} dès maintenant.` : productKind === "physical" ? `Commande ${name} dès maintenant.` : `Découvre ${name} dès maintenant.`,
+          ebook ? `Appuie sur le bouton pour télécharger ${name} dès maintenant.` : productKind === "service" ? `Appuie sur le bouton pour réserver ${name} dès maintenant.` : productKind === "physical" ? `Appuie sur le bouton pour commander ${name} dès maintenant.` : `Appuie sur le bouton pour découvrir ${name} dès maintenant.`,
         ];
   const targets: Record<number, number> = { 10: 25, 15: 38, 25: 63 };
   const dialogues = padTotal(scripts, targets[duration]);
@@ -64,24 +64,24 @@ const frenchBeats = (duration: number, name: string, ebook: boolean, productKind
 
 const englishBeats = (duration: number, name: string, ebook: boolean, productKind: string) => {
   const scripts = duration === 10
-    ? [
+      ? [
         "Are you looking for a fresh idea for your routine?",
         "I pick up the product and look at it slowly.",
-        ebook ? `Download ${name} now.` : productKind === "service" ? `Book ${name} now.` : productKind === "physical" ? `Order ${name} now.` : `Discover ${name} now.`,
+        ebook ? `Tap the button to download ${name} now.` : productKind === "service" ? `Tap the button to book ${name} now.` : productKind === "physical" ? `Tap the button to order ${name} now.` : `Tap the button to discover ${name} now.`,
       ]
     : duration === 15
       ? [
           "Are you looking for a fresh idea for your routine?",
           "I pick up the product and look at it slowly.",
           "I turn it gently and notice its details in natural light.",
-          ebook ? `Download ${name} today.` : productKind === "service" ? `Book ${name} today.` : productKind === "physical" ? `Order ${name} today.` : `Discover ${name} today.`,
+          ebook ? `Tap the button to download ${name} today.` : productKind === "service" ? `Tap the button to book ${name} today.` : productKind === "physical" ? `Tap the button to order ${name} today.` : `Tap the button to discover ${name} today.`,
         ]
       : [
           "Are you looking for an idea for your routine but unsure where to begin?",
           "I pick up the product and carefully observe its shape in the light.",
           "I turn it gently and take time to notice its details in natural light.",
           "I choose a simple setting, move the product closer, and keep it visible on camera.",
-          ebook ? `Download ${name} today.` : productKind === "service" ? `Book ${name} today.` : productKind === "physical" ? `Order ${name} today.` : `Discover ${name} today.`,
+          ebook ? `Tap the button to download ${name} today.` : productKind === "service" ? `Tap the button to book ${name} today.` : productKind === "physical" ? `Tap the button to order ${name} today.` : `Tap the button to discover ${name} today.`,
         ];
   const targets: Record<number, number> = { 10: 25, 15: 38, 25: 63 };
   const dialogues = padTotal(scripts, targets[duration]);

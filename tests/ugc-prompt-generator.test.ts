@@ -18,7 +18,7 @@ const promptFor = (duration: number, options: { title?: string; ebook?: boolean;
     : duration === 15
       ? ["Tu cherches une idée nouvelle pour ta routine ?", "Je prends le produit et l'observe tranquillement.", "Je le tourne doucement et regarde ses détails en lumière naturelle."]
       : ["Tu cherches une idée pour ta routine sans savoir par où commencer ?", "Je prends le produit et j'observe attentivement sa forme dans la lumière.", "Je le tourne doucement et prends le temps d'observer les détails en lumière naturelle.", "Je choisis un décor simple, rapproche le produit et le garde visible devant la caméra."];
-  const final = options.finalDialogue ?? (ebook ? `Télécharge ${title} dès maintenant.` : `Commande ${title} maintenant.`);
+  const final = options.finalDialogue ?? (ebook ? `Appuie sur le bouton pour télécharger ${title} dès maintenant.` : `Appuie sur le bouton pour commander ${title} maintenant.`);
   const allDialogues = [...dialogue, final];
   const defaultVisual = ebook
     ? "ACTION: couverture réelle sur téléphone tenu face caméra, titre et illustration intacts, gros plan net centré"
@@ -40,7 +40,7 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     await expect(generateUgcPrompt(input(duration))).resolves.toBe(expected);
     const entries = readUgcTimeline(expected);
     expect(entries).toHaveLength(beats);
-    expect(expected).toMatch(/Commande Savon Kora maintenant/);
+    expect(expected).toMatch(/Appuie sur le bouton pour commander Savon Kora/);
     expect(validateUgcPrompt(expected, input(duration))).toBe(expected);
     expect(askText).toHaveBeenCalledTimes(1);
     const [messages, options] = askText.mock.calls[0];
@@ -51,6 +51,10 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     expect(payload.product).toMatchObject({ title: "Savon Kora", description: input(duration).product.description, content: input(duration).product.content, hasReferenceImage: true });
     expect(payload.options).toEqual(input(duration).options);
     expect(messages[0].content).toMatch(contract);
+    expect(messages[0].content).toMatch(/bénéfices et promesses doivent provenir exclusivement de la description/i);
+    expect(messages[0].content).toMatch(/synchronise dans le même temps horodaté/i);
+    expect(messages[0].content).toMatch(/appuyer sur le bouton/i);
+    expect(messages[0].content).toMatch(/jamais des textes incrustés, sous-titres/i);
     expect(expected).not.toMatch(/^\s*\{/);
     if (duration === 25) expect(expected).toMatch(/15–21s/);
   });
@@ -59,8 +63,25 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     const ebookInput = input(10, { name: "Guide Excel Facile", description: "Guide numérique pour apprendre Excel.", type: "ebook", category: "Éducation" });
     const prompt = promptFor(10, { title: ebookInput.product.name, ebook: true });
     expect(validateUgcPrompt(prompt, ebookInput)).toBe(prompt);
-    expect(prompt).toMatch(/Télécharge Guide Excel Facile/);
+    expect(prompt).toMatch(/Appuie sur le bouton pour télécharger Guide Excel Facile/);
     expect(prompt).toMatch(/couverture réelle sur téléphone/);
+  });
+
+  it.each([
+    {
+      name: "formation",
+      product: { name: "Formation Excel Pro", description: "Formation pratique pour apprendre les formules Excel.", type: "formation" },
+      finalDialogue: "Appuie sur le bouton pour accéder à Formation Excel Pro.",
+    },
+    {
+      name: "pack numérique",
+      product: { name: "Pack Créateur Express", description: "Pack numérique de modèles à personnaliser pour créer des visuels.", type: "digital" },
+      finalDialogue: "Appuie sur le bouton pour profiter du Pack Créateur Express.",
+    },
+  ])("accepte un CTA adapté à un $name", ({ product, finalDialogue }) => {
+    const productInput = input(10, product);
+    const prompt = promptFor(10, { title: product.name, finalDialogue });
+    expect(validateUgcPrompt(prompt, productInput)).toBe(prompt);
   });
 
   it("accepte les synonymes visuels dans tout le bloc du dernier temps", () => {
@@ -82,7 +103,7 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
   });
 
   it("accepte une réplique finale longue si le CTA est présent", async () => {
-    const invalid = promptFor(10, { finalDialogue: "Commande Savon Kora dès maintenant dans la boutique tout près de chez toi" });
+    const invalid = promptFor(10, { finalDialogue: "Appuie sur le bouton pour commander Savon Kora dès maintenant dans la boutique tout près de chez toi" });
     askText.mockResolvedValueOnce(invalid);
     await expect(generateUgcPrompt(input())).resolves.toBe(invalid);
     expect(askText).toHaveBeenCalledTimes(1);
@@ -101,7 +122,8 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
   it.each([
     ["timeline", (p: string) => p.replace("6.5–10s", "7–10s"), "timeline_incomplete"],
     ["nombre de temps", (p: string) => p.replace(/6.5–10s[^\n]*/, "6.5–10s | ACTION: vraie référence du produit visible; CAMÉRA: plan vertical"), "timeline_incomplete"],
-    ["CTA produit", (p: string) => p.replace("Commande Savon Kora maintenant.", "Découvre Savon Kora maintenant."), "final_cta_missing"],
+    ["CTA produit", (p: string) => p.replace("Appuie sur le bouton pour commander Savon Kora maintenant.", "Appuie sur le bouton pour découvrir Savon Kora maintenant."), "final_cta_missing"],
+    ["CTA sans mention du bouton", (p: string) => p.replace("Appuie sur le bouton pour commander Savon Kora maintenant.", "Commande Savon Kora maintenant."), "final_cta_missing"],
     ["CTA trop tôt", (p: string) => p.replace("Je prends le produit et l'observe tranquillement.", "Commande le produit et l'observe tranquillement."), "cta_not_final"],
     ["bornes temporelles", (p: string) => p.replace("3–6.5s", "3–6s").replace("6.5–10s", "6–10s"), "timeline_boundaries_mismatch"],
     ["langue", (p: string) => p.replace("Tu cherches une idée nouvelle pour ta routine ?", "Looking for a new routine idea today?"), "language_mismatch"],
