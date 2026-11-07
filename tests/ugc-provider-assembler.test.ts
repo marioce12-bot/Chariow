@@ -51,12 +51,15 @@ describe("assembleur du prompt UGC texte libre", () => {
     expect(prompt).toContain(UGC_SAFETY_BLOCK_END);
     expect(prompt).toContain("REAL PRODUCT");
     expect(prompt).toContain("FACTS");
+    expect(prompt).toContain("chaque avantage ou promesse présenté dans le dialogue doit être explicitement indiqué dans la description du produit");
+    expect(prompt).toContain("synchronise chaque action ou exemple visuel avec la réplique qui présente l'avantage correspondant");
     expect(prompt).toContain('"titre":"Guide Jardin en Pots"');
     expect(prompt).toContain("portrait 9:16");
     expect(prompt).toContain("adultes fictifs uniquement");
     expect(prompt).toContain("DERNIER TEMPS: appel à l'action pour télécharger");
     expect(prompt).toContain("couverture réelle sur téléphone ou tablette tenu face caméra, en gros plan net");
     expect(prompt).toContain("watermark inventé");
+    expect(prompt).toContain("aucun sous-titre, texte incrusté");
     expect(prompt).toContain("Scène: un balcon lumineux");
     expect(prompt).not.toMatch(/^\s*\{/);
   });
@@ -105,6 +108,25 @@ describe("assembleur du prompt UGC texte libre", () => {
     const renderInput = normalizeUgcInput({ ...input.product, imageUrl: input.product.images[0] }, input.options, "fr");
     expect(renderInput.product).toEqual(input.product);
     expect(input.product).toMatchObject({ category: "Jardinage", tags: ["jardin", "aromates"], shop: "Kora" });
+  });
+
+  it.each([
+    {
+      type: "formation",
+      name: "Formation Excel Pro",
+      description: "Formation pratique pour apprendre les formules Excel.",
+      expected: "Appuie sur le bouton pour accéder à",
+    },
+    {
+      type: "digital",
+      name: "Pack Créateur Express",
+      description: "Pack numérique de modèles à personnaliser pour créer des visuels.",
+      expected: "Appuie sur le bouton pour profiter de",
+    },
+  ])("adapte le CTA de sécurité pour $type", ({ type, name, description, expected }) => {
+    const productInput = normalizeUgcInput({ name, description, type }, input.product, "fr");
+    const prompt = compileUgcPrompt(productInput, narrative(10));
+    expect(prompt).toContain(expected);
   });
 });
 
