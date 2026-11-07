@@ -18,6 +18,13 @@ describe("Studio video pricing", () => {
     expect(STUDIO_VIDEO_RESOLUTIONS).toEqual(["480p", "720p"]);
   });
 
+  it("prices the fixed 30-second Studio render exactly at the two approved tiers", () => {
+    expect(videoCreditCost("480p", 30)).toBe(900);
+    expect(videoCreditCost("720p", 30)).toBe(1560);
+    expect(videoCreditCost("480p", 30) * CREDIT_PRICE_XOF).toBe(2250);
+    expect(videoCreditCost("720p", 30) * CREDIT_PRICE_XOF).toBe(3900);
+  });
+
   it("does not silently invent pricing for another resolution or duration", () => {
     expect(isSupportedStudioVideoResolution("1080p")).toBe(false);
     expect(() => videoCreditCost("1080p", 25)).toThrow("tarif Studio validé");

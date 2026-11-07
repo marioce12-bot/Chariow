@@ -23,7 +23,9 @@ const boundsFor = (duration: number) => duration === 10
   ? [[0, 3], [3, 6.5], [6.5, 10]]
   : duration === 15
     ? [[0, 3.5], [3.5, 7.5], [7.5, 11.5], [11.5, 15]]
-    : [[0, 5], [5, 10], [10, 15], [15, 21], [21, 25]];
+    : duration === 30
+      ? [[0, 5], [5, 10], [10, 15], [15, 20], [20, 25], [25, 30]]
+      : [[0, 5], [5, 10], [10, 15], [15, 21], [21, 25]];
 
 const isEbook = (payload: PromptPayload, name: string) =>
   /\b(?:ebook|e-book|pdf|downloadable)\b/i.test(`${payload.product?.type ?? ""} ${payload.product?.category ?? ""}`)
@@ -41,6 +43,15 @@ const frenchBeats = (duration: number, name: string, ebook: boolean, productKind
           "Tu cherches une idée nouvelle pour ta routine ?",
           "Je prends le produit et l'observe tranquillement.",
           "Je le tourne doucement et regarde ses détails en lumière naturelle.",
+          ebook ? `Appuie sur le bouton pour télécharger ${name} dès maintenant.` : productKind === "service" ? `Appuie sur le bouton pour réserver ${name} dès maintenant.` : productKind === "physical" ? `Appuie sur le bouton pour commander ${name} dès maintenant.` : `Appuie sur le bouton pour découvrir ${name} dès maintenant.`,
+        ]
+      : duration === 30
+        ? [
+          "Tu cherches une solution plus simple pour ta routine quotidienne ?",
+          `Je découvre ${name} et regarde comment il s’intègre à mon quotidien.`,
+          "Je prends le temps d’observer les informations et les détails réellement présentés.",
+          "Je montre une première caractéristique décrite et explique simplement ce qu’elle apporte.",
+          "Je présente une autre information confirmée sans promettre de résultat ni inventer d’usage.",
           ebook ? `Appuie sur le bouton pour télécharger ${name} dès maintenant.` : productKind === "service" ? `Appuie sur le bouton pour réserver ${name} dès maintenant.` : productKind === "physical" ? `Appuie sur le bouton pour commander ${name} dès maintenant.` : `Appuie sur le bouton pour découvrir ${name} dès maintenant.`,
         ]
       : [
@@ -74,6 +85,15 @@ const englishBeats = (duration: number, name: string, ebook: boolean, productKin
           "Are you looking for a fresh idea for your routine?",
           "I pick up the product and look at it slowly.",
           "I turn it gently and notice its details in natural light.",
+          ebook ? `Tap the button to download ${name} today.` : productKind === "service" ? `Tap the button to book ${name} today.` : productKind === "physical" ? `Tap the button to order ${name} today.` : `Tap the button to discover ${name} today.`,
+        ]
+      : duration === 30
+        ? [
+          "Are you looking for a simpler solution for your everyday routine?",
+          `I discover ${name} and see how it fits into my everyday life.`,
+          "I take time to look at the information and details that are actually shown.",
+          "I show one described feature and explain simply what it provides.",
+          "I share another confirmed detail without promising results or inventing a use.",
           ebook ? `Tap the button to download ${name} today.` : productKind === "service" ? `Tap the button to book ${name} today.` : productKind === "physical" ? `Tap the button to order ${name} today.` : `Tap the button to discover ${name} today.`,
         ]
       : [

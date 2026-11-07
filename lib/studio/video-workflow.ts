@@ -415,7 +415,7 @@ export async function assembleAndFinalizeVideoStep(id: string, falMergeJobId: st
   if (row.status === "completed" && row.storage_path) return row.storage_path;
   const metadata = row.metadata ?? {};
   const plan = metadata.plan as VideoAdPlan | undefined;
-  if (!plan || ![10, 15, 25].includes(plan.duration) || typeof metadata.segment0StoragePath !== "string" || (plan.segments.length > 1 && typeof metadata.segment1StoragePath !== "string")) throw new Error("Les séquences vidéo ne sont pas prêtes.");
+  if (!plan || ![10, 15, 25, 30].includes(plan.duration) || typeof metadata.segment0StoragePath !== "string" || (plan.segments.length > 1 && typeof metadata.segment1StoragePath !== "string")) throw new Error("Les séquences vidéo ne sont pas prêtes.");
   if (falMergeJobId && storedFalJobReference(metadata, "merge") !== falMergeJobId) throw new FatalError("STUDIO_VIDEO_MERGE_JOB_MISMATCH");
 
   let storagePath = row.storage_path;
@@ -553,7 +553,7 @@ export async function studioVideoWorkflow(id: string) {
     const initial = await inspectVideoWorkflowStep(id);
     if (!initial || initial.status !== "processing") return;
     const initialPlan = initial.metadata?.plan as VideoAdPlan | undefined;
-    if (!initialPlan || ![10, 15, 25].includes(initialPlan.duration)) throw new Error("Plan de durée vidéo absent ou invalide.");
+    if (!initialPlan || ![10, 15, 25, 30].includes(initialPlan.duration)) throw new Error("Plan de durée vidéo absent ou invalide.");
     const segmentCount = initialPlan.segments.length;
     for (const index of (segmentCount === 1 ? [0] as const : [0, 1] as const)) {
       let jobId = await submitVideoSegmentStep(id, index);

@@ -62,8 +62,8 @@ const promptFor = (duration: number, marker = "Scénario vidéo UGC", productNam
 };
 const baseBody = {
   id: requestId,
-  prompt: promptFor(25),
-  duration: 25,
+  prompt: promptFor(30),
+  duration: 30,
   resolution: "480p",
   aspectRatio: "9:16",
   videoStyle: "motion_design",
@@ -104,7 +104,7 @@ function makeAdmin() {
 
 function request(body: Row) {
   const normalized = { ...body };
-  if (normalized.prompt === baseBody.prompt && normalized.duration !== 25) normalized.prompt = promptFor(Number(normalized.duration));
+  if (normalized.prompt === baseBody.prompt && normalized.duration !== 30) normalized.prompt = promptFor(Number(normalized.duration));
   return new Request("https://preview.example/api/studio/video", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -129,7 +129,7 @@ beforeEach(() => {
   process.env.FAL_API_KEY = "test-only-key";
   rows = new Map();
   insertedRows = [];
-  reserveResult = { ok: true, transaction_id: "22222222-2222-4222-8222-222222222222", balance: 500, reserved: 750 };
+  reserveResult = { ok: true, transaction_id: "22222222-2222-4222-8222-222222222222", balance: 500, reserved: 900 };
   admin = makeAdmin();
   mocks.requireUser.mockResolvedValue({ user: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, response: null });
   mocks.createAdminClient.mockReturnValue(admin);
@@ -172,7 +172,7 @@ describe("Studio video Preview generation", () => {
     enablePreview();
     const response = await videoReadiness();
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ready: true, storage: "cloudinary-remote-import", provider: true, callback: true, callbackRequiredDurations: [10, 15], assembly: "fal-merge", supportedDurations: [10, 15, 25], aspectRatio: "9:16" });
+    expect(await response.json()).toEqual({ ready: true, storage: "cloudinary-remote-import", provider: true, callback: true, callbackRequiredDurations: [], assembly: "fal-merge", supportedDurations: [30], aspectRatio: "9:16" });
     expect(admin.from).not.toHaveBeenCalled();
     expect(admin.rpc).not.toHaveBeenCalled();
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
@@ -201,11 +201,12 @@ describe("Studio video Preview generation", () => {
     const response = await generateVideo(request(baseBody));
     const result = await response.json();
     expect(response.status).toBe(202);
-    expect(result).toMatchObject({ jobId: requestId, status: "processing", cost: 750 });
-    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 750, request_id: requestId }));
+    expect(result).toMatchObject({ jobId: requestId, status: "processing", cost: 900 });
+    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 900, request_id: requestId }));
     expect(insertedRows).toHaveLength(1);
-    expect(insertedRows[0]).toMatchObject({ id: requestId, status: "processing", credits_cost: 750, video_job_id: requestId });
+    expect(insertedRows[0]).toMatchObject({ id: requestId, status: "processing", credits_cost: 900, video_job_id: requestId });
     expect(insertedRows[0].metadata).toMatchObject({ phase: "queued", segment0State: "pending", segment1State: "pending", videoStyle: "ugc" });
+    expect(insertedRows[0].metadata.plan).toMatchObject({ duration: 30, segments: [{ duration: 15 }, { duration: 15 }] });
     for (const segment of insertedRows[0].metadata.plan.segments) {
       expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
     }
@@ -225,13 +226,13 @@ describe("Studio video Preview generation", () => {
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
-  it("charges exactly 1,300 credits for a 25-second 720p portrait video", async () => {
+  it("charges exactly 1,560 credits for a 30-second 720p portrait video", async () => {
     enablePreview();
-    reserveResult = { ...reserveResult, reserved: 1300 };
+    reserveResult = { ...reserveResult, reserved: 1560 };
     const response = await generateVideo(request({ ...baseBody, resolution: "720p" }));
     expect(response.status).toBe(202);
-    expect(await response.json()).toMatchObject({ cost: 1300 });
-    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 1300, request_id: requestId }));
+    expect(await response.json()).toMatchObject({ cost: 1560 });
+    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 1560, request_id: requestId }));
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
@@ -259,26 +260,26 @@ describe("Studio video Preview generation", () => {
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
-  it("compiles 15s + 10s prompts safely before reserving credits, even for long product data and brief", async () => {
+  it("compiles 15s + 15s prompts safely before reserving credits, even for long product data and brief", async () => {
     enablePreview();
     const description = Array.from({ length: 60 }, (_, index) => `Fait produit ${index + 1}: le guide est disponible au format PDF.`).join(" ").slice(0, 4000);
-    const prompt = `${"Mise en scène UGC naturelle avec rythme soutenu. ".repeat(12)}\n${promptFor(25, "Scénario détaillé", "Guide ebook cuisine")}`;
+    const prompt = `${"Mise en scène UGC naturelle avec rythme soutenu. ".repeat(8)}\n${promptFor(30, "Scénario détaillé", "Guide ebook cuisine")}`;
     const response = await generateVideo(request({ ...baseBody, prompt, product: { name: "Guide ebook cuisine", description, imageUrl: "https://cdn.chariow.com/ebook-cover.png" } }));
     expect(response.status).toBe(202);
-    expect(insertedRows[0].metadata.plan.segments.map((segment: Row) => segment.duration)).toEqual([15, 10]);
+    expect(insertedRows[0].metadata.plan.segments.map((segment: Row) => segment.duration)).toEqual([15, 15]);
     for (const segment of insertedRows[0].metadata.plan.segments) {
       expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
       expect(segment.prompt).toContain("Guide ebook cuisine");
       expect(segment.prompt).toContain("show the supplied exact ebook cover on a phone/tablet");
-      expect(segment.prompt).toContain("casting noir ou métissé");
+      expect(segment.prompt).toContain("adultes fictifs noirs ou métissés");
     }
-    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 750, request_id: requestId }));
+    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ amount: 900, request_id: requestId }));
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
   it("reuses a valid prepared token at render time without extra LLM calls", async () => {
     enablePreview();
-    const preparedResponse = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
+    const preparedResponse = await preparePrompt(request({ mediaType: "video", duration: 30, product: baseBody.product }));
     const prepared = await preparedResponse.json();
     expect(preparedResponse.status).toBe(200);
     expect(mocks.askText).toHaveBeenCalledTimes(1);
@@ -288,12 +289,12 @@ describe("Studio video Preview generation", () => {
     expect(mocks.askText).not.toHaveBeenCalled();
   });
 
-  it("rejects a prompt timeline whose duration differs from the selected duration before quota or credits", async () => {
+  it("rejects a prompt timeline that is not the fixed 30 seconds before quota or credits", async () => {
     enablePreview();
     const stalePrompt = `${promptFor(25)}\nVariation éditée`;
-    const response = await generateVideo(request({ ...baseBody, prompt: stalePrompt, duration: 15 }));
+    const response = await generateVideo(request({ ...baseBody, prompt: stalePrompt, duration: 30 }));
     expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ code: "ugc_duration_mismatch", promptDuration: 25, selectedDuration: 15 });
+    expect(await response.json()).toMatchObject({ code: "ugc_duration_mismatch", promptDuration: 25, selectedDuration: 30 });
     expect(admin.rpc).not.toHaveBeenCalled();
     expect(insertedRows).toHaveLength(0);
     expect(mocks.askText).not.toHaveBeenCalled();
@@ -302,7 +303,7 @@ describe("Studio video Preview generation", () => {
 
   it("keeps prompt preparation out of credits and rendering", async () => {
     enablePreview();
-    const response = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
+    const response = await preparePrompt(request({ mediaType: "video", duration: 30, product: baseBody.product }));
     const result = await response.json();
     expect(response.status).toBe(200);
     expect(typeof result.prompt).toBe("string");
@@ -315,7 +316,7 @@ describe("Studio video Preview generation", () => {
   it("sanitizes failed prompt preparation without reserving credits", async () => {
     enablePreview();
     mocks.askText.mockRejectedValue(new Error("secret provider failure"));
-    const response = await preparePrompt(request({ mediaType: "video", duration: 25, product: baseBody.product }));
+    const response = await preparePrompt(request({ mediaType: "video", duration: 30, product: baseBody.product }));
     const result = await response.json();
     expect([502, 504]).toContain(response.status);
     expect(result).toMatchObject({ code: "ugc_prompt_generation_failed", error: "Le scénario n’a pas pu être généré, réessaie.", failureRule: expect.any(String) });
@@ -327,7 +328,7 @@ describe("Studio video Preview generation", () => {
 
   it("never invokes text generation from direct render", async () => {
     enablePreview();
-    const response = await generateVideo(request({ ...baseBody, prompt: promptFor(25, "Texte édité par l'utilisateur") }));
+    const response = await generateVideo(request({ ...baseBody, prompt: promptFor(30, "Texte édité par l'utilisateur") }));
     expect(response.status).toBe(202);
     expect(mocks.askText).not.toHaveBeenCalled();
     expect(insertedRows[0].metadata.plan.segments[0].prompt).toContain("Texte édité par l'utilisateur");
@@ -335,7 +336,7 @@ describe("Studio video Preview generation", () => {
 
   it("uses an edited textarea prompt as plain user input without text-model calls", async () => {
     enablePreview();
-    const prompt = promptFor(25, "Texte modifié dans le textarea.");
+    const prompt = promptFor(30, "Texte modifié dans le textarea.");
     const response = await generateVideo(request({ ...baseBody, prompt }));
     expect(response.status).toBe(202);
     expect(mocks.askText).not.toHaveBeenCalled();
@@ -364,7 +365,7 @@ describe("Studio video Preview generation", () => {
 
   it("does not reserve credits or contact a provider if the user has insufficient available credits", async () => {
     enablePreview();
-    reserveResult = { ok: false, balance: 300, reserved: 100, required: 750 };
+    reserveResult = { ok: false, balance: 300, reserved: 100, required: 900 };
     const response = await generateVideo(request(baseBody));
     const result = await response.json();
     expect(response.status).toBe(402);
@@ -384,12 +385,13 @@ describe("Studio video Preview generation", () => {
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 
-  it("supports a 15-second single-segment prompt when its provider callback is configured", async () => {
+  it("rejects a legacy 15-second render before quota or credits", async () => {
     enablePreview();
     const response = await generateVideo(request({ ...baseBody, duration: 15 }));
-    expect(response.status).toBe(202);
-    expect(insertedRows[0].metadata.plan.segments.map((segment: Row) => segment.duration)).toEqual([15]);
-    expect(admin.rpc).toHaveBeenCalledWith("reserve_credits", expect.objectContaining({ request_id: requestId }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "invalid_input", supported: [30] });
+    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(insertedRows).toHaveLength(0);
     expect(mocks.createFalVideo).not.toHaveBeenCalled();
   });
 

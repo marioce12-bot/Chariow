@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { askText } from "@/lib/ai/text";
-import { VIDEO_AD_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
+import { STUDIO_VIDEO_DURATION, STUDIO_VIDEO_DURATIONS, type VideoAdInput } from "@/lib/studio/video-plan";
 import { generateUgcPrompt, missingUgcProductInfoFields, UgcPromptGenerationError } from "@/lib/studio/ugc-prompt-generator";
 import { normalizeUgcInput } from "@/lib/studio/ugc-prompt-input";
 import { compileUgcPrompt, compileUgcProviderPlan } from "@/lib/studio/ugc-provider-assembler";
@@ -54,8 +54,8 @@ export async function POST(request: Request) {
 
   if (body?.mediaType === "video") {
     const isSlideshow = body?.videoMode === "slideshow";
-    const allowedDurations = isSlideshow ? SLIDESHOW_DURATIONS : VIDEO_AD_DURATIONS;
-    const duration = Number(body?.duration ?? (isSlideshow ? 25 : 10));
+    const allowedDurations = isSlideshow ? SLIDESHOW_DURATIONS : STUDIO_VIDEO_DURATIONS;
+    const duration = Number(body?.duration ?? (isSlideshow ? 25 : STUDIO_VIDEO_DURATION));
     if (!(allowedDurations as readonly number[]).includes(duration)) {
       const keyPath = isSlideshow ? "duration" : "options.duration";
       const error = body?.locale === "en"

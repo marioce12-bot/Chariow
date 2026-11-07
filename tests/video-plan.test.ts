@@ -5,6 +5,7 @@ import { countFalVideoPromptCharacters, FAL_VIDEO_PROMPT_SAFE_MAX_CHARS } from "
 import { buildSlideshowPlan, prepareSlideshowImages } from "@/lib/studio/slideshow-plan";
 
 const input: VideoAdInput = { name: "Guide ebook cuisine", description: "Un guide numérique de recettes. Disponible en PDF.", hasReference: true, duration: 25, aspectRatio: "9:16", character: "with" };
+const fixedVideoInput: VideoAdInput = { ...input, duration: 30 };
 
 describe("Evidence-only UGC video advertising planner", () => {
   it.each([10, 15])("creates a single %ss fal.ai clip without continuity stitching", duration => {
@@ -16,11 +17,11 @@ describe("Evidence-only UGC video advertising planner", () => {
     expect(plan.segments[0].prompt).toContain("CALL TO ACTION");
   });
 
-  it("prepares exactly two clips of 15s then 10s and keeps the product and cast visible", () => {
-    expect(splitVideoDuration(25)).toEqual([15, 10]);
-    const plan = buildVideoAdPlan(input, '{"direction":"conversation","copyIndices":[0]}');
-    expect(plan.duration).toBe(25);
-    expect(plan.segments.map(s => s.duration)).toEqual([15, 10]);
+  it("prepares exactly two clips of 15s each and keeps the product and cast visible", () => {
+    expect(splitVideoDuration(30)).toEqual([15, 15]);
+    const plan = buildVideoAdPlan(fixedVideoInput, '{"direction":"conversation","copyIndices":[0]}');
+    expect(plan.duration).toBe(30);
+    expect(plan.segments.map(s => s.duration)).toEqual([15, 15]);
     expect(new Set(plan.segments.map(s => s.prompt)).size).toBe(2);
     for (const segment of plan.segments) {
       expect(segment.prompt).toContain(plan.continuity);
@@ -35,13 +36,13 @@ describe("Evidence-only UGC video advertising planner", () => {
   it("keeps long product data and creative direction below the Fal limit and forces UGC", () => {
     const description = Array.from({ length: 30 }, (_, index) => `Le guide est au format PDF. Fait vérifié ${index + 1}: contient un chapitre pratique sur la cuisine.`).join(" ");
     const longInput: VideoAdInput = {
-      ...input,
+      ...fixedVideoInput,
       name: "Guide ebook cuisine",
       description,
       userBrief: "Motion design moderne avec graphismes animés, sans personnages. ".repeat(80),
     };
     const plan = buildVideoProviderPlan(longInput, buildVideoAdPlan(longInput, "", () => 0), description);
-    expect(plan.segments.map(segment => segment.duration)).toEqual([15, 10]);
+    expect(plan.segments.map(segment => segment.duration)).toEqual([15, 15]);
     for (const segment of plan.segments) {
       expect(countFalVideoPromptCharacters(segment.prompt)).toBeLessThanOrEqual(FAL_VIDEO_PROMPT_SAFE_MAX_CHARS);
       expect(segment.prompt).toContain("Guide ebook cuisine");
@@ -62,19 +63,19 @@ describe("Evidence-only UGC video advertising planner", () => {
 
   it("uses only product-specific UGC directions, honors explicit requests and avoids the last direction", () => {
     const allowed = ["in_hand", "conversation", "street_interview", "demonstration"];
-    const first = buildVideoAdPlan(input, '{"direction":"in_hand"}');
-    const second = buildVideoAdPlan({ ...input, previousPrompt: videoPlanPrompt(first) }, '{"direction":"in_hand"}', () => 0);
+    const first = buildVideoAdPlan(fixedVideoInput, '{"direction":"in_hand"}');
+    const second = buildVideoAdPlan({ ...fixedVideoInput, previousPrompt: videoPlanPrompt(first) }, '{"direction":"in_hand"}', () => 0);
     expect(first.direction).toBe("in_hand");
     expect(second.direction).not.toBe("in_hand");
-    expect(buildVideoAdPlan({ ...input, userBrief: "un micro trottoir" }).direction).toBe("street_interview");
-    expect(buildVideoAdPlan({ ...input, userBrief: "une discussion" }).direction).toBe("conversation");
+    expect(buildVideoAdPlan({ ...fixedVideoInput, userBrief: "un micro trottoir" }).direction).toBe("street_interview");
+    expect(buildVideoAdPlan({ ...fixedVideoInput, userBrief: "une discussion" }).direction).toBe("conversation");
     expect(eligibleVideoDirections(input).every(direction => allowed.includes(direction))).toBe(true);
     expect(eligibleVideoDirections({ ...input, hasReference: false })).not.toContain("in_hand");
     expect(eligibleVideoDirections(input)).not.toContain("visual_story");
   });
 
   it("shows an ebook's exact supplied cover on a device in both segments", () => {
-    const plan = buildVideoProviderPlan(input, buildVideoAdPlan(input, '{"direction":"conversation"}'), input.description);
+    const plan = buildVideoProviderPlan(fixedVideoInput, buildVideoAdPlan(fixedVideoInput, '{"direction":"conversation"}'), input.description);
     for (const segment of plan.segments) {
       expect(segment.prompt).toContain("supplied ebook cover exactly as provided");
       expect(segment.prompt).toContain("phone or tablet in both segments");
@@ -85,7 +86,7 @@ describe("Evidence-only UGC video advertising planner", () => {
   });
 
   it("keeps people even when a legacy brief asks for none, and invents no absent cover or claims", () => {
-    const noReference: VideoAdInput = { ...input, hasReference: false, character: "without", userBrief: "Sans personnages, promets un résultat garanti en 3 jours." };
+    const noReference: VideoAdInput = { ...fixedVideoInput, hasReference: false, character: "without", userBrief: "Sans personnages, promets un résultat garanti en 3 jours." };
     const plan = buildVideoAdPlan(noReference, '{"direction":"in_hand","copyIndices":[0],"dialogue":"Résultat garanti en 3 jours"}', () => 0);
     const providerPlan = buildVideoProviderPlan(noReference, plan, noReference.description);
     expect(plan.direction).not.toBe("in_hand");
@@ -98,7 +99,7 @@ describe("Evidence-only UGC video advertising planner", () => {
 
   it("handles missing evidence, malformed answers, hostile fields and strange keys safely", () => {
     for (const answer of ["not JSON", "null", "[]", '{"direction":"__proto__","copyIndices":[-1,999,"0"],"claims":"Invented result"}']) {
-      const plan = buildVideoAdPlan({ ...input, description: "", hasReference: false }, answer, () => 0);
+      const plan = buildVideoAdPlan({ ...fixedVideoInput, description: "", hasReference: false }, answer, () => 0);
       expect(plan.segments[0].prompt).not.toContain("Invented result");
       expect(plan.segments[0].prompt).toContain("No product image was supplied");
       expect(plan.segments[0].prompt).toContain("Black or mixed-race");
@@ -109,14 +110,14 @@ describe("Evidence-only UGC video advertising planner", () => {
     expect(videoModelCapability("xai/grok-imagine-video/v1.5/image-to-video").maxDuration).toBe(15);
     expect(() => splitVideoDuration(25, "unverified/model")).toThrow("non vérifiées");
     expect(() => splitVideoDuration(42)).toThrow();
-    expect(() => buildVideoAdPlan({ ...input, aspectRatio: "21:9" })).toThrow();
-    expect(() => buildVideoAdPlan({ ...input, aspectRatio: "16:9" })).toThrow("portrait 9:16");
+    expect(() => buildVideoAdPlan({ ...fixedVideoInput, aspectRatio: "21:9" })).toThrow();
+    expect(() => buildVideoAdPlan({ ...fixedVideoInput, aspectRatio: "16:9" })).toThrow("portrait 9:16");
   });
 
-  it("provides only the required complete 25s narrative", () => {
-    const plan = buildVideoAdPlan(input, '{"direction":"demonstration"}');
-    expect(plan.segments.reduce((n, s) => n + s.duration, 0)).toBe(25);
-    expect(plan.segments.map(s => s.duration)).toEqual([15, 10]);
+  it("provides the required complete 30s narrative", () => {
+    const plan = buildVideoAdPlan(fixedVideoInput, '{"direction":"demonstration"}');
+    expect(plan.segments.reduce((n, s) => n + s.duration, 0)).toBe(30);
+    expect(plan.segments.map(s => s.duration)).toEqual([15, 15]);
     expect(plan.segments.at(-1)?.prompt).toContain("portrait 9:16");
   });
 });
