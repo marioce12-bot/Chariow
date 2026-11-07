@@ -14,7 +14,7 @@ const MAX_INTERESTS = 10;
 
 /** Normalize labels the same way exact Meta interest matching has historically done. */
 export function normalizeInterestLabel(value: string): string {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 const INTEREST_STOPWORDS = new Set(["de", "des", "du", "la", "le", "les", "l", "d", "et", "au", "aux", "avec", "son", "sa", "ses", "pour", "en", "un", "une"]);
