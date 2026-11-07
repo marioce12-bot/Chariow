@@ -102,6 +102,47 @@ describe("générateur UGC texte libre avec règles de durée ciblées", () => {
     expect(askText.mock.calls[1][0].at(-1).content).toContain("final_cta_missing");
   });
 
+  it.each([
+    {
+      name: "produit physique",
+      productInput: input(),
+      invalidDialogue: "Commande Savon Kora.",
+      expectedDialogue: "Appuie sur le bouton pour commander Savon Kora.",
+      invalid: promptFor(10, { finalDialogue: "Commande Savon Kora." }),
+    },
+    {
+      name: "ebook",
+      productInput: input(10, { name: "Guide Excel Facile", description: "Guide numérique pour apprendre Excel.", type: "ebook", category: "Éducation" }),
+      invalidDialogue: "Découvre Guide Excel Facile.",
+      expectedDialogue: "Appuie sur le bouton pour télécharger Guide Excel Facile.",
+      invalid: promptFor(10, { title: "Guide Excel Facile", ebook: true, finalDialogue: "Découvre Guide Excel Facile." }),
+    },
+  ])("répare uniquement le CTA manquant pour un $name après l’unique reprise IA", async ({ productInput, invalid, invalidDialogue, expectedDialogue }) => {
+    askText.mockResolvedValueOnce(invalid).mockResolvedValueOnce(invalid);
+    const expected = invalid.replace(`DIALOGUE EXACT: «${invalidDialogue}»`, `DIALOGUE EXACT: «${expectedDialogue}»`);
+
+    await expect(generateUgcPrompt(productInput)).resolves.toBe(expected);
+    expect(validateUgcPrompt(expected, productInput)).toBe(expected);
+    expect(askText).toHaveBeenCalledTimes(2);
+  });
+
+  it("ne corrige pas le CTA automatiquement si la référence visuelle finale manque", async () => {
+    const ebookInput = input(10, { name: "Guide Excel Facile", description: "Guide numérique pour apprendre Excel.", type: "ebook", category: "Éducation" });
+    const invalid = promptFor(10, {
+      title: ebookInput.product.name,
+      ebook: true,
+      finalDialogue: "Découvre Guide Excel Facile.",
+      finalVisual: "guide posé sur une table",
+    });
+    askText.mockResolvedValue(invalid);
+
+    await expect(generateUgcPrompt(ebookInput)).rejects.toMatchObject({
+      stage: "validation",
+      details: { type: "final_cta_missing", path: "dialogue.finalCta" },
+    });
+    expect(askText).toHaveBeenCalledTimes(2);
+  });
+
   it("accepte une réplique finale longue si le CTA est présent", async () => {
     const invalid = promptFor(10, { finalDialogue: "Appuie sur le bouton pour commander Savon Kora dès maintenant dans la boutique tout près de chez toi" });
     askText.mockResolvedValueOnce(invalid);
