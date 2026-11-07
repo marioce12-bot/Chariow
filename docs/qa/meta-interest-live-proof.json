@@ -1,0 +1,404 @@
+{
+  "source": "Modified local POST handler; authentication/account lookup stubbed only. Every search is forwarded live to the existing authenticated manual catalogue endpoint /api/integrations/meta/interest-search. No token extracted; no campaign endpoint called.",
+  "status": 200,
+  "beforeCalls": 15,
+  "afterCalls": 13,
+  "results": [
+    {
+      "label": "Parentalité",
+      "selected": {
+        "id": "6002991239659",
+        "name": "Parentalité (enfants et parents)"
+      },
+      "confidence": "base",
+      "suggestions": []
+    },
+    {
+      "label": "Éducation des enfants",
+      "selected": {
+        "id": "6003232518610",
+        "name": "Éducation (enfants et parents)"
+      },
+      "confidence": "close",
+      "suggestions": []
+    },
+    {
+      "label": "Développement personnel",
+      "selected": {
+        "id": "6003400407018",
+        "name": "Développement personnel (psychologie)"
+      },
+      "confidence": "base",
+      "suggestions": []
+    },
+    {
+      "label": "Famille",
+      "selected": {
+        "id": "6003476182657",
+        "name": "Famille (concept social)"
+      },
+      "confidence": "base",
+      "suggestions": []
+    },
+    {
+      "label": "Psychologie",
+      "selected": {
+        "id": "6003224104145",
+        "name": "Psychologie (science)"
+      },
+      "confidence": "base",
+      "suggestions": []
+    },
+    {
+      "label": "Relations familiales",
+      "selected": null,
+      "confidence": null,
+      "suggestions": [
+        {
+          "id": "6003206992086",
+          "name": "Gestion de la relation clientèle (relations publiques)"
+        },
+        {
+          "id": "6003779590652",
+          "name": "Investor relations"
+        },
+        {
+          "id": "6003343734074",
+          "name": "Public Relations Society of America (PRSA)"
+        }
+      ]
+    },
+    {
+      "label": "Conseils parentaux",
+      "selected": null,
+      "confidence": null,
+      "suggestions": []
+    }
+  ],
+  "searches": [
+    {
+      "query": "Éducation des enfants",
+      "status": 200,
+      "results": []
+    },
+    {
+      "query": "Parentalité",
+      "status": 200,
+      "results": [
+        {
+          "id": "6002991239659",
+          "name": "Parentalité (enfants et parents)"
+        },
+        {
+          "id": "6003101323797",
+          "name": "Paternité (enfants et parents)"
+        }
+      ]
+    },
+    {
+      "query": "Relations familiales",
+      "status": 200,
+      "results": []
+    },
+    {
+      "query": "Famille",
+      "status": 200,
+      "results": [
+        {
+          "id": "6003476182657",
+          "name": "Famille (concept social)"
+        },
+        {
+          "id": "6870918330830",
+          "name": "Sitcoms (émission de télévision)"
+        },
+        {
+          "id": "6003177703615",
+          "name": "L’incroyable famille Kardashian"
+        },
+        {
+          "id": "6003292872476",
+          "name": "Rêves de famille"
+        },
+        {
+          "id": "6004114948424",
+          "name": "Une famille en or"
+        },
+        {
+          "id": "6797095139936",
+          "name": "Domaines du droit (droit et gouvernement)"
+        },
+        {
+          "id": "6003232242988",
+          "name": "La Vie de famille"
+        },
+        {
+          "id": "6003352766119",
+          "name": "Famille recomposée"
+        },
+        {
+          "id": "6003268182136",
+          "name": "Programmes de télé-réalité (films et télévision)"
+        },
+        {
+          "id": "6003135212608",
+          "name": "Ma famille d'abord"
+        },
+        {
+          "id": "6812055306236",
+          "name": "Cinéastes, réalisateur·ices et producteur·ices (divertissement et médias)"
+        },
+        {
+          "id": "6003312320199",
+          "name": "La Famille Addams"
+        },
+        {
+          "id": "6003179178152",
+          "name": "Jiu-jitsu brésilien"
+        },
+        {
+          "id": "6772975804137",
+          "name": "Films dramatiques familiaux (films)"
+        },
+        {
+          "id": "6003429877669",
+          "name": "Sacrée Famille"
+        }
+      ]
+    },
+    {
+      "query": "Développement personnel",
+      "status": 200,
+      "results": [
+        {
+          "id": "6003748928462",
+          "name": "Développement personnel (identité personnelle)"
+        },
+        {
+          "id": "6003400407018",
+          "name": "Développement personnel (psychologie)"
+        }
+      ]
+    },
+    {
+      "query": "Psychologie",
+      "status": 200,
+      "results": [
+        {
+          "id": "6003224104145",
+          "name": "Psychologie (science)"
+        },
+        {
+          "id": "6004045863896",
+          "name": "Psychologie du développement (psychologie)"
+        },
+        {
+          "id": "6003432788970",
+          "name": "Estime de soi (psychologie)"
+        },
+        {
+          "id": "6821746203690",
+          "name": "Magazines pour femmes (publication)"
+        },
+        {
+          "id": "6003165927235",
+          "name": "Carrière (emploi)"
+        },
+        {
+          "id": "6003350040901",
+          "name": "Régulation émotionnelle"
+        }
+      ]
+    },
+    {
+      "query": "Conseils parentaux",
+      "status": 200,
+      "results": []
+    },
+    {
+      "query": "Conseils",
+      "status": 200,
+      "results": []
+    },
+    {
+      "query": "parentaux",
+      "status": 200,
+      "results": []
+    },
+    {
+      "query": "enfants",
+      "status": 200,
+      "results": [
+        {
+          "id": "6003415393053",
+          "name": "Vêtements pour enfants (habillement)"
+        },
+        {
+          "id": "6003341627396",
+          "name": "Garde d’enfants (enfants et parents)"
+        },
+        {
+          "id": "6003200511682",
+          "name": "Musique pour enfants"
+        },
+        {
+          "id": "6003135982408",
+          "name": "Mariés, deux enfants"
+        },
+        {
+          "id": "6003285984200",
+          "name": "Collecte de dons (causes sociales)"
+        },
+        {
+          "id": "6819463208957",
+          "name": "Films pour enfants (films)"
+        },
+        {
+          "id": "6003605717820",
+          "name": "films d’animation (films)"
+        },
+        {
+          "id": "6003980614748",
+          "name": "porte-bébé (bébés)"
+        }
+      ]
+    },
+    {
+      "query": "familiales",
+      "status": 200,
+      "results": []
+    },
+    {
+      "query": "Éducation",
+      "status": 200,
+      "results": [
+        {
+          "id": "6003270811593",
+          "name": "Éducation supérieure (éducation)"
+        },
+        {
+          "id": "6003232518610",
+          "name": "Éducation (enfants et parents)"
+        },
+        {
+          "id": "6003306206853",
+          "name": "Éducation en maternelle (éducation primaire et secondaire)"
+        },
+        {
+          "id": "6003304824460",
+          "name": "Éducation à distance (éducation)"
+        },
+        {
+          "id": "6003296917708",
+          "name": "Éducation physique et sportive"
+        },
+        {
+          "id": "6003013112481",
+          "name": "Éducation des adultes (formation professionnelle)"
+        },
+        {
+          "id": "6003327060545",
+          "name": "Scolarité (concept social)"
+        },
+        {
+          "id": "6895605673664",
+          "name": "Ressources pédagogiques (éducation)"
+        },
+        {
+          "id": "6003648921690",
+          "name": "Éducation à la santé"
+        },
+        {
+          "id": "6003220949667",
+          "name": "Système éducatif des États-Unis"
+        },
+        {
+          "id": "6008931329140",
+          "name": "Éducation par le jeu"
+        },
+        {
+          "id": "6846709752153",
+          "name": "Concepts et pratiques gouvernementaux (droit et gouvernement)"
+        },
+        {
+          "id": "6778209188987",
+          "name": "Gouvernement en Asie (droit et gouvernement)"
+        },
+        {
+          "id": "6785742380421",
+          "name": "Gouvernement en Europe (droit et gouvernement)"
+        },
+        {
+          "id": "6847505655045",
+          "name": "Gouvernement des États-Unis (droit et gouvernement)"
+        }
+      ]
+    },
+    {
+      "query": "Relations",
+      "status": 200,
+      "results": [
+        {
+          "id": "6003397042735",
+          "name": "relation internationale (relations personnelles et identité)"
+        },
+        {
+          "id": "6003206992086",
+          "name": "Gestion de la relation clientèle (relations publiques)"
+        },
+        {
+          "id": "6003157554630",
+          "name": "Relations publiques"
+        },
+        {
+          "id": "6003125838149",
+          "name": "Relations internationales"
+        },
+        {
+          "id": "6003224104145",
+          "name": "Psychologie (science)"
+        },
+        {
+          "id": "6003327060545",
+          "name": "Scolarité (concept social)"
+        },
+        {
+          "id": "6003343734074",
+          "name": "Public Relations Society of America (PRSA)"
+        },
+        {
+          "id": "6003779590652",
+          "name": "Investor relations"
+        },
+        {
+          "id": "6002962917372",
+          "name": "Supplier relationship management"
+        },
+        {
+          "id": "6003127206524",
+          "name": "Marketing digital (marketing)"
+        },
+        {
+          "id": "6003001828044",
+          "name": "NoSQL"
+        },
+        {
+          "id": "6003246168013",
+          "name": "Jeux de simulation (jeux vidéo)"
+        },
+        {
+          "id": "6777456867394",
+          "name": "Contenu multimédia lié aux anime et aux mangas (divertissement et médias)"
+        },
+        {
+          "id": "52559068607454",
+          "name": "Contenu en rapport avec l’alcool (boissons alcoolisées)"
+        },
+        {
+          "id": "6872689435888",
+          "name": "Contenu lié aux jeux vidéo (jeu vidéo)"
+        }
+      ]
+    }
+  ]
+}

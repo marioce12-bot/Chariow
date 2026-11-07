@@ -169,15 +169,6 @@ function parseAssistantMessage(rawContent: string): { content: string; launchPay
   return { content: cleanAiText(content, { preserveStrong: true }), launchPayload, campaignAction };
 }
 
-function isExplicitLaunchConfirmation(userMessage: string, previousAssistantMessage?: ChatMessageItem): boolean {
-  const userText = userMessage.trim().toLocaleLowerCase();
-  const assistantText = previousAssistantMessage?.content ?? "";
-  const affirmative = /^(oui|ouais|yes|ok(?:ay)?|d'accord|d accord|c'est bon|ça marche|parfait|je confirme|je valide|vas-y|vas y|go ahead|confirm(?:ed)?|lance(?: la campagne)?|tu peux lancer|you can launch)\b/.test(userText);
-  const refusal = /\b(non|no|pas encore|annule|annuler|ne\s+\w+\s+pas|don't launch|do not launch)\b/.test(userText);
-  const priorConfirmationRequest = /\b(confirm\w*|valid\w*|es-tu d'accord|est-ce bon pour toi|c'est bon.{0,30}\?|tu confirm\w*|souhait\w*.{0,30}lancer|veux.{0,30}lancer|je peux.{0,20}lancer|on lance|do you confirm|shall i launch|ready to launch)/i.test(assistantText);
-  return affirmative && !refusal && priorConfirmationRequest;
-}
-
 // Suggestions de démarrage : chacune correspond à une capacité réellement disponible
 // dans Vendeo AI (verdicts pub, produits, résumé d'activité, génération d'affiche)
 // plutôt qu'à des questions génériques qui ne mèneraient nulle part.
@@ -296,9 +287,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
   const [metaPagesError, setMetaPagesError] = useState<string | null>(null);
   const [launchPageId, setLaunchPageId] = useState<string | null>(null);
   const [launchInterests, setLaunchInterests] = useState<MetaInterestTarget[]>([]);
+  const [launchInterestAdaptations, setLaunchInterestAdaptations] = useState<Array<{ label: string; name: string }>>([]);
   const [launchInterestMisses, setLaunchInterestMisses] = useState<Array<{ label: string; suggestions: MetaInterestTarget[] }>>([]);
   const [launchInterestsLoading, setLaunchInterestsLoading] = useState(false);
   const [launchInterestsError, setLaunchInterestsError] = useState(false);
+  const [launchInterestPickerOpen, setLaunchInterestPickerOpen] = useState(false);
+  const [launchMessageExpanded, setLaunchMessageExpanded] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -341,7 +335,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
   // atterrissait dans la nouvelle conversation et laissait le bouton d'envoi bloqué.
   const sessionEpochRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
-  const autoLaunchRef = useRef(false);
 
   const [bottomNode, setBottomNode] = useState<HTMLDivElement | null>(null);
 
@@ -435,15 +428,24 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     const controller = new AbortController();
     setLaunchInterestsLoading(true);
     setLaunchInterestsError(false);
+    setLaunchInterests([]);
+    setLaunchInterestAdaptations([]);
+    setLaunchInterestMisses([]);
     fetch("/api/integrations/meta/interest-resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId: launchAccountId, labels }), signal: controller.signal })
       .then(async (response) => { const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error("resolve failed"); return data; })
       .then((data) => {
         if (controller.signal.aborted) return;
-        const results = Array.isArray(data.results) ? data.results : [];
-        setLaunchInterests(results.flatMap((item: { exact?: MetaInterestTarget | null }) => item.exact && typeof item.exact.id === "string" ? [item.exact] : []));
-        setLaunchInterestMisses(results.filter((item: { exact?: MetaInterestTarget | null }) => !item.exact).map((item: { label: string; suggestions?: MetaInterestTarget[] }) => ({ label: item.label, suggestions: Array.isArray(item.suggestions) ? item.suggestions : [] })));
+        const results: Array<{ label: string; selected?: MetaInterestTarget | null; confidence?: "exact" | "base" | "close" | null; suggestions?: MetaInterestTarget[] }> = Array.isArray(data.results) ? data.results : [];
+        const selected = results.flatMap((item) =>
+          item.selected && typeof item.selected.id === "string" && typeof item.selected.name === "string"
+            ? [{ label: item.label, interest: item.selected, confidence: item.confidence }]
+            : [],
+        );
+        setLaunchInterests(selected.map(({ interest }) => interest));
+        setLaunchInterestAdaptations(selected.filter((item) => item.confidence === "close").map(({ label, interest }) => ({ label, name: interest.name })));
+        setLaunchInterestMisses(results.filter((item) => !item.selected).map((item) => ({ label: item.label, suggestions: Array.isArray(item.suggestions) ? item.suggestions.slice(0, 3) : [] })));
       })
-      .catch(() => { if (!controller.signal.aborted) { setLaunchInterests([]); setLaunchInterestMisses([]); setLaunchInterestsError(true); } })
+      .catch(() => { if (!controller.signal.aborted) { setLaunchInterests([]); setLaunchInterestAdaptations([]); setLaunchInterestMisses([]); setLaunchInterestsError(true); } })
       .finally(() => { if (!controller.signal.aborted) setLaunchInterestsLoading(false); });
     return () => controller.abort();
   }, [launchOpen, launchPayload, launchAccountId]);
@@ -563,7 +565,6 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
         const parsedReply = parseAssistantMessage(data.message.content);
         if (parsedReply.launchPayload) {
           const campaignHistory = [...messages, userMessage];
-          autoLaunchRef.current = isExplicitLaunchConfirmation(message, messages.at(-1));
           openLaunchConfirm(parsedReply.launchPayload, collectLaunchMedia(campaignHistory), campaignHistory);
         }
         if (data.conversationId) {
@@ -677,9 +678,12 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     setLaunchCurrency(normalizeCurrency(payload?.currency) ?? guessCurrencyFromMessages(campaignHistory) ?? "XOF");
     setLaunchError(null);
     setLaunchInterests([]);
+    setLaunchInterestAdaptations([]);
     setLaunchInterestMisses([]);
     setLaunchInterestsError(false);
     setLaunchInterestsLoading(false);
+    setLaunchInterestPickerOpen(false);
+    setLaunchMessageExpanded(false);
     // Compte par défaut : celui marqué is_selected, sinon l'unique compte actif.
     const accounts = payload?.platform === "pinterest" ? pinterestAccounts : metaAccounts;
     const selected = payload?.platform === "pinterest"
@@ -694,6 +698,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
   }
 
   async function confirmLaunch() {
+    if (launchInterestsLoading || metaPagesLoading) return;
     // A ref also blocks a second click before React has rendered the disabled button.
     if (launchInFlightRef.current) return;
     if (!launchPayload?.name || !launchPayload.message) {
@@ -793,14 +798,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     }
   }
 
-  useEffect(() => {
-    if (!launchOpen || !autoLaunchRef.current) return;
-    if (launchPayload?.platform === "meta" && (metaPagesLoading || launchInterestsLoading || !launchPageId)) return;
-    autoLaunchRef.current = false;
-    void confirmLaunch();
-  }, [launchOpen, launchPayload?.platform, metaPagesLoading, launchInterestsLoading, launchPageId]);
   function closeLaunch() {
-    autoLaunchRef.current = false;
     if (!launching) setLaunchOpen(false);
   }
 
@@ -1040,6 +1038,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
               <strong id="chat-launch-title"><Rocket size={16} /> {t("chat.launchCampaign")}</strong>
               <button type="button" disabled={launching} onClick={closeLaunch} aria-label={t("wizardExtra.close")}>×</button>
             </div>
+            <div className="chat-launch-modal-body">
             <p className="chat-launch-question">{t("chat.launchConfirmQuestion")}</p>
             <div className="chat-launch-summary">
               <div className="chat-launch-row"><span>{t("chat.launchName")}</span><strong>{launchPayload?.name ?? "—"}</strong></div>
@@ -1047,14 +1046,20 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
               <div className="chat-launch-row"><span>{t("chat.launchCountries")}</span><strong>{launchPayload?.countries?.length ? launchPayload.countries.join(", ") : "—"}</strong></div>
               <div className="chat-launch-row"><span>{t("chat.launchAge")}</span><strong>{launchPayload?.ageMin != null || launchPayload?.ageMax != null ? `${launchPayload?.ageMin ?? 18}–${launchPayload?.ageMax ?? 65} ans` : "—"}</strong></div>
               {launchPayload?.platform === "meta" ? <div className="chat-launch-row"><span>{locale === "en" ? "Gender" : "Genre"}</span><strong>{launchPayload.gender === "female" ? (locale === "en" ? "Women only" : "Femmes uniquement") : launchPayload.gender === "male" ? (locale === "en" ? "Men only" : "Hommes uniquement") : (locale === "en" ? "All genders" : "Femmes et hommes")}</strong></div> : null}
-              {launchPayload?.platform === "meta" ? <div className="chat-launch-row chat-launch-interests"><span>{locale === "en" ? "Interests" : "Centres d’intérêt"}</span><div>
-                {launchInterests.length ? <div className="flex flex-wrap gap-2">{launchInterests.map((interest) => <span key={interest.id} className="inline-flex items-center gap-1 rounded-full border px-2 py-1">{interest.name}<button type="button" aria-label={`${locale === "en" ? "Remove" : "Retirer"} ${interest.name}`} disabled={launching} onClick={() => setLaunchInterests((items) => items.filter((item) => item.id !== interest.id))}>×</button></span>)}</div> : <strong>{locale === "en" ? "No additional filter" : "Aucun filtre supplémentaire"}</strong>}
-                {launchInterestsLoading ? <p>{locale === "en" ? "Matching interests…" : "Recherche des centres d’intérêt…"}</p> : null}
-                {launchInterestMisses.map(({ label, suggestions }) => <p key={label}>{locale === "en" ? `“${label}” wasn’t matched. Choose a Meta suggestion to add it:` : `« ${label} » n’a pas été trouvé. Choisis une suggestion Meta pour l’ajouter :`} {suggestions.map((item) => <button key={item.id} type="button" disabled={launching || launchInterests.length >= 10} onClick={() => setLaunchInterests((items) => items.some((x) => x.id === item.id) || items.length >= 10 ? items : [...items, item])}>{item.name}</button>)}</p>)}
-                {launchInterestsError ? <p>{locale === "en" ? "Interests could not be matched and won’t be applied. You can still launch." : "Les centres d’intérêt n’ont pas pu être vérifiés et ne seront pas appliqués. Tu peux quand même lancer la campagne."}</p> : null}
-                <MetaInterestPicker accountId={launchAccountId} value={launchInterests} onChange={setLaunchInterests} locale={locale} disabled={launching} />
+              {launchPayload?.platform === "meta" ? <div className="chat-launch-row chat-launch-interests"><span>{locale === "en" ? "Interests" : "Centres d’intérêt"}</span><div className="chat-launch-interest-content">
+                {launchInterestsLoading ? <p className="chat-launch-interest-loading" role="status">{locale === "en" ? "Matching interests…" : "Recherche des centres d’intérêt…"}</p> : <>
+                  {launchInterests.length ? <div className="chat-launch-interest-chips">{launchInterests.map((interest) => <span key={interest.id} className="chat-launch-interest-chip">{interest.name}<button type="button" aria-label={`${locale === "en" ? "Remove" : "Retirer"} ${interest.name}`} disabled={launching} onClick={() => setLaunchInterests((items) => items.filter((item) => item.id !== interest.id))}>×</button></span>)}</div> : <span className="chat-launch-interest-empty">{locale === "en" ? "No additional filter" : "Aucun filtre supplémentaire"}</span>}
+                  {launchInterestAdaptations.length ? <details className="chat-launch-interest-details"><summary>{locale === "en" ? `${launchInterestAdaptations.length} interest(s) adapted to Meta` : `${launchInterestAdaptations.length} intérêt(s) adapté(s) à Meta`}</summary><ul>{launchInterestAdaptations.map(({ label, name }) => <li key={`${label}-${name}`}><span>{label}</span><span aria-hidden="true">{" → "}</span><span>{name}</span></li>)}</ul></details> : null}
+                  {launchInterestMisses.length ? <>
+                    <p className="chat-launch-interest-misses">{locale === "en" ? "Not found on Meta: " : "Introuvable chez Meta : "}{launchInterestMisses.map(({ label }) => label).join(", ")}</p>
+                    <details className="chat-launch-interest-details"><summary>{locale === "en" ? "Choose a suggestion" : "Choisir une suggestion"}</summary><div className="chat-launch-interest-miss-list">{launchInterestMisses.map(({ label, suggestions }) => <div className="chat-launch-interest-miss" key={label}><span>{label}</span><div>{suggestions.slice(0, 3).map((item) => <button key={item.id} className="chat-launch-interest-suggestion" type="button" disabled={launching || launchInterests.length >= 10} onClick={() => { setLaunchInterests((items) => items.some((x) => x.id === item.id) || items.length >= 10 ? items : [...items, item]); setLaunchInterestMisses((items) => items.filter((miss) => miss.label !== label)); }}>{item.name}</button>)}</div></div>)}</div></details>
+                  </> : null}
+                  {launchInterestsError ? <p className="chat-launch-interest-error" role="status">{locale === "en" ? "Interests could not be matched and won’t be applied. You can still launch." : "Les centres d’intérêt n’ont pas pu être vérifiés et ne seront pas appliqués. Tu peux quand même lancer la campagne."}</p> : null}
+                </>}
+                <button className="chat-launch-interest-picker-toggle" type="button" aria-expanded={launchInterestPickerOpen} aria-controls="chat-launch-interest-picker" disabled={launching} onClick={() => setLaunchInterestPickerOpen((open) => !open)}>{locale === "en" ? "+ Add an interest" : "+ Ajouter un centre d’intérêt"}</button>
+                {launchInterestPickerOpen ? <div className="chat-launch-interest-picker" id="chat-launch-interest-picker"><MetaInterestPicker accountId={launchAccountId} value={launchInterests} onChange={setLaunchInterests} locale={locale} disabled={launching} /></div> : null}
               </div></div> : null}
-              <div className="chat-launch-row chat-launch-message"><span>{t("chat.launchMessage")}</span><strong>{launchPayload?.message ?? "—"}</strong></div>
+              <div className="chat-launch-row chat-launch-message"><span>{t("chat.launchMessage")}</span><strong className={`chat-launch-message-text${launchMessageExpanded ? " is-expanded" : ""}`}>{launchPayload?.message ?? "—"}</strong>{(launchPayload?.message?.length ?? 0) > 150 ? <button className="chat-launch-message-toggle" type="button" onClick={() => setLaunchMessageExpanded((expanded) => !expanded)}>{launchMessageExpanded ? (locale === "en" ? "Show less" : "Voir moins") : (locale === "en" ? "Show more" : "Voir plus")}</button> : null}</div>
             </div>
             {launchImageUrls.length === 1 ? (
               <div className="chat-launch-image">
@@ -1161,9 +1166,10 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
             ) : null}
             {launching ? <LaunchProgress complete={launchComplete} /> : null}
             {launchError ? <p className="store-error" role="alert">{localizeSystemMessage(launchError, locale)}</p> : null}
+            </div>
             <div className="chat-launch-actions">
               <button type="button" className="btn btn-ghost" disabled={launching} onClick={closeLaunch}>{t("chat.cancel")}</button>
-              <button type="button" className="btn btn-dark chat-launch-action" disabled={launching || launchInterestsLoading || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && (!launchCta || !launchAccountId || !launchPageId))} onClick={() => void confirmLaunch()}>{launching ? t(launchComplete ? "chat.launchSent" : "chat.launchSubmitting") : t("chat.confirmLaunch")}</button>
+              <button type="button" className="btn btn-dark chat-launch-action" disabled={launching || launchInterestsLoading || metaPagesLoading || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && (!launchCta || !launchAccountId || !launchPageId))} onClick={() => void confirmLaunch()}>{launching ? t(launchComplete ? "chat.launchSent" : "chat.launchSubmitting") : t("chat.confirmLaunch")}</button>
             </div>
           </div>
         </div>
