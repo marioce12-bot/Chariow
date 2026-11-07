@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   searchMetaInterests: vi.fn(),
   normalizeInterestLabel: vi.fn(),
   buildInterestSearchQueries: vi.fn(),
-  resolveExactMetaInterests: vi.fn(),
+  pickBestMetaInterest: vi.fn(),
   rankMetaInterestCandidates: vi.fn(),
 }));
 
@@ -20,7 +20,7 @@ vi.mock("@/lib/meta/api", () => ({ searchMetaInterests: mocks.searchMetaInterest
 vi.mock("@/lib/ad-campaigns/meta-targeting", () => ({
   normalizeInterestLabel: mocks.normalizeInterestLabel,
   buildInterestSearchQueries: mocks.buildInterestSearchQueries,
-  resolveExactMetaInterests: mocks.resolveExactMetaInterests,
+  pickBestMetaInterest: mocks.pickBestMetaInterest,
   rankMetaInterestCandidates: mocks.rankMetaInterestCandidates,
 }));
 
@@ -44,60 +44,81 @@ beforeEach(() => {
   mocks.decryptSecret.mockReturnValue("secret-token");
   mocks.normalizeInterestLabel.mockImplementation((label: string) => label.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim());
   mocks.buildInterestSearchQueries.mockImplementation((label: string) => [label, `${label} token`]);
-  mocks.resolveExactMetaInterests.mockImplementation((requested: string[], candidates: Array<{ id: string; name: string }>) => ({
-    resolved: candidates.filter((item) => item.name.toLowerCase() === requested[0].toLowerCase()).slice(0, 1),
-    missing: [],
-  }));
+  mocks.pickBestMetaInterest.mockImplementation((label: string, candidates: Array<{ id: string; name: string }>) => {
+    const match = candidates.find((item) => item.name.toLowerCase() === label.toLowerCase());
+    return match ? { interest: { id: match.id, name: match.name }, confidence: "exact" } : null;
+  });
   mocks.rankMetaInterestCandidates.mockImplementation((_label: string, candidates: unknown[], limit: number) => candidates.slice(0, limit));
   mocks.searchMetaInterests.mockResolvedValue([]);
   vi.spyOn(console, "info").mockImplementation(() => {});
 });
 
 describe("POST /api/integrations/meta/interest-resolve", () => {
-  it("returns an exact match and does not include it in suggestions", async () => {
-    mocks.searchMetaInterests.mockImplementation(async (query: string) => query === "Jazz"
-      ? [{ id: "101", name: "Jazz" }]
-      : [{ id: "102", name: "Jazz music" }]);
+  it("stops after the full-label query when the match is exact, with no suggestions", async () => {
+    mocks.searchMetaInterests.mockResolvedValue([{ id: "101", name: "Jazz" }]);
 
     const response = await POST(jsonRequest({ accountId: "act-1", labels: ["Jazz"] }));
     expect(response.status).toBe(200);
-    expect(await responseJson(response)).toEqual({ results: [{ label: "Jazz", exact: { id: "101", name: "Jazz" }, suggestions: [] }] });
-    expect(mocks.searchMetaInterests).toHaveBeenCalledTimes(2);
+    expect(await responseJson(response)).toEqual({
+      results: [{ label: "Jazz", selected: { id: "101", name: "Jazz" }, confidence: "exact", suggestions: [] }],
+    });
+    expect(mocks.searchMetaInterests).toHaveBeenCalledTimes(1);
     expect(mocks.searchMetaInterests).toHaveBeenCalledWith("Jazz", "secret-token");
+    expect(mocks.buildInterestSearchQueries).not.toHaveBeenCalled();
     expect(mocks.decryptSecret).toHaveBeenCalledWith("cipher");
   });
 
+  it("stops after the first query on a base match (Meta disambiguation in parentheses)", async () => {
+    mocks.searchMetaInterests.mockResolvedValue([{ id: "501", name: "Parentalité (enfants et parents)" }]);
+    mocks.pickBestMetaInterest.mockReturnValue({ interest: { id: "501", name: "Parentalité (enfants et parents)" }, confidence: "base" });
+
+    const response = await POST(jsonRequest({ accountId: "act-1", labels: ["Parentalité"] }));
+    expect(await responseJson(response)).toEqual({
+      results: [{ label: "Parentalité", selected: { id: "501", name: "Parentalité (enfants et parents)" }, confidence: "base", suggestions: [] }],
+    });
+    expect(mocks.searchMetaInterests).toHaveBeenCalledTimes(1);
+    expect(mocks.buildInterestSearchQueries).not.toHaveBeenCalled();
+  });
+
   it("passes fr_FR to Meta only when explicitly requested for measurement", async () => {
+    mocks.searchMetaInterests.mockResolvedValue([{ id: "101", name: "Jazz" }]);
     const response = await POST(jsonRequest({ accountId: "act-1", labels: ["Jazz"], locale: "fr_FR" }));
     expect(response.status).toBe(200);
     expect(mocks.searchMetaInterests).toHaveBeenCalledWith("Jazz", "secret-token", { locale: "fr_FR" });
   });
 
-  it("resolves an exact match found through a token-oriented query", async () => {
-    mocks.searchMetaInterests.mockImplementation(async (query: string) => query.endsWith(" token")
-      ? [{ id: "201", name: "Plant-based diets" }]
+  it("runs the fallback queries only when the first query gives neither exact nor base, and returns the close confidence", async () => {
+    mocks.searchMetaInterests.mockImplementation(async (query: string) => query === "Jazz token"
+      ? [{ id: "201", name: "Jazz (musique)" }]
       : []);
-    mocks.resolveExactMetaInterests.mockImplementation((requested: string[], candidates: Array<{ id: string; name: string }>) => ({
-      resolved: candidates.filter((item) => item.name === requested[0]),
-      missing: [],
-    }));
-
-    const response = await POST(jsonRequest({ accountId: "act-1", labels: ["Plant-based diets"] }));
-    expect(await responseJson(response)).toEqual({ results: [{ label: "Plant-based diets", exact: { id: "201", name: "Plant-based diets" }, suggestions: [] }] });
-    expect(mocks.searchMetaInterests).toHaveBeenCalledWith("Plant-based diets token", "secret-token");
-  });
-
-  it("returns ranked suggestions and null exact when no exact result exists", async () => {
-    mocks.searchMetaInterests.mockResolvedValue([{ id: "301", name: "Jazz festivals" }]);
-    mocks.resolveExactMetaInterests.mockReturnValue({ resolved: [], missing: ["Jazz"] });
-    mocks.rankMetaInterestCandidates.mockReturnValue([{ id: "301", name: "Jazz festivals" }]);
+    mocks.pickBestMetaInterest.mockImplementation((_label: string, candidates: Array<{ id: string; name: string }>) =>
+      candidates.length ? { interest: { id: "201", name: "Jazz (musique)" }, confidence: "close" } : null);
 
     const response = await POST(jsonRequest({ accountId: "act-1", labels: ["Jazz"] }));
-    expect(await responseJson(response)).toEqual({ results: [{ label: "Jazz", exact: null, suggestions: [{ id: "301", name: "Jazz festivals" }] }] });
-    expect(mocks.rankMetaInterestCandidates).toHaveBeenCalledWith("Jazz", [{ id: "301", name: "Jazz festivals" }], 5);
+    expect(await responseJson(response)).toEqual({
+      results: [{ label: "Jazz", selected: { id: "201", name: "Jazz (musique)" }, confidence: "close", suggestions: [] }],
+    });
+    expect(mocks.searchMetaInterests).toHaveBeenCalledTimes(2);
+    expect(mocks.searchMetaInterests).toHaveBeenNthCalledWith(1, "Jazz", "secret-token");
+    expect(mocks.searchMetaInterests).toHaveBeenCalledWith("Jazz token", "secret-token");
+    expect(mocks.pickBestMetaInterest).toHaveBeenCalledTimes(2);
+    expect(console.info).toHaveBeenCalledWith("meta_interest_resolve", { requested: 1, exact: 0, adapted: 1, suggested: 0, failed: 0 });
   });
 
-  it("continues when one query rejects but another succeeds", async () => {
+  it("returns null selected, null confidence and at most 3 ranked suggestions when nothing matches", async () => {
+    mocks.searchMetaInterests.mockResolvedValue([
+      { id: "301", name: "Jazz festivals" }, { id: "302", name: "Jazz club" }, { id: "303", name: "Jazz piano" }, { id: "304", name: "Jazz guitar" },
+    ]);
+
+    const response = await POST(jsonRequest({ accountId: "act-1", labels: ["Jazz fusion"] }));
+    const json = await responseJson(response);
+    expect(json.results[0]).toMatchObject({ label: "Jazz fusion", selected: null, confidence: null });
+    expect(json.results[0].suggestions).toHaveLength(3);
+    expect(mocks.rankMetaInterestCandidates).toHaveBeenCalledWith("Jazz fusion", expect.any(Array), 3);
+    expect(console.info).toHaveBeenCalledWith("meta_interest_resolve", { requested: 1, exact: 0, adapted: 0, suggested: 1, failed: 0 });
+  });
+
+  it("continues when the first query rejects but a fallback query succeeds", async () => {
     mocks.searchMetaInterests.mockImplementation(async (query: string) => {
       if (query === "Yoga") throw new Error("private error");
       return [{ id: "401", name: "Yoga" }];
@@ -105,8 +126,10 @@ describe("POST /api/integrations/meta/interest-resolve", () => {
 
     const response = await POST(jsonRequest({ accountId: "act-1", labels: ["Yoga"] }));
     expect(response.status).toBe(200);
-    expect(await responseJson(response)).toEqual({ results: [{ label: "Yoga", exact: { id: "401", name: "Yoga" }, suggestions: [] }] });
-    expect(console.info).toHaveBeenCalledWith("meta_interest_resolve", { requested: 1, exact: 1, suggested: 0, failed: 1 });
+    expect(await responseJson(response)).toEqual({
+      results: [{ label: "Yoga", selected: { id: "401", name: "Yoga" }, confidence: "exact", suggestions: [] }],
+    });
+    expect(console.info).toHaveBeenCalledWith("meta_interest_resolve", { requested: 1, exact: 1, adapted: 0, suggested: 0, failed: 1 });
   });
 
   it("returns 502 only when every individual search rejects", async () => {
@@ -115,7 +138,7 @@ describe("POST /api/integrations/meta/interest-resolve", () => {
     const response = await POST(jsonRequest({ accountId: "act-1", labels: ["Jazz"] }));
     expect(response.status).toBe(502);
     expect(await responseJson(response)).toEqual({ code: "META_INTEREST_SEARCH_FAILED", error: "Impossible de vérifier les centres d’intérêt auprès de Meta." });
-    expect(console.info).toHaveBeenCalledWith("meta_interest_resolve", { requested: 1, exact: 0, suggested: 0, failed: 2 });
+    expect(console.info).toHaveBeenCalledWith("meta_interest_resolve", { requested: 1, exact: 0, adapted: 0, suggested: 0, failed: 2 });
   });
 
   it("returns the account-not-found code and scopes lookup to the authenticated user, active status, and requested id", async () => {
