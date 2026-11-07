@@ -28,7 +28,7 @@ describe("Settings index SSR", () => {
     language.locale = locale;
     const html = render();
     expect(html.match(/class="settings-group"/g)).toHaveLength(2);
-    expect(html.match(/class="settings-option-row"/g)).toHaveLength(8);
+    expect(html.match(/class="settings-option-row"/g)).toHaveLength(9);
     expect(html).toContain(`placeholder="${translate(locale, "settings.searchPlaceholder")}"`);
     expect(html).toContain(translate(locale, "settings.appSection"));
     expect(html).toContain(translate(locale, "settings.shopSection"));
@@ -39,7 +39,7 @@ describe("Settings index SSR", () => {
     expect(html).not.toContain('role="tab"');
   });
 
-  it.each(["accounts", "channels", "appearance", "language", "feedback", "about", "session"] as const)("opens %s as a focused detail with a return button", (focus) => {
+  it.each(["accounts", "channels", "appearance", "language", "feedback", "about", "session", "referral"] as const)("opens %s as a focused detail with a return button", (focus) => {
     const html = render(focus);
     expect(html).toContain(`data-mobile-settings-section="${focus}"`);
     expect(html.match(/data-settings-panel=/g)).toHaveLength(1);

@@ -3,7 +3,7 @@
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, BarChart3, Bot, CreditCard, Plus, Search, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Layers, Video, Languages, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, Bot, CreditCard, Plus, Search, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Layers, Video, Languages, ExternalLink, Gift } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { FeedbackView } from "@/components/FeedbackView";
@@ -11,6 +11,7 @@ import { PinterestAdsPanel } from "@/components/PinterestAdsPanel";
 import { MetaHistoryOverview } from "@/components/dashboard/MetaHistoryOverview";
 import { MetaAccountSkeleton } from "@/components/dashboard/MetaAccountSkeleton";
 import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
+import { ReferralSettingsPanel } from "@/components/dashboard/ReferralSettingsPanel";
 import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
 import { StudioDesktopProductFields } from "@/components/studio/StudioDesktopProductFields";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
@@ -1525,7 +1526,7 @@ const CONNECTED_ACCOUNT_PLATFORMS: Array<{ id: "meta" | "tiktok" | "pinterest"; 
   { id: "pinterest", label: "Pinterest", description: "Diffuse tes campagnes sur Pinterest Ads.", badge: "pinterest", live: true },
 ];
 
-type SettingsTab = "accounts" | "channels" | "appearance" | "language" | "feedback" | "about" | "session";
+type SettingsTab = "accounts" | "channels" | "appearance" | "language" | "feedback" | "about" | "session" | "referral";
 
 export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onNavigate: (section: string) => void; onSignOut: () => void; plan: PlanId; focus?: SettingsTab | "preferences" }) {
   const connectionCache = useNavigationCache();
@@ -1634,6 +1635,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
         { id: "stores", title: t("settings.myStores"), description: t("settings.manageStores"), keywords: "boutique boutiques chariow stores", icon: <Store size={18} />, onSelect: () => onNavigate("Mes boutiques") },
         { id: "channels", title: t("settings.connectedAccounts"), description: t("settings.connectedAccountsDescription"), keywords: "comptes publicitaires meta tiktok pinterest ads", icon: <ExternalLink size={18} />, onSelect: () => setMobileSettingsSection("channels") },
         { id: "subscription", title: t("settings.subscription"), description: t("settings.manageSubscription"), keywords: "abonnement plan offre paiement subscription billing", icon: <CreditCard size={18} />, onSelect: () => onNavigate("Abonnement") },
+        { id: "referral", title: t("referral.title"), description: t("referral.settingsDescription"), keywords: "parrainage affiliation lien crédits abonnement offert referral invite", icon: <Gift size={18} />, onSelect: () => setMobileSettingsSection("referral") },
       ],
     },
   ];
@@ -1676,6 +1678,7 @@ export function MobileSettingsView({ onNavigate, onSignOut, plan, focus }: { onN
       <>
       <button type="button" className="settings-detail-back mobile-back-button" onClick={() => { setMobileSettingsSection(null); if (focus) onNavigate("Paramètres"); }}><ArrowLeft size={16} /> {t("settings.backToSettings")}</button>
       <div className="settings-detail-panel" role="region" id={`settings-panel-${mobileSettingsSection}`} aria-labelledby="settings-title" tabIndex={0}>
+      {mobileSettingsSection === "referral" && <ReferralSettingsPanel />}
       {mobileSettingsSection === "accounts" && <section className="settings-section settings-section-account" data-settings-panel="accounts" aria-label={t("settings.storesAndSubscription")}>
         <div className="mobile-settings-grid">
           <button type="button" className="mobile-settings-card" onClick={() => onNavigate("Mes boutiques")}>
