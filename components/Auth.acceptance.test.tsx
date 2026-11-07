@@ -22,6 +22,7 @@ describe("signup legal acceptance", () => {
     act(() => root.render(createElement(Auth, { mode: "register" })));
     const form = container.querySelector("form")!;
     (form.elements.namedItem("fullName") as HTMLInputElement).value = "Aïcha";
+    (form.elements.namedItem("experienceLevel") as HTMLSelectElement).value = "beginner";
     (form.elements.namedItem("email") as HTMLInputElement).value = "a@example.test";
     (form.elements.namedItem("password") as HTMLInputElement).value = "password123";
     const checkbox = form.querySelector<HTMLInputElement>('input[name="acceptedLegal"]')!;

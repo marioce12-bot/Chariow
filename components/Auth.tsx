@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/lib/i18n/i18n";
 import { trackSuccessfulRegistration } from "@/lib/meta-pixel";
+import { normalizeReferralCode } from "@/lib/referrals/rules";
 
 export function Auth({ mode, configurationError = false, successRedirect = "/dashboard" }: { mode: "login" | "register" | "forgot"; configurationError?: boolean; successRedirect?: string }) {
   const { t , locale } = useI18n();
@@ -18,8 +19,28 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
   const [verificationEmail, setVerificationEmail] = useState("");
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [referralCode, setReferralCode] = useState("");
   const register = mode === "register";
   const forgot = mode === "forgot";
+
+  useEffect(() => {
+    if (!register || typeof window === "undefined") return;
+    let code: string | null = null;
+    try {
+      const query = new URLSearchParams(window.location.search);
+      if (query.has("ref")) {
+        code = normalizeReferralCode(query.get("ref"));
+        if (code) window.localStorage.setItem("vendeo_referral_code", code);
+        else window.localStorage.removeItem("vendeo_referral_code");
+      } else {
+        code = normalizeReferralCode(window.localStorage.getItem("vendeo_referral_code"));
+      }
+    } catch {
+      // A referral can still be used for this page view when browser storage is unavailable.
+      code = normalizeReferralCode(new URLSearchParams(window.location.search).get("ref"));
+    }
+    setReferralCode(code ?? "");
+  }, [register]);
 
   function cooldownKey(email: string, scope: "login" | "register" | "forgot" = mode) {
     return `vendeo_auth_cooldown:${scope}:${email.trim().toLowerCase()}`;
@@ -161,7 +182,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
       const result = forgot
         ? await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password` })
         : register
-          ? await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName, experience_level: experienceLevel } } })
+          ? await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName, experience_level: experienceLevel, ...(referralCode ? { referral_code: referralCode } : {}) } } })
           : await supabase.auth.signInWithPassword({ email, password });
 
       if (result.error) {
@@ -178,6 +199,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
         return;
       }
       if (register) {
+        try { window.localStorage.removeItem("vendeo_referral_code"); } catch { /* Storage may be unavailable. */ }
         trackSuccessfulRegistration();
         // Attendre la synchronisation Brevo avant la redirection après inscription.
         try {
@@ -223,6 +245,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
         </div>}
         {submitted ? <div className="auth-success">{successMessage}</div> : (
           <form onSubmit={submit}>
+            {register && <input type="hidden" name="referralCode" value={referralCode} />}
             {register && <div className="form-group"><label htmlFor="fullName">{t("auth.fullName")}</label><input id="fullName" name="fullName" required placeholder="Aïcha" /></div>}
             {register && <div className="form-group"><label htmlFor="experienceLevel">{locale === "en" ? "Your experience with digital products" : "Ton expérience avec les produits digitaux"}</label><select id="experienceLevel" name="experienceLevel" defaultValue="" required><option value="" disabled>{locale === "en" ? "Choose your experience level" : "Choisis ton niveau d’expérience"}</option><option value="beginner">{locale === "en" ? "I am just starting" : "Je débute complètement"}</option><option value="some_experience">{locale === "en" ? "I have some experience" : "J’ai quelques notions"}</option><option value="experienced">{locale === "en" ? "I already have experience" : "J’ai déjà de l’expérience"}</option><option value="expert">{locale === "en" ? "I am experienced and want to manage my business" : "Je suis expérimenté et je veux mieux gérer mon business"}</option></select></div>}
             <div className="form-group"><label htmlFor="email">{t("auth.email")}</label><input id="email" name="email" required type="email" placeholder={t("optionsExtra.text5")} /></div>

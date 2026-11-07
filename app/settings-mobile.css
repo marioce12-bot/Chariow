@@ -75,6 +75,43 @@
 .settings-page .settings-section-channels > .settings-inline-message { grid-column: 1 / -1; }
 .settings-page .settings-section-feedback .admin-card { margin: 0 !important; padding: 24px; width: 100%; }
 .settings-page :is(button, a):focus-visible { outline: 3px solid #356cf6; outline-offset: 3px; }
+.settings-page .settings-section-referral { display: grid; gap: 14px; }
+.referral-state,.referral-empty { color: var(--muted, #667085); margin: 0; padding: 14px 2px; }
+.referral-error,.referral-notice { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; margin: 0; }
+.referral-error button,.referral-load-more { background: transparent; border: 0; color: #356cf6; cursor: pointer; font: inherit; font-weight: 700; padding: 8px; }
+.referral-stats-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.referral-stat-card,.referral-link-card,.referral-progress-card,.referral-reward-card,.referral-people-card { background: var(--surface, #fff); border: 1px solid var(--line, #e5e7eb); border-radius: 14px; min-width: 0; }
+.referral-stat-card { display: grid; gap: 6px; padding: 16px; }
+.referral-stat-card small { color: var(--muted, #667085); font-size: 12px; line-height: 1.35; }
+.referral-stat-card strong { color: var(--ink, #172033); font-size: 24px; letter-spacing: -.03em; }
+.referral-stat-icon { align-items: center; background: rgba(53, 108, 246, .1); border-radius: 10px; color: #356cf6; display: inline-flex; height: 34px; justify-content: center; width: 34px; }
+.referral-link-card,.referral-progress-card,.referral-people-card { padding: 16px; }
+.referral-link-card > label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.referral-link-row { align-items: center; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; }
+.referral-link-row input { background: var(--paper, #f8faff); border: 1px solid var(--line, #dbe3ef); border-radius: 9px; color: var(--ink, #172033); font: inherit; font-size: 13px; min-height: 42px; min-width: 0; padding: 8px 10px; }
+.referral-link-row .btn { align-items: center; display: inline-flex; gap: 7px; justify-content: center; min-height: 42px; white-space: nowrap; }
+.referral-link-card > small { color: var(--muted, #667085); display: block; font-size: 11px; line-height: 1.45; margin-top: 8px; }
+.referral-progress-heading,.referral-people-heading { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.referral-progress-heading strong { font-size: 14px; }
+.referral-progress-heading span,.referral-people-heading > span { color: #356cf6; font-size: 13px; font-weight: 700; }
+.referral-progress-track { background: rgba(53, 108, 246, .13); border-radius: 999px; height: 9px; margin: 12px 0 8px; overflow: hidden; }
+.referral-progress-track > span { background: linear-gradient(90deg, #356cf6, #7462f5); border-radius: inherit; display: block; height: 100%; transition: width .25s ease; }
+.referral-progress-card > p,.referral-reward-card p { color: var(--muted, #667085); font-size: 12px; line-height: 1.45; margin: 0; }
+.referral-reward-card { align-items: center; background: linear-gradient(135deg, rgba(53, 108, 246, .08), rgba(116, 98, 245, .06)); display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; padding: 16px; }
+.referral-reward-card > div { display: grid; gap: 4px; min-width: 0; }
+.referral-reward-card > div > strong { font-size: 14px; }
+.referral-reward-card .btn { align-items: center; display: inline-flex; gap: 8px; justify-content: center; min-height: 42px; }
+.referral-spinner { animation: referral-spin .9s linear infinite; }
+@keyframes referral-spin { to { transform: rotate(360deg); } }
+.referral-people-heading { margin-bottom: 6px; }
+.referral-people-heading h3 { font-size: 15px; margin: 0; }
+.referral-people-list { list-style: none; margin: 0; padding: 0; }
+.referral-people-list li { align-items: center; border-top: 1px solid var(--line, #e5e7eb); display: flex; gap: 11px; min-height: 58px; padding: 9px 0; }
+.referral-person-avatar { align-items: center; background: rgba(53, 108, 246, .1); border-radius: 50%; color: #356cf6; display: inline-flex; flex: 0 0 34px; font-size: 13px; font-weight: 700; height: 34px; justify-content: center; width: 34px; }
+.referral-person-copy { display: grid; gap: 3px; min-width: 0; }
+.referral-person-copy strong { font-size: 13px; font-weight: 600; }
+.referral-person-copy small { color: var(--muted, #667085); font-size: 11px; }
+.referral-load-more { display: block; margin: 7px auto 0; min-height: 40px; }
 
 .settings-detail-back.mobile-back-button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 16px; }
 
@@ -149,6 +186,10 @@
   .settings-page .settings-integration-card > div:first-child { flex: 1; }
   .settings-page .settings-integration-card button { flex: none; }
   .settings-page .settings-section-feedback .admin-card { margin: 0 !important; padding: 16px !important; }
+  .referral-link-row { align-items: stretch; grid-template-columns: minmax(0, 1fr); }
+  .referral-link-row .btn { width: 100%; }
+  .referral-reward-card { align-items: stretch; }
+  .referral-reward-card .btn { width: 100%; }
 }
 @media (min-width: 761px) and (max-width: 1120px) {
   .settings-page .settings-section-channels { grid-template-columns: 1fr; }
@@ -162,6 +203,8 @@ html[data-theme="dark"] .mobile-more-menu[role="menu"] > button.active {
 html[data-theme="dark"] .settings-page .settings-search input { background: var(--surface, #0b1734); }
 html[data-theme="dark"] .settings-page .settings-option-row:hover { background: rgba(148, 163, 184, .1); }
 html[data-theme="dark"] .mobile-more-menu[role="menu"] > button.danger { color: #f19999; }
+html[data-theme="dark"] .referral-stat-card strong { color: var(--ink, #e7edfb); }
+html[data-theme="dark"] .referral-link-row input { background: #0b1734; border-color: #31427a; }
 
 /* Logos Meta et TikTok des onglets de la page Pub. */
 .app-card button.btn[aria-label="Meta"] svg { color: #0866ff; }
