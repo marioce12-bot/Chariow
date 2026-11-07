@@ -13,7 +13,6 @@ import { MetaAccountSkeleton } from "@/components/dashboard/MetaAccountSkeleton"
 import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
 import { ReferralSettingsPanel } from "@/components/dashboard/ReferralSettingsPanel";
 import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
-import { StudioDesktopProductFields } from "@/components/studio/StudioDesktopProductFields";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
 import { resolveStudioPreviewMedia } from "@/components/studio/preview-media";
 import { StorePlatformDialog } from "@/components/dashboard/StorePlatformDialog";
@@ -921,70 +920,98 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
       <div id="studio-photo-panel" role="tabpanel" aria-labelledby={kind === "video" ? "studio-video-tab" : "studio-photo-tab"} hidden={studioTab !== "photo"}>
       <div className={`studio-grid${kind === "video" ? " studio-video-grid" : ""}`}>
         <section className="app-card studio-form">
-          {kind === "video" ? <StudioDesktopProductFields products={products} selectedProduct={selectedProduct} onSelect={(productId) => selectProduct(products.find((product) => product.id === productId) ?? null)} locale={locale} mode="video" /> : null}
-          {kind === "video" ? <div className="studio-options" aria-label="Options du scénario UGC">
-            <StudioSelect label="Langue vidéo" value={videoLanguage} onChange={setVideoLanguage} options={[["auto", "Langue du produit"], ["fr", "Français"], ["en", "English"]]} />
-            <StudioSelect label="Ton" value={videoTone} onChange={setVideoTone} options={[["naturel", "Naturel"], ["fun", "Fun"], ["sérieux", "Sérieux"], ["émotionnel", "Émotionnel"]]} />
-            <StudioSelect label="Plateforme cible" value={videoPlatform} onChange={setVideoPlatform} options={[["Reels", "Reels"], ["TikTok", "TikTok"], ["Facebook", "Facebook"]]} />
-            <StudioSelect label="Angle créatif" value={videoAngle} onChange={setVideoAngle} options={[["", "Adapté au produit"], ["Problème → solution", "Problème → solution"], ["Avant / après", "Avant / après (si étayé)"], ["J'ai testé pour vous", "Découverte scénarisée"], ["Déballage / découverte", "Déballage / découverte"], ["Secret / astuce", "Astuce"], ["Témoignage émotionnel", "Émotion (fiction signalée)"], ["Comparaison", "Comparaison"], ["Tutoriel rapide", "Tutoriel rapide"], ["Réaction / étonnement", "Réaction / étonnement"]]} />
-          </div> : null}
-          <label className={`studio-field${promptGenerating ? " is-generating" : ""}`}>
+          {kind === "video" ? (
+            <div className="studio-video-steps">
+              <section className="studio-video-step studio-video-step--idea" aria-labelledby="studio-video-step-idea-title">
+                <div className="studio-video-step-heading">
+                  <span aria-hidden="true">1</span>
+                  <h3 id="studio-video-step-idea-title">{locale === "en" ? "Your idea" : "Ton idée"}</h3>
+                </div>
+                <label className={`studio-field${promptGenerating ? " is-generating" : ""}`}>
+                  <span>{t("studio.describe")}</span>
+                  <div className="studio-prompt-box">
+                    <textarea value={prompt} onChange={(event) => { setPrompt(event.target.value); preparedUgcRef.current = null; }} placeholder={t("studio.describeVideo")} maxLength={4000} rows={7} readOnly={promptGenerating} aria-busy={promptGenerating} />
+                    {promptGenerating ? <div className="studio-prompt-status" role="status" aria-live="polite"><Sparkles size={14} /><b>{t("studio.insertProductInfoLoading")}</b><i /><i /><i /></div> : null}
+                  </div>
+                  <small>{prompt.length}/4 000</small>
+                </label>
+                {promptGenerationFailed ? <p className="studio-cost" role="status" aria-live="polite">{locale === "en" ? "No video was started and no video credits were charged for this prompt attempt." : "Aucun rendu vidéo n’a été lancé et aucun crédit vidéo n’a été débité pour cette tentative de prompt."}</p> : null}
+                {promptDurationChanged ? <p className="studio-cost" role="status" aria-live="polite">{locale === "en" ? "Duration changed: regenerate the prompt." : "Durée modifiée : régénère le prompt."}</p> : null}
+                <div className="studio-video-prompt-action studio-video-prompt-action--desktop">
+                  {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : promptGenerationFailed ? "Régénérer" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
+                </div>
+              </section>
 
-            <span>{t("studio.describe")}</span>
-            <div className="studio-prompt-box">
-              <textarea value={prompt} onChange={(event) => { setPrompt(event.target.value); if (kind === "video") preparedUgcRef.current = null; }} placeholder={kind === "image" ? t("studio.describeImage") : t("studio.describeVideo")} maxLength={4000} rows={7} readOnly={promptGenerating} aria-busy={promptGenerating} />
-              {promptGenerating ? <div className="studio-prompt-status" role="status" aria-live="polite"><Sparkles size={14} /><b>{t("studio.insertProductInfoLoading")}</b><i /><i /><i /></div> : null}
-            </div>
-            <small>{prompt.length}/4 000</small>
-          </label>
-          {kind === "video" && promptGenerationFailed ? <p className="studio-cost" role="status" aria-live="polite">{locale === "en" ? "No video was started and no video credits were charged for this prompt attempt." : "Aucun rendu vidéo n’a été lancé et aucun crédit vidéo n’a été débité pour cette tentative de prompt."}</p> : null}
-          {kind === "video" && promptDurationChanged ? <p className="studio-cost" role="status" aria-live="polite">{locale === "en" ? "Duration changed: regenerate the prompt." : "Durée modifiée : régénère le prompt."}</p> : null}
+              <section className="studio-video-step studio-video-step--creative" aria-labelledby="studio-video-step-creative-title">
+                <div className="studio-video-step-heading">
+                  <span aria-hidden="true">2</span>
+                  <h3 id="studio-video-step-creative-title">{locale === "en" ? "Creative direction" : "Direction créative"}</h3>
+                </div>
+                <div className="studio-video-direction-controls">
+                  <div className="studio-field studio-video-style"><span>{locale === "en" ? "Video style" : "Style vidéo"}</span><strong>UGC</strong><small>{locale === "en" ? "Product-specific scenario with one or two fictional adult Black or mixed-race characters." : "Scénario adapté au produit, avec un ou deux personnages adultes fictifs noirs ou métissés."}</small></div>
+                  <div className="studio-options studio-video-options-creative" aria-label="Options du scénario UGC">
+                    <StudioSelect label="Langue vidéo" value={videoLanguage} onChange={setVideoLanguage} options={[["auto", "Langue du produit"], ["fr", "Français"], ["en", "English"]]} />
+                    <StudioSelect label="Ton" value={videoTone} onChange={setVideoTone} options={[["naturel", "Naturel"], ["fun", "Fun"], ["sérieux", "Sérieux"], ["émotionnel", "Émotionnel"]]} />
+                    <StudioSelect label="Plateforme cible" value={videoPlatform} onChange={setVideoPlatform} options={[["Reels", "Reels"], ["TikTok", "TikTok"], ["Facebook", "Facebook"]]} />
+                    <StudioSelect label="Angle créatif" value={videoAngle} onChange={setVideoAngle} options={[["", "Adapté au produit"], ["Problème → solution", "Problème → solution"], ["Avant / après", "Avant / après (si étayé)"], ["J'ai testé pour vous", "Découverte scénarisée"], ["Déballage / découverte", "Déballage / découverte"], ["Secret / astuce", "Astuce"], ["Témoignage émotionnel", "Émotion (fiction signalée)"], ["Comparaison", "Comparaison"], ["Tutoriel rapide", "Tutoriel rapide"], ["Réaction / étonnement", "Réaction / étonnement"]]} />
+                  </div>
+                </div>
+              </section>
 
-          {kind === "image" ? (
-            <div className="studio-options">
-              {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? t("studio.insertProductInfoLoading") : t("studio.insertProductInfo")}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : null}
-              <div className="studio-field studio-references"><span>{t("studio.references")}</span><label className={`studio-upload${referenceFiles.length ? " has-files" : ""}${referenceUploading || loading ? " is-disabled" : ""}`}><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => setReferenceFiles(Array.from(event.target.files ?? []).slice(0, 3))} disabled={referenceUploading || loading} /><span className="studio-upload-icon"><ImageIcon size={20} /></span><span className="studio-upload-text"><strong>{referenceFiles.length ? t("dynamicExtra.selectedImages", { count: (referenceFiles.length), plural: (referenceFiles.length > 1 ? "s" : "") }) : t("sweep1.text207")}</strong><small>{referenceFiles.length ? referenceFiles.map((file) => file.name).join(", ") : t("studio.referenceHint")}</small></span></label>{referenceFiles.length ? <button type="button" className="studio-upload-clear" onClick={() => setReferenceFiles([])} disabled={referenceUploading || loading}>{t("sweep2.text208")}</button> : null}</div>
-              <StudioSelect label={t("studio.quality")} value={quality} onChange={setQuality} options={[['medium', t("studio.medium")], ['high', t("studio.high")], ['xhigh', t("studio.xhigh")], ['max', t("studio.max")]]} />
-              <StudioSelect label={t("studio.resolution")} value={imageResolution} onChange={setImageResolution} options={[['hd', 'HD'], ['full_hd', 'Full HD'], ['2k', '2K'], ['4k', '4K']]} />
-              <StudioSelect label={t("studio.format")} value={orientation} onChange={setOrientation} options={[['square', t("studio.square")], ['landscape', t("studio.landscape")], ['portrait', t("studio.portrait")]]} />
-              <StudioSelect label={t("studio.background")} value={background} onChange={setBackground} options={[['auto', t("studio.auto")], ['opaque', t("studio.opaque")], ['transparent', t("studio.transparent")]]} />
+              <section className="studio-video-step studio-video-step--render" aria-labelledby="studio-video-step-render-title">
+                <div className="studio-video-step-heading">
+                  <span aria-hidden="true">3</span>
+                  <h3 id="studio-video-step-render-title">{locale === "en" ? "Render" : "Rendu"}</h3>
+                </div>
+                <div className="studio-video-render-controls">
+                  <StudioSelect label={t("studio.duration")} value={String(duration)} onChange={(value) => setDuration(Number(value) as typeof VIDEO_AD_DURATIONS[number])} options={VIDEO_AD_DURATIONS.map((value) => [String(value), `${value} s`])} />
+                  <StudioSelect label={t("studio.resolution")} value={videoResolution} onChange={(value) => setVideoResolution(value as typeof STUDIO_VIDEO_RESOLUTIONS[number])} options={STUDIO_VIDEO_RESOLUTIONS.map((value) => [value, value])} />
+                  <div className="studio-field"><span>{t("studio.format")}</span><strong>Portrait · 9:16</strong><small>{locale === "en" ? "Fixed vertical format" : "Format vertical fixe"}</small></div>
+                </div>
+                {selectedProduct?.image ? <p className="studio-cost studio-video-cover-note">{t("studio.coverStart")}</p> : null}
+                <p className="studio-video-desktop-note">Voix et musique ajoutées automatiquement à la génération.</p>
+                {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
+                {!videoRenderLocked ? <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || promptGenerationFailed || promptDurationChanged || videoRenderLocked || videoCallbackUnavailable || !creditsLoaded}>
+                  <Sparkles size={17} /> {videoCallbackUnavailable ? (locale === "en" ? "fal.ai callback required for 10/15 s" : "Callback fal.ai requis pour 10/15 s") : loading ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…") : locale === "en" ? "Generate video" : "Créer la vidéo"}
+                </button> : null}
+                <section className="studio-video-cost-card studio-video-cost-card--steps" aria-label={locale === "en" ? "Estimated cost" : "Coût estimé"}>
+                  <div className="studio-video-cost-icon"><Layers size={22} aria-hidden="true" /></div>
+                  <div>
+                    <span className="eyebrow">{locale === "en" ? "Estimated cost" : "Coût estimé"}</span>
+                    <strong>{videoCostEstimate} {t("studio.credits")}</strong>
+                    <small>{locale === "en" ? `Final duration · ${duration} seconds · ${videoResolution} · portrait 9:16` : `Durée finale · ${duration} secondes · ${videoResolution} · portrait 9:16`}</small>
+                    <small>{videoCostPriceXof.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF · {locale === "en" ? "Available balance" : "Solde disponible"} · {creditsLoaded ? availableCredits : locale === "en" ? "loading…" : "chargement…"} {t("studio.credits")}</small>
+                    <small>{locale === "en" ? "The server re-checks the available balance before reserving credits." : "Le solde est revérifié côté serveur avant toute réservation de crédits."}</small>
+                  </div>
+                </section>
+              </section>
             </div>
           ) : (
             <>
-              <div className="studio-options studio-video-options-mobile">
-                <div className="studio-field"><span>{locale === "en" ? "Video style" : "Style vidéo"}</span><strong>UGC</strong><small>{locale === "en" ? "Product-specific scenario with one or two fictional adult Black or mixed-race characters." : "Scénario adapté au produit, avec un ou deux personnages adultes fictifs noirs ou métissés."}</small></div>
-                <StudioSelect label={t("studio.duration")} value={String(duration)} onChange={(value) => setDuration(Number(value) as typeof VIDEO_AD_DURATIONS[number])} options={VIDEO_AD_DURATIONS.map((value) => [String(value), `${value} s`])} />
-                <StudioSelect label={t("studio.resolution")} value={videoResolution} onChange={(value) => setVideoResolution(value as typeof STUDIO_VIDEO_RESOLUTIONS[number])} options={STUDIO_VIDEO_RESOLUTIONS.map((value) => [value, value])} />
-                {selectedProduct?.image ? <p className="studio-cost" style={{ marginTop: 8 }}>{t("studio.coverStart")}</p> : null}
-                <div className="studio-field"><span>{t("studio.format")}</span><strong>Portrait · 9:16</strong><small>{locale === "en" ? "Fixed vertical format" : "Format vertical fixe"}</small></div>
-                {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : promptGenerationFailed ? "Régénérer" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
-              </div>
-              <div className="studio-options studio-video-options-desktop">
-                <div className="studio-field studio-video-style"><span>{locale === "en" ? "Video style" : "Style vidéo"}</span><strong>UGC</strong><small>{locale === "en" ? "Product-specific scenario with one or two fictional adult Black or mixed-race characters." : "Scénario adapté au produit, avec un ou deux personnages adultes fictifs noirs ou métissés."}</small></div>
-                <div className="studio-video-controls-grid">
-                  <div className="studio-field studio-video-duration">
-                    <StudioSelect label={locale === "en" ? "Final duration" : "Durée finale"} value={String(duration)} onChange={(value) => setDuration(Number(value) as typeof VIDEO_AD_DURATIONS[number])} options={VIDEO_AD_DURATIONS.map((value) => [String(value), `${value} s`])} />
-                  </div>
-                  <div className="studio-video-format-resolution">
-                    <div className="studio-field"><span>{t("studio.format")}</span><strong>Portrait · 9:16</strong><small>{locale === "en" ? "Fixed vertical format" : "Format vertical fixe"}</small></div>
-                    <StudioSelect label={t("studio.resolution")} value={videoResolution} onChange={(value) => setVideoResolution(value as typeof STUDIO_VIDEO_RESOLUTIONS[number])} options={STUDIO_VIDEO_RESOLUTIONS.map((value) => [value, value])} />
-                  </div>
+              <label className={`studio-field${promptGenerating ? " is-generating" : ""}`}>
+                <span>{t("studio.describe")}</span>
+                <div className="studio-prompt-box">
+                  <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t("studio.describeImage")} maxLength={4000} rows={7} readOnly={promptGenerating} aria-busy={promptGenerating} />
+                  {promptGenerating ? <div className="studio-prompt-status" role="status" aria-live="polite"><Sparkles size={14} /><b>{t("studio.insertProductInfoLoading")}</b><i /><i /><i /></div> : null}
                 </div>
-          {selectedProduct?.image ? <p className="studio-cost" style={{ marginTop: 8 }}>{t("studio.coverStart")}</p> : null}
-                {selectedProduct ? <div className="studio-video-prompt-action studio-video-prompt-action--desktop"><button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? "Génération du prompt…" : promptGenerationFailed ? "Régénérer" : "Générer le prompt"}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button></div> : <p className="studio-cost">Sélectionne un produit pour générer un prompt adapté. Tu peux aussi rédiger le prompt ci-dessus.</p>}
+                <small>{prompt.length}/4 000</small>
+              </label>
+              <div className="studio-options">
+                {selectedProduct ? <button type="button" className={`studio-insert-btn${promptGenerating ? " is-loading" : ""}`} onClick={() => void insertProductInfo()} disabled={promptGenerating || loading} aria-busy={promptGenerating}><span className="studio-insert-icon"><Package size={18} /></span><span className="studio-insert-text"><strong>{promptGenerating ? t("studio.insertProductInfoLoading") : t("studio.insertProductInfo")}</strong><small>{selectedProduct.name}</small></span><Sparkles size={16} className="studio-insert-spark" /></button> : null}
+                <div className="studio-field studio-references"><span>{t("studio.references")}</span><label className={`studio-upload${referenceFiles.length ? " has-files" : ""}${referenceUploading || loading ? " is-disabled" : ""}`}><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => setReferenceFiles(Array.from(event.target.files ?? []).slice(0, 3))} disabled={referenceUploading || loading} /><span className="studio-upload-icon"><ImageIcon size={20} /></span><span className="studio-upload-text"><strong>{referenceFiles.length ? t("dynamicExtra.selectedImages", { count: (referenceFiles.length), plural: (referenceFiles.length > 1 ? "s" : "") }) : t("sweep1.text207")}</strong><small>{referenceFiles.length ? referenceFiles.map((file) => file.name).join(", ") : t("studio.referenceHint")}</small></span></label>{referenceFiles.length ? <button type="button" className="studio-upload-clear" onClick={() => setReferenceFiles([])} disabled={referenceUploading || loading}>{t("sweep2.text208")}</button> : null}</div>
+                <StudioSelect label={t("studio.quality")} value={quality} onChange={setQuality} options={[["medium", t("studio.medium")], ["high", t("studio.high")], ["xhigh", t("studio.xhigh")], ["max", t("studio.max")]]} />
+                <StudioSelect label={t("studio.resolution")} value={imageResolution} onChange={setImageResolution} options={[["hd", "HD"], ["full_hd", "Full HD"], ["2k", "2K"], ["4k", "4K"]]} />
+                <StudioSelect label={t("studio.format")} value={orientation} onChange={setOrientation} options={[["square", t("studio.square")], ["landscape", t("studio.landscape")], ["portrait", t("studio.portrait")]]} />
+                <StudioSelect label={t("studio.background")} value={background} onChange={setBackground} options={[["auto", t("studio.auto")], ["opaque", t("studio.opaque")], ["transparent", t("studio.transparent")]]} />
               </div>
+              {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
+              <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || !imageRecoveryReady}>
+                <Sparkles size={17} /> {loading && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : t("studio.createImage")}
+              </button>
+              <p className="studio-cost">{locale === "en" ? "Estimated image cost" : "Coût estimé de l’image"} : <strong>{imageCostEstimate} {t("studio.credits")}</strong> ({imageResolution}, {quality}).</p>
             </>
           )}
-
-          {error ? <p className="form-error">{localizeSystemMessage(error, locale)}</p> : null}
-          {kind === "video" ? <p className="studio-video-desktop-note">Voix et musique ajoutées automatiquement à la génération.</p> : null}
-          {!(kind === "video" && videoRenderLocked) ? <button type="button" className="btn btn-dark studio-generate" onClick={() => void generate()} disabled={loading || promptGenerating || referenceUploading || (kind === "image" && !imageRecoveryReady) || (kind === "video" && (promptGenerationFailed || promptDurationChanged || videoRenderLocked || videoCallbackUnavailable || !creditsLoaded))}>
-            <Sparkles size={17} /> {kind === "video" ? videoCallbackUnavailable ? (locale === "en" ? "fal.ai callback required for 10/15 s" : "Callback fal.ai requis pour 10/15 s") : loading ? (locale === "en" ? "Starting video…" : "Lancement de la vidéo…") : locale === "en" ? "Generate video" : "Créer la vidéo" : loading && (imageTrackingIssue || imageTask?.status === "awaiting_media") ? (locale === "en" ? "Retrieving image…" : "Récupération de l’image…") : loading || referenceUploading ? t("studio.generating") : t("studio.createImage")}
-          </button> : null}
-          {kind === "image" ? <p className="studio-cost">{locale === "en" ? "Estimated image cost" : "Coût estimé de l’image"} : <strong>{imageCostEstimate} {t("studio.credits")}</strong> ({imageResolution}, {quality}).</p> : <div className="studio-video-cost-inline"><p className="studio-cost">Coût estimé : <strong>{videoCostEstimate} crédits Studio · {videoCostPriceXof.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF</strong> ({duration} s, {videoResolution}, portrait 9:16).</p><p className="studio-cost">{locale === "en" ? "The server re-checks the available balance before reserving credits." : "Le solde est revérifié côté serveur avant toute réservation de crédits."}</p></div>}
         </section>
-        {kind === "video" ? <section className="studio-video-cost-card studio-video-cost-card--desktop" aria-label={locale === "en" ? "Estimated cost" : "Coût estimé"}><div className="studio-video-cost-icon"><Layers size={22} aria-hidden="true" /></div><div><span className="eyebrow">{locale === "en" ? "Estimated cost" : "Coût estimé"}</span><strong>{videoCostEstimate} {t("studio.credits")}</strong><small>{locale === "en" ? `Final duration · ${duration} seconds · portrait 9:16` : `Durée finale · ${duration} secondes · portrait 9:16`}</small><small>{videoCostPriceXof.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF</small></div></section> : null}
-
         <section className="app-card studio-result" aria-busy={loading || editSubmitting || Boolean(videoJob && !["completed", "failed", "cancelled"].includes(videoJob.status))}>
           <div className="card-head"><div><span className="eyebrow">{kind === "video" ? <><span className="studio-video-mobile-eyebrow">{t("studio.result")}</span><span className="studio-video-desktop-eyebrow">{locale === "en" ? "Preview" : "Aperçu"}</span></> : t("studio.result")}</span><h2>{kind === "image" ? t("studio.yourImage") : kind === "video" ? <><span className="studio-video-mobile-title">{t("studio.yourVideo")}</span><span className="studio-video-desktop-title">{locale === "en" ? "Video preview" : "Aperçu vidéo"}</span></> : t("studio.yourVideo")}</h2></div>{kind === "image" ? <ImageIcon size={20} /> : kind === "video" ? <><Video className="studio-video-mobile-icon" size={20} /><span className="studio-video-format-badge"><Video size={15} aria-hidden="true" /> Format {aspectRatio}</span></> : <Video size={20} />}</div>
           {imagePreviewUrl ? <><div className={editSubmitting ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imagePreviewUrl} alt={t("studio.yourImage")} decoding="async" onLoad={() => { setImageLoaded(true); setGenerationProgress(100); }} onError={() => { setImageLoaded(false); setGenerationProgress((current) => Math.min(current, 95)); setError(t("studio.imageLoadError")); }} /></div><div className="studio-result-actions"><button className="btn btn-ghost" onClick={() => void downloadMedia(imagePreviewUrl, "vendeo-studio-image.png")}>{t("studio.downloadImage")}</button><button className="btn btn-ghost" onClick={() => setEditOpen(true)} disabled={editSubmitting}>{t("studio.edit")}</button></div>{editOpen ? <div className="studio-edit-box"><label><span>{t("sweep3.text212")}</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} disabled={editSubmitting} /></label><small>{t("sweep1.text213")}</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editSubmitting || !editInstruction.trim()}>{editSubmitting ? t("optionsExtra.text22") : t("studio.edit")}</button><button className="btn btn-ghost" onClick={() => { setEditOpen(false); setEditInstruction(""); }} disabled={editSubmitting}>{t("workspaceExtra.cancel")}</button></div></div> : null}</> : null}
@@ -992,7 +1019,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           {kind === "video" && videoJob?.status === "failed" && videoJob.error ? <p className="form-error" role="alert">{videoJob.error}</p> : null}
           {!imagePreviewUrl && !videoPreviewUrl ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>{kind === "video" && videoJob?.status === "failed" ? (locale === "en" ? "Video generation failed" : "La génération vidéo a échoué") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Image created" : "Image créée") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Checking your creation" : "Vérification de ta création") : t("chat.posterGenerating")}</strong><p role="status">{kind === "video" && videoJob?.status === "failed" ? (locale === "en" ? "Check the history for the final status." : "Vérifie l’historique pour connaître l’état final.") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Tracking is temporarily unavailable. Checking automatically; do not start another generation." : "Suivi temporairement indisponible. Vérification automatique en cours ; ne relance pas de génération.") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Retrieving the saved image. No new generation or credit charge." : "Récupération de l’image enregistrée. Aucune nouvelle génération ni dépense de crédits.") : videoJob ? t("dynamicExtra.videoStatus", { status: (videoJob.status) }) : t("optionsExtra.text23")}</p>{kind === "image" && loading && !imageTrackingIssue && imageTask?.status !== "awaiting_media" ? <div className="studio-generation-progress"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}</>  : kind === "video" ? <><div className="studio-video-sample" role="img" aria-label={locale === "en" ? "Sample video preview" : "Exemple d’aperçu vidéo"}><span aria-hidden="true">▶</span></div><div className="studio-video-empty-copy"><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></div></> : <><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></>}</div> : null}
           {imageUrl && kind === "image" ? <div className="studio-generation-progress" aria-live="polite"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}
-          {kind === "video" ? <section className="studio-video-cost-card" aria-label={locale === "en" ? "Estimated cost" : "Coût estimé"}><div className="studio-video-cost-icon"><Layers size={22} aria-hidden="true" /></div><div><span className="eyebrow">{locale === "en" ? "Estimated cost" : "Coût estimé"}</span><strong>{videoCostEstimate} {t("studio.credits")}</strong><small>{locale === "en" ? `Final duration · ${duration} seconds · ${videoResolution} · portrait 9:16` : `Durée finale · ${duration} secondes · ${videoResolution} · portrait 9:16`}</small><small>{videoCostPriceXof.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF · {locale === "en" ? "Available balance" : "Solde disponible"} · {creditsLoaded ? availableCredits : locale === "en" ? "loading…" : "chargement…"} {t("studio.credits")}</small></div></section> : null}
+
         </section>
       </div>
       </div>

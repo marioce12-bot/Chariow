@@ -89,6 +89,7 @@ describe("Studio UGC prompt generation UI", () => {
         expect(container.textContent).not.toContain("Rendu vidéo verrouillé sur cette Preview");
       } else {
         expect(generateButton?.textContent).toContain(expectedLabel);
+        expect(generateButton?.closest(".studio-video-step--render")).not.toBeNull();
       }
       expect(fetcher.mock.calls.some(([url, options]) => String(url) === "/api/studio/video" && options?.method === "POST")).toBe(false);
     } finally {
@@ -208,12 +209,18 @@ describe("Studio UGC prompt generation UI", () => {
       const promptField = container.querySelector<HTMLTextAreaElement>("#studio-photo-panel textarea");
       expect(promptField).toBeTruthy();
       expect(promptField!.value).toBe("");
-      const mobileOptions = container.querySelector<HTMLElement>(".studio-video-options-mobile");
-      const durationSelect = [...(mobileOptions?.querySelectorAll<HTMLSelectElement>("select") ?? [])].find(select => [...select.options].map(option => option.value).join(",") === "10,15,25");
-      const mobileGenerate = mobileOptions?.querySelector<HTMLButtonElement>(".studio-insert-btn");
+      const productPicker = container.querySelector<HTMLElement>(".studio-product-picker");
+      const ideaStep = container.querySelector<HTMLElement>(".studio-video-step--idea");
+      const creativeStep = container.querySelector<HTMLElement>(".studio-video-step--creative");
+      const renderStep = container.querySelector<HTMLElement>(".studio-video-step--render");
+      const durationSelect = [...(renderStep?.querySelectorAll<HTMLSelectElement>("select") ?? [])].find(select => [...select.options].map(option => option.value).join(",") === "10,15,25");
+      const generatePromptButton = ideaStep?.querySelector<HTMLButtonElement>(".studio-insert-btn");
       expect(durationSelect).toBeTruthy();
-      expect(mobileGenerate).toBeTruthy();
-      expect(Boolean(durationSelect!.compareDocumentPosition(mobileGenerate!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+      expect(generatePromptButton).toBeTruthy();
+      expect(productPicker && ideaStep && (productPicker.compareDocumentPosition(ideaStep) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
+      expect(ideaStep && creativeStep && (ideaStep.compareDocumentPosition(creativeStep) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
+      expect(creativeStep && renderStep && (creativeStep.compareDocumentPosition(renderStep) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
+      expect(renderStep?.querySelector(".studio-video-cost-card--steps")).toBeTruthy();
       expect(container.textContent).not.toContain("Mise en scène UGC naturelle et dynamique");
       expect(container.textContent).not.toContain("Profil souhaité");
       expect(container.querySelector('input[placeholder*="entrepreneuse"]')).toBeNull();
