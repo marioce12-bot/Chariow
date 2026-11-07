@@ -14,7 +14,7 @@ const MAX_INTERESTS = 10;
 
 /** Normalize labels the same way exact Meta interest matching has historically done. */
 export function normalizeInterestLabel(value: string): string {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 const INTEREST_STOPWORDS = new Set(["de", "des", "du", "la", "le", "les", "l", "d", "et", "au", "aux", "avec", "son", "sa", "ses", "pour", "en", "un", "une"]);
@@ -34,27 +34,89 @@ export function buildInterestSearchQueries(label: string): string[] {
   return queries;
 }
 
+/** Retire UN groupe entre parenthèses en fin de nom (précision de Meta). */
+export function stripInterestDisambiguation(name: string): string {
+  return name.replace(/\s*\([^()]*\)\s*$/, "").trim();
+}
+
+type InterestCandidate = { id: string; name: string; audienceSize?: number };
+
+const significantWordsOf = (normalized: string) =>
+  new Set(normalized.split(/\s+/).filter((word) => word.length >= 4 && !INTEREST_STOPWORDS.has(word)));
+
+function scoreNormalizedName(normalizedName: string, labelNormalized: string, significantWords: Set<string>): number {
+  if (normalizedName === labelNormalized) return 3;
+  if (normalizedName.includes(labelNormalized) || labelNormalized.includes(normalizedName)) return 2;
+  const candidateWords = significantWordsOf(normalizedName);
+  return Array.from(significantWords).some((word) => candidateWords.has(word)) ? 1 : 0;
+}
+
 /** Rank Meta candidates by label relevance, audience size, and name. */
 export function rankMetaInterestCandidates(
   label: string,
-  candidates: Array<{ id: string; name: string; audienceSize?: number }>,
+  candidates: InterestCandidate[],
   limit = 5,
 ): MetaInterestTarget[] {
   const labelNormalized = normalizeInterestLabel(label);
   if (labelNormalized.length < 2) return [];
-  const significantWords = new Set(labelNormalized.split(/\s+/).filter((word) => word.length >= 4 && !INTEREST_STOPWORDS.has(word)));
+  const significantWords = significantWordsOf(labelNormalized);
   const seen = new Set<string>();
   return candidates.flatMap((candidate) => {
     if (seen.has(candidate.id)) return [];
-    const normalizedName = normalizeInterestLabel(candidate.name);
-    const candidateWords = new Set(normalizedName.split(/\s+/).filter((word) => word.length >= 4 && !INTEREST_STOPWORDS.has(word)));
-    let score = normalizedName === labelNormalized ? 3 : normalizedName.includes(labelNormalized) || labelNormalized.includes(normalizedName) ? 2 :
-      Array.from(significantWords).some((word) => candidateWords.has(word)) ? 1 : 0;
+    const fullScore = scoreNormalizedName(normalizeInterestLabel(candidate.name), labelNormalized, significantWords);
+    const baseNormalized = normalizeInterestLabel(stripInterestDisambiguation(candidate.name));
+    const baseScore = baseNormalized ? scoreNormalizedName(baseNormalized, labelNormalized, significantWords) : 0;
+    const score = Math.max(fullScore, baseScore);
     if (!score) return [];
     seen.add(candidate.id);
     return [{ candidate: { id: candidate.id, name: candidate.name }, score, audienceSize: candidate.audienceSize ?? 0 }];
   }).sort((a, b) => b.score - a.score || b.audienceSize - a.audienceSize || a.candidate.name.localeCompare(b.candidate.name))
     .slice(0, Math.max(0, limit)).map(({ candidate }) => candidate);
+}
+
+export type MetaInterestConfidence = "exact" | "base" | "close";
+
+const byAudienceThenShortestThenAlpha = (a: InterestCandidate, b: InterestCandidate) =>
+  (b.audienceSize ?? 0) - (a.audienceSize ?? 0) || a.name.length - b.name.length || a.name.localeCompare(b.name);
+
+/** Choisit l'intérêt Meta qui correspond au libellé demandé : égalité exacte,
+ * puis égalité hors précision entre parenthèses, puis base contenue en mots
+ * entiers. Jamais de simple sous-chaîne, jamais de candidat sans lien de mots. */
+export function pickBestMetaInterest(
+  label: string,
+  candidates: InterestCandidate[],
+): { interest: MetaInterestTarget; confidence: MetaInterestConfidence } | null {
+  const labelNormalized = normalizeInterestLabel(label);
+  if (labelNormalized.length < 2) return null;
+  const valid = candidates.filter((candidate) => candidate && typeof candidate.id === "string" && typeof candidate.name === "string");
+  const toResult = (candidate: InterestCandidate, confidence: MetaInterestConfidence) => ({
+    interest: { id: candidate.id, name: candidate.name },
+    confidence,
+  });
+
+  const exact = valid.filter((candidate) => normalizeInterestLabel(candidate.name) === labelNormalized).sort(byAudienceThenShortestThenAlpha);
+  if (exact.length) return toResult(exact[0], "exact");
+
+  const base = valid.filter((candidate) => normalizeInterestLabel(stripInterestDisambiguation(candidate.name)) === labelNormalized)
+    .sort(byAudienceThenShortestThenAlpha);
+  if (base.length) return toResult(base[0], "base");
+
+  const paddedLabel = ` ${labelNormalized} `;
+  const labelWords = new Set(labelNormalized.split(/\s+/).filter((word) => word.length >= 4));
+  const parenthesisOverlap = (name: string) => {
+    const group = name.match(/\(([^()]*)\)\s*$/)?.[1] ?? "";
+    return normalizeInterestLabel(group).split(/\s+/).some((word) => word.length >= 4 && labelWords.has(word)) ? 1 : 0;
+  };
+  const close = valid.flatMap((candidate) => {
+    const baseNormalized = normalizeInterestLabel(stripInterestDisambiguation(candidate.name));
+    if (baseNormalized.length < 5 || !paddedLabel.includes(` ${baseNormalized} `)) return [];
+    return [{ candidate, baseLength: baseNormalized.length, overlap: parenthesisOverlap(candidate.name) }];
+  }).sort((a, b) => b.baseLength - a.baseLength
+    || (b.candidate.audienceSize ?? 0) - (a.candidate.audienceSize ?? 0)
+    || b.overlap - a.overlap
+    || a.candidate.name.length - b.candidate.name.length
+    || a.candidate.name.localeCompare(b.candidate.name));
+  return close.length ? toResult(close[0].candidate, "close") : null;
 }
 
 /** Accepte uniquement les identifiants d’intérêts renvoyés par Meta et les deux
