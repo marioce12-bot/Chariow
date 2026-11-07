@@ -113,7 +113,7 @@ describe("assistant message emphasis", () => {
     expect(source).toMatch(/\{isAssistant \? \(\s*<AssistantMessageText[^]*?\) : \(\s*<LinkifiedText/);
     expect(renderToStaticMarkup(<LinkifiedText text="Produit : **Livre**" />)).toBe("Produit : **Livre**");
     expect(source).toContain("copyMessage(index, content)");
-    expect(source).toContain("openLaunchConfirm(launchPayload, launchMedia)");
+    expect(source).toContain("openLaunchConfirm(parsedReply.launchPayload, collectLaunchMedia(campaignHistory), campaignHistory)");
     expect(source).toContain("<LaunchProgress complete={launchComplete} />");
     expect(source).toContain('!expanded && isLong ? "chat-message-preview" : undefined');
   });

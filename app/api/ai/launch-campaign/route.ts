@@ -6,7 +6,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { toUsd } from "@/lib/currency";
 import { createMetaCampaign, createMetaAdSet, createMetaAd, createMetaCreative, createMetaCarouselCreative, publishMetaAdWithAdvantage, deleteMetaCampaign } from "@/lib/meta/campaigns";
 import { fetchMetaResources, getMetaAccountFunding, describeMetaFundingIssue, searchMetaInterests } from "@/lib/meta/api";
-import { resolveExactMetaInterests, type MetaGenderTarget } from "@/lib/ad-campaigns/meta-targeting";
+import { resolveExactMetaInterests, sanitizeMetaTargeting, type MetaGenderTarget } from "@/lib/ad-campaigns/meta-targeting";
 import { prepareMetaCreativeImage } from "@/lib/meta/ad-image";
 import { createMetaVideoCreative, isVideoMediaUrl, prepareMetaCreativeVideo } from "@/lib/meta/ad-video";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
@@ -31,7 +31,7 @@ type LaunchBody = {
   ageMin?: number;
   ageMax?: number;
   gender?: MetaGenderTarget | null;
-  interests?: string[];
+  interests?: (string | { id?: unknown; name?: unknown })[];
   message?: string; // texte de la créative
   headline?: string;
   linkUrl?: string; // lien de la page de redirection (page de vente de l'utilisateur) — OBLIGATOIRE
@@ -177,10 +177,27 @@ export async function POST(request: Request) {
   const accessToken = decryptSecret(account.access_token_encrypted);
   const accountId = `act_${(body.adAccountId || account.meta_account_id).replace(/^act_/, "")}`;
   const gender: MetaGenderTarget | null = body.gender === "male" || body.gender === "female" ? body.gender : null;
+  const interestEntries = Array.isArray(body.interests) ? body.interests : [];
   const requestedInterests = Array.isArray(body.interests)
-    ? Array.from(new Set(body.interests.filter((value): value is string => typeof value === "string").map((value) => value.trim().slice(0, 100)).filter(Boolean))).slice(0, 10)
+    ? Array.from(new Set(interestEntries.filter((value): value is string => typeof value === "string").map((value) => value.trim().slice(0, 100)).filter(Boolean))).slice(0, 10)
     : [];
-  let metaInterests: Array<{ id: string; name: string }> = [];
+  const sanitizedObjects = sanitizeMetaTargeting({ interests: interestEntries.filter((value) => value !== null && typeof value === "object" && !Array.isArray(value)) })?.interests ?? [];
+  const droppedInterests: string[] = [];
+  let verifiedObjects: Array<{ id: string; name: string }> = [];
+  if (sanitizedObjects.length) {
+    try {
+      const results = await Promise.all(sanitizedObjects.map(async ({ id, name }) => {
+        const candidates = await searchMetaInterests(name, accessToken);
+        const match = candidates.find((candidate) => candidate.id === id);
+        return match ? { verified: { id: match.id, name: match.name }, name: null } : { verified: null, name };
+      }));
+      verifiedObjects = results.flatMap((result) => result.verified ? [result.verified] : []);
+      droppedInterests.push(...results.flatMap((result) => result.name ? [result.name] : []));
+    } catch {
+      return NextResponse.json({ error: "Impossible de vérifier les centres d’intérêt auprès de Meta. La campagne n’a pas été créée; réessaie.", code: "META_INTEREST_SEARCH_FAILED" }, { status: 502 });
+    }
+  }
+  let legacyInterests: Array<{ id: string; name: string }> = [];
   if (requestedInterests.length) {
     try {
       const matches = await Promise.all(requestedInterests.map((query) => searchMetaInterests(query, accessToken)));
@@ -188,11 +205,18 @@ export async function POST(request: Request) {
       if (resolved.missing.length) {
         return NextResponse.json({ error: `Meta ne propose pas ces centres d’intérêt exacts : ${resolved.missing.join(", ")}. Modifie-les ou retire-les avant de lancer.`, code: "META_INTEREST_NOT_FOUND" }, { status: 422 });
       }
-      metaInterests = resolved.resolved;
+      legacyInterests = resolved.resolved;
     } catch {
       return NextResponse.json({ error: "Impossible de vérifier les centres d’intérêt auprès de Meta. La campagne n’a pas été créée; réessaie.", code: "META_INTEREST_SEARCH_FAILED" }, { status: 502 });
     }
   }
+
+  const seenInterestIds = new Set<string>();
+  const metaInterests = [...verifiedObjects, ...legacyInterests].filter(({ id }) => {
+    if (seenInterestIds.has(id) || seenInterestIds.size >= 10) return false;
+    seenInterestIds.add(id);
+    return true;
+  });
 
   // Objectif Ventes : l'ad set doit optimiser sur l'événement Achat (OFFSITE_CONVERSIONS + pixel +
   // PURCHASE). Sans objectif ni pixel transmis, createMetaAdSet retombe sur « Trafic »
@@ -431,7 +455,7 @@ export async function POST(request: Request) {
     });
     if (insertError) throw new Error(`Campagne créée chez Meta mais non enregistrée côté Vendeo (${insertError.message}).`);
 
-    return NextResponse.json({ campaignId, adSetId, creativeId, adId, dailyBudgetUsd: dailyBudget, callToAction, carouselCards: carouselExtraUrls.length ? carouselExtraUrls.length + 1 : 1 });
+    return NextResponse.json({ campaignId, adSetId, creativeId, adId, dailyBudgetUsd: dailyBudget, callToAction, carouselCards: carouselExtraUrls.length ? carouselExtraUrls.length + 1 : 1, interests: metaInterests.map(({ name }) => name), droppedInterests });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur de lancement Meta.";
     console.error("launch-campaign Meta error (après création de la campagne)", message, { campaignId });

@@ -242,13 +242,14 @@ export interface MetaInterestSuggestion {
 }
 
 /** Recherche des intérêts disponibles dans l’outil de ciblage détaillé Meta. */
-export async function searchMetaInterests(query: string, accessToken: string): Promise<MetaInterestSuggestion[]> {
+export async function searchMetaInterests(query: string, accessToken: string, options: { locale?: string } = {}): Promise<MetaInterestSuggestion[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
   const response = await fetchMetaGraph(graphUrl("search", {
     type: "adinterest",
     q: trimmed.slice(0, 100),
     limit: "15",
+    ...(options.locale ? { locale: options.locale } : {}),
     access_token: accessToken,
   }), { cache: "no-store" });
   const json = await response.json().catch(() => ({}));
