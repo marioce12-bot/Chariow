@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInterestSearchQueries, buildMetaAudienceFields, normalizeInterestLabel, rankMetaInterestCandidates, resolveExactMetaInterests, sanitizeMetaTargeting } from "./meta-targeting";
+import { buildInterestSearchQueries, buildMetaAudienceFields, normalizeInterestLabel, pickBestMetaInterest, rankMetaInterestCandidates, resolveExactMetaInterests, sanitizeMetaTargeting, stripInterestDisambiguation } from "./meta-targeting";
 
 describe("sanitizeMetaTargeting", () => {
   it("keeps the existing accent- and punctuation-insensitive normalization", () => {
@@ -60,5 +60,72 @@ describe("sanitizeMetaTargeting", () => {
       flexible_spec: [{ interests: [{ id: "6001", name: "Finance" }] }],
     });
     expect(buildMetaAudienceFields({ gender: null, interests: [] })).toEqual({});
+  });
+});
+
+const candidate = (name: string, audienceSize?: number) => ({ id: name, name, ...(audienceSize === undefined ? {} : { audienceSize }) });
+
+describe("stripInterestDisambiguation", () => {
+  it("removes one trailing parenthesized group and leaves other names untouched", () => {
+    expect(stripInterestDisambiguation("Parentalité (enfants et parents)")).toBe("Parentalité");
+    expect(stripInterestDisambiguation("Parentalité")).toBe("Parentalité");
+    expect(stripInterestDisambiguation("Jazz (musique) (genre)")).toBe("Jazz (musique)");
+    expect(stripInterestDisambiguation("Jazz (musique) club")).toBe("Jazz (musique) club");
+  });
+});
+
+describe("pickBestMetaInterest", () => {
+  it("matches a label to Meta's name with the parenthesized precision (base)", () => {
+    expect(pickBestMetaInterest("Parentalité", [candidate("Parentalité (enfants et parents)")])).toEqual({
+      interest: { id: "Parentalité (enfants et parents)", name: "Parentalité (enfants et parents)" },
+      confidence: "base",
+    });
+    expect(pickBestMetaInterest("Famille", [candidate("Famille (concept social)"), candidate("Famille recomposée"), candidate("La Famille Addams")])?.interest.name).toBe("Famille (concept social)");
+    expect(pickBestMetaInterest("Psychologie", [
+      candidate("Estime de soi (psychologie)"), candidate("Psychologie (science)"), candidate("Psychologie du développement (psychologie)"),
+    ])).toMatchObject({ interest: { name: "Psychologie (science)" }, confidence: "base" });
+  });
+
+  it("prefers the largest audience among several base matches and never picks an unrelated candidate", () => {
+    expect(pickBestMetaInterest("Développement personnel", [
+      candidate("Développement personnel (identité personnelle)", 100),
+      candidate("Développement personnel (psychologie)", 900),
+      candidate("Développement de logiciels (logiciel)"),
+      candidate("Développement web (sites web)"),
+    ])).toMatchObject({ interest: { name: "Développement personnel (psychologie)" }, confidence: "base" });
+    expect(pickBestMetaInterest("Développement personnel", [
+      candidate("Développement de logiciels (logiciel)"), candidate("Développement web (sites web)"),
+    ])).toBeNull();
+  });
+
+  it("falls back to a close match when the candidate base is contained as whole words in the label", () => {
+    expect(pickBestMetaInterest("Éducation des enfants", [
+      candidate("Éducation (enfants et parents)"),
+      candidate("Éducation à distance (éducation)"),
+      candidate("Éducation à la santé"),
+      candidate("Éducation des adultes (formation professionnelle)"),
+      candidate("Éducation en maternelle (éducation primaire et secondaire)"),
+    ])).toMatchObject({ interest: { name: "Éducation (enfants et parents)" }, confidence: "close" });
+  });
+
+  it("returns null without a related candidate and never matches a bare substring", () => {
+    expect(pickBestMetaInterest("Relations familiales", [candidate("Football (sport)"), candidate("Cuisine")])).toBeNull();
+    expect(pickBestMetaInterest("Art", [candidate("Smartphone")])).toBeNull();
+    expect(pickBestMetaInterest("Marketing digital", [candidate("Market (commerce)")])).toBeNull();
+  });
+
+  it("gives priority to an exact name over a base match", () => {
+    expect(pickBestMetaInterest("Famille", [candidate("Famille (concept social)", 9000), candidate("Famille", 10)])).toMatchObject({
+      interest: { name: "Famille" },
+      confidence: "exact",
+    });
+  });
+});
+
+describe("rankMetaInterestCandidates with parenthesized names", () => {
+  it("scores a candidate by the best of its full name and its base", () => {
+    expect(rankMetaInterestCandidates("Parentalité", [candidate("Parentalité (enfants et parents)"), candidate("Sans rapport")])).toEqual([
+      { id: "Parentalité (enfants et parents)", name: "Parentalité (enfants et parents)" },
+    ]);
   });
 });
