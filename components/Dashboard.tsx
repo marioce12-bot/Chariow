@@ -59,6 +59,9 @@ import type { DashboardTourStep } from "./dashboard/tour-steps";
 type DashboardAnalyticsResponse = { snapshot: AnalyticsData; rolling30Snapshot: AnalyticsData; periodSnapshot: AnalyticsData };
 type StoredDashboardAnalyticsResponse = { storeId: string; data: DashboardAnalyticsResponse };
 const ACTIVE_SECTION_STORAGE_KEY = "vendeo_dashboard_active_section";
+// Compte auquel appartient la section mémorisée : évite d'atterrir dans « Paramètres »
+// après s'être connecté avec un autre compte dans le même onglet.
+const ACTIVE_SECTION_OWNER_STORAGE_KEY = "vendeo_dashboard_active_section_user";
 // Dernière boutique choisie dans le sélecteur : conservée dans localStorage (et non
 // sessionStorage) pour survivre à la fermeture de l'appli, quel que soit l'ordre
 // dans lequel les boutiques ont été connectées.
@@ -90,6 +93,27 @@ function getInitialDashboardSection() {
   }
 }
 
+function clearSavedDashboardSection() {
+  try {
+    window.sessionStorage.removeItem(ACTIVE_SECTION_STORAGE_KEY);
+    window.sessionStorage.removeItem(ACTIVE_SECTION_OWNER_STORAGE_KEY);
+  } catch {
+    // Le stockage peut être indisponible.
+  }
+}
+
+/** Vrai si la section mémorisée appartient à un autre compte que `userId`. */
+function savedSectionBelongsToAnotherUser(userId: string): boolean {
+  try {
+    const owner = window.sessionStorage.getItem(ACTIVE_SECTION_OWNER_STORAGE_KEY);
+    if (owner !== userId) window.sessionStorage.setItem(ACTIVE_SECTION_OWNER_STORAGE_KEY, userId);
+    if (owner && owner !== userId) return true;
+  } catch {
+    // Le stockage peut être indisponible.
+  }
+  return false;
+}
+
 function readSavedStoreId(): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -108,6 +132,7 @@ export function Dashboard() {
       const nextUser = session?.user?.id ?? null;
       if (knownUser !== undefined && knownUser !== nextUser) {
         clearUsageSessionStorage();
+        clearSavedDashboardSection();
         setIdentity(nextUser ?? "signed-out");
       }
       knownUser = nextUser;
@@ -122,6 +147,7 @@ function DashboardWorkspace() {
   const { t, locale } = useI18n();
   const w = (key: string) => t(`workspaceExtra.${key}`);
   const [active, setActive] = useState(getInitialDashboardSection);
+  const initialSectionRef = useRef(active);
   const mobileNavVisible = useMobileNavVisibility(active);
   // Suivi anonyme du temps passé par section (alimente l'onglet « Usage de l'app » de la console admin).
   useUsageTracking(active);
@@ -358,6 +384,7 @@ function DashboardWorkspace() {
 
   async function signOut() {
     try { window.localStorage.removeItem(STORE_ONBOARDING_STORAGE_KEY); } catch { /* Local storage may be unavailable. */ }
+    clearSavedDashboardSection();
     try {
       const cache = await caches.open("vendeo-shell-v3");
       await cache.delete("/dashboard");
@@ -389,6 +416,12 @@ function DashboardWorkspace() {
     const client = createClient();
     client.auth.getUser().then(({ data }) => {
       if (cancelled) return;
+      const userId = data.user?.id;
+      if (userId && savedSectionBelongsToAnotherUser(userId)) {
+        try { window.sessionStorage.removeItem(ACTIVE_SECTION_STORAGE_KEY); } catch { /* indisponible */ }
+        // Ne remplace la section que si la personne n'a pas déjà navigué.
+        setActive(current => current === initialSectionRef.current ? DEFAULT_DASHBOARD_SECTION : current);
+      }
       setNotificationUserId(data.user?.id ?? null);
       const metadata = data.user?.user_metadata as { full_name?: string; name?: string; first_name?: string; experience_level?: string } | undefined;
       setExperienceLevel(["beginner", "some_experience", "experienced", "expert"].includes(metadata?.experience_level ?? "") ? metadata?.experience_level ?? "experienced" : "experienced");

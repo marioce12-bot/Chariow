@@ -127,3 +127,25 @@ describe("device-local user sign-out", () => {
     warning.mockRestore();
   });
 });
+
+describe("saved dashboard section ownership", () => {
+  it("sign-out forgets the saved section so the next login lands on the home page", async () => {
+    window.sessionStorage.setItem("vendeo_dashboard_active_section", "Paramètres");
+    await act(async () => root!.render(createElement(Dashboard)));
+    await click(".desktop-signout");
+    expect(window.sessionStorage.getItem("vendeo_dashboard_active_section")).toBeNull();
+  });
+  it("ignores a section saved by another account", async () => {
+    window.sessionStorage.setItem("vendeo_dashboard_active_section", "Paramètres");
+    window.sessionStorage.setItem("vendeo_dashboard_active_section_user", "user-b");
+    await act(async () => root!.render(createElement(Dashboard)));
+    expect(window.sessionStorage.getItem("vendeo_dashboard_active_section")).toBe("Vue d'ensemble");
+    expect(window.sessionStorage.getItem("vendeo_dashboard_active_section_user")).toBe("user-a");
+  });
+  it("keeps the saved section for the same account", async () => {
+    window.sessionStorage.setItem("vendeo_dashboard_active_section", "Paramètres");
+    window.sessionStorage.setItem("vendeo_dashboard_active_section_user", "user-a");
+    await act(async () => root!.render(createElement(Dashboard)));
+    expect(window.sessionStorage.getItem("vendeo_dashboard_active_section")).toBe("Paramètres");
+  });
+});
