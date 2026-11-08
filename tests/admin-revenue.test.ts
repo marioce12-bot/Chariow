@@ -19,6 +19,14 @@ describe("recorded SaaS revenue", () => {
     const summary = summarizeRevenue([payment(), payment({ status: "pending" }), payment({ status: "failed" }), payment({ transaction_id: "manual-grant", metadata: { provider: "admin_grant", amount_xof: 99999 } })], [credit(), credit({ operation: "admin_grant", metadata: { amount_xof: 99999, provider: "admin_grant" } }), credit({ operation: "welcome_credits", metadata: { source: "signup" } }), credit({ kind: "debit", status: "refunded" }), credit({ status: "pending" })], asOf);
     expect(summary).toMatchObject({ subscriptions: 2000, studio: 500, total: 2500, currency: "XOF", complete: true, subscriptionPayments: 1, studioPayments: 1, firstRecordedAt: "2026-10-01T00:00:00Z" });
   });
+  it("ignores free referral signup bonus credits instead of withholding every total", () => {
+    const summary = summarizeRevenue([], [credit(), credit({ operation: "referral_signup_bonus", credits: 150, external_id: "referral_signup_1", metadata: {} })], asOf);
+    expect(summary).toMatchObject({ complete: true, unresolved: 0, studio: 500, total: 500, studioPayments: 1 });
+  });
+  it("still withholds totals for an unknown purchase operation", () => {
+    const summary = summarizeRevenue([], [credit(), credit({ operation: "mystery_bonus", credits: 150, external_id: "x-1", metadata: {} })], asOf);
+    expect(summary).toMatchObject({ complete: false, unresolved: 1, total: null });
+  });
   it("returns an honest zero for no recorded payments, not active subscription estimates", () => {
     expect(summarizeRevenue([], [], asOf)).toMatchObject({ total: 0, subscriptions: 0, studio: 0, firstRecordedAt: null });
   });
