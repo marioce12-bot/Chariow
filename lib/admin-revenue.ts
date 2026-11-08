@@ -66,7 +66,8 @@ export function summarizeRevenue(payments: RevenueRow[], credits: RevenueRow[], 
   for (const row of credits) {
     // Usage refunds restore credits; they are not monetary refunds.
     if (row.kind === "debit") continue;
-    if (row.operation === "admin_grant" || row.operation === "welcome_credits" || row.metadata?.provider === "admin_grant") continue;
+    // Free credits (admin grant, signup welcome, referral signup bonus) are not money received.
+    if (row.operation === "admin_grant" || row.operation === "welcome_credits" || row.operation === "referral_signup_bonus" || row.metadata?.provider === "admin_grant") continue;
     if (["pending", "failed", "cancelled", "canceled"].includes(row.status)) continue;
     // No monetary refund ledger exists today. An unexpected refund blocks the total;
     // never assume that a credit restoration is a cash refund, or guess its amount.
