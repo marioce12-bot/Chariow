@@ -78,3 +78,45 @@ describe("Studio video polling", () => {
     polling.stop();
   });
 });
+
+describe("Studio video polling resilience", () => {
+  it("abandons a request that never answers and keeps polling", async () => {
+    vi.useFakeTimers();
+    const fetchStatus = vi.fn()
+      .mockImplementationOnce(() => new Promise(() => undefined))
+      .mockResolvedValueOnce({ id: "job-3", status: "ready", contentUrl: "https://cdn.example/final.mp4" });
+    const onStatus = vi.fn();
+    const onError = vi.fn();
+    const polling = startStudioVideoPolling({ fetchStatus, onStatus, onError, requestTimeoutMs: 5_000 });
+
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(fetchStatus).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(onError).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchStatus).toHaveBeenCalledTimes(2);
+    expect(onStatus).toHaveBeenCalledWith(expect.objectContaining({ status: "ready" }));
+    polling.stop();
+  });
+
+  it("restarts a stuck request immediately when the page comes back to the foreground", async () => {
+    vi.useFakeTimers();
+    const fetchStatus = vi.fn()
+      .mockImplementationOnce(() => new Promise(() => undefined))
+      .mockResolvedValueOnce({ id: "job-4", status: "ready", contentUrl: "https://cdn.example/final.mp4" });
+    const onStatus = vi.fn();
+    const polling = startStudioVideoPolling({ fetchStatus, onStatus, requestTimeoutMs: 60_000 });
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    polling.refresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchStatus).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    polling.refresh();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchStatus).toHaveBeenCalledTimes(2);
+    expect(onStatus).toHaveBeenCalledWith(expect.objectContaining({ status: "ready" }));
+    polling.stop();
+  });
+});

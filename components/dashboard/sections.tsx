@@ -3,7 +3,7 @@
 import { localizeSystemMessage } from "@/lib/i18n/system-messages";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, BarChart3, Bot, CreditCard, Plus, Search, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Layers, Video, Languages, ExternalLink, Gift } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart3, Bot, CreditCard, Plus, Search, Settings, Store, MessageSquare, LayoutDashboard, Package, CalendarDays, Users, Eye, ShoppingBag, Lightbulb, Activity, AlertTriangle, Target, TrendingUp, ShieldAlert, CheckCircle2, Brain, LineChart, Sparkles, LogOut, Megaphone, FileText, Trash2, Sun, Moon, ImageIcon, Layers, Video, Languages, ExternalLink, Gift, Loader2 } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaMeta, FaTiktok, FaWhatsapp, FaLinkedinIn, FaPinterestP } from "react-icons/fa6";
 import { TikTokAdsPanel } from "@/components/TikTokAdsPanel";
 import { FeedbackView } from "@/components/FeedbackView";
@@ -176,6 +176,8 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [loading, setLoading] = useState(false);
   const [studioSessionReady, setStudioSessionReady] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const videoProgressStartedAtRef = useRef<number | null>(null);
   const stopProgressRef = useRef<(() => void) | null>(null);
   const [imageTask, setImageTask] = useState<{ id: string; status: string } | null>(null);
   const [imageTrackingIssue, setImageTrackingIssue] = useState(false);
@@ -542,6 +544,30 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     if (videoJob && isTerminalStudioVideoStatus(videoJob.status)) videoPollingHandleRef.current?.stop();
   }, [videoJob?.id, videoJob?.status]);
 
+  // Progression affichée pendant le rendu vidéo : le serveur ne donne qu'une valeur
+  // à chaque vérification (toutes les 30 s), on l'interpole donc avec une estimation
+  // lente. La valeur ne recule jamais et reste sous 100 % tant que la vidéo n'est pas terminée.
+  const videoJobStatus = (videoJob?.status ?? "").toLowerCase();
+  const videoJobDone = kind === "video" && ["completed", "ready"].includes(videoJobStatus);
+  const videoJobRunning = kind === "video" && Boolean(videoJob) && !isTerminalStudioVideoStatus(videoJobStatus);
+  const videoJobStarting = kind === "video" && loading && !videoJob;
+  const videoServerProgress = typeof videoJob?.progress === "number" ? videoJob.progress : 0;
+  useEffect(() => {
+    if (kind !== "video") return;
+    if (videoJobDone) { setVideoProgress(100); videoProgressStartedAtRef.current = null; return; }
+    if (!videoJobRunning && !videoJobStarting) { setVideoProgress(0); videoProgressStartedAtRef.current = null; return; }
+    if (videoProgressStartedAtRef.current === null) { videoProgressStartedAtRef.current = Date.now(); setVideoProgress(0); }
+    const update = () => {
+      const elapsed = Date.now() - (videoProgressStartedAtRef.current ?? Date.now());
+      const estimated = Math.floor(3 + 85 * (1 - Math.exp(-elapsed / 150_000)));
+      const next = Math.min(99, Math.max(estimated, Math.round(videoServerProgress)));
+      setVideoProgress((current) => Math.max(current, next));
+    };
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [kind, videoJob?.id, videoJobDone, videoJobRunning, videoJobStarting, videoServerProgress]);
+
   async function uploadReferenceFiles() {
     if (!referenceFiles.length) return [];
     setReferenceUploading(true);
@@ -833,6 +859,9 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   }
 
   const { imageUrl: imagePreviewUrl, videoUrl: videoPreviewUrl } = resolveStudioPreviewMedia(kind, imageUrl, videoJob);
+  // Zone « Ta vidéo » : spinner + pourcentage pendant le rendu, puis bouton « Voir ma vidéo »
+  // quand la vidéo est terminée mais pas encore affichée. Une vidéo déjà prête s'affiche directement.
+  const showVideoProgress = !videoPreviewUrl && (videoJobRunning || videoJobDone || videoJobStarting);
   const isSlideshow = (item: StudioHistoryItem) => item.kind === "video" && (item.metadata?.type === "slideshow" || item.creationType === "slideshow");
   const selectedHistory = history.find((item) => item.id === selectedHistoryId) ?? null;
   const openHistoryItem = (item: StudioHistoryItem) => {
@@ -1037,7 +1066,18 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
           {imagePreviewUrl ? <><div className={editSubmitting ? "studio-media-wrap is-editing" : "studio-media-wrap"}><img className="studio-media" src={imagePreviewUrl} alt={t("studio.yourImage")} decoding="async" onLoad={() => { setImageLoaded(true); setGenerationProgress(100); }} onError={() => { setImageLoaded(false); setGenerationProgress((current) => Math.min(current, 95)); setError(t("studio.imageLoadError")); }} /></div><div className="studio-result-actions"><button className="btn btn-ghost" onClick={() => void downloadMedia(imagePreviewUrl, "vendeo-studio-image.png")}>{t("studio.downloadImage")}</button><button className="btn btn-ghost" onClick={() => setEditOpen(true)} disabled={editSubmitting}>{t("studio.edit")}</button></div>{editOpen ? <div className="studio-edit-box"><label><span>{t("sweep3.text212")}</span><textarea maxLength={2000} value={editInstruction} onChange={(event) => setEditInstruction(event.target.value)} rows={3} disabled={editSubmitting} /></label><small>{t("sweep1.text213")}</small><div><button className="btn btn-dark" onClick={() => void editImage()} disabled={editSubmitting || !editInstruction.trim()}>{editSubmitting ? t("optionsExtra.text22") : t("studio.edit")}</button><button className="btn btn-ghost" onClick={() => { setEditOpen(false); setEditInstruction(""); }} disabled={editSubmitting}>{t("workspaceExtra.cancel")}</button></div></div> : null}</> : null}
           {videoPreviewUrl ? <><video className="studio-media" src={videoPreviewUrl} controls playsInline /><VideoDownloadButton url={videoPreviewUrl} filename="vendeo-studio-video.mp4" locale={locale}>{t("studio.downloadVideo")}</VideoDownloadButton></> : null}
           {kind === "video" && videoJob?.status === "failed" && videoJob.error ? <p className="form-error" role="alert">{videoJob.error}</p> : null}
-          {!imagePreviewUrl && !videoPreviewUrl ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>{kind === "video" && videoJob?.status === "failed" ? (locale === "en" ? "Video generation failed" : "La génération vidéo a échoué") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Image created" : "Image créée") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Checking your creation" : "Vérification de ta création") : t("chat.posterGenerating")}</strong><p role="status">{kind === "video" && videoJob?.status === "failed" ? (locale === "en" ? "Check the history for the final status." : "Vérifie l’historique pour connaître l’état final.") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Tracking is temporarily unavailable. Checking automatically; do not start another generation." : "Suivi temporairement indisponible. Vérification automatique en cours ; ne relance pas de génération.") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Retrieving the saved image. No new generation or credit charge." : "Récupération de l’image enregistrée. Aucune nouvelle génération ni dépense de crédits.") : videoJob ? t("dynamicExtra.videoStatus", { status: (videoJob.status) }) : t("optionsExtra.text23")}</p>{kind === "image" && loading && !imageTrackingIssue && imageTask?.status !== "awaiting_media" ? <div className="studio-generation-progress"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}</>  : kind === "video" ? <><div className="studio-video-sample" role="img" aria-label={locale === "en" ? "Sample video preview" : "Exemple d’aperçu vidéo"}><span aria-hidden="true">▶</span></div><div className="studio-video-empty-copy"><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></div></> : <><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></>}</div> : null}
+          {kind === "video" && showVideoProgress ? <div className={`studio-empty studio-video-progress${videoJobDone ? " is-done" : " studio-loading"}`} role="status" aria-live="polite">
+            {videoJobDone ? <CheckCircle2 size={36} className="studio-video-progress-icon" aria-hidden="true" /> : <Loader2 size={36} className="studio-video-progress-icon studio-video-spinner" aria-hidden="true" />}
+            <strong>{videoJobDone ? (locale === "en" ? "Your video is ready" : "Ta vidéo est prête") : t("chat.posterGenerating")}</strong>
+            <div className="studio-generation-progress">
+              <span>{locale === "en" ? "Progress" : "Progression"} : {videoProgress}%</span>
+              <div role="progressbar" aria-label={locale === "en" ? "Video generation progress" : "Progression de la génération vidéo"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={videoProgress}><div style={{ width: `${videoProgress}%` }} /></div>
+            </div>
+            {videoJobDone
+              ? <button type="button" className="btn btn-dark studio-video-view" onClick={() => window.location.reload()}><Video size={16} aria-hidden="true" /> {locale === "en" ? "View my video" : "Voir ma vidéo"}</button>
+              : <p>{videoJob ? t("dynamicExtra.videoStatus", { status: videoJob.status }) : t("optionsExtra.text23")}</p>}
+          </div> : null}
+          {!imagePreviewUrl && !videoPreviewUrl && !(kind === "video" && showVideoProgress) ? <div className={loading || videoJob ? "studio-empty studio-loading" : "studio-empty"}>{loading || videoJob ? <><Sparkles size={32} /><strong>{kind === "video" && videoJob?.status === "failed" ? (locale === "en" ? "Video generation failed" : "La génération vidéo a échoué") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Image created" : "Image créée") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Checking your creation" : "Vérification de ta création") : t("chat.posterGenerating")}</strong><p role="status">{kind === "video" && videoJob?.status === "failed" ? (locale === "en" ? "Check the history for the final status." : "Vérifie l’historique pour connaître l’état final.") : kind === "image" && imageTrackingIssue ? (locale === "en" ? "Tracking is temporarily unavailable. Checking automatically; do not start another generation." : "Suivi temporairement indisponible. Vérification automatique en cours ; ne relance pas de génération.") : kind === "image" && imageTask?.status === "awaiting_media" ? (locale === "en" ? "Retrieving the saved image. No new generation or credit charge." : "Récupération de l’image enregistrée. Aucune nouvelle génération ni dépense de crédits.") : videoJob ? t("dynamicExtra.videoStatus", { status: (videoJob.status) }) : t("optionsExtra.text23")}</p>{kind === "image" && loading && !imageTrackingIssue && imageTask?.status !== "awaiting_media" ? <div className="studio-generation-progress"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}</>  : kind === "video" ? <><div className="studio-video-sample" role="img" aria-label={locale === "en" ? "Sample video preview" : "Exemple d’aperçu vidéo"}><span aria-hidden="true">▶</span></div><div className="studio-video-empty-copy"><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></div></> : <><Sparkles size={32} /><strong>{t("sweep2.text214")}</strong><p>{t("sweep3.text215")}</p></>}</div> : null}
           {imageUrl && kind === "image" ? <div className="studio-generation-progress" aria-live="polite"><span>{t("studio.estimatedProgress")}: {generationProgress}%</span><div role="progressbar" aria-label={t("studio.estimatedProgress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={generationProgress}><div style={{ width: `${generationProgress}%` }} /></div></div> : null}
 
         </section>

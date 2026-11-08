@@ -288,3 +288,14 @@ html[data-theme="dark"] .studio-mobile-choice { background:#101f45; border-color
   .studio-page .studio-tabs { display:none; }
   .studio-mobile-choice:last-child { grid-column:1 / -1; justify-self:center; width:calc((100% - 12px) / 2); }
 }
+
+/* Génération vidéo : spinner, pourcentage et bouton « Voir ma vidéo » */
+.studio-video-progress { gap:4px; }
+.studio-video-progress .studio-generation-progress { margin-top:14px; }
+.studio-video-progress .studio-generation-progress > span { text-align:center; }
+.studio-video-progress-icon { color:var(--green); }
+.studio-video-progress .studio-video-spinner { animation:studioVideoSpin 1s linear infinite; }
+.studio-video-progress.is-done { animation:none; }
+.studio-video-view { align-items:center; display:inline-flex; gap:8px; justify-content:center; margin-top:16px; }
+@keyframes studioVideoSpin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .studio-video-progress .studio-video-spinner { animation:none; } }
