@@ -27,6 +27,7 @@ import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
 import { CREDIT_PRICE_XOF, IMAGE_COSTS, imageCreditCost, videoCreditCost } from "@/lib/studio/credits";
 import { startEstimatedGenerationProgress } from "@/lib/studio/generation-progress";
+import { nextStudioVideoProgress } from "@/lib/studio/video-progress";
 import { readStudioClientSession, writeStudioClientSession, type StudioClientSession } from "@/lib/studio/client-session";
 import { isTerminalStudioVideoStatus, normalizeStudioVideoStatus, startStudioVideoPolling, type StudioVideoPollingHandle, type StudioVideoStatus } from "@/lib/studio/video-polling";
 import { STUDIO_VIDEO_RESOLUTIONS } from "@/lib/studio/creative-workflows";
@@ -177,7 +178,7 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const [studioSessionReady, setStudioSessionReady] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [videoProgress, setVideoProgress] = useState(0);
-  const videoProgressStartedAtRef = useRef<number | null>(null);
+  const videoProgressValueRef = useRef(0);
   const stopProgressRef = useRef<(() => void) | null>(null);
   const [imageTask, setImageTask] = useState<{ id: string; status: string } | null>(null);
   const [imageTrackingIssue, setImageTrackingIssue] = useState(false);
@@ -544,9 +545,9 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     if (videoJob && isTerminalStudioVideoStatus(videoJob.status)) videoPollingHandleRef.current?.stop();
   }, [videoJob?.id, videoJob?.status]);
 
-  // Progression affichée pendant le rendu vidéo : le serveur ne donne qu'une valeur
-  // à chaque vérification (toutes les 30 s), on l'interpole donc avec une estimation
-  // lente. La valeur ne recule jamais et reste sous 100 % tant que la vidéo n'est pas terminée.
+  // Progression affichée pendant le rendu vidéo : le serveur ne donne que des paliers, vérifiés
+  // toutes les 30 s. La barre avance donc en continu entre deux paliers (lib/studio/video-progress.ts),
+  // ne recule jamais et reste sous 100 % tant que la vidéo n'est pas terminée.
   const videoJobStatus = (videoJob?.status ?? "").toLowerCase();
   const videoJobDone = kind === "video" && ["completed", "ready"].includes(videoJobStatus);
   const videoJobRunning = kind === "video" && Boolean(videoJob) && !isTerminalStudioVideoStatus(videoJobStatus);
@@ -554,17 +555,20 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
   const videoServerProgress = typeof videoJob?.progress === "number" ? videoJob.progress : 0;
   useEffect(() => {
     if (kind !== "video") return;
-    if (videoJobDone) { setVideoProgress(100); videoProgressStartedAtRef.current = null; return; }
-    if (!videoJobRunning && !videoJobStarting) { setVideoProgress(0); videoProgressStartedAtRef.current = null; return; }
-    if (videoProgressStartedAtRef.current === null) { videoProgressStartedAtRef.current = Date.now(); setVideoProgress(0); }
+    if (videoJobDone) { videoProgressValueRef.current = 100; setVideoProgress(100); return; }
+    if (!videoJobRunning && !videoJobStarting) { videoProgressValueRef.current = 0; setVideoProgress(0); return; }
+    // Nouvelle génération après une vidéo terminée : on repart du début.
+    if (videoProgressValueRef.current >= 100) videoProgressValueRef.current = 0;
+    let lastTick = Date.now();
     const update = () => {
-      const elapsed = Date.now() - (videoProgressStartedAtRef.current ?? Date.now());
-      const estimated = Math.floor(3 + 85 * (1 - Math.exp(-elapsed / 150_000)));
-      const next = Math.min(99, Math.max(estimated, Math.round(videoServerProgress)));
-      setVideoProgress((current) => Math.max(current, next));
+      const now = Date.now();
+      const next = nextStudioVideoProgress(videoProgressValueRef.current, videoServerProgress, now - lastTick);
+      lastTick = now;
+      videoProgressValueRef.current = next;
+      setVideoProgress(Math.min(99, Math.floor(next)));
     };
     update();
-    const timer = window.setInterval(update, 1000);
+    const timer = window.setInterval(update, 500);
     return () => window.clearInterval(timer);
   }, [kind, videoJob?.id, videoJobDone, videoJobRunning, videoJobStarting, videoServerProgress]);
 
