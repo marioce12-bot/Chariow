@@ -121,11 +121,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Crédits non ajoutés" }, { status: recorded ? 500 : 503 });
     }
     await admin.rpc("write_platform_audit", { target_user_id: userId, action_name: "studio_credits_purchased", resource_name: "credit_account", resource_key: userId, metadata_value: { transaction_id: data.id, credits, amount_xof: expectedXof, provider_amount: data.amount ?? null, provider_currency: data.currency ?? null } });
-    const { data: profile } = await admin.from("profiles").select("email,full_name").eq("id", userId).maybeSingle();
-    await notifyAdmin(
-      "Recharge de crédits Studio",
-      `<p><strong>${profile?.full_name || "Utilisateur"}</strong> (${profile?.email || userId}) a rechargé <strong>${credits} crédits</strong> pour ${data.amount ?? "montant non fourni"} ${data.currency ?? "devise non fournie"}.</p>`
-    );
     console.info("[saspay-webhook] credit_payment_processed", { ...eventContext(event), user_id: userId, credits });
     return NextResponse.json({ received: true });
   }
