@@ -93,7 +93,7 @@ export interface WizardState {
 /** Campagne existante telle que renvoyée par GET /api/ad-campaigns. */
 export interface EditableCampaign {
   id: string;
-  product_id: string;
+  product_id: string | null;
   product_name?: string | null;
   platform: Platform;
   objective?: string | null;
@@ -208,10 +208,13 @@ export function locationsFromCampaign(campaign: EditableCampaign): GeoLocation[]
 /** État initial du wizard pré-rempli avec une campagne existante. */
 export function wizardStateFromCampaign(campaign: EditableCampaign, storeId: string): WizardState {
   const locations = locationsFromCampaign(campaign);
+  const productId = typeof campaign.product_id === "string" ? campaign.product_id.trim() : "";
   return {
     ...DEFAULT_WIZARD_STATE,
     storeId,
-    product: { id: campaign.product_id, name: campaign.product_name ?? "", description: null, price: null, currency: null, image: null },
+    // Certaines campagnes historiques n'ont pas de produit lié : ne pas
+    // fabriquer un objet incomplet, afin que le wizard demande une sélection.
+    product: productId ? { id: productId, name: campaign.product_name ?? "", description: null, price: null, currency: null, image: null } : null,
     platform: campaign.platform,
     objective: (campaign.objective as Objective) ?? "sales",
     adSetName: campaign.ad_set_name ?? "",

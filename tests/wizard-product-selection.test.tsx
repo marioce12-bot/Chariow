@@ -103,6 +103,36 @@ describe("Step1Product rendered product selection", () => {
     expect(container.querySelector("#campaign-store")?.textContent).toContain("Boutique B");
   });
 
+  it("rehydrates a copied product from the catalog without replacing its campaign link", async () => {
+    const campaignLink = "https://shop.test/p1?utm_campaign=copy";
+    currentState = {
+      ...currentState,
+      product: { id: products.first.id, name: "Ancien nom", description: null, price: null, currency: null, image: null },
+      destinationUrl: campaignLink,
+    };
+    render();
+    await flush();
+
+    expect(patch).toHaveBeenCalledWith({ product: products.first, destinationUrl: campaignLink });
+    render();
+    const continueButton = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Continuer"))!;
+    expect(continueButton.disabled).toBe(false);
+  });
+
+  it("clears a copied product missing from the current catalog and disables continue", async () => {
+    currentState = {
+      ...currentState,
+      product: { id: "deleted-product", name: "Produit supprimé", description: null, price: null, currency: null, image: null },
+    };
+    render();
+    await flush();
+
+    expect(patch).toHaveBeenCalledWith({ product: null });
+    render();
+    const continueButton = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Continuer"))!;
+    expect(continueButton.disabled).toBe(true);
+  });
+
   it("does not allow selecting a previous store catalog while the next catalog is pending", async () => {
     let resolveCatalog!: (value: unknown) => void;
     fetchMock.mockImplementation((input: RequestInfo | URL) => {

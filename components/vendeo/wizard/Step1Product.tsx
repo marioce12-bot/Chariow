@@ -86,6 +86,23 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
 
   const catalogReady = productsStoreId === state.storeId;
   const filtered = (catalogReady ? products : []).filter((p) => p.name.toLowerCase().includes(query.toLowerCase()));
+  const selectedProductAvailable = Boolean(catalogReady && state.product?.id && products.some((product) => product.id === state.product?.id));
+
+  // Les campagnes existantes ne contiennent qu’un ID et un nom rudimentaire.
+  // Réhydrate l’objet depuis le catalogue; si l’ID n’existe plus dans cette
+  // boutique, efface-le pour empêcher la création d’un brouillon invalide.
+  useEffect(() => {
+    if (!catalogReady || !state.product) return;
+    const catalogProduct = products.find((product) => product.id === state.product?.id);
+    if (!catalogProduct) {
+      patch({ product: null });
+      return;
+    }
+    const next = wizardStateForProductSelection(state, catalogProduct);
+    if (next.product !== state.product || next.destinationUrl !== state.destinationUrl) {
+      patch({ product: next.product, destinationUrl: next.destinationUrl });
+    }
+  }, [catalogReady, products, state.destinationUrl, state.product?.id]);
 
   return (
     <div className="space-y-4">
@@ -164,7 +181,7 @@ export function Step1Product({ state, patch, onNext }: StepProps) {
 
       <div className="sticky bottom-0 -mx-5 mt-4 flex justify-end border-t border-gray-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button
-          disabled={!state.product}
+          disabled={!selectedProductAvailable}
           onClick={onNext}
           className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >

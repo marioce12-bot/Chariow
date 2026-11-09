@@ -74,10 +74,10 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
   const { locale, t } = useI18n();
   const en = locale === "en";
   const stepLabels = [t("wizardExtra.step.product"), t("wizardExtra.step.creative"), t("wizardExtra.step.audience"), t("wizardExtra.step.budget"), t("wizardExtra.step.creation")];
-  // Produit déjà choisi (bouton « Promouvoir » du catalogue) : on démarre directement à l'étape 2.
-  // Le bouton « Retour » de l'étape 2 permet quand même de revenir choisir un autre produit.
-  // Duplication : le produit est déjà celui de la campagne copiée, on démarre aussi à l'étape 2.
-  const [step, setStep] = useState(() => (!editCampaign && (initialProduct || duplicateCampaign) ? 2 : 1));
+  // Produit déjà choisi (« Promouvoir » depuis le catalogue) : départ à l'étape 2.
+  // Une duplication repasse par l'étape 1 pour vérifier et réhydrater le produit
+  // depuis le catalogue avant la création du nouveau brouillon.
+  const [step, setStep] = useState(() => (!editCampaign && initialProduct && !duplicateCampaign ? 2 : 1));
   const [state, setState] = useState<WizardState>(() => (
     editCampaign
       ? wizardStateFromCampaign(editCampaign, storeId)
