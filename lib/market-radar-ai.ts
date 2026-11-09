@@ -1,5 +1,5 @@
 import { askOpenRouter } from "@/lib/ai/openrouter";
-import { MARKET_RADAR_COUNTRIES, type MarketRadarCountryCode } from "@/lib/market-radar-countries";
+import { MARKET_RADAR_COUNTRIES, MARKET_RADAR_FRANCOPHONE_COUNTRY_CODES, type MarketRadarCountryCode } from "@/lib/market-radar-countries";
 import type { MarketTrendDirection } from "@/lib/market-radar-signals";
 
 export type MarketRadarFormat = "ebook" | "formation" | "template" | "abonnement";
@@ -55,6 +55,38 @@ export type MarketRadarAIResult = {
 };
 
 const COUNTRY_CODES = MARKET_RADAR_COUNTRIES.map((country) => country.code);
+const FRANCOPHONE_COUNTRY_CODES = new Set<string>(MARKET_RADAR_FRANCOPHONE_COUNTRY_CODES);
+const EXPANDED_SCOPE_PHRASES = [
+  "en afrique", "toute l afrique", "ensemble de l afrique", "afrique entiere", "pays africains",
+  "pays anglophones", "afrique anglophone", "afrique francophone et anglophone", "marches africains anglophones",
+  "all of africa", "all african countries", "all african markets", "across africa", "africa wide",
+  "english speaking africa", "pan african",
+];
+
+function normalizeScopeText(value: string) {
+  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function getEligibleCountryCodes(input: MarketRadarAIInput) {
+  const scopeText = normalizeScopeText([
+    input.idea,
+    input.product?.name,
+    input.product?.description,
+    input.product?.category,
+    input.product?.type,
+  ].filter(Boolean).join(" "));
+  const explicitlyBroader = EXPANDED_SCOPE_PHRASES.some((phrase) => scopeText.includes(phrase));
+  if (explicitlyBroader) return new Set<string>(COUNTRY_CODES);
+
+  const explicitlyNamedCountries = MARKET_RADAR_COUNTRIES.filter((country) =>
+    [country.fr, country.en].some((name) => {
+      const normalizedName = normalizeScopeText(name);
+      return normalizedName.length >= 3 && ` ${scopeText} `.includes(` ${normalizedName} `);
+    }),
+  ).map((country) => country.code);
+  return new Set<string>([...FRANCOPHONE_COUNTRY_CODES, ...explicitlyNamedCountries]);
+}
+
 const scoreSchema = { type: "integer", minimum: 0, maximum: 100 };
 const weekdaySchema = { type: "string", enum: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] };
 const trendDirectionSchema = { type: "string", enum: ["up", "down", "stable", "qualitative"] };
@@ -107,7 +139,7 @@ const RESPONSE_SCHEMA = {
     recommendedCountries: {
       type: "array",
       minItems: 1,
-      maxItems: 3,
+      maxItems: COUNTRY_CODES.length,
       items: {
         type: "object",
         properties: {
@@ -171,6 +203,8 @@ function cleanDirection(value: unknown): MarketRadarTrendDirection | null {
 
 export async function analyzeMarketRadarWithAI(input: MarketRadarAIInput): Promise<MarketRadarAIResult> {
   const language = input.locale === "en" ? "English" : "French";
+  const eligibleCountryCodes = getEligibleCountryCodes(input);
+  const explicitlyBroaderScope = COUNTRY_CODES.every((code) => eligibleCountryCodes.has(code));
   const system = [
     `Tu es l’analyste IA du Radar marché de Vendeo. Réponds en ${language}.`,
     "Dans les textes destinés à l’utilisateur, ne te désigne pas comme une IA et n’emploie pas les mots « IA », « intelligence artificielle », « modèle » ou « algorithme »; parle directement des pistes, des signaux disponibles et de leurs limites.",
@@ -180,7 +214,7 @@ export async function analyzeMarketRadarWithAI(input: MarketRadarAIInput): Promi
     "Produis des scores qualitatifs sur 100 pour le potentiel de besoin, l’adéquation audience, l’adéquation produit et le potentiel de monétisation. Le score global et les scores par pays sont des estimations IA pour prioriser des tests, pas des statistiques observées.",
     "Quand un signal de recherche exploitable est fourni pour un pays, croise-le avec l’idée, le produit et l’audience; ne compare jamais directement les niveaux bruts entre pays. Si aucun signal exploitable n’est fourni, continue l’analyse qualitative, n’invente pas de mesure et n’affirme pas qu’une demande monte ou baisse : utilise la direction qualitative.",
     "Ne donne aucune taille de marché, volume, vente, revenu, taux de conversion, nombre de concurrents ou volonté de payer comme un fait si ce n’est pas fourni. Ne mentionne aucun fournisseur, aucune panne ni donnée manquante dans le texte destiné à l’utilisateur.",
-    "Recommande de 1 à 3 pays parmi la liste fournie. Donne pour chacun un score, une lecture de tendance prudente, une raison spécifique et un premier test peu coûteux.",
+    "Évalue les pays éligibles selon l’adéquation avec ce produit, son format, son prix, son audience et ses langues; ne te limite pas aux pays où un signal de recherche est disponible. Par défaut, recommande uniquement les marchés africains francophones pertinents; n’inclus ni ne mentionne les autres pays. Élargis la portée à d’autres pays africains seulement si le texte fourni demande explicitement une portée plus large ou nomme directement un autre pays. Le champ countryScope et le booléen recommendationEligible des candidats sont la source de vérité : ne recommande aucun candidat non éligible. Recommande tous les pays éligibles ayant une raison défendable, qu’ils soient 1, 7, 10 ou davantage, et écarte ceux dont l’adéquation est faible; ne remplis pas la liste avec des pays peu pertinents. Pour chaque pays retenu, donne un score, une lecture de tendance prudente, une raison spécifique et un premier test peu coûteux.",
     "Propose 2 ou 3 jours de semaine comme hypothèses initiales à tester pour ce sujet et cette audience, avec une justification. Il n’y a pas d’historique de conversion par jour : ne présente jamais ces jours comme prouvés ni comme une garantie de conversion.",
     "Ne promets aucun résultat. Retourne uniquement un objet JSON conforme au schéma demandé.",
   ].join("\n");
@@ -196,6 +230,12 @@ export async function analyzeMarketRadarWithAI(input: MarketRadarAIInput): Promi
       recentInterestVsLocalHistory: market.interestPercentile,
       recentMomentum: market.momentumScore,
       observedDirection: market.hasUsableSearchSignal ? market.direction : null,
+    })),
+    countryScope: { explicitlyBroader: explicitlyBroaderScope, allowedCountryCodes: [...eligibleCountryCodes] },
+    candidateCountries: MARKET_RADAR_COUNTRIES.map((country) => ({
+      code: country.code,
+      country: country[input.locale],
+      recommendationEligible: eligibleCountryCodes.has(country.code),
     })),
   };
 
@@ -247,7 +287,7 @@ export async function analyzeMarketRadarWithAI(input: MarketRadarAIInput): Promi
   if (metaInterestQueries.length < 2) throw new Error("Invalid structured Radar analysis");
 
   const seen = new Set<MarketRadarCountryCode>();
-  const allowed = new Set<string>(COUNTRY_CODES);
+  const allowed = eligibleCountryCodes;
   const recommendedCountries = root.recommendedCountries.flatMap((rawCountry) => {
     const country = asRecord(rawCountry);
     const code = typeof country?.code === "string" ? country.code : "";
@@ -262,7 +302,7 @@ export async function analyzeMarketRadarWithAI(input: MarketRadarAIInput): Promi
     if (score === null || audienceFitScore === null || productFitScore === null || !countryTrendDirection || !countryTrendSummary || !rationale || !firstTest) return [];
     seen.add(code as MarketRadarCountryCode);
     return [{ code: code as MarketRadarCountryCode, score, audienceFitScore, productFitScore, trendDirection: countryTrendDirection, trendSummary: countryTrendSummary, rationale, firstTest }];
-  }).slice(0, 3);
+  });
 
   const outline = idea.outline.flatMap((item) => {
     const text = cleanText(item, 120);

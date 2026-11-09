@@ -8,7 +8,7 @@ import { askOpenRouter } from "@/lib/ai/openrouter";
 import { searchMetaInterests } from "@/lib/meta/api";
 import { decryptSecret } from "@/lib/crypto";
 import { buildMarketRadar } from "@/lib/market-radar";
-import { MARKET_RADAR_COUNTRIES } from "@/lib/market-radar-countries";
+import { MARKET_RADAR_COUNTRIES, MARKET_RADAR_SIGNAL_COUNTRIES } from "@/lib/market-radar-countries";
 import { scoreMarketTrend } from "@/lib/market-radar-signals";
 
 const aiResponse = JSON.stringify({
@@ -27,6 +27,13 @@ const aiResponse = JSON.stringify({
     { code: "BJ", score: 84, audienceFitScore: 83, productFitScore: 80, trendDirection: "up", trendSummary: "La dynamique locale semble favorable, sans garantir une conversion.", rationale: "Le guide peut être adapté avec des exemples de budget et de paiement locaux.", firstTest: "Teste une page courte avec un exemple de budget en XOF." },
     { code: "CI", score: 78, audienceFitScore: 79, productFitScore: 76, trendDirection: "qualitative", trendSummary: "Piste à explorer avec des exemples locaux.", rationale: "Le format peut s’adapter à des besoins proches, à vérifier auprès de clients.", firstTest: "Compare deux promesses auprès d’un petit groupe." },
     { code: "SN", score: 73, audienceFitScore: 74, productFitScore: 72, trendDirection: "qualitative", trendSummary: "Hypothèse qualitative à valider.", rationale: "Une version francophone est plausible, mais le besoin exact doit être confirmé.", firstTest: "Demande des retours sur un plan simplifié." },
+    { code: "CM", score: 71, audienceFitScore: 72, productFitScore: 70, trendDirection: "qualitative", trendSummary: "Piste à vérifier avec une offre localisée.", rationale: "Le format peut être adapté à des exemples et moyens de paiement locaux.", firstTest: "Compare une page de vente avec des exemples adaptés." },
+    { code: "GN", score: 70, audienceFitScore: 71, productFitScore: 69, trendDirection: "qualitative", trendSummary: "Hypothèse à valider auprès de l’audience visée.", rationale: "Le guide peut être adapté en français avec des exemples de budget locaux.", firstTest: "Teste une courte présentation en français auprès de prospects." },
+    { code: "MA", score: 68, audienceFitScore: 70, productFitScore: 67, trendDirection: "qualitative", trendSummary: "Piste exploratoire, sans mesure locale disponible.", rationale: "Une version adaptée aux usages et aux paiements locaux peut être explorée.", firstTest: "Recueille des retours sur une offre d’entrée de gamme localisée." },
+    { code: "CD", score: 66, audienceFitScore: 68, productFitScore: 65, trendDirection: "qualitative", trendSummary: "Hypothèse qualitative, à tester avant d’investir.", rationale: "Le sujet peut intéresser une audience francophone si le contenu est localisé.", firstTest: "Valide la promesse avec un petit groupe de prospects." },
+    { code: "GH", score: 60, audienceFitScore: 62, productFitScore: 58, trendDirection: "qualitative", trendSummary: "Hypothèse pour une portée explicitement anglophone.", rationale: "Une version anglaise ne se justifie que si le marché est demandé.", firstTest: "Teste une courte version anglaise auprès de prospects." },
+    { code: "NG", score: 58, audienceFitScore: 60, productFitScore: 56, trendDirection: "qualitative", trendSummary: "Piste exploratoire, sans mesure locale disponible.", rationale: "Une portée anglophone doit être demandée puis vérifiée localement.", firstTest: "Recueille des retours sur une offre d’entrée de gamme." },
+    { code: "KE", score: 55, audienceFitScore: 57, productFitScore: 54, trendDirection: "qualitative", trendSummary: "Hypothèse anglophone à confirmer avant tout investissement.", rationale: "Une adaptation de langue et de paiement est nécessaire pour ce marché.", firstTest: "Valide la promesse avec un petit groupe de prospects." },
   ],
   idea: {
     title: "Guide pratique de gestion",
@@ -111,9 +118,12 @@ describe("buildMarketRadar", () => {
     const report = await buildMarketRadar(input);
     expect(report.status).toBe("qualitative");
     expect(report.score).toBe(82);
-    expect(report.recommendedCountries).toHaveLength(3);
+    expect(report.recommendedCountries).toHaveLength(7);
     expect(report.recommendedCountries.every((country) => country.score >= 0 && country.signalStatus === "qualitative")).toBe(true);
     expect(report.recommendedCountries[0].name).toBe("Bénin");
+    expect(report.recommendedCountries.map((country) => country.name)).toContain("Guinée");
+    expect(report.recommendedCountries.map((country) => country.name)).toContain("Maroc");
+    expect(report.recommendedCountries.map((country) => country.name)).not.toContain("Ghana");
     expect(report.trend.direction).toBe("qualitative");
     expect(report.targetAudience.profile).toContain("Jeunes actifs");
     expect(report.targetAudience.metaInterests).toEqual([]);
@@ -125,9 +135,25 @@ describe("buildMarketRadar", () => {
     const messages = vi.mocked(askOpenRouter).mock.calls[0][0];
     const sent = JSON.parse(messages[1].content as string);
     expect(sent.product).toBeNull();
-    expect(sent.markets).toHaveLength(MARKET_RADAR_COUNTRIES.length);
+    expect(sent.markets).toHaveLength(MARKET_RADAR_SIGNAL_COUNTRIES.length);
     expect(sent.markets.map((market: { code: string }) => market.code)).toEqual(["BJ", "CI", "SN", "CM", "BF", "TG"]);
+    expect(sent.candidateCountries).toHaveLength(MARKET_RADAR_COUNTRIES.length);
+    expect(sent.candidateCountries.map((country: { code: string }) => country.code)).toContain("KE");
+    expect(sent.candidateCountries.find((country: { code: string }) => country.code === "GN").recommendationEligible).toBe(true);
+    expect(sent.candidateCountries.find((country: { code: string }) => country.code === "GH").recommendationEligible).toBe(false);
+    expect(sent.countryScope).toMatchObject({ explicitlyBroader: false });
     expect(sent).not.toHaveProperty("audiences");
+  });
+
+  it("includes anglophone markets only when the product request explicitly widens scope", async () => {
+    const report = await buildMarketRadar({ ...input, idea: "Guide budget mobile money pour les marchés francophones et anglophones de toute l’Afrique" });
+    const messages = vi.mocked(askOpenRouter).mock.calls[0][0];
+    const sent = JSON.parse(messages[1].content as string);
+
+    expect(sent.countryScope.explicitlyBroader).toBe(true);
+    expect(sent.candidateCountries.every((country: { recommendationEligible: boolean }) => country.recommendationEligible)).toBe(true);
+    expect(report.recommendedCountries.map((country) => country.name)).toContain("Ghana");
+    expect(report.recommendedCountries.map((country) => country.name)).toContain("Kenya");
   });
 
   it("crosses mocked local signals with the AI result without calling a live provider", async () => {
@@ -143,7 +169,11 @@ describe("buildMarketRadar", () => {
     expect(fetchMock).toHaveBeenCalledTimes(6);
     expect(report.status).toBe("crossed");
     expect(report.score).toBe(82);
-    expect(report.recommendedCountries.every((country) => country.signalStatus === "crossed" && country.trendDirection === "up")).toBe(true);
+    const signalCountryCodes = new Set<string>(MARKET_RADAR_SIGNAL_COUNTRIES.map((country) => country.code));
+    const countriesWithSignals = report.recommendedCountries.filter((country) => signalCountryCodes.has(country.code));
+    expect(countriesWithSignals.length).toBeGreaterThan(0);
+    expect(countriesWithSignals.every((country) => country.signalStatus === "crossed" && country.trendDirection === "up")).toBe(true);
+    expect(report.recommendedCountries.some((country) => !signalCountryCodes.has(country.code))).toBe(true);
     expect(report.analysisMode).toBe("crossed");
   });
 

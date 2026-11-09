@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
-import { Activity, CalendarDays, Lightbulb, Loader2, PackageOpen, ShieldAlert, TrendingUp, UsersRound } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Activity, ArrowRight, CalendarDays, ChevronDown, Lightbulb, Loader2, PackageOpen, ShieldAlert, UsersRound } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { MarketRadarFormat, MarketRadarProductContext, MarketRadarReport } from "@/lib/market-radar";
 
-type RadarResponse = { report?: MarketRadarReport; error?: string };
+type RadarResponse = { report?: MarketRadarReport; error?: string; code?: string; required?: number; balance?: number };
 type ChariowStore = { id: string; store_name: string | null; platform: string; connection_status: string | null };
 type CatalogProduct = {
   id: string;
@@ -21,7 +21,7 @@ type StoreListResponse = { stores?: ChariowStore[] };
 type CatalogResponse = { products?: CatalogProduct[]; error?: string };
 type RadarMode = "existing" | "new";
 
-export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => void }) {
+export function MarketRadarView({ onGoToAI, onRequestRecharge }: { onGoToAI: (prompt: string) => void; onRequestRecharge: () => void }) {
   const { t, locale } = useI18n();
   const [analysisMode, setAnalysisMode] = useState<RadarMode | null>(null);
   const [idea, setIdea] = useState("");
@@ -29,6 +29,7 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
   const [report, setReport] = useState<MarketRadarReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [insufficientCredits, setInsufficientCredits] = useState<{ required: number; available: number } | null>(null);
   const [catalogInitialized, setCatalogInitialized] = useState(false);
   const [stores, setStores] = useState<ChariowStore[]>([]);
   const [storeId, setStoreId] = useState("");
@@ -38,6 +39,16 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
   const [productsLoading, setProductsLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
   const catalogRequest = useRef(0);
+  const analysisRequest = useRef(false);
+
+  useEffect(() => {
+    if (!insufficientCredits) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setInsufficientCredits(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [insufficientCredits]);
 
   const loadProductsForStore = async (nextStoreId: string) => {
     if (!nextStoreId) return;
@@ -95,6 +106,14 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
     if (nextMode === "existing") void loadCatalog();
   };
 
+  const returnToModeSelection = () => {
+    setAnalysisMode(null);
+    setIdea("");
+    setSelectedProduct(null);
+    setReport(null);
+    setError("");
+  };
+
   const productContext = (): MarketRadarProductContext | null => analysisMode === "existing" && selectedProduct ? ({
     name: selectedProduct.name,
     description: selectedProduct.description,
@@ -110,7 +129,8 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
 
   async function analyze(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canAnalyze) return;
+    if (!canAnalyze || analysisRequest.current) return;
+    analysisRequest.current = true;
     setLoading(true);
     setError("");
     setReport(null);
@@ -121,6 +141,10 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
         body: JSON.stringify({ idea: idea.trim(), product: productContext(), format, locale }),
       });
       const data = await response.json() as RadarResponse;
+      if (response.status === 402 && data.code === "INSUFFICIENT_CREDITS") {
+        setInsufficientCredits({ required: data.required ?? 5, available: data.balance ?? 0 });
+        return;
+      }
       if (!response.ok || !data.report || data.report.status === "ai_unavailable") {
         setError(data.error ?? t("radar.analysisError"));
         return;
@@ -129,6 +153,7 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
     } catch {
       setError(t("radar.analysisError"));
     } finally {
+      analysisRequest.current = false;
       setLoading(false);
     }
   }
@@ -158,24 +183,23 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
         : "";
 
   const workflow = <div className="market-radar-workflow">
-    <section className="app-card market-radar-mode-picker">
-      <div className="market-radar-mode-heading">
-        <span className="eyebrow">{t("radar.modeQuestion")}</span>
-        <p>{t("radar.modeHelp")}</p>
-      </div>
+    {analysisMode === null ? <section className="app-card market-radar-mode-picker">
+      <div className="market-radar-mode-heading"><h2>{t("radar.modeQuestion")}</h2></div>
       <div className="market-radar-mode-grid" role="group" aria-label={t("radar.modeQuestion")}>
-        <button type="button" className="market-radar-mode-option" aria-pressed={analysisMode === "existing"} onClick={() => chooseMode("existing")}>
-          <PackageOpen size={20} aria-hidden="true" />
+        <button type="button" className="market-radar-mode-option" aria-pressed={false} onClick={() => chooseMode("existing")}>
+          <PackageOpen size={21} aria-hidden="true" />
           <span><strong>{t("radar.modeExistingTitle")}</strong><small>{t("radar.modeExistingText")}</small></span>
+          <span className="market-radar-mode-arrow" aria-hidden="true"><ArrowRight size={17} /></span>
         </button>
-        <button type="button" className="market-radar-mode-option" aria-pressed={analysisMode === "new"} onClick={() => chooseMode("new")}>
-          <Lightbulb size={20} aria-hidden="true" />
+        <button type="button" className="market-radar-mode-option" aria-pressed={false} onClick={() => chooseMode("new")}>
+          <Lightbulb size={21} aria-hidden="true" />
           <span><strong>{t("radar.modeNewTitle")}</strong><small>{t("radar.modeNewText")}</small></span>
+          <span className="market-radar-mode-arrow" aria-hidden="true"><ArrowRight size={17} /></span>
         </button>
       </div>
-    </section>
-
-    {analysisMode ? <form className="app-card market-radar-form" onSubmit={analyze}>
+    </section> : <>
+    <button type="button" className="market-radar-change-mode" onClick={returnToModeSelection}>← {t("radar.changeMode")}</button>
+    <form className="app-card market-radar-form" onSubmit={analyze}>
       {analysisMode === "existing" ? <div className="market-radar-catalog">
         <span className="market-radar-control-label">{t("radar.productSelectLabel")}</span>
         <div className="market-radar-catalog-panel">
@@ -230,7 +254,8 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
         {loading ? <><Loader2 size={16} className="market-radar-spinner" /> {t("radar.analyzing")}</> : t("radar.analyze")}
       </button>
       {loading ? <small className="market-radar-loading-note">{t("radar.recommendationsLoading")}</small> : null}
-    </form> : null}
+    </form>
+    </>}
   </div>;
 
   return <div className="market-radar-page">
@@ -238,17 +263,8 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
       <div><h1>{t("radar.eyebrow")}</h1><p>{t("radar.subtitle")}</p></div>
     </div>
 
-    <section className="market-radar-hero">
-      <div>
-        <span className="eyebrow">{t("radar.heroEyebrow")}</span>
-        <h2>{t("radar.heroTitle")}</h2>
-        <p>{t("radar.heroText")}</p>
-      </div>
-      <TrendingUp size={32} aria-hidden="true" />
-    </section>
-
     {report ? <details className="app-card market-radar-edit">
-      <summary>{t("radar.editAnalysis")}</summary>
+      <summary>{t("radar.editAnalysis")}<span className="market-radar-toggle-cue" data-closed-label={t("radar.expandSection")} data-open-label={t("radar.collapseSection")} aria-hidden="true"><ChevronDown size={17} /></span></summary>
       {workflow}
     </details> : workflow}
 
@@ -285,7 +301,7 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
       </section>
 
       <details className="app-card market-radar-accordion market-country-recommendations">
-        <summary><span><small>{t("radar.recommendationsEyebrow")}</small><strong>{t("radar.recommendationsTitle")}</strong></span><b>{report.recommendedCountries.length}</b></summary>
+        <summary><span><small>{t("radar.recommendationsEyebrow")}</small><strong>{t("radar.recommendationsTitle")}</strong></span><b>{report.recommendedCountries.length}</b><span className="market-radar-toggle-cue" data-closed-label={t("radar.expandSection")} data-open-label={t("radar.collapseSection")} aria-hidden="true"><ChevronDown size={17} /></span></summary>
         <div className="market-radar-accordion-content">
           <p className="market-section-intro">{t("radar.recommendationsDescription")}</p>
           {report.recommendedCountries.length ? <div className="market-country-grid">
@@ -306,7 +322,7 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
       </details>
 
       <details className="app-card market-radar-accordion">
-        <summary><span><small>{t("radar.audienceEyebrow")}</small><strong>{t("radar.audienceTimingTitle")}</strong></span><UsersRound size={19} aria-hidden="true" /></summary>
+        <summary><span><small>{t("radar.audienceEyebrow")}</small><strong>{t("radar.audienceTimingTitle")}</strong></span><span className="market-radar-toggle-cue" data-closed-label={t("radar.expandSection")} data-open-label={t("radar.collapseSection")} aria-hidden="true"><ChevronDown size={17} /></span></summary>
         <div className="market-radar-accordion-content">
           <section className="market-evidence-grid">
             <div className="market-audience-card">
@@ -330,7 +346,7 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
       </details>
 
       <details className="app-card market-radar-accordion">
-        <summary><span><small>{t("radar.evidenceEyebrow")}</small><strong>{t("radar.evidenceTitle")}</strong></span><ShieldAlert size={19} aria-hidden="true" /></summary>
+        <summary><span><small>{t("radar.evidenceEyebrow")}</small><strong>{t("radar.evidenceTitle")}</strong></span><span className="market-radar-toggle-cue" data-closed-label={t("radar.expandSection")} data-open-label={t("radar.collapseSection")} aria-hidden="true"><ChevronDown size={17} /></span></summary>
         <div className="market-radar-accordion-content">
           <section className="market-evidence-grid">
             <div>
@@ -346,7 +362,7 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
       </details>
 
       {report.ideas.length ? <details className="app-card market-radar-accordion market-ideas">
-        <summary><span><small>{t("radar.ideaConceptEyebrow")}</small><strong>{t("radar.ideaConceptTitle")}</strong></span><Lightbulb size={19} aria-hidden="true" /></summary>
+        <summary><span><small>{t("radar.ideaConceptEyebrow")}</small><strong>{t("radar.ideaConceptTitle")}</strong></span><span className="market-radar-toggle-cue" data-closed-label={t("radar.expandSection")} data-open-label={t("radar.collapseSection")} aria-hidden="true"><ChevronDown size={17} /></span></summary>
         <div className="market-radar-accordion-content">
           {report.ideas.map((item) => <article className="market-idea" key={item.title}>
             <div>
@@ -359,5 +375,18 @@ export function MarketRadarView({ onGoToAI }: { onGoToAI: (prompt: string) => vo
         </div>
       </details> : null}
     </> : null}
+
+    {insufficientCredits ? <div className="studio-credit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setInsufficientCredits(null); }}>
+      <section className="studio-credit-modal" role="alertdialog" aria-modal="true" aria-labelledby="market-radar-credit-title" onKeyDown={(event) => { if (event.key === "Escape") setInsufficientCredits(null); }}>
+        <div className="studio-credit-modal-head"><div><span className="eyebrow">{t("radar.creditEyebrow")}</span><h2 id="market-radar-credit-title">{t("radar.creditInsufficientTitle")}</h2></div>
+          <button type="button" className="studio-recharge-close" onClick={() => setInsufficientCredits(null)} aria-label={t("radar.creditClose")}>×</button>
+        </div>
+        <p>{t("radar.creditInsufficientMessage", { required: insufficientCredits.required, available: insufficientCredits.available })}</p>
+        <div className="studio-credit-modal-actions">
+          <button type="button" className="btn btn-ghost" onClick={() => setInsufficientCredits(null)}>{t("radar.creditClose")}</button>
+          <button type="button" className="btn btn-dark" onClick={() => { setInsufficientCredits(null); onRequestRecharge(); }}>{t("radar.creditRecharge")}</button>
+        </div>
+      </section>
+    </div> : null}
   </div>;
 }

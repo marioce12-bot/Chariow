@@ -144,7 +144,11 @@ function StudioFormatPreviewVideo({ src, poster }: { src: string; poster: string
   );
 }
 
-export function StudioView({ products }: { products: Array<{ id: string; name: string; description?: string | null; content?: string | null; price?: number | string | null; currency?: string | null; image?: string | null; category?: string; type?: string; tags?: string[]; images?: string[]; shop?: string }> }) {
+export function StudioView({ products, creditRechargeRequest = 0, onCreditRechargeRequestHandled }: {
+  products: Array<{ id: string; name: string; description?: string | null; content?: string | null; price?: number | string | null; currency?: string | null; image?: string | null; category?: string; type?: string; tags?: string[]; images?: string[]; shop?: string }>;
+  creditRechargeRequest?: number;
+  onCreditRechargeRequestHandled?: () => void;
+}) {
   const { t, locale } = useI18n();
   const [promptGenerating, setPromptGenerating] = useState(false);
   const [kind, setKind] = useState<"image" | "video">("image");
@@ -315,6 +319,13 @@ export function StudioView({ products }: { products: Array<{ id: string; name: s
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [rechargeOpen, insufficientCredits]);
+  useEffect(() => {
+    if (!creditRechargeRequest) return;
+    setInsufficientCredits(null);
+    setRechargeError("");
+    setRechargeOpen(true);
+    onCreditRechargeRequestHandled?.();
+  }, [creditRechargeRequest, onCreditRechargeRequestHandled]);
 
   // Restore the server-owned photo task after mount/refresh. This is deliberately
   // a GET only: an unknown response must never silently start a second billable job.

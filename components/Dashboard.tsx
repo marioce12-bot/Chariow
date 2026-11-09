@@ -147,6 +147,8 @@ function DashboardWorkspace() {
   const { t, locale } = useI18n();
   const w = (key: string) => t(`workspaceExtra.${key}`);
   const [active, setActive] = useState(getInitialDashboardSection);
+  const [studioCreditRechargeRequest, setStudioCreditRechargeRequest] = useState(0);
+  const clearStudioCreditRechargeRequest = useCallback(() => setStudioCreditRechargeRequest(0), []);
   const initialSectionRef = useRef(active);
   const mobileNavVisible = useMobileNavVisibility(active);
   // Suivi anonyme du temps passé par section (alimente l'onglet « Usage de l'app » de la console admin).
@@ -667,15 +669,18 @@ function DashboardWorkspace() {
               onBack={() => setActive(previousSection)}
             />
           ) : active === "Studio" ? (
-            <StudioView products={analytics?.products ?? []} />
+            <StudioView products={analytics?.products ?? []} creditRechargeRequest={studioCreditRechargeRequest} onCreditRechargeRequestHandled={clearStudioCreditRechargeRequest} />
           ) : active === "Performance publicitaire" ? (
             <AdPerformanceView key={activeStoreId ?? "no-store"} storeId={activeStoreId} onApplyCampaign={applyRecommendedCampaign} onRecommendationChange={reportCampaignRecommendation} products={analytics?.products ?? []} locale={locale} />
           ) : active === "Pub" ? (
              <AdsView key={activeStoreId} plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => navigateToSection("Vendeo AI")} onGoToAccounts={() => navigateToSection("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
             <MobileSettingsView onNavigate={navigateToSection} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" />
-           ) : active === "Radar marché" ? (
-             <MarketRadarView onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); navigateToSection("Vendeo AI"); }} />
+          ) : active === "Radar marché" ? (
+             <MarketRadarView
+               onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); navigateToSection("Vendeo AI"); }}
+               onRequestRecharge={() => { setStudioCreditRechargeRequest((request) => request + 1); navigateToSection("Studio"); }}
+             />
            ) : active === "Mes boutiques" ? (
             <StoresView stores={stores} subscription={subscription} onStoresChange={setStores} onBackToSettings={backToAccountSettings} />
           ) : active === "Abonnement" ? (

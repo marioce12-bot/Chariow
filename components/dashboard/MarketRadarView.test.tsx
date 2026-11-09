@@ -43,8 +43,8 @@ let root: Root;
 let fetchMock: ReturnType<typeof vi.fn>;
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-function response(data: unknown) {
-  return Promise.resolve(new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } }));
+function response(data: unknown, status = 200) {
+  return Promise.resolve(new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } }));
 }
 async function flush() {
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
@@ -80,14 +80,18 @@ afterEach(async () => {
 
 describe("MarketRadarView", () => {
   it("asks which path to analyze before showing catalog controls, then submits the selected existing product", async () => {
-    await act(async () => root.render(<MarketRadarView onGoToAI={() => {}} />));
+    await act(async () => root.render(<MarketRadarView onGoToAI={() => {}} onRequestRecharge={() => {}} />));
     expect(container.textContent).toContain("radar.modeQuestion");
+    expect(container.querySelectorAll("button.market-radar-mode-option")).toHaveLength(2);
+    expect(container.querySelector(".market-radar-hero")).toBeNull();
     expect(container.querySelector("form")).toBeNull();
     expect(container.querySelector("input")).toBeNull();
     expect(container.querySelector('[name="audience"]')).toBeNull();
 
     await act(async () => buttonWithText("radar.modeExistingTitle").click());
     await flush();
+    expect(container.querySelector(".market-radar-mode-picker")).toBeNull();
+    expect(container.querySelector(".market-radar-form")).not.toBeNull();
     expect(fetchMock.mock.calls.map((call) => String(call[0]))).toContain("/api/stores");
     expect(fetchMock.mock.calls.some((call) => String(call[0]).startsWith("/api/market/radar/catalog"))).toBe(true);
     expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/api/analytics"))).toBe(false);
@@ -112,12 +116,15 @@ describe("MarketRadarView", () => {
     expect(container.textContent).toContain("radar.audienceTitle");
     expect(container.textContent).toContain("radar.dayMonday");
     expect(container.querySelectorAll("details").length).toBeGreaterThanOrEqual(5);
+    expect(container.querySelectorAll(".market-radar-toggle-cue").length).toBe(5);
+    expect(container.querySelector(".market-radar-toggle-cue")?.getAttribute("data-closed-label")).toBe("radar.expandSection");
     expect(container.textContent).not.toMatch(/\bIA\b/);
   });
 
   it("keeps the new-idea path separate from the catalog and submits no existing product", async () => {
-    await act(async () => root.render(<MarketRadarView onGoToAI={() => {}} />));
+    await act(async () => root.render(<MarketRadarView onGoToAI={() => {}} onRequestRecharge={() => {}} />));
     await act(async () => buttonWithText("radar.modeNewTitle").click());
+    expect(container.querySelector(".market-radar-mode-picker")).toBeNull();
 
     const ideaInput = container.querySelector(".market-radar-idea-field input") as HTMLInputElement;
     const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
@@ -132,5 +139,29 @@ describe("MarketRadarView", () => {
     const analysisCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/market/radar")!;
     const body = JSON.parse((analysisCall[1] as RequestInit).body as string);
     expect(body).toEqual({ idea: "Un guide pour mieux gérer son budget", product: null, format: "ebook", locale: "fr" });
+  });
+
+  it("shows an insufficient-credit dialog and routes its top-up action to the existing recharge flow", async () => {
+    const onRequestRecharge = vi.fn();
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (String(input) === "/api/market/radar") return response({ code: "INSUFFICIENT_CREDITS", required: 5, balance: 4 }, 402);
+      if (String(input) === "/api/stores") return response({ stores: [] });
+      throw new Error(`Unexpected network request: ${String(input)}`);
+    });
+    await act(async () => root.render(<MarketRadarView onGoToAI={() => {}} onRequestRecharge={onRequestRecharge} />));
+    await act(async () => buttonWithText("radar.modeNewTitle").click());
+
+    const ideaInput = container.querySelector(".market-radar-idea-field input") as HTMLInputElement;
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    setValue?.call(ideaInput, "Un guide pour mieux gérer son budget");
+    await act(async () => ideaInput.dispatchEvent(new window.Event("input", { bubbles: true })));
+    const form = container.querySelector("form")!;
+    await act(async () => form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+    await flush();
+
+    expect(container.querySelector('[role="alertdialog"]')).not.toBeNull();
+    expect(container.textContent).toContain("radar.creditInsufficientTitle");
+    await act(async () => buttonWithText("radar.creditRecharge").click());
+    expect(onRequestRecharge).toHaveBeenCalledTimes(1);
   });
 });

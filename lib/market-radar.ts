@@ -9,7 +9,7 @@ import {
   type MetaInterestTarget,
 } from "@/lib/ad-campaigns/meta-targeting";
 import { analyzeMarketRadarWithAI, type MarketRadarAIResult, type MarketRadarDay, type MarketRadarFormat, type MarketRadarProductContext, type MarketRadarTrendDirection } from "@/lib/market-radar-ai";
-import { getMarketRadarCountryName, MARKET_RADAR_COUNTRIES, type MarketRadarCountryCode } from "@/lib/market-radar-countries";
+import { getMarketRadarCountryName, MARKET_RADAR_SIGNAL_COUNTRIES, type MarketRadarCountryCode } from "@/lib/market-radar-countries";
 import { scoreMarketTrend, type MarketTrendDirection, type MarketTrendSignal } from "@/lib/market-radar-signals";
 
 export type { MarketRadarDay, MarketRadarFormat, MarketRadarProductContext } from "@/lib/market-radar-ai";
@@ -281,7 +281,7 @@ export async function buildMarketRadar(
     locale,
   };
 
-  const collected = await Promise.all(MARKET_RADAR_COUNTRIES.map(async (country) => {
+  const collected = await Promise.all(MARKET_RADAR_SIGNAL_COUNTRIES.map(async (country) => {
     let source: TrendSource = "unavailable";
     let payload: Record<string, unknown> | null = null;
     try {

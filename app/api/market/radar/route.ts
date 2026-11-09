@@ -1,9 +1,13 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
 import { buildMarketRadar, type MarketRadarFormat, type MarketRadarInput, type MarketRadarProductContext } from "@/lib/market-radar";
 
 const FORMATS: MarketRadarFormat[] = ["ebook", "formation", "template", "abonnement"];
 const MAX_IDEA_LENGTH = 180;
+const MARKET_RADAR_CREDIT_COST = 5;
 
 function safeText(value: unknown, maximum: number): string | null {
   if (typeof value !== "string") return null;
@@ -50,5 +54,59 @@ export async function POST(request: Request) {
     : "ebook";
   const locale = body.locale === "en" ? "en" : "fr";
   const input: MarketRadarInput = { idea, product, format, locale };
-  return NextResponse.json({ report: await buildMarketRadar(input, supabase, user.id) });
+
+  const admin = createAdminClient();
+  const requestId = crypto.randomUUID();
+  let reservation: { data: unknown; error: unknown };
+  try {
+    reservation = await admin.rpc("reserve_credits", {
+      target_user_id: user.id,
+      amount: MARKET_RADAR_CREDIT_COST,
+      operation_name: "market_radar",
+      model_name: "market-radar",
+      provider_amount: 0,
+      request_id: requestId,
+    });
+  } catch {
+    return NextResponse.json({ error: "Impossible de vérifier le solde Radar pour le moment." }, { status: 503 });
+  }
+  if (reservation.error) {
+    return NextResponse.json({ error: "Impossible de vérifier le solde Radar pour le moment." }, { status: 503 });
+  }
+
+  const reserveResult = reservation.data as { ok?: boolean; balance?: number; reserved?: number; transaction_id?: string } | null;
+  if (!reserveResult?.ok) {
+    const balance = Math.max(0, Math.floor(Number(reserveResult?.balance ?? 0) - Number(reserveResult?.reserved ?? 0)));
+    return NextResponse.json({
+      error: "Solde insuffisant pour lancer l’analyse Radar.",
+      code: "INSUFFICIENT_CREDITS",
+      required: MARKET_RADAR_CREDIT_COST,
+      balance,
+    }, { status: 402 });
+  }
+  if (!reserveResult.transaction_id) {
+    return NextResponse.json({ error: "La réservation des crédits Radar n’a pas pu être confirmée." }, { status: 503 });
+  }
+
+  const creditContext = { userId: user.id, amount: MARKET_RADAR_CREDIT_COST };
+  try {
+    const report = await buildMarketRadar(input, supabase, user.id);
+    if (report.status === "ai_unavailable") {
+      const refunded = await confirmCreditTransition(admin, "refund_credit_debit", reserveResult.transaction_id, creditContext);
+      if (!refunded) return NextResponse.json({ error: "L’analyse n’a pas abouti; la restitution des crédits est en cours de vérification." }, { status: 503 });
+      return NextResponse.json({ report, creditsCharged: 0 });
+    }
+
+    const charged = await confirmCreditTransition(admin, "complete_credit_debit", reserveResult.transaction_id, creditContext);
+    if (!charged) {
+      await confirmCreditTransition(admin, "refund_credit_debit", reserveResult.transaction_id, creditContext);
+      return NextResponse.json({ error: "Le débit Radar n’a pas pu être confirmé. Réessaie dans un instant." }, { status: 503 });
+    }
+    return NextResponse.json({ report, creditsCharged: MARKET_RADAR_CREDIT_COST });
+  } catch {
+    const refunded = await confirmCreditTransition(admin, "refund_credit_debit", reserveResult.transaction_id, creditContext);
+    return NextResponse.json({
+      error: refunded ? "L’analyse Radar n’a pas abouti. Réessaie dans un instant." : "L’analyse a échoué; la restitution des crédits est en cours de vérification.",
+    }, { status: refunded ? 502 : 503 });
+  }
 }
