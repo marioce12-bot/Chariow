@@ -678,6 +678,7 @@ function DashboardWorkspace() {
             <MobileSettingsView onNavigate={navigateToSection} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" />
           ) : active === "Radar marché" ? (
              <MarketRadarView
+               userId={notificationUserId}
                onGoToAI={(prompt) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); navigateToSection("Vendeo AI"); }}
                onRequestRecharge={() => { setStudioCreditRechargeRequest((request) => request + 1); navigateToSection("Studio"); }}
              />

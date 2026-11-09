@@ -209,6 +209,8 @@ export const en: Dict = {
       creditEyebrow: "Radar credits", creditInsufficientTitle: "Not enough credits",
       creditInsufficientMessage: "A Radar analysis costs {required} credits. Available balance: {available}.",
       creditRecharge: "Top up credits", creditClose: "Close",
+      creditConfirmationTitle: "This analysis costs 5 credits.", creditConfirmationBody: "Credits will only be reserved if you choose Continue.",
+      creditConfirmationCancel: "Cancel", creditConfirmationContinue: "Continue", creditConfirmationDontShowAgain: "Don’t show this confirmation again",
       expandSection: "Show", collapseSection: "Hide",
       ideaLabel: "Product idea", ideaPlaceholder: "Ex: a guide to managing money with mobile money", ideaHint: "At least 8 characters, maximum 180.",
       productStoreLabel: "Store", productSelectLabel: "Product to assess", productPlaceholder: "Select a product", defaultStoreName: "Chariow store",

@@ -209,6 +209,8 @@ export const fr: Dict = {
       creditEyebrow: "Crédits Radar", creditInsufficientTitle: "Crédits insuffisants",
       creditInsufficientMessage: "Une analyse Radar coûte {required} crédits. Solde disponible : {available}.",
       creditRecharge: "Recharger", creditClose: "Fermer",
+      creditConfirmationTitle: "Cette analyse coûte 5 crédits.", creditConfirmationBody: "Les crédits seront réservés uniquement si tu choisis Continuer.",
+      creditConfirmationCancel: "Annuler", creditConfirmationContinue: "Continuer", creditConfirmationDontShowAgain: "Ne plus afficher cette confirmation",
       expandSection: "Afficher", collapseSection: "Masquer",
       ideaLabel: "Idée de produit", ideaPlaceholder: "Ex. Un guide pour mieux gérer son argent avec le Mobile Money", ideaHint: "Au moins 8 caractères, maximum 180.",
       productStoreLabel: "Boutique", productSelectLabel: "Produit à analyser", productPlaceholder: "Sélectionner un produit", defaultStoreName: "Boutique Chariow",

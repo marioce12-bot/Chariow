@@ -20,14 +20,28 @@ type CatalogProduct = {
 type StoreListResponse = { stores?: ChariowStore[] };
 type CatalogResponse = { products?: CatalogProduct[]; error?: string };
 type RadarMode = "existing" | "new";
+const CREDIT_CONFIRMATION_STORAGE_PREFIX = "vendeo:market-radar-credit-confirmation:v1";
 
-export function MarketRadarView({ onGoToAI, onRequestRecharge }: { onGoToAI: (prompt: string) => void; onRequestRecharge: () => void }) {
+function readCreditConfirmationPreference(userId: string): boolean {
+  try { return window.localStorage.getItem(`${CREDIT_CONFIRMATION_STORAGE_PREFIX}:${userId}`) === "true"; }
+  catch { return false; }
+}
+
+function saveCreditConfirmationPreference(userId: string) {
+  try { window.localStorage.setItem(`${CREDIT_CONFIRMATION_STORAGE_PREFIX}:${userId}`, "true"); }
+  catch { /* Keep the preference in memory when browser storage is unavailable. */ }
+}
+
+export function MarketRadarView({ onGoToAI, onRequestRecharge, userId }: { onGoToAI: (prompt: string) => void; onRequestRecharge: () => void; userId: string | null }) {
   const { t, locale } = useI18n();
   const [analysisMode, setAnalysisMode] = useState<RadarMode | null>(null);
   const [idea, setIdea] = useState("");
   const [format, setFormat] = useState<MarketRadarFormat>("ebook");
   const [report, setReport] = useState<MarketRadarReport | null>(null);
   const [loading, setLoading] = useState(false);
+  const [creditConfirmationOpen, setCreditConfirmationOpen] = useState(false);
+  const [dontShowCreditConfirmationAgain, setDontShowCreditConfirmationAgain] = useState(false);
+  const [dismissedCreditConfirmation, setDismissedCreditConfirmation] = useState<{ userId: string; dismissed: boolean } | null>(null);
   const [error, setError] = useState("");
   const [insufficientCredits, setInsufficientCredits] = useState<{ required: number; available: number } | null>(null);
   const [catalogInitialized, setCatalogInitialized] = useState(false);
@@ -49,6 +63,18 @@ export function MarketRadarView({ onGoToAI, onRequestRecharge }: { onGoToAI: (pr
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [insufficientCredits]);
+
+  useEffect(() => {
+    if (!creditConfirmationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCreditConfirmationOpen(false);
+        setDontShowCreditConfirmationAgain(false);
+      }
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [creditConfirmationOpen]);
 
   const loadProductsForStore = async (nextStoreId: string) => {
     if (!nextStoreId) return;
@@ -127,10 +153,10 @@ export function MarketRadarView({ onGoToAI, onRequestRecharge }: { onGoToAI: (pr
   const isIdeaValid = idea.trim().length >= minimumIdeaLength;
   const canAnalyze = analysisMode === "existing" ? Boolean(selectedProduct) : analysisMode === "new" && isIdeaValid;
 
-  async function analyze(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function runAnalysis() {
     if (!canAnalyze || analysisRequest.current) return;
     analysisRequest.current = true;
+    setCreditConfirmationOpen(false);
     setLoading(true);
     setError("");
     setReport(null);
@@ -156,6 +182,37 @@ export function MarketRadarView({ onGoToAI, onRequestRecharge }: { onGoToAI: (pr
       analysisRequest.current = false;
       setLoading(false);
     }
+  }
+
+  function analyze(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canAnalyze || analysisRequest.current || creditConfirmationOpen) return;
+    const hasDismissedConfirmation = Boolean(userId && (
+      (dismissedCreditConfirmation?.userId === userId && dismissedCreditConfirmation.dismissed)
+      || readCreditConfirmationPreference(userId)
+    ));
+    if (hasDismissedConfirmation) {
+      void runAnalysis();
+      return;
+    }
+    setDontShowCreditConfirmationAgain(false);
+    setCreditConfirmationOpen(true);
+  }
+
+  function closeCreditConfirmation() {
+    setCreditConfirmationOpen(false);
+    setDontShowCreditConfirmationAgain(false);
+  }
+
+  function confirmAnalysis() {
+    if (analysisRequest.current) return;
+    if (dontShowCreditConfirmationAgain && userId) {
+      saveCreditConfirmationPreference(userId);
+      setDismissedCreditConfirmation({ userId, dismissed: true });
+    }
+    setCreditConfirmationOpen(false);
+    setDontShowCreditConfirmationAgain(false);
+    void runAnalysis();
   }
 
   const confidenceLabel = report?.confidence === "medium" ? t("radar.confidenceMedium") : t("radar.confidenceLow");
@@ -250,7 +307,7 @@ export function MarketRadarView({ onGoToAI, onRequestRecharge }: { onGoToAI: (pr
         </label>
       </div>
       {error ? <p className="store-error">{error}</p> : null}
-      <button className="btn btn-dark" disabled={loading || !canAnalyze}>
+      <button className="btn btn-dark" disabled={loading || creditConfirmationOpen || !canAnalyze}>
         {loading ? <><Loader2 size={16} className="market-radar-spinner" /> {t("radar.analyzing")}</> : t("radar.analyze")}
       </button>
       {loading ? <small className="market-radar-loading-note">{t("radar.recommendationsLoading")}</small> : null}
@@ -375,6 +432,18 @@ export function MarketRadarView({ onGoToAI, onRequestRecharge }: { onGoToAI: (pr
         </div>
       </details> : null}
     </> : null}
+
+    {creditConfirmationOpen ? <div className="studio-credit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreditConfirmation(); }}>
+      <section className="studio-credit-modal market-radar-confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="market-radar-confirmation-title" aria-describedby="market-radar-confirmation-body">
+        <div className="studio-credit-modal-head"><div><span className="eyebrow">{t("radar.creditEyebrow")}</span><h2 id="market-radar-confirmation-title">{t("radar.creditConfirmationTitle")}</h2></div></div>
+        <p id="market-radar-confirmation-body">{t("radar.creditConfirmationBody")}</p>
+        <label className="market-radar-confirmation-optout"><input type="checkbox" checked={dontShowCreditConfirmationAgain} onChange={(event) => setDontShowCreditConfirmationAgain(event.target.checked)} disabled={!userId} /><span>{t("radar.creditConfirmationDontShowAgain")}</span></label>
+        <div className="studio-credit-modal-actions">
+          <button type="button" className="btn btn-ghost" onClick={closeCreditConfirmation}>{t("radar.creditConfirmationCancel")}</button>
+          <button type="button" className="btn btn-dark" onClick={confirmAnalysis}>{t("radar.creditConfirmationContinue")}</button>
+        </div>
+      </section>
+    </div> : null}
 
     {insufficientCredits ? <div className="studio-credit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setInsufficientCredits(null); }}>
       <section className="studio-credit-modal" role="alertdialog" aria-modal="true" aria-labelledby="market-radar-credit-title" onKeyDown={(event) => { if (event.key === "Escape") setInsufficientCredits(null); }}>

@@ -126,6 +126,9 @@ html[data-theme="dark"] .studio-recharge-panel small { color:#9ac3c0; }
 html[data-theme="dark"] .studio-credit-modal { background:#101f45; border-color:#31427a; color:#e7edfb; }
 html[data-theme="dark"] .studio-credit-modal > p { color:#b9c8e8; }
 html[data-theme="dark"] .studio-credit-modal > small { color:#9ac3c0; }
+.market-radar-confirmation-optout { align-items:flex-start; color:#53665a; cursor:pointer; display:flex; font-size:13px; gap:9px; line-height:1.45; }
+.market-radar-confirmation-optout input { accent-color:#273d91; flex:none; height:16px; margin:2px 0 0; width:16px; }
+html[data-theme="dark"] .market-radar-confirmation-optout { color:#b9c8e8; }
 html[data-theme="dark"] .studio-credit-modal .studio-field > span { color:#c7d6ff; }
 html[data-theme="dark"] .studio-topup-modal input { background:#0a1733; border-color:#31427a; color:#e7edfb; }
 html[data-theme="dark"] .studio-topup-modal > p strong { color:#d9f99d; }

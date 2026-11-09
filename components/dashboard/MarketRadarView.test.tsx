@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MarketRadarReport } from "@/lib/market-radar";
 
-vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string) => key }) }));
+vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string) => key === "radar.creditConfirmationTitle" ? "Cette analyse coûte 5 crédits." : key }) }));
 
 import { MarketRadarView } from "./MarketRadarView";
 
@@ -57,8 +57,12 @@ function setSelectValue(select: HTMLSelectElement, value: string) {
   setValue?.call(select, value);
   select.dispatchEvent(new window.Event("change", { bubbles: true }));
 }
+function setCheckboxChecked(input: HTMLInputElement, checked: boolean) {
+  if (input.checked !== checked) input.click();
+}
 
 beforeEach(() => {
+  window.localStorage.clear();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -80,7 +84,7 @@ afterEach(async () => {
 
 describe("MarketRadarView", () => {
   it("asks which path to analyze before showing catalog controls, then submits the selected existing product", async () => {
-    await act(async () => root.render(<MarketRadarView onGoToAI={() => {}} onRequestRecharge={() => {}} />));
+    await act(async () => root.render(<MarketRadarView userId="user-1" onGoToAI={() => {}} onRequestRecharge={() => {}} />));
     expect(container.textContent).toContain("radar.modeQuestion");
     expect(container.querySelectorAll("button.market-radar-mode-option")).toHaveLength(2);
     expect(container.querySelector(".market-radar-hero")).toBeNull();
@@ -101,7 +105,14 @@ describe("MarketRadarView", () => {
     const form = container.querySelector("form")!;
     await act(async () => form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
     await flush();
-
+    expect(container.textContent).toContain("Cette analyse coûte 5 crédits.");
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/market/radar")).toHaveLength(0);
+    await act(async () => {
+      const continueButton = buttonWithText("radar.creditConfirmationContinue");
+      continueButton.click();
+      continueButton.click();
+    });
+    await flush();
     const analysisCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/market/radar")!;
     const body = JSON.parse((analysisCall[1] as RequestInit).body as string);
     expect(body).toEqual({
@@ -122,7 +133,7 @@ describe("MarketRadarView", () => {
   });
 
   it("keeps the new-idea path separate from the catalog and submits no existing product", async () => {
-    await act(async () => root.render(<MarketRadarView onGoToAI={() => {}} onRequestRecharge={() => {}} />));
+    await act(async () => root.render(<MarketRadarView userId="user-1" onGoToAI={() => {}} onRequestRecharge={() => {}} />));
     await act(async () => buttonWithText("radar.modeNewTitle").click());
     expect(container.querySelector(".market-radar-mode-picker")).toBeNull();
 
@@ -136,9 +147,75 @@ describe("MarketRadarView", () => {
 
     await act(async () => form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
     await flush();
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/market/radar")).toHaveLength(0);
+    await act(async () => buttonWithText("radar.creditConfirmationContinue").click());
+    await flush();
     const analysisCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/market/radar")!;
     const body = JSON.parse((analysisCall[1] as RequestInit).body as string);
     expect(body).toEqual({ idea: "Un guide pour mieux gérer son budget", product: null, format: "ebook", locale: "fr" });
+  });
+
+  it("does not launch or remember anything when the confirmation is canceled", async () => {
+    await act(async () => root.render(<MarketRadarView userId="user-1" onGoToAI={() => {}} onRequestRecharge={() => {}} />));
+    await act(async () => buttonWithText("radar.modeNewTitle").click());
+    const ideaInput = container.querySelector(".market-radar-idea-field input") as HTMLInputElement;
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    setValue?.call(ideaInput, "Un guide pour mieux gérer son budget");
+    await act(async () => ideaInput.dispatchEvent(new window.Event("input", { bubbles: true })));
+
+    const form = container.querySelector("form")!;
+    await act(async () => form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+    expect(container.textContent).toContain("Cette analyse coûte 5 crédits.");
+    await act(async () => setCheckboxChecked(container.querySelector(".market-radar-confirmation-optout input") as HTMLInputElement, true));
+    await act(async () => buttonWithText("radar.creditConfirmationCancel").click());
+
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/market/radar")).toHaveLength(0);
+    expect(window.localStorage.getItem("vendeo:market-radar-credit-confirmation:v1:user-1")).toBeNull();
+
+    await act(async () => form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+    expect(container.textContent).toContain("Cette analyse coûte 5 crédits.");
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/market/radar")).toHaveLength(0);
+  });
+
+  it("saves the opt-out only on Continue, skips later confirmations for that user, and keeps it user-scoped", async () => {
+    await act(async () => root.render(<MarketRadarView userId="user-1" onGoToAI={() => {}} onRequestRecharge={() => {}} />));
+    await act(async () => buttonWithText("radar.modeNewTitle").click());
+    const fillIdeaAndSubmit = async () => {
+      const ideaInput = container.querySelector(".market-radar-idea-field input") as HTMLInputElement;
+      const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      setValue?.call(ideaInput, "Un guide pour mieux gérer son budget");
+      await act(async () => ideaInput.dispatchEvent(new window.Event("input", { bubbles: true })));
+      const form = container.querySelector("form")!;
+      await act(async () => form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+    };
+
+    await fillIdeaAndSubmit();
+    await act(async () => setCheckboxChecked(container.querySelector(".market-radar-confirmation-optout input") as HTMLInputElement, true));
+    expect(window.localStorage.getItem("vendeo:market-radar-credit-confirmation:v1:user-1")).toBeNull();
+    await act(async () => buttonWithText("radar.creditConfirmationContinue").click());
+    await flush();
+    expect(window.localStorage.getItem("vendeo:market-radar-credit-confirmation:v1:user-1")).toBe("true");
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/market/radar")).toHaveLength(1);
+
+    await act(async () => root.unmount());
+    container.replaceChildren();
+    root = createRoot(container);
+    await act(async () => root.render(<MarketRadarView userId="user-1" onGoToAI={() => {}} onRequestRecharge={() => {}} />));
+    await act(async () => buttonWithText("radar.modeNewTitle").click());
+    await fillIdeaAndSubmit();
+    await flush();
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/market/radar")).toHaveLength(2);
+
+    await act(async () => root.unmount());
+    container.replaceChildren();
+    root = createRoot(container);
+    await act(async () => root.render(<MarketRadarView userId="user-2" onGoToAI={() => {}} onRequestRecharge={() => {}} />));
+    await act(async () => buttonWithText("radar.modeNewTitle").click());
+    await fillIdeaAndSubmit();
+    expect(container.textContent).toContain("Cette analyse coûte 5 crédits.");
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/market/radar")).toHaveLength(2);
   });
 
   it("shows an insufficient-credit dialog and routes its top-up action to the existing recharge flow", async () => {
@@ -148,7 +225,7 @@ describe("MarketRadarView", () => {
       if (String(input) === "/api/stores") return response({ stores: [] });
       throw new Error(`Unexpected network request: ${String(input)}`);
     });
-    await act(async () => root.render(<MarketRadarView onGoToAI={() => {}} onRequestRecharge={onRequestRecharge} />));
+    await act(async () => root.render(<MarketRadarView userId="user-1" onGoToAI={() => {}} onRequestRecharge={onRequestRecharge} />));
     await act(async () => buttonWithText("radar.modeNewTitle").click());
 
     const ideaInput = container.querySelector(".market-radar-idea-field input") as HTMLInputElement;
@@ -159,6 +236,9 @@ describe("MarketRadarView", () => {
     await act(async () => form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
     await flush();
 
+    expect(container.textContent).toContain("Cette analyse coûte 5 crédits.");
+    await act(async () => buttonWithText("radar.creditConfirmationContinue").click());
+    await flush();
     expect(container.querySelector('[role="alertdialog"]')).not.toBeNull();
     expect(container.textContent).toContain("radar.creditInsufficientTitle");
     await act(async () => buttonWithText("radar.creditRecharge").click());
