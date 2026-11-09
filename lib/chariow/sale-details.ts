@@ -268,7 +268,8 @@ function firstArray(value: unknown): unknown[] {
 }
 
 /**
- * Ajoute `id`, `details` et `contact` à chaque vente publique, dans le même ordre que la liste brute
+ * Ajoute `id` et `contact` à chaque vente publique (le tableau `details` n'est plus envoyé : aucun écran ne le lit
+ * et il pesait l'essentiel des ~4 Mo de la réponse /api/analytics, ce qui empêchait sa mise en cache), dans le même ordre que la liste brute
  * (normalizeChariowSnapshot construit `sales` avec un simple map sur cette même liste).
  */
 export function mergeSaleDetails(publicSales: unknown[], rawSalesPayload: unknown): unknown[] {
@@ -280,7 +281,6 @@ export function mergeSaleDetails(publicSales: unknown[], rawSalesPayload: unknow
     return {
       ...(sale as Record<string, unknown>),
       ...(typeof id === "string" || typeof id === "number" ? { id: String(id) } : {}),
-      details: buildSaleDetails(source),
       contact: buildSaleContact(source),
     };
   });
