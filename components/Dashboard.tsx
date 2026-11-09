@@ -769,7 +769,8 @@ function DashboardWorkspace() {
               <button type="button" role="menuitem" data-onboarding="mobile-menu:Performance publicitaire" aria-current={active === "Performance publicitaire" ? "page" : undefined} className={mobileMoreItemClass("Performance publicitaire")} onClick={() => { navigateToSection("Performance publicitaire"); setMoreOpen(false); }}><BarChart3 size={16} /> {t("nav.adPerformance")}</button>
               <button type="button" role="menuitem" data-onboarding="mobile-menu:Rapports" aria-current={active === "Rapports" ? "page" : undefined} className={mobileMoreItemClass("Rapports")} onClick={() => { setActive("Rapports"); setMoreOpen(false); }}><FileText size={16} /> {" "}{t("workspaceExtra.reports")}</button>
               <span className="mobile-more-label">{w("application")}</span>
-              <button type="button" role="menuitem" data-onboarding="mobile-menu:Paramètres" aria-current={active === "Paramètres" ? "page" : undefined} className={mobileMoreItemClass("Paramètres")} onClick={openSettingsIndex}><Settings size={16} /> {" "}{t("workspaceExtra.settings")}</button>
+              <button type="button" role="menuitem" data-onboarding="mobile-menu:Mes boutiques" aria-current={active === "Mes boutiques" ? "page" : undefined} className={mobileMoreItemClass("Mes boutiques")} onClick={() => { navigateToSection("Mes boutiques"); setMoreOpen(false); }}><Store size={16} /> {locale === "en" ? "My stores" : "Mes boutiques"}</button>
+              <button type="button" role="menuitem" data-onboarding="mobile-menu:Paramètres" aria-current={active === "Paramètres" ? "page" : undefined} className={mobileMoreItemClass("Paramètres")} onClick={openSettingsIndex}><Settings size={16} /> {t("workspaceExtra.settings")}</button>
             </div>
           </>
         ) : null}

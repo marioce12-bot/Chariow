@@ -76,12 +76,12 @@ describe("dashboard desktop navigation", () => {
     const menu = source.slice(source.indexOf('<div className="mobile-more-menu"'), source.indexOf("</div>", source.indexOf('<div className="mobile-more-menu"')));
     expect(source).not.toContain('className="mobile-autopilot-trigger"');
     expect(source).not.toContain('setActive("Pilotage auto")');
-    expect((menu.match(/role="menuitem"/g) ?? [])).toHaveLength(3);
-    for (const item of ['Performance publicitaire', 'workspaceExtra.reports', 'workspaceExtra.settings']) expect(menu).toContain(item);
+    expect((menu.match(/role="menuitem"/g) ?? [])).toHaveLength(4);
+    for (const item of ['Performance publicitaire', 'workspaceExtra.reports', 'Mes boutiques', 'workspaceExtra.settings']) expect(menu).toContain(item);
     expect(menu).not.toContain("Bénéfices nets");
     expect(menu).not.toContain("Performance visuel");
     expect(menu).not.toContain('workspaceExtra.subscription');
     expect(menu).not.toContain('adminExtra.admin.logout');
-    expect(menu).not.toContain('setActive("Mes boutiques")');
+    expect(menu).toContain('navigateToSection("Mes boutiques")');
   });
 });

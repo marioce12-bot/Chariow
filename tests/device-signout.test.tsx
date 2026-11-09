@@ -27,7 +27,7 @@ vi.mock("@/components/dashboard/DesktopNavigation", () => ({ DashboardHeaderNavi
 vi.mock("@/components/dashboard/sections", () => ({
   StudioView: () => null, MarketRadarView: () => null, AdsView: () => null,
   MobileSettingsView: ({ onSignOut }: { onSignOut: () => void }) => createElement("button", { "data-testid": "mobile-settings-signout", onClick: onSignOut }, "Sign out"),
-  StoresView: () => null, SubscriptionView: () => null, Reports: () => null,
+  StoresView: () => createElement("div", { "data-testid": "stores-section" }), SubscriptionView: () => null, Reports: () => null,
 }));
 vi.mock("@/components/dashboard/OverviewHome", () => ({ OverviewHome: () => null }));
 vi.mock("@/components/dashboard/SaleCelebration", () => ({ SaleCelebration: () => null }));
@@ -110,6 +110,13 @@ describe("device-local user sign-out", () => {
     await act(async () => root!.render(createElement(Dashboard)));
     await click('[data-testid="mobile-settings-signout"]');
     expectOnlyThisDeviceSignedOut();
+  });
+  it("the mobile more-menu opens the existing stores section and closes", async () => {
+    await act(async () => root!.render(createElement(Dashboard)));
+    await click(".mobile-more-trigger");
+    await click('[data-onboarding="mobile-menu:Mes boutiques"]');
+    expect(host.querySelector('[data-testid="stores-section"]')).not.toBeNull();
+    expect(host.querySelector(".mobile-more-menu")).toBeNull();
   });
   it("the mobile more-menu settings route preserves the other device session on sign-out", async () => {
     await act(async () => root!.render(createElement(Dashboard)));
