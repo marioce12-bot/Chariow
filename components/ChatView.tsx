@@ -1164,12 +1164,14 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
                 {metaPagesError ? <small role="alert">{metaPagesError}</small> : null}
               </label>
             ) : null}
-            {launching ? <LaunchProgress complete={launchComplete} /> : null}
             {launchError ? <p className="store-error" role="alert">{localizeSystemMessage(launchError, locale)}</p> : null}
             </div>
-            <div className="chat-launch-actions">
-              <button type="button" className="btn btn-ghost" disabled={launching} onClick={closeLaunch}>{t("chat.cancel")}</button>
-              <button type="button" className="btn btn-dark chat-launch-action" disabled={launching || launchInterestsLoading || metaPagesLoading || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && (!launchCta || !launchAccountId || !launchPageId))} onClick={() => void confirmLaunch()}>{launching ? t(launchComplete ? "chat.launchSent" : "chat.launchSubmitting") : t("chat.confirmLaunch")}</button>
+            <div className={`chat-launch-actions${launching ? " is-launching" : ""}`}>
+              {launching ? <LaunchProgress complete={launchComplete} /> : null}
+              <div className="chat-launch-action-buttons">
+                <button type="button" className="btn btn-ghost" disabled={launching} onClick={closeLaunch}>{t("chat.cancel")}</button>
+                <button type="button" className="btn btn-dark chat-launch-action" disabled={launching || launchInterestsLoading || metaPagesLoading || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && (!launchCta || !launchAccountId || !launchPageId))} onClick={() => void confirmLaunch()}>{launching ? t(launchComplete ? "chat.launchSent" : "chat.launchSubmitting") : t("chat.confirmLaunch")}</button>
+              </div>
             </div>
           </div>
         </div>

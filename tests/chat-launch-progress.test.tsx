@@ -7,6 +7,7 @@ import { translate } from "@/lib/i18n/translate";
 import { estimatedLaunchProgress } from "@/lib/chat/launch-progress";
 
 const source = readFileSync(new URL("../components/ChatView.tsx", import.meta.url), "utf8");
+const progressCss = readFileSync(new URL("../components/chat/launch-progress.css", import.meta.url), "utf8");
 
 describe("chat campaign submission progress", () => {
   it("starts at zero and increases monotonically without reaching 100 by time alone", () => {
@@ -25,6 +26,9 @@ describe("chat campaign submission progress", () => {
     const html = renderToStaticMarkup(<I18nProvider><LaunchProgress /></I18nProvider>);
     expect(html).toContain('role="progressbar"');
     expect(html).toContain('aria-valuenow="0"');
+    expect(html).toContain('class="chat-launch-progress-ring"');
+    expect(html).toContain("0 %");
+    expect(progressCss).toContain("animation:chat-launch-orbit 1.2s linear infinite");
     expect(html).toContain("Progression estimée");
     expect(html).not.toContain('aria-valuenow="100"');
   });
@@ -72,5 +76,13 @@ describe("chat campaign submission progress", () => {
     expect(source).toContain('disabled={launching} onClick={closeLaunch}');
     expect(source).not.toContain("autoLaunchRef");
     expect(source).toContain("{launching ? <LaunchProgress complete={launchComplete} /> : null}");
+  });
+  it("keeps the circular percentage indicator in the fixed campaign action footer", () => {
+    const actions = source.indexOf('<div className={`chat-launch-actions${launching ? " is-launching" : ""}`}');
+    const progress = source.indexOf("{launching ? <LaunchProgress complete={launchComplete} /> : null}");
+    const buttons = source.indexOf('<div className="chat-launch-action-buttons">');
+    expect(actions).toBeGreaterThan(-1);
+    expect(progress).toBeGreaterThan(actions);
+    expect(buttons).toBeGreaterThan(progress);
   });
 });
