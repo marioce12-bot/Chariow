@@ -37,3 +37,14 @@ describe("buildSaleContact country extraction", () => {
     expect(buildSaleContact({customer:{phone:{number:"+2290100000000",country:{dial_code:"229"}}}}).phone).toBe("+2290100000000");
   });
 });
+
+import { mergeSaleDetails } from "./sale-details";
+describe("mergeSaleDetails payload size", () => {
+  it("keeps id and contact but no bulky details array", () => {
+    const raw = [{ id: "s1", status: "completed", customer: { name: "Awa", email: "a@b.c" }, extra: { a: 1, b: 2, c: 3 } }];
+    const [sale] = mergeSaleDetails([{ status: "completed" }], raw) as Record<string, unknown>[];
+    expect(sale.id).toBe("s1");
+    expect((sale.contact as { name: string }).name).toBe("Awa");
+    expect("details" in sale).toBe(false);
+  });
+});
