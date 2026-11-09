@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatView } from "@/components/ChatView";
 import { translate } from "@/lib/i18n/translate";
@@ -15,7 +17,7 @@ let assistantReplies: string[];
 let resolverResult: unknown;
 let resolverFails: boolean;
 let metaPages: Array<{ id: string; name: string }>;
-const payload = { name: "Test uniquement", message: "Texte de test", platform: "meta", objective: "OUTCOME_TRAFFIC", linkUrl: "https://example.com/produit", dailyBudget: 2000, currency: "XOF", callToAction: "SHOP_NOW", storeId: "store-test", productId: "product-test", interests: ["Jazz"] };
+const payload = { name: "Test uniquement", message: "Texte de test", headline: "Un texte de test", platform: "meta", objective: "OUTCOME_TRAFFIC", linkUrl: "https://example.com/produit", dailyBudget: 2000, currency: "XOF", countries: ["BJ"], ageMin: 18, ageMax: 65, gender: null, durationDays: 7, callToAction: "SHOP_NOW", storeId: "store-test", productId: "product-test", productName: "Produit test", storeName: "Boutique test", interests: ["Jazz"] };
 const launchReply = () => `Prêt [[LANCE_CAMPAGNE]]${JSON.stringify(payload)}`;
 const exactResult = { results: [{ label: "Jazz", selected: { id: "interest-1", name: "Jazz" }, confidence: "exact", suggestions: [] }] };
 const ok = (data: unknown) => ({ ok: true, json: async () => data, text: async () => JSON.stringify(data) });
@@ -53,6 +55,8 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
+  Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 });
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
@@ -72,14 +76,18 @@ async function openDialog(reply = launchReply()) {
   return dialog!;
 }
 
-async function openDialogAfterYes() {
-  assistantReplies = ["Confirme-tu que je lance cette campagne ?", launchReply()];
+async function openDialogAfterConfirmation(confirmation: string, reply = launchReply()) {
+  assistantReplies = ["Voici le récapitulatif de la campagne. Veuillez confirmer que les informations sont correctes pour préparer le lancement.", reply];
   await renderChat();
   await act(async () => container.querySelector<HTMLButtonElement>(".ai-action-card")!.click());
   await flush();
   expect(container.querySelector('[role="dialog"]')).toBeNull();
-  await sendText("oui");
+  await sendText(confirmation);
   return container.querySelector<HTMLElement>('[role="dialog"]');
+}
+
+async function openDialogAfterYes() {
+  return openDialogAfterConfirmation("oui");
 }
 
 async function startSubmission() {
@@ -141,6 +149,41 @@ describe("launch popup submission with mocked network only", () => {
   it("shows the confirmation card after a chat yes but never launches until the button is clicked", async () => {
     const dialog = await openDialogAfterYes();
     expect(dialog).toBeTruthy();
+    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
+  });
+
+  it.each(["Lance", "Je valide", "Confirmer"])("opens the structured card after the short confirmation %s without launching", async (confirmation) => {
+    const dialog = await openDialogAfterConfirmation(confirmation);
+    expect(dialog).toBeTruthy();
+    expect(dialog!.querySelector(".chat-launch-summary")?.textContent).toContain("Test uniquement");
+    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
+  });
+
+  it.each([
+    "Je vous confirme que la carte est prête. Veuillez appuyer sur Confirmer et lancer.",
+    "[[LANCE_CAMPAGNE]]{JSON invalide}",
+    `Prêt [[LANCE_CAMPAGNE]]${JSON.stringify({ ...payload, countries: [] })}`,
+  ])("shows a safe clarification and no popup for missing or invalid structured data", async (reply) => {
+    const dialog = await openDialogAfterConfirmation("Lance", reply);
+    expect(dialog).toBeNull();
+    expect(container.textContent).toContain("Je n’ai pas pu préparer la confirmation");
+    expect(container.textContent).not.toContain("Je vous confirme que la carte est prête");
+    expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
+  });
+
+  it("renders the confirmation dialog in a mobile viewport and keeps the launch action manual", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 });
+    const dialog = await openDialogAfterConfirmation("Lance");
+    expect(dialog).toBeTruthy();
+    const css = readFileSync(resolve(process.cwd(), "app/vendeo-ai.css"), "utf8");
+    const backdropRule = css.match(/\.ai-page \.chat-launch-modal-backdrop\s*\{([^}]+)\}/)?.[1] ?? "";
+    const modalRule = css.match(/\.ai-page \.chat-launch-modal\s*\{([^}]+)\}/)?.[1] ?? "";
+    expect(backdropRule).toMatch(/position:\s*fixed/);
+    expect(backdropRule).toMatch(/inset:\s*0/);
+    expect(backdropRule).toMatch(/z-index:\s*1000/);
+    expect(modalRule).toMatch(/max-height:\s*calc\(100dvh\s*-\s*32px\)/);
+    expect(modalRule).toMatch(/width:\s*100%/);
     expect(requests.mock.calls.filter(([url]) => url === "/api/ai/launch-campaign")).toHaveLength(0);
   });
 

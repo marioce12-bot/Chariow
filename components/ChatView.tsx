@@ -14,6 +14,7 @@ import { LinkifiedText } from "@/components/LinkifiedText";
 import { AssistantMessageText } from "@/components/AssistantMessageText";
 import { normalizeCurrency, type SupportedCurrency } from "@/lib/currency";
 import { META_CTA_TYPES, META_CTA_LABELS, normalizeMetaCta, type MetaCtaType } from "@/lib/meta/cta";
+import { isAwaitingLaunchConfirmation, isShortLaunchConfirmation, LAUNCH_TAG, launchConfirmationFallback, parseLaunchPayload, type LaunchPayload } from "@/lib/chat/launch-confirmation";
 import { useI18n } from "@/lib/i18n/i18n";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import { SERVER_UPLOAD_LIMIT, prepareChatImage } from "@/lib/media/chat-attachment";
@@ -26,7 +27,6 @@ import "../app/dashboard-fullwidth.css";
 // Contrat de design : voir docs/VENDEO_AI_LAYOUT.md.
 
 const SESSION_STORAGE_PROMPT_KEY = "vendeo_ai_prompt";
-const LAUNCH_TAG = "[[LANCE_CAMPAGNE]]";
 const CAMPAIGN_ACTION_TAG = "[[GERER_CAMPAGNE]]";
 // Au-delà, on arrête d'attendre l'IA : le message d'erreur s'affiche et le bouton d'envoi
 // est débloqué (sinon une réponse jamais arrivée laissait le chat « en train d'écrire » à vie).
@@ -72,29 +72,6 @@ const CURRENCY_OPTIONS: Array<{ code: SupportedCurrency; label: string }> = [
   { code: "USD", label: "Dollar ($)" },
   { code: "EUR", label: "Euro (€)" },
 ];
-
-// Payload structuré que l'IA renvoie juste après la balise [[LANCE_CAMPAGNE]], une fois
-// que l'utilisateur a validé le lancement dans le chat. Sert à pré-remplir le formulaire
-// de lancement au lieu de faire retaper les infos déjà données pendant la conversation.
-type LaunchPayload = {
-  name?: string | null;
-  objective?: string | null;
-  dailyBudget?: number | null;
-  currency?: string | null;
-  countries?: string[] | null;
-  ageMin?: number | null;
-  ageMax?: number | null;
-  gender?: "male" | "female" | null;
-  interests?: string[] | null;
-  message?: string | null;
-  headline?: string | null;
-  linkUrl?: string | null;
-  storeId?: string | null;
-  productId?: string | null;
-  durationDays?: number | null;
-  platform?: "meta" | "pinterest" | "tiktok" | null;
-  callToAction?: string | null;
-};
 
 // Le lien de redirection est propre à chaque utilisateur (sa page de vente) : il n'y a
 // aucun lien par défaut. On n'accepte qu'une URL http(s) valide, renvoyée normalisée.
@@ -157,14 +134,16 @@ function parseAssistantMessage(rawContent: string): { content: string; launchPay
   const positions = [LAUNCH_TAG, CAMPAIGN_ACTION_TAG].map((tag) => ({ tag, index: rawContent.indexOf(tag) })).filter(({ index }) => index >= 0).sort((a, b) => a.index - b.index);
   const first = positions[0];
   if (!first) return { content: cleanAiText(rawContent, { preserveStrong: true }), launchPayload, campaignAction };
-  try {
-    // Parse the complete suffix, not a brace regex: ad copy may contain braces.
-    const value = JSON.parse(rawContent.slice(first.index + first.tag.length).trim());
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      if (first.tag === LAUNCH_TAG) launchPayload = value as LaunchPayload;
-      else if (typeof value.campaignId === "string" && value.campaignId.trim() && ["edit", "delete", "pause", "activate", "duplicate"].includes(value.action)) campaignAction = { campaignId: value.campaignId, action: value.action };
-    }
-  } catch { /* malformed or multiple proposals cannot authorize any operation */ }
+  if (first.tag === LAUNCH_TAG) {
+    launchPayload = parseLaunchPayload(rawContent);
+  } else {
+    try {
+      const value = JSON.parse(rawContent.slice(first.index + first.tag.length).trim());
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        if (typeof value.campaignId === "string" && value.campaignId.trim() && ["edit", "delete", "pause", "activate", "duplicate"].includes(value.action)) campaignAction = { campaignId: value.campaignId, action: value.action };
+      }
+    } catch { /* malformed or multiple proposals cannot authorize any operation */ }
+  }
   const content = rawContent.slice(0, first.index).trim();
   return { content: cleanAiText(content, { preserveStrong: true }), launchPayload, campaignAction };
 }
@@ -518,6 +497,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     // Photos/vidéos/documents sans texte : on envoie un message par défaut plutôt que de bloquer l'envoi.
     const message = !rawMessage.trim() && attachments.length ? (attachments.every((a) => a.type === "document") ? t("workspaceExtra.sendDocument") : t("workspaceExtra.sendImages")) : rawMessage;
     if (!message.trim() || sending || plansRequired) return;
+    const pendingShortLaunchConfirmation = isShortLaunchConfirmation(message) && isAwaitingLaunchConfirmation([...messages].reverse());
     const epoch = sessionEpochRef.current;
     const isCurrentSession = () => sessionEpochRef.current === epoch;
     const controller = new AbortController();
@@ -561,8 +541,11 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
         return;
       }
       if (response.ok && data.message) {
-        setMessages((current) => [...current, data.message as ChatMessageItem]);
         const parsedReply = parseAssistantMessage(data.message.content);
+        const responseMessage: ChatMessageItem = pendingShortLaunchConfirmation && !parsedReply.launchPayload
+          ? { ...data.message, content: launchConfirmationFallback(locale) }
+          : data.message;
+        setMessages((current) => [...current, responseMessage]);
         if (parsedReply.launchPayload) {
           const campaignHistory = [...messages, userMessage];
           openLaunchConfirm(parsedReply.launchPayload, collectLaunchMedia(campaignHistory), campaignHistory);

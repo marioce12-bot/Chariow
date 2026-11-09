@@ -10,6 +10,7 @@ import { fetchMetaAccounts } from "@/lib/meta/api";
 import { VITRINE_PROMPT, processVitrineAnswer, wantsVitrine } from "@/lib/shop/chat";
 import { resolveCampaignAnswer, type ChatCatalogProduct } from "@/lib/chariow/chat-product";
 import { campaignManagementContext, resolveCampaignActionProposal, type AssistantCampaign } from "@/lib/chat/campaign-action-proposal";
+import { isAwaitingLaunchConfirmation, isShortLaunchConfirmation, launchConfirmationFallback, parseLaunchPayload, serializeLaunchPayload } from "@/lib/chat/launch-confirmation";
 
 export const maxDuration = 120;
 
@@ -145,6 +146,7 @@ export async function POST(request: Request) {
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
     .limit(20);
+  const structuredLaunchConfirmation = isShortLaunchConfirmation(message) && isAwaitingLaunchConfirmation(previousHistory ?? []);
 
   const { data: quota, error: quotaError } = await supabase.rpc("consume_message_quota", { target_user_id: user.id });
   if (quotaError) return NextResponse.json({ error: quotaError.message }, { status: 500 });
@@ -337,7 +339,8 @@ export async function POST(request: Request) {
   // pour qu'elles ne fassent pas tronquer le contexte boutique (qui vient après le prompt).
   const includeVitrine = wantsVitrine([message, ...(previousHistory ?? []).filter((item) => item.role === "user").slice(0, 6).map((item) => String(item.content ?? ""))]);
   const shopifyOnly = Boolean(stores?.length) && (stores ?? []).every((store) => store.platform === "shopify");
-  const platformPrompt = shopifyOnly ? VENDEO_SYSTEM_PROMPT.replace(/Chariow/gi, "Shopify") : VENDEO_SYSTEM_PROMPT;
+  const platformPrompt = (shopifyOnly ? VENDEO_SYSTEM_PROMPT.replace(/Chariow/gi, "Shopify") : VENDEO_SYSTEM_PROMPT)
+    .replace("Dis que la carte est prête et qu'il doit appuyer sur « Confirmer et lancer ».", "N'affirme jamais que la carte est prête ou ouverte : la carte n'existe que si l'interface reçoit et valide le JSON structuré.");
   const systemPrompt = includeVitrine ? `${platformPrompt}\n\n${VITRINE_PROMPT}` : platformPrompt;
   const rawSystemContent = `${systemPrompt}\n\nContexte actuel :\n${safeContext}${documentsContext}`;
   const baseSystemCap = includeVitrine ? MAX_SYSTEM_CONTENT_CHARS + VITRINE_PROMPT.length + 2 : MAX_SYSTEM_CONTENT_CHARS;
@@ -349,11 +352,14 @@ export async function POST(request: Request) {
     .eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
   const assistantCampaigns: AssistantCampaign[] = managedCampaignError ? [] : (managedCampaigns ?? []);
   const launchFailureContext = launchFailureNote ? `\nMémoire de lancement : ${launchFailureNote}` : "";
+  const launchConfirmationInstruction = structuredLaunchConfirmation
+    ? `\n\nConfirmation brève après un récapitulatif de campagne : l'utilisateur vient de confirmer. N'écris pas de phrase libre affirmant qu'une carte est prête ou ouverte. Si et seulement si l'historique contient toutes les données requises et cohérentes, réponds uniquement avec [[LANCE_CAMPAGNE]] suivi immédiatement du JSON complet prévu par le schéma de lancement. Si une donnée requise manque ou est ambiguë, réponds par une courte demande de précision sur les détails du récapitulatif et n'émets aucun marqueur.`
+    : "";
   const connectionContext = (storeConnections ?? []).map((store) => `${store.store_name} (${store.platform}) : ${store.is_active ? store.connection_status ?? "pending" : "inactive"}`).join("; ");
   const unavailableStoreContext = connectionContext
     ? `\nÉtat des connexions boutique (source de vérité, y compris boutiques inactives) : ${connectionContext}. Si l'utilisateur demande une campagne pour une boutique qui n'est pas active et connectée, ou dont l'accès a expiré/été révoqué/a échoué, dis-le explicitement avant de poursuivre et invite-le à la reconnecter depuis Mes boutiques. Ne prétends pas pouvoir lancer pour elle.`
     : "\nAucune boutique enregistrée. Si l'utilisateur veut lancer une campagne liée à une boutique, explique qu'il doit d'abord connecter une boutique dans Mes boutiques.";
-  const systemContent = `${boundedSystemContent}${unavailableStoreContext}${campaignCatalogContext}${campaignManagementContext(assistantCampaigns)}${launchFailureContext}`;
+  const systemContent = `${boundedSystemContent}${unavailableStoreContext}${campaignCatalogContext}${campaignManagementContext(assistantCampaigns)}${launchFailureContext}${launchConfirmationInstruction}`;
 
   // L'historique de la conversation en cours est toujours transmis : c'est la mémoire
   // du tunnel de création de campagne. On ne le supprime plus jamais pour économiser
@@ -434,6 +440,10 @@ export async function POST(request: Request) {
     imageUrls: vitrineImageUrls,
     hasPriorAssistantTurn: (previousHistory ?? []).some((item) => item.role === "assistant"),
   });
+  if (structuredLaunchConfirmation) {
+    const payload = parseLaunchPayload(answer);
+    answer = payload ? serializeLaunchPayload(payload) : launchConfirmationFallback(body?.locale === "en" ? "en" : "fr");
+  }
   const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer, conversation_id: conversationId }).select("id, role, content, attachments, created_at").single();
   if (assistantError) return NextResponse.json({ error: assistantError.message }, { status: 500 });
   await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);

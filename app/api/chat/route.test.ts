@@ -14,6 +14,15 @@ vi.mock("@/lib/chariow/chat-product", () => ({ resolveCampaignAnswer: (answer: s
 import { requireUser } from "@/lib/auth";
 import { POST, maxDuration } from "@/app/api/chat/route";
 import { OpenRouterApiError } from "@/lib/ai/openrouter";
+import { serializeLaunchPayload, type LaunchPayload } from "@/lib/chat/launch-confirmation";
+
+const validLaunchPayload: LaunchPayload = {
+  name: "Campagne test", objective: "OUTCOME_SALES", dailyBudget: 2500, currency: "XOF",
+  countries: ["BJ"], ageMin: 18, ageMax: 65, gender: null, interests: [], message: "Découvrez ce guide.",
+  headline: "Un guide pratique", linkUrl: "https://example.com/guide", durationDays: 7, platform: "meta",
+  callToAction: "SHOP_NOW", storeId: "store-1", productId: "product-1", productName: "Guide", storeName: "Boutique",
+};
+const pendingCampaignRecap = "Récapitulatif de la campagne : budget, audience et durée. Veuillez confirmer que toutes ces informations sont correctes pour préparer le lancement.";
 
 function makeSupabase() {
   const db: Record<string, any> = { history: [] };
@@ -60,6 +69,43 @@ describe("POST /api/chat provider selection", () => {
     expect(options).toEqual({ timeoutMs: 60000, overloadRetries: 2 });
     expect(messages.slice(-3).map((m: any) => [m.role, m.content])).toEqual([["user", "Première question"], ["assistant", "Première réponse"], ["user", "Et ensuite ?"]]);
     expect(askOpenRouter).toHaveBeenCalledTimes(1);
+  });
+  it.each(["Lance", "Je valide", "Confirmer"])("routes the short confirmation %s through the structured launch protocol", async (confirmation) => {
+    supabase.history = [{ role: "assistant", content: pendingCampaignRecap }];
+    askOpenRouter.mockResolvedValueOnce(`Je confirme que la carte est prête. ${serializeLaunchPayload(validLaunchPayload)}`);
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: confirmation, conversationId: "conversation-1", locale: "fr" }) }));
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.message.content).toBe(serializeLaunchPayload(validLaunchPayload));
+    const systemPrompt = askOpenRouter.mock.calls[0][0][0].content as string;
+    expect(systemPrompt).toContain("Confirmation brève après un récapitulatif de campagne");
+    expect(systemPrompt).toContain("réponds uniquement avec [[LANCE_CAMPAGNE]]");
+    expect(systemPrompt).toContain("N'affirme jamais que la carte est prête ou ouverte");
+    expect(systemPrompt).not.toContain("Dis que la carte est prête");
+    expect(askOpenRouter).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    "Je vous confirme que la carte est prête. Veuillez appuyer sur Confirmer et lancer.",
+    "[[LANCE_CAMPAGNE]]{JSON invalide}",
+    `[[LANCE_CAMPAGNE]]${JSON.stringify({ ...validLaunchPayload, countries: [] })}`,
+  ])("returns a concise non-popup reply when the model output is not valid structured data", async (modelReply) => {
+    supabase.history = [{ role: "assistant", content: pendingCampaignRecap }];
+    askOpenRouter.mockResolvedValueOnce(modelReply);
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Lance", conversationId: "conversation-1", locale: "fr" }) }));
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.message.content).toBe("Je n’ai pas pu préparer la confirmation avec les détails disponibles. Vérifie ou complète le récapitulatif de campagne, puis confirme à nouveau.");
+    expect(result.message.content).not.toContain("carte est prête");
+    expect(result.message.content).not.toContain("[[LANCE_CAMPAGNE]]");
+    expect(askOpenRouter).toHaveBeenCalledTimes(1);
+  });
+  it("does not treat a short confirmation as a launch request without a pending campaign recap", async () => {
+    supabase.history = [{ role: "assistant", content: "Quel budget quotidien souhaitez-vous ?" }];
+    askOpenRouter.mockResolvedValueOnce("Quelle durée souhaites-tu ?");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Lance", conversationId: "conversation-1", locale: "fr" }) }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).message.content).toBe("Quelle durée souhaites-tu ?");
+    expect(askOpenRouter.mock.calls[0][0][0].content).not.toContain("Confirmation brève après un récapitulatif de campagne");
   });
   it("mémorise un échange français de cinq tours, dont le budget en XOF, dans la même conversation", async () => {
     const turns = [
