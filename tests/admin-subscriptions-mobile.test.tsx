@@ -14,7 +14,10 @@ import type { AdminData } from "@/lib/admin-dashboard-types";
 
 const accountLabels = { fr: "Compte", en: "Account" };
 const planLabels = { fr: "Offre", en: "Plan" };
-const dateLabels = { fr: "Fin de période", en: "Period ends" };
+const dateLabels = { fr: "Fin de période / Fin d’essai", en: "Period end / Trial end" };
+const periodEndLabels = { fr: "Fin de période", en: "Period end" };
+const trialEndLabels = { fr: "Fin d’essai", en: "Trial end" };
+const missingDateLabels = { fr: "Non renseignée", en: "Not provided" };
 const actionLabels = { fr: "Actions", en: "Actions" };
 const statusLabels = { fr: "Statut", en: "Status" };
 
@@ -30,7 +33,9 @@ function dataFor(statuses: string[]): AdminData {
     subscriptions: statuses.map((status, i) => ({
       id: `sub-${i}`, user_id: `user-${i}`, plan: `Plan ${i}`, status,
       messages_used_this_month: 0, messages_limit: 100,
-      ...(i === 0 ? {} : { current_period_end: "2025-02-03T12:00:00.000Z" }),
+      ...(status === "trialing"
+        ? { current_period_end: "2026-11-30T12:00:00.000Z", trial_ends_at: "2026-11-11T12:00:00.000Z" }
+        : i === 0 ? {} : { current_period_end: "2025-02-03T12:00:00.000Z" }),
     })),
     metaAccounts: [], audit: [], creditPurchases: [], creditTransactions: [], paymentEvents: [],
   } as AdminData;
@@ -65,7 +70,9 @@ describe("SubscriptionsSection — rendu SSR mobile", () => {
       expect(row.querySelector(".admin-subscription-status")?.textContent).toBeTruthy();
       expect(row.querySelector(".admin-subscription-state")?.textContent).toBeTruthy();
       expect(row.querySelector(`.admin-subscription-state.${expectedStatuses[i]}`)).not.toBeNull();
-      expect(row.querySelector(".admin-subscription-date")?.getAttribute("data-label")).toBe(dateLabels[lang]);
+      expect(row.querySelector(".admin-subscription-date")?.getAttribute("data-label")).toBe(
+        expectedStatuses[i] === "trialing" ? trialEndLabels[lang] : periodEndLabels[lang],
+      );
       expect(row.querySelector(".admin-subscription-actions")?.getAttribute("data-label")).toBe(actionLabels[lang]);
       expect(row.querySelector(".admin-subscription-account")?.getAttribute("data-label")).toBe(accountLabels[lang]);
       expect(row.querySelector(".admin-subscription-plan")?.getAttribute("data-label")).toBe(planLabels[lang]);
@@ -73,7 +80,44 @@ describe("SubscriptionsSection — rendu SSR mobile", () => {
       expect(row.querySelector(".admin-subscription-actions button") !== null).toBe(expectedStatuses[i] !== "active");
     });
     expect(rows[0].querySelector(".admin-subscription-date")?.textContent?.trim()).toBe("—");
-    expect(rows[1].querySelector(".admin-subscription-date")?.textContent).not.toBe("—");
+    expect(rows[1].querySelector(".admin-subscription-date")?.textContent).toContain(
+      new Date("2026-11-11T12:00:00.000Z").toLocaleDateString(lang === "en" ? "en-US" : "fr-FR"),
+    );
+  });
+
+  it.each(["fr", "en"] as const)("affiche trial_ends_at pour un abonnement en essai (%s)", (lang) => {
+    const data = dataFor(["trialing"]);
+    data.subscriptions[0].trial_ends_at = "2026-11-11T12:00:00.000Z";
+    data.subscriptions[0].current_period_end = "2026-11-30T12:00:00.000Z";
+    locale = lang;
+    const doc = new JSDOM(renderToStaticMarkup(createElement(SubscriptionsSection, { data }))).window.document;
+    const cell = doc.querySelector(".admin-subscription-date")!;
+    expect(cell.getAttribute("data-label")).toBe(trialEndLabels[lang]);
+    expect(cell.textContent).toContain(new Date("2026-11-11T12:00:00.000Z").toLocaleDateString(lang === "en" ? "en-US" : "fr-FR"));
+    expect(cell.textContent).not.toContain(new Date("2026-11-30T12:00:00.000Z").toLocaleDateString(lang === "en" ? "en-US" : "fr-FR"));
+  });
+
+  it.each(["fr", "en"] as const)("conserve current_period_end pour un abonnement actif (%s)", (lang) => {
+    const data = dataFor(["active"]);
+    data.subscriptions[0].current_period_end = "2026-11-30T12:00:00.000Z";
+    data.subscriptions[0].trial_ends_at = "2026-11-11T12:00:00.000Z";
+    locale = lang;
+    const doc = new JSDOM(renderToStaticMarkup(createElement(SubscriptionsSection, { data }))).window.document;
+    const cell = doc.querySelector(".admin-subscription-date")!;
+    expect(cell.getAttribute("data-label")).toBe(periodEndLabels[lang]);
+    expect(cell.textContent).toContain(new Date("2026-11-30T12:00:00.000Z").toLocaleDateString(lang === "en" ? "en-US" : "fr-FR"));
+  });
+
+  it.each(["fr", "en"] as const)("signale une fin d’essai absente sans utiliser la fin de période (%s)", (lang) => {
+    const data = dataFor(["trialing"]);
+    data.subscriptions[0].trial_ends_at = null;
+    data.subscriptions[0].current_period_end = "2026-11-30T12:00:00.000Z";
+    locale = lang;
+    const doc = new JSDOM(renderToStaticMarkup(createElement(SubscriptionsSection, { data }))).window.document;
+    const cell = doc.querySelector(".admin-subscription-date")!;
+    expect(cell.getAttribute("data-label")).toBe(trialEndLabels[lang]);
+    expect(cell.textContent?.trim()).toBe(missingDateLabels[lang]);
+    expect(cell.textContent).not.toContain(new Date("2026-11-30T12:00:00.000Z").toLocaleDateString(lang === "en" ? "en-US" : "fr-FR"));
   });
 
   it.each(["fr", "en"] as const)("conserve un nom très long et la date absente (%s)", (lang) => {

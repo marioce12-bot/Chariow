@@ -626,11 +626,14 @@ export function SubscriptionsSection({
             locale === "en" ? "Account" : "Compte",
             locale === "en" ? "Plan" : "Offre",
             t("adminComplete.status"),
-            locale === "en" ? "Period ends" : "Fin de période",
+            `${t("adminComplete.periodEnd")} / ${t("adminComplete.trialEnd")}`,
             locale === "en" ? "Actions" : "Actions",
           ]}
         >
-          {data.subscriptions.map((s) => (
+          {data.subscriptions.map((s) => {
+            const isTrial = s.status === "trialing";
+            const endDate = isTrial ? s.trial_ends_at : s.current_period_end;
+            return (
             <div className="admin-row" key={s.id}>
               <strong className="admin-subscription-account" data-label={locale === "en" ? "Account" : "Compte"}>
                 {names.get(s.user_id) || t("adminComplete.noName")}
@@ -650,12 +653,14 @@ export function SubscriptionsSection({
                   } as Record<string, string>)[s.status] ?? s.status}
                 </span>
               </span>
-              <span className="admin-subscription-date" data-label={locale === "en" ? "Period ends" : "Fin de période"}>
-                {s.current_period_end
-                  ? new Date(s.current_period_end).toLocaleDateString(
+              <span className="admin-subscription-date" data-label={t(isTrial ? "adminComplete.trialEnd" : "adminComplete.periodEnd")}>
+                {endDate
+                  ? new Date(endDate).toLocaleDateString(
                       dateLocale(locale),
                     )
-                  : "—"}
+                  : isTrial
+                    ? t("adminComplete.notProvided")
+                    : "—"}
               </span>
               <span className="admin-subscription-actions" data-label={locale === "en" ? "Actions" : "Actions"}>
                 {s.status !== "active" && (
@@ -671,7 +676,8 @@ export function SubscriptionsSection({
                 )}
               </span>
             </div>
-          ))}
+            );
+          })}
         </AdminTable>
       ) : (
         <Empty

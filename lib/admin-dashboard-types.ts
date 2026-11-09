@@ -47,6 +47,7 @@ export type AdminData = {
     messages_used_this_month: number;
     messages_limit: number;
     current_period_end?: string;
+    trial_ends_at?: string | null;
   }>;
   metaAccounts: Array<{
     id: string;

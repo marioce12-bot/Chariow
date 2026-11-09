@@ -71,7 +71,7 @@ export async function GET() {
     supabase
       .from("subscriptions")
       .select(
-        "id,user_id,plan,status,messages_used_this_month,messages_limit,current_period_end,created_at",
+        "id,user_id,plan,status,messages_used_this_month,messages_limit,current_period_end,trial_ends_at,created_at",
         { count: "exact", head: false },
       )
       .order("created_at", { ascending: false })
