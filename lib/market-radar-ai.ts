@@ -139,7 +139,6 @@ const RESPONSE_SCHEMA = {
     recommendedCountries: {
       type: "array",
       minItems: 1,
-      maxItems: COUNTRY_CODES.length,
       items: {
         type: "object",
         properties: {
@@ -244,6 +243,7 @@ export async function analyzeMarketRadarWithAI(input: MarketRadarAIInput): Promi
     { role: "user", content: JSON.stringify(payload) },
   ], {
     timeoutMs: 25_000,
+    requireParameters: true,
     responseSchema: { name: "vendeo_market_radar_v2", schema: RESPONSE_SCHEMA },
   });
 

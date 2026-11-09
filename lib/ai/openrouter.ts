@@ -97,7 +97,7 @@ function waitForRetry(delayMs: number, signal: AbortSignal) {
 
 export async function askOpenRouter(
   messages: ChatMessage[],
-  options: { timeoutMs?: number; model?: string; fallbackModels?: string[]; overloadRetries?: number; responseSchema?: StructuredJsonSchema } = {}
+  options: { timeoutMs?: number; model?: string; fallbackModels?: string[]; overloadRetries?: number; requireParameters?: boolean; responseSchema?: StructuredJsonSchema } = {}
 ) {
   const apiKey = getApiKey();
   const model = options.model?.trim() || getOpenRouterModel();
@@ -114,6 +114,7 @@ export async function askOpenRouter(
     messages: requestMessages,
     temperature: 0.4,
     stream: false,
+    ...(options.requireParameters ? { provider: { require_parameters: true } } : {}),
     ...(options.responseSchema ? {
       response_format: {
         type: "json_schema",
