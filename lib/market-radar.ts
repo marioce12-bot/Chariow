@@ -1,13 +1,21 @@
-import { analyzeMarketRadarWithAI } from "@/lib/market-radar-ai";
+import { decryptSecret } from "@/lib/crypto";
+import { searchMetaInterests } from "@/lib/meta/api";
+import {
+  buildInterestSearchQueries,
+  normalizeInterestLabel,
+  pickBestMetaInterest,
+  rankMetaInterestCandidates,
+  type MetaInterestCandidate,
+  type MetaInterestTarget,
+} from "@/lib/ad-campaigns/meta-targeting";
+import { analyzeMarketRadarWithAI, type MarketRadarAIResult, type MarketRadarDay, type MarketRadarFormat, type MarketRadarProductContext, type MarketRadarTrendDirection } from "@/lib/market-radar-ai";
 import { getMarketRadarCountryName, MARKET_RADAR_COUNTRIES, type MarketRadarCountryCode } from "@/lib/market-radar-countries";
 import { scoreMarketTrend, type MarketTrendDirection, type MarketTrendSignal } from "@/lib/market-radar-signals";
 
-export type MarketRadarFormat = "ebook" | "formation" | "template" | "abonnement";
-
+export type { MarketRadarDay, MarketRadarFormat, MarketRadarProductContext } from "@/lib/market-radar-ai";
 export type MarketRadarInput = {
   idea: string;
-  audience: string;
-  audiences?: string[];
+  product: MarketRadarProductContext | null;
   format: MarketRadarFormat;
   locale?: "fr" | "en";
 };
@@ -18,53 +26,46 @@ export type MarketSignalClient = {
 };
 
 type TrendSource = "live" | "cache" | "stale" | "unavailable" | "error";
-type MarketStatus = "measured" | "partial" | "qualitative" | "ai_unavailable";
+type MarketStatus = "crossed" | "qualitative" | "ai_unavailable";
+type MetaInterestStatus = "available" | "not_connected" | "unavailable" | "no_matches";
 
 export type MarketRadarCountryRecommendation = {
   code: MarketRadarCountryCode;
   name: string;
-  score: number | null;
-  aiFitScore: number;
+  score: number;
   audienceFitScore: number;
   productFitScore: number;
   confidence: "low" | "medium";
-  signalStatus: "measured" | "hypothesis";
-  source: TrendSource;
+  signalStatus: "crossed" | "qualitative";
+  trendDirection: MarketRadarTrendDirection;
+  trendSummary: string;
   rationale: string;
   firstTest: string;
-  trend: {
-    currentIndex: number | null;
-    previousIndex: number | null;
-    direction: MarketTrendDirection;
-    points: number[];
-    sampleCount: number;
-  };
 };
 
 export type MarketRadarReport = {
   query: MarketRadarInput;
   status: MarketStatus;
+  analysisMode: "crossed" | "qualitative";
   score: number | null;
   confidence: "low" | "medium";
+  scoreRationale: string;
   summary: string;
-  liveSources: string[];
   dimensions: {
-    demand: number | null;
-    growth: number | null;
+    demandPotential: number | null;
     audienceFit: number | null;
     productFit: number | null;
-    competition: null;
-    monetization: null;
+    monetizationPotential: number | null;
   };
   evidence: Array<{ label: string; value: string }>;
-  trend: {
-    countryCode: MarketRadarCountryCode | null;
-    currentIndex: number | null;
-    previousIndex: number | null;
-    direction: MarketTrendDirection;
-    points: number[];
-    summary: string;
+  trend: { direction: MarketRadarTrendDirection; summary: string };
+  targetAudience: {
+    profile: string;
+    rationale: string;
+    metaInterests: MetaInterestTarget[];
+    metaInterestStatus: MetaInterestStatus;
   };
+  campaignTiming: { days: MarketRadarDay[]; rationale: string };
   recommendedCountries: MarketRadarCountryRecommendation[];
   ideas: Array<{ title: string; promise: string; audience: string; outline: string[]; upsell: string }>;
   risks: string[];
@@ -74,6 +75,7 @@ export type MarketRadarReport = {
 const TRENDS_TTL_MS = 7 * 86400000;
 const SERPAPI_MONTHLY_LIMIT = 200;
 const IDEA_MAX_LENGTH = 180;
+const PRODUCT_DESCRIPTION_MAX_LENGTH = 800;
 
 export function normalizeMarketQuery(value: string) {
   return value.toLowerCase().trim().replace(/\s+/g, " ");
@@ -83,30 +85,13 @@ function clamp(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function cleanText(value: string, maximum: number) {
+  return value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().replace(/google\s*trends|serpapi/gi, "signaux de recherche").slice(0, maximum);
+}
+
 function mean(values: Array<number | null>) {
   const valid = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   return valid.length ? clamp(valid.reduce((sum, value) => sum + value, 0) / valid.length) : null;
-}
-
-function formatCurrencyFreeLabel(status: TrendSource, locale: "fr" | "en") {
-  if (locale === "en") {
-    return status === "live" ? "live" : status === "cache" ? "cached" : status === "stale" ? "stale cache" : status === "unavailable" ? "unavailable" : "error";
-  }
-  return status === "live" ? "temps réel" : status === "cache" ? "cache récent" : status === "stale" ? "cache ancien" : status === "unavailable" ? "indisponible" : "erreur";
-}
-
-function trendSourceName(sources: TrendSource[], locale: "fr" | "en") {
-  const live = sources.filter((source) => source === "live").length;
-  const cache = sources.filter((source) => source === "cache").length;
-  const stale = sources.filter((source) => source === "stale").length;
-  const parts = [
-    live ? `${live} ${formatCurrencyFreeLabel("live", locale)}` : "",
-    cache ? `${cache} ${formatCurrencyFreeLabel("cache", locale)}` : "",
-    stale ? `${stale} ${formatCurrencyFreeLabel("stale", locale)}` : "",
-  ].filter(Boolean);
-  return locale === "en"
-    ? `Google Trends via SerpApi (${parts.length ? parts.join(", ") : "no usable series"})`
-    : `Google Trends via SerpApi (${parts.length ? parts.join(", ") : "aucune série exploitable"})`;
 }
 
 async function fetchGoogleTrends(idea: string, country: MarketRadarCountryCode) {
@@ -120,7 +105,7 @@ async function fetchGoogleTrends(idea: string, country: MarketRadarCountryCode) 
   url.searchParams.set("date", "today 12-m");
   url.searchParams.set("api_key", key);
   const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
-  if (!response.ok) throw new Error(`Google Trends request failed (${response.status})`);
+  if (!response.ok) throw new Error(`Search signal request failed (${response.status})`);
   return await response.json() as Record<string, unknown>;
 }
 
@@ -139,10 +124,8 @@ export async function fetchCachedTrends(supabase: MarketSignalClient, query: str
   const month = new Date().toISOString().slice(0, 7);
   const { data: usage } = await supabase.from("api_usage").select("count").eq("provider", "serpapi").eq("month", month).maybeSingle();
   if (Number(usage?.count ?? 0) >= SERPAPI_MONTHLY_LIMIT) {
-    if (cached?.payload && typeof cached.payload === "object") {
-      return { payload: cached.payload as Record<string, unknown>, source: "stale" as const };
-    }
-    throw new Error("SerpApi monthly quota reached");
+    if (cached?.payload && typeof cached.payload === "object") return { payload: cached.payload as Record<string, unknown>, source: "stale" as const };
+    throw new Error("Search signal monthly quota reached");
   }
 
   const payload = await fetchGoogleTrends(normalized, country as MarketRadarCountryCode);
@@ -152,42 +135,148 @@ export async function fetchCachedTrends(supabase: MarketSignalClient, query: str
   return { payload, source: "live" as const };
 }
 
-function countryScore(signal: MarketTrendSignal, audienceFit: number, productFit: number) {
-  if (signal.status !== "available" || signal.interestPercentile === null || signal.momentumScore === null) return null;
-  // Search interest and momentum are measured within each country's own Trends series,
-  // while fit scores are explicitly AI judgments; the result is a test-priority score.
-  return clamp(
-    signal.interestPercentile * 0.25
-      + signal.momentumScore * 0.25
-      + audienceFit * 0.3
-      + productFit * 0.2,
-  );
-}
-
 function localeText(locale: "fr" | "en", fr: string, en: string) {
   return locale === "en" ? en : fr;
 }
 
 function fixedRisks(locale: "fr" | "en") {
   return locale === "en" ? [
-    "Google Trends is a normalized search-interest index, not search volume, sales, or revenue.",
-    "Each country’s index is normalized to its own period; it cannot compare total market size across countries.",
-    "Competition and willingness to pay are not measured by the available sources.",
-    "Validate the leading ideas with customer conversations or a small landing-page test before producing the full offer.",
+    "The AI score is a qualitative estimate to prioritize a test, not a sales or conversion forecast.",
+    "Suggested campaign days are hypotheses; compare real results before scaling.",
+    "Interest suggestions shown are options found in Meta at analysis time; availability can change.",
+    "Validate demand and willingness to pay with customer conversations or a small test before producing the full offer.",
   ] : [
-    "Google Trends est un indice d’intérêt de recherche normalisé, pas un volume de recherches, des ventes ou du chiffre d’affaires.",
-    "L’indice de chaque pays est normalisé sur sa propre période : il ne compare pas la taille totale des marchés entre pays.",
-    "La concurrence et la volonté de payer ne sont pas mesurées par les sources disponibles.",
-    "Valide les pistes principales par des échanges clients ou une petite page de test avant de produire l’offre complète.",
+    "Le score IA est une estimation qualitative pour prioriser un test, pas une prévision de ventes ou de conversions.",
+    "Les jours de campagne proposés sont des hypothèses; compare les résultats réels avant d’augmenter le budget.",
+    "Les centres d’intérêt affichés sont des options trouvées dans Meta au moment de l’analyse; leur disponibilité peut évoluer.",
+    "Valide la demande et la volonté de payer par des échanges clients ou un petit test avant de produire l’offre complète.",
   ];
 }
 
-export async function buildMarketRadar(input: MarketRadarInput, supabase?: MarketSignalClient): Promise<MarketRadarReport> {
+function safeProduct(product: MarketRadarProductContext | null | undefined): MarketRadarProductContext | null {
+  if (!product || typeof product !== "object") return null;
+  const name = typeof product.name === "string" ? cleanText(product.name, 120) : "";
+  if (!name) return null;
+  const cleanNullable = (value: unknown, max: number) => typeof value === "string" && value.trim() ? cleanText(value, max) : null;
+  return {
+    name,
+    description: cleanNullable(product.description, PRODUCT_DESCRIPTION_MAX_LENGTH),
+    category: cleanNullable(product.category, 100),
+    type: cleanNullable(product.type, 100),
+    price: cleanNullable(product.price, 40),
+    currency: cleanNullable(product.currency, 10),
+  };
+}
+
+function emptyMetaResult(status: MetaInterestStatus) {
+  return { interests: [] as MetaInterestTarget[], status };
+}
+
+async function resolveMetaInterests(
+  supabase: MarketSignalClient | undefined,
+  userId: string | undefined,
+  labels: string[],
+  locale: "fr" | "en",
+): Promise<{ interests: MetaInterestTarget[]; status: MetaInterestStatus }> {
+  if (!supabase || !userId || !labels.length) return emptyMetaResult("not_connected");
+  let account: { access_token_encrypted?: string | null } | null = null;
+  try {
+    const result = await supabase.from("meta_ad_accounts")
+      .select("id,access_token_encrypted,is_selected")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .order("is_selected", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (result.error) return emptyMetaResult("unavailable");
+    account = result.data;
+  } catch {
+    return emptyMetaResult("unavailable");
+  }
+  if (!account?.access_token_encrypted) return emptyMetaResult("not_connected");
+
+  let accessToken: string;
+  try { accessToken = decryptSecret(account.access_token_encrypted); }
+  catch { return emptyMetaResult("unavailable"); }
+
+  const seenQueries = new Set<string>();
+  const queries = labels.flatMap((label) => {
+    const clean = cleanText(label, 80);
+    const key = normalizeInterestLabel(clean);
+    if (clean.length < 2 || !key || seenQueries.has(key)) return [];
+    seenQueries.add(key);
+    return [clean];
+  }).slice(0, 4);
+  let successfulSearches = 0;
+  const collected = await Promise.all(queries.map(async (label) => {
+    const candidates = new Map<string, MetaInterestCandidate>();
+    const search = async (query: string) => {
+      try {
+        const found = locale === "fr"
+          ? await searchMetaInterests(query, accessToken, { locale: "fr_FR" })
+          : await searchMetaInterests(query, accessToken);
+        successfulSearches += 1;
+        for (const candidate of found) {
+          if (candidate && /^\d{1,30}$/.test(candidate.id) && candidate.name && !candidates.has(candidate.id)) candidates.set(candidate.id, candidate);
+        }
+      } catch {
+        // A Meta lookup failure does not discard the rest of the Radar analysis.
+      }
+    };
+    await search(label);
+    let picked = pickBestMetaInterest(label, [...candidates.values()]);
+    if (!picked || picked.confidence === "close") {
+      const fallback = buildInterestSearchQueries(label).slice(1, 2)[0];
+      if (fallback) await search(fallback);
+      picked = pickBestMetaInterest(label, [...candidates.values()]);
+    }
+    if (picked) return [{ id: picked.interest.id, name: picked.interest.name }];
+    return rankMetaInterestCandidates(label, [...candidates.values()], 1);
+  }));
+
+  const interests: MetaInterestTarget[] = [];
+  const seenIds = new Set<string>();
+  for (const item of collected.flat()) {
+    if (!seenIds.has(item.id)) { seenIds.add(item.id); interests.push(item); }
+    if (interests.length >= 5) break;
+  }
+  if (interests.length) return { interests, status: "available" };
+  if (successfulSearches) return emptyMetaResult("no_matches");
+  return emptyMetaResult("unavailable");
+}
+
+function unavailableReport(input: MarketRadarInput, locale: "fr" | "en"): MarketRadarReport {
+  return {
+    query: input,
+    status: "ai_unavailable",
+    analysisMode: "qualitative",
+    score: null,
+    confidence: "low",
+    scoreRationale: "",
+    summary: localeText(locale, "L’analyse IA n’a pas abouti. Réessaie dans un instant.", "The AI analysis did not complete. Please try again shortly."),
+    dimensions: { demandPotential: null, audienceFit: null, productFit: null, monetizationPotential: null },
+    evidence: [],
+    trend: { direction: "qualitative", summary: "" },
+    targetAudience: { profile: "", rationale: "", metaInterests: [], metaInterestStatus: "not_connected" },
+    campaignTiming: { days: [], rationale: "" },
+    recommendedCountries: [],
+    ideas: [],
+    risks: [],
+    methodology: localeText(locale, "Les résultats IA sont des hypothèses de test, pas des prévisions de ventes.", "AI results are test hypotheses, not sales forecasts."),
+  };
+}
+
+export async function buildMarketRadar(
+  input: MarketRadarInput,
+  supabase?: MarketSignalClient,
+  userId?: string,
+): Promise<MarketRadarReport> {
   const locale = input.locale === "en" ? "en" : "fr";
+  const product = safeProduct(input.product);
+  const idea = cleanText(input.idea, IDEA_MAX_LENGTH);
   const normalizedInput: MarketRadarInput = {
-    idea: input.idea.trim().slice(0, IDEA_MAX_LENGTH),
-    audience: input.audience.trim().slice(0, 360),
-    audiences: (input.audiences ?? []).map((audience) => audience.trim().slice(0, 80)).filter(Boolean).slice(0, 5),
+    idea: idea || product?.name || "",
+    product,
     format: input.format,
     locale,
   };
@@ -211,166 +300,117 @@ export async function buildMarketRadar(input: MarketRadarInput, supabase?: Marke
     return { code: country.code, name: getMarketRadarCountryName(country.code, locale), source, signal };
   }));
 
-  let ai: Awaited<ReturnType<typeof analyzeMarketRadarWithAI>> | null = null;
+  let ai: MarketRadarAIResult | null = null;
   try {
     ai = await analyzeMarketRadarWithAI({
       idea: normalizedInput.idea,
-      audiences: normalizedInput.audiences?.length ? normalizedInput.audiences : normalizedInput.audience ? [normalizedInput.audience] : [],
+      product: normalizedInput.product,
       format: normalizedInput.format,
       locale,
-      countries: collected.map(({ code, name, source, signal }) => ({
+      markets: collected.map(({ code, name, signal }) => ({
         code,
         name,
-        status: signal.status,
-        source,
-        sampleCount: signal.sampleCount,
-        currentIndex: signal.currentIndex,
-        previousIndex: signal.previousIndex,
+        hasUsableSearchSignal: signal.status === "available",
         interestPercentile: signal.interestPercentile,
         momentumScore: signal.momentumScore,
         direction: signal.direction,
-        relatedQueries: signal.relatedQueries,
       })),
     });
   } catch {
     ai = null;
   }
 
-  const sourceByCountry = new Map(collected.map((item) => [item.code, item]));
-  const recommendations: MarketRadarCountryRecommendation[] = ai?.recommendedCountries.map((country) => {
-    const market = sourceByCountry.get(country.code);
-    const signal = market?.signal;
-    const score = signal ? countryScore(signal, country.audienceFitScore, country.productFitScore) : null;
-    const sampleConfidence = signal && signal.status === "available" && signal.sampleCount >= 20 && market?.source !== "stale";
+  if (!ai) return unavailableReport(normalizedInput, locale);
+
+  const availableSignals = collected.filter((country) => country.signal.status === "available");
+  const analysisMode = availableSignals.length ? "crossed" : "qualitative";
+  const confidence: "low" | "medium" = availableSignals.length >= 2 ? "medium" : "low";
+  const countryByCode = new Map(collected.map((market) => [market.code, market]));
+  const recommendations: MarketRadarCountryRecommendation[] = ai.recommendedCountries.map((country) => {
+    const market = countryByCode.get(country.code);
+    const signalAvailable = market?.signal.status === "available";
+    const signalStatus: "crossed" | "qualitative" = signalAvailable ? "crossed" : "qualitative";
+    const trendDirection: MarketRadarTrendDirection = signalAvailable && market?.signal.direction !== "unknown" ? market.signal.direction : "qualitative";
     return {
       code: country.code,
       name: getMarketRadarCountryName(country.code, locale),
-      score,
-      aiFitScore: clamp(country.audienceFitScore * 0.6 + country.productFitScore * 0.4),
+      score: country.score,
       audienceFitScore: country.audienceFitScore,
       productFitScore: country.productFitScore,
-      confidence: sampleConfidence ? "medium" : "low",
-      signalStatus: score === null ? "hypothesis" : "measured",
-      source: market?.source ?? "unavailable",
-      rationale: country.rationale,
-      firstTest: country.firstTest,
-      trend: {
-        currentIndex: signal?.currentIndex ?? null,
-        previousIndex: signal?.previousIndex ?? null,
-        direction: signal?.direction ?? "unknown",
-        points: signal?.points ?? [],
-        sampleCount: signal?.sampleCount ?? 0,
-      },
+      confidence: signalAvailable ? confidence : "low",
+      signalStatus,
+      trendDirection,
+      trendSummary: cleanText(country.trendSummary, 240),
+      rationale: cleanText(country.rationale, 360),
+      firstTest: cleanText(country.firstTest, 220),
     };
-  }) ?? [];
+  }).sort((left, right) => right.score - left.score);
 
-  recommendations.sort((left, right) => {
-    if (left.score !== null && right.score !== null) return right.score - left.score;
-    if (left.score !== null) return -1;
-    if (right.score !== null) return 1;
-    return right.aiFitScore - left.aiFitScore;
-  });
-
-  const scoredRecommendations = recommendations.filter((country) => country.score !== null);
-  const availableSignals = collected.filter((country) => country.signal.status === "available");
-  const score = mean(scoredRecommendations.map((country) => country.score));
-  const dimensions = {
-    demand: mean(scoredRecommendations.map((country) => sourceByCountry.get(country.code)?.signal.interestPercentile ?? null)),
-    growth: mean(scoredRecommendations.map((country) => sourceByCountry.get(country.code)?.signal.momentumScore ?? null)),
-    audienceFit: mean(recommendations.map((country) => country.audienceFitScore)),
-    productFit: mean(recommendations.map((country) => country.productFitScore)),
-    competition: null as null,
-    monetization: null as null,
-  };
-  const primaryMeasuredRecommendation = recommendations.find((country) => country.score !== null) ?? null;
-  const sourceTypes = [...new Set(collected.map((country) => country.source))];
-  const trendSummary = availableSignals.length
-    ? ai?.trendSummary ?? localeText(locale, "Synthèse IA de tendance indisponible.", "AI trend summary unavailable.")
-    : localeText(locale, "Aucune série Google Trends exploitable : les pays proposés sont des hypothèses IA à tester, pas des marchés validés.", "No usable Google Trends series: the suggested countries are AI hypotheses to test, not validated markets.");
-  const confidence: "low" | "medium" = scoredRecommendations.length >= 2
-    && scoredRecommendations.every((country) => country.confidence === "medium")
-    ? "medium"
-    : "low";
-  const status: MarketStatus = !ai
-    ? "ai_unavailable"
-    : availableSignals.length === 0
-      ? "qualitative"
-      : availableSignals.length < MARKET_RADAR_COUNTRIES.length
-        ? "partial"
-        : "measured";
-
-  const measuredCountryNames = availableSignals.map((country) => country.name).join(", ");
+  const metaResolution = await resolveMetaInterests(supabase, userId, ai.targetAudience.metaInterestQueries, locale);
+  const overallTrendDirection: MarketRadarTrendDirection = availableSignals.length
+    ? ai.trend.direction
+    : "qualitative";
   const evidence = [
     {
-      label: localeText(locale, "Couverture Google Trends", "Google Trends coverage"),
-      value: localeText(locale,
-        `${availableSignals.length} pays sur ${MARKET_RADAR_COUNTRIES.length} avec une série suffisante${measuredCountryNames ? ` (${measuredCountryNames})` : ""}.`,
-        `${availableSignals.length} of ${MARKET_RADAR_COUNTRIES.length} countries have a sufficient series${measuredCountryNames ? ` (${measuredCountryNames})` : ""}.`),
+      label: localeText(locale, "Mode d’analyse", "Analysis mode"),
+      value: analysisMode === "crossed"
+        ? localeText(locale, "Analyse IA enrichie de signaux disponibles.", "AI analysis enriched with available signals.")
+        : localeText(locale, "Analyse IA qualitative.", "Qualitative AI analysis."),
     },
     {
-      label: localeText(locale, "Lecture du signal", "Signal interpretation"),
+      label: localeText(locale, "Bases du score", "Score basis"),
       value: localeText(locale,
-        "Les indices et évolutions sont calculés dans l’historique propre à chaque pays; ils ne mesurent pas un volume absolu.",
-        "Indices and changes are calculated within each country’s own history; they do not measure absolute volume."),
-    },
-    {
-      label: localeText(locale, "Score de priorité de test", "Test-priority score"),
-      value: localeText(locale,
-        "25 % intérêt récent vs historique local, 25 % élan récent, 30 % adéquation audience IA et 20 % adéquation idée/format IA.",
-        "25% recent interest vs local history, 25% recent momentum, 30% AI audience fit, and 20% AI idea/format fit."),
-    },
-    {
-      label: localeText(locale, "Sources", "Sources"),
-      value: trendSourceName(sourceTypes, locale),
+        "Potentiel du besoin, adéquation audience/offre et possibilité de monétisation; appréciations IA, pas mesures de ventes.",
+        "Need potential, audience/offer fit, and monetization potential; AI judgments, not sales measurements."),
     },
   ];
 
-  const risks = [
-    ...(ai?.risks ?? []),
-    ...fixedRisks(locale),
-    ...(!ai ? [localeText(locale, "L’analyse IA est momentanément indisponible; aucun score global n’est affiché.", "AI analysis is temporarily unavailable; no overall score is shown.")] : []),
-    ...(availableSignals.length < MARKET_RADAR_COUNTRIES.length && availableSignals.length > 0
-      ? [localeText(locale, "Les données sont partielles : certains pays n’ont pas fourni assez de points ou la source était indisponible.", "Data is partial: some countries returned too few points or the source was unavailable.")]
-      : []),
-  ].filter((risk, index, all) => all.indexOf(risk) === index).slice(0, 9);
-
-  const ideas = ai ? [{
-    title: ai.idea.title,
-    promise: ai.idea.promise,
-    audience: ai.idea.audience,
-    outline: ai.idea.outline,
-    upsell: ai.idea.upsell,
-  }] : [];
+  const fixed = fixedRisks(locale);
+  const risks = [...ai.risks.map((risk) => cleanText(risk, 220)), ...fixed]
+    .filter((risk, index, all) => Boolean(risk) && all.indexOf(risk) === index)
+    .slice(0, 8);
+  const ideas = [{
+    title: cleanText(ai.idea.title, 120),
+    promise: cleanText(ai.idea.promise, 240),
+    audience: cleanText(ai.idea.audience, 140),
+    outline: ai.idea.outline.map((item) => cleanText(item, 120)).filter(Boolean).slice(0, 5),
+    upsell: cleanText(ai.idea.upsell, 180),
+  }];
 
   return {
     query: normalizedInput,
-    status,
-    score: ai ? score : null,
+    status: analysisMode,
+    analysisMode,
+    score: clamp(ai.overallScore),
     confidence,
-    summary: ai?.summary ?? localeText(locale, "Les signaux de recherche sont disponibles, mais l’analyse IA n’a pas pu être produite. Réessaie plus tard.", "Search signals are available, but the AI analysis could not be generated. Try again later."),
-    liveSources: sourceTypes.some((source) => ["live", "cache", "stale"].includes(source)) ? [trendSourceName(sourceTypes, locale), "Vendeo AI"] : ai ? ["Vendeo AI · analyse qualitative"] : [],
-    dimensions: ai ? dimensions : {
-      demand: mean(availableSignals.map((country) => country.signal.interestPercentile)),
-      growth: mean(availableSignals.map((country) => country.signal.momentumScore)),
-      audienceFit: null,
-      productFit: null,
-      competition: null,
-      monetization: null,
+    scoreRationale: cleanText(ai.scoreRationale, 360),
+    summary: cleanText(ai.summary, 500),
+    dimensions: {
+      demandPotential: clamp(ai.scores.demandPotential),
+      audienceFit: clamp(ai.scores.audienceFit),
+      productFit: clamp(ai.scores.productFit),
+      monetizationPotential: clamp(ai.scores.monetizationPotential),
     },
     evidence,
     trend: {
-      countryCode: primaryMeasuredRecommendation?.code ?? null,
-      currentIndex: primaryMeasuredRecommendation?.trend.currentIndex ?? null,
-      previousIndex: primaryMeasuredRecommendation?.trend.previousIndex ?? null,
-      direction: primaryMeasuredRecommendation?.trend.direction ?? "unknown",
-      points: primaryMeasuredRecommendation?.trend.points ?? [],
-      summary: trendSummary,
+      direction: overallTrendDirection,
+      summary: cleanText(ai.trend.summary, 360),
     },
-    recommendedCountries: ai ? recommendations : [],
+    targetAudience: {
+      profile: cleanText(ai.targetAudience.profile, 180),
+      rationale: cleanText(ai.targetAudience.rationale, 360),
+      metaInterests: metaResolution.interests,
+      metaInterestStatus: metaResolution.status,
+    },
+    campaignTiming: {
+      days: ai.campaignTiming.days,
+      rationale: cleanText(ai.campaignTiming.rationale, 360),
+    },
+    recommendedCountries: recommendations,
     ideas,
     risks,
     methodology: localeText(locale,
-      "Score indicatif pour prioriser un test, pas une prévision de ventes. Concurrence et volonté de payer non mesurées.",
-      "An indicative score to prioritize a test, not a sales forecast. Competition and willingness to pay are not measured."),
+      "Score indicatif généré par l’IA pour prioriser un test. Les tendances, audiences et jours proposés sont des pistes à valider; ce n’est pas une prévision de ventes ou de conversions.",
+      "An indicative AI score to prioritize a test. Suggested trends, audiences, and days are leads to validate, not a sales or conversion forecast."),
   };
 }

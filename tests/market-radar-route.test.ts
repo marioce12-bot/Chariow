@@ -10,7 +10,7 @@ import { POST } from "@/app/api/market/radar/route";
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requireUser).mockResolvedValue({ supabase: {}, user: { id: "test-user" }, response: new Response(null, { status: 401 }) } as never);
-  vi.mocked(buildMarketRadar).mockResolvedValue({ score: null } as never);
+  vi.mocked(buildMarketRadar).mockResolvedValue({ score: 82 } as never);
 });
 
 function request(body: unknown) {
@@ -22,28 +22,44 @@ function request(body: unknown) {
 }
 
 describe("POST /api/market/radar", () => {
-  it("accepts an idea without a country and ignores legacy country selections", async () => {
+  it("accepts an idea, ignores legacy audience/country choices, and sends no audience field to the algorithm", async () => {
     const response = await POST(request({
       idea: "Guide budget mobile money",
       audience: "entrepreneurs",
-      audiences: ["entrepreneurs"],
+      audiences: ["a", "b", "c", "d", "e", "f"],
       format: "ebook",
       locale: "fr",
       country: "BJ",
       countries: ["BJ", "CI"],
     }));
     expect(response.status).toBe(200);
-    const input = vi.mocked(buildMarketRadar).mock.calls[0][0];
-    expect(input).toMatchObject({ idea: "Guide budget mobile money", audiences: ["entrepreneurs"], format: "ebook", locale: "fr" });
+    const [input, supabase, userId] = vi.mocked(buildMarketRadar).mock.calls[0];
+    expect(input).toEqual({ idea: "Guide budget mobile money", product: null, format: "ebook", locale: "fr" });
+    expect(input).not.toHaveProperty("audience");
+    expect(input).not.toHaveProperty("audiences");
     expect(input).not.toHaveProperty("country");
     expect(input).not.toHaveProperty("countries");
+    expect(supabase).toEqual({});
+    expect(userId).toBe("test-user");
   });
 
-  it("rejects short ideas and audience arrays beyond the bounded limit", async () => {
+  it("accepts a selected product even when its name is shorter than the free-text minimum", async () => {
+    const response = await POST(request({
+      idea: "",
+      product: { name: "Ebook", description: "Un guide pratique de budget", price: "4500", currency: "XOF", category: "Finance" },
+      format: "ebook",
+      locale: "fr",
+    }));
+    expect(response.status).toBe(200);
+    const [input] = vi.mocked(buildMarketRadar).mock.calls[0];
+    expect(input).toMatchObject({ idea: "Ebook", product: { name: "Ebook", description: "Un guide pratique de budget", price: "4500", currency: "XOF", category: "Finance" } });
+  });
+
+  it("rejects short ideas without a product and ideas longer than the limit", async () => {
     const short = await POST(request({ idea: "ebook", format: "ebook" }));
+    const tooLong = await POST(request({ idea: "x".repeat(181), format: "ebook" }));
     expect(short.status).toBe(400);
-    const tooManyAudiences = await POST(request({ idea: "Guide budget mobile money", audiences: ["a", "b", "c", "d", "e", "f"], format: "ebook" }));
-    expect(tooManyAudiences.status).toBe(400);
+    expect(tooLong.status).toBe(400);
     expect(buildMarketRadar).not.toHaveBeenCalled();
   });
 

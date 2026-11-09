@@ -1,28 +1,28 @@
 # Radar marché
 
-Le Radar marché reçoit une idée, une audience et un format, puis propose automatiquement des pays à tester. Il ne demande plus de choisir un pays de lancement avant l’analyse. L’analyse qualitative et les recommandations utilisent le modèle OpenRouter déjà configuré pour l’assistant Vendeo; Google Trends via SerpApi apporte, quand la clé serveur est disponible, un signal de recherche local pour six marchés francophones (Bénin, Côte d’Ivoire, Sénégal, Cameroun, Burkina Faso et Togo).
+Le Radar analyse une idée ou, au choix, un produit de catalogue Chariow. L’utilisateur ne choisit plus d’audience ni de pays à l’avance : l’IA recommande un profil d’audience, les pays à tester, une lecture de tendance prudente, des jours de campagne et une piste de produit. Les marchés actuellement proposés sont le Bénin, la Côte d’Ivoire, le Sénégal, le Cameroun, le Burkina Faso et le Togo.
 
-## Données et score
+## Scores et signaux
 
-Google Trends fournit un indice normalisé sur 0–100 pour une requête dans un pays et une période donnés. Cet indice n’est ni le volume absolu de recherches, ni une mesure des ventes, du chiffre d’affaires ou de la taille d’un marché. L’indice brut d’un pays ne doit pas être comparé directement à celui d’un autre pays.
+Le modèle fournit un score global indicatif sur 100 et des scores qualitatifs de potentiel de besoin, adéquation audience, adéquation produit et monétisation. Il classe lui-même les pays et rédige les raisons et les premiers tests. Ces scores servent à prioriser des essais : ce ne sont ni des statistiques de marché ni des prévisions de ventes ou de conversions.
 
-Quand les séries sont suffisantes, le score de priorité de test combine quatre éléments : 25 % d’intérêt récent relativement à l’historique propre du pays, 25 % d’élan récent, 30 % d’adéquation de l’audience évaluée par l’IA et 20 % d’adéquation idée/format évaluée par l’IA. C’est une aide à prioriser un test, pas une prévision de ventes. La concurrence et la volonté de payer restent non mesurées faute de sources adaptées.
+Quand un signal de recherche récent exploitable est disponible, il est transmis à l’IA pour enrichir son analyse, sans comparer directement les valeurs normalisées entre pays. Sans signal exploitable, l’IA produit tout de même son analyse qualitative; la tendance est alors présentée comme une lecture à explorer, sans affirmer une hausse ou une baisse mesurée. L’interface ne montre pas le nom du fournisseur ni les erreurs de collecte.
 
-Sans série exploitable, le Radar peut encore proposer des pays comme hypothèses qualitatives de l’IA. Le score affiché sur chaque carte combine alors 60 % d’adéquation audience et 40 % d’adéquation offre; il est explicitement étiqueté comme hypothèse IA et ne remplace pas le score marché, qui reste vide. Les propositions doivent être vérifiées par des échanges clients ou un test simple de l’offre.
+L’audience est suggérée par l’IA. Ses expressions de centres d’intérêt sont recherchées auprès d’un compte Meta Ads actif et seules les options renvoyées par Meta sont affichées. En l’absence de compte connecté, l’analyse continue et l’interface invite à connecter Meta pour vérifier les intérêts. Les jours de campagne sont des hypothèses de départ, pas des jours de conversion historiquement prouvés.
 
 ## Variables serveur
 
 - `OPENROUTER_API_KEY` : nécessaire à l’analyse structurée par l’IA. `OPENROUTER_MODEL` est facultative; le modèle par défaut vient de la configuration OpenRouter existante.
-- `SERPAPI_KEY` : facultative pour les signaux Google Trends. Sans elle, seules des hypothèses IA de faible confiance sont affichées et aucun score de marché n’est calculé.
+- `SERPAPI_KEY` : facultative; lorsqu’elle est configurée, elle fournit des signaux de recherche supplémentaires à croiser avec l’analyse IA.
 
-Ajouter ces clés uniquement dans les variables serveur du projet Vercel pour les environnements souhaités, puis redéployer. Ne jamais exposer de clé au navigateur.
+Ajouter ces variables uniquement dans les environnements serveur voulus et ne jamais les exposer au navigateur. Le sélecteur de produit lit à la demande le catalogue Chariow via une route dédiée, sans synchroniser les ventes ni déclencher les notifications de l’analytics.
 
 ## Cache et quota
 
-Les résultats Trends sont mis en cache sept jours dans Supabase. Une analyse peut demander une série pour chacun des six pays. Le quota applicatif SerpApi existant est limité à 200 appels par mois; au-delà, un cache périmé est utilisé quand il existe, sinon le pays est indiqué comme indisponible. Une panne ou un résultat insuffisant dans un pays ne supprime pas les données exploitables des autres.
+Les résultats de recherche sont mis en cache sept jours dans Supabase. Une analyse peut demander une série pour chacun des six pays. Le quota applicatif existant est limité à 200 appels par mois; au-delà, un cache utilisable est repris quand il existe. Une donnée absente ou insuffisante dans un pays n’empêche pas l’IA de recommander un test dans ce pays ou un autre.
 
 Le cron `/api/market/warm` préchauffe les sujets populaires pour les pays configurés. Si `CRON_SECRET` est défini, protéger l’appel avec le même secret côté Vercel.
 
 ## Test
 
-Dans le dashboard, ouvre `Radar marché`, saisis une idée d’au moins 8 caractères, choisis éventuellement une ou plusieurs audiences et un format, puis clique sur `Analyser et recommander des pays`. Les pays et leurs raisons apparaissent dans le résultat; aucun pays de lancement n’est présélectionné.
+Dans le dashboard, ouvre `Radar marché`, décris une idée d’au moins 8 caractères ou choisis un produit dans le catalogue, puis sélectionne le format et lance l’analyse. Aucun choix manuel d’audience ou de pays n’est nécessaire. Les intérêts affichés proviennent des réponses de Meta; les résultats et les jours recommandés restent des hypothèses à tester.
