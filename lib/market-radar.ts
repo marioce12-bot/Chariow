@@ -141,12 +141,12 @@ function localeText(locale: "fr" | "en", fr: string, en: string) {
 
 function fixedRisks(locale: "fr" | "en") {
   return locale === "en" ? [
-    "The AI score is a qualitative estimate to prioritize a test, not a sales or conversion forecast.",
+    "The score is a qualitative estimate to prioritize a test, not a sales or conversion forecast.",
     "Suggested campaign days are hypotheses; compare real results before scaling.",
     "Interest suggestions shown are options found in Meta at analysis time; availability can change.",
     "Validate demand and willingness to pay with customer conversations or a small test before producing the full offer.",
   ] : [
-    "Le score IA est une estimation qualitative pour prioriser un test, pas une prévision de ventes ou de conversions.",
+    "Le score est une estimation qualitative pour prioriser un test, pas une prévision de ventes ou de conversions.",
     "Les jours de campagne proposés sont des hypothèses; compare les résultats réels avant d’augmenter le budget.",
     "Les centres d’intérêt affichés sont des options trouvées dans Meta au moment de l’analyse; leur disponibilité peut évoluer.",
     "Valide la demande et la volonté de payer par des échanges clients ou un petit test avant de produire l’offre complète.",
@@ -253,7 +253,7 @@ function unavailableReport(input: MarketRadarInput, locale: "fr" | "en"): Market
     score: null,
     confidence: "low",
     scoreRationale: "",
-    summary: localeText(locale, "L’analyse IA n’a pas abouti. Réessaie dans un instant.", "The AI analysis did not complete. Please try again shortly."),
+    summary: localeText(locale, "L’analyse n’a pas abouti. Réessaie dans un instant.", "The analysis did not complete. Please try again shortly."),
     dimensions: { demandPotential: null, audienceFit: null, productFit: null, monetizationPotential: null },
     evidence: [],
     trend: { direction: "qualitative", summary: "" },
@@ -262,7 +262,7 @@ function unavailableReport(input: MarketRadarInput, locale: "fr" | "en"): Market
     recommendedCountries: [],
     ideas: [],
     risks: [],
-    methodology: localeText(locale, "Les résultats IA sont des hypothèses de test, pas des prévisions de ventes.", "AI results are test hypotheses, not sales forecasts."),
+    methodology: localeText(locale, "Les résultats sont des hypothèses à tester, pas des prévisions de ventes.", "Results are test hypotheses, not sales forecasts."),
   };
 }
 
@@ -354,14 +354,14 @@ export async function buildMarketRadar(
     {
       label: localeText(locale, "Mode d’analyse", "Analysis mode"),
       value: analysisMode === "crossed"
-        ? localeText(locale, "Analyse IA enrichie de signaux disponibles.", "AI analysis enriched with available signals.")
-        : localeText(locale, "Analyse IA qualitative.", "Qualitative AI analysis."),
+        ? localeText(locale, "Lecture enrichie de signaux disponibles.", "Reading enriched with available signals.")
+        : localeText(locale, "Lecture qualitative.", "Qualitative reading."),
     },
     {
       label: localeText(locale, "Bases du score", "Score basis"),
       value: localeText(locale,
-        "Potentiel du besoin, adéquation audience/offre et possibilité de monétisation; appréciations IA, pas mesures de ventes.",
-        "Need potential, audience/offer fit, and monetization potential; AI judgments, not sales measurements."),
+        "Potentiel du besoin, adéquation audience/offre et possibilité de monétisation; appréciations qualitatives, pas mesures de ventes.",
+        "Need potential, audience/offer fit, and monetization potential; qualitative judgments, not sales measurements."),
     },
   ];
 
@@ -410,7 +410,7 @@ export async function buildMarketRadar(
     ideas,
     risks,
     methodology: localeText(locale,
-      "Score indicatif généré par l’IA pour prioriser un test. Les tendances, audiences et jours proposés sont des pistes à valider; ce n’est pas une prévision de ventes ou de conversions.",
-      "An indicative AI score to prioritize a test. Suggested trends, audiences, and days are leads to validate, not a sales or conversion forecast."),
+      "Score indicatif pour prioriser un test. Les tendances, audiences et jours proposés sont des pistes à valider; ce n’est pas une prévision de ventes ou de conversions.",
+      "An indicative score to prioritize a test. Suggested trends, audiences, and days are leads to validate, not a sales or conversion forecast."),
   };
 }

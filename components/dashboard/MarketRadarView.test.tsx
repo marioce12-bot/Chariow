@@ -20,7 +20,7 @@ const report = {
   scoreRationale: "Le bénéfice est clair et peut être testé avec une offre simple.",
   summary: "Commence par une version courte et observe les retours clients.",
   dimensions: { demandPotential: 78, audienceFit: 84, productFit: 80, monetizationPotential: 68 },
-  evidence: [{ label: "Mode d’analyse", value: "Analyse IA qualitative." }],
+  evidence: [{ label: "Mode d’analyse", value: "Lecture qualitative." }],
   trend: { direction: "qualitative", summary: "Une piste à confirmer par un essai auprès de clients." },
   targetAudience: {
     profile: "Jeunes actifs qui veulent mieux organiser leur budget.",
@@ -35,7 +35,7 @@ const report = {
   }],
   ideas: [{ title: "Guide budget", promise: "Mieux organiser son argent au quotidien.", audience: "Jeunes actifs", outline: ["Faire le point", "Planifier", "Suivre"], upsell: "Ajouter un modèle de budget." }],
   risks: ["Le score reste une hypothèse à tester."],
-  methodology: "Score IA indicatif, pas une prévision de ventes.",
+  methodology: "Score indicatif, pas une prévision de ventes.",
 } as unknown as MarketRadarReport;
 
 let container: HTMLDivElement;
@@ -48,6 +48,14 @@ function response(data: unknown) {
 }
 async function flush() {
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+}
+function buttonWithText(text: string) {
+  return Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes(text))!;
+}
+function setSelectValue(select: HTMLSelectElement, value: string) {
+  const setValue = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
+  setValue?.call(select, value);
+  select.dispatchEvent(new window.Event("change", { bubbles: true }));
 }
 
 beforeEach(() => {
@@ -71,27 +79,25 @@ afterEach(async () => {
 });
 
 describe("MarketRadarView", () => {
-  it("selects a catalog product and submits an AI analysis without a manually selected audience", async () => {
+  it("asks which path to analyze before showing catalog controls, then submits the selected existing product", async () => {
     await act(async () => root.render(<MarketRadarView onGoToAI={() => {}} />));
-    expect(container.querySelectorAll("select")).toHaveLength(1); // format only; no audience selector
+    expect(container.textContent).toContain("radar.modeQuestion");
+    expect(container.querySelector("form")).toBeNull();
+    expect(container.querySelector("input")).toBeNull();
     expect(container.querySelector('[name="audience"]')).toBeNull();
 
-    const catalogButton = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("radar.chooseProduct"))!;
-    await act(async () => catalogButton.click());
+    await act(async () => buttonWithText("radar.modeExistingTitle").click());
     await flush();
     expect(fetchMock.mock.calls.map((call) => String(call[0]))).toContain("/api/stores");
     expect(fetchMock.mock.calls.some((call) => String(call[0]).startsWith("/api/market/radar/catalog"))).toBe(true);
     expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/api/analytics"))).toBe(false);
 
-    const productSelect = container.querySelector("select") as HTMLSelectElement;
-    const setValue = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
-    setValue?.call(productSelect, "product-1");
-    await act(async () => productSelect.dispatchEvent(new window.Event("change", { bubbles: true })));
-    expect((container.querySelector(".market-idea-input input") as HTMLInputElement).value).toBe("Guide Budget");
-
+    const productSelect = container.querySelector(".market-radar-product-select") as HTMLSelectElement;
+    await act(async () => setSelectValue(productSelect, "product-1"));
     const form = container.querySelector("form")!;
     await act(async () => form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
     await flush();
+
     const analysisCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/market/radar")!;
     const body = JSON.parse((analysisCall[1] as RequestInit).body as string);
     expect(body).toEqual({
@@ -105,5 +111,26 @@ describe("MarketRadarView", () => {
     expect(container.textContent).toContain("Finance personnelle");
     expect(container.textContent).toContain("radar.audienceTitle");
     expect(container.textContent).toContain("radar.dayMonday");
+    expect(container.querySelectorAll("details").length).toBeGreaterThanOrEqual(5);
+    expect(container.textContent).not.toMatch(/\bIA\b/);
+  });
+
+  it("keeps the new-idea path separate from the catalog and submits no existing product", async () => {
+    await act(async () => root.render(<MarketRadarView onGoToAI={() => {}} />));
+    await act(async () => buttonWithText("radar.modeNewTitle").click());
+
+    const ideaInput = container.querySelector(".market-radar-idea-field input") as HTMLInputElement;
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    setValue?.call(ideaInput, "Un guide pour mieux gérer son budget");
+    await act(async () => ideaInput.dispatchEvent(new window.Event("input", { bubbles: true })));
+    const form = container.querySelector("form")!;
+    expect((form.querySelector(".btn-dark") as HTMLButtonElement).disabled).toBe(false);
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).startsWith("/api/market/radar/catalog"))).toBe(false);
+
+    await act(async () => form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+    await flush();
+    const analysisCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/market/radar")!;
+    const body = JSON.parse((analysisCall[1] as RequestInit).body as string);
+    expect(body).toEqual({ idea: "Un guide pour mieux gérer son budget", product: null, format: "ebook", locale: "fr" });
   });
 });
