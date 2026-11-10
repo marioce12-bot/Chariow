@@ -52,12 +52,12 @@ export function LegalDocumentShell({
         <article className="legal-document-card">
           <div className="legal-document-topline">
             <span className="legal-document-eyebrow">{en ? "VENDEO · SERVICE INFORMATION" : "VENDEO · INFORMATIONS DU SERVICE"}</span>
-            <span className="legal-draft-notice">{en ? "DRAFT · REVIEW BEFORE PUBLICATION" : "BROUILLON · À VALIDER AVANT PUBLICATION"}</span>
+            <span className="legal-document-effective">{en ? "LEGAL DOCUMENT · EFFECTIVE" : "DOCUMENT JURIDIQUE EN VIGUEUR"}</span>
           </div>
           <header className="legal-document-header">
             <h1>{title}</h1>
             <p className="legal-document-intro">{intro}</p>
-            <p className="legal-document-version">{en ? "Draft version: 10 November 2026 · Not yet in force" : "Version de travail : 10 novembre 2026 · Pas encore en vigueur"}</p>
+            <p className="legal-document-version">{en ? "Effective version from 10 November 2026" : "Version en vigueur depuis le 10 novembre 2026"}</p>
           </header>
           <div className="legal-document-content">{children}</div>
           <footer className="legal-document-footer">

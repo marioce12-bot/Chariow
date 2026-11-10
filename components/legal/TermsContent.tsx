@@ -30,7 +30,7 @@ export default function TermsContent() {
           ? "You must provide accurate account information, keep your sign-in credentials confidential and use the service lawfully. You are responsible for activity carried out through your account. Contact us promptly if you suspect unauthorized access."
           : "Vous devez fournir des informations exactes, garder confidentiels vos identifiants et utiliser le service conformément au droit applicable. Vous êtes responsable des actions effectuées depuis votre compte. Contactez-nous rapidement si vous soupçonnez un accès non autorisé."}</p>
         <p>{en
-          ? "At sign-up, the version of these Terms and the Privacy Policy and the acceptance time are associated with your account metadata. You can review the current draft through the service-document links; revised terms will show their own version and date."
+          ? "At sign-up, the version of these Terms and the Privacy Policy and the acceptance time are associated with your account metadata. You can review the current versions through the service-document links; any revision will show its own version and date."
           : "Lors de l’inscription, la version des présentes Conditions et de la Politique de confidentialité ainsi que l’heure d’acceptation sont associées aux métadonnées de votre compte. Les versions et dates de révision sont indiquées dans les documents du service."}</p>
       </section>
 

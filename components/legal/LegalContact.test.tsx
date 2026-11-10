@@ -19,6 +19,8 @@ describe("legal identity and WhatsApp contact", () => {
       const markup = renderToStaticMarkup(createElement(Document));
       expect(markup).not.toMatch(/Rashad|Montecho|Rachad/i);
       expect(markup).not.toMatch(/\bSARL\b|\bLLC\b|limited-liability company/i);
+      expect(markup).not.toMatch(/BROUILLON|DRAFT|version de travail|Pas encore en vigueur|Not yet in force/i);
+      expect(markup).toContain(locale === "fr" ? "Version en vigueur depuis le 10 novembre 2026" : "Effective version from 10 November 2026");
       expect(markup).toContain('href="https://wa.me/2290191829482"');
       expect(markup).toContain("+229 01 91 82 94 82");
     }

@@ -100,8 +100,8 @@ export default function PrivacyContent() {
       <section>
         <h2>{en ? "9. Policy changes and contact" : "9. Modifications et contact"}</h2>
         <p>{en
-          ? <>If this policy changes, the new draft or effective version will display its revision date. For privacy questions or requests, email <a href="mailto:vendeo008@gmail.com">vendeo008@gmail.com</a>. For general support, you can also message us on <a href="https://wa.me/2290191829482" target="_blank" rel="noopener noreferrer">WhatsApp at +229 01 91 82 94 82</a>.</>
-          : <>En cas de modification, la nouvelle version de travail ou en vigueur affichera sa date de révision. Pour toute question ou demande relative aux données, écrivez à <a href="mailto:vendeo008@gmail.com">vendeo008@gmail.com</a>. Pour le support général, vous pouvez également nous écrire sur <a href="https://wa.me/2290191829482" target="_blank" rel="noopener noreferrer">WhatsApp au +229 01 91 82 94 82</a>.</>}</p>
+          ? <>If this policy changes, the revised version will display its revision date. For privacy questions or requests, email <a href="mailto:vendeo008@gmail.com">vendeo008@gmail.com</a>. For general support, you can also message us on <a href="https://wa.me/2290191829482" target="_blank" rel="noopener noreferrer">WhatsApp at +229 01 91 82 94 82</a>.</>
+          : <>En cas de modification, la version révisée indiquera sa date de révision. Pour toute question ou demande relative aux données, écrivez à <a href="mailto:vendeo008@gmail.com">vendeo008@gmail.com</a>. Pour le support général, vous pouvez également nous écrire sur <a href="https://wa.me/2290191829482" target="_blank" rel="noopener noreferrer">WhatsApp au +229 01 91 82 94 82</a>.</>}</p>
       </section>
     </LegalDocumentShell>
   );

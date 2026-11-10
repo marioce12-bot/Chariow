@@ -446,7 +446,7 @@ html[data-theme="dark"] .source-history { background:#253149; color:#d0d7e4; }
 .legal-document-card { background:#fff; border:1px solid #e1e9e1; border-radius:24px; box-shadow:0 18px 54px rgba(30,61,40,.07); min-width:0; overflow:hidden; padding:clamp(22px,4.4vw,54px); }
 .legal-document-topline { align-items:center; display:flex; flex-wrap:wrap; gap:10px 16px; justify-content:space-between; }
 .legal-document-eyebrow { color:#668071; font-size:9px; font-weight:850; letter-spacing:.14em; }
-.legal-draft-notice { background:#fff6df; border:1px solid #f1dfad; border-radius:999px; color:#765e18; font-size:9px; font-weight:850; letter-spacing:.06em; padding:7px 10px; }
+.legal-document-effective { background:#edf6ee; border:1px solid #cfe3d2; border-radius:999px; color:#205937; font-size:9px; font-weight:850; letter-spacing:.06em; padding:7px 10px; }
 .legal-document-header { border-bottom:1px solid #e6ece6; padding:30px 0 24px; }
 .legal-document-header h1 { color:#1e3326; font-size:clamp(30px,4.2vw,48px); letter-spacing:-.055em; line-height:1.06; margin:0; max-width:780px; }
 .legal-document-intro { color:#52645a; font-size:clamp(15px,1.7vw,18px); line-height:1.65; margin:16px 0 0; max-width:760px; }
