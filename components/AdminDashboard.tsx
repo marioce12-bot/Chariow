@@ -119,11 +119,10 @@ export function AdminDashboard() {
       void load();
       void loadUsage(usageDays);
     };
-    const timer = window.setInterval(refreshVisibleAdmin, 60_000);
+    // Reconcile after returning to the page, but never poll on a timer.
     window.addEventListener("focus", refreshVisibleAdmin);
     document.addEventListener("visibilitychange", refreshVisibleAdmin);
     return () => {
-      window.clearInterval(timer);
       window.removeEventListener("focus", refreshVisibleAdmin);
       document.removeEventListener("visibilitychange", refreshVisibleAdmin);
     };

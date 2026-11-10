@@ -190,11 +190,11 @@ describe("tableau de bord propriétaire", () => {
     );
   });
 
-  it("conserve le polling de secours de 60 secondes jusqu’au test Realtime en production", async () => {
+  it("ne programme aucun polling périodique de l’Admin", async () => {
     const interval = vi.spyOn(window, "setInterval");
     try {
       await renderDashboard();
-      expect(interval).toHaveBeenCalledWith(expect.any(Function), 60_000);
+      expect(interval).not.toHaveBeenCalled();
     } finally {
       interval.mockRestore();
     }
@@ -218,6 +218,29 @@ describe("tableau de bord propriétaire", () => {
     expect(overviewCount()).toBe(2);
     expect(usageCount()).toBe(2);
     expect(window.location.pathname).not.toBe("/admin/login");
+  });
+
+  it("regroupe les événements rapprochés et réconcilie après reconnexion SSE", async () => {
+    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+    await renderDashboard();
+    const overviewCount = () => fetchMock.mock.calls.filter(([url]) => String(url) === "/api/admin/overview").length;
+    const usageCount = () => fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/admin/usage")).length;
+
+    await act(async () => {
+      for (const scope of ["signup", "billing", "credits"]) {
+        eventSources[0].emit("admin-data-changed", JSON.stringify({ scope }));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    expect(overviewCount()).toBe(2);
+    expect(usageCount()).toBe(2);
+
+    await act(async () => {
+      eventSources[0].emit("ready", "{}");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    expect(overviewCount()).toBe(3);
+    expect(usageCount()).toBe(3);
   });
 
   it("n’invente pas d’utilisateurs actifs si Usage répond en erreur", async () => {
