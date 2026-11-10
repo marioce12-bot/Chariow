@@ -47,6 +47,10 @@ beforeEach(async () => {
     if (url === "/api/integrations/meta/accounts") return json({ accounts: store === "store-a" ? [{ id: "account-A", name: "Compte A", currency: "USD", is_selected: true, last_synced_at: recentSync }] : [] });
     if (url === "/api/integrations/tiktok/accounts" || url === "/api/integrations/pinterest/accounts") return json({ accounts: [] });
     if (url.startsWith("/api/meta/performance?account_id=")) return json(perf(revision === 1 ? 111 : 222));
+    if (url.startsWith("/api/meta/daily-spend?")) {
+      const params = new URLSearchParams(url.split("?")[1]);
+      return json({ currency: "USD", days: [{ date: params.get("from"), spend: 5 }, { date: params.get("to"), spend: 9 }] });
+    }
     if (url.startsWith("/api/integrations/meta/resources?account_id=")) return json({ pages: [{ id: "page-A", name: `Page ${revision}` }], pixels: [{ id: "pixel-A", name: `Pixel ${revision}` }] });
     if (url === "/api/integrations/meta/accounts" || url.includes("/api/integrations/")) return json({ accounts: [] });
     if (url === "/api/ad-campaigns") return json({ campaigns: [] });
@@ -127,5 +131,18 @@ describe("real AdSpendByChannel cache integration", () => {
     await click("Change store"); await settle();
     expect(fetchMock.mock.calls.length).toBeGreaterThan(spendReadCount);
     expect(host.textContent).not.toContain("111,00 USD");
+  });
+
+  it("renders labeled horizontal channel comparisons and a daily chart with USD and date axes", async () => {
+    await act(async () => { root.render(<NavigationDataProvider key="spend-chart"><Workspace spendOnly /></NavigationDataProvider>); });
+    await settle();
+
+    expect(host.querySelectorAll(".adspend-channel")).toHaveLength(3);
+    expect(host.textContent).toContain("Dépenses par canal");
+    expect(host.querySelector(".adspend-campaigns summary")?.textContent).toContain("Répartition des campagnes Meta");
+    const chart = host.querySelector('svg[aria-label="Courbe de la dépense Meta par jour"]');
+    expect(chart).not.toBeNull();
+    expect(chart?.querySelectorAll("circle").length).toBeGreaterThan(1);
+    expect(host.textContent).toContain("Chaque point représente une journée");
   });
 });

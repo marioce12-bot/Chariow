@@ -12,8 +12,8 @@ import { Skeleton } from "./Skeleton";
  * Dépenses publicitaires par canal (Meta, TikTok, Pinterest) sur la période choisie, sous forme de graphiques.
  * Chaque canal est converti en USD pour pouvoir être comparé.
  *
- * - Barres par canal : la barre Meta est empilée par campagne (chaque segment = une campagne, cliquable) ;
- *   la légende en dessous remplace l'ancienne liste de campagnes et détaille clics / impressions / conversions.
+ * - Comparaison par canal : une barre horizontale par plateforme, avec les métriques de période.
+ *   Le détail Meta conserve les campagnes, les clics, les impressions et les conversions.
  * - Courbe : dépense Meta jour par jour. Les API TikTok et Pinterest ne renvoient que des totaux (pas de
  *   courbe jour par jour), elles apparaissent donc uniquement dans les barres.
  *
@@ -56,36 +56,10 @@ const CHANNELS: Array<Pick<ChannelStat, "id" | "badge" | "label" | "color">> = [
   { id: "pinterest", badge: "pinterest", label: "Pinterest", color: "#E60023" },
 ];
 
-// Nuances de bleu pour les segments de campagnes Meta (la couleur suit l'ordre de la légende).
-const CAMPAIGN_COLORS = ["#1877F2", "#0A3D91", "#5AA2FF", "#1E5BC6", "#9CC5FF", "#274690"];
-const REST_COLOR = "#CBD5E1";
-
-// Géométrie des graphiques (viewBox : le SVG s'adapte à la largeur de l'écran).
-const BAR_W = 320;
-const BAR_H_MOBILE = 210;
-const BAR_H_DESKTOP = 130;
-const BAR_TOP = 24;
-const BAR_BOTTOM = 40;
-const BAR_WIDTH = 64;
-const LINE_W = 320;
-const LINE_H_MOBILE = 140;
-const LINE_H_DESKTOP = 88;
-const LINE_PAD = { top: 14, bottom: 24, left: 8, right: 8 };
-
-const DESKTOP_CHART_QUERY = "(min-width: 761px)";
-function subscribeToDesktopChartViewport(onChange: () => void) {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
-  const media = window.matchMedia(DESKTOP_CHART_QUERY);
-  if (media.addEventListener) media.addEventListener("change", onChange);
-  else media.addListener(onChange);
-  return () => {
-    if (media.removeEventListener) media.removeEventListener("change", onChange);
-    else media.removeListener(onChange);
-  };
-}
-function getDesktopChartViewport() {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(DESKTOP_CHART_QUERY).matches;
-}
+// Géométrie du suivi quotidien : hauteur fixe, largeur mesurée dans le conteneur
+// pour garder des étiquettes lisibles sans agrandir tout le SVG sur grand écran.
+const LINE_H = 224;
+const LINE_PAD = { top: 20, bottom: 34, left: 54, right: 14 };
 
 const STALE_MS = 15 * 60 * 1000;
 const AUTO_SYNC_COOLDOWN_MS = 2 * 60 * 1000;
@@ -169,14 +143,10 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
   // Identity includes store, period and plan; mutations refresh the same usable reading.
   const cacheKey = useMemo(() => `/__computed/ad-spend/${JSON.stringify([storeId, periodDays, plan])}`, [storeId, periodDays, plan]);
   const cached = useSyncExternalStore(cache.subscribe, () => cache.snapshot(cacheKey), () => cache.snapshot(null)) as { data?: AdSpendData; loading: boolean; refreshing: boolean; error: boolean };
-  const isDesktopCharts = useSyncExternalStore(subscribeToDesktopChartViewport, getDesktopChartViewport, () => false);
-  const BAR_H = isDesktopCharts ? BAR_H_DESKTOP : BAR_H_MOBILE;
-  const BAR_BASE = BAR_H - BAR_BOTTOM;
-  const BAR_PLOT = BAR_BASE - BAR_TOP;
-  const LINE_H = isDesktopCharts ? LINE_H_DESKTOP : LINE_H_MOBILE;
   const [metaSyncing, setMetaSyncing] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const lineContainerRef = useRef<HTMLDivElement>(null);
+  const [lineWidth, setLineWidth] = useState(640);
   const stats = cached.data?.stats ?? CHANNELS.map(emptyStat);
   const metaCampaigns = cached.data?.campaigns ?? [];
   const daily = cached.data?.daily ?? [];
@@ -319,54 +289,40 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
   const numberLocale = en ? "en-US" : "fr-FR";
   const metaStat = stats[0];
 
-  // --- Barres par canal : la barre Meta est empilée par campagne. ---
-  const campaignColor = (index: number) => CAMPAIGN_COLORS[index % CAMPAIGN_COLORS.length];
-  const metaSegments = metaCampaigns.map((campaign, index) => ({ id: campaign.id, name: campaign.name, value: campaign.spendUsd, color: campaignColor(index) })).filter((segment) => segment.value > 0);
-  const metaRest = Math.max(0, metaStat.spendUsd - metaSegments.reduce((total, segment) => total + segment.value, 0));
-  const slot = BAR_W / stats.length;
-  const bars = stats.map((stat, index) => {
-    const cx = slot * index + slot / 2;
-    const total = stat.connected ? stat.spendUsd : 0;
-    const height = total > 0 ? Math.max(3, (total / maxUsd) * BAR_PLOT) : 0;
-    const parts = stat.id === "meta"
-      ? [
-          ...metaSegments,
-          ...(metaRest > 0.005 ? [{ id: "__rest", name: metaSegments.length ? tr("Autres campagnes", "Other campaigns") : stat.label, value: metaRest, color: metaSegments.length ? REST_COLOR : stat.color }] : []),
-        ]
-      : [{ id: stat.id, name: stat.label, value: total, color: stat.color }];
-    let cursor = BAR_BASE;
-    const rects = total > 0
-      ? parts.filter((part) => part.value > 0).map((part) => {
-          const partHeight = (part.value / Math.max(total, 0.000001)) * height;
-          cursor -= partHeight;
-          return { ...part, y: cursor, height: partHeight };
-        })
-      : [];
-    return { stat, cx, x: cx - BAR_WIDTH / 2, top: BAR_BASE - height, rects };
-  });
-
   // --- Courbe : dépense Meta par jour. ---
   const showLine = metaStat.connected && !metaStat.failed && daily.length > 1;
   const maxDaily = Math.max(0.01, ...daily.map((point) => point.spendUsd));
-  const lineInnerW = LINE_W - LINE_PAD.left - LINE_PAD.right;
+  const lineInnerW = Math.max(1, lineWidth - LINE_PAD.left - LINE_PAD.right);
   const lineInnerH = LINE_H - LINE_PAD.top - LINE_PAD.bottom;
   const px = (index: number) => LINE_PAD.left + (daily.length <= 1 ? 0 : (index / (daily.length - 1)) * lineInnerW);
   const py = (value: number) => LINE_PAD.top + (1 - value / maxDaily) * lineInnerH;
   const linePath = daily.map((point, index) => `${index ? "L" : "M"}${px(index).toFixed(1)} ${py(point.spendUsd).toFixed(1)}`).join(" ");
   const areaPath = daily.length > 1 ? `${linePath} L${px(daily.length - 1).toFixed(1)} ${LINE_H - LINE_PAD.bottom} L${px(0).toFixed(1)} ${LINE_H - LINE_PAD.bottom} Z` : "";
   const hovered = hoverIndex !== null ? daily[hoverIndex] : undefined;
+  useEffect(() => {
+    const element = lineContainerRef.current;
+    if (!element) return;
+    const updateWidth = () => setLineWidth(Math.max(280, Math.round(element.getBoundingClientRect().width)));
+    updateWidth();
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(updateWidth);
+      observer.observe(element);
+      return () => observer.disconnect();
+    }
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, [showLine]);
   function onLinePointer(event: ReactPointerEvent<SVGSVGElement>) {
     if (daily.length < 2) return;
     const rect = event.currentTarget.getBoundingClientRect();
     if (!rect.width) return;
-    const x = ((event.clientX - rect.left) / rect.width) * LINE_W;
+    const x = ((event.clientX - rect.left) / rect.width) * lineWidth;
     const index = Math.round(((x - LINE_PAD.left) / lineInnerW) * (daily.length - 1));
     setHoverIndex(Math.min(daily.length - 1, Math.max(0, index)));
   }
 
   return (
-    // minWidth/maxWidth : sans eux, un nom de campagne très long élargit la carte au-delà de l'écran sur téléphone.
-    <section className="app-card" style={{ minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
+    <section className="app-card adspend-card">
       <div className="card-head">
         <div>
           <h2>{tr(t("sweep3.text134"), "Ad spend")}</h2>
@@ -382,97 +338,122 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
             <Skeleton width={110} height={11} />
             <Skeleton width={150} height={24} />
           </div>
-          <Skeleton height={170} radius={12} />
-          <Skeleton height={110} radius={12} />
+          <Skeleton height={120} radius={12} />
+          <Skeleton height={84} radius={12} />
         </div>
       ) : !connected.length ? (
         <p className="hint-line" style={{ marginTop: 12 }}>{tr(t("sweep3.text137"), "No ad channel connected. Connect Meta, TikTok or Pinterest in “Ad accounts”.")}</p>
       ) : (
         <>
-          <div style={{ marginTop: 12 }}>
-            <span className="hint-line">{tr(t("sweep1.text138"), "Total spent")}</span>
-            <div style={{ fontSize: 22, fontWeight: 800 }}>{usd(totalUsd, numberLocale)}</div>
+          <div className="adspend-total">
+            <div>
+              <span className="adspend-total-label">{tr(t("sweep1.text138"), "Total spent")}</span>
+              <strong>{usd(totalUsd, numberLocale)}</strong>
+            </div>
+            <span className="adspend-total-period">{tr("Total des canaux connectés", "Combined connected channels")}</span>
           </div>
 
-          {/* Barres par canal (Meta empilée par campagne) */}
-          <svg viewBox={`0 0 ${BAR_W} ${BAR_H}`} width="100%" style={{ display: "block", marginTop: 14, maxWidth: "100%", height: "auto" }} role="img" aria-label={tr("Dépenses par canal publicitaire", "Spend by ad channel")}>
-            <line x1={0} y1={BAR_BASE} x2={BAR_W} y2={BAR_BASE} stroke="#E2E8F0" strokeWidth={1} />
-            {bars.map((bar) => (
-              <g key={bar.stat.id} opacity={bar.stat.connected ? 1 : 0.6}>
-                {bar.rects.map((rect) => {
-                  const selectable = !rect.id.startsWith("__") && rect.id !== bar.stat.id;
-                  const dimmed = selectedId !== null && selectable && rect.id !== selectedId;
-                  return (
-                    <rect
-                      key={rect.id}
-                      x={bar.x}
-                      y={rect.y}
-                      width={BAR_WIDTH}
-                      height={rect.height}
-                      fill={rect.color}
-                      stroke="#fff"
-                      strokeWidth={bar.rects.length > 1 ? 1 : 0}
-                      opacity={dimmed ? 0.35 : 1}
-                      rx={bar.rects.length === 1 ? 4 : 0}
-                      style={{ cursor: selectable ? "pointer" : "default" }}
-                      onClick={selectable ? () => setSelectedId((current) => (current === rect.id ? null : rect.id)) : undefined}
-                    >
-                      <title>{`${rect.name} : ${usd(rect.value, numberLocale)}`}</title>
-                    </rect>
-                  );
-                })}
-                {bar.stat.connected && !bar.stat.failed ? (
-                  <text x={bar.cx} y={bar.top - 7} textAnchor="middle" fontSize={11} fontWeight={700} fill="currentColor">
-                    {bar.stat.spendUsd.toLocaleString(numberLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </text>
-                ) : null}
-                <text x={bar.cx} y={BAR_BASE + 17} textAnchor="middle" fontSize={12} fontWeight={700} fill="currentColor">{bar.stat.label}</text>
-                <text x={bar.cx} y={BAR_BASE + 31} textAnchor="middle" fontSize={9.5} fill="#94A3B8">
-                  {!bar.stat.connected ? tr(t("sweep2.text139"), "Not connected") : bar.stat.failed ? tr(t("sweep1.text141"), "Data unavailable right now.") : `${bar.stat.clicks.toLocaleString(numberLocale)} ${tr(t("optionsExtra.text12"), "clicks")} · ${bar.stat.conversions.toLocaleString(numberLocale)} conv.`}
-                </text>
-              </g>
-            ))}
-          </svg>
+          <div className="adspend-chart-heading">
+            <h3>{tr("Dépenses par canal", "Spend by channel")}</h3>
+            <p>{tr("La longueur des barres compare les montants sur la même période.", "Bar length compares amounts across the same period.")}</p>
+          </div>
+          <div className="adspend-channel-grid" role="list" aria-label={tr("Dépenses par canal publicitaire", "Spend by ad channel")}>
+            {stats.map((stat) => {
+              const hasData = stat.connected && !stat.failed;
+              const barPercent = hasData && maxUsd > 0 ? Math.min(100, Math.max(0, (stat.spendUsd / maxUsd) * 100)) : 0;
+              return (
+                <article className="adspend-channel" key={stat.id} role="listitem">
+                  <div className="adspend-channel-heading">
+                    <span className="adspend-channel-dot" aria-hidden="true" style={{ backgroundColor: stat.color }} />
+                    <h4>{stat.label}</h4>
+                  </div>
+                  {hasData ? <strong className="adspend-channel-amount">{usd(stat.spendUsd, numberLocale)}</strong> : <span className="adspend-channel-status">{!stat.connected ? tr(t("sweep2.text139"), "Not connected") : tr(t("sweep1.text141"), "Data unavailable right now.")}</span>}
+                  <div className="adspend-bar-track" aria-hidden="true">
+                    <span style={{ width: `${barPercent}%`, backgroundColor: stat.color }} />
+                  </div>
+                  {hasData ? (
+                    <div className="adspend-channel-metrics">
+                      <span>{stat.clicks.toLocaleString(numberLocale)} {tr(t("optionsExtra.text12"), "clicks")}</span>
+                      <span>{stat.conversions.toLocaleString(numberLocale)} {tr("conversions", "conversions")}</span>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+
+          {metaCampaigns.length ? (
+            <details className="adspend-campaigns">
+              <summary>
+                <span>{tr("Répartition des campagnes Meta", "Meta campaign breakdown")}</span>
+                <small>{metaCampaigns.length} {tr("campagnes", "campaigns")}</small>
+              </summary>
+              <div className="adspend-campaign-list">
+                {metaCampaigns.map((campaign) => (
+                  <div className="adspend-campaign-row" key={campaign.id}>
+                    <div className="adspend-campaign-copy">
+                      <strong title={campaign.name}>{campaign.name}</strong>
+                      <small>{campaign.clicks.toLocaleString(numberLocale)} {tr(t("optionsExtra.text12"), "clicks")} · {campaign.impressions.toLocaleString(numberLocale)} {tr("impressions", "impressions")} · {campaign.conversions.toLocaleString(numberLocale)} {tr("conversions", "conversions")}</small>
+                    </div>
+                    <strong className="adspend-campaign-amount">{usd(campaign.spendUsd, numberLocale)}</strong>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
 
           {/* Courbe : dépense Meta par jour */}
           {showLine ? (
-            <div style={{ marginTop: 18 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                <strong style={{ fontSize: 13 }}>{tr("Dépense Meta par jour", "Meta spend per day")}</strong>
-                <span className="hint-line" style={{ margin: 0 }}>
-                  {hovered ? `${dayLabel(hovered.date, numberLocale)} · ${usd(hovered.spendUsd, numberLocale)}` : tr("Touche la courbe pour voir un jour", "Touch the curve to see a day")}
+            <div className="adspend-trend">
+              <div className="adspend-trend-heading">
+                <div>
+                  <h3>{tr("Dépense Meta par jour", "Meta spend per day")}</h3>
+                  <p>{tr("Chaque point représente une journée · axe vertical en USD", "Each point is one day · vertical axis in USD")}</p>
+                </div>
+                <span className="adspend-trend-value" aria-live="polite">
+                  {hovered ? `${dayLabel(hovered.date, numberLocale)} · ${usd(hovered.spendUsd, numberLocale)}` : tr("Touchez ou survolez la courbe", "Touch or hover over the chart")}
                 </span>
               </div>
-              <svg
-                viewBox={`0 0 ${LINE_W} ${LINE_H}`}
-                width="100%"
-                style={{ display: "block", marginTop: 6, maxWidth: "100%", height: "auto", touchAction: "pan-y" }}
-                role="img"
-                aria-label={tr("Courbe de la dépense Meta par jour", "Meta daily spend curve")}
-                onPointerDown={onLinePointer}
-                onPointerMove={onLinePointer}
-                onPointerLeave={() => setHoverIndex(null)}
-              >
-                <defs>
-                  <linearGradient id="adspend-area" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#1877F2" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="#1877F2" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <line x1={LINE_PAD.left} y1={LINE_H - LINE_PAD.bottom} x2={LINE_W - LINE_PAD.right} y2={LINE_H - LINE_PAD.bottom} stroke="#E2E8F0" strokeWidth={1} />
-                <line x1={LINE_PAD.left} y1={LINE_PAD.top} x2={LINE_W - LINE_PAD.right} y2={LINE_PAD.top} stroke="#F1F5F9" strokeWidth={1} strokeDasharray="3 3" />
-                <text x={LINE_PAD.left} y={LINE_PAD.top - 3} fontSize={9.5} fill="#94A3B8">{maxDaily.toLocaleString(numberLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</text>
-                <path d={areaPath} fill="url(#adspend-area)" />
-                <path d={linePath} fill="none" stroke="#1877F2" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-                {hovered && hoverIndex !== null ? (
-                  <g>
-                    <line x1={px(hoverIndex)} y1={LINE_PAD.top} x2={px(hoverIndex)} y2={LINE_H - LINE_PAD.bottom} stroke="#94A3B8" strokeWidth={1} strokeDasharray="3 3" />
-                    <circle cx={px(hoverIndex)} cy={py(hovered.spendUsd)} r={4} fill="#1877F2" stroke="#fff" strokeWidth={2} />
-                  </g>
-                ) : null}
-                <text x={LINE_PAD.left} y={LINE_H - 7} fontSize={9.5} fill="#94A3B8">{dayLabel(daily[0].date, numberLocale)}</text>
-                <text x={LINE_W - LINE_PAD.right} y={LINE_H - 7} fontSize={9.5} fill="#94A3B8" textAnchor="end">{dayLabel(daily[daily.length - 1].date, numberLocale)}</text>
-              </svg>
+              <div className="adspend-trend-plot" ref={lineContainerRef}>
+                <svg
+                  viewBox={`0 0 ${lineWidth} ${LINE_H}`}
+                  preserveAspectRatio="none"
+                  role="img"
+                  aria-label={tr("Courbe de la dépense Meta par jour", "Meta daily spend curve")}
+                  onPointerDown={onLinePointer}
+                  onPointerMove={onLinePointer}
+                  onPointerLeave={() => setHoverIndex(null)}
+                >
+                  <defs>
+                    <linearGradient id="adspend-area" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#1877F2" stopOpacity={0.22} />
+                      <stop offset="100%" stopColor="#1877F2" stopOpacity={0.015} />
+                    </linearGradient>
+                  </defs>
+                  {[maxDaily, maxDaily / 2, 0].map((value, index) => {
+                    const y = py(value);
+                    return (
+                      <g key={`${value}-${index}`}>
+                        <line x1={LINE_PAD.left} y1={y} x2={lineWidth - LINE_PAD.right} y2={y} stroke={index === 2 ? "#CBD5E1" : "#E8EDF5"} strokeWidth={1} strokeDasharray={index === 2 ? undefined : "3 4"} />
+                        <text x={LINE_PAD.left - 8} y={y + 3.5} textAnchor="end" fontSize={10} fill="#64748B">{value.toLocaleString(numberLocale, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</text>
+                      </g>
+                    );
+                  })}
+                  <text x={LINE_PAD.left} y={11} fontSize={9} fontWeight={700} fill="#64748B">USD</text>
+                  <path d={areaPath} fill="url(#adspend-area)" />
+                  <path d={linePath} fill="none" stroke="#1877F2" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+                  {daily.map((point, index) => <circle key={point.date} cx={px(index)} cy={py(point.spendUsd)} r={hoverIndex === index ? 4.5 : 2} fill={hoverIndex === index ? "#1877F2" : "#fff"} stroke="#1877F2" strokeWidth={hoverIndex === index ? 2 : 1.5} />)}
+                  {hovered && hoverIndex !== null ? (
+                    <g>
+                      <line x1={px(hoverIndex)} y1={LINE_PAD.top} x2={px(hoverIndex)} y2={LINE_H - LINE_PAD.bottom} stroke="#64748B" strokeWidth={1} strokeDasharray="3 3" />
+                      <circle cx={px(hoverIndex)} cy={py(hovered.spendUsd)} r={5} fill="#1877F2" stroke="#fff" strokeWidth={2} />
+                    </g>
+                  ) : null}
+                  {[0, Math.floor((daily.length - 1) / 2), daily.length - 1].map((index, labelIndex) => (
+                    <text key={`${daily[index].date}-${labelIndex}`} x={px(index)} y={LINE_H - 9} textAnchor={labelIndex === 0 ? "start" : labelIndex === 2 ? "end" : "middle"} fontSize={10} fill="#64748B">{dayLabel(daily[index].date, numberLocale)}</text>
+                  ))}
+                </svg>
+              </div>
             </div>
           ) : null}
         </>
