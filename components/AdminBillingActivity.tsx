@@ -80,7 +80,7 @@ export function AdminUserHistory({
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    setError("");
+    setError(null);
     void fetch(`/api/admin/users/${encodeURIComponent(userId)}/history?page=${page}`, {
       cache: "no-store",
       signal: controller.signal,
