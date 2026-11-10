@@ -41,6 +41,8 @@ export type LaunchPayload = {
 
 export type PriorChatMessage = { role: string; content?: unknown };
 
+export const MAX_LAUNCH_INTERESTS = 5;
+
 const requiredKeys: Array<keyof LaunchPayload> = [
   "name", "objective", "dailyBudget", "currency", "countries", "ageMin", "ageMax",
   "gender", "interests", "message", "headline", "linkUrl", "durationDays", "platform",
@@ -74,7 +76,7 @@ export function isValidLaunchPayload(value: unknown): value is LaunchPayload {
   if (!Array.isArray(record.countries) || record.countries.length === 0 || !record.countries.every((item) => typeof item === "string" && /^[A-Z]{2}$/.test(item))) return false;
   if (!Number.isInteger(record.ageMin) || !Number.isInteger(record.ageMax) || (record.ageMin as number) < 13 || (record.ageMax as number) > 100 || (record.ageMin as number) > (record.ageMax as number)) return false;
   if (record.gender !== null && record.gender !== "male" && record.gender !== "female") return false;
-  if (!Array.isArray(record.interests) || record.interests.length > 5 || !record.interests.every((item) => typeof item === "string" && item.trim().length > 0)) return false;
+  if (!Array.isArray(record.interests) || record.interests.length > MAX_LAUNCH_INTERESTS || !record.interests.every((item) => typeof item === "string" && item.trim().length > 0)) return false;
   if (!isNonEmptyString(record.message) || !isNonEmptyString(record.headline)) return false;
   if (record.linkUrl !== null && (typeof record.linkUrl !== "string" || !isValidHttpUrl(record.linkUrl))) return false;
   if (!Number.isInteger(record.durationDays) || (record.durationDays as number) < 1) return false;
@@ -85,11 +87,25 @@ export function isValidLaunchPayload(value: unknown): value is LaunchPayload {
   return true;
 }
 
+// Le modèle dépasse parfois la limite de centres d'intérêt : on garde les premiers
+// (nettoyés) plutôt que de rejeter tout le lancement et de laisser l'utilisateur sans pop-up.
+function normalizeLaunchPayload(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
+  const record = payload as Record<string, unknown>;
+  if (!Array.isArray(record.interests)) return payload;
+  const interests = record.interests
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .slice(0, MAX_LAUNCH_INTERESTS);
+  return { ...record, interests };
+}
+
 export function parseLaunchPayload(content: string): LaunchPayload | null {
   const markerIndex = content.indexOf(LAUNCH_TAG);
   if (markerIndex < 0 || content.indexOf(LAUNCH_TAG, markerIndex + LAUNCH_TAG.length) >= 0) return null;
   try {
-    const payload: unknown = JSON.parse(content.slice(markerIndex + LAUNCH_TAG.length).trim());
+    const payload: unknown = normalizeLaunchPayload(JSON.parse(content.slice(markerIndex + LAUNCH_TAG.length).trim()));
     return isValidLaunchPayload(payload) ? payload : null;
   } catch {
     return null;
@@ -133,4 +149,26 @@ export function isAwaitingLaunchConfirmation(history: PriorChatMessage[] | null 
   const mentionsCampaign = /\b(campagne|lancement|publicite|pub)\b/.test(content);
   const presentsRecap = /\b(informations|details|recapitulatif|configuration|corrects?)\b/.test(content);
   return requestsConfirmation && mentionsCampaign && presentsRecap;
+}
+
+// Détection souple d'un récapitulatif de campagne en attente de réponse : on ne s'appuie
+// pas sur des mots-clés de validation précis, seulement sur la présence de plusieurs
+// éléments de configuration. C'est ensuite le modèle qui juge si la réponse de
+// l'utilisateur est une approbation (quelle que soit sa formulation).
+// L'historique est fourni du plus récent au plus ancien (comme pour isAwaitingLaunchConfirmation).
+export function isRecapAwaitingApproval(history: PriorChatMessage[] | null | undefined): boolean {
+  const latestAssistant = history?.find((item) => item.role === "assistant");
+  if (!latestAssistant || typeof latestAssistant.content !== "string") return false;
+  if (latestAssistant.content.includes(LAUNCH_TAG)) return false;
+  const content = latestAssistant.content.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (!/\b(campagne|campaign|lancement|launch|publicite|pub|ad)\b/.test(content)) return false;
+  const signals = [
+    /\b(budget)\b/,
+    /\b(duree|duration|jours?|days?|mois|months?)\b/,
+    /\b(pays|countries|country|cible[es]?|targets?)\b/,
+    /\b(age|ages|ans|years)\b/,
+    /\b(plateforme|platform|meta|pinterest|facebook|instagram)\b/,
+    /\b(produit|product|boutique|store)\b/,
+  ];
+  return signals.filter((pattern) => pattern.test(content)).length >= 4;
 }
