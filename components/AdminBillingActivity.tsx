@@ -75,7 +75,7 @@ export function AdminUserHistory({
   const [hasMore, setHasMore] = useState(false);
   const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<"access" | "load" | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,15 +98,13 @@ export function AdminUserHistory({
       })
       .catch((cause) => {
         if (controller.signal.aborted) return;
-        setError(cause instanceof Error && cause.message === "access"
-          ? (en ? "Your admin session cannot read this history." : "Votre session admin ne permet pas de lire cet historique.")
-          : (en ? "History could not be loaded." : "Impossible de charger l’historique."));
+        setError(cause instanceof Error && cause.message === "access" ? "access" : "load");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [userId, page, en]);
+  }, [userId, page]);
 
   return (
     <section className="admin-card admin-user-history" aria-label={en ? "Account payment and credit history" : "Historique des paiements et crédits du compte"}>
@@ -117,7 +115,9 @@ export function AdminUserHistory({
         </div>
         {onClose && <button type="button" className="admin-btn admin-btn-soft admin-history-close" onClick={onClose} aria-label={en ? "Close history" : "Fermer l’historique"}><X size={16} /></button>}
       </div>
-      {error ? <p className="admin-history-error" role="alert">{error}</p> : null}
+      {error ? <p className="admin-history-error" role="alert">{error === "access"
+        ? (en ? "Your admin session cannot read this history." : "Votre session admin ne permet pas de lire cet historique.")
+        : (en ? "History could not be loaded." : "Impossible de charger l’historique.")}</p> : null}
       {loading && page === 0 ? <p className="admin-history-loading" role="status"><Loader2 className="admin-history-spin" size={17} /> {en ? "Loading history…" : "Chargement de l’historique…"}</p> : null}
       {!loading && !error && events.length === 0 ? <p className="admin-help">{en ? "No payment or credit entries were recorded for this account." : "Aucune écriture de paiement ou de crédit n’est enregistrée pour ce compte."}</p> : null}
       {events.length > 0 && (
