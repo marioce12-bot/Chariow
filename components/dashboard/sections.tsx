@@ -13,6 +13,7 @@ import { MetaAccountSkeleton } from "@/components/dashboard/MetaAccountSkeleton"
 import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
 import { ReferralSettingsPanel } from "@/components/dashboard/ReferralSettingsPanel";
 import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
+import { CreditPurchaseConfirmation } from "@/components/dashboard/CreditPurchaseConfirmation";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
 import { resolveStudioPreviewMedia } from "@/components/studio/preview-media";
 import { StorePlatformDialog } from "@/components/dashboard/StorePlatformDialog";
@@ -201,6 +202,8 @@ export function StudioView({ products, creditRechargeRequest = 0, onCreditRechar
   const availableCredits = Math.max(0, balance - reservedCredits);
   const [creditAmount, setCreditAmount] = useState("200");
   const [rechargeOpen, setRechargeOpen] = useState(false);
+  const [rechargeConfirmOpen, setRechargeConfirmOpen] = useState(false);
+  const [creditPurchaseAccepted, setCreditPurchaseAccepted] = useState(false);
   const [recharging, setRecharging] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [productSearch, setProductSearch] = useState("");
@@ -312,18 +315,17 @@ export function StudioView({ products, creditRechargeRequest = 0, onCreditRechar
   const lastGeneratedPromptRef = useRef<string | null>(null);
   useEffect(() => () => { stopProgressRef.current?.(); stopProgressRef.current = null; }, []);
   useEffect(() => {
-    if (!rechargeOpen && !insufficientCredits) return;
+    if (!rechargeOpen && !rechargeConfirmOpen && !insufficientCredits) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setRechargeOpen(false); setInsufficientCredits(null); }
+      if (event.key === "Escape") { setRechargeOpen(false); setRechargeConfirmOpen(false); setInsufficientCredits(null); }
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [rechargeOpen, insufficientCredits]);
+  }, [rechargeOpen, rechargeConfirmOpen, insufficientCredits]);
   useEffect(() => {
     if (!creditRechargeRequest) return;
     setInsufficientCredits(null);
-    setRechargeError("");
-    setRechargeOpen(true);
+    openRecharge();
     onCreditRechargeRequestHandled?.();
   }, [creditRechargeRequest, onCreditRechargeRequestHandled]);
 
@@ -805,9 +807,26 @@ export function StudioView({ products, creditRechargeRequest = 0, onCreditRechar
     setInsufficientCredits({ required: Math.max(0, Math.ceil(required)), available: Math.max(0, Math.floor(available)) });
   }
 
-  async function recharge() {
+  function openRecharge() {
+    setInsufficientCredits(null);
+    setRechargeError("");
+    setRechargeConfirmOpen(false);
+    setCreditPurchaseAccepted(false);
+    setRechargeOpen(true);
+  }
+
+  function reviewRecharge() {
     const credits = Number(creditAmount);
     if (!Number.isInteger(credits) || credits < 200) { setRechargeError(t("sweep1.text204")); return; }
+    setRechargeError("");
+    setCreditPurchaseAccepted(false);
+    setRechargeOpen(false);
+    setRechargeConfirmOpen(true);
+  }
+
+  async function recharge() {
+    const credits = Number(creditAmount);
+    if (!creditPurchaseAccepted || !Number.isInteger(credits) || credits < 200) return;
     setRecharging(true);
     try {
       const response = await fetch("/api/studio/credits/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credits }) });
@@ -969,7 +988,7 @@ export function StudioView({ products, creditRechargeRequest = 0, onCreditRechar
 
       <div className="studio-balance studio-credits-toolbar" aria-label={locale === "en" ? "Studio credit balance" : "Solde de crédits Studio"}>
         <div><span className="eyebrow">{locale === "en" ? "Available Studio credits" : "Crédits Studio disponibles"}</span><strong>{creditsLoaded ? availableCredits : locale === "en" ? "…" : "…"} {t("studio.credits")}</strong></div>
-        <button type="button" className="btn btn-ghost" onClick={() => { setRechargeError(""); setRechargeOpen(true); }}>{locale === "en" ? "Top up" : "Recharger"}</button>
+        <button type="button" className="btn btn-ghost" onClick={openRecharge}>{locale === "en" ? "Top up" : "Recharger"}</button>
         <small>{locale === "en" ? "Available in image, slideshow and video sessions." : "Solde partagé entre les sessions image, diaporama et vidéo."}</small>
       </div>
 
@@ -1104,8 +1123,21 @@ export function StudioView({ products, creditRechargeRequest = 0, onCreditRechar
       </section> : null}
       <div className="studio-history-toolbar"><span className="eyebrow">{t("overview.history")}</span><div><button className={historyKind === "all" ? "active" : ""} onClick={() => setHistoryKind("all")}>{t("sweep1.text216")}</button><button className={historyKind === "image" ? "active" : ""} onClick={() => setHistoryKind("image")}>Images</button><button className={historyKind === "video" ? "active" : ""} onClick={() => setHistoryKind("video")}>{locale === "en" ? "Videos / Slideshows" : "Vidéos / Diaporamas"}</button></div><button type="button" className="studio-history-expand" aria-expanded={desktopHistoryExpanded} onClick={() => setDesktopHistoryExpanded((expanded) => !expanded)}>{desktopHistoryExpanded ? (locale === "en" ? "Show less" : "Réduire") : (locale === "en" ? "View all slideshows →" : "Voir tous les diaporamas →")}</button></div>
       <section className="studio-history">{history.length ? history.map((item) => { const slideshow = isSlideshow(item); const title = slideshow ? (locale === "en" ? "Slideshow" : "Diaporama") : item.kind === "image" ? "Image" : t("studio.video"); const finalCaption = slideshow ? [typeof item.metadata?.duration === "number" ? `${item.metadata.duration}s` : null, typeof item.sourceImageCount === "number" ? `${item.sourceImageCount} ${locale === "en" ? "source images" : "images sources"}` : null].filter(Boolean).join(" · ") : ""; return <article className="studio-history-card" key={item.id} data-status={item.status} data-actions-open={historyActionsOpenId === item.id} tabIndex={0} role="group" aria-label={`${title}: ${item.prompt.slice(0, 90)}`} onClick={() => openHistoryItem(item)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); openHistoryItem(item); } }}><div className={`studio-history-thumb ${item.status === "processing" ? "is-loading" : ""}`}>{slideshow && item.thumbnailUrl ? <img src={item.thumbnailUrl} alt={title} loading="lazy" decoding="async" /> : item.mediaUrl && item.kind === "image" ? <img src={item.mediaUrl} alt={t("wizardExtra.step.creation")} loading="lazy" decoding="async" /> : item.mediaUrl && item.kind === "video" ? <video src={`${item.mediaUrl}#t=0.5`} muted playsInline preload="metadata" aria-label={t("sweep3.text218")} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : item.kind === "video" ? <Video size={22} /> : <Sparkles size={22} />}</div><div className="studio-history-copy"><strong>{title}</strong><p>{item.prompt.slice(0, 90)}{item.prompt.length > 90 ? "…" : ""}</p><small>{finalCaption ? `${finalCaption} · ` : ""}{new Date(item.created_at).toLocaleString("fr-FR")} · {item.credits_cost} {" "}{t("sweep1.text219")} <span className="studio-history-status" data-status={item.status}>{item.status === "processing" ? t("optionsExtra.text24") : item.status === "failed" ? t("overview.importFailed") : item.status === "cancelled" ? (locale === "en" ? "Cancelled" : "Annulé") : t("adsExtra.status.completed")}</span></small></div><button type="button" className="studio-history-menu" aria-label={locale === "en" ? "Creation actions" : "Actions de la création"} aria-expanded={historyActionsOpenId === item.id} onClick={(event) => { event.stopPropagation(); setHistoryActionsOpenId((current) => current === item.id ? null : item.id); }}>…</button><div className="studio-history-actions"><button type="button" onClick={(event) => { event.stopPropagation(); setPrompt(item.prompt); }}>{t("sweep2.text220")}</button>{item.kind === "image" ? <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedGenerationId(item.id); setImageUrl(item.mediaUrl ?? null); setEditOpen(true); }}>{t("studio.edit")}</button> : null}<button type="button" onClick={async (event) => { event.stopPropagation(); if (!window.confirm("Supprimer cette création ?")) return; await fetch(`/api/studio/history/${item.id}`, { method: "DELETE" }); await loadHistory(true); }}>{t("ads.correction.deleteCampaign")}</button></div></article>; }) : <div className="studio-history-empty">{t("sweep3.text221")}</div>}{historyCursor ? <button className="btn btn-ghost studio-load-more" onClick={() => void loadHistory()} disabled={historyLoading}>{historyLoading ? t("adminExtra.notifications.loading") : t("optionsExtra.text25")}</button> : null}</section>
-      {insufficientCredits ? <div className="studio-credit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setInsufficientCredits(null); }}><section className="studio-credit-modal" role="alertdialog" aria-modal="true" aria-labelledby="studio-insufficient-title" onKeyDown={(event) => { if (event.key === "Escape") setInsufficientCredits(null); }}><div className="studio-credit-modal-head"><div><span className="eyebrow">{locale === "en" ? "Studio credits" : "Crédits Studio"}</span><h2 id="studio-insufficient-title">{locale === "en" ? "Not enough credits" : "Crédits insuffisants"}</h2></div><button type="button" className="studio-recharge-close" onClick={() => setInsufficientCredits(null)} aria-label={locale === "en" ? "Close" : "Fermer"}>×</button></div><p>{locale === "en" ? `This generation needs ${insufficientCredits.required} Studio credits. You have ${insufficientCredits.available} available.` : `Cette génération nécessite ${insufficientCredits.required} crédits Studio. Tu en as ${insufficientCredits.available} disponibles.`}</p><div className="studio-credit-modal-actions"><button type="button" className="btn btn-ghost" onClick={() => setInsufficientCredits(null)}>{locale === "en" ? "Not now" : "Pas maintenant"}</button><button type="button" className="btn btn-dark" onClick={() => { setInsufficientCredits(null); setRechargeError(""); setRechargeOpen(true); }}>{locale === "en" ? "Top up credits" : "Recharger les crédits"}</button></div></section></div> : null}
-      {rechargeOpen ? <div className="studio-credit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !recharging) setRechargeOpen(false); }}><section className="studio-credit-modal studio-topup-modal" role="dialog" aria-modal="true" aria-labelledby="studio-topup-title" onKeyDown={(event) => { if (event.key === "Escape" && !recharging) setRechargeOpen(false); }}><div className="studio-credit-modal-head"><div><span className="eyebrow">{locale === "en" ? "Secure checkout" : "Paiement sécurisé"}</span><h2 id="studio-topup-title">{locale === "en" ? "Top up Studio credits" : "Recharger les crédits Studio"}</h2></div><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} disabled={recharging} aria-label={locale === "en" ? "Close" : "Fermer"}>×</button></div><label className="studio-field"><span>{locale === "en" ? "Credits to add" : "Nombre de crédits à recharger"}</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => { setCreditAmount(event.target.value); setRechargeError(""); }} autoFocus disabled={recharging} /></label><p>{locale === "en" ? "Amount to pay" : "Montant à payer"} · <strong>{rechargePrice ? `${rechargePrice.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF` : "—"}</strong></p><small>{locale === "en" ? "Minimum top-up: 200 credits. Credits are added after payment confirmation." : "Recharge minimale : 200 crédits. Les crédits sont ajoutés après confirmation du paiement."}</small>{rechargeError ? <p className="form-error" role="alert">{rechargeError}</p> : null}<div className="studio-credit-modal-actions"><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(false)} disabled={recharging}>{locale === "en" ? "Cancel" : "Annuler"}</button><button type="button" className="btn btn-dark" onClick={() => void recharge()} disabled={recharging || !rechargePrice}>{recharging ? (locale === "en" ? "Opening payment…" : "Ouverture du paiement…") : (locale === "en" ? "Pay now" : "Payer maintenant")}</button></div></section></div> : null}
+      {insufficientCredits ? <div className="studio-credit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setInsufficientCredits(null); }}><section className="studio-credit-modal" role="alertdialog" aria-modal="true" aria-labelledby="studio-insufficient-title" onKeyDown={(event) => { if (event.key === "Escape") setInsufficientCredits(null); }}><div className="studio-credit-modal-head"><div><span className="eyebrow">{locale === "en" ? "Studio credits" : "Crédits Studio"}</span><h2 id="studio-insufficient-title">{locale === "en" ? "Not enough credits" : "Crédits insuffisants"}</h2></div><button type="button" className="studio-recharge-close" onClick={() => setInsufficientCredits(null)} aria-label={locale === "en" ? "Close" : "Fermer"}>×</button></div><p>{locale === "en" ? `This generation needs ${insufficientCredits.required} Studio credits. You have ${insufficientCredits.available} available.` : `Cette génération nécessite ${insufficientCredits.required} crédits Studio. Tu en as ${insufficientCredits.available} disponibles.`}</p><div className="studio-credit-modal-actions"><button type="button" className="btn btn-ghost" onClick={() => setInsufficientCredits(null)}>{locale === "en" ? "Not now" : "Pas maintenant"}</button><button type="button" className="btn btn-dark" onClick={openRecharge}>{locale === "en" ? "Top up credits" : "Recharger les crédits"}</button></div></section></div> : null}
+      {rechargeOpen ? <div className="studio-credit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !recharging) setRechargeOpen(false); }}><section className="studio-credit-modal studio-topup-modal" role="dialog" aria-modal="true" aria-labelledby="studio-topup-title" onKeyDown={(event) => { if (event.key === "Escape" && !recharging) setRechargeOpen(false); }}><div className="studio-credit-modal-head"><div><span className="eyebrow">{locale === "en" ? "Secure checkout" : "Paiement sécurisé"}</span><h2 id="studio-topup-title">{locale === "en" ? "Top up Studio credits" : "Recharger les crédits Studio"}</h2></div><button type="button" className="studio-recharge-close" onClick={() => setRechargeOpen(false)} disabled={recharging} aria-label={locale === "en" ? "Close" : "Fermer"}>×</button></div><label className="studio-field"><span>{locale === "en" ? "Credits to add" : "Nombre de crédits à recharger"}</span><input type="number" min="200" step="1" value={creditAmount} onChange={(event) => { setCreditAmount(event.target.value); setRechargeError(""); }} autoFocus disabled={recharging} /></label><p>{locale === "en" ? "Amount to pay" : "Montant à payer"} · <strong>{rechargePrice ? `${rechargePrice.toLocaleString(locale === "en" ? "en-US" : "fr-FR")} XOF` : "—"}</strong></p><small>{locale === "en" ? "Minimum top-up: 200 credits. Credits are added after payment confirmation." : "Recharge minimale : 200 crédits. Les crédits sont ajoutés après confirmation du paiement."}</small>{rechargeError ? <p className="form-error" role="alert">{rechargeError}</p> : null}<div className="studio-credit-modal-actions"><button type="button" className="btn btn-ghost" onClick={() => setRechargeOpen(false)} disabled={recharging}>{locale === "en" ? "Cancel" : "Annuler"}</button><button type="button" className="btn btn-dark" onClick={reviewRecharge} disabled={!rechargePrice}>{locale === "en" ? "Review order" : "Vérifier ma commande"}</button></div></section></div> : null}
+      {rechargeConfirmOpen ? <CreditPurchaseConfirmation
+        locale={locale}
+        credits={rechargeCredits}
+        unitPrice={CREDIT_PRICE_XOF}
+        total={rechargePrice}
+        currentBalance={availableCredits}
+        accepted={creditPurchaseAccepted}
+        submitting={recharging}
+        error={rechargeError}
+        onAcceptedChange={setCreditPurchaseAccepted}
+        onCancel={() => { setRechargeConfirmOpen(false); setRechargeOpen(true); setCreditPurchaseAccepted(false); setRechargeError(""); }}
+        onConfirm={() => void recharge()}
+      /> : null}
     </div>
   );
 }

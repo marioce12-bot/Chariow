@@ -3,6 +3,7 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Auth } from "./Auth";
+import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal/versions";
 
 const signUp = vi.fn();
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string) => key }) }));
@@ -49,7 +50,7 @@ describe("signup referral attribution", () => {
     expect(signUp).toHaveBeenCalledWith({
       email: "a@example.test",
       password: "password123",
-      options: { data: { full_name: "Aïcha", experience_level: "beginner", referral_code: "A1B2C3D4E5F607182930ABCD" } },
+      options: { data: { full_name: "Aïcha", experience_level: "beginner", legal_acceptance: { terms_version: TERMS_VERSION, privacy_version: PRIVACY_VERSION, accepted_at: expect.any(String) }, referral_code: "A1B2C3D4E5F607182930ABCD" } },
     });
     expect(window.localStorage.getItem("vendeo_referral_code")).toBeNull();
   });
@@ -75,7 +76,7 @@ describe("signup referral attribution", () => {
     expect(signUp).toHaveBeenCalledWith({
       email: "a@example.test",
       password: "password123",
-      options: { data: { full_name: "Aïcha", experience_level: "beginner" } },
+      options: { data: { full_name: "Aïcha", experience_level: "beginner", legal_acceptance: { terms_version: TERMS_VERSION, privacy_version: PRIVACY_VERSION, accepted_at: expect.any(String) } } },
     });
   });
 });

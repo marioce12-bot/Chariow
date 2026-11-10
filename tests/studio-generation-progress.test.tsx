@@ -366,6 +366,14 @@ describe("Studio image generation progress", () => {
     const recharge = container.querySelector('[role="dialog"]');
     expect(recharge?.textContent).toContain("Recharger les crédits Studio");
     expect(recharge?.querySelector<HTMLInputElement>('input[type="number"]')?.value).toBe("200");
-    expect(recharge?.textContent).toContain("Payer maintenant");
+    expect(recharge?.textContent).toContain("Vérifier ma commande");
+    expect(fetchMock.mock.calls.filter(([url, init]) => url === "/api/studio/credits/checkout" && init?.method === "POST")).toHaveLength(0);
+    await act(async () => { recharge?.querySelector<HTMLButtonElement>(".btn-dark")?.click(); });
+    const confirmation = container.querySelector('[role="dialog"]');
+    expect(confirmation?.textContent).toContain("Confirme cette recharge de crédits");
+    expect(confirmation?.textContent).toContain("200 crédits");
+    expect(confirmation?.textContent).toContain("500 XOF");
+    expect(confirmation?.querySelector<HTMLButtonElement>(".btn-dark")?.disabled).toBe(true);
+    expect(fetchMock.mock.calls.filter(([url, init]) => url === "/api/studio/credits/checkout" && init?.method === "POST")).toHaveLength(0);
   });
 });

@@ -299,3 +299,34 @@ html[data-theme="dark"] .studio-mobile-choice { background:#101f45; border-color
 .studio-video-view { align-items:center; display:inline-flex; gap:8px; justify-content:center; margin-top:16px; }
 @keyframes studioVideoSpin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .studio-video-progress .studio-video-spinner { animation:none; } }
+
+
+/* Confirmation finale des recharges : seconde étape avant toute session SasPay. */
+.studio-credit-confirm-backdrop { z-index:1210; }
+.studio-credit-confirm-modal { gap:14px; max-width:560px; }
+.studio-credit-confirm-modal .studio-credit-modal-head h2 { max-width:390px; }
+.studio-credit-confirm-summary { background:#f5f8f4; border:1px solid #e1e9df; border-radius:13px; display:grid; gap:0; grid-template-columns:1fr 1fr; margin:0; overflow:hidden; }
+.studio-credit-confirm-summary > div { border-bottom:1px solid #e6ece4; display:flex; flex-direction:column; gap:5px; min-width:0; padding:12px 14px; }
+.studio-credit-confirm-summary > div:nth-child(odd) { border-right:1px solid #e6ece4; }
+.studio-credit-confirm-summary > div:nth-last-child(-n+2) { border-bottom:0; }
+.studio-credit-confirm-summary dt { color:#718075; font-size:10px; font-weight:750; }
+.studio-credit-confirm-summary dd { color:#2b4033; font-size:14px; font-weight:800; margin:0; overflow-wrap:anywhere; }
+.studio-credit-confirm-summary .is-total { background:#eaf3e9; grid-column:1 / -1; }
+.studio-credit-confirm-summary .is-total dt { color:#40664b; }
+.studio-credit-confirm-summary .is-total dd { color:#175b34; font-size:20px; }
+.studio-credit-confirm-rules { color:#53665a; display:grid; font-size:11px; gap:6px; line-height:1.5; margin:0; padding-left:19px; }
+.studio-credit-confirm-check { align-items:flex-start; background:#f9fbf8; border:1px solid #dfe8df; border-radius:11px; color:#394c40; cursor:pointer; display:flex; font-size:12px; gap:10px; line-height:1.5; padding:12px; }
+.studio-credit-confirm-check input { accent-color:#1e5a3c; flex:none; height:18px; margin:1px 0 0; width:18px; }
+.studio-credit-confirm-check strong { color:#1d5a37; }
+.studio-credit-confirm-check a { color:#1a633a; font-weight:800; text-underline-offset:2px; }
+.studio-credit-confirm-payment-note { background:#eef4ef; border-left:3px solid #6e9a78; border-radius:5px; color:#52675a; font-size:11px!important; line-height:1.55!important; margin:0!important; padding:9px 11px; }
+.studio-credit-confirm-modal .studio-credit-modal-actions { align-items:stretch; }
+.studio-credit-confirm-modal .studio-credit-modal-actions button { min-height:44px; }
+.studio-credit-confirm-modal .studio-credit-modal-actions .btn-dark:disabled { cursor:not-allowed; opacity:.52; }
+@media (max-width:520px) {
+  .studio-credit-confirm-backdrop { align-items:flex-end; padding:8px; }
+  .studio-credit-confirm-modal { border-radius:18px 18px 12px 12px; max-height:calc(100dvh - 16px); padding:18px; }
+  .studio-credit-confirm-summary > div { padding:10px; }
+  .studio-credit-confirm-modal .studio-credit-modal-actions { flex-direction:column-reverse; }
+  .studio-credit-confirm-modal .studio-credit-modal-actions button { width:100%; }
+}

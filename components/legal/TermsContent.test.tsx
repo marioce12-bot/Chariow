@@ -16,6 +16,6 @@ describe.each(["fr", "en"] as const)("Shopify terms in %s", language => {
     expect(html).toContain(language === "fr" ? "n’est pas le consentement des acheteurs" : "not buyer consent");
     expect(html).toContain(language === "fr" ? "90 jours" : "90 days");
     expect(html).toContain(language === "fr" ? "48 heures" : "48 hours");
-    expect(html).toContain(language === "fr" ? "import par défaut de 60 jours" : "60-day import");
+    expect(html).toContain(language === "fr" ? "L’import par défaut des 60 derniers jours" : "default import of the last 60 days");
   });
 });

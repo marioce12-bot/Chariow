@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/lib/i18n/i18n";
 import { trackSuccessfulRegistration } from "@/lib/meta-pixel";
 import { normalizeReferralCode } from "@/lib/referrals/rules";
+import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal/versions";
 
 export function Auth({ mode, configurationError = false, successRedirect = "/dashboard" }: { mode: "login" | "register" | "forgot"; configurationError?: boolean; successRedirect?: string }) {
   const { t , locale } = useI18n();
@@ -182,7 +183,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
       const result = forgot
         ? await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password` })
         : register
-          ? await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName, experience_level: experienceLevel, ...(referralCode ? { referral_code: referralCode } : {}) } } })
+          ? await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName, experience_level: experienceLevel, legal_acceptance: { terms_version: TERMS_VERSION, privacy_version: PRIVACY_VERSION, accepted_at: new Date().toISOString() }, ...(referralCode ? { referral_code: referralCode } : {}) } } })
           : await supabase.auth.signInWithPassword({ email, password });
 
       if (result.error) {
@@ -250,7 +251,7 @@ export function Auth({ mode, configurationError = false, successRedirect = "/das
             {register && <div className="form-group"><label htmlFor="experienceLevel">{locale === "en" ? "Your experience with digital products" : "Ton expérience avec les produits digitaux"}</label><select id="experienceLevel" name="experienceLevel" defaultValue="" required><option value="" disabled>{locale === "en" ? "Choose your experience level" : "Choisis ton niveau d’expérience"}</option><option value="beginner">{locale === "en" ? "I am just starting" : "Je débute complètement"}</option><option value="some_experience">{locale === "en" ? "I have some experience" : "J’ai quelques notions"}</option><option value="experienced">{locale === "en" ? "I already have experience" : "J’ai déjà de l’expérience"}</option><option value="expert">{locale === "en" ? "I am experienced and want to manage my business" : "Je suis expérimenté et je veux mieux gérer mon business"}</option></select></div>}
             <div className="form-group"><label htmlFor="email">{t("auth.email")}</label><input id="email" name="email" required type="email" placeholder={t("optionsExtra.text5")} /></div>
             {!forgot && <div className="form-group"><label htmlFor="password">{t("auth.password")}</label><input id="password" name="password" required type="password" placeholder={t("auth.passwordPlaceholder")} minLength={8} /></div>}
-            {register && <label className="legal-consent"><input type="checkbox" name="acceptedLegal" required /><span><ShieldCheck size={14} aria-hidden="true" /> {t("auth.consent")} <Link href="/terms" target="_blank">{t("auth.terms")}</Link> {t("auth.and")} <Link href="/privacy" target="_blank">{t("auth.privacy")}</Link>.</span></label>}
+            {register && <label className="legal-consent"><input type="checkbox" name="acceptedLegal" required /><span><ShieldCheck size={14} aria-hidden="true" /> {t("auth.consent")} <Link href="/terms" target="_blank">{t("auth.terms")}</Link> {t("auth.and")} <Link href="/privacy" target="_blank">{t("auth.privacy")}</Link>. <small>{locale === "en" ? `Draft versions ${TERMS_VERSION} / ${PRIVACY_VERSION}` : `Versions de travail ${TERMS_VERSION} / ${PRIVACY_VERSION}`}</small></span></label>}
             {error && <p className="form-error">{localizeSystemMessage(error, locale)}</p>}
             <button className="btn btn-dark" type="submit" disabled={sendingEmail}>{forgot ? t("auth.sendLink") : register ? t("auth.createSpace") : t("auth.login")} <ArrowRight size={15} /></button>
           </form>

@@ -1,5 +1,7 @@
 "use client";
 
+import { hasMarketingConsent } from "@/lib/legal/cookie-consent";
+
 declare global {
   interface Window {
     fbq?: (...args: unknown[]) => void;
@@ -19,7 +21,7 @@ function getStorage(): Storage | null {
 
 export function trackCompleteRegistration(registrationId: string) {
   const storage = getStorage();
-  if (!storage || typeof window.fbq !== "function") return false;
+  if (!hasMarketingConsent() || !storage || typeof window.fbq !== "function") return false;
 
   const sentKey = `${SENT_KEY_PREFIX}${registrationId}`;
   if (storage.getItem(sentKey) === "1") return true;
@@ -32,7 +34,7 @@ export function trackCompleteRegistration(registrationId: string) {
 
 export function trackSuccessfulRegistration() {
   const storage = getStorage();
-  if (!storage) return;
+  if (!hasMarketingConsent() || !storage) return;
 
   const registrationId = typeof crypto?.randomUUID === "function"
     ? crypto.randomUUID()
@@ -42,6 +44,7 @@ export function trackSuccessfulRegistration() {
 }
 
 export function trackPendingRegistration() {
+  if (!hasMarketingConsent()) return;
   const storage = getStorage();
   const registrationId = storage?.getItem(PENDING_KEY);
   if (registrationId) trackCompleteRegistration(registrationId);
