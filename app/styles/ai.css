@@ -126,6 +126,19 @@ html[data-theme="dark"] .studio-recharge-panel small { color:#9ac3c0; }
 html[data-theme="dark"] .studio-credit-modal { background:#101f45; border-color:#31427a; color:#e7edfb; }
 html[data-theme="dark"] .studio-credit-modal > p { color:#b9c8e8; }
 html[data-theme="dark"] .studio-credit-modal > small { color:#9ac3c0; }
+html[data-theme="dark"] .studio-credit-confirm-modal .eyebrow { color:#8fa8ff; }
+html[data-theme="dark"] .studio-credit-confirm-summary { background:#0b1734; border-color:#31427a; }
+html[data-theme="dark"] .studio-credit-confirm-summary > div { border-color:#31427a; }
+html[data-theme="dark"] .studio-credit-confirm-summary dt { color:#9db4e8; }
+html[data-theme="dark"] .studio-credit-confirm-summary dd { color:#e7edfb; }
+html[data-theme="dark"] .studio-credit-confirm-summary .is-total { background:linear-gradient(135deg,rgba(143,42,251,.2),rgba(2,155,252,.14)); }
+html[data-theme="dark"] .studio-credit-confirm-summary .is-total dt { color:#c4b5fd; }
+html[data-theme="dark"] .studio-credit-confirm-summary .is-total dd { color:#93b8ff; }
+html[data-theme="dark"] .studio-credit-confirm-rules { color:#b9c8e8; }
+html[data-theme="dark"] .studio-credit-confirm-check { background:#0b1734; border-color:#31427a; color:#e7edfb; }
+html[data-theme="dark"] .studio-credit-confirm-check input { accent-color:#8f72ff; }
+html[data-theme="dark"] .studio-credit-confirm-check strong,html[data-theme="dark"] .studio-credit-confirm-check a { color:#c4b5fd; }
+html[data-theme="dark"] .studio-credit-confirm-payment-note { background:#10224a; border-left-color:#029bfc; color:#b9c8e8; }
 .market-radar-confirmation-optout { align-items:flex-start; color:#53665a; cursor:pointer; display:flex; font-size:13px; gap:9px; line-height:1.45; }
 .market-radar-confirmation-optout input { accent-color:#273d91; flex:none; height:16px; margin:2px 0 0; width:16px; }
 html[data-theme="dark"] .market-radar-confirmation-optout { color:#b9c8e8; }

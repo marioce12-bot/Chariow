@@ -73,7 +73,7 @@ export function CreditPurchaseConfirmation({
         <div className="studio-credit-modal-actions">
           <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={submitting}>{en ? "Back" : "Retour"}</button>
           <button type="button" className="btn btn-dark" onClick={onConfirm} disabled={!accepted || submitting || total <= 0}>
-            {submitting ? (en ? "Opening SasPay…" : "Ouverture de SasPay…") : `${en ? "Continue to SasPay" : "Continuer vers SasPay"} · ${format(total)} XOF`}
+            {submitting ? (en ? "Processing payment…" : "Paiement en cours…") : (en ? "Pay" : "Payer")}
           </button>
         </div>
       </section>

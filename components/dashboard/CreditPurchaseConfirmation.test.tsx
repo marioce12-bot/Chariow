@@ -44,6 +44,7 @@ describe("Studio credit purchase confirmation", () => {
     expect(container.textContent).toContain("abonnement actif");
     const checkbox = container.querySelector<HTMLInputElement>(".studio-credit-confirm-check input")!;
     const button = container.querySelector<HTMLButtonElement>(".studio-credit-modal-actions .btn-dark")!;
+    expect(button.textContent).toBe("Payer");
     expect(button.disabled).toBe(true);
     expect(onConfirm).not.toHaveBeenCalled();
     act(() => checkbox.click());
