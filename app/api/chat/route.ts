@@ -10,7 +10,7 @@ import { fetchMetaAccounts } from "@/lib/meta/api";
 import { VITRINE_PROMPT, processVitrineAnswer, wantsVitrine } from "@/lib/shop/chat";
 import { resolveCampaignAnswer, type ChatCatalogProduct } from "@/lib/chariow/chat-product";
 import { campaignManagementContext, resolveCampaignActionProposal, type AssistantCampaign } from "@/lib/chat/campaign-action-proposal";
-import { isAwaitingLaunchConfirmation, isShortLaunchConfirmation, launchConfirmationFallback, parseLaunchPayload, serializeLaunchPayload } from "@/lib/chat/launch-confirmation";
+import { LAUNCH_TAG, isRecapAwaitingApproval, launchConfirmationFallback, parseLaunchPayload, serializeLaunchPayload } from "@/lib/chat/launch-confirmation";
 
 export const maxDuration = 120;
 
@@ -53,11 +53,11 @@ Création de campagne publicitaire (quand l'utilisateur demande de lancer ou cr�
 - Plateforme : le lancement direct depuis ce chat fonctionne pour Meta (Facebook / Instagram) et Pinterest. Si l'utilisateur veut TikTok, dis-lui clairement que le lancement TikTok se fait depuis l'onglet Pub → Lancer une pub → TikTok, et n'utilise PAS la balise [[LANCE_CAMPAGNE]]. N'affirme jamais qu'une campagne a été lancée avant la réponse positive de l'API publicitaire.
 - Une fois toutes les informations réunies (produit identifié, créative et pièce jointe image/vidéo disponibles, pays, audience, tranche d'âge, budget journalier avec devise, durée, plateforme, lien exact résolu du catalogue et bouton d'appel à l'action pour Meta), résume la campagne complète en un seul message et demande une validation explicite avant de lancer. Ne laisse jamais le pays, le budget, sa devise, la durée ou le CTA Meta implicites. Si le produit exact n'est pas identifié sans ambiguïté, demande lequel avant de résumer.
 - Ne lance jamais une campagne sans validation explicite de l'utilisateur (par exemple « oui, lance »).
-- Après le « oui » au récapitulatif final, termine par [[LANCE_CAMPAGNE]] et le JSON. Vendeo ouvre alors une carte de confirmation où l'utilisateur vérifie le compte publicitaire, la page Facebook et les centres d'intérêt, puis appuie sur « Confirmer et lancer ». Dis que la carte est prête et qu'il doit appuyer sur « Confirmer et lancer ». N'écris jamais « je lance », « campagne lancée » ni « campagne mise à jour » : rien n'est lancé avant ce clic.
+- Dès que l'utilisateur approuve le récapitulatif final, quelle que soit la formulation (« oui », « fait le lancement », « c'est bon pour moi »…), termine par [[LANCE_CAMPAGNE]] et le JSON. Vendeo ouvre alors automatiquement une fenêtre (pop-up) de confirmation où l'utilisateur vérifie le compte publicitaire, la page Facebook et les centres d'intérêt, puis appuie sur « Confirmer et lancer ». N'écris jamais « vous allez recevoir une carte » ni « une notification » et n'affirme jamais que la fenêtre est ouverte : c'est l'interface qui l'ouvre, seulement si elle valide le JSON structuré. N'écris jamais « je lance », « campagne lancée » ni « campagne mise à jour » : rien n'est lancé avant ce clic.
 - Si l'utilisateur modifie un paramètre (pays, budget, durée, audience ou autre) après le récapitulatif, résume à nouveau la configuration complète et redemande sa validation avant d'émettre [[LANCE_CAMPAGNE]]. Ne dis jamais que la campagne est mise à jour avant le clic de confirmation.
 - Ne recopie jamais les valeurs techniques brutes dans ta réponse (« Genre : null », « OUTCOME_SALES », JSON des intérêts). Utilise des libellés lisibles, par exemple « Femmes et hommes » et « Ventes ».
-- Ne présente jamais un libellé de centre d’intérêt comme disponible ou valide pour Meta sans preuve qu’il figure parmi les résultats renvoyés par Meta. Tu ne peux pas savoir quels libellés existent chez Meta : ne dis jamais qu’un intérêt est validé; dis seulement que Vendeo vérifiera la correspondance avec Meta dans la carte de confirmation. Les exemples et formulations libres ne sont pas des choix Meta; en cas de doute, recommande de choisir dans les suggestions Meta du parcours de lancement ou de n’appliquer aucun filtre, plutôt que d’inventer ou de valider un libellé.
-- Quand l'utilisateur valide explicitement le lancement, termine TON message par la balise exacte [[LANCE_CAMPAGNE]] suivie IMMÉDIATEMENT, sur la même ligne et sans aucun autre texte autour, d'un objet JSON compact et valide reprenant exactement les informations validées avec ces clés : {"name": string, "objective": "OUTCOME_SALES" | "OUTCOME_TRAFFIC" | "OUTCOME_ENGAGEMENT" | "OUTCOME_LEADS" | "OUTCOME_AWARENESS", "dailyBudget": number (le montant tel que l'utilisateur l'a donné, juste le nombre, sans conversion), "currency": string (code ISO de la devise du budget : "XOF", "EUR" ou "USD"), "countries": string[] (codes pays ISO à 2 lettres), "ageMin": number, "ageMax": number, "gender": "male" | "female" | null (Meta uniquement, null pour tous/ne pas filtrer), "interests": string[] (5 libellés au plus, courts, 1 à 3 mots, explicitement souhaités par l’utilisateur; Vendeo les fait correspondre aux centres d’intérêt Meta avant le lancement; [] si aucun), "message": string (texte final de la créative), "headline": string, "linkUrl": string|null (URL exacte du catalogue pour le produit identifié, ou lien personnalisé explicitement fourni par l'utilisateur), "durationDays": number, "platform": "meta" | "pinterest", "callToAction": "SHOP_NOW" | "BUY_NOW" | "ORDER_NOW" | "LEARN_MORE" | "GET_OFFER" | "CONTACT_US" | null, "storeId": string|null, "productId": string|null, "productName": string|null, "storeName": string|null}. Reprends storeId/productId/productName/storeName depuis le catalogue exact, même si l'utilisateur n'a donné que le nom du produit. Pour Pinterest ou en l’absence de ciblage, renseigne gender:null et interests:[] ; pour les autres informations absentes, mets null ; n'invente jamais de chiffre ni de lien. N'écris rien après ce JSON.`;
+- Ne présente jamais un libellé de centre d’intérêt comme disponible ou valide pour Meta sans preuve qu’il figure parmi les résultats renvoyés par Meta. Tu ne peux pas savoir quels libellés existent chez Meta : ne dis jamais qu’un intérêt est validé; dis seulement que Vendeo vérifiera la correspondance avec Meta dans la fenêtre de confirmation. Les exemples et formulations libres ne sont pas des choix Meta; en cas de doute, recommande de choisir dans les suggestions Meta du parcours de lancement ou de n’appliquer aucun filtre, plutôt que d’inventer ou de valider un libellé.
+- Quand l'utilisateur valide explicitement le lancement, termine TON message par la balise exacte [[LANCE_CAMPAGNE]] suivie IMMÉDIATEMENT, sur la même ligne et sans aucun autre texte autour, d'un objet JSON compact et valide reprenant exactement les informations validées avec ces clés : {"name": string, "objective": "OUTCOME_SALES" | "OUTCOME_TRAFFIC" | "OUTCOME_ENGAGEMENT" | "OUTCOME_LEADS" | "OUTCOME_AWARENESS", "dailyBudget": number (le montant tel que l'utilisateur l'a donné, juste le nombre, sans conversion), "currency": string (code ISO de la devise du budget : "XOF", "EUR" ou "USD"), "countries": string[] (codes pays ISO à 2 lettres), "ageMin": number, "ageMax": number, "gender": "male" | "female" | null (Meta uniquement, null pour tous/ne pas filtrer), "interests": string[] (MAXIMUM 5 libellés, jamais plus : garde les 5 plus pertinents, courts, 1 à 3 mots, explicitement souhaités par l’utilisateur; Vendeo les fait correspondre aux centres d’intérêt Meta avant le lancement; [] si aucun), "message": string (texte final de la créative), "headline": string, "linkUrl": string|null (URL exacte du catalogue pour le produit identifié, ou lien personnalisé explicitement fourni par l'utilisateur), "durationDays": number, "platform": "meta" | "pinterest", "callToAction": "SHOP_NOW" | "BUY_NOW" | "ORDER_NOW" | "LEARN_MORE" | "GET_OFFER" | "CONTACT_US" | null, "storeId": string|null, "productId": string|null, "productName": string|null, "storeName": string|null}. Reprends storeId/productId/productName/storeName depuis le catalogue exact, même si l'utilisateur n'a donné que le nom du produit. Pour Pinterest ou en l’absence de ciblage, renseigne gender:null et interests:[] ; pour les autres informations absentes, mets null ; n'invente jamais de chiffre ni de lien. N'écris rien après ce JSON.`;
 
 export async function GET() {
   const { supabase, user, response } = await requireUser();
@@ -146,7 +146,9 @@ export async function POST(request: Request) {
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
     .limit(20);
-  const structuredLaunchConfirmation = isShortLaunchConfirmation(message) && isAwaitingLaunchConfirmation(previousHistory ?? []);
+  // Un récapitulatif de campagne attend la réponse de l'utilisateur : on ne filtre plus
+  // sur des phrases d'approbation fixes, c'est le modèle qui juge le sens du message.
+  const recapAwaitingApproval = isRecapAwaitingApproval(previousHistory ?? []);
 
   const { data: quota, error: quotaError } = await supabase.rpc("consume_message_quota", { target_user_id: user.id });
   if (quotaError) return NextResponse.json({ error: quotaError.message }, { status: 500 });
@@ -339,8 +341,7 @@ export async function POST(request: Request) {
   // pour qu'elles ne fassent pas tronquer le contexte boutique (qui vient après le prompt).
   const includeVitrine = wantsVitrine([message, ...(previousHistory ?? []).filter((item) => item.role === "user").slice(0, 6).map((item) => String(item.content ?? ""))]);
   const shopifyOnly = Boolean(stores?.length) && (stores ?? []).every((store) => store.platform === "shopify");
-  const platformPrompt = (shopifyOnly ? VENDEO_SYSTEM_PROMPT.replace(/Chariow/gi, "Shopify") : VENDEO_SYSTEM_PROMPT)
-    .replace("Dis que la carte est prête et qu'il doit appuyer sur « Confirmer et lancer ».", "N'affirme jamais que la carte est prête ou ouverte : la carte n'existe que si l'interface reçoit et valide le JSON structuré.");
+  const platformPrompt = shopifyOnly ? VENDEO_SYSTEM_PROMPT.replace(/Chariow/gi, "Shopify") : VENDEO_SYSTEM_PROMPT;
   const systemPrompt = includeVitrine ? `${platformPrompt}\n\n${VITRINE_PROMPT}` : platformPrompt;
   const rawSystemContent = `${systemPrompt}\n\nContexte actuel :\n${safeContext}${documentsContext}`;
   const baseSystemCap = includeVitrine ? MAX_SYSTEM_CONTENT_CHARS + VITRINE_PROMPT.length + 2 : MAX_SYSTEM_CONTENT_CHARS;
@@ -352,8 +353,8 @@ export async function POST(request: Request) {
     .eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
   const assistantCampaigns: AssistantCampaign[] = managedCampaignError ? [] : (managedCampaigns ?? []);
   const launchFailureContext = launchFailureNote ? `\nMémoire de lancement : ${launchFailureNote}` : "";
-  const launchConfirmationInstruction = structuredLaunchConfirmation
-    ? `\n\nConfirmation brève après un récapitulatif de campagne : l'utilisateur vient de confirmer. N'écris pas de phrase libre affirmant qu'une carte est prête ou ouverte. Si et seulement si l'historique contient toutes les données requises et cohérentes, réponds uniquement avec [[LANCE_CAMPAGNE]] suivi immédiatement du JSON complet prévu par le schéma de lancement. Si une donnée requise manque ou est ambiguë, réponds par une courte demande de précision sur les détails du récapitulatif et n'émets aucun marqueur.`
+  const launchConfirmationInstruction = recapAwaitingApproval
+    ? `\n\nUn récapitulatif de campagne vient d'être présenté et attend la réponse de l'utilisateur. Juge le SENS de son dernier message, quelle que soit la formulation, la langue ou les fautes. S'il approuve le récapitulatif (même par une phrase libre comme « fait le lancement »), n'écris aucune phrase libre : réponds uniquement avec [[LANCE_CAMPAGNE]] suivi immédiatement du JSON complet prévu par le schéma de lancement, si l'historique contient toutes les données requises et cohérentes (5 centres d'intérêt au maximum). S'il modifie un paramètre, résume à nouveau la configuration complète et redemande sa validation sans émettre de marqueur. S'il pose une question ou exprime un doute, réponds-y sans émettre de marqueur. Si une donnée requise manque ou est ambiguë, pose une courte question de précision sans marqueur. En cas de doute réel sur l'approbation, demande une courte confirmation. N'affirme jamais qu'une fenêtre ou une carte est prête ou ouverte.`
     : "";
   const connectionContext = (storeConnections ?? []).map((store) => `${store.store_name} (${store.platform}) : ${store.is_active ? store.connection_status ?? "pending" : "inactive"}`).join("; ");
   const unavailableStoreContext = connectionContext
@@ -440,7 +441,10 @@ export async function POST(request: Request) {
     imageUrls: vitrineImageUrls,
     hasPriorAssistantTurn: (previousHistory ?? []).some((item) => item.role === "assistant"),
   });
-  if (structuredLaunchConfirmation) {
+  // Toute réponse qui contient le tag de lancement est validée côté serveur, quel que soit le
+  // message de l'utilisateur : un JSON valide est re-sérialisé proprement, un JSON invalide est
+  // remplacé par un message clair (jamais de tag brut enregistré, qui n'ouvrirait aucune pop-up).
+  if (answer.includes(LAUNCH_TAG)) {
     const payload = parseLaunchPayload(answer);
     answer = payload ? serializeLaunchPayload(payload) : launchConfirmationFallback(body?.locale === "en" ? "en" : "fr");
   }
