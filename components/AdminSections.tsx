@@ -20,7 +20,6 @@ import {
 import { useI18n } from "@/lib/i18n/i18n";
 import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 import { ActiveSubscriptionsCard, AdminUserHistory } from "./AdminBillingActivity";
-import { AdminCampaignAccounts } from "./AdminCampaignAccounts";
 export type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 import "./admin-user-credits.css";
 
@@ -377,7 +376,6 @@ export function UsersSection({
   }
   return (
     <>
-      <AdminCampaignAccounts />
       <section className="admin-card admin-users">
         <div className="admin-card-head">
           <h3>

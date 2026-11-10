@@ -38,19 +38,3 @@
   .admin-active-row > button { grid-column: 2; grid-row: 3 / span 2; align-self: center; }
   .admin-history-event { padding: 11px; }
 }
-
-.admin-campaign-accounts { margin-bottom: 18px; }
-.admin-campaign-account-search { display: flex; align-items: center; gap: 8px; max-width: 460px; margin: 10px 0 14px; color: #64748b; }
-.admin-campaign-account-search input { width: 100%; min-width: 0; }
-.admin-campaign-account-list { display: grid; gap: 8px; }
-.admin-campaign-account-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 12px; border: 1px solid var(--line, #e8e8ef); border-radius: 11px; }
-.admin-campaign-account-identity { min-width: 0; display: grid; gap: 3px; }
-.admin-campaign-account-identity strong,
-.admin-campaign-account-identity small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.admin-campaign-account-identity small { color: #64748b; font-size: 11px; }
-.admin-campaign-count { flex: 0 0 auto; text-align: right; }
-.admin-campaign-count span { color: #64748b; font-size: 12px; font-weight: 500; }
-@media (max-width: 560px) {
-  .admin-campaign-account-row { align-items: flex-start; flex-direction: column; gap: 7px; }
-  .admin-campaign-count { text-align: left; }
-}
