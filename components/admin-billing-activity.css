@@ -1,0 +1,56 @@
+.admin-user-history,
+.admin-active-subscriptions { margin-bottom: 18px; }
+.admin-user-history .admin-card-head h3,
+.admin-active-subscriptions .admin-card-head h3 { display: flex; align-items: center; gap: 8px; }
+.admin-history-close { flex: 0 0 auto; }
+.admin-history-list { display: grid; gap: 9px; }
+.admin-history-event { min-width: 0; padding: 12px 14px; border: 1px solid var(--line, #e8e8ef); border-radius: 12px; background: var(--surface, #fff); }
+.admin-history-event-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.admin-history-event > time { display: block; margin-top: 5px; color: #64748b; font-size: 12px; }
+.admin-history-facts { display: flex; gap: 7px 14px; flex-wrap: wrap; margin-top: 9px; font-size: 13px; }
+.admin-history-reference,
+.admin-history-note,
+.admin-history-author { margin: 7px 0 0; color: #596579; font-size: 12px; overflow-wrap: anywhere; }
+.admin-history-reference code { font-size: 11px; }
+.admin-history-error { color: #a32222; }
+.admin-history-error button { margin-left: 8px; }
+.admin-history-loading { display: flex; align-items: center; gap: 8px; color: #64748b; }
+.admin-history-spin { animation: admin-history-rotate 1s linear infinite; }
+.admin-history-more { margin-top: 12px; }
+.admin-history-limit { margin: 10px 0 0; color: #64748b; font-size: 12px; }
+.admin-active-search { display: flex; align-items: center; gap: 8px; max-width: 460px; margin: 10px 0 14px; color: #64748b; }
+.admin-active-search input { width: 100%; min-width: 0; }
+.admin-active-list { display: grid; gap: 8px; }
+.admin-active-row { display: grid; grid-template-columns: minmax(150px, 1.5fr) minmax(70px, .5fr) auto minmax(130px, 1fr) auto; align-items: center; gap: 12px; padding: 11px 12px; border: 1px solid var(--line, #e8e8ef); border-radius: 11px; }
+.admin-active-identity { min-width: 0; display: grid; gap: 3px; }
+.admin-active-identity strong,
+.admin-active-identity small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-active-identity small,
+.admin-active-end { color: #64748b; font-size: 11px; }
+.admin-active-plan { font-size: 13px; }
+@keyframes admin-history-rotate { to { transform: rotate(360deg); } }
+@media (max-width: 720px) {
+  .admin-active-row { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 7px 12px; }
+  .admin-active-identity { grid-column: 1 / -1; }
+  .admin-active-plan { grid-column: 1; }
+  .admin-active-row .admin-status { justify-self: end; }
+  .admin-active-end { grid-column: 1; }
+  .admin-active-row > button { grid-column: 2; grid-row: 3 / span 2; align-self: center; }
+  .admin-history-event { padding: 11px; }
+}
+
+.admin-campaign-accounts { margin-bottom: 18px; }
+.admin-campaign-account-search { display: flex; align-items: center; gap: 8px; max-width: 460px; margin: 10px 0 14px; color: #64748b; }
+.admin-campaign-account-search input { width: 100%; min-width: 0; }
+.admin-campaign-account-list { display: grid; gap: 8px; }
+.admin-campaign-account-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 12px; border: 1px solid var(--line, #e8e8ef); border-radius: 11px; }
+.admin-campaign-account-identity { min-width: 0; display: grid; gap: 3px; }
+.admin-campaign-account-identity strong,
+.admin-campaign-account-identity small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-campaign-account-identity small { color: #64748b; font-size: 11px; }
+.admin-campaign-count { flex: 0 0 auto; text-align: right; }
+.admin-campaign-count span { color: #64748b; font-size: 12px; font-weight: 500; }
+@media (max-width: 560px) {
+  .admin-campaign-account-row { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .admin-campaign-count { text-align: left; }
+}

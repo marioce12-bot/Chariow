@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n";
 import type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
+import { ActiveSubscriptionsCard, AdminUserHistory } from "./AdminBillingActivity";
+import { AdminCampaignAccounts } from "./AdminCampaignAccounts";
 export type { AdminData, UsageStats } from "@/lib/admin-dashboard-types";
 import "./admin-user-credits.css";
 
@@ -219,6 +221,7 @@ export function UsersSection({
   const [grantCredits, setGrantCredits] = useState("500");
   const [grantReason, setGrantReason] = useState("");
   const [message, setMessage] = useState("");
+  const [historyUser, setHistoryUser] = useState<AdminData["users"][number] | null>(null);
   const modalId = useId();
   const modalRef = useRef<HTMLElement>(null);
   const grantTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -374,6 +377,7 @@ export function UsersSection({
   }
   return (
     <>
+      <AdminCampaignAccounts />
       <section className="admin-card admin-users">
         <div className="admin-card-head">
           <h3>
@@ -468,6 +472,13 @@ export function UsersSection({
                       ? "Grant credits"
                       : "Attribuer des crédits"}
                   </button>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-soft"
+                    onClick={() => setHistoryUser(u)}
+                  >
+                    {locale === "en" ? "History" : "Historique"}
+                  </button>
                 </span>
               </div>
             ))}
@@ -482,6 +493,14 @@ export function UsersSection({
           />
         )}
       </section>
+      {historyUser && (
+        <AdminUserHistory
+          key={historyUser.id}
+          userId={historyUser.id}
+          userName={historyUser.full_name || historyUser.email || historyUser.id}
+          onClose={() => setHistoryUser(null)}
+        />
+      )}
       {grantUser && typeof document !== "undefined" && createPortal(
         <div className="admin-grant-backdrop" onMouseDown={(event) => {
           if (event.target === event.currentTarget && busy === null) setGrantUser(null);
@@ -615,6 +634,8 @@ export function SubscriptionsSection({
     }
   }
   return (
+    <>
+    <ActiveSubscriptionsCard />
     <section className="admin-card admin-subscriptions">
       <div className="admin-card-head">
         <h3>{locale === "en" ? "Subscriptions" : "Abonnements"}</h3>
@@ -684,6 +705,7 @@ export function SubscriptionsSection({
       )}
       {message && <p role="status">{message}</p>}
     </section>
+    </>
   );
 }
 
