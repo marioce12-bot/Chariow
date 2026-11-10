@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
-  const { admin, response } = await requireAdmin(["super_admin"]);
+  const { admin, user, response } = await requireAdmin(["super_admin"]);
   if (!admin) return response ?? NextResponse.json({ error: "Accès super administrateur requis" }, { status: 403 });
   try {
     const body = await request.json().catch(() => ({}));
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       throw result.error;
     }
     const payload = result.data as { ok?: boolean; balance?: number };
-    await service.rpc("write_platform_audit", { target_user_id: null, action_name: "admin_credits_granted", resource_name: "credit_account", resource_key: userId, metadata_value: { credits, reason, grant_id: grantId } });
+    await service.rpc("write_platform_audit", { target_user_id: user?.id ?? null, action_name: "admin_credits_granted", resource_name: "credit_account", resource_key: userId, metadata_value: { credits, reason, grant_id: grantId } });
     return NextResponse.json({ ok: true, balance: payload.balance ?? 0 });
   } catch (error) {
     console.error("Admin credit grant error", error instanceof Error ? error.message : error);
