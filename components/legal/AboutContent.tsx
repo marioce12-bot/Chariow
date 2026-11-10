@@ -15,7 +15,7 @@ export default function AboutContent() {
       intro={t("sweep2.text1")}
       variant="about"
       eyebrow="Vendeo"
-      subtitle="Digital store global"
+      subtitle="RISHMTC"
       homeLabel={t("sweep1.text0")}
     >
       <section aria-labelledby="about-features-title">

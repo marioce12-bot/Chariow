@@ -3,9 +3,10 @@ import type {Locale} from './locales';
 const rows = [
   ["sweep2.text1", "Vendeo est une plateforme SaaS qui aide les vendeurs et créateurs de produits digitaux à mesurer la rentabilité réelle de leurs publicités et à piloter leur activité depuis un seul endroit.", "Vendeo is a SaaS platform that helps sellers and digital product creators measure the true profitability of their ads and manage their business from one place."],
   ["sweep2.text4", "Compare les dépenses publicitaires aux ventes réellement encaissées pour calculer le retour sur investissement réel.", "Compare advertising spend with sales actually collected to calculate the true return on investment."],
-  ["sweep2.text7", "Aider les vendeurs en ligne à savoir où leur budget publicitaire produit réellement du revenu, au lieu de se fier uniquement aux chiffres déclarés par les plateformes.", "Help online sellers see where their advertising budget is actually generating revenue, instead of relying solely on figures reported by platforms."],
+  ["sweep2.text7", "Aider les créateurs de produits digitaux à mieux gérer leur activité depuis une seule plateforme.", "Help digital product creators manage their business more effectively from a single platform."],
   ["sweep2.text10", "Retour à la politique de confidentialité", "Back to the Privacy Policy"],
   ["sweep2.text13", "Vous pouvez demander la suppression de votre compte Vendeo et des données personnelles associées à tout moment.", "You may request the deletion of your Vendeo account and associated personal data at any time."],
+  ["sweep2.text16", "Données concernées", "Data concerned"],
   ["sweep2.text16", "Données concernées", "Data concerned"],
   ["sweep2.text19", "les connexions Chariow et Meta ainsi que leurs jetons d’accès chiffrés ;", "Chariow and Meta connections and their encrypted access tokens;"],
   ["sweep2.text22", "Délai et exceptions", "Timeframe and exceptions"],
