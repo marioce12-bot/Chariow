@@ -106,6 +106,35 @@ const referralsPayload = {
 let container: HTMLDivElement;
 let root: Root;
 let fetchMock: ReturnType<typeof vi.fn>;
+const eventSources: MockEventSource[] = [];
+
+class MockEventSource {
+  private listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
+  readonly close = vi.fn();
+
+  constructor(readonly url: string) {
+    eventSources.push(this);
+  }
+
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+    const listeners = this.listeners.get(type) ?? new Set();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  emit(type: string, data: string) {
+    const event = new MessageEvent(type, { data });
+    this.listeners.get(type)?.forEach((listener) => {
+      if (typeof listener === "function") listener(event);
+      else listener.handleEvent(event);
+    });
+  }
+}
+
 async function settle() {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -131,6 +160,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  eventSources.length = 0;
   vi.unstubAllGlobals();
 });
 async function renderDashboard() {
@@ -158,6 +188,36 @@ describe("tableau de bord propriétaire", () => {
     expect(container.textContent).not.toMatch(
       /SECRET_SHOP_NAME|shop-secret|SECRET_STORE_TOKEN|SECRET_META_NAME|SECRET_META_TOKEN|meta-secret/,
     );
+  });
+
+  it("conserve le polling de secours de 60 secondes jusqu’au test Realtime en production", async () => {
+    const interval = vi.spyOn(window, "setInterval");
+    try {
+      await renderDashboard();
+      expect(interval).toHaveBeenCalledWith(expect.any(Function), 60_000);
+    } finally {
+      interval.mockRestore();
+    }
+  });
+
+  it("actualise les données ciblées après un signal SSE allowlisté", async () => {
+    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+    await renderDashboard();
+    expect(eventSources).toHaveLength(1);
+    expect(eventSources[0].url).toBe("/api/admin/events");
+    const overviewCount = () => fetchMock.mock.calls.filter(([url]) => String(url) === "/api/admin/overview").length;
+    const usageCount = () => fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/admin/usage")).length;
+    expect(overviewCount()).toBe(1);
+    expect(usageCount()).toBe(1);
+
+    await act(async () => {
+      eventSources[0].emit("admin-data-changed", JSON.stringify({ scope: "signup" }));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+
+    expect(overviewCount()).toBe(2);
+    expect(usageCount()).toBe(2);
+    expect(window.location.pathname).not.toBe("/admin/login");
   });
 
   it("n’invente pas d’utilisateurs actifs si Usage répond en erreur", async () => {

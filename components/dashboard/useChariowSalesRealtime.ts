@@ -9,7 +9,7 @@ import type { NavigationCache } from "./NavigationDataCache";
 export function subscribeChariowSales(client: SupabaseClient, storeId: string, userId: string, onSale: () => void) {
   let active = true;
   const seen = new Set<string>();
-  const channel = client.channel(`sales-events:${storeId}`)
+  const channel = client.channel(`sales-events:${storeId}`, { config: { private: true } })
     .on("postgres_changes", {
       event: "INSERT",
       schema: "public",

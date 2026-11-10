@@ -5,11 +5,13 @@ import { subscribeUserNotifications } from "./realtime";
 describe("subscribeUserNotifications", () => {
   it("uses a distinct channel per subscriber and registers callbacks before subscribing", () => {
     const topics: string[] = [];
+    const configs: unknown[] = [];
     const on = vi.fn();
     const subscribe = vi.fn();
     const client = {
-      channel: vi.fn((topic: string) => {
+      channel: vi.fn((topic: string, config?: unknown) => {
         topics.push(topic);
+        configs.push(config);
         let subscribed = false;
         const channel: any = {
           on: (...args: unknown[]) => {
@@ -34,6 +36,7 @@ describe("subscribeUserNotifications", () => {
     expect(topics).toHaveLength(2);
     expect(new Set(topics).size).toBe(2);
     expect(topics.every((topic) => topic.startsWith("user-notifications:user-123:"))).toBe(true);
+    expect(configs).toEqual([{ config: { private: true } }, { config: { private: true } }]);
     expect(on).toHaveBeenCalledTimes(2);
     expect(subscribe).toHaveBeenCalledTimes(2);
 

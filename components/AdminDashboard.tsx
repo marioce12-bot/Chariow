@@ -64,7 +64,7 @@ export function AdminDashboard() {
   const overviewRequest = useRef(0);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
-  async function loadUsage(days: number) {
+  const loadUsage = useCallback(async (days: number) => {
     const request = ++usageRequest.current;
     setUsageLoading(true);
     setUsageError("");
@@ -80,7 +80,7 @@ export function AdminDashboard() {
     } finally {
       if (request === usageRequest.current) setUsageLoading(false);
     }
-  }
+  }, []);
   const load = useCallback(async () => {
     const request = ++overviewRequest.current;
     setLoading(true);
@@ -117,6 +117,7 @@ export function AdminDashboard() {
       lastRefresh = now;
       setRefreshRevision((value) => value + 1);
       void load();
+      void loadUsage(usageDays);
     };
     const timer = window.setInterval(refreshVisibleAdmin, 60_000);
     window.addEventListener("focus", refreshVisibleAdmin);
@@ -126,7 +127,49 @@ export function AdminDashboard() {
       window.removeEventListener("focus", refreshVisibleAdmin);
       document.removeEventListener("visibilitychange", refreshVisibleAdmin);
     };
-  }, [load]);
+  }, [load, loadUsage, usageDays]);
+  useEffect(() => {
+    if (typeof EventSource === "undefined") return;
+    const source = new EventSource("/api/admin/events");
+    let debounceTimer: number | null = null;
+    let pendingUsageRefresh = false;
+    const refresh = (includeUsage: boolean) => {
+      if (document.visibilityState !== "visible") return;
+      pendingUsageRefresh = pendingUsageRefresh || includeUsage;
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        debounceTimer = null;
+        setRefreshRevision((value) => value + 1);
+        void load();
+        if (pendingUsageRefresh) void loadUsage(usageDays);
+        pendingUsageRefresh = false;
+      }, 250);
+    };
+    const onDataChanged = (message: MessageEvent<string>) => {
+      let scope: unknown;
+      try {
+        scope = (JSON.parse(message.data) as { scope?: unknown }).scope;
+      } catch {
+        return;
+      }
+      if (typeof scope !== "string") return;
+      if (!["signup", "billing", "credits", "campaigns", "referrals", "payouts"].includes(scope)) return;
+      refresh(scope === "signup");
+    };
+    const onReady = () => {
+      // Reconcile once after the initial subscription and after every reconnect
+      // so a change during a dropped connection cannot leave the page stale.
+      refresh(true);
+    };
+    source.addEventListener("admin-data-changed", onDataChanged as EventListener);
+    source.addEventListener("ready", onReady);
+    return () => {
+      if (debounceTimer !== null) window.clearTimeout(debounceTimer);
+      source.removeEventListener("admin-data-changed", onDataChanged as EventListener);
+      source.removeEventListener("ready", onReady);
+      source.close();
+    };
+  }, [load, loadUsage, usageDays]);
   useEffect(() => {
     void loadUsage(usageDays);
     return () => {

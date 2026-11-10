@@ -42,7 +42,7 @@ export function watchStudioGeneration({ filter, onChange, onError }: WatchOption
     if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       client = createClient();
       channel = client
-        .channel(`studio-generation:${filter.slice(0, 120)}`)
+        .channel(`studio-generation:${filter.slice(0, 120)}`, { config: { private: true } })
         .on(
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "studio_generations", filter },
