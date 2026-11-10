@@ -28,7 +28,58 @@ describe("admin SaaS revenue UI", () => {
     expect(container.textContent).toContain("Tout l’historique enregistré");
     for (const removed of ["UTC", "Sources", "paiement(s)", "Un zéro", "payment_events", "MRR"]) expect(container.textContent).not.toContain(removed);
     expect(container.querySelectorAll(".admin-revenue-grid article")).toHaveLength(3);
-    expect(container.querySelector('svg[role="img"]')).not.toBeNull();
+    expect(container.querySelector('svg[role="group"]')).not.toBeNull();
+    expect(container.querySelectorAll(".admin-revenue-chart-bar")).toHaveLength(1);
+    expect(container.querySelector(".admin-revenue-chart-line")).toBeNull();
+    expect(container.querySelector("details summary")?.textContent).toBe("Voir les revenus par jour");
+  });
+  it("shows exact date and XOF breakdown when a chart point receives keyboard or touch focus", async () => {
+    mocks.fetchAdminJson.mockResolvedValue({ revenue: summary }); await render();
+    const point = container.querySelector<SVGRectElement>(".admin-revenue-chart-bar")!;
+    expect(point.getAttribute("aria-label")).toContain("20/09/2026");
+    expect(point.getAttribute("aria-label")).toContain("800 XOF");
+    await act(async () => point.focus());
+    const detail = container.querySelector(".admin-revenue-chart-detail")!;
+    expect(detail.textContent).toContain("20/09/2026");
+    expect(detail.textContent).toContain("800 XOF");
+    expect(detail.textContent).toContain("Abonnements0 XOF");
+    expect(detail.textContent).toContain("Recharges Studio800 XOF");
+  });
+  it("opens the exact daily amount with a tap/click on a chart point", async () => {
+    mocks.fetchAdminJson.mockResolvedValue({ revenue: summary }); await render();
+    const point = container.querySelector<SVGRectElement>(".admin-revenue-chart-bar")!;
+    await act(async () => point.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(container.querySelector(".admin-revenue-chart-detail")?.textContent).toContain("800 XOF");
+  });
+  it("offers an explicitly labelled logarithmic view for small daily amounts alongside a large peak", async () => {
+    const peaked = { ...summary, series: [
+      { date: "2026-10-01", subscriptions: 0, studio: 0, total: 0 },
+      { date: "2026-10-02", subscriptions: 100, studio: 0, total: 100 },
+      { date: "2026-10-03", subscriptions: 100, studio: 20, total: 120 },
+      { date: "2026-10-04", subscriptions: 0, studio: 10000, total: 10000 },
+    ] };
+    mocks.fetchAdminJson.mockResolvedValue({ revenue: peaked }); await render();
+    expect(container.textContent).toContain("Revenus enregistrés (XOF)");
+    expect(container.textContent).toContain("Linéaire · départ à 0 XOF");
+    const bars = [...container.querySelectorAll<SVGRectElement>(".admin-revenue-chart-bar")];
+    const linearSmallGap = Math.abs(Number(bars[2].getAttribute("y")) - Number(bars[1].getAttribute("y")));
+    const logButton = [...container.querySelectorAll("button")].find(button => button.textContent === "Mieux voir les petits montants")!;
+    await act(async () => logButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(container.textContent).toContain("Échelle logarithmique · les espacements ne sont pas proportionnels");
+    expect(container.querySelector(".admin-revenue-chart-modes button[aria-pressed='true']")?.textContent).toBe("Mieux voir les petits montants");
+    expect([...container.querySelectorAll(".admin-revenue-chart-y-label")].map(node => node.textContent)).not.toContain("0");
+    const logSmallGap = Math.abs(Number(bars[2].getAttribute("y")) - Number(bars[1].getAttribute("y")));
+    expect(logSmallGap).toBeGreaterThan(linearSmallGap);
+    await act(async () => bars[0].focus());
+    expect(container.querySelector(".admin-revenue-chart-detail")?.textContent).toContain("Aucun revenu enregistré ce jour-là");
+  });
+  it("does not draw an all-zero chart or invent a zero-scale total", async () => {
+    mocks.fetchAdminJson.mockResolvedValue({ revenue: { ...summary, total: 0, studio: 0, studioPayments: 0, series: [
+      { date: "2026-10-17", subscriptions: 0, studio: 0, total: 0 },
+      { date: "2026-10-18", subscriptions: 0, studio: 0, total: 0 },
+    ] } }); await render();
+    expect(container.querySelector("svg")).toBeNull();
+    expect(container.textContent).toContain("Aucun revenu enregistré sur cette période : il n’y a pas de graphique à barres à afficher.");
     expect(container.querySelector("details summary")?.textContent).toBe("Voir les revenus par jour");
   });
   it("supports English controls, categories, chart and localized dates without removed text", async () => {

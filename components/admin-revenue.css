@@ -19,9 +19,34 @@
 .admin-revenue-table-scroll { overflow: auto; max-height: 360px; }
 .admin-revenue-table-scroll table { width: 100%; font-size: .8rem; border-collapse: collapse; }
 .admin-revenue-table-scroll th, .admin-revenue-table-scroll td { text-align: start; padding: 10px; white-space: nowrap; border-bottom: 1px solid var(--border, #ddd); }
+.admin-revenue-chart-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.admin-revenue-chart-unit { margin: 0; color: var(--muted, #64748b); font-size: .82rem; font-weight: 650; }
+.admin-revenue-chart-modes { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-revenue-chart-modes button { min-height: 40px; padding: 8px 12px; border: 1px solid var(--border, #cbd5e1); border-radius: 999px; background: var(--bg-card, #fff); color: inherit; font: inherit; font-size: .78rem; cursor: pointer; }
+.admin-revenue-chart-modes button.active, .admin-revenue-chart-modes button[aria-pressed="true"] { border-color: #6d4aff; background: #f2efff; color: #4b2fc4; font-weight: 700; }
+.admin-revenue-chart-scale-note { margin: 8px 0 0; color: var(--muted, #64748b); font-size: .78rem; line-height: 1.5; }
+.admin-revenue-chart-wrap { width: 100%; max-width: 100%; min-width: 0; margin-top: 6px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; }
+.admin-revenue-chart-wrap svg { display: block; min-width: 720px; height: 280px; overflow: visible; color: #6d4aff; }
+.admin-revenue-chart-grid { stroke: currentColor; stroke-width: 1; opacity: .15; vector-effect: non-scaling-stroke; }
+.admin-revenue-chart-y-label, .admin-revenue-chart-x-label { fill: #64748b; font-size: 12px; font-family: inherit; }
+.admin-revenue-chart-baseline { stroke: currentColor; stroke-width: 1.25; opacity: .4; vector-effect: non-scaling-stroke; }
+.admin-revenue-chart-bar { fill: currentColor; opacity: .82; cursor: pointer; vector-effect: non-scaling-stroke; }
+.admin-revenue-chart-bar.zero { opacity: .42; }
+.admin-revenue-chart-bar:hover, .admin-revenue-chart-bar:focus-visible, .admin-revenue-chart-bar.active { fill: #a78bfa; opacity: 1; outline: none; }
+.admin-revenue-chart-detail { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; min-height: 42px; margin-top: 4px; padding: 10px 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 10px; background: var(--bg-card, #fff); font-size: .82rem; }
+.admin-revenue-chart-detail strong { margin-inline-end: auto; }
+.admin-revenue-chart-detail span { display: inline-flex; gap: 6px; align-items: baseline; }
+.admin-revenue-chart-detail b { color: #334155; font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) {
   .admin-revenue-grid { grid-template-columns: 1fr; gap: 10px; }
   .admin-revenue-period { align-items: stretch; }
   .admin-revenue-period label { flex: 1 1 100%; }
   .admin-revenue-period button { width: 100%; justify-content: center; }
+  .admin-revenue-chart-controls { align-items: stretch; }
+  .admin-revenue-chart-modes { width: 100%; }
+  .admin-revenue-chart-modes button { flex: 1 1 140px; }
+  .admin-revenue-chart-wrap svg { height: 280px; }
+  .admin-revenue-chart-y-label, .admin-revenue-chart-x-label { font-size: 11px; }
+  .admin-revenue-chart-detail { align-items: flex-start; gap: 8px 12px; }
+  .admin-revenue-chart-detail strong { flex-basis: 100%; }
 }
