@@ -160,9 +160,11 @@ export function AdminUserHistory({
 export function ActiveSubscriptionsCard() {
   const { locale } = useI18n();
   const en = locale === "en";
-  const [subscriptions, setSubscriptions] = useState<ActiveSubscription[]>([]);
+  const [paidSubscriptions, setPaidSubscriptions] = useState<ActiveSubscription[]>([]);
+  const [trialSubscriptions, setTrialSubscriptions] = useState<ActiveSubscription[]>([]);
   const [selected, setSelected] = useState<ActiveSubscription | null>(null);
-  const [query, setQuery] = useState("");
+  const [paidQuery, setPaidQuery] = useState("");
+  const [trialQuery, setTrialQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -174,43 +176,53 @@ export function ActiveSubscriptionsCard() {
     void fetch("/api/admin/subscriptions", { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !Array.isArray(payload.subscriptions)) throw new Error("load");
-        return payload.subscriptions as ActiveSubscription[];
+        if (!response.ok || !Array.isArray(payload.paid_subscriptions) || !Array.isArray(payload.trial_subscriptions)) throw new Error("load");
+        return {
+          paid: payload.paid_subscriptions as ActiveSubscription[],
+          trials: payload.trial_subscriptions as ActiveSubscription[],
+        };
       })
-      .then(setSubscriptions)
+      .then(({ paid, trials }) => {
+        setPaidSubscriptions(paid);
+        setTrialSubscriptions(trials);
+      })
       .catch(() => { if (!controller.signal.aborted) setError(true); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [revision]);
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return subscriptions;
-    return subscriptions.filter((item) => `${item.user.full_name ?? ""} ${item.user.email ?? ""} ${item.user_id}`.toLowerCase().includes(needle));
-  }, [subscriptions, query]);
+  const filteredPaid = useMemo(() => {
+    const needle = paidQuery.trim().toLowerCase();
+    if (!needle) return paidSubscriptions;
+    return paidSubscriptions.filter((item) => `${item.user.full_name ?? ""} ${item.user.email ?? ""} ${item.user_id}`.toLowerCase().includes(needle));
+  }, [paidSubscriptions, paidQuery]);
+  const filteredTrials = useMemo(() => {
+    const needle = trialQuery.trim().toLowerCase();
+    if (!needle) return trialSubscriptions;
+    return trialSubscriptions.filter((item) => `${item.user.full_name ?? ""} ${item.user.email ?? ""} ${item.user_id}`.toLowerCase().includes(needle));
+  }, [trialSubscriptions, trialQuery]);
 
   return (
     <>
       <section className="admin-card admin-active-subscriptions">
         <div className="admin-card-head">
           <div>
-            <h3><CreditCard size={17} /> {en ? "Accounts with access in progress" : "Comptes avec accès en cours"} ({loading ? "…" : subscriptions.length})</h3>
-            <p className="admin-help">{en ? "Paid subscriptions within their period and unexpired free trials, using the same access rule as the app." : "Abonnements payés non expirés et essais gratuits encore valables, selon la règle d’accès de l’application."}</p>
+            <h3><CreditCard size={17} /> {en ? "Active paid subscriptions" : "Abonnements payants actifs"} ({loading ? "…" : paidSubscriptions.length})</h3>
+            <p className="admin-help">{en ? "Only accounts with an active paid subscription period. Free trials are excluded." : "Uniquement les comptes dont la période d’abonnement payée est active. Les essais sont exclus."}</p>
           </div>
-          <button type="button" className="admin-btn admin-btn-soft" onClick={() => setRevision((value) => value + 1)} disabled={loading} aria-label={en ? "Refresh active subscriptions" : "Actualiser les abonnements en cours"}><RefreshCw size={15} /></button>
+          <button type="button" className="admin-btn admin-btn-soft" onClick={() => setRevision((value) => value + 1)} disabled={loading} aria-label={en ? "Refresh paid subscriptions" : "Actualiser les abonnements payants actifs"}><RefreshCw size={15} /></button>
         </div>
         <label className="admin-active-search">
           <Search size={15} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={en ? "Search name, email or ID" : "Rechercher nom, e-mail ou ID"} aria-label={en ? "Search active accounts" : "Rechercher les comptes actifs"} />
+          <input value={paidQuery} onChange={(event) => setPaidQuery(event.target.value)} placeholder={en ? "Search name, email or ID" : "Rechercher nom, e-mail ou ID"} aria-label={en ? "Search active paid subscriptions" : "Rechercher les abonnements payants actifs"} />
         </label>
-        {loading && <p className="admin-history-loading" role="status"><Loader2 className="admin-history-spin" size={16} /> {en ? "Loading active accounts…" : "Chargement des comptes en cours…"}</p>}
-        {error && <div className="admin-history-error" role="alert">{en ? "Active subscriptions could not be loaded." : "Impossible de charger les abonnements en cours."} <button type="button" onClick={() => setRevision((value) => value + 1)}>{en ? "Retry" : "Réessayer"}</button></div>}
-        {!loading && !error && filtered.length === 0 && <p className="admin-help">{en ? "No active subscription or valid trial found." : "Aucun abonnement en cours ou essai valide trouvé."}</p>}
-        {filtered.length > 0 && (
+        {loading && <p className="admin-history-loading" role="status"><Loader2 className="admin-history-spin" size={16} /> {en ? "Loading paid subscriptions…" : "Chargement des abonnements payants…"}</p>}
+        {error && <div className="admin-history-error" role="alert">{en ? "Paid subscriptions could not be loaded." : "Impossible de charger les abonnements payants."} <button type="button" onClick={() => setRevision((value) => value + 1)}>{en ? "Retry" : "Réessayer"}</button></div>}
+        {!loading && !error && filteredPaid.length === 0 && <p className="admin-help">{en ? "No active paid subscriptions found." : "Aucun abonnement payant actif trouvé."}</p>}
+        {filteredPaid.length > 0 && (
           <div className="admin-active-list">
-            {filtered.map((item) => {
+            {filteredPaid.map((item) => {
               const name = item.user.full_name || item.user.email || item.user_id;
-              const end = item.trial_active ? item.trial_ends_at : item.current_period_end;
               return (
                 <div className="admin-active-row" key={item.user_id}>
                   <div className="admin-active-identity">
@@ -218,8 +230,43 @@ export function ActiveSubscriptionsCard() {
                     {item.user.email && item.user.full_name && <small>{item.user.email}</small>}
                   </div>
                   <span className="admin-active-plan">{item.plan}</span>
-                  <span className={`admin-status ${item.trial_active ? "trialing" : "active"}`}>{item.trial_active ? (en ? "Trial" : "Essai") : (en ? "Paid" : "Payé")}</span>
-                  <small className="admin-active-end">{item.trial_active ? (en ? "Trial ends " : "Fin de l’essai ") : (en ? "Period ends " : "Fin de période ")}{end ? new Date(end).toLocaleDateString(dateLocale(locale)) : "—"}</small>
+                  <span className="admin-status active">{en ? "Paid" : "Payé"}</span>
+                  <small className="admin-active-end">{en ? "Period ends " : "Fin de période "}{item.current_period_end ? new Date(item.current_period_end).toLocaleDateString(dateLocale(locale)) : "—"}</small>
+                  <button type="button" className="admin-btn admin-btn-soft" onClick={() => setSelected(item)}>{en ? "History" : "Historique"}</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      <section className="admin-card admin-active-subscriptions admin-active-trials">
+        <div className="admin-card-head">
+          <div>
+            <h3><CreditCard size={17} /> {en ? "Trials in progress" : "Essais en cours"} ({loading ? "…" : trialSubscriptions.length})</h3>
+            <p className="admin-help">{en ? "Valid free trials shown separately; they are not counted as paid subscriptions." : "Essais gratuits encore valides, séparés et non comptés comme abonnements payants."}</p>
+          </div>
+          <button type="button" className="admin-btn admin-btn-soft" onClick={() => setRevision((value) => value + 1)} disabled={loading} aria-label={en ? "Refresh trials" : "Actualiser les essais"}><RefreshCw size={15} /></button>
+        </div>
+        <label className="admin-active-search">
+          <Search size={15} />
+          <input value={trialQuery} onChange={(event) => setTrialQuery(event.target.value)} placeholder={en ? "Search name, email or ID" : "Rechercher nom, e-mail ou ID"} aria-label={en ? "Search trials" : "Rechercher les essais"} />
+        </label>
+        {loading && <p className="admin-history-loading" role="status"><Loader2 className="admin-history-spin" size={16} /> {en ? "Loading trials…" : "Chargement des essais…"}</p>}
+        {error && <div className="admin-history-error" role="alert">{en ? "Trials could not be loaded." : "Impossible de charger les essais."} <button type="button" onClick={() => setRevision((value) => value + 1)}>{en ? "Retry" : "Réessayer"}</button></div>}
+        {!loading && !error && filteredTrials.length === 0 && <p className="admin-help">{en ? "No valid trials found." : "Aucun essai en cours trouvé."}</p>}
+        {filteredTrials.length > 0 && (
+          <div className="admin-active-list">
+            {filteredTrials.map((item) => {
+              const name = item.user.full_name || item.user.email || item.user_id;
+              return (
+                <div className="admin-active-row" key={item.user_id}>
+                  <div className="admin-active-identity">
+                    <strong>{name}</strong>
+                    {item.user.email && item.user.full_name && <small>{item.user.email}</small>}
+                  </div>
+                  <span className="admin-active-plan">{item.plan}</span>
+                  <span className="admin-status trialing">{en ? "Trial" : "Essai"}</span>
+                  <small className="admin-active-end">{en ? "Trial ends " : "Fin de l’essai "}{item.trial_ends_at ? new Date(item.trial_ends_at).toLocaleDateString(dateLocale(locale)) : "—"}</small>
                   <button type="button" className="admin-btn admin-btn-soft" onClick={() => setSelected(item)}>{en ? "History" : "Historique"}</button>
                 </div>
               );

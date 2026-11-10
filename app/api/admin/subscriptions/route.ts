@@ -52,13 +52,13 @@ export async function GET() {
     profiles.push(...(data ?? []));
   }
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
-  rows.sort((a, b) => {
-    const aEnd = a.trial_active ? a.trial_ends_at : a.current_period_end;
-    const bEnd = b.trial_active ? b.trial_ends_at : b.current_period_end;
-    return new Date(aEnd ?? 0).getTime() - new Date(bEnd ?? 0).getTime();
-  });
-  return NextResponse.json({
-    subscriptions: rows.map((row) => {
+  const serializeRows = (sourceRows: Record<string, any>[]) => {
+    const sorted = [...sourceRows].sort((a, b) => {
+      const aEnd = a.trial_active ? a.trial_ends_at : a.current_period_end;
+      const bEnd = b.trial_active ? b.trial_ends_at : b.current_period_end;
+      return new Date(aEnd ?? 0).getTime() - new Date(bEnd ?? 0).getTime();
+    });
+    return sorted.map((row) => {
       const profile = profilesById.get(row.user_id);
       return {
         user_id: row.user_id,
@@ -71,8 +71,11 @@ export async function GET() {
         created_at: row.created_at,
         user: { id: row.user_id, email: profile?.email ?? null, full_name: profile?.full_name ?? null },
       };
-    }),
-    total: rows.length,
+    });
+  };
+  return NextResponse.json({
+    paid_subscriptions: serializeRows(paid.rows),
+    trial_subscriptions: serializeRows(trials.rows),
   });
 }
 
