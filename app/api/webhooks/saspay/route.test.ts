@@ -17,8 +17,27 @@ function signedRequest(event: unknown) {
     body: rawBody,
   });
 }
-function event(id: string, status: string, amount: number, currency: string, metadata: Record<string, unknown>) {
-  return { event: "transaction.success", data: { id, status, amount, currency, metadata } };
+function event(
+  id: string,
+  status: string,
+  amount: number | string | undefined,
+  currency: string,
+  metadata: Record<string, unknown>,
+  transactionFields: Record<string, unknown> = {},
+) {
+  return {
+    event: "transaction.success",
+    data: {
+      id,
+      reference: `TXN-${id}`,
+      type: "PAIEMENT",
+      status,
+      amount,
+      currency,
+      metadata,
+      ...transactionFields,
+    },
+  };
 }
 
 beforeEach(() => {
@@ -43,23 +62,25 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("POST /api/webhooks/saspay payment confirmation", () => {
   it.each([
-    ["XAF", 1126],
-    ["GHS", 812],
-    ["NGN", 90000],
-    ["USD", 3.75],
-  ])("credits a signed successful payment in %s regardless of converted amount", async (currency, amount) => {
-    const response = await POST(signedRequest(event("credit-any-currency", "SUCCESS", amount, currency, {
-      userId: "user-cm", type: "studio_credits", credits: 450,
-    })));
+    ["ADD_ON", 1153.13, 1125],
+    ["DEDUCTED", 1125, 1096.87],
+  ])("credits a valid requested XOF amount with normal %s fees", async (mode, charged, netAmount) => {
+    const response = await POST(signedRequest(event(
+      `credit-${mode}`,
+      "SUCCESS",
+      1125,
+      "XOF",
+      { userId: "user-cm", type: "studio_credits", credits: 450 },
+      { fee: 28.13, charged, net_amount: netAmount, fee_charge_mode: mode },
+    )));
 
     expect(response.status).toBe(200);
     expect(mocks.rpc).toHaveBeenCalledWith("add_credits", {
       target_user_id: "user-cm",
       amount: 450,
-      payment_id: "credit-any-currency",
-      metadata_value: { provider: "saspay", amount_xof: 1125, provider_amount: amount, provider_currency: currency },
+      payment_id: `credit-${mode}`,
+      metadata_value: { provider: "saspay", amount_xof: 1125, provider_amount: 1125, provider_currency: "XOF" },
     });
-    expect(mocks.rpc).not.toHaveBeenCalledWith("record_webhook_failure", expect.anything());
   });
 
   it("activates a signed successful subscription payment in any currency and records tariff and provider amounts", async () => {
@@ -91,20 +112,66 @@ describe("POST /api/webhooks/saspay payment confirmation", () => {
     }));
   });
 
-  it("warns but still credits when an XOF provider amount differs from the tariff", async () => {
+  it("records an XOF amount mismatch and does not add credits", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const response = await POST(signedRequest(event("credit-xof-diff", "SUCCESS", 999, "XOF", {
-        userId: "user-cm", type: "studio_credits", credits: 450,
-      })));
-      expect(response.status).toBe(200);
-      expect(warning).toHaveBeenCalledWith(expect.stringContaining("provider_amount_differs_from_credit_price"), expect.anything());
-      expect(mocks.rpc).toHaveBeenCalledWith("add_credits", expect.objectContaining({
-        metadata_value: { provider: "saspay", amount_xof: 1125, provider_amount: 999, provider_currency: "XOF" },
-      }));
-    } finally {
-      warning.mockRestore();
-    }
+    const response = await POST(signedRequest(event("credit-xof-diff", "SUCCESS", 999, "XOF", {
+      userId: "user-cm", type: "studio_credits", credits: 450,
+    })));
+
+    expect(response.status).toBe(400);
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("provider_amount_differs_from_credit_price"), expect.anything());
+    expect(mocks.rpc).toHaveBeenCalledWith("record_webhook_failure", expect.objectContaining({
+      p_transaction_id: "credit-xof-diff",
+      p_reason: "credit_amount_mismatch",
+    }));
+    expect(mocks.rpc).not.toHaveBeenCalledWith("add_credits", expect.anything());
+  });
+
+  it.each([
+    ["a foreign currency", "XAF", 1125, "credit_currency_invalid"],
+    ["a missing amount", "XOF", undefined, "credit_amount_mismatch"],
+  ])("does not add credits for %s", async (_label, currency, amount, reason) => {
+    const response = await POST(signedRequest(event("credit-invalid-money", "SUCCESS", amount, currency, {
+      userId: "user-cm", type: "studio_credits", credits: 450,
+    })));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).toHaveBeenCalledWith("record_webhook_failure", expect.objectContaining({ p_reason: reason }));
+    expect(mocks.rpc).not.toHaveBeenCalledWith("add_credits", expect.anything());
+  });
+
+  it.each([
+    ["a missing reference", { reference: undefined }],
+    ["a non-payment transaction", { type: "RETRAIT" }],
+    ["a missing transaction type", { type: undefined }],
+  ])("does not add credits for %s", async (_label, transactionFields) => {
+    const response = await POST(signedRequest(event(
+      "credit-invalid-identity",
+      "SUCCESS",
+      1125,
+      "XOF",
+      { userId: "user-cm", type: "studio_credits", credits: 450 },
+      transactionFields,
+    )));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).toHaveBeenCalledWith("record_webhook_failure", expect.objectContaining({
+      p_reason: "credit_transaction_identity_invalid",
+    }));
+    expect(mocks.rpc).not.toHaveBeenCalledWith("add_credits", expect.anything());
+  });
+
+  it("does not add credits when the transaction ID is missing", async () => {
+    const response = await POST(signedRequest(event("", "SUCCESS", 1125, "XOF", {
+      userId: "user-cm", type: "studio_credits", credits: 450,
+    })));
+
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).toHaveBeenCalledWith("record_webhook_failure", expect.objectContaining({
+      p_transaction_id: "",
+      p_reason: "missing_transaction_id",
+    }));
+    expect(mocks.rpc).not.toHaveBeenCalledWith("add_credits", expect.anything());
   });
 
   it("does not save a subscription payment event if subscription upsert fails", async () => {

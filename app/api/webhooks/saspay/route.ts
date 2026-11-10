@@ -20,8 +20,14 @@ type SasPayEvent = {
   event?: string;
   data?: {
     id?: string;
+    reference?: string;
+    type?: string;
     status?: string;
     amount?: string | number;
+    fee?: string | number;
+    charged?: string | number;
+    net_amount?: string | number;
+    fee_charge_mode?: string;
     currency?: string;
     metadata?: { userId?: string; plan?: PlanId; type?: string; credits?: number };
   };
@@ -107,13 +113,36 @@ export async function POST(request: Request) {
       const recorded = await recordFailure(admin, event, "credit_metadata_invalid");
       return NextResponse.json({ error: "Métadonnées de crédits manquantes" }, { status: recorded ? 400 : 500 });
     }
+    if (
+      typeof data.id !== "string" ||
+      !data.id.trim() ||
+      typeof data.reference !== "string" ||
+      !data.reference.trim() ||
+      data.type !== "PAIEMENT"
+    ) {
+      const recorded = await recordFailure(admin, event, "credit_transaction_identity_invalid");
+      return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: recorded ? 400 : 500 });
+    }
     if (data.status !== "SUCCESS") {
       const recorded = await recordFailure(admin, event, "credit_payment_validation_failed");
       return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: recorded ? 400 : 500 });
     }
     const expectedXof = creditPrice(credits);
-    if (data.currency === "XOF" && Number(data.amount) !== expectedXof) {
+    const providerAmount =
+      typeof data.amount === "string" || typeof data.amount === "number"
+        ? Number(data.amount)
+        : Number.NaN;
+    const amountMismatch = !Number.isFinite(providerAmount) || providerAmount !== expectedXof;
+    if (amountMismatch) {
       console.warn("[saspay-webhook] provider_amount_differs_from_credit_price", { ...eventContext(event), expected_xof: expectedXof, provider_amount: data.amount ?? null });
+    }
+    // SasPay's `amount` is the requested price. `charged` includes customer-paid
+    // fees in ADD_ON mode, while `net_amount` is reduced in DEDUCTED mode; neither
+    // should be compared with the pack price when deciding whether to grant credits.
+    if (data.currency !== "XOF" || amountMismatch) {
+      const reason = data.currency !== "XOF" ? "credit_currency_invalid" : "credit_amount_mismatch";
+      const recorded = await recordFailure(admin, event, reason);
+      return NextResponse.json({ error: "Transaction SasPay non vérifiée" }, { status: recorded ? 400 : 500 });
     }
     const result = await admin.rpc("add_credits", { target_user_id: userId, amount: credits, payment_id: data.id, metadata_value: paymentMetadata(expectedXof, data.amount, data.currency) });
     if (result.error) {
