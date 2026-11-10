@@ -27,7 +27,7 @@ function makeQuery(table: string) {
     let data: any[] = [];
     if (table === "subscriptions" && filters.trial_active === true) {
       data = [{ user_id: TRIAL_USER, plan: "starter", status: "trialing", trial_active: true, trial_ends_at: "2026-11-15T12:00:00.000Z", current_period_end: null, created_at: "2026-11-01T00:00:00.000Z" }];
-    } else if (table === "subscriptions" && filters.status === "active") {
+    } else if (table === "subscriptions" && filters.status === "active" && filters.trial_active === false) {
       data = [{ user_id: PAID_USER, plan: "starter", status: "active", trial_active: false, trial_ends_at: null, current_period_end: "2026-11-30", created_at: "2026-10-20T00:00:00.000Z" }];
     } else if (table === "profiles") {
       data = [
@@ -57,15 +57,23 @@ describe("GET /api/admin/subscriptions", () => {
     expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
-  it("lists paid plans in the current period and unexpired trials, with account names", async () => {
+  it("returns active paid subscriptions and valid trials in separate lists", async () => {
     const response = await GET();
     expect(response.status).toBe(200);
     const payload = await response.json();
-    expect(payload.total).toBe(2);
-    expect(payload.subscriptions).toEqual(expect.arrayContaining([
+    expect(payload.paid_subscriptions).toEqual([
       expect.objectContaining({ user_id: PAID_USER, trial_active: false, user: { id: PAID_USER, email: "paid@example.test", full_name: "Paid Account" } }),
+    ]);
+    expect(payload.trial_subscriptions).toEqual([
       expect.objectContaining({ user_id: TRIAL_USER, trial_active: true, user: { id: TRIAL_USER, email: "trial@example.test", full_name: "Trial Account" } }),
-    ]));
-    expect(payload.subscriptions.every((item: any) => item.user_id !== undefined)).toBe(true);
+    ]);
+  });
+
+  it("never includes a trial account in the active paid-subscription list", async () => {
+    const response = await GET();
+    const payload = await response.json();
+    expect(payload.paid_subscriptions.every((item: any) => item.trial_active === false)).toBe(true);
+    expect(payload.paid_subscriptions.some((item: any) => item.user_id === TRIAL_USER)).toBe(false);
+    expect(payload.trial_subscriptions.some((item: any) => item.user_id === TRIAL_USER)).toBe(true);
   });
 });

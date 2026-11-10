@@ -1,7 +1,9 @@
 .admin-user-history,
-.admin-active-subscriptions { margin-bottom: 18px; }
+.admin-active-subscriptions,
+.admin-active-trials { margin-bottom: 18px; }
 .admin-user-history .admin-card-head h3,
-.admin-active-subscriptions .admin-card-head h3 { display: flex; align-items: center; gap: 8px; }
+.admin-active-subscriptions .admin-card-head h3,
+.admin-active-trials .admin-card-head h3 { display: flex; align-items: center; gap: 8px; }
 .admin-history-close { flex: 0 0 auto; }
 .admin-history-list { display: grid; gap: 9px; }
 .admin-history-event { min-width: 0; padding: 12px 14px; border: 1px solid var(--line, #e8e8ef); border-radius: 12px; background: var(--surface, #fff); }
