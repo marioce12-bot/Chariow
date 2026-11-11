@@ -73,6 +73,9 @@ const META_PREVIEW_CACHE_MS = 10 * 60 * 1000;
 export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, editCampaign, editNotice, onEdited, duplicateCampaign, launchImmediately = false }: LaunchAdWizardProps) {
   const { locale, t } = useI18n();
   const en = locale === "en";
+  // Création et duplication : la campagne part directement à la plateforme après l'étape 4.
+  // Seul le mode correction (editCampaign) repasse par le lancement existant dans Pub.
+  const directLaunch = !editCampaign || launchImmediately;
   const stepLabels = [t("wizardExtra.step.product"), t("wizardExtra.step.creative"), t("wizardExtra.step.audience"), t("wizardExtra.step.budget"), t("wizardExtra.step.creation")];
   // Produit déjà choisi (« Promouvoir » depuis le catalogue) : départ à l'étape 2.
   // Une duplication repasse par l'étape 1 pour vérifier et réhydrater le produit
@@ -305,7 +308,9 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
           {step === 4 && <Step4Budget state={state} patch={patch} onNext={next} onBack={back} />}
           {step === 5 && state.campaignId && (
             <div className="space-y-4">
-              <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm text-[#065F46]"><strong className="block">{en ? "Campaign preview" : "Aperçu de la campagne"}</strong><span>{en ? "Review the content below before opening it in Ads. Nothing is launched yet." : "Vérifie le contenu ci-dessous avant de l'ouvrir dans Pub. Rien n'est encore lancé."}</span></div>
+              {directLaunch
+                ? <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm text-[#065F46]"><strong className="block">{en ? "Sending your campaign" : "Envoi de ta campagne"}</strong><span>{en ? "Your campaign is being sent to the ad platform now." : "Ta campagne est envoyée à la plateforme publicitaire maintenant."}</span></div>
+                : <div className="rounded-xl bg-[#ECFDF5] p-4 text-sm text-[#065F46]"><strong className="block">{en ? "Campaign preview" : "Aperçu de la campagne"}</strong><span>{en ? "Review the content below before opening it in Ads. Nothing is launched yet." : "Vérifie le contenu ci-dessous avant de l'ouvrir dans Pub. Rien n'est encore lancé."}</span></div>}
               {state.platform !== "meta" && <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
                 {state.mediaUrl ? <img src={state.mediaUrl} alt={state.product?.name ?? "Campaign creative"} className="max-h-64 w-full object-cover" /> : <div className="flex h-32 items-center justify-center bg-gray-50 text-sm text-gray-400">{en ? "No image" : "Aucune image"}</div>}
                 <div className="space-y-2 p-4">
@@ -349,11 +354,10 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
                   })()}
                 </div>
               )}
-              {launchImmediately ? <div className="space-y-3 rounded-2xl border border-[#DDE4F2] bg-[#F9FAFF] p-4">
-                <CampaignLaunchReview state={state} en={en} geographyRecommendationUnavailable={Boolean(duplicateCampaign?.geographyRecommendationUnavailable)} />
-                <Step5Payment state={state} onLaunched={(campaignId) => onLaunched?.(campaignId)} launchLabel={en ? "Launch now" : "Lancer maintenant"} />
+              {directLaunch ? <div className="space-y-3 rounded-2xl border border-[#DDE4F2] bg-[#F9FAFF] p-4">
+                <Step5Payment state={state} autoLaunch onLaunched={(campaignId) => onLaunched?.(campaignId)} launchLabel={en ? "Launch now" : "Lancer maintenant"} />
               </div> : null}
-              <button type="button" onClick={() => { if (editCampaign && onEdited) { onEdited(state.campaignId!); return; } onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">{editCampaign ? (en ? "Save and go back to launch" : "Enregistrer et revenir au lancement") : launchImmediately ? (en ? "Close" : "Fermer") : (en ? "View my campaign in Ads" : "Voir ma campagne dans Pub")}</button>
+              <button type="button" onClick={() => { if (editCampaign && onEdited) { onEdited(state.campaignId!); return; } onLaunched?.(state.campaignId!); onClose(); }} className="w-full rounded-lg bg-[#6366F1] px-4 py-2.5 text-sm font-semibold text-white">{editCampaign ? (en ? "Save and go back to launch" : "Enregistrer et revenir au lancement") : directLaunch ? (en ? "Close" : "Fermer") : (en ? "View my campaign in Ads" : "Voir ma campagne dans Pub")}</button>
             </div>
           )}
         </div>
@@ -382,32 +386,4 @@ export function LaunchAdWizard({ storeId, onClose, onLaunched, initialProduct, e
     </div>,
     document.body,
   );
-}
-
-function CampaignLaunchReview({ state, en, geographyRecommendationUnavailable = false }: { state: WizardState; en: boolean; geographyRecommendationUnavailable?: boolean }) {
-  const locations = state.locations.map((location) => location.name).filter(Boolean).join(", ") || state.countries.join(", ") || "—";
-  const totalBudget = state.dailyBudget * state.durationDays;
-  const objective = state.objective === "sales" ? (en ? "Sales" : "Ventes") : state.objective;
-  const platform = state.platform === "meta" ? "Meta" : state.platform === "tiktok" ? "TikTok" : "Pinterest";
-  return <section className="space-y-3" aria-label={en ? "Campaign settings" : "Paramètres de la campagne"}>
-    <div><h3 className="text-sm font-bold text-gray-900">{en ? "Review everything before launch" : "Vérifie la campagne avant le lancement"}</h3><p className="mt-1 text-xs text-gray-500">{state.platform === "meta"
-      ? (en ? "The campaign remains a draft. Meta may receive the image to prepare placement previews; no ad is published until you press Launch now." : "La campagne reste un brouillon. Meta peut recevoir le visuel pour préparer les aperçus de placement; aucune publicité n’est publiée avant ton clic sur « Lancer maintenant »." )
-      : (en ? "The campaign remains a draft; no ad is sent to the platform before you press Launch now." : "La campagne reste un brouillon; aucune publicité n’est envoyée à la plateforme avant ton clic sur « Lancer maintenant »." )}</p></div>
-    <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-      <div><dt className="font-semibold text-gray-500">{en ? "Platform" : "Plateforme"}</dt><dd className="mt-0.5 text-gray-900">{platform}</dd></div>
-      <div><dt className="font-semibold text-gray-500">{en ? "Objective" : "Objectif"}</dt><dd className="mt-0.5 text-gray-900">{objective}</dd></div>
-      <div><dt className="font-semibold text-gray-500">{en ? "Targeted locations" : "Lieux ciblés"}</dt><dd className="mt-0.5 text-gray-900">{locations}</dd></div>
-      <div><dt className="font-semibold text-gray-500">{en ? "Audience age" : "Âge de l’audience"}</dt><dd className="mt-0.5 text-gray-900">{state.minAge}–{state.maxAge}</dd></div>
-      {state.platform === "meta" ? <div><dt className="font-semibold text-gray-500">{en ? "Gender" : "Genre"}</dt><dd className="mt-0.5 text-gray-900">{state.metaGender === "female" ? (en ? "Women only" : "Femmes uniquement") : state.metaGender === "male" ? (en ? "Men only" : "Hommes uniquement") : (en ? "All genders" : "Femmes et hommes")}</dd></div> : null}
-      {state.platform === "meta" ? <div><dt className="font-semibold text-gray-500">{en ? "Interests" : "Centres d’intérêt"}</dt><dd className="mt-0.5 text-gray-900">{state.metaInterests.length ? state.metaInterests.map((interest) => interest.name).join(", ") : (en ? "No additional filter" : "Aucun filtre supplémentaire")}</dd></div> : null}
-      <div><dt className="font-semibold text-gray-500">{en ? "Daily budget · duration" : "Budget quotidien · durée"}</dt><dd className="mt-0.5 text-gray-900">${state.dailyBudget.toLocaleString("en-US")} × {state.durationDays} {en ? "days" : "jours"}</dd></div>
-      <div><dt className="font-semibold text-gray-500">{en ? "Total platform budget" : "Budget total sur la plateforme"}</dt><dd className="mt-0.5 font-bold text-gray-900">${totalBudget.toLocaleString("en-US")}</dd></div>
-      <div className="sm:col-span-2"><dt className="font-semibold text-gray-500">{en ? "Destination" : "Destination"}</dt><dd className="mt-0.5 break-all text-gray-900">{state.destinationUrl || "—"}</dd></div>
-      <div className="sm:col-span-2"><dt className="font-semibold text-gray-500">{en ? "Ad text" : "Texte de la publicité"}</dt><dd className="mt-0.5 whitespace-pre-wrap text-gray-900">{state.adText || "—"}</dd></div>
-      <div className="sm:col-span-2"><dt className="font-semibold text-gray-500">{en ? "Headline" : "Titre"}</dt><dd className="mt-0.5 text-gray-900">{state.title || state.product?.name || "—"}</dd></div>
-    </dl>
-    {geographyRecommendationUnavailable ? <p className="rounded-lg bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">{en
-      ? "These locations and age settings were copied from the source campaign; they are not verified winning geographies or audience recommendations. Change them in the Audience step if needed."
-      : "Ces lieux et âges sont repris de la configuration source; ils ne constituent pas des pays ou audiences gagnants vérifiés. Modifie-les dans l’étape Audience si nécessaire."}</p> : null}
-  </section>;
 }
