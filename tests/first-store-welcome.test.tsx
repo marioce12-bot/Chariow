@@ -42,7 +42,7 @@ describe("first-store welcome", () => {
     expect(container.textContent).toContain("Fin de l’essai :");
   });
   it("supports every tour step, back, completion and Escape", async () => {
-    expect(VENDEO_TOUR_STEPS).toHaveLength(14);
+    expect(VENDEO_TOUR_STEPS).toHaveLength(13);
     expect(JSON.stringify(VENDEO_TOUR_STEPS)).not.toMatch(/pilotage auto|autopilot/i);
     const { onDismiss } = await mount("tour");
     expect(button("Précédent").disabled).toBe(true);

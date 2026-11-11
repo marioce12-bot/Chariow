@@ -15,7 +15,7 @@ const profiles = [
 ];
 function chain(result: any): any {
   const q: any = {};
-  for (const method of ["select", "order", "limit", "eq", "in"]) q[method] = vi.fn(() => q);
+  for (const method of ["select", "order", "limit", "eq", "in", "or"]) q[method] = vi.fn(() => q);
   q.then = (resolve: (value: any) => unknown) => Promise.resolve(result).then(resolve);
   return q;
 }

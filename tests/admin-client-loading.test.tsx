@@ -58,11 +58,24 @@ afterEach(() => {
 });
 
 function chooseUsers() {
-  const select = container.querySelector<HTMLSelectElement>('select')!;
-  act(() => {
-    select.value = "selected";
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  const select = [...container.querySelectorAll<HTMLSelectElement>("select")]
+    .find((item) => [...item.options].some((option) => option.value === "selected"));
+  if (!select) throw new Error("Sélecteur des destinataires absent");
+  const view = select.ownerDocument.defaultView;
+  if (!view) throw new Error("Sélecteur sans fenêtre DOM");
+  const setter = Object.getOwnPropertyDescriptor(view.HTMLSelectElement.prototype, "value")?.set;
+  if (!setter) throw new Error("Setter natif du sélecteur absent");
+  setter.call(select, "selected");
+  select.dispatchEvent(new view.Event("change", { bubbles: true }));
+}
+
+function setSearchValue(input: HTMLInputElement, value: string) {
+  const view = input.ownerDocument.defaultView;
+  if (!view) throw new Error("Champ de recherche sans fenêtre DOM");
+  const setter = Object.getOwnPropertyDescriptor(view.HTMLInputElement.prototype, "value")?.set;
+  if (!setter) throw new Error("Setter natif du champ de recherche absent");
+  setter.call(input, value);
+  input.dispatchEvent(new view.Event("input", { bubbles: true }));
 }
 
 describe("chargement des sections admin côté client", () => {
@@ -109,12 +122,10 @@ describe("chargement des sections admin côté client", () => {
   it("débounce la recherche de destinataires et encode la query", async () => {
     vi.useFakeTimers();
     await act(async () => { root.render(<AdminNotifications totalUsers={10} />); });
-    await act(async () => { container.querySelector<HTMLSelectElement>("select")!.value = "selected"; container.querySelector("select")!.dispatchEvent(new Event("change", { bubbles: true })); });
+    await act(async () => { chooseUsers(); });
     const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
     await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-      setter.call(input, "a b&c");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      setSearchValue(input, "a b&c");
       await vi.advanceTimersByTimeAsync(249);
     });
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes("/api/admin/users"))).toHaveLength(0);
@@ -133,13 +144,9 @@ describe("chargement des sections admin côté client", () => {
       return json({});
     });
     await act(async () => { root.render(<AdminNotifications totalUsers={10} />); });
-    await act(async () => { const select = container.querySelector<HTMLSelectElement>("select")!; select.value = "selected"; select.dispatchEvent(new Event("change", { bubbles: true })); await vi.advanceTimersByTimeAsync(250); });
+    await act(async () => { chooseUsers(); await vi.advanceTimersByTimeAsync(250); });
     const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
-    const set = (value: string) => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-      setter.call(input, value);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    };
+    const set = (value: string) => setSearchValue(input, value);
     await act(async () => { set("old"); await vi.advanceTimersByTimeAsync(250); });
     const oldCall = fetchMock.mock.calls.find(([url]) => String(url).includes("q=old"));
     expect(oldCall).toBeDefined();

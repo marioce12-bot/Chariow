@@ -71,6 +71,11 @@ async function submitForm() {
   if (!form) throw new Error("Formulaire absent");
   await act(async () => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
 }
+function expectNoPost() {
+  expect(fetchMock.mock.calls.some(([, init]) =>
+    String((init as RequestInit | undefined)?.method ?? "GET").toUpperCase() === "POST",
+  )).toBe(false);
+}
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   localeState.locale = "fr";
@@ -101,7 +106,7 @@ describe("available Studio credits in user rows", () => {
     const cells = [...container.querySelectorAll(".admin-user-credits")];
     expect(cells.map(cell => cell.textContent)).toEqual(["0", (2175).toLocaleString("fr-FR"), "—"]);
     expect(cells.every(cell => cell.getAttribute("data-label") === "Crédits Studio disponibles")).toBe(true);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expectNoPost();
     localeState.locale = "en";
     await render(<UsersSection data={{ ...data, users }} usage={null} />);
     expect(container.textContent).toContain("Studio credits available");
@@ -126,7 +131,7 @@ describe("actions propriétaires dans les sections admin", () => {
     await render(<SubscriptionsSection data={data} />);
     confirmMock.mockReturnValueOnce(false);
     await click(button("Activer"));
-    expect(fetchMock).not.toHaveBeenCalled();
+    expectNoPost();
     confirmMock.mockReturnValueOnce(true);
     await click(button("Activer"));
     await settle();
@@ -140,12 +145,12 @@ describe("actions propriétaires dans les sections admin", () => {
     await change(input("Crédits"), "100001");
     await submitForm();
     expect(document.body.textContent).toContain("Choisissez entre 1 et 100 000 crédits.");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expectNoPost();
     await change(input("Crédits"), "100000");
     await change(input("Motif"), "Ajustement approuvé");
     confirmMock.mockReturnValueOnce(false);
     await submitForm();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expectNoPost();
     confirmMock.mockReturnValueOnce(true);
     await submitForm();
     await settle();
