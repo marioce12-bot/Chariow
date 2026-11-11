@@ -22,7 +22,7 @@ const validLaunchPayload: LaunchPayload = {
   headline: "Un guide pratique", linkUrl: "https://example.com/guide", durationDays: 7, platform: "meta",
   callToAction: "SHOP_NOW", storeId: "store-1", productId: "product-1", productName: "Guide", storeName: "Boutique",
 };
-const pendingCampaignRecap = "Récapitulatif de la campagne : budget, audience et durée. Veuillez confirmer que toutes ces informations sont correctes pour préparer le lancement.";
+const pendingCampaignRecap = "Récapitulatif de la campagne : produit Guide, boutique Demo, budget 2 500 XOF, audience de 18 à 65 ans, durée 7 jours, plateforme Meta. Veuillez confirmer que toutes ces informations sont correctes pour préparer le lancement.";
 
 function makeSupabase() {
   const db: Record<string, any> = { history: [] };
@@ -54,10 +54,10 @@ describe("POST /api/chat provider selection", () => {
     expect(messages[0].content).toContain('les pays déjà recueillis via "countries"');
     expect(messages[0].content).toContain("Ne propose jamais l’orientation sexuelle");
     expect(messages[0].content).toContain("Ne suggère jamais un libellé comme disponible/valide sans preuve qu’il figure parmi les résultats renvoyés par Meta");
-    expect(messages[0].content).toContain('"interests": string[] (5 libellés au plus, courts, 1 à 3 mots');
+    expect(messages[0].content).toContain('"interests": string[] (MAXIMUM 5 libellés, jamais plus');
     expect(messages[0].content).toContain("Tu ne peux pas savoir quels libellés existent chez Meta");
-    expect(messages[0].content).toContain("Vendeo vérifiera la correspondance avec Meta dans la carte de confirmation");
-    expect(messages[0].content).toContain("Après le « oui » au récapitulatif final");
+    expect(messages[0].content).toContain("Vendeo vérifiera la correspondance avec Meta dans la fenêtre de confirmation");
+    expect(messages[0].content).toContain("Dès que l'utilisateur approuve le récapitulatif final");
     expect(messages[0].content).toContain("puis appuie sur « Confirmer et lancer »");
     expect(messages[0].content).toContain("rien n'est lancé avant ce clic");
     expect(messages[0].content).toContain("résume à nouveau la configuration complète");
@@ -78,14 +78,13 @@ describe("POST /api/chat provider selection", () => {
     const result = await response.json();
     expect(result.message.content).toBe(serializeLaunchPayload(validLaunchPayload));
     const systemPrompt = askOpenRouter.mock.calls[0][0][0].content as string;
-    expect(systemPrompt).toContain("Confirmation brève après un récapitulatif de campagne");
+    expect(systemPrompt).toContain("Un récapitulatif de campagne vient d'être présenté et attend la réponse de l'utilisateur.");
     expect(systemPrompt).toContain("réponds uniquement avec [[LANCE_CAMPAGNE]]");
-    expect(systemPrompt).toContain("N'affirme jamais que la carte est prête ou ouverte");
+    expect(systemPrompt).toContain("N'affirme jamais qu'une fenêtre ou une carte est prête ou ouverte");
     expect(systemPrompt).not.toContain("Dis que la carte est prête");
     expect(askOpenRouter).toHaveBeenCalledTimes(1);
   });
   it.each([
-    "Je vous confirme que la carte est prête. Veuillez appuyer sur Confirmer et lancer.",
     "[[LANCE_CAMPAGNE]]{JSON invalide}",
     `[[LANCE_CAMPAGNE]]${JSON.stringify({ ...validLaunchPayload, countries: [] })}`,
   ])("returns a concise non-popup reply when the model output is not valid structured data", async (modelReply) => {
@@ -97,6 +96,25 @@ describe("POST /api/chat provider selection", () => {
     expect(result.message.content).toBe("Je n’ai pas pu préparer la confirmation avec les détails disponibles. Vérifie ou complète le récapitulatif de campagne, puis confirme à nouveau.");
     expect(result.message.content).not.toContain("carte est prête");
     expect(result.message.content).not.toContain("[[LANCE_CAMPAGNE]]");
+    expect(askOpenRouter).toHaveBeenCalledTimes(1);
+  });
+  it("replaces an untagged claim that the campaign confirmation card is ready", async () => {
+    supabase.history = [{ role: "assistant", content: pendingCampaignRecap }];
+    askOpenRouter.mockResolvedValueOnce("Je vous confirme que la carte est prête. Veuillez appuyer sur Confirmer et lancer.");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Lance", conversationId: "conversation-1", locale: "fr" }) }));
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.message.content).toBe("Je n’ai pas pu préparer la confirmation avec les détails disponibles. Vérifie ou complète le récapitulatif de campagne, puis confirme à nouveau.");
+    expect(result.message.content).not.toContain("carte est prête");
+    expect(result.message.content).not.toContain("[[LANCE_CAMPAGNE]]");
+    expect(askOpenRouter).toHaveBeenCalledTimes(1);
+  });
+  it("preserves an ordinary free-form clarification while a campaign recap awaits a response", async () => {
+    supabase.history = [{ role: "assistant", content: pendingCampaignRecap }];
+    askOpenRouter.mockResolvedValueOnce("Le budget prévu est de 2 500 XOF par jour.");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message: "Tu peux rappeler le budget ?", conversationId: "conversation-1", locale: "fr" }) }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).message.content).toBe("Le budget prévu est de 2 500 XOF par jour.");
     expect(askOpenRouter).toHaveBeenCalledTimes(1);
   });
   it("does not treat a short confirmation as a launch request without a pending campaign recap", async () => {

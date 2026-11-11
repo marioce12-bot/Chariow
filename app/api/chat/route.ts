@@ -447,6 +447,12 @@ export async function POST(request: Request) {
   if (answer.includes(LAUNCH_TAG)) {
     const payload = parseLaunchPayload(answer);
     answer = payload ? serializeLaunchPayload(payload) : launchConfirmationFallback(body?.locale === "en" ? "en" : "fr");
+  } else if (
+    recapAwaitingApproval &&
+    /\b(?:carte|fenêtre|pop[- ]?up|card|window)\b[\s\S]{0,80}\b(?:prête|ouverte|ready|open)\b/i.test(answer)
+  ) {
+    // Sans JSON valide, l'interface n'ouvrira aucune fenêtre : ne laisse pas le modèle prétendre le contraire.
+    answer = launchConfirmationFallback(body?.locale === "en" ? "en" : "fr");
   }
   const { data: assistant, error: assistantError } = await supabase.from("messages").insert({ user_id: user.id, store_id: storeId, role: "assistant", content: answer, conversation_id: conversationId }).select("id, role, content, attachments, created_at").single();
   if (assistantError) return NextResponse.json({ error: assistantError.message }, { status: 500 });
