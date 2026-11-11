@@ -4,7 +4,7 @@ import "./ad-campaigns-list.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CopyPlus, PlayCircle, RefreshCw, X } from "lucide-react";
+import { CopyPlus, PauseCircle, PlayCircle, RefreshCw, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
 import { LaunchAdWizard } from "./wizard/LaunchAdWizard";
 import type { Platform } from "./wizard/types";
@@ -33,6 +33,8 @@ type AdCampaign = {
   ad_text?: string | null;
   destination_url?: string | null;
   external_campaign_id?: string | null;
+  external_adset_id?: string | null;
+  external_ad_id?: string | null;
   countries?: string[] | null;
   geo_targeting?: { countries?: string[]; regions?: { key: string; name: string }[]; cities?: { key: string; name: string }[] } | null;
   meta_page_id?: string | null;
@@ -52,6 +54,14 @@ type AdCampaign = {
   autopilot_paused_at?: string | null;
   autopilot_pause_reason?: string | null;
 };
+
+function getMetaControlAction(campaign: AdCampaign): "pause" | "activate" | null {
+  if (campaign.platform !== "meta" || !campaign.external_campaign_id || !campaign.external_adset_id || !campaign.external_ad_id) return null;
+  if (getMetaCampaignLifecycle(campaign.status, campaign.external_error)) return null;
+  if (["paused", "autopilot_paused"].includes(campaign.status)) return "activate";
+  if (["active", "review", "preparing", "unknown"].includes(campaign.status)) return "pause";
+  return null;
+}
 
 const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
   draft: { label: "Brouillon", bg: "#F3F4F6", fg: "#374151" },
@@ -117,10 +127,16 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [metaActionBusy, setMetaActionBusy] = useState<string | null>(null);
+  const [metaActionError, setMetaActionError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const refreshInFlight = useRef(false);
   const lastAutoRefreshAt = useRef(0);
   const detailHistoryEntry = useRef(false);
   const openDetail = useCallback((campaign: AdCampaign) => {
+    setMetaActionError(null);
+    setDeleteError(null);
     if (!detailHistoryEntry.current) {
       const currentHistoryState = window.history.state;
       window.history.pushState({ ...(currentHistoryState ?? {}), __vendeoCampaignDetail: true }, "");
@@ -186,6 +202,67 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   const load = useCallback(async () => {
     if (campaignsUrl) await navigationCache.load(campaignsUrl, 0, true);
   }, [campaignsUrl, navigationCache]);
+  const runMetaAction = useCallback(async (campaign: AdCampaign, action: "pause" | "activate") => {
+    if (metaActionBusy) return;
+    setMetaActionBusy(campaign.id);
+    setMetaActionError(null);
+    try {
+      const preparedResponse = await fetch("/api/chat/campaign-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phase: "prepare", action, campaignId: campaign.id }),
+      });
+      const prepared = await preparedResponse.json().catch(() => null) as { error?: string; token?: string; preview?: { name?: string; warning?: string } } | null;
+      if (!preparedResponse.ok || !prepared?.token || !prepared.preview) {
+        setMetaActionError(prepared?.error ?? (locale === "en" ? "Could not verify this campaign with Meta." : "Impossible de vérifier cette campagne auprès de Meta."));
+        return;
+      }
+      const confirmation = `${prepared.preview.name ?? campaign.title ?? campaign.id}\n\n${prepared.preview.warning ?? ""}\n\n${locale === "en" ? "Confirm this Meta action?" : "Confirmer cette action sur Meta ?"}`;
+      if (!window.confirm(confirmation)) return;
+
+      const response = await fetch("/api/chat/campaign-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phase: "execute", action, campaignId: campaign.id, token: prepared.token, confirmed: true }),
+      });
+      const result = await response.json().catch(() => null) as { error?: string; campaign?: Partial<AdCampaign> } | null;
+      if (!response.ok) {
+        setMetaActionError(result?.error ?? (locale === "en" ? "Meta did not confirm this action." : "Meta n’a pas confirmé cette action."));
+        return;
+      }
+      if (result?.campaign) setSelected((current) => current?.id === campaign.id ? { ...current, ...result.campaign } : current);
+      navigationCache.invalidate();
+      void load();
+    } catch {
+      setMetaActionError(locale === "en" ? "The result could not be verified. Check the campaign in Meta before retrying." : "Le résultat n’a pas pu être vérifié. Vérifie la campagne dans Meta avant de réessayer.");
+    } finally {
+      setMetaActionBusy(null);
+    }
+  }, [locale, load, metaActionBusy, navigationCache]);
+  const deleteSelectedCampaign = useCallback(async () => {
+    if (!selected || deleting) return;
+    const confirmation = locale === "en"
+      ? "Delete this campaign? If linked to Meta, deletion will also be requested there. This action cannot be undone."
+      : "Supprimer cette campagne ? Si elle est liée à Meta, la suppression sera aussi demandée là-bas. Cette action est irréversible.";
+    if (!window.confirm(confirmation)) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" });
+      const result = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) {
+        setDeleteError(result?.error ?? (locale === "en" ? "The campaign was not deleted." : "La campagne n’a pas été supprimée."));
+        return;
+      }
+      navigationCache.invalidate();
+      closeDetail();
+      void load();
+    } catch {
+      setDeleteError(locale === "en" ? "Could not confirm the deletion. The campaign remains in Vendeo." : "Impossible de confirmer la suppression. La campagne est conservée dans Vendeo.");
+    } finally {
+      setDeleting(false);
+    }
+  }, [closeDetail, deleting, load, locale, navigationCache, selected]);
   const recoverMedia = async (campaign: AdCampaign) => {
     if (campaign.platform === "meta" && campaign.external_campaign_id) {
       await fetch(`/api/ad-campaigns/${campaign.id}/status`, { cache: "no-store" }).catch(() => null);
@@ -225,7 +302,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
     return () => { disposed = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", refreshWhenDue); window.removeEventListener("focus", refreshWhenDue); };
   }, [monitoredIds.length, refresh]);
 
-
+  const selectedMetaAction = selected ? getMetaControlAction(selected) : null;
   if (!storeId) return null;
 
   return (
@@ -390,7 +467,24 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
                 </span>
               </div>
             ) : null}
-            <div className="ad-campaign-modal-actions">{!getMetaCampaignLifecycle(selected.status, selected.external_error) && !["review", "preparing", "unknown", "active"].includes(selected.status) ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); closeDetail(); }}>{t("ads.correction.edit")}</button> : null}<button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => { setEditing(false); setDuplicating(selected); closeDetail(); }}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button>{!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { closeDetail(); setResuming(selected); }}>{selected.status === "draft" ? t("ads.launchButton") : t("adsExtra.resume")}</button> : null}{!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" onClick={async () => { if (!window.confirm("Supprimer cette campagne ?")) return; const response = await fetch(`/api/ad-campaigns?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }); if (response.ok) { navigationCache.invalidate(); closeDetail(); void load(); } }}>{t("ads.correction.deleteCampaign")}</button> : null}</div>
+            {metaActionError ? <div role="alert" style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}>{metaActionError}</div> : null}
+            {deleteError ? <div role="alert" style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}>{deleteError}</div> : null}
+            {selectedMetaAction ? (
+              <div className="ad-campaign-modal-actions">
+                <button type="button" className="btn btn-ghost" disabled={metaActionBusy === selected.id} onClick={() => void runMetaAction(selected, selectedMetaAction)}>
+                  {selectedMetaAction === "pause" ? <PauseCircle size={15} /> : <PlayCircle size={15} />}
+                  {metaActionBusy === selected.id
+                    ? t("adsExtra.actionInProgress")
+                    : selectedMetaAction === "pause" ? t("adsExtra.pauseCampaign") : t("adsExtra.activateCampaign")}
+                </button>
+              </div>
+            ) : null}
+            <div className="ad-campaign-modal-actions">
+              {!getMetaCampaignLifecycle(selected.status, selected.external_error) && !["review", "preparing", "unknown", "active"].includes(selected.status) ? <button type="button" className="btn btn-ghost" onClick={() => { setEditing(false); setCorrectionFromDetail(true); setCorrecting(selected); closeDetail(); }}>{t("ads.correction.edit")}</button> : null}
+              <button type="button" className="btn btn-ghost ad-campaign-duplicate" title={t("adsExtra.duplicate")} aria-label={t("adsExtra.duplicate")} onClick={() => { setEditing(false); setDuplicating(selected); closeDetail(); }}><CopyPlus size={14} /><span>{t("adsExtra.duplicate")}</span></button>
+              {!getMetaCampaignLifecycle(selected.status, selected.external_error) && (selected.status === "draft" || selected.status === "paid" || selected.status === "paused" || selected.status === "autopilot_paused") ? <button type="button" className="btn btn-dark" style={{ flex: 1 }} onClick={() => { closeDetail(); setResuming(selected); }}>{selected.status === "draft" ? t("ads.launchButton") : t("adsExtra.resume")}</button> : null}
+              {!getMetaCampaignLifecycle(selected.status, selected.external_error) ? <button type="button" className="btn btn-danger-ghost" disabled={deleting} onClick={() => void deleteSelectedCampaign()}>{deleting ? t("adsExtra.actionInProgress") : t("ads.correction.deleteCampaign")}</button> : null}
+            </div>
             </div>
           </div>
         </div>,

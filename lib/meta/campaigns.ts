@@ -39,7 +39,10 @@ function describeGraphError(json: GraphResponse, status: number): string {
  * côté Meta → suppression de la campagne côté Vendeo (cron + vérif de statut).
  */
 export function isMetaObjectMissingError(message: string): boolean {
-  return /does not exist|has been deleted|cannot be loaded/i.test(message);
+  // Graph's common "Unsupported get request" response combines "does not exist"
+  // with possible missing permissions. That is not proof of deletion.
+  if (/cannot be loaded|missing permissions|permission denied|access denied|does not support|unsupported get request/i.test(message)) return false;
+  return /does not exist|has been deleted/i.test(message);
 }
 
 async function graphPost(path: string, accessToken: string, params: Record<string, string>) {
@@ -489,6 +492,16 @@ export async function pauseMetaCampaign(input: { campaignId: string; adSetId: st
  */
 export async function deleteMetaCampaign(input: { campaignId: string; accessToken: string }) {
   await graphDelete(input.campaignId, input.accessToken);
+}
+
+/** Reads the owning Meta ad account before an irreversible campaign deletion. */
+export async function getMetaCampaignAccountId(input: { campaignId: string; accessToken: string }) {
+  const json = await graphGet(input.campaignId, input.accessToken, "id,account_id");
+  const accountId = String(json.account_id ?? "");
+  if (String(json.id ?? "") !== input.campaignId || !accountId) {
+    throw new Error("Meta campaign ownership could not be verified");
+  }
+  return accountId;
 }
 
 /**

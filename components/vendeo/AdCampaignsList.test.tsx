@@ -107,6 +107,71 @@ describe("AdCampaignsList lifecycle UI", () => {
     expect(container.querySelector('[data-testid="wizard"]')?.textContent).toBe("New draft from active");
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/launch"))).toBe(false);
   });
+  it("prepares and confirms a Meta pause through the existing safe action flow", async () => {
+    backendCampaigns = fixtures.map((item) => item.id === "active"
+      ? { ...item, external_campaign_id: "meta-campaign", external_adset_id: "meta-adset", external_ad_id: "meta-ad", meta_ad_account_id: "meta-account" }
+      : item);
+    const confirmation = vi.fn(() => true);
+    dom.window.confirm = confirmation;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/chat/campaign-actions") {
+        const body = JSON.parse(String(init?.body));
+        return body.phase === "prepare"
+          ? { ok: true, json: async () => ({ token: "mock-confirmation", preview: { name: "Active Meta", warning: "Pause on all three Meta objects" } }) }
+          : { ok: true, json: async () => ({ campaign: { id: "active", status: "paused" } }) };
+      }
+      return url === "/api/subscription" ? { ok: true, json: async () => ({ subscription: { plan: "starter" } }) } : { ok: true, json: async () => ({ campaigns: backendCampaigns }) };
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Actualiser"]')!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => { container.querySelector<HTMLElement>(".ad-campaign-row")!.click(); });
+    const pauseButton = document.body.querySelector<HTMLButtonElement>(".ad-campaign-detail .ad-campaign-modal-actions button")!;
+    await act(async () => {
+      pauseButton.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const actionCalls = fetchMock.mock.calls.filter(([url]) => url === "/api/chat/campaign-actions") as unknown as Array<[string, RequestInit]>;
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining("Pause on all three Meta objects"));
+    expect(actionCalls.map(([, init]) => JSON.parse(String(init.body)).phase)).toEqual(["prepare", "execute"]);
+    expect(JSON.parse(String(actionCalls[1][1].body))).toMatchObject({ action: "pause", token: "mock-confirmation", confirmed: true });
+  });
+  it("does not execute the Meta action when the confirmation is declined", async () => {
+    backendCampaigns = fixtures.map((item) => item.id === "active"
+      ? { ...item, external_campaign_id: "meta-campaign", external_adset_id: "meta-adset", external_ad_id: "meta-ad", meta_ad_account_id: "meta-account" }
+      : item);
+    dom.window.confirm = vi.fn(() => false);
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/chat/campaign-actions") return { ok: true, json: async () => ({ token: "mock-confirmation", preview: { name: "Active Meta", warning: "Pause on all three Meta objects" } }) };
+      return url === "/api/subscription" ? { ok: true, json: async () => ({ subscription: { plan: "starter" } }) } : { ok: true, json: async () => ({ campaigns: backendCampaigns }) };
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Actualiser"]')!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => { container.querySelector<HTMLElement>(".ad-campaign-row")!.click(); });
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>(".ad-campaign-detail .ad-campaign-modal-actions button")!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const phases = fetchMock.mock.calls.filter(([url]) => url === "/api/chat/campaign-actions").map(([, init]) => JSON.parse(String((init as RequestInit).body)).phase);
+    expect(phases).toEqual(["prepare"]);
+  });
+  it("keeps the campaign detail open and shows the error when Meta refuses deletion", async () => {
+    dom.window.confirm = vi.fn(() => true);
+    fetchMock.mockImplementation(async (url: string) => url === "/api/ad-campaigns?id=active"
+      ? { ok: false, json: async () => ({ error: "Meta n’a pas confirmé la suppression; la campagne a été conservée dans Vendeo." }) }
+      : url === "/api/subscription" ? { ok: true, json: async () => ({ subscription: { plan: "starter" } }) } : { ok: true, json: async () => ({ campaigns: backendCampaigns }) });
+    await act(async () => { container.querySelector<HTMLElement>(".ad-campaign-row")!.click(); });
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>(".ad-campaign-detail .btn-danger-ghost")!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(document.body.querySelector(".ad-campaign-detail")).not.toBeNull();
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain("la campagne a été conservée");
+  });
   it("includes mobile regression rules for wrapping actions, thumb sizing and readable overflow", async () => {
     const css = await import("node:fs").then(({ readFileSync }) => readFileSync(new URL("./ad-campaigns-list.css", import.meta.url), "utf8"));
     expect(css).toContain("flex-wrap: wrap");

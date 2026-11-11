@@ -150,6 +150,17 @@ describe("Assistant campaign actions — no real DB or platform access", () => {
     states["meta-c"].status = states["meta-c"].effective_status = "ACTIVE";
     expect((await call("prepare", "edit", { changes: { title: "New" } })).status).toBe(501);
   });
+  it("refuses activation after Meta rejection and refuses actions on a terminal child object", async () => {
+    published(); states["meta-a"].effective_status = "DISAPPROVED";
+    expect((await call("prepare", "activate")).status).toBe(409);
+    expect(mocks.activate).not.toHaveBeenCalled();
+    states["meta-a"].effective_status = "ACTIVE"; states["meta-s"].status = "ARCHIVED";
+    expect((await call("prepare", "pause")).status).toBe(409);
+    expect(mocks.pause).not.toHaveBeenCalled();
+    states["meta-s"].status = "ACTIVE"; states["meta-a"].status = "UNRECOGNIZED";
+    expect((await call("prepare", "pause")).status).toBe(409);
+    expect(mocks.pause).not.toHaveBeenCalled();
+  });
   it("cannot bypass the existing launch/payment flow for a pending campaign", async () => {
     published(); rows[0].status = "pending_payment";
     expect((await call("prepare", "activate")).status).toBe(409);

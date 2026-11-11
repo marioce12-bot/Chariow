@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { decryptSecret } from "@/lib/crypto";
 import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
 import { sanitizeMetaTargeting } from "@/lib/ad-campaigns/meta-targeting";
+import { deleteMetaCampaign, getMetaCampaignAccountId, isMetaObjectMissingError } from "@/lib/meta/campaigns";
 import { normalizeMetaCta } from "@/lib/meta/cta";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { getMetaCampaignLifecycle } from "@/lib/meta/status";
@@ -128,7 +130,7 @@ export async function GET(request: Request) {
   const { supabase, user, response } = await requireUser();
   if (!user) return response;
   const storeId = new URL(request.url).searchParams.get("store_id");
-  let query = supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,carousel_urls,destination_url,countries,geo_targeting,meta_targeting,meta_page_id,call_to_action,advantage_creative,advantage_audience,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id);
+  let query = supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,carousel_urls,destination_url,countries,geo_targeting,meta_targeting,meta_page_id,call_to_action,advantage_creative,advantage_audience,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_adset_id,external_ad_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id);
   if (storeId) query = query.eq("store_id", storeId);
   const { data, error } = await query.order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: "Impossible de charger les campagnes" }, { status: 500 });
@@ -148,11 +150,57 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: "Campagne requise" }, { status: 400 });
   const { data: campaign, error: readError } = await supabase
     .from("ad_campaigns")
-    .select("id,external_campaign_id,external_ad_id,title,product_name,product_id,status")
+    .select("id,platform,meta_ad_account_id,external_campaign_id,external_adset_id,external_ad_id,title,product_name,product_id,status")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
   if (readError || !campaign) return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
+
+  if (campaign.platform === "meta") {
+    const externalCampaignId = typeof campaign.external_campaign_id === "string" ? campaign.external_campaign_id : "";
+    if (!externalCampaignId && (campaign.external_adset_id || campaign.external_ad_id)) {
+      return NextResponse.json({ error: "Identifiants Meta incomplets; la campagne a été conservée." }, { status: 409 });
+    }
+    if (externalCampaignId) {
+      if (!campaign.meta_ad_account_id) return NextResponse.json({ error: "Compte Meta introuvable; la campagne a été conservée." }, { status: 409 });
+      const { data: account, error: accountError } = await supabase.from("meta_ad_accounts")
+        .select("access_token_encrypted,is_active,meta_account_id")
+        .eq("id", campaign.meta_ad_account_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (accountError) return NextResponse.json({ error: "Impossible de vérifier le compte Meta; la campagne a été conservée." }, { status: 500 });
+      if (!account?.is_active || !account.access_token_encrypted || !account.meta_account_id) {
+        return NextResponse.json({ error: "La connexion au compte Meta est indisponible; la campagne a été conservée." }, { status: 409 });
+      }
+
+      try {
+        const accessToken = decryptSecret(account.access_token_encrypted);
+        let alreadyMissing = false;
+        try {
+          const remoteAccountId = await getMetaCampaignAccountId({ campaignId: externalCampaignId, accessToken });
+          const normalizeAccountId = (value: string) => value.replace(/^act_/, "");
+          if (normalizeAccountId(remoteAccountId) !== normalizeAccountId(account.meta_account_id)) {
+            return NextResponse.json({ error: "Cette campagne Meta ne correspond pas au compte lié; aucune suppression effectuée." }, { status: 409 });
+          }
+        } catch (error) {
+          if (error instanceof Error && isMetaObjectMissingError(error.message)) alreadyMissing = true;
+          else throw error;
+        }
+        if (!alreadyMissing) {
+          try {
+            await deleteMetaCampaign({ campaignId: externalCampaignId, accessToken });
+          } catch (error) {
+            // A positively missing object is already in the requested final state.
+            // Permission/unsupported-object errors are deliberately not treated as success.
+            if (!(error instanceof Error && isMetaObjectMissingError(error.message))) throw error;
+          }
+        }
+      } catch {
+        return NextResponse.json({ error: "Meta n’a pas confirmé la suppression; la campagne a été conservée dans Vendeo." }, { status: 502 });
+      }
+    }
+  }
+
   // Retain the campaign and its reporting history; only hide it from active lists.
   const { error } = await supabase.from("ad_campaigns").update({ status: "deleted" }).eq("id", id).eq("user_id", user.id);
   if (error) return NextResponse.json({ error: "Impossible de supprimer la campagne" }, { status: 500 });

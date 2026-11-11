@@ -19,6 +19,12 @@ async function graphRead(id: string, accessToken: string, requestedFields: strin
   if (!response.ok || !json || json.error || json.id !== id) throw new Error("Lecture Meta non vérifiée");
   return json;
 }
+function metaObjectStates(row: Row): string[] {
+  return [row.status, row.effective_status]
+    .filter((status): status is string => typeof status === "string")
+    .map((status) => status.toUpperCase());
+}
+const terminalMetaStatuses = new Set(["ARCHIVED", "CAMPAIGN_ARCHIVED", "ADSET_ARCHIVED", "AD_ARCHIVED", "DELETED", "CAMPAIGN_DELETED", "ADSET_DELETED", "AD_DELETED"]);
 function draftCopy(campaign: Row, userId: string) {
   const copy: Row = Object.fromEntries(copyFields.map(field => [field, campaign[field] ?? null]));
   // A whitelist prevents copying external IDs, payment state or Autopilot state.
@@ -79,7 +85,10 @@ export async function POST(request: Request) {
         const adSet = await graphRead(campaign.external_adset_id, accessToken, "id,name,account_id,campaign_id,status,effective_status,daily_budget,lifetime_budget,start_time,end_time");
         const ad = await graphRead(campaign.external_ad_id, accessToken, "id,name,account_id,campaign_id,adset_id,status,effective_status");
         if (adSet.campaign_id !== campaign.external_campaign_id || ad.campaign_id !== campaign.external_campaign_id || ad.adset_id !== campaign.external_adset_id || String(adSet.account_id) !== expectedAccount || String(ad.account_id) !== expectedAccount || !adSet.status || !ad.status) throw new Error("Entités Meta incohérentes");
-        if (action === "activate" && [adSet.status, ad.status].some(status => ["ARCHIVED", "DELETED"].includes(status))) return fail("Un ensemble ou une publicité est archivé ou supprimé; activation indisponible.", 409);
+        const allStates = [...metaObjectStates(live), ...metaObjectStates(adSet), ...metaObjectStates(ad)];
+        if (allStates.some((status) => terminalMetaStatuses.has(status))) return fail("Un objet Meta est archivé ou supprimé; action indisponible.", 409);
+        if (action === "activate" && allStates.some((status) => ["DISAPPROVED", "WITH_ISSUES"].includes(status))) return fail("Meta a refusé cette publicité; corrige son contenu avant de l’activer.", 409);
+        if ([live, adSet, ad].some((entity) => !["ACTIVE", "PAUSED"].includes(String(entity.status).toUpperCase()))) return fail("État d’un objet Meta non reconnu; action indisponible.", 409);
         children = { adSet, ad };
         const daily = live.daily_budget || adSet.daily_budget;
         const lifetime = live.lifetime_budget || adSet.lifetime_budget;
