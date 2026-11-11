@@ -18,6 +18,8 @@ interface StepProps {
   initialStatus?: "draft" | "paused" | "autopilot_paused" | "paid";
   initialError?: string | null;
   launchLabel?: string;
+  /** Lance la campagne dès l'ouverture de l'étape, sans second clic (parcours de création Pub). */
+  autoLaunch?: boolean;
 }
 
 type Phase = "ready" | "launching" | "done" | "error" | "tag_required" | "meta_pixel_required";
@@ -30,8 +32,8 @@ type Phase = "ready" | "launching" | "done" | "error" | "tag_required" | "meta_p
  * comment la récupérer et l'installer sur Chariow, et on ne lance en Trafic QUE si l'utilisateur
  * le confirme explicitement (confirm_traffic_fallback).
  */
-export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunchingChange, initialStatus, initialError, launchLabel }: StepProps) {
-  const [phase, setPhase] = useState<Phase>("ready");
+export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunchingChange, initialStatus, initialError, launchLabel, autoLaunch = false }: StepProps) {
+  const [phase, setPhase] = useState<Phase>(autoLaunch && !initialError ? "launching" : "ready");
   const [error, setError] = useState<string | null>(null);
   const [objectiveFallback, setObjectiveFallback] = useState(false);
   const [pixelAutoSelected, setPixelAutoSelected] = useState(false);
@@ -49,7 +51,11 @@ export function Step5Payment({ state, onBack, onLaunched, onCorrection, onLaunch
       }
       setError(initialError);
       setPhase("error");
+      return;
     }
+    // Parcours de création : la campagne part directement à la plateforme, sans second clic.
+    // launchInFlightRef empêche un double envoi (rendu double en développement, re-montage).
+    if (autoLaunch && state.campaignId) void launchCampaign();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

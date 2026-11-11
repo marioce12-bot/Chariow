@@ -11,15 +11,17 @@ interface StepProps {
   patch: (p: Partial<WizardState>) => void;
   onNext: () => void;
   onBack: () => void;
+  /** Création d'une nouvelle campagne : l'étape suivante l'envoie directement à la plateforme. */
+  launchesDirectly?: boolean;
 }
 
 /** Étape 4/5 — Budget et durée de la campagne.
  *
  * Cette étape ne simule pas la diffusion et n'affiche aucune portée ou
- * impression probable. Elle crée uniquement le brouillon réel qui sera ensuite
- * visible et modifiable dans la page Pub avant le lancement explicite.
+ * impression probable. Elle enregistre la campagne réelle ; lors d'une création,
+ * l'étape suivante l'envoie directement à la plateforme (voir Step5Payment, autoLaunch).
  */
-export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
+export function Step4Budget({ state, patch, onNext, onBack, launchesDirectly = false }: StepProps) {
   const { locale } = useI18n();
   const en = locale === "en";
   const [loading, setLoading] = useState(false);
@@ -134,6 +136,8 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
     }
   };
 
+  const directLaunch = launchesDirectly && !editing;
+
   return (
     <div className="space-y-4">
       <div>
@@ -165,9 +169,13 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
       </div>
 
       <p className="text-xs text-gray-500">
-        {en
-          ? (editing ? "Your changes will be saved on this campaign. Nothing is launched at this stage." : "The campaign will be saved as a draft. No ad is launched and no performance is simulated at this stage.")
-          : (editing ? "Tes modifications seront enregistrées sur cette campagne. Rien n'est lancé à cette étape." : "La campagne sera enregistrée comme brouillon. Aucune publicité n'est lancée et aucune performance n'est simulée à cette étape.")}
+        {directLaunch
+          ? (en
+            ? "When you press Launch, the campaign is created and sent straight to the ad platform. The platform bills the budget directly to your ad account, and may take a little time to review the ad."
+            : "Quand tu appuies sur Lancer, la campagne est créée puis envoyée directement à la plateforme publicitaire. La plateforme facture le budget directement sur ton compte publicitaire et peut mettre un peu de temps à valider la publicité.")
+          : (en
+            ? (editing ? "Your changes will be saved on this campaign. Nothing is launched at this stage." : "The campaign will be saved as a draft. No ad is launched and no performance is simulated at this stage.")
+            : (editing ? "Tes modifications seront enregistrées sur cette campagne. Rien n'est lancé à cette étape." : "La campagne sera enregistrée comme brouillon. Aucune publicité n'est lancée et aucune performance n'est simulée à cette étape."))}
       </p>
 
       {error && <p className="text-sm text-[#991B1B]">{localizeSystemMessage(error, locale)}</p>}
@@ -181,7 +189,7 @@ export function Step4Budget({ state, patch, onNext, onBack }: StepProps) {
           onClick={() => void createDraft()}
           className="rounded-lg bg-[#6366F1] px-5 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
-          {loading ? (en ? "Saving…" : "Enregistrement…") : (en ? "Continue" : "Continuer")}
+          {loading ? (en ? "Saving…" : "Enregistrement…") : directLaunch ? (en ? "Launch campaign" : "Lancer la campagne") : (en ? "Continue" : "Continuer")}
         </button>
       </div>
     </div>
