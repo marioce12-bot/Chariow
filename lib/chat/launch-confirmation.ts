@@ -12,6 +12,7 @@ export const LAUNCH_CALL_TO_ACTIONS = [
   "SHOP_NOW",
   "BUY_NOW",
   "ORDER_NOW",
+  "DOWNLOAD",
   "LEARN_MORE",
   "GET_OFFER",
   "CONTACT_US",
@@ -125,7 +126,7 @@ export function launchConfirmationFallback(locale: "fr" | "en"): string {
 function normalizeConfirmation(text: string): string {
   return text
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[’']/g, "")
     .replace(/[.,!?;:]+/g, " ")
@@ -144,7 +145,7 @@ export function isAwaitingLaunchConfirmation(history: PriorChatMessage[] | null 
   // The API supplies newest-first history; the client reverses its chronological state before calling.
   const latestAssistant = history?.find((item) => item.role === "assistant");
   if (!latestAssistant || typeof latestAssistant.content !== "string") return false;
-  const content = latestAssistant.content.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const content = latestAssistant.content.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const requestsConfirmation = /\b(confirmer|confirmez|confirme|valider|validez|confirmation|corrects?|corrections?)\b/.test(content);
   const mentionsCampaign = /\b(campagne|lancement|publicite|pub)\b/.test(content);
   const presentsRecap = /\b(informations|details|recapitulatif|configuration|corrects?)\b/.test(content);
@@ -160,7 +161,7 @@ export function isRecapAwaitingApproval(history: PriorChatMessage[] | null | und
   const latestAssistant = history?.find((item) => item.role === "assistant");
   if (!latestAssistant || typeof latestAssistant.content !== "string") return false;
   if (latestAssistant.content.includes(LAUNCH_TAG)) return false;
-  const content = latestAssistant.content.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const content = latestAssistant.content.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   if (!/\b(campagne|campaign|lancement|launch|publicite|pub|ad)\b/.test(content)) return false;
   const signals = [
     /\b(budget)\b/,

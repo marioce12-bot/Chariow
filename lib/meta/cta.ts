@@ -2,7 +2,7 @@
 // Liste volontairement courte : uniquement des types compatibles avec un lien vers une
 // boutique (pas de WhatsApp/Messenger, qui demandent une configuration de destination différente).
 
-export const META_CTA_TYPES = ["SHOP_NOW", "LEARN_MORE", "BUY_NOW", "ORDER_NOW", "GET_OFFER", "CONTACT_US"] as const;
+export const META_CTA_TYPES = ["SHOP_NOW", "LEARN_MORE", "BUY_NOW", "ORDER_NOW", "DOWNLOAD", "GET_OFFER", "CONTACT_US"] as const;
 
 export type MetaCtaType = (typeof META_CTA_TYPES)[number];
 
@@ -21,6 +21,7 @@ export const META_CTA_LABELS: Record<MetaCtaType, { fr: string; en: string }> = 
   LEARN_MORE: { fr: "En savoir plus", en: "Learn more" },
   BUY_NOW: { fr: "Acheter maintenant", en: "Buy now" },
   ORDER_NOW: { fr: "Commander", en: "Order now" },
+  DOWNLOAD: { fr: "Télécharger", en: "Download" },
   GET_OFFER: { fr: "Obtenir l'offre", en: "Get offer" },
   CONTACT_US: { fr: "Nous contacter", en: "Contact us" },
 };
