@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { META_CTA_TYPES } from "@/lib/meta/cta";
 import {
+  LAUNCH_CALL_TO_ACTIONS,
   isAwaitingLaunchConfirmation,
   isShortLaunchConfirmation,
   parseLaunchPayload,
@@ -59,6 +61,15 @@ describe("launch confirmation protocol", () => {
 
   it("accepts a complete marker-plus-JSON payload", () => {
     expect(parseLaunchPayload(`Préparation\n${serializeLaunchPayload(validPayload)}`)).toEqual(validPayload);
+  });
+
+  it.each(["ORDER_NOW", "DOWNLOAD"] as const)("accepts the %s call-to-action button", (callToAction) => {
+    const payload = { ...validPayload, callToAction };
+    expect(parseLaunchPayload(serializeLaunchPayload(payload))).toEqual(payload);
+  });
+
+  it("offers the same buttons as the ad wizard", () => {
+    expect([...LAUNCH_CALL_TO_ACTIONS].sort()).toEqual([...META_CTA_TYPES].sort());
   });
 
   it.each([
