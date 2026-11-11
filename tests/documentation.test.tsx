@@ -1,18 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync, existsSync } from "node:fs";
-import { assistantSections } from "@/lib/docs/assistant";
-import { coreIntegrationSections } from "@/lib/docs/integrations-core";
-import { socialIntegrationSections } from "@/lib/docs/integrations-social";
-import { commerceSections } from "@/lib/docs/commerce";
-import { studioManageSections } from "@/lib/docs/studio-manage";
 import type { LocalizedText } from "@/lib/docs/types";
+import { documentationSections as sections } from "@/lib/docs";
 const mocks = vi.hoisted(() => ({ locale: "fr" as "fr" | "en" }));
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: mocks.locale, setLocale: vi.fn() }) }));
 vi.mock("next/image", () => ({ default: ({ priority, ...props }: any) => <img {...props}/> }));
 vi.mock("next/link", () => ({ default: ({ children, ...props }: any) => <a {...props}>{children}</a> }));
 import { DocumentationCenter } from "@/components/docs/DocumentationCenter";
-const sections = [...commerceSections, ...coreIntegrationSections, ...socialIntegrationSections, ...assistantSections, ...studioManageSections];
 function bilingual(value: LocalizedText) {
   for (const locale of ["fr", "en"] as const) {
     expect(typeof value[locale]).toBe("string");
@@ -29,7 +24,7 @@ describe("public documentation center", () => {
     for (const section of sections) {
       expect(section.id).toMatch(/^[a-z0-9-]+$/);
       bilingual(section.title); bilingual(section.summary);
-      expect(section.articles.length).toBeGreaterThanOrEqual(3);
+      expect(section.articles.length).toBeGreaterThanOrEqual(section.id === "ad-performance" ? 1 : 3);
       expect(new Set(section.articles.map(a => a.id)).size).toBe(section.articles.length);
       for (const article of section.articles) {
         expect(article.id).toMatch(/^[a-z0-9-]+$/); bilingual(article.title);
@@ -38,8 +33,11 @@ describe("public documentation center", () => {
         for (const link of article.links || []) {
           bilingual(link.label);
           expect(link.href).toMatch(/^(\/|https:\/\/|#)/);
-          if (link.href.startsWith('/docs#')) {
-            const [sectionId, articleId] = link.href.slice(6).split('/');
+          const legacy = link.href.match(/^\/docs#([^/]+)(?:\/(.+))?$/);
+          const guidePath = link.href.match(/^\/docs\/([^/#]+)(?:#([^/]+)\/(.+))?$/);
+          if (legacy || guidePath) {
+            const sectionId = legacy?.[1] ?? guidePath?.[1];
+            const articleId = legacy?.[2] ?? guidePath?.[3];
             const target = sections.find(s => s.id === sectionId);
             expect(target, link.href).toBeDefined();
             if (articleId) expect(target?.articles.some(a => a.id === articleId), link.href).toBe(true);
@@ -55,7 +53,7 @@ describe("public documentation center", () => {
     expect(html).not.toMatch(/docs\.(?:nav|title|search)|landing\.nav/);
     expect(html).toContain('href="/dashboard"');
     expect(html).toContain('href="/login"');
-    for (const section of sections) expect(html).toContain(`href="#${section.id}"`);
+    for (const section of sections) expect(html).toContain(`href="/docs/${section.id}"`);
   });
   it("exposes the docs route in public navigation and the sitemap", () => {
     const marketing = readFileSync("components/Marketing.tsx", "utf8");

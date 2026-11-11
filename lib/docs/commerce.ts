@@ -35,6 +35,10 @@ export const commerceSections: DocSection[] = [
           { fr: 'Connectez-vous à Chariow si nécessaire, examinez l’autorisation demandée et confirmez-la sur Chariow. Au retour dans Vendeo, attendez que la boutique et son catalogue soient chargés.', en: 'Sign in to Chariow if needed, review the requested authorization, and approve it on Chariow. Back in Vendeo, wait for the store and its catalog to load.' },
           { fr: 'Si le tableau de bord signale une connexion expirée, révoquée ou en échec, réautorisez l’accès avant de vous fier aux données.', en: 'If the dashboard reports an expired, revoked, or failed connection, reauthorize access before relying on its data.' },
         ],
+        links: [
+          { href: '/docs/connect-chariow#connect-chariow/chariow-connect-steps', label: { fr: 'Étapes de connexion Chariow', en: 'Chariow connection steps' } },
+          { href: '/docs/connect-chariow#connect-chariow/chariow-prerequisites', label: { fr: 'Prérequis de connexion', en: 'Connection prerequisites' } },
+        ],
       },
       {
         id: 'create-account-and-password',
@@ -96,6 +100,10 @@ export const commerceSections: DocSection[] = [
           { fr: 'Dans le parcours de campagne, choisissez la boutique puis le produit concerné.', en: 'In the campaign flow, choose the store and then the relevant product.' },
           { fr: 'Contrôlez l’URL de destination et ouvrez-la séparément pour confirmer qu’elle mène à la bonne page.', en: 'Check the destination URL and open it separately to confirm it leads to the intended page.' },
           { fr: 'Ne partagez pas de lien de suivi comme s’il remplaçait la page de vente du produit.', en: 'Do not use a tracking link as though it replaced the product sales page.' },
+        ],
+        links: [
+          { href: '/docs/connect-chariow#connect-chariow/chariow-product-destination', label: { fr: 'Données produit et URL de destination', en: 'Product data and destination URL' } },
+          { href: '/docs/connect-chariow#connect-chariow/chariow-imported-data', label: { fr: 'Données importées de Chariow', en: 'Data imported from Chariow' } },
         ],
       },
       {
@@ -182,12 +190,34 @@ export const commerceSections: DocSection[] = [
           { fr: 'Renseignez puis vérifiez les éléments et paramètres proposés pour ce réseau.', en: 'Enter and review the details and settings offered for that network.' },
           { fr: 'Examinez l’étape de paiement/lancement et ne confirmez qu’après avoir compris le budget.', en: 'Review the payment/launch step and confirm only after understanding the budget.' },
         ],
+        links: [
+          { href: '/docs/ad-performance#ad-performance/prepare-campaign', label: { fr: 'Préparer les créations publicitaires', en: 'Prepare ad creatives' } },
+          { href: '/docs/connect-meta#connect-meta/meta-prerequisites', label: { fr: 'Prérequis du compte Meta', en: 'Meta account prerequisites' } },
+        ],
+      },
+      {
+        id: 'digital-product-checklist',
+        title: { fr: 'Checklist avant de promouvoir un produit digital', en: 'Checklist before promoting a digital product' },
+        paragraphs: [
+          { fr: 'Avant toute promotion, contrôlez dans votre page Chariow que l’offre est exacte et à jour : format et contenu du produit, prix affiché et modalités de livraison. Ouvrez ensuite la destination sur un téléphone, sans effectuer d’achat, pour vérifier qu’elle charge et qu’il s’agit bien de la page attendue. Comparez la promesse publicitaire, le visuel et le contenu de la page afin qu’ils décrivent la même offre.', en: 'Before promoting, check on your Chariow page that the offer is accurate and current: product format and contents, displayed price, and delivery details. Then open the destination on a phone without making a purchase to confirm it loads and is the intended page. Compare the ad promise and creative with the page so they describe the same offer.' },
+          { fr: 'Vérifiez que vous détenez les droits ou licences nécessaires pour chaque image, vidéo, musique, police et autre média utilisé. Gardez une preuve vérifiable avant toute affirmation publicitaire factuelle; n’avancez pas de résultat, caractéristique ou garantie que vous ne pouvez pas étayer. Dans le parcours proposé, vérifiez le compte publicitaire, vos autorisations d’accès, les options de suivi disponibles et l’objectif sélectionné; choisissez un objectif seulement s’il correspond à votre intention et aux prérequis affichés.', en: 'Check that you hold the necessary rights or licenses for every image, video, music track, font, and other media used. Keep verifiable evidence before making any factual advertising claim; do not state a result, feature, or guarantee you cannot substantiate. In the presented flow, check the ad account, your access permissions, available tracking options, and selected objective; choose an objective only if it matches your intent and the displayed prerequisites.' },
+          { fr: 'Avant confirmation, relisez le budget et sa devise dans le compte publicitaire, ainsi que les frais éventuels. Gardez ces montants distincts du prix, de la devise et du cycle de facturation de l’abonnement Vendeo, et des crédits ou budgets éventuels du Studio. Après soumission, vérifiez le statut et les éventuels messages dans Vendeo et dans la plateforme publicitaire; si le résultat n’est pas clair, ne relancez pas à l’aveugle et vérifiez d’abord qu’aucune campagne n’a déjà été créée ou activée.', en: 'Before confirming, review the budget and its currency in the ad account, along with any applicable fees. Keep these amounts separate from the price, currency, and billing cycle of the Vendeo subscription, and from any Studio credits or budgets. After submission, check the status and any messages in Vendeo and on the ad platform; if the outcome is unclear, do not blindly retry—first check that a campaign has not already been created or activated.' },
+        ],
+        steps: [
+          { fr: 'Validez l’offre Chariow, puis ouvrez la page de destination sur mobile sans acheter.', en: 'Verify the Chariow offer, then open the destination on mobile without buying.' },
+          { fr: 'Vérifiez cohérence, droits/licences, preuves, compte, autorisations, suivi et objectif.', en: 'Check consistency, rights/licenses, evidence, account, permissions, tracking, and objective.' },
+          { fr: 'Relisez budget, devise et frais; après soumission, contrôlez le statut avant toute reprise.', en: 'Review budget, currency, and fees; after submission, check status before retrying.' },
+        ],
+        links: [
+          { href: '/docs/connect-chariow#connect-chariow/chariow-product-destination', label: { fr: 'Vérifier le produit et sa destination', en: 'Check the product and its destination' } },
+          { href: '/docs/studio-privacy-security#studio-privacy-security/privacy-content-rights', label: { fr: 'Droits et licences des contenus', en: 'Content rights and licenses' } },
+        ],
       },
       {
         id: 'budget-and-billing',
         title: { fr: 'Budget, paiement et erreurs', en: 'Budget, payment, and errors' },
         paragraphs: [
-          { fr: 'Au lancement, le budget média est facturé directement par la plateforme publicitaire au compte publicitaire sélectionné; Vendeo ne collecte pas ce budget. La devise et les moyens de paiement dépendent du compte et de la plateforme. Vérifiez dans la plateforme les plafonds, taxes, autorisations et conséquences d’un budget quotidien.', en: 'At launch, the selected ad platform charges the media budget directly to the selected ad account; Vendeo does not collect that budget. Currency and payment methods depend on the account and platform. Check limits, taxes, authorization, and daily-budget implications with the platform.' },
+          { fr: 'Au lancement, le budget média est facturé directement par la plateforme publicitaire au compte publicitaire sélectionné; Vendeo ne collecte pas ce budget. La devise et les moyens de paiement dépendent du compte et de la plateforme. Vérifiez dans la plateforme les plafonds, taxes, autorisations et conséquences d’un budget quotidien. Si vous budgétez en XOF, vérifiez pour chaque compte la devise réellement débitée, les frais de change et taxes éventuels, ainsi que les moyens de paiement acceptés. Ne supposez pas que la devise ou le moyen de paiement de l’abonnement Vendeo, facturé en XOF, s’applique aussi au compte publicitaire.', en: 'At launch, the selected ad platform charges the media budget directly to the selected ad account; Vendeo does not collect that budget. Currency and payment methods depend on the account and platform. Check limits, taxes, authorization, and daily-budget implications with the platform. If you budget in XOF, check for each account the currency actually charged, any currency-conversion fees and taxes, and accepted payment methods. Do not assume that the currency or payment method for a Vendeo subscription billed in XOF also applies to the ad account.' },
           { fr: 'Après une erreur, une campagne peut rester en brouillon, en pause ou nécessiter une correction. Lorsque l’assistant propose une reprise, vérifiez les changements demandés; pour Pinterest, confirmez explicitement si vous acceptez de remplacer l’objectif Ventes par Trafic. Avant de réessayer, vérifiez le statut dans Vendeo et dans la plateforme pour éviter de créer un doublon.', en: 'After an error, a campaign may remain in draft, paused, or need correction. If the flow offers a resume action, review the requested changes; for Pinterest, explicitly confirm if you accept replacing the Sales objective with Traffic. Before trying again, check status in Vendeo and on the platform to avoid creating a duplicate.' },
           { fr: 'Ne transmettez jamais vos mots de passe, jetons d’accès ou informations de paiement dans une demande d’assistance. Utilisez les parcours d’autorisation de chaque plateforme et révoquez les accès dont vous n’avez plus besoin.', en: 'Never send passwords, access tokens, or payment details in a support request. Use each platform’s authorization flow and revoke access you no longer need.' },
         ],
@@ -195,6 +225,10 @@ export const commerceSections: DocSection[] = [
           { fr: 'Confirmez le budget dans la devise affichée et vérifiez que le compte publicitaire a un moyen de paiement valide.', en: 'Confirm the budget in the displayed currency and check that the ad account has a valid payment method.' },
           { fr: 'Après une erreur, lisez le message affiché et corrigez le point signalé (compte, pixel/balise, média ou paiement) avant de réessayer.', en: 'After an error, read the message shown and fix the issue it identifies (account, pixel/tag, creative, or payment) before retrying.' },
           { fr: 'Vérifiez qu’aucune campagne identique n’a déjà été créée ou activée sur la plateforme.', en: 'Check that an identical campaign has not already been created or enabled on the platform.' },
+        ],
+        links: [
+          { href: '/docs/studio-credits#studio-credits/credits-budgets-distinct', label: { fr: 'Distinguer crédits Studio et budget publicitaire', en: 'Separate Studio credits from ad budget' } },
+          { href: '/docs/connect-meta#connect-meta/meta-prerequisites', label: { fr: 'Compte et prérequis Meta', en: 'Meta account and prerequisites' } },
         ],
       },
       {
@@ -246,6 +280,10 @@ export const commerceSections: DocSection[] = [
           { fr: 'Comparez les chiffres à ceux du gestionnaire publicitaire de la plateforme, avec devise et plage de dates identiques.', en: 'Compare figures with the platform’s ads manager using the same currency and date range.' },
           { fr: 'Traitez les erreurs d’accès, données absentes ou valeurs inconnues comme une mesure indisponible, pas comme zéro.', en: 'Treat access errors, missing data, or unknown values as unavailable measurements, not zero.' },
         ],
+        links: [
+          { href: '/docs/connect-pinterest#connect-pinterest/pinterest-data-and-permissions', label: { fr: 'Données et autorisations Pinterest', en: 'Pinterest data and permissions' } },
+          { href: '/docs/connect-tiktok#connect-tiktok/tiktok-data-permissions', label: { fr: 'Données et autorisations TikTok', en: 'TikTok data and permissions' } },
+        ],
       },
       {
         id: 'tracking-quality',
@@ -257,6 +295,10 @@ export const commerceSections: DocSection[] = [
         steps: [
           { fr: 'Ouvrez les diagnostics de suivi si disponibles et corrigez les balises ou connexions signalées.', en: 'Open tracking diagnostics if available and fix reported tags or connections.' },
           { fr: 'Vérifiez les rapports sur la plateforme et les commandes dans Chariow; notez les écarts de période et de devise.', en: 'Check platform reports and Chariow orders; note period and currency differences.' },
+        ],
+        links: [
+          { href: '/docs/connect-chariow#connect-chariow/chariow-pixel-events', label: { fr: 'Événements de suivi Chariow', en: 'Chariow tracking events' } },
+          { href: '/docs/connect-meta#connect-meta/meta-conversions-spend', label: { fr: 'Conversions et dépenses Meta', en: 'Meta conversions and spend' } },
         ],
       },
     ],
