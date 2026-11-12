@@ -42,7 +42,7 @@
   #v(0.8cm)
   #text(size: 10.5pt, fill: luma(70))[POUR QUI : débutants qui préparent leurs premiers comptes publicitaires pour leur propre entreprise]
   #v(0.65cm)
-  #panel("Objectif de ce guide", [Créer ou préparer un compte publicitaire sur les trois plateformes, choisir la bonne structure, renseigner les informations cohérentes et vérifier l’accès, la facturation et l’état d’approbation sans lancer de publicité par inadvertance.])
+  #panel("Objectif de ce guide", [Créer ou préparer un compte publicitaire sur les trois plateformes, choisir la bonne structure, renseigner les informations cohérentes, créer et relier un Pixel Meta au parcours de vente Chariow, puis vérifier les accès, la facturation et l’état d’approbation sans lancer de publicité par inadvertance.])
   #v(0.55cm)
   #text(size: 11pt, weight: "bold", fill: rgb("#17233C"))[À la fin, vous pourrez]
   #v(0.2cm)
@@ -51,8 +51,9 @@
 - Créer un compte professionnel et un compte annonceur Pinterest.
 - Ouvrir Ads Manager TikTok, fournir les informations demandées et suivre l’examen du compte.
 - Sécuriser les accès et valider devise, fuseau horaire, facturation et autorisations avant toute dépense.
+- Créer le Pixel Meta, le relier à Chariow et tester les événements avant de préparer une campagne Ventes.
   #v(0.7cm)
-  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 5 novembre 2026]
+  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 12 novembre 2026]
   ]
   #page(header: none)[
   #outline(title: [Sommaire], depth: 2, indent: 1.1em)
@@ -64,7 +65,7 @@
   #text(weight: "bold", fill: report-accent)[Pour qui ?]
   débutants qui préparent leurs premiers comptes publicitaires pour leur propre entreprise
   #text(weight: "bold", fill: report-accent)[Ce que vous allez produire]
-  Créer ou préparer un compte publicitaire sur les trois plateformes, choisir la bonne structure, renseigner les informations cohérentes et vérifier l’accès, la facturation et l’état d’approbation sans lancer de publicité par inadvertance.
+  Créer ou préparer un compte publicitaire sur les trois plateformes, choisir la bonne structure, renseigner les informations cohérentes, créer et relier un Pixel Meta au parcours de vente Chariow, puis vérifier les accès, la facturation et l’état d’approbation sans lancer de publicité par inadvertance.
   = Préparer les informations avant l’inscription
   Avant d’ouvrir les interfaces, décidez qui possédera les comptes et qui aura besoin d’y travailler. Pour une entreprise, privilégiez les outils professionnels et gardez les actifs au nom de l’entreprise lorsque cela correspond à votre situation.
   == Points à retenir
@@ -85,6 +86,16 @@
 - Dans Facturation et paiements, ajoutez un moyen de paiement valide avec l’accord du responsable financier. Vérifiez le statut du compte dans Business Support Home avant de préparer une campagne.
   #panel("À mettre en pratique", [Avant de cliquer sur Créer, confirmez par écrit le nom, le portefeuille propriétaire, la devise et le fuseau horaire. Après création, notez l’identifiant du compte et contrôlez les accès sans inscrire de secret dans votre registre.])
   #panel("Exemple de travail", [Si vous gérez les annonces d’un client, demandez au client de partager l’accès ou de vous ajouter comme partenaire. Ne créez pas un compte personnel à votre nom pour remplacer la propriété de l’entreprise.])
+  = Meta : créer et configurer le Pixel sur Chariow
+  Le Pixel est la source de mesure des actions qui ont lieu sur votre site. Créer un compte Meta ou un Pixel ne suffit pas : l’identifiant doit aussi être installé dans le parcours de vente et les événements doivent être testés.
+  == Points à retenir
+  - Dans Meta Events Manager, cliquez sur Connecter des données, choisissez Web puis Connecter. Nommez le Pixel et créez-le; copiez son identifiant (Pixel ID) et vérifiez que le bon portefeuille et le bon compte publicitaire sont sélectionnés.
+- Dans les réglages du parcours de vente Chariow, configurez l’identifiant du Pixel ou l’intégration Conversions API proposée par votre boutique, puis enregistrez. Ne collez pas un jeton d’accès dans un champ de Pixel ID; si vous utilisez une installation manuelle sur un autre site, demandez l’aide d’un développeur.
+- Dans Vendeo, ouvrez Pub > Meta > Suivi des conversions et sélectionnez le compte publicitaire concerné. Copiez le Pixel ID affiché pour le comparer à celui installé sur Chariow. Cliquez sur « J’ai configuré ce pixel » uniquement après l’installation; ce bouton ne réalise pas l’installation.
+- Retournez dans Events Manager > Sources de données > sélectionnez le Pixel > Tester les événements. Laissez l’onglet ouvert, ouvrez la page Chariow et vérifiez PageView ainsi que les événements produits par votre parcours. Testez Purchase en mode test si disponible; ne créez pas d’achat payant juste pour la vérification.
+- Avant une campagne Ventes, confirmez que le Pixel est accessible au compte publicitaire choisi et que Purchase correspond à un paiement terminé, avec valeur et devise correctes. Si l’événement manque, vérifiez l’installation et les autorisations avant de lancer. Meta propose aussi la Conversions API en complément; sa mise en place peut nécessiter une intégration ou un développeur.
+  #panel("À mettre en pratique", [Fiche à conserver : propriétaire du Pixel, identifiant, boutique Chariow visée, compte publicitaire associé, date et résultat du test. N’y inscrivez ni mot de passe, ni jeton, ni données personnelles de clients.])
+  #panel("Exemple de travail", [Si plusieurs comptes publicitaires ou Pixels sont listés, comparez leur identifiant et leur boutique avant de marquer l’un d’eux comme configuré dans Vendeo; un Pixel visible n’est pas nécessairement celui du parcours promu.])
   = Pinterest Ads : compte professionnel et compte annonceur
   Un compte professionnel Pinterest donne accès aux outils professionnels, notamment aux analyses et aux fonctionnalités publicitaires disponibles. La création initiale d’un compte professionnel et du compte annonceur peut nécessiter un ordinateur de bureau; vérifiez l’aide Pinterest si vous utilisez un téléphone.
   == Points à retenir
@@ -123,6 +134,7 @@
 + Notez le pays, le fuseau horaire et la devise envisagés pour chacun; faites valider ces choix par le responsable financier.
 + Suivez le parcours de création officiel et arrêtez-vous avant toute action qui engage un paiement ou publie une campagne non approuvée.
 + Consignez les identifiants de compte et l’état de vérification dans un outil professionnel sécurisé, sans mot de passe ni code de sécurité.
++ Pour Meta, créez le Pixel dans Events Manager, configurez son identifiant sur le parcours Chariow puis vérifiez PageView et les événements disponibles dans Tester les événements; marquez-le configuré dans Vendeo seulement après l’installation.
 + Vérifiez les permissions et les actifs nécessaires, puis faites approuver les accès par leur propriétaire.
 + Ajoutez les liens officiels pertinents aux favoris pour recontrôler les exigences avant la première campagne.
   #panel("Livrable", [Livrable : une fiche de configuration par plateforme avec propriétaire, identifiant, pays, devise, fuseau, état de vérification, responsables et prochaines actions approuvées. Aucun paiement ni lancement de campagne n’est requis pour cet exercice.])
@@ -135,6 +147,7 @@
 - La facturation et tout budget sont validés par la personne habilitée.
 - Les états de vérification et les limites de plateforme sont contrôlés dans les interfaces officielles.
 - Aucune campagne n’est publiée avant approbation du budget et des éléments de diffusion.
+- Le Pixel Meta associé au parcours Chariow et au compte publicitaire a été testé avant toute campagne Ventes.
   = Limites et précautions
   - Les interfaces, noms des menus, règles, limites de compte et moyens de paiement évoluent et varient selon les pays et les comptes.
 - Une inscription réussie ne garantit pas l’approbation de l’entreprise, l’accès à toutes les fonctionnalités ou la diffusion d’une publicité.
@@ -142,6 +155,8 @@
 - Pinterest indique que la création de comptes professionnels et annonceurs nécessite actuellement un ordinateur dans certains parcours; confirmez l’aide officielle avant d’essayer sur mobile.
 - Les documents d’entreprise et informations de paiement doivent être fournis uniquement dans les interfaces officielles sécurisées.
 - Ce guide explique une configuration générale et ne constitue pas un conseil juridique, fiscal ou financier.
+- Le bouton « J’ai configuré ce pixel » dans Vendeo enregistre un état déclaré; il ne pose pas le Pixel sur Chariow et ne remplace pas le test dans Events Manager.
+- Informez les visiteurs et respectez les règles locales applicables aux traceurs et aux données; ne transmettez pas de données sensibles dans les événements.
   = Glossaire essentiel
   #print-glossary(glossary, show-all: true)
   = Sources et vérification
@@ -176,5 +191,25 @@
     #linebreak()
     #text(size: 9pt, fill: luma(80))[Utilisée pour : Page officielle d’inscription à TikTok for Business.]
   ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://www.facebook.com/business/help/952192354843755")[Meta Business Help Center — Set up and install the Meta Pixel]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Création dans Events Manager, méthodes d’installation via intégration partenaire ou code manuel et configuration des événements; consulté le 12 novembre 2026.]
+  ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://www.facebook.com/business/help/2040882565969969")[Meta Business Help Center — Test events tool: verify app and web browser events for Meta]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Vérification des événements web dans Test Events, ouverture de la page pendant le test et délais de remontée; consulté le 12 novembre 2026.]
+  ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://developers.facebook.com/docs/meta-pixel/implementation/conversion-tracking")[Meta for Developers — Conversion Tracking with the Meta Pixel]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Événements standards, valeurs et devises de conversion, et configuration du suivi; consulté le 12 novembre 2026.]
+  ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://www.facebook.com/business/help/TroubleshootEventSetupTool")[Meta Business Help Center — Troubleshoot the event setup tool for web in Meta Events Manager]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Dépannage des événements absents, erreurs de détection et événements répétés; consulté le 12 novembre 2026.]
+  ]
   #v(0.35cm)
-  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
+  #text(size: 9pt, fill: luma(80))[Sources consultées jusqu’au 12 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]

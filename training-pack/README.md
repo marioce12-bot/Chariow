@@ -25,6 +25,6 @@ Le générateur lit les fichiers JSON dans `training-pack/guide-content/`, écri
 
 ## Base documentaire
 
-Les références intégrées sont des sources publiques officielles (Meta, Google, WIPO, OpenAI, Pinterest, TikTok et U.S. Small Business Administration). Les URL, l’usage éditorial et les limites de chaque source sont consignés dans les fichiers de contenu. Les pages ont été consultées les 4 et 5 novembre 2026. Les interfaces, politiques et conditions peuvent changer : revérifier les sources avant d’appliquer une procédure.
+Les références intégrées sont des sources publiques officielles (Meta, Google, WIPO, OpenAI, Pinterest, TikTok et U.S. Small Business Administration). Les URL, l’usage éditorial et les limites de chaque source sont consignés dans les fichiers de contenu. Les pages ont été consultées les 4, 5 et 12 novembre 2026. Les interfaces, politiques et conditions peuvent changer : revérifier les sources avant d’appliquer une procédure.
 
 Ces guides sont pédagogiques. Ils ne promettent pas de ventes ou de performances et ne remplacent pas un avis juridique, financier ou professionnel adapté au pays et au secteur concernés. La SBA est une agence américaine; ses ressources servent ici de cadre de questions et ne constituent pas des statistiques locales pour un autre pays.

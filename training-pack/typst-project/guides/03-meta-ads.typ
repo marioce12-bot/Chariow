@@ -6,7 +6,8 @@
   (key: "actif", short: "actif", long: "actif professionnel", description: "Ressource telle qu’une Page, un compte publicitaire ou un compte Instagram, associée à un portefeuille ou gérée avec un accès partagé."),
   (key: "acces_complet", short: "accès complet", long: "accès complet", description: "Niveau de permission donnant un contrôle étendu sur le portefeuille, les personnes, les actifs et certains réglages sensibles."),
   (key: "acces_partiel", short: "accès partiel", long: "accès partiel", description: "Permission limitée aux actifs ou tâches attribués, à privilégier lorsque le rôle ne nécessite pas le contrôle complet."),
-  (key: "2fa", short: "2FA", long: "authentification à deux facteurs", description: "Contrôle de connexion qui demande une seconde preuve en plus du mot de passe, par exemple une application d’authentification.")
+  (key: "2fa", short: "2FA", long: "authentification à deux facteurs", description: "Contrôle de connexion qui demande une seconde preuve en plus du mot de passe, par exemple une application d’authentification."),
+  (key: "pixel_meta", short: "Pixel Meta", long: "Pixel Meta", description: "Code ou intégration qui transmet à Meta des événements du site; sa création ne prouve ni son installation ni son bon fonctionnement.")
 )
 #show: make-glossary
 #register-glossary(glossary)
@@ -42,15 +43,16 @@
   #v(0.8cm)
   #text(size: 10.5pt, fill: luma(70))[POUR QUI : Responsables de petite entreprise, annonceurs et prestataires qui préparent un portefeuille professionnel Meta.]
   #v(0.65cm)
-  #panel("Objectif de ce guide", [Vous saurez dresser l’inventaire des actifs et des personnes, vérifier les accès utiles et préparer une revue de sécurité avant toute campagne.])
+  #panel("Objectif de ce guide", [Vous saurez dresser l’inventaire des actifs et des personnes, créer et tester le Pixel Meta sur le parcours de vente Chariow, vérifier les accès utiles et préparer une revue de sécurité avant toute campagne.])
   #v(0.55cm)
   #text(size: 11pt, weight: "bold", fill: rgb("#17233C"))[À la fin, vous pourrez]
   #v(0.2cm)
 - Distinguer portefeuille, Page, compte publicitaire et actifs associés.
 - Attribuer les autorisations selon le travail nécessaire, sans partager de secrets.
 - Vérifier 2FA, facturation et connexions tierces avant le lancement.
+- Créer le Pixel dans Events Manager, l’installer sur Chariow et vérifier les événements avant de le déclarer configuré dans Vendeo.
   #v(0.7cm)
-  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 5 novembre 2026]
+  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 12 novembre 2026]
   ]
   #page(header: none)[
   #outline(title: [Sommaire], depth: 2, indent: 1.1em)
@@ -62,7 +64,7 @@
   #text(weight: "bold", fill: report-accent)[Pour qui ?]
   Responsables de petite entreprise, annonceurs et prestataires qui préparent un portefeuille professionnel Meta.
   #text(weight: "bold", fill: report-accent)[Ce que vous allez produire]
-  Vous saurez dresser l’inventaire des actifs et des personnes, vérifier les accès utiles et préparer une revue de sécurité avant toute campagne.
+  Vous saurez dresser l’inventaire des actifs et des personnes, créer et tester le Pixel Meta sur le parcours de vente Chariow, vérifier les accès utiles et préparer une revue de sécurité avant toute campagne.
   = Faire l’inventaire et confirmer la propriété
   Avant de modifier un portefeuille, identifiez qui contrôle chaque ressource et comment elle est utilisée. Ajouter une Page à un portefeuille peut changer sa propriété; demander un accès partagé est une autre démarche.
   == Points à retenir
@@ -79,6 +81,16 @@
 - N’ouvrez pas plusieurs comptes par réflexe : les limites d’accès ou de création peuvent varier; vérifiez l’état dans les outils d’assistance officiels.
   #panel("À mettre en pratique", [Vérifiez la cohérence entre nom d’entreprise, actifs, devise, fuseau et destination client. Notez ce qui doit être validé par le responsable financier avant toute dépense.])
   #panel("Exemple de travail", [Pour une équipe dans plusieurs pays, un fuseau horaire mal choisi peut compliquer la lecture des périodes de facturation et des rapports; confirmez-le avant la première campagne.])
+  = Créer, installer et tester le Pixel Meta sur Chariow
+  Le Pixel sert à transmettre à Meta des événements du parcours web. Le créer dans Events Manager ne l’installe pas sur Chariow. Les intitulés d’écran peuvent varier; suivez les options proposées pour votre compte.
+  == Points à retenir
+  - Dans Meta Events Manager (Gestionnaire d’évènements), choisissez Connecter des données > Web > Connecter, donnez un nom au Pixel et créez-le. Notez son identifiant (Pixel ID) et vérifiez que vous travaillez dans le bon portefeuille et avec les autorisations nécessaires.
+- Si Meta propose une intégration partenaire compatible avec votre site, suivez son assistant. Sinon, l’installation manuelle du code de base et des événements nécessite un accès au site ou l’aide d’un développeur; le code de base seul ne configure pas toutes les conversions.
+- Pour le parcours de vente Chariow, copiez le Pixel ID et configurez-le dans les réglages Chariow prévus pour le Pixel ou la Conversions API. Dans Vendeo, ouvrez Pub > Meta > Suivi des conversions et sélectionnez le bon compte publicitaire. Le bouton « J’ai configuré ce pixel » ne fait qu’enregistrer votre déclaration : il n’installe ni ne teste le Pixel.
+- Dans Events Manager > Sources de données, sélectionnez le Pixel puis Tester les événements. Gardez l’outil de test ouvert, ouvrez votre page de vente et vérifiez que PageView puis les actions réellement parcourues apparaissent. Pour Achat (Purchase), utilisez un mode test s’il existe; ne faites pas un achat payant uniquement pour tester.
+- Avant une campagne Ventes, vérifiez que l’événement Purchase correspond à un paiement effectivement terminé, que valeur et devise sont exactes et que l’événement ne se déclenche pas plusieurs fois. Une intégration Conversions API peut être envisagée en complément du Pixel; suivez l’assistant Meta ou demandez une aide technique si elle est nécessaire.
+  #panel("À mettre en pratique", [Livrable : une fiche indiquant le Pixel ID, le compte publicitaire concerné, l’emplacement d’installation, la date du test et les événements reçus. Ne copiez aucun jeton ni donnée personnelle de client dans la fiche; ne marquez le Pixel configuré dans Vendeo qu’après l’installation réelle.])
+  #panel("Exemple de travail", [Si le Pixel est visible dans Vendeo mais n’apparaît pas dans Tester les événements, ne considérez pas la mesure comme prête : vérifiez l’identifiant, l’installation Chariow, le compte sélectionné et les autorisations.])
   = Attribuer les rôles et protéger les connexions
   Accorder l’accès complet à tout le monde augmente l’impact d’une erreur ou d’un compte compromis. Créez une matrice personnes–actifs–tâches et attribuez uniquement les permissions utiles.
   == Points à retenir
@@ -120,12 +132,15 @@
 - Le moyen de paiement, la devise et le compte sont vérifiés par le responsable.
 - Les invitations et intégrations tierces sont revues.
 - Aucun mot de passe, code 2FA ou numéro complet de carte n’est stocké dans le registre.
+- Le Pixel est installé sur le parcours Chariow et ses événements ont été vérifiés dans Events Manager; Vendeo n’est marqué configuré qu’après l’installation réelle.
   = Limites et précautions
   - Les noms de menus, rôles et fonctions Meta peuvent évoluer et varier selon les comptes et pays.
 - N’ajoutez pas une Page comme actif appartenant à votre portefeuille sans confirmer la propriété et l’accord du propriétaire.
 - Ne communiquez jamais de mot de passe, de code 2FA ni de données complètes de paiement.
 - La révocation d’une intégration ne supprime pas nécessairement les données déjà conservées par l’éditeur tiers.
 - Les politiques de plateforme ne remplacent ni les règles locales ni un avis juridique ou financier.
+- Créer un Pixel ou le marquer « configuré » dans Vendeo ne prouve pas que les événements arrivent correctement; testez-les dans Events Manager.
+- Informez les visiteurs et respectez les règles locales applicables aux traceurs et aux données; ne transmettez pas de données sensibles dans les événements.
   = Glossaire essentiel
   #print-glossary(glossary, show-all: true)
   = Sources et vérification
@@ -160,5 +175,25 @@
     #linebreak()
     #text(size: 9pt, fill: luma(80))[Utilisée pour : Permissions d’applications et limites de la révocation concernant les données déjà conservées.]
   ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://www.facebook.com/business/help/952192354843755")[Meta Business Help Center — Set up and install the Meta Pixel]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Création dans Events Manager, méthodes d’installation via intégration partenaire ou code manuel et configuration des événements; consulté le 12 novembre 2026.]
+  ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://www.facebook.com/business/help/2040882565969969")[Meta Business Help Center — Test events tool: verify app and web browser events for Meta]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Vérification des événements web dans Test Events, ouverture de la page pendant le test et délais de remontée; consulté le 12 novembre 2026.]
+  ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://developers.facebook.com/docs/meta-pixel/implementation/conversion-tracking")[Meta for Developers — Conversion Tracking with the Meta Pixel]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Événements standards, valeurs et devises de conversion, et configuration du suivi; consulté le 12 novembre 2026.]
+  ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://www.facebook.com/business/help/TroubleshootEventSetupTool")[Meta Business Help Center — Troubleshoot the event setup tool for web in Meta Events Manager]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Dépannage des événements absents, erreurs de détection et événements répétés; consulté le 12 novembre 2026.]
+  ]
   #v(0.35cm)
-  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
+  #text(size: 9pt, fill: luma(80))[Sources consultées jusqu’au 12 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]

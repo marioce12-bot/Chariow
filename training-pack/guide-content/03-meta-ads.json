@@ -1,34 +1,206 @@
 {
-  "file":"03-configurer-meta-ads.pdf",
-  "title":"Configurer son compte Meta Ads",
-  "subtitle":"Organiser les actifs, limiter les accès et préparer la facturation",
-  "reader":"Responsables de petite entreprise, annonceurs et prestataires qui préparent un portefeuille professionnel Meta.",
-  "promise":"Vous saurez dresser l’inventaire des actifs et des personnes, vérifier les accès utiles et préparer une revue de sécurité avant toute campagne.",
-  "outcomes":["Distinguer portefeuille, Page, compte publicitaire et actifs associés.","Attribuer les autorisations selon le travail nécessaire, sans partager de secrets.","Vérifier 2FA, facturation et connexions tierces avant le lancement."],
-  "intro":"Les réglages d’un portefeuille Meta touchent à la propriété des actifs, aux accès des personnes, aux dépenses et aux intégrations. La configuration doit commencer par un inventaire et être validée par la personne qui contrôle les actifs. Les menus et disponibilités varient selon les comptes; les repères ci-dessous s’appuient sur l’aide Meta consultée le 4 novembre 2026.",
-  "glossary":[
-    {"key":"portefeuille","short":"portefeuille professionnel","long":"portefeuille professionnel Meta","description":"Espace de gestion d’entreprise qui regroupe des actifs Meta et organise des accès professionnels."},
-    {"key":"actif","short":"actif","long":"actif professionnel","description":"Ressource telle qu’une Page, un compte publicitaire ou un compte Instagram, associée à un portefeuille ou gérée avec un accès partagé."},
-    {"key":"acces_complet","short":"accès complet","long":"accès complet","description":"Niveau de permission donnant un contrôle étendu sur le portefeuille, les personnes, les actifs et certains réglages sensibles."},
-    {"key":"acces_partiel","short":"accès partiel","long":"accès partiel","description":"Permission limitée aux actifs ou tâches attribués, à privilégier lorsque le rôle ne nécessite pas le contrôle complet."},
-    {"key":"2fa","short":"2FA","long":"authentification à deux facteurs","description":"Contrôle de connexion qui demande une seconde preuve en plus du mot de passe, par exemple une application d’authentification."}
+  "file": "03-configurer-meta-ads.pdf",
+  "title": "Configurer son compte Meta Ads",
+  "subtitle": "Organiser les actifs, limiter les accès et préparer la facturation",
+  "reader": "Responsables de petite entreprise, annonceurs et prestataires qui préparent un portefeuille professionnel Meta.",
+  "promise": "Vous saurez dresser l’inventaire des actifs et des personnes, créer et tester le Pixel Meta sur le parcours de vente Chariow, vérifier les accès utiles et préparer une revue de sécurité avant toute campagne.",
+  "outcomes": [
+    "Distinguer portefeuille, Page, compte publicitaire et actifs associés.",
+    "Attribuer les autorisations selon le travail nécessaire, sans partager de secrets.",
+    "Vérifier 2FA, facturation et connexions tierces avant le lancement.",
+    "Créer le Pixel dans Events Manager, l’installer sur Chariow et vérifier les événements avant de le déclarer configuré dans Vendeo."
   ],
-  "sections":[
-    {"heading":"Faire l’inventaire et confirmer la propriété","intro":"Avant de modifier un portefeuille, identifiez qui contrôle chaque ressource et comment elle est utilisée. Ajouter une Page à un portefeuille peut changer sa propriété; demander un accès partagé est une autre démarche.","points":["Listez le portefeuille professionnel, la Page, le compte publicitaire et, si nécessaire, le compte Instagram; notez le propriétaire et les identifiants utiles dans un registre protégé.","Vérifiez si une Page est déjà rattachée à une autre entreprise et demandez l’accord du propriétaire avant toute demande ou ajout.","L’aide Meta distingue l’ajout d’une Page existante de la demande d’accès partagé; l’ajout peut transférer la propriété au portefeuille."],"action":"Complétez un inventaire avec actif, propriétaire, administrateur responsable, statut, objectif d’usage et justificatif d’autorisation. Ne changez aucune propriété avant confirmation écrite.","example":"Si un prestataire doit publier des annonces pour une marque cliente, un accès partenaire limité peut être préférable à l’ajout de la Page comme propriété de son propre portefeuille."},
-    {"heading":"Préparer la Page et le compte publicitaire","intro":"Un compte publicitaire doit être rattaché aux bons actifs et à une méthode de paiement autorisée. Les comptes disponibles, les limites de création et les conditions de vérification peuvent dépendre de l’historique du compte et des contrôles Meta.","points":["Confirmez le compte publicitaire prévu, la devise, le fuseau horaire, la Page utilisée et les accès nécessaires avant de configurer une campagne.","Meta mentionne une Page ou un rôle approprié sur une Page ainsi qu’un moyen de paiement valide comme prérequis de diffusion dans les procédures décrites.","N’ouvrez pas plusieurs comptes par réflexe : les limites d’accès ou de création peuvent varier; vérifiez l’état dans les outils d’assistance officiels."],"action":"Vérifiez la cohérence entre nom d’entreprise, actifs, devise, fuseau et destination client. Notez ce qui doit être validé par le responsable financier avant toute dépense.","example":"Pour une équipe dans plusieurs pays, un fuseau horaire mal choisi peut compliquer la lecture des périodes de facturation et des rapports; confirmez-le avant la première campagne."},
-    {"heading":"Attribuer les rôles et protéger les connexions","intro":"Accorder l’accès complet à tout le monde augmente l’impact d’une erreur ou d’un compte compromis. Créez une matrice personnes–actifs–tâches et attribuez uniquement les permissions utiles.","points":["L’accès complet permet un contrôle étendu du portefeuille; l’accès partiel limite les tâches ou actifs. Les autorisations financières sont distinctes des droits opérationnels.","Le 2FA est une protection essentielle et peut être exigé par le portefeuille. Chaque personne doit sécuriser son propre compte avant d’accéder aux actifs.","Ne transmettez jamais un mot de passe, un code de connexion, une clé de secours ou un code 2FA par courriel ou dans le document de suivi."],"action":"Pour chaque personne, inscrivez le rôle, les tâches et les actifs requis; proposez l’accès minimal, faites accepter l’invitation par la personne et planifiez une revue périodique.","example":"Un analyste qui consulte les résultats n’a pas nécessairement besoin de modifier les paiements ni d’ajouter des administrateurs."},
-    {"heading":"Vérifier la facturation et les dépenses","intro":"La vérification de la facturation doit être faite avec la personne autorisée, dans l’interface du compte publicitaire. Le guide ne remplace pas les règles comptables, fiscales ou les contrôles internes de l’entreprise.","points":["Confirmez que le moyen de paiement est valide, qu’il est rattaché au compte prévu et que le responsable connaît les plafonds ou limites de dépenses disponibles.","Vérifiez les factures, transactions, devise et coordonnées de facturation dans l’interface officielle; les options peuvent varier selon le pays et le compte.","Séparez les droits d’administration de campagne des droits financiers avancés; accordez ces derniers uniquement aux rôles qui en ont besoin."],"action":"Établissez une fiche de contrôle sans numéro complet de carte : responsable, compte, date de revue, statut du moyen de paiement et autorisation budgétaire. Rangez les justificatifs dans l’outil approuvé par l’entreprise.","example":"Un compte peut être correctement configuré pour diffuser, mais ne pas être autorisé à engager le budget prévu; faites valider l’enveloppe par le propriétaire avant publication."},
-    {"heading":"Examiner les applications tierces et les accès obsolètes","intro":"Les intégrations peuvent garder des permissions de consultation ou de gestion. La révocation d’une intégration coupe généralement les accès futurs via Meta, mais ne garantit pas que l’éditeur a effacé les données qu’il possédait déjà.","points":["Listez les applications, partenaires et prestataires rattachés; vérifiez l’éditeur, les autorisations demandées, la finalité et la date de dernière utilisation.","Retirez les accès inutiles après validation par le propriétaire et documentez l’impact éventuel sur les outils qui dépendent encore de l’intégration.","Meta indique que certaines permissions professionnelles ont des règles distinctes des autorisations générales des applications; vérifiez la politique applicable au moment de la revue."],"action":"Établissez une revue trimestrielle ou après chaque départ de prestataire : membres, invitations en attente, actifs attribués, intégrations, 2FA et facturation.","example":"Si vous révoquez un outil de planification, vérifiez au préalable qui publiera ensuite les contenus et où seront conservés les rapports nécessaires."}
+  "intro": "Les réglages d’un portefeuille Meta touchent à la propriété des actifs, aux accès des personnes, aux dépenses et aux intégrations. La configuration doit commencer par un inventaire et être validée par la personne qui contrôle les actifs. Les menus et disponibilités varient selon les comptes; les repères ci-dessous s’appuient sur l’aide Meta consultée le 4 novembre 2026.",
+  "glossary": [
+    {
+      "key": "portefeuille",
+      "short": "portefeuille professionnel",
+      "long": "portefeuille professionnel Meta",
+      "description": "Espace de gestion d’entreprise qui regroupe des actifs Meta et organise des accès professionnels."
+    },
+    {
+      "key": "actif",
+      "short": "actif",
+      "long": "actif professionnel",
+      "description": "Ressource telle qu’une Page, un compte publicitaire ou un compte Instagram, associée à un portefeuille ou gérée avec un accès partagé."
+    },
+    {
+      "key": "acces_complet",
+      "short": "accès complet",
+      "long": "accès complet",
+      "description": "Niveau de permission donnant un contrôle étendu sur le portefeuille, les personnes, les actifs et certains réglages sensibles."
+    },
+    {
+      "key": "acces_partiel",
+      "short": "accès partiel",
+      "long": "accès partiel",
+      "description": "Permission limitée aux actifs ou tâches attribués, à privilégier lorsque le rôle ne nécessite pas le contrôle complet."
+    },
+    {
+      "key": "2fa",
+      "short": "2FA",
+      "long": "authentification à deux facteurs",
+      "description": "Contrôle de connexion qui demande une seconde preuve en plus du mot de passe, par exemple une application d’authentification."
+    },
+    {
+      "key": "pixel_meta",
+      "short": "Pixel Meta",
+      "long": "Pixel Meta",
+      "description": "Code ou intégration qui transmet à Meta des événements du site; sa création ne prouve ni son installation ni son bon fonctionnement."
+    }
   ],
-  "exercise":{"intro":"Exercice guidé (20–30 min) : réalisez un audit de préparation sans modifier les réglages en direct.","steps":["Inventoriez le portefeuille, la Page, le compte publicitaire et le compte Instagram s’il est utilisé; notez propriétaire et responsable.","Listez les personnes, leurs tâches et les actifs nécessaires; proposez un niveau d’accès minimal.","Vérifiez si le 2FA est activé et si des invitations attendent une acceptation.","Dans la zone de facturation, confirmez le statut du moyen de paiement et le compte concerné sans copier de données sensibles dans la fiche.","Recensez intégrations et permissions visibles; signalez les connexions disproportionnées ou inutiles.","Soumettez les changements éventuels au propriétaire et au responsable financier avant toute application."],"deliverable":"Livrable : un registre de configuration et une liste d’actions approuvées. Cet exercice ne demande aucun mot de passe, code 2FA ou numéro de carte."},
-  "checklist":["Le propriétaire de chaque actif est confirmé.","Les changements de propriété sont autorisés par la bonne organisation.","Chaque personne dispose seulement des permissions requises.","Le 2FA est activé ou les exigences officielles sont suivies.","Le moyen de paiement, la devise et le compte sont vérifiés par le responsable.","Les invitations et intégrations tierces sont revues.","Aucun mot de passe, code 2FA ou numéro complet de carte n’est stocké dans le registre."],
-  "cautions":["Les noms de menus, rôles et fonctions Meta peuvent évoluer et varier selon les comptes et pays.","N’ajoutez pas une Page comme actif appartenant à votre portefeuille sans confirmer la propriété et l’accord du propriétaire.","Ne communiquez jamais de mot de passe, de code 2FA ni de données complètes de paiement.","La révocation d’une intégration ne supprime pas nécessairement les données déjà conservées par l’éditeur tiers.","Les politiques de plateforme ne remplacent ni les règles locales ni un avis juridique ou financier."],
-  "sources":[
-    {"title":"Meta Business Help Center — About business portfolio and business asset permissions","url":"https://www.facebook.com/business/help/442345745885606","supports":"Portefeuille, accès complet et partiel, droits financiers et permissions des actifs."},
-    {"title":"Meta Business Help Center — Add a Facebook Page to your organisation's business portfolio","url":"https://www.facebook.com/business/help/720478807965744","supports":"Prérequis d’ajout d’une Page, distinction entre propriété et accès partagé, effet sur les accès existants."},
-    {"title":"Meta Business Help Center — Add people to a business portfolio and assign a business asset","url":"https://www.facebook.com/business/help/2169003770027706","supports":"Invitations, attribution des actifs, acceptation et permissions des personnes."},
-    {"title":"Meta Business Help Center — About two-factor authentication for your business portfolio","url":"https://www.facebook.com/business/help/865384580786591","supports":"Rôle du 2FA et conséquences possibles lorsque la vérification est exigée."},
-    {"title":"Meta Business Help Center — How to create an ad account in Ads Manager","url":"https://www.facebook.com/business/help/407323696966570","supports":"Éléments à préparer pour un compte publicitaire, Page et moyen de paiement; les options dépendent du compte."},
-    {"title":"Meta Help Center — Manage the privacy settings for third-party apps","url":"https://www.facebook.com/help/218345114850283","supports":"Permissions d’applications et limites de la révocation concernant les données déjà conservées."}
-  ]
+  "sections": [
+    {
+      "heading": "Faire l’inventaire et confirmer la propriété",
+      "intro": "Avant de modifier un portefeuille, identifiez qui contrôle chaque ressource et comment elle est utilisée. Ajouter une Page à un portefeuille peut changer sa propriété; demander un accès partagé est une autre démarche.",
+      "points": [
+        "Listez le portefeuille professionnel, la Page, le compte publicitaire et, si nécessaire, le compte Instagram; notez le propriétaire et les identifiants utiles dans un registre protégé.",
+        "Vérifiez si une Page est déjà rattachée à une autre entreprise et demandez l’accord du propriétaire avant toute demande ou ajout.",
+        "L’aide Meta distingue l’ajout d’une Page existante de la demande d’accès partagé; l’ajout peut transférer la propriété au portefeuille."
+      ],
+      "action": "Complétez un inventaire avec actif, propriétaire, administrateur responsable, statut, objectif d’usage et justificatif d’autorisation. Ne changez aucune propriété avant confirmation écrite.",
+      "example": "Si un prestataire doit publier des annonces pour une marque cliente, un accès partenaire limité peut être préférable à l’ajout de la Page comme propriété de son propre portefeuille."
+    },
+    {
+      "heading": "Préparer la Page et le compte publicitaire",
+      "intro": "Un compte publicitaire doit être rattaché aux bons actifs et à une méthode de paiement autorisée. Les comptes disponibles, les limites de création et les conditions de vérification peuvent dépendre de l’historique du compte et des contrôles Meta.",
+      "points": [
+        "Confirmez le compte publicitaire prévu, la devise, le fuseau horaire, la Page utilisée et les accès nécessaires avant de configurer une campagne.",
+        "Meta mentionne une Page ou un rôle approprié sur une Page ainsi qu’un moyen de paiement valide comme prérequis de diffusion dans les procédures décrites.",
+        "N’ouvrez pas plusieurs comptes par réflexe : les limites d’accès ou de création peuvent varier; vérifiez l’état dans les outils d’assistance officiels."
+      ],
+      "action": "Vérifiez la cohérence entre nom d’entreprise, actifs, devise, fuseau et destination client. Notez ce qui doit être validé par le responsable financier avant toute dépense.",
+      "example": "Pour une équipe dans plusieurs pays, un fuseau horaire mal choisi peut compliquer la lecture des périodes de facturation et des rapports; confirmez-le avant la première campagne."
+    },
+    {
+      "heading": "Créer, installer et tester le Pixel Meta sur Chariow",
+      "intro": "Le Pixel sert à transmettre à Meta des événements du parcours web. Le créer dans Events Manager ne l’installe pas sur Chariow. Les intitulés d’écran peuvent varier; suivez les options proposées pour votre compte.",
+      "points": [
+        "Dans Meta Events Manager (Gestionnaire d’évènements), choisissez Connecter des données > Web > Connecter, donnez un nom au Pixel et créez-le. Notez son identifiant (Pixel ID) et vérifiez que vous travaillez dans le bon portefeuille et avec les autorisations nécessaires.",
+        "Si Meta propose une intégration partenaire compatible avec votre site, suivez son assistant. Sinon, l’installation manuelle du code de base et des événements nécessite un accès au site ou l’aide d’un développeur; le code de base seul ne configure pas toutes les conversions.",
+        "Pour le parcours de vente Chariow, copiez le Pixel ID et configurez-le dans les réglages Chariow prévus pour le Pixel ou la Conversions API. Dans Vendeo, ouvrez Pub > Meta > Suivi des conversions et sélectionnez le bon compte publicitaire. Le bouton « J’ai configuré ce pixel » ne fait qu’enregistrer votre déclaration : il n’installe ni ne teste le Pixel.",
+        "Dans Events Manager > Sources de données, sélectionnez le Pixel puis Tester les événements. Gardez l’outil de test ouvert, ouvrez votre page de vente et vérifiez que PageView puis les actions réellement parcourues apparaissent. Pour Achat (Purchase), utilisez un mode test s’il existe; ne faites pas un achat payant uniquement pour tester.",
+        "Avant une campagne Ventes, vérifiez que l’événement Purchase correspond à un paiement effectivement terminé, que valeur et devise sont exactes et que l’événement ne se déclenche pas plusieurs fois. Une intégration Conversions API peut être envisagée en complément du Pixel; suivez l’assistant Meta ou demandez une aide technique si elle est nécessaire."
+      ],
+      "action": "Livrable : une fiche indiquant le Pixel ID, le compte publicitaire concerné, l’emplacement d’installation, la date du test et les événements reçus. Ne copiez aucun jeton ni donnée personnelle de client dans la fiche; ne marquez le Pixel configuré dans Vendeo qu’après l’installation réelle.",
+      "example": "Si le Pixel est visible dans Vendeo mais n’apparaît pas dans Tester les événements, ne considérez pas la mesure comme prête : vérifiez l’identifiant, l’installation Chariow, le compte sélectionné et les autorisations."
+    },
+    {
+      "heading": "Attribuer les rôles et protéger les connexions",
+      "intro": "Accorder l’accès complet à tout le monde augmente l’impact d’une erreur ou d’un compte compromis. Créez une matrice personnes–actifs–tâches et attribuez uniquement les permissions utiles.",
+      "points": [
+        "L’accès complet permet un contrôle étendu du portefeuille; l’accès partiel limite les tâches ou actifs. Les autorisations financières sont distinctes des droits opérationnels.",
+        "Le 2FA est une protection essentielle et peut être exigé par le portefeuille. Chaque personne doit sécuriser son propre compte avant d’accéder aux actifs.",
+        "Ne transmettez jamais un mot de passe, un code de connexion, une clé de secours ou un code 2FA par courriel ou dans le document de suivi."
+      ],
+      "action": "Pour chaque personne, inscrivez le rôle, les tâches et les actifs requis; proposez l’accès minimal, faites accepter l’invitation par la personne et planifiez une revue périodique.",
+      "example": "Un analyste qui consulte les résultats n’a pas nécessairement besoin de modifier les paiements ni d’ajouter des administrateurs."
+    },
+    {
+      "heading": "Vérifier la facturation et les dépenses",
+      "intro": "La vérification de la facturation doit être faite avec la personne autorisée, dans l’interface du compte publicitaire. Le guide ne remplace pas les règles comptables, fiscales ou les contrôles internes de l’entreprise.",
+      "points": [
+        "Confirmez que le moyen de paiement est valide, qu’il est rattaché au compte prévu et que le responsable connaît les plafonds ou limites de dépenses disponibles.",
+        "Vérifiez les factures, transactions, devise et coordonnées de facturation dans l’interface officielle; les options peuvent varier selon le pays et le compte.",
+        "Séparez les droits d’administration de campagne des droits financiers avancés; accordez ces derniers uniquement aux rôles qui en ont besoin."
+      ],
+      "action": "Établissez une fiche de contrôle sans numéro complet de carte : responsable, compte, date de revue, statut du moyen de paiement et autorisation budgétaire. Rangez les justificatifs dans l’outil approuvé par l’entreprise.",
+      "example": "Un compte peut être correctement configuré pour diffuser, mais ne pas être autorisé à engager le budget prévu; faites valider l’enveloppe par le propriétaire avant publication."
+    },
+    {
+      "heading": "Examiner les applications tierces et les accès obsolètes",
+      "intro": "Les intégrations peuvent garder des permissions de consultation ou de gestion. La révocation d’une intégration coupe généralement les accès futurs via Meta, mais ne garantit pas que l’éditeur a effacé les données qu’il possédait déjà.",
+      "points": [
+        "Listez les applications, partenaires et prestataires rattachés; vérifiez l’éditeur, les autorisations demandées, la finalité et la date de dernière utilisation.",
+        "Retirez les accès inutiles après validation par le propriétaire et documentez l’impact éventuel sur les outils qui dépendent encore de l’intégration.",
+        "Meta indique que certaines permissions professionnelles ont des règles distinctes des autorisations générales des applications; vérifiez la politique applicable au moment de la revue."
+      ],
+      "action": "Établissez une revue trimestrielle ou après chaque départ de prestataire : membres, invitations en attente, actifs attribués, intégrations, 2FA et facturation.",
+      "example": "Si vous révoquez un outil de planification, vérifiez au préalable qui publiera ensuite les contenus et où seront conservés les rapports nécessaires."
+    }
+  ],
+  "exercise": {
+    "intro": "Exercice guidé (20–30 min) : réalisez un audit de préparation sans modifier les réglages en direct.",
+    "steps": [
+      "Inventoriez le portefeuille, la Page, le compte publicitaire et le compte Instagram s’il est utilisé; notez propriétaire et responsable.",
+      "Listez les personnes, leurs tâches et les actifs nécessaires; proposez un niveau d’accès minimal.",
+      "Vérifiez si le 2FA est activé et si des invitations attendent une acceptation.",
+      "Dans la zone de facturation, confirmez le statut du moyen de paiement et le compte concerné sans copier de données sensibles dans la fiche.",
+      "Recensez intégrations et permissions visibles; signalez les connexions disproportionnées ou inutiles.",
+      "Soumettez les changements éventuels au propriétaire et au responsable financier avant toute application."
+    ],
+    "deliverable": "Livrable : un registre de configuration et une liste d’actions approuvées. Cet exercice ne demande aucun mot de passe, code 2FA ou numéro de carte."
+  },
+  "checklist": [
+    "Le propriétaire de chaque actif est confirmé.",
+    "Les changements de propriété sont autorisés par la bonne organisation.",
+    "Chaque personne dispose seulement des permissions requises.",
+    "Le 2FA est activé ou les exigences officielles sont suivies.",
+    "Le moyen de paiement, la devise et le compte sont vérifiés par le responsable.",
+    "Les invitations et intégrations tierces sont revues.",
+    "Aucun mot de passe, code 2FA ou numéro complet de carte n’est stocké dans le registre.",
+    "Le Pixel est installé sur le parcours Chariow et ses événements ont été vérifiés dans Events Manager; Vendeo n’est marqué configuré qu’après l’installation réelle."
+  ],
+  "cautions": [
+    "Les noms de menus, rôles et fonctions Meta peuvent évoluer et varier selon les comptes et pays.",
+    "N’ajoutez pas une Page comme actif appartenant à votre portefeuille sans confirmer la propriété et l’accord du propriétaire.",
+    "Ne communiquez jamais de mot de passe, de code 2FA ni de données complètes de paiement.",
+    "La révocation d’une intégration ne supprime pas nécessairement les données déjà conservées par l’éditeur tiers.",
+    "Les politiques de plateforme ne remplacent ni les règles locales ni un avis juridique ou financier.",
+    "Créer un Pixel ou le marquer « configuré » dans Vendeo ne prouve pas que les événements arrivent correctement; testez-les dans Events Manager.",
+    "Informez les visiteurs et respectez les règles locales applicables aux traceurs et aux données; ne transmettez pas de données sensibles dans les événements."
+  ],
+  "sources": [
+    {
+      "title": "Meta Business Help Center — About business portfolio and business asset permissions",
+      "url": "https://www.facebook.com/business/help/442345745885606",
+      "supports": "Portefeuille, accès complet et partiel, droits financiers et permissions des actifs."
+    },
+    {
+      "title": "Meta Business Help Center — Add a Facebook Page to your organisation's business portfolio",
+      "url": "https://www.facebook.com/business/help/720478807965744",
+      "supports": "Prérequis d’ajout d’une Page, distinction entre propriété et accès partagé, effet sur les accès existants."
+    },
+    {
+      "title": "Meta Business Help Center — Add people to a business portfolio and assign a business asset",
+      "url": "https://www.facebook.com/business/help/2169003770027706",
+      "supports": "Invitations, attribution des actifs, acceptation et permissions des personnes."
+    },
+    {
+      "title": "Meta Business Help Center — About two-factor authentication for your business portfolio",
+      "url": "https://www.facebook.com/business/help/865384580786591",
+      "supports": "Rôle du 2FA et conséquences possibles lorsque la vérification est exigée."
+    },
+    {
+      "title": "Meta Business Help Center — How to create an ad account in Ads Manager",
+      "url": "https://www.facebook.com/business/help/407323696966570",
+      "supports": "Éléments à préparer pour un compte publicitaire, Page et moyen de paiement; les options dépendent du compte."
+    },
+    {
+      "title": "Meta Help Center — Manage the privacy settings for third-party apps",
+      "url": "https://www.facebook.com/help/218345114850283",
+      "supports": "Permissions d’applications et limites de la révocation concernant les données déjà conservées."
+    },
+    {
+      "title": "Meta Business Help Center — Set up and install the Meta Pixel",
+      "url": "https://www.facebook.com/business/help/952192354843755",
+      "supports": "Création dans Events Manager, méthodes d’installation via intégration partenaire ou code manuel et configuration des événements; consulté le 12 novembre 2026."
+    },
+    {
+      "title": "Meta Business Help Center — Test events tool: verify app and web browser events for Meta",
+      "url": "https://www.facebook.com/business/help/2040882565969969",
+      "supports": "Vérification des événements web dans Test Events, ouverture de la page pendant le test et délais de remontée; consulté le 12 novembre 2026."
+    },
+    {
+      "title": "Meta for Developers — Conversion Tracking with the Meta Pixel",
+      "url": "https://developers.facebook.com/docs/meta-pixel/implementation/conversion-tracking",
+      "supports": "Événements standards, valeurs et devises de conversion, et configuration du suivi; consulté le 12 novembre 2026."
+    },
+    {
+      "title": "Meta Business Help Center — Troubleshoot the event setup tool for web in Meta Events Manager",
+      "url": "https://www.facebook.com/business/help/TroubleshootEventSetupTool",
+      "supports": "Dépannage des événements absents, erreurs de détection et événements répétés; consulté le 12 novembre 2026."
+    }
+  ],
+  "references_checked": "12 novembre 2026"
 }

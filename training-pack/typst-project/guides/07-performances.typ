@@ -49,8 +49,9 @@
 - Relier métriques de plateforme et objectif d’affaires.
 - Calculer coût par résultat et ROAS, puis identifier ce qu’ils ne disent pas.
 - Diagnostiquer par étape et décider à partir de données vérifiées.
+- Contrôler les événements Pixel et distinguer un problème de suivi d’une absence réelle de ventes.
   #v(0.7cm)
-  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 5 novembre 2026]
+  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 12 novembre 2026]
   ]
   #page(header: none)[
   #outline(title: [Sommaire], depth: 2, indent: 1.1em)
@@ -87,13 +88,13 @@
 - Meta décrit une phase d’apprentissage pendant laquelle la diffusion explore les résultats; le repère d’environ 50 événements d’optimisation par semaine est généralement observé, pas une garantie ni une règle universelle.
   #panel("À mettre en pratique", [Dans chaque bilan, notez plateforme, objectif d’optimisation, modèle/fenêtre, dates, fuseau, délais connus et changements significatifs.])
   #panel("Exemple de travail", [Si un rapport compte des achats sur sept jours après clic et l’autre sur une autre fenêtre, les totaux ne doivent pas être interprétés comme une comparaison directe sans harmoniser les réglages.])
-  = Diagnostiquer le parcours avant de changer la campagne
-  L’analyse par étapes aide à repérer où la performance se dégrade : diffusion, clic, visite, conversion, qualité et valeur. Le même chiffre peut s’expliquer par plusieurs causes; formulez une hypothèse avant de modifier l’annonce.
+  = Diagnostiquer le parcours de conversion
+  Repérez où le parcours se dégrade — diffusion, clic, visite, conversion, qualité ou valeur. Formulez une hypothèse avant de modifier la campagne.
   == Points à retenir
   - Si les impressions sont faibles, vérifiez diffusion, budget, audience, dates et statut avant de réécrire les créations.
-- Si les clics existent mais pas les conversions, examinez la destination, l’offre, le formulaire, la vitesse et le suivi de l’événement.
+- Si les clics ne deviennent pas conversions, vérifiez la page et le formulaire, puis testez dans Events Manager que le bon Pixel reçoit l’événement attendu sans doublon, avec valeur et devise correctes.
 - Si les conversions sont nombreuses mais de faible qualité, examinez la cohérence du ciblage, le message, les critères de qualification et le traitement des prospects.
-  #panel("À mettre en pratique", [Cartographiez le parcours et inscrivez par étape volume, coût, qualité, source et anomalie. Choisissez une seule cause à vérifier avant d’augmenter ou réduire les dépenses.])
+  #panel("À mettre en pratique", [Cartographiez volume, coût, qualité, source et anomalies. Testez le Pixel; avant de modifier les dépenses, vérifiez une seule cause.])
   #panel("Exemple de travail", [Des clics sans demandes peuvent venir d’une promesse trop large, d’un formulaire défaillant ou d’un événement de suivi incorrect; vérifiez ces points avant de conclure que le ciblage est mauvais.])
   = Tester une hypothèse sans surinterpréter
   Un test ne devient pas concluant parce qu’une version affiche temporairement un meilleur chiffre. Les décisions doivent tenir compte du volume, du délai, des changements concomitants et de la qualité des données.
@@ -120,12 +121,14 @@
 - Le modèle et la fenêtre d’attribution sont connus.
 - La qualité des conversions et le suivi technique sont contrôlés.
 - Un test change une dimension principale et prévoit ses limites.
+- Les événements Pixel ont été vérifiés dans Events Manager et rapprochés, lorsque c’est possible, avec les commandes confirmées de la boutique.
   = Limites et précautions
   - Le ROAS attribué n’est ni bénéfice ni preuve d’effet incrémental.
 - Les fenêtres, modèles et noms de paramètres des plateformes évoluent; vérifiez-les avant chaque analyse.
 - Le repère d’apprentissage Meta n’est pas une garantie et ne s’applique pas à toutes les plateformes.
 - Google Trends mesure un intérêt relatif de recherche, pas les ventes ou une causalité.
 - Respectez confidentialité et règles applicables aux données de conversion.
+- Un événement Pixel visible en test confirme la réception de cet événement, pas à lui seul l’attribution publicitaire, l’absence de doublons sur toutes les commandes ni la rentabilité.
   = Glossaire essentiel
   #print-glossary(glossary, show-all: true)
   = Sources et vérification
@@ -155,5 +158,20 @@
     #linebreak()
     #text(size: 9pt, fill: luma(80))[Utilisée pour : Échantillonnage, normalisation et limites de Trends lorsqu’il est utilisé comme signal de marché.]
   ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://www.facebook.com/business/help/2040882565969969")[Meta Business Help Center — Test events tool: verify app and web browser events for Meta]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Vérification des événements web dans Test Events, ouverture de la page pendant le test et délais de remontée; consulté le 12 novembre 2026.]
+  ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://developers.facebook.com/docs/meta-pixel/implementation/conversion-tracking")[Meta for Developers — Conversion Tracking with the Meta Pixel]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Événements standards, valeurs et devises de conversion, et configuration du suivi; consulté le 12 novembre 2026.]
+  ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://www.facebook.com/business/help/TroubleshootEventSetupTool")[Meta Business Help Center — Troubleshoot the event setup tool for web in Meta Events Manager]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Dépannage des événements absents, erreurs de détection et événements répétés; consulté le 12 novembre 2026.]
+  ]
   #v(0.35cm)
-  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
+  #text(size: 9pt, fill: luma(80))[Sources consultées jusqu’au 12 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the seven French Vendeo training PDFs from reviewed JSON sources."""
+"""Generate the eight French Vendeo training PDFs from reviewed JSON sources."""
 from __future__ import annotations
 
 import json
@@ -84,7 +84,7 @@ def render_source(data: dict) -> str:
         "  #v(0.2cm)",
         bullet_list(data["outcomes"]),
         "  #v(0.7cm)",
-        '  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 5 novembre 2026]',
+        f'  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le {data.get("references_checked", "5 novembre 2026")}]',
         "  ]",
         "  #page(header: none)[",
         "  #outline(title: [Sommaire], depth: 2, indent: 1.1em)",
@@ -135,7 +135,7 @@ def render_source(data: dict) -> str:
         ])
     out.extend([
         "  #v(0.35cm)",
-        '  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]',
+        f'  #text(size: 9pt, fill: luma(80))[Sources consultées jusqu’au {data.get("references_checked", "5 novembre 2026")}. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]',
     ])
     return "\n".join(out) + "\n"
 

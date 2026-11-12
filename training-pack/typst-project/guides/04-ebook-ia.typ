@@ -164,4 +164,4 @@
     #text(size: 9pt, fill: luma(80))[Utilisée pour : Principes publicitaires Meta et nécessité de vérifier les règles applicables si l’ebook est promu sur la plateforme.]
   ]
   #v(0.35cm)
-  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
+  #text(size: 9pt, fill: luma(80))[Sources consultées jusqu’au 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]

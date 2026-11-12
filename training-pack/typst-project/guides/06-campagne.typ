@@ -49,8 +49,9 @@
 - Choisir un objectif aligné sur une action d’affaires observable.
 - Vérifier offre, destination, audience et création avant de dépenser.
 - Définir plafond, indicateurs, contrôles post-lancement et décision suivante.
+- Vérifier l’installation du Pixel et l’événement d’achat avant d’optimiser une campagne pour les ventes.
   #v(0.7cm)
-  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 5 novembre 2026]
+  #text(size: 9pt, fill: luma(90))[Guide pratique • Version 1.0 • Références vérifiées le 12 novembre 2026]
   ]
   #page(header: none)[
   #outline(title: [Sommaire], depth: 2, indent: 1.1em)
@@ -69,6 +70,7 @@
   - Écrivez l’action utile : être découvert, obtenir une visite qualifiée, générer une demande, démarrer une conversation ou réaliser une vente.
 - Meta décrit six objectifs simplifiés — notoriété, trafic, interaction, prospects, promotion d’application et ventes — mais les libellés et options peuvent évoluer.
 - Séparez l’objectif de campagne, le lieu de conversion et le résultat d’optimisation : ces réglages sont liés mais ne sont pas interchangeables.
+- Pour une campagne Ventes sur le site Chariow, vérifiez que le Pixel associé au compte publicitaire reçoit l’événement Purchase après un paiement terminé. Si Vendeo signale l’absence de Pixel, il peut demander votre accord pour basculer en Trafic : cette option vise les visites de page, pas l’optimisation pour les achats; ne l’acceptez que si elle correspond à votre objectif.
   #panel("À mettre en pratique", [Rédigez : « Nous voulons que [public] fasse [action] afin de [résultat]. » Choisissez ensuite l’objectif de plateforme cohérent et définissez comment vérifier l’action hors de la plateforme.])
   #panel("Exemple de travail", [Si l’objectif est de vendre, compter uniquement les clics ne suffit pas; il faut vérifier que l’achat est correctement mesuré et que la valeur rapportée est cohérente.])
   = Valider l’offre et la destination
@@ -99,9 +101,9 @@
   Le contrôle après publication vérifie que la campagne fonctionne comme prévu; l’analyse doit ensuite comparer les observations aux critères définis. Les premières variations ne suffisent pas à prouver une tendance stable.
   == Points à retenir
   - Contrôlez l’état de diffusion, le budget, les dates, la destination, les liens et la présentation réelle sur mobile.
-- Vérifiez que l’événement de conversion se déclenche correctement et que les valeurs et devises sont cohérentes; surveillez doublons et retards de remontée.
+- Dans Events Manager > Tester les événements, vérifiez que le bon Pixel reçoit l’événement attendu; contrôlez que Purchase ne se déclenche qu’après paiement, avec valeur et devise cohérentes, sans doublon. Laissez l’outil de test ouvert pendant le parcours; les rapports peuvent prendre du temps à se mettre à jour.
 - Notez toute modification et évitez d’attribuer une évolution à une seule variable lorsque plusieurs changements ont été faits.
-  #panel("À mettre en pratique", [Planifiez une revue au lancement puis à l’intervalle prévu; enregistrez dépenses, résultats, qualité, anomalies, modifications et décision suivante.])
+  #panel("À mettre en pratique", [Planifiez une revue au lancement puis à l’intervalle prévu; enregistrez dépenses, résultats, qualité, anomalies, état du Pixel, modifications et décision suivante.])
   #panel("Exemple de travail", [Une hausse de clics sans demandes valides peut signaler un problème de promesse, de page ou de mesure; elle ne justifie pas automatiquement davantage de budget.])
   = Atelier guidé
   Exercice guidé (30–45 min) : préparez une fiche de campagne complète sans la publier.
@@ -110,6 +112,7 @@
 + Décrivez le public et la zone servis; notez deux indices qui appuient ce choix.
 + Rédigez deux concepts avec hypothèse, texte, visuel, action et destination; vérifiez preuves et droits.
 + Fixez un plafond de dépense, une date de revue, un indicateur principal et un contrôle qualité.
++ Avant toute publication, vérifiez le Pixel et l’événement attendu dans Events Manager; si Vendeo propose Trafic faute de Pixel, notez si vous acceptez ce changement d’objectif ou si vous attendez l’installation.
 + Utilisez la liste de contrôle avant publication et planifiez la revue post-lancement.
   #panel("Livrable", [Livrable : une fiche d’une page que le responsable peut approuver avant tout engagement de dépense.])
   = Liste de contrôle avant d’avancer
@@ -120,12 +123,14 @@
 - Les créations, droits, règles et aperçus sont contrôlés.
 - Les liens, formulaires et événements de conversion sont testés.
 - La date de revue, les garde-fous et les critères de décision sont écrits.
+- Pour Ventes sur le site, le Pixel et l’événement d’achat ont été testés; un éventuel passage à Trafic a été compris et accepté explicitement.
   = Limites et précautions
   - Les objectifs, réglages et politiques Meta peuvent évoluer et varier selon les comptes et marchés.
 - Les standards publicitaires ne garantissent ni l’approbation ni la performance d’une annonce.
 - Un clic, un lead ou une valeur attribuée n’est pas nécessairement un bénéfice ou un client rentable.
 - Respectez les règles locales sur publicité, consommation, confidentialité et mesure.
 - Ne dépensez pas un budget non autorisé et ne communiquez pas d’allégations non prouvées.
+- L’objectif Trafic peut mesurer des visites, mais ne remplace pas un Pixel testé pour mesurer ou optimiser les achats; vérifiez le changement proposé avant de confirmer.
   = Glossaire essentiel
   #print-glossary(glossary, show-all: true)
   = Sources et vérification
@@ -150,5 +155,20 @@
     #linebreak()
     #text(size: 9pt, fill: luma(80))[Utilisée pour : Limites des tendances de recherche lorsqu’elles sont utilisées pour explorer la demande.]
   ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://www.facebook.com/business/help/952192354843755")[Meta Business Help Center — Set up and install the Meta Pixel]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Création dans Events Manager, méthodes d’installation via intégration partenaire ou code manuel et configuration des événements; consulté le 12 novembre 2026.]
+  ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://www.facebook.com/business/help/2040882565969969")[Meta Business Help Center — Test events tool: verify app and web browser events for Meta]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Vérification des événements web dans Test Events, ouverture de la page pendant le test et délais de remontée; consulté le 12 novembre 2026.]
+  ]
+  #block(inset: (top: 7pt, bottom: 7pt), breakable: true)[
+    #text(size: 10pt, weight: "bold", fill: report-accent)[#link("https://developers.facebook.com/docs/meta-pixel/implementation/conversion-tracking")[Meta for Developers — Conversion Tracking with the Meta Pixel]]
+    #linebreak()
+    #text(size: 9pt, fill: luma(80))[Utilisée pour : Événements standards, valeurs et devises de conversion, et configuration du suivi; consulté le 12 novembre 2026.]
+  ]
   #v(0.35cm)
-  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
+  #text(size: 9pt, fill: luma(80))[Sources consultées jusqu’au 12 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]

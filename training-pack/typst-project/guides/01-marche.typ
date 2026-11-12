@@ -155,4 +155,4 @@
     #text(size: 9pt, fill: luma(80))[Utilisée pour : Centre officiel à consulter pour vérifier les règles de plateforme en vigueur si l’étude débouche sur une campagne Meta.]
   ]
   #v(0.35cm)
-  #text(size: 9pt, fill: luma(80))[Sources consultées le 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]
+  #text(size: 9pt, fill: luma(80))[Sources consultées jusqu’au 5 novembre 2026. Ce guide fournit des repères pédagogiques, pas un avis juridique, financier ou une garantie de performance.]

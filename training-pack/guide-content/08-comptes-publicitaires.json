@@ -3,13 +3,14 @@
   "title": "Créer ses comptes publicitaires",
   "subtitle": "Meta Ads, Pinterest Ads et TikTok Ads",
   "reader": "débutants qui préparent leurs premiers comptes publicitaires pour leur propre entreprise",
-  "promise": "Créer ou préparer un compte publicitaire sur les trois plateformes, choisir la bonne structure, renseigner les informations cohérentes et vérifier l’accès, la facturation et l’état d’approbation sans lancer de publicité par inadvertance.",
+  "promise": "Créer ou préparer un compte publicitaire sur les trois plateformes, choisir la bonne structure, renseigner les informations cohérentes, créer et relier un Pixel Meta au parcours de vente Chariow, puis vérifier les accès, la facturation et l’état d’approbation sans lancer de publicité par inadvertance.",
   "outcomes": [
     "Distinguer un profil ou compte social, un portefeuille professionnel et un compte publicitaire.",
     "Créer un compte publicitaire Meta et comprendre les options d’accès dans Business Suite.",
     "Créer un compte professionnel et un compte annonceur Pinterest.",
     "Ouvrir Ads Manager TikTok, fournir les informations demandées et suivre l’examen du compte.",
-    "Sécuriser les accès et valider devise, fuseau horaire, facturation et autorisations avant toute dépense."
+    "Sécuriser les accès et valider devise, fuseau horaire, facturation et autorisations avant toute dépense.",
+    "Créer le Pixel Meta, le relier à Chariow et tester les événements avant de préparer une campagne Ventes."
   ],
   "intro": "Les trois plateformes modifient parfois leurs menus, critères d’admissibilité et modalités de paiement. Ce guide décrit les parcours usuels d’après les centres d’aide officiels consultés le 5 novembre 2026. Utilisez les liens de référence pour confirmer l’écran et les règles applicables à votre pays et à votre compte. Créer un compte ne lance pas automatiquement une campagne.",
   "sections": [
@@ -38,6 +39,19 @@
       ],
       "action": "Avant de cliquer sur Créer, confirmez par écrit le nom, le portefeuille propriétaire, la devise et le fuseau horaire. Après création, notez l’identifiant du compte et contrôlez les accès sans inscrire de secret dans votre registre.",
       "example": "Si vous gérez les annonces d’un client, demandez au client de partager l’accès ou de vous ajouter comme partenaire. Ne créez pas un compte personnel à votre nom pour remplacer la propriété de l’entreprise."
+    },
+    {
+      "heading": "Meta : créer et configurer le Pixel sur Chariow",
+      "intro": "Le Pixel est la source de mesure des actions qui ont lieu sur votre site. Créer un compte Meta ou un Pixel ne suffit pas : l’identifiant doit aussi être installé dans le parcours de vente et les événements doivent être testés.",
+      "points": [
+        "Dans Meta Events Manager, cliquez sur Connecter des données, choisissez Web puis Connecter. Nommez le Pixel et créez-le; copiez son identifiant (Pixel ID) et vérifiez que le bon portefeuille et le bon compte publicitaire sont sélectionnés.",
+        "Dans les réglages du parcours de vente Chariow, configurez l’identifiant du Pixel ou l’intégration Conversions API proposée par votre boutique, puis enregistrez. Ne collez pas un jeton d’accès dans un champ de Pixel ID; si vous utilisez une installation manuelle sur un autre site, demandez l’aide d’un développeur.",
+        "Dans Vendeo, ouvrez Pub > Meta > Suivi des conversions et sélectionnez le compte publicitaire concerné. Copiez le Pixel ID affiché pour le comparer à celui installé sur Chariow. Cliquez sur « J’ai configuré ce pixel » uniquement après l’installation; ce bouton ne réalise pas l’installation.",
+        "Retournez dans Events Manager > Sources de données > sélectionnez le Pixel > Tester les événements. Laissez l’onglet ouvert, ouvrez la page Chariow et vérifiez PageView ainsi que les événements produits par votre parcours. Testez Purchase en mode test si disponible; ne créez pas d’achat payant juste pour la vérification.",
+        "Avant une campagne Ventes, confirmez que le Pixel est accessible au compte publicitaire choisi et que Purchase correspond à un paiement terminé, avec valeur et devise correctes. Si l’événement manque, vérifiez l’installation et les autorisations avant de lancer. Meta propose aussi la Conversions API en complément; sa mise en place peut nécessiter une intégration ou un développeur."
+      ],
+      "action": "Fiche à conserver : propriétaire du Pixel, identifiant, boutique Chariow visée, compte publicitaire associé, date et résultat du test. N’y inscrivez ni mot de passe, ni jeton, ni données personnelles de clients.",
+      "example": "Si plusieurs comptes publicitaires ou Pixels sont listés, comparez leur identifiant et leur boutique avant de marquer l’un d’eux comme configuré dans Vendeo; un Pixel visible n’est pas nécessairement celui du parcours promu."
     },
     {
       "heading": "Pinterest Ads : compte professionnel et compte annonceur",
@@ -88,6 +102,7 @@
       "Notez le pays, le fuseau horaire et la devise envisagés pour chacun; faites valider ces choix par le responsable financier.",
       "Suivez le parcours de création officiel et arrêtez-vous avant toute action qui engage un paiement ou publie une campagne non approuvée.",
       "Consignez les identifiants de compte et l’état de vérification dans un outil professionnel sécurisé, sans mot de passe ni code de sécurité.",
+      "Pour Meta, créez le Pixel dans Events Manager, configurez son identifiant sur le parcours Chariow puis vérifiez PageView et les événements disponibles dans Tester les événements; marquez-le configuré dans Vendeo seulement après l’installation.",
       "Vérifiez les permissions et les actifs nécessaires, puis faites approuver les accès par leur propriétaire.",
       "Ajoutez les liens officiels pertinents aux favoris pour recontrôler les exigences avant la première campagne."
     ],
@@ -101,7 +116,8 @@
     "La propriété des pages, profils et actifs est confirmée; aucun actif tiers n’est revendiqué sans accord.",
     "La facturation et tout budget sont validés par la personne habilitée.",
     "Les états de vérification et les limites de plateforme sont contrôlés dans les interfaces officielles.",
-    "Aucune campagne n’est publiée avant approbation du budget et des éléments de diffusion."
+    "Aucune campagne n’est publiée avant approbation du budget et des éléments de diffusion.",
+    "Le Pixel Meta associé au parcours Chariow et au compte publicitaire a été testé avant toute campagne Ventes."
   ],
   "cautions": [
     "Les interfaces, noms des menus, règles, limites de compte et moyens de paiement évoluent et varient selon les pays et les comptes.",
@@ -109,21 +125,93 @@
     "Meta peut limiter le nombre de comptes publicitaires et l’ajout d’un compte à un portefeuille peut être permanent; vérifiez attentivement l’option choisie.",
     "Pinterest indique que la création de comptes professionnels et annonceurs nécessite actuellement un ordinateur dans certains parcours; confirmez l’aide officielle avant d’essayer sur mobile.",
     "Les documents d’entreprise et informations de paiement doivent être fournis uniquement dans les interfaces officielles sécurisées.",
-    "Ce guide explique une configuration générale et ne constitue pas un conseil juridique, fiscal ou financier."
+    "Ce guide explique une configuration générale et ne constitue pas un conseil juridique, fiscal ou financier.",
+    "Le bouton « J’ai configuré ce pixel » dans Vendeo enregistre un état déclaré; il ne pose pas le Pixel sur Chariow et ne remplace pas le test dans Events Manager.",
+    "Informez les visiteurs et respectez les règles locales applicables aux traceurs et aux données; ne transmettez pas de données sensibles dans les événements."
   ],
   "glossary": [
-    {"key":"business-portfolio","short":"portefeuille professionnel","long":"portefeuille professionnel","description":"Espace de gestion qui regroupe des actifs d’entreprise, des comptes et des personnes sur une plateforme."},
-    {"key":"ad-account","short":"compte publicitaire","long":"compte publicitaire","description":"Espace qui permet de configurer, financer, publier et mesurer les campagnes d’une organisation."},
-    {"key":"advertiser-account","short":"compte annonceur","long":"compte annonceur Pinterest","description":"Compte Pinterest dédié à la gestion des campagnes et paramètres publicitaires."},
-    {"key":"two-factor","short":"2FA","long":"authentification à deux facteurs","description":"Protection de connexion demandant une seconde preuve en plus du mot de passe."},
-    {"key":"business-center","short":"Business Center","long":"TikTok Business Center","description":"Espace TikTok for Business de gestion des comptes, membres, partenaires et actifs d’entreprise."}
+    {
+      "key": "business-portfolio",
+      "short": "portefeuille professionnel",
+      "long": "portefeuille professionnel",
+      "description": "Espace de gestion qui regroupe des actifs d’entreprise, des comptes et des personnes sur une plateforme."
+    },
+    {
+      "key": "ad-account",
+      "short": "compte publicitaire",
+      "long": "compte publicitaire",
+      "description": "Espace qui permet de configurer, financer, publier et mesurer les campagnes d’une organisation."
+    },
+    {
+      "key": "advertiser-account",
+      "short": "compte annonceur",
+      "long": "compte annonceur Pinterest",
+      "description": "Compte Pinterest dédié à la gestion des campagnes et paramètres publicitaires."
+    },
+    {
+      "key": "two-factor",
+      "short": "2FA",
+      "long": "authentification à deux facteurs",
+      "description": "Protection de connexion demandant une seconde preuve en plus du mot de passe."
+    },
+    {
+      "key": "business-center",
+      "short": "Business Center",
+      "long": "TikTok Business Center",
+      "description": "Espace TikTok for Business de gestion des comptes, membres, partenaires et actifs d’entreprise."
+    }
   ],
   "sources": [
-    {"title":"Meta Business Help Center — How to create an ad account in Meta Ads Manager","url":"https://www.facebook.com/business/help/407323696966570","supports":"Compte publicitaire associé à Facebook, exigences Page et moyen de paiement, limites d’accès et création d’autres comptes dans un portefeuille."},
-    {"title":"Meta Business Help Center — Add an ad account to your business portfolio in Meta Business Suite","url":"https://www.facebook.com/business/help/915885887059947","supports":"Parcours de création, nom, devise, fuseau, portefeuille cible, accès et caractère permanent de l’ajout d’un compte."},
-    {"title":"Pinterest Business Help — Get a business account","url":"https://help.pinterest.com/en/business/article/get-a-business-account","supports":"Création et conversion de compte professionnel, fonctions professionnelles et disponibilité de l’inscription sur ordinateur."},
-    {"title":"Pinterest Business Help — Create an advertiser account","url":"https://help.pinterest.com/en/business/article/create-an-advertiser-account","supports":"Gestion et création des comptes annonceurs, configuration de facturation et conséquences du choix de devise."},
-    {"title":"TikTok Business Help Center — Create a TikTok ad account","url":"https://ads.tiktok.com/resources/help/article/create-tiktok-ads-manager-account","supports":"Inscription, renseignements entreprise, fuseau, devise, paiement, approbation et vérification de l’identifiant du compte."},
-    {"title":"TikTok for Business — Sign up","url":"https://ads.tiktok.com/i18n/signup","supports":"Page officielle d’inscription à TikTok for Business."}
-  ]
+    {
+      "title": "Meta Business Help Center — How to create an ad account in Meta Ads Manager",
+      "url": "https://www.facebook.com/business/help/407323696966570",
+      "supports": "Compte publicitaire associé à Facebook, exigences Page et moyen de paiement, limites d’accès et création d’autres comptes dans un portefeuille."
+    },
+    {
+      "title": "Meta Business Help Center — Add an ad account to your business portfolio in Meta Business Suite",
+      "url": "https://www.facebook.com/business/help/915885887059947",
+      "supports": "Parcours de création, nom, devise, fuseau, portefeuille cible, accès et caractère permanent de l’ajout d’un compte."
+    },
+    {
+      "title": "Pinterest Business Help — Get a business account",
+      "url": "https://help.pinterest.com/en/business/article/get-a-business-account",
+      "supports": "Création et conversion de compte professionnel, fonctions professionnelles et disponibilité de l’inscription sur ordinateur."
+    },
+    {
+      "title": "Pinterest Business Help — Create an advertiser account",
+      "url": "https://help.pinterest.com/en/business/article/create-an-advertiser-account",
+      "supports": "Gestion et création des comptes annonceurs, configuration de facturation et conséquences du choix de devise."
+    },
+    {
+      "title": "TikTok Business Help Center — Create a TikTok ad account",
+      "url": "https://ads.tiktok.com/resources/help/article/create-tiktok-ads-manager-account",
+      "supports": "Inscription, renseignements entreprise, fuseau, devise, paiement, approbation et vérification de l’identifiant du compte."
+    },
+    {
+      "title": "TikTok for Business — Sign up",
+      "url": "https://ads.tiktok.com/i18n/signup",
+      "supports": "Page officielle d’inscription à TikTok for Business."
+    },
+    {
+      "title": "Meta Business Help Center — Set up and install the Meta Pixel",
+      "url": "https://www.facebook.com/business/help/952192354843755",
+      "supports": "Création dans Events Manager, méthodes d’installation via intégration partenaire ou code manuel et configuration des événements; consulté le 12 novembre 2026."
+    },
+    {
+      "title": "Meta Business Help Center — Test events tool: verify app and web browser events for Meta",
+      "url": "https://www.facebook.com/business/help/2040882565969969",
+      "supports": "Vérification des événements web dans Test Events, ouverture de la page pendant le test et délais de remontée; consulté le 12 novembre 2026."
+    },
+    {
+      "title": "Meta for Developers — Conversion Tracking with the Meta Pixel",
+      "url": "https://developers.facebook.com/docs/meta-pixel/implementation/conversion-tracking",
+      "supports": "Événements standards, valeurs et devises de conversion, et configuration du suivi; consulté le 12 novembre 2026."
+    },
+    {
+      "title": "Meta Business Help Center — Troubleshoot the event setup tool for web in Meta Events Manager",
+      "url": "https://www.facebook.com/business/help/TroubleshootEventSetupTool",
+      "supports": "Dépannage des événements absents, erreurs de détection et événements répétés; consulté le 12 novembre 2026."
+    }
+  ],
+  "references_checked": "12 novembre 2026"
 }
