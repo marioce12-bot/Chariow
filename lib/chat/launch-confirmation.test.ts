@@ -72,6 +72,24 @@ describe("launch confirmation protocol", () => {
     expect([...LAUNCH_CALL_TO_ACTIONS].sort()).toEqual([...META_CTA_TYPES].sort());
   });
 
+  it.each(["DOWNLOAD", "Télécharger", "OUTCOME_DOWNLOAD", ""])(
+    "ramène l'objectif invalide « %s » à OUTCOME_SALES (un bouton n'est pas un objectif)",
+    (objective) => {
+      const content = `[[LANCE_CAMPAGNE]]${JSON.stringify({ ...validPayload, objective, callToAction: "DOWNLOAD" })}`;
+      expect(parseLaunchPayload(content)).toEqual({ ...validPayload, objective: "OUTCOME_SALES", callToAction: "DOWNLOAD" });
+    },
+  );
+
+  it("ajoute OUTCOME_SALES quand l'objectif est absent", () => {
+    const { objective: _objective, ...withoutObjective } = validPayload;
+    expect(parseLaunchPayload(`[[LANCE_CAMPAGNE]]${JSON.stringify(withoutObjective)}`)).toEqual(validPayload);
+  });
+
+  it("conserve un objectif valide", () => {
+    const payload = { ...validPayload, objective: "OUTCOME_TRAFFIC" as const };
+    expect(parseLaunchPayload(serializeLaunchPayload(payload))).toEqual(payload);
+  });
+
   it.each([
     "Réponse libre sans marqueur",
     "[[LANCE_CAMPAGNE]]{json invalide}",
