@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MIN_META_AD_AGE, MIN_AGE_ERROR_FR } from "@/lib/ad-campaigns/age";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
@@ -20,6 +21,9 @@ export async function POST(request: Request) {
   }
   if (!objectives.has(body.objective) || !["meta", "tiktok", "pinterest"].includes(body.platform)) {
     return NextResponse.json({ error: "Configuration publicitaire non prise en charge" }, { status: 400 });
+  }
+  if (body.platform === "meta" && body.minAge != null && Number(body.minAge) < MIN_META_AD_AGE) {
+    return NextResponse.json({ error: MIN_AGE_ERROR_FR, code: "META_MIN_AGE" }, { status: 400 });
   }
   const dailyBudget = Number(body.daily_budget);
   const durationDays = Number(body.duration_days);

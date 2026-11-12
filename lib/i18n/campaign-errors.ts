@@ -1,4 +1,5 @@
 import type { Locale } from "./locales";
+import { MIN_AGE_ERROR_FR, MIN_AGE_ERROR_EN } from "@/lib/ad-campaigns/age";
 import { isPinterestConversionTagError, pinterestTagShortMessage } from "@/lib/pinterest/tag-help";
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
@@ -34,6 +35,11 @@ export function campaignErrorMessage(rawError: string | null | undefined, locale
   // Testé avant les autres règles (le message d'origine contient « conversion »).
   if (platform === "pinterest" && isPinterestConversionTagError(raw)) {
     return pinterestTagShortMessage(locale);
+  }
+
+  // Âge minimum inférieur à 18 ans : refusé par Meta, message clair et actionnable.
+  if (/âge minimum de la cible|minimum target age/.test(lower)) {
+    return locale === "fr" ? MIN_AGE_ERROR_FR : MIN_AGE_ERROR_EN;
   }
 
   // Older campaigns may still contain this provider response in external_error.

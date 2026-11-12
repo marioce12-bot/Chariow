@@ -5,6 +5,7 @@ import { LocationSearchInput } from "./LocationSearchInput";
 import { deriveCountries, type WizardState } from "./types";
 import type { MetaInterestTarget } from "@/lib/ad-campaigns/meta-targeting";
 import { useI18n } from "@/lib/i18n/i18n";
+import { MIN_META_AD_AGE } from "@/lib/ad-campaigns/age";
 
 interface StepProps {
   state: WizardState;
@@ -17,6 +18,12 @@ interface StepProps {
 export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
   const { locale } = useI18n();
   const en = locale === "en";
+  // Meta refuse le ciblage des moins de 18 ans ; les autres réseaux gardent leur minimum.
+  const minAgeFloor = state.platform === "meta" ? MIN_META_AD_AGE : 13;
+  useEffect(() => {
+    if (state.minAge < minAgeFloor) patch({ minAge: minAgeFloor, maxAge: Math.max(state.maxAge, minAgeFloor) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.minAge, minAgeFloor]);
   const [interestQuery, setInterestQuery] = useState("");
   const [interestResults, setInterestResults] = useState<MetaInterestTarget[]>([]);
   const [interestLoading, setInterestLoading] = useState(false);
@@ -74,8 +81,8 @@ export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
           {en ? "Age range" : "Tranche d'âge"} : {state.minAge} – {state.maxAge} {en ? "years" : "ans"}
         </p>
         <div className="flex items-center gap-3">
-          <input type="range" aria-label={en ? "Minimum age" : "Âge minimum"} min={13} max={65} value={state.minAge} onChange={(e) => patch({ minAge: Math.min(Number(e.target.value), state.maxAge) })} className="flex-1" />
-          <input type="range" aria-label={en ? "Maximum age" : "Âge maximum"} min={13} max={65} value={state.advantageAudience ? 65 : state.maxAge} onChange={(e) => patch({ maxAge: Math.max(Number(e.target.value), state.minAge) })} disabled={state.advantageAudience} className="flex-1 disabled:cursor-not-allowed disabled:opacity-50" />
+          <input type="range" aria-label={en ? "Minimum age" : "Âge minimum"} min={minAgeFloor} max={65} value={Math.max(state.minAge, minAgeFloor)} onChange={(e) => patch({ minAge: Math.min(Math.max(Number(e.target.value), minAgeFloor), state.maxAge) })} className="flex-1" />
+          <input type="range" aria-label={en ? "Maximum age" : "Âge maximum"} min={minAgeFloor} max={65} value={state.advantageAudience ? 65 : state.maxAge} onChange={(e) => patch({ maxAge: Math.max(Number(e.target.value), state.minAge) })} disabled={state.advantageAudience} className="flex-1 disabled:cursor-not-allowed disabled:opacity-50" />
         </div>
       </div>
 

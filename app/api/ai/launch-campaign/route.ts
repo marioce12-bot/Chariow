@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MIN_META_AD_AGE, MIN_AGE_ERROR_FR } from "@/lib/ad-campaigns/age";
 import { randomUUID } from "node:crypto";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -291,6 +292,9 @@ export async function POST(request: Request) {
   }
   const countries = body.countries?.length ? body.countries : ["BJ"];
   const minAge = body.ageMin ?? 18;
+  if ((body.platform ?? "meta") === "meta" && minAge < MIN_META_AD_AGE) {
+    return NextResponse.json({ error: MIN_AGE_ERROR_FR, code: "META_MIN_AGE" }, { status: 400 });
+  }
   const maxAge = body.ageMax ?? 65;
   const requestedDuration = Number(body.durationDays);
   const durationDays = Number.isFinite(requestedDuration) && requestedDuration > 0 ? Math.min(365, Math.round(requestedDuration)) : 1;

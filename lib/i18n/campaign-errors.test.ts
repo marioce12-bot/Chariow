@@ -62,3 +62,14 @@ describe("campaignErrorMessage", () => {
     expect(message).not.toContain("internal_object");
   });
 });
+
+import { MIN_AGE_ERROR_FR, MIN_AGE_ERROR_EN } from "@/lib/ad-campaigns/age";
+import { campaignErrorMessage as campaignErrorMessageAge } from "./campaign-errors";
+
+describe("âge minimum de la cible", () => {
+  const t = ((key: string) => key) as Parameters<typeof campaignErrorMessageAge>[2];
+  it("affiche un message clair au lieu d'une erreur générique", () => {
+    expect(campaignErrorMessageAge(MIN_AGE_ERROR_FR, "fr", t, "meta")).toBe(MIN_AGE_ERROR_FR);
+    expect(campaignErrorMessageAge(MIN_AGE_ERROR_FR, "en", t, "meta")).toBe(MIN_AGE_ERROR_EN);
+  });
+});
