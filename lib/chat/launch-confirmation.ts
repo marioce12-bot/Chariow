@@ -88,29 +88,78 @@ export function isValidLaunchPayload(value: unknown): value is LaunchPayload {
   return true;
 }
 
+// Raisons du refus d'un JSON de lancement, pour les journaux serveur. On ne journalise que
+// des noms de champs et des valeurs d'énumération (objectif, bouton, plateforme, devise),
+// jamais le contenu de la campagne (texte, liens, noms de produit).
+export function describeLaunchPayloadIssues(value: unknown): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return ["payload_not_an_object"];
+  const record = value as Record<string, unknown>;
+  const issues: string[] = [];
+  for (const key of requiredKeys) {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) issues.push(`missing:${key}`);
+  }
+  if (!LAUNCH_OBJECTIVES.includes(record.objective as LaunchPayload["objective"])) issues.push(`objective:${JSON.stringify(record.objective)}`);
+  if (!isNonEmptyString(record.name)) issues.push("name:empty");
+  if (typeof record.dailyBudget !== "number" || !Number.isFinite(record.dailyBudget) || record.dailyBudget <= 0) issues.push("dailyBudget:invalid");
+  if (record.currency !== "XOF" && record.currency !== "EUR" && record.currency !== "USD") issues.push(`currency:${JSON.stringify(record.currency)}`);
+  if (!Array.isArray(record.countries) || record.countries.length === 0 || !record.countries.every((item) => typeof item === "string" && /^[A-Z]{2}$/.test(item))) issues.push("countries:invalid");
+  if (!Number.isInteger(record.ageMin) || !Number.isInteger(record.ageMax) || (record.ageMin as number) < 13 || (record.ageMax as number) > 100 || (record.ageMin as number) > (record.ageMax as number)) issues.push("age:invalid");
+  if (record.gender !== null && record.gender !== "male" && record.gender !== "female") issues.push(`gender:${JSON.stringify(record.gender)}`);
+  if (!Array.isArray(record.interests) || record.interests.length > MAX_LAUNCH_INTERESTS || !record.interests.every((item) => typeof item === "string" && item.trim().length > 0)) issues.push("interests:invalid");
+  if (!isNonEmptyString(record.message)) issues.push("message:empty");
+  if (!isNonEmptyString(record.headline)) issues.push("headline:empty");
+  if (record.linkUrl !== null && (typeof record.linkUrl !== "string" || !isValidHttpUrl(record.linkUrl))) issues.push("linkUrl:invalid");
+  if (!Number.isInteger(record.durationDays) || (record.durationDays as number) < 1) issues.push("durationDays:invalid");
+  if (record.platform !== "meta" && record.platform !== "pinterest") issues.push(`platform:${JSON.stringify(record.platform)}`);
+  if (record.platform === "meta" && !LAUNCH_CALL_TO_ACTIONS.some((action) => action === record.callToAction)) issues.push(`callToAction:${JSON.stringify(record.callToAction)}`);
+  if (record.platform === "pinterest" && (record.callToAction !== null || record.gender !== null || (Array.isArray(record.interests) && record.interests.length > 0))) issues.push("pinterest:cta_gender_or_interests_not_empty");
+  if (!isNullableString(record.storeId) || !isNullableString(record.productId) || !isNullableString(record.productName) || !isNullableString(record.storeName)) issues.push("store_or_product_fields:invalid");
+  return issues;
+}
+
+function logLaunchPayloadRejection(reason: string, issues?: string[]): void {
+  // Journal serveur uniquement : parseLaunchPayload est aussi appelé côté navigateur.
+  if (typeof window !== "undefined") return;
+  console.error("launch payload rejected", { reason, issues });
+}
+
 // Le modèle dépasse parfois la limite de centres d'intérêt : on garde les premiers
 // (nettoyés) plutôt que de rejeter tout le lancement et de laisser l'utilisateur sans pop-up.
+// Vendeo ne crée que des campagnes Ventes : « Télécharger », « Acheter »… sont des boutons
+// (callToAction), pas des objectifs. Si le modèle met autre chose qu'un objectif valide dans
+// "objective" (ex. "DOWNLOAD"), on le ramène à OUTCOME_SALES au lieu de refuser le lancement.
 function normalizeLaunchPayload(payload: unknown): unknown {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
   const record = payload as Record<string, unknown>;
-  if (!Array.isArray(record.interests)) return payload;
-  const interests = record.interests
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
-    .slice(0, MAX_LAUNCH_INTERESTS);
-  return { ...record, interests };
+  const next: Record<string, unknown> = { ...record };
+  if (!LAUNCH_OBJECTIVES.includes(record.objective as LaunchPayload["objective"])) next.objective = "OUTCOME_SALES";
+  if (Array.isArray(record.interests)) {
+    next.interests = record.interests
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .slice(0, MAX_LAUNCH_INTERESTS);
+  }
+  return next;
 }
 
 export function parseLaunchPayload(content: string): LaunchPayload | null {
   const markerIndex = content.indexOf(LAUNCH_TAG);
-  if (markerIndex < 0 || content.indexOf(LAUNCH_TAG, markerIndex + LAUNCH_TAG.length) >= 0) return null;
-  try {
-    const payload: unknown = normalizeLaunchPayload(JSON.parse(content.slice(markerIndex + LAUNCH_TAG.length).trim()));
-    return isValidLaunchPayload(payload) ? payload : null;
-  } catch {
+  if (markerIndex < 0 || content.indexOf(LAUNCH_TAG, markerIndex + LAUNCH_TAG.length) >= 0) {
+    if (markerIndex >= 0) logLaunchPayloadRejection("tag_present_more_than_once");
     return null;
   }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content.slice(markerIndex + LAUNCH_TAG.length).trim());
+  } catch {
+    logLaunchPayloadRejection("json_parse_error");
+    return null;
+  }
+  const payload = normalizeLaunchPayload(parsed);
+  if (isValidLaunchPayload(payload)) return payload;
+  logLaunchPayloadRejection("invalid_fields", describeLaunchPayloadIssues(payload));
+  return null;
 }
 
 export function serializeLaunchPayload(payload: LaunchPayload): string {
@@ -126,7 +175,7 @@ export function launchConfirmationFallback(locale: "fr" | "en"): string {
 function normalizeConfirmation(text: string): string {
   return text
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[’']/g, "")
     .replace(/[.,!?;:]+/g, " ")
@@ -145,7 +194,7 @@ export function isAwaitingLaunchConfirmation(history: PriorChatMessage[] | null 
   // The API supplies newest-first history; the client reverses its chronological state before calling.
   const latestAssistant = history?.find((item) => item.role === "assistant");
   if (!latestAssistant || typeof latestAssistant.content !== "string") return false;
-  const content = latestAssistant.content.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const content = latestAssistant.content.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const requestsConfirmation = /\b(confirmer|confirmez|confirme|valider|validez|confirmation|corrects?|corrections?)\b/.test(content);
   const mentionsCampaign = /\b(campagne|lancement|publicite|pub)\b/.test(content);
   const presentsRecap = /\b(informations|details|recapitulatif|configuration|corrects?)\b/.test(content);
@@ -161,7 +210,7 @@ export function isRecapAwaitingApproval(history: PriorChatMessage[] | null | und
   const latestAssistant = history?.find((item) => item.role === "assistant");
   if (!latestAssistant || typeof latestAssistant.content !== "string") return false;
   if (latestAssistant.content.includes(LAUNCH_TAG)) return false;
-  const content = latestAssistant.content.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const content = latestAssistant.content.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   if (!/\b(campagne|campaign|lancement|launch|publicite|pub|ad)\b/.test(content)) return false;
   const signals = [
     /\b(budget)\b/,
