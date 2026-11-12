@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MIN_META_AD_AGE, MIN_AGE_ERROR_FR } from "@/lib/ad-campaigns/age";
 import { requireUser } from "@/lib/auth";
 import { decryptSecret } from "@/lib/crypto";
 import { activateMetaCampaign, createMetaAd, createMetaAdSet, createMetaCampaign, createMetaCarouselCreative, createMetaCreative, publishMetaAdWithAdvantage, updateMetaAdCreative } from "@/lib/meta/campaigns";
@@ -159,6 +160,9 @@ async function launchMeta(supabase: any, userId: string, campaign: any, body: an
   const { data: account, error: accountError } = await supabase.from("meta_ad_accounts").select("id,meta_account_id,access_token_encrypted,is_active,account_status").eq("id", accountId).eq("user_id", userId).maybeSingle();
   if (accountError) return NextResponse.json({ error: "Impossible de vérifier le compte Meta" }, { status: 500 });
   if (!account?.is_active) return NextResponse.json({ error: "Le compte Meta sélectionné n’est plus actif" }, { status: 400 });
+  if (Number(campaign.min_age) < MIN_META_AD_AGE) {
+    return NextResponse.json({ error: MIN_AGE_ERROR_FR, code: "META_MIN_AGE" }, { status: 400 });
+  }
   const accessToken = decryptSecret(account.access_token_encrypted);
   // Choix du pixel pour l'objectif Ventes : on prend d'abord celui marqué
   // "configuré sur Chariow", sinon le pixel le plus récemment actif du compte pub

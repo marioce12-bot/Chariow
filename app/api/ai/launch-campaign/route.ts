@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { MIN_META_AD_AGE, MIN_AGE_ERROR_FR } from "@/lib/ad-campaigns/age";
 import { randomUUID } from "node:crypto";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -48,6 +49,8 @@ type LaunchBody = {
   adAccountId?: string;
   durationDays?: number;
   platform?: string; // "meta" | "pinterest" | "tiktok"
+  // Ventes sans pixel : l'utilisateur a explicitement accepté de lancer en Trafic.
+  confirmTrafficFallback?: boolean;
 };
 
 // Le budget est toujours traité en dollars US (devise des comptes pub) : quel que
@@ -55,6 +58,11 @@ type LaunchBody = {
 // minimum et AVANT de créer quoi que ce soit chez Meta, pour ne jamais te retrouver
 // avec une campagne qui dépense réellement mais qu'on ne peut pas enregistrer.
 const MIN_DAILY_BUDGET_USD = 1;
+
+const PIXEL_TRAFFIC_FALLBACK_MESSAGE =
+  "Aucun pixel Meta n'est connecté à ce compte publicitaire : impossible d'optimiser sur l'événement Achat. " +
+  "Si tu confirmes, ta campagne sera lancée avec l'objectif Trafic (vues de la page) : elle sera bien diffusée, mais moins optimisée pour les ventes. " +
+  "Pour optimiser sur les ventes, installe d'abord ton pixel Meta (Chariow), puis relance la campagne.";
 
 // URL du catalogue résolue par Vendeo, ou ajustement manuel dans la confirmation.
 // Aucun lien générique par défaut n'est utilisé.
@@ -226,6 +234,8 @@ export async function POST(request: Request) {
   // refuse de lancer plutôt que de diffuser en silence une campagne optimisée sur les vues.
   const objective = toSimpleObjective(body.objective);
   let pixelId: string | null = null;
+  // Objectif réellement envoyé à Meta : Ventes, sauf repli confirmé en Trafic (sans pixel).
+  let effectiveObjective = objective;
   if (objective === "sales") {
     const { data: accountPixels } = await supabase
       .from("meta_pixels")
@@ -237,15 +247,18 @@ export async function POST(request: Request) {
       .limit(1);
     pixelId = typeof accountPixels?.[0]?.pixel_id === "string" ? accountPixels[0].pixel_id : null;
     if (!pixelId) {
-      return NextResponse.json(
-        {
-          error:
-            "Aucun pixel Meta n'est connecté à ce compte publicitaire : impossible d'optimiser sur l'événement Achat. " +
-            "Connecte ou installe ton pixel Meta (Chariow), puis relance la campagne — ou choisis l'objectif Trafic.",
-          code: "PIXEL_REQUIRED",
-        },
-        { status: 400 }
-      );
+      if (body.confirmTrafficFallback !== true) {
+        // Rien n'est envoyé à Meta : on explique et on propose de lancer en Trafic après confirmation.
+        return NextResponse.json(
+          {
+            error: PIXEL_TRAFFIC_FALLBACK_MESSAGE,
+            code: "PIXEL_REQUIRED",
+            fallback_available: true,
+          },
+          { status: 400 }
+        );
+      }
+      effectiveObjective = "traffic";
     }
   }
 
@@ -291,6 +304,9 @@ export async function POST(request: Request) {
   }
   const countries = body.countries?.length ? body.countries : ["BJ"];
   const minAge = body.ageMin ?? 18;
+  if ((body.platform ?? "meta") === "meta" && minAge < MIN_META_AD_AGE) {
+    return NextResponse.json({ error: MIN_AGE_ERROR_FR, code: "META_MIN_AGE" }, { status: 400 });
+  }
   const maxAge = body.ageMax ?? 65;
   const requestedDuration = Number(body.durationDays);
   const durationDays = Number.isFinite(requestedDuration) && requestedDuration > 0 ? Math.min(365, Math.round(requestedDuration)) : 1;
@@ -321,7 +337,7 @@ export async function POST(request: Request) {
   const trackedLinkUrl = withVendeoCampaignTracking(linkUrl, vendeoCampaignId);
   let campaignId: string | undefined;
   try {
-    const campaign = await createMetaCampaign({ accountId, accessToken, name: body.name, objective, dailyBudget, status: "ACTIVE" });
+    const campaign = await createMetaCampaign({ accountId, accessToken, name: body.name, objective: effectiveObjective, dailyBudget, status: "ACTIVE" });
     campaignId = campaign.id;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur de lancement Meta.";
@@ -347,8 +363,8 @@ export async function POST(request: Request) {
       interests: metaInterests,
       gender,
       // Optimisation de l'ad set : Ventes = événement Achat du pixel ; sinon l'objectif choisi.
-      objective,
-      pixelId: objective === "sales" ? pixelId : null,
+      objective: effectiveObjective,
+      pixelId: effectiveObjective === "sales" ? pixelId : null,
       endTime: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString(),
       status: "ACTIVE",
     });
@@ -432,7 +448,7 @@ export async function POST(request: Request) {
       platform: "meta",
       status: "review",
       objective,
-      effective_objective: objective,
+      effective_objective: effectiveObjective,
       title: body.name,
       ad_text: body.message,
       media_url: body.imageUrl,
@@ -455,7 +471,7 @@ export async function POST(request: Request) {
     });
     if (insertError) throw new Error(`Campagne créée chez Meta mais non enregistrée côté Vendeo (${insertError.message}).`);
 
-    return NextResponse.json({ campaignId, adSetId, creativeId, adId, dailyBudgetUsd: dailyBudget, callToAction, carouselCards: carouselExtraUrls.length ? carouselExtraUrls.length + 1 : 1, interests: metaInterests.map(({ name }) => name), droppedInterests });
+    return NextResponse.json({ campaignId, adSetId, creativeId, adId, dailyBudgetUsd: dailyBudget, callToAction, carouselCards: carouselExtraUrls.length ? carouselExtraUrls.length + 1 : 1, interests: metaInterests.map(({ name }) => name), droppedInterests, effective_objective: effectiveObjective, objective_fallback: effectiveObjective !== objective });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur de lancement Meta.";
     console.error("launch-campaign Meta error (après création de la campagne)", message, { campaignId });

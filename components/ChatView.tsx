@@ -257,6 +257,8 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
   const [launchComplete, setLaunchComplete] = useState(false);
   const launchInFlightRef = useRef(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
+  // Ventes sans pixel : après explication, le même bouton lance en Trafic (confirmation explicite).
+  const [trafficFallbackAsk, setTrafficFallbackAsk] = useState(false);
   const [launchFailureNote, setLaunchFailureNote] = useState<string | null>(null);
   const [metaAccounts, setMetaAccounts] = useState<MetaAdAccount[]>([]);
   const [pinterestAccounts, setPinterestAccounts] = useState<PinterestAdAccount[]>([]);
@@ -660,6 +662,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
     setLaunchBudget(payload?.dailyBudget != null ? String(payload.dailyBudget) : "");
     setLaunchCurrency(normalizeCurrency(payload?.currency) ?? guessCurrencyFromMessages(campaignHistory) ?? "XOF");
     setLaunchError(null);
+    setTrafficFallbackAsk(false);
     setLaunchInterests([]);
     setLaunchInterestAdaptations([]);
     setLaunchInterestMisses([]);
@@ -748,6 +751,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
           carouselUrls: carouselUrls.length ? carouselUrls : undefined,
           platform: payload.platform ?? "meta",
           callToAction: launchCta || undefined,
+          confirmTrafficFallback: trafficFallbackAsk || undefined,
           durationDays: payload.durationDays ?? 1,
           ...(payload.platform === "pinterest" ? { pinterestAdAccountId: launchAccountId ?? undefined } : { metaAdAccountId: launchAccountId ?? undefined, pageId: launchPageId ?? undefined }),
         }),
@@ -755,11 +759,13 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         const reason = String(data.error ?? "Impossible de lancer la campagne.").slice(0, 500);
+        setTrafficFallbackAsk(data.code === "PIXEL_REQUIRED" && data.fallback_available === true);
         setLaunchError(reason);
         setLaunchFailureNote(`Le lancement précédent a échoué (raison : ${reason}), aucune campagne n'a été créée, les informations validées restent valables, ne les redemande pas.`);
         return;
       }
       setLaunchFailureNote(null);
+      setTrafficFallbackAsk(false);
       setLaunchComplete(true);
       // Briefly show confirmed 100%, never before the server accepts the request.
       await new Promise<void>((resolve) => window.setTimeout(resolve, 500));
@@ -767,7 +773,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
       const carouselNote = carouselUrls.length ? t("dynamicExtra.carouselNote", { count: (carouselUrls.length + 1) }) : isVideo ? t("sweep3.text110") : "";
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: t("dynamicExtra.campaignLaunched", { name: (payload.name ?? ""), platform: (isPinterest ? "Pinterest" : "Meta"), carousel: (carouselNote), budget: (dailyBudget), currency: (launchCurrency), usd: (usdNote) }) },
+        { role: "assistant", content: t("dynamicExtra.campaignLaunched", { name: (payload.name ?? ""), platform: (isPinterest ? "Pinterest" : "Meta"), carousel: (carouselNote), budget: (dailyBudget), currency: (launchCurrency), usd: (usdNote) }) + (data.objective_fallback ? (locale === "en" ? "\n\nNo Meta pixel was found on this ad account, so the campaign was launched with the Traffic objective (page views) instead of Sales. To optimize for sales next time, install your Meta pixel (Chariow)." : "\n\nAucun pixel Meta n'a été trouvé sur ce compte publicitaire : la campagne a donc été lancée avec l'objectif Trafic (vues de la page) au lieu de Ventes. Pour optimiser sur les ventes la prochaine fois, installe ton pixel Meta (Chariow).") : "") },
       ]);
       setLaunchOpen(false);
     } catch {
@@ -1153,7 +1159,7 @@ export function ChatView({ onGoToSubscription, onUsageChange, onBack, onNavigate
               {launching ? <LaunchProgress complete={launchComplete} /> : null}
               <div className="chat-launch-action-buttons">
                 <button type="button" className="btn btn-ghost" disabled={launching} onClick={closeLaunch}>{t("chat.cancel")}</button>
-                <button type="button" className="btn btn-dark chat-launch-action" disabled={launching || launchInterestsLoading || metaPagesLoading || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && (!launchCta || !launchAccountId || !launchPageId))} onClick={() => void confirmLaunch()}>{launching ? t(launchComplete ? "chat.launchSent" : "chat.launchSubmitting") : t("chat.confirmLaunch")}</button>
+                <button type="button" className="btn btn-dark chat-launch-action" disabled={launching || launchInterestsLoading || metaPagesLoading || !normalizeLinkUrl(launchLink) || (launchPayload?.platform === "meta" && (!launchCta || !launchAccountId || !launchPageId))} onClick={() => void confirmLaunch()}>{launching ? t(launchComplete ? "chat.launchSent" : "chat.launchSubmitting") : trafficFallbackAsk ? (locale === "en" ? "Launch with Traffic" : "Lancer avec l'objectif Trafic") : t("chat.confirmLaunch")}</button>
               </div>
             </div>
           </div>

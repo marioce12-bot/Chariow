@@ -1,6 +1,7 @@
 import type {Locale}from './locales';
 
 const rows = [
+  ["serverMessage.pixelTrafficFallback", "Si tu confirmes, ta campagne sera lancée avec l'objectif Trafic (vues de la page) : elle sera bien diffusée, mais moins optimisée pour les ventes. Pour optimiser sur les ventes, installe d'abord ton pixel Meta (Chariow), puis relance la campagne.", "If you confirm, your campaign will launch with the Traffic objective (page views): it will run, but it will be less optimized for sales. To optimize for sales, first install your Meta pixel (Chariow), then relaunch the campaign."],
   ["serverMessage.text2", "Accès administrateur requis.", "Administrator access required."],
   ["serverMessage.text5", "Ajoute une image ou une vidéo avant de lancer la campagne.", "Add an image or video before launching the campaign."],
   ["serverMessage.text8", "Aucun compte Meta connecté", "No Meta account connected"],
