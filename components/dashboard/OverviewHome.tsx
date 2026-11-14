@@ -16,6 +16,7 @@ import "@/app/dashboard-overview.css";
 import { useNavigationData } from "./NavigationDataCache";
 import { getDashboardAnalyticsRange } from "@/lib/dashboard-analytics-periods";
 import { OFFICIAL_WHATSAPP_CHANNEL_URL } from "@/components/dashboard/FirstStoreWelcome";
+import { countRunningCampaigns } from "@/lib/dashboard-running-campaigns";
 
 /**
  * Nouvelle "Vue d'ensemble" : simple, accueillante et multi-canaux.
@@ -31,7 +32,14 @@ import { OFFICIAL_WHATSAPP_CHANNEL_URL } from "@/components/dashboard/FirstStore
  * « 0 », de « Aucune … » ou de texte provisoire qui change une fraction de seconde après).
  */
 
-type CampaignSummary = { id: string; platform: string; status: string };
+type CampaignSummary = { id: string; platform: string; status: string; external_campaign_id?: string | null };
+type VariantPackSummary = {
+  id: string;
+  status: string;
+  external_campaign_id?: string | null;
+  checkpoints?: { activated?: boolean } | null;
+  variants?: unknown[];
+};
 type SaleGroup = "success" | "pending" | "failed";
 type SaleContact = { name: string | null; email: string | null; phone: string | null; country: string | null; failureReason: string | null };
 type SaleRow = {
@@ -218,11 +226,15 @@ export function OverviewHome({
   const store = stores.find((item) => item.id === selectedStoreId) ?? stores[0];
   const storeId = store?.id ?? selectedStoreId;
   const campaignsUrl = storeId ? `/api/ad-campaigns?store_id=${encodeURIComponent(storeId)}` : null;
+  const variantPacksUrl = storeId ? `/api/ad-variant-packs?store_id=${encodeURIComponent(storeId)}` : null;
   const campaignReading = useNavigationData<{ campaigns: CampaignSummary[] }>(campaignsUrl, { version: campaignsVersion });
+  const variantPackReading = useNavigationData<{ packs: VariantPackSummary[] }>(variantPacksUrl, { version: campaignsVersion });
   const alertReading = useNavigationData<{ alerts: PersistentAlert[] }>("/api/alerts");
   const data = (periodDays === 30 ? rolling30Analytics : selectedPeriodMatches ? selectedPeriodAnalytics : null) ?? analytics;
   const campaigns = campaignReading.data?.campaigns ?? [];
-  const campaignsReady = !campaignReading.loading;
+  const variantPacks = variantPackReading.data?.packs ?? [];
+  const campaignsReady = !campaignReading.loading && !variantPackReading.loading;
+  const campaignCountUnavailable = campaignReading.error || variantPackReading.error;
   const periodLoading = selectedPeriodLoading && periodDays !== 30;
   const alerts = alertReading.data?.alerts ?? [];
   const [selectedSale, setSelectedSale] = useState<SaleRow | null>(null);
@@ -265,7 +277,7 @@ export function OverviewHome({
   const salesCount = overview?.sales ?? data?.kpis.sales ?? 0;
   const money = (value: number | null | undefined) => (value === null || value === undefined ? "—" : formatMoneyInUSD(value, currency) ?? "—");
 
-  const activeCampaigns = campaigns.filter((c) => c.status === "active" || c.status === "review");
+  const runningCampaignsCount = countRunningCampaigns(campaigns, variantPacks);
 
   // Chiffres de la période : skeleton tant que les données ou les campagnes ne sont pas là.
   const statsLoading = loading || periodLoading;
@@ -399,7 +411,7 @@ export function OverviewHome({
           </div>
           <div className="ov-kpi ov-kpi--campaigns">
             <span className="hint-line">{tr(t("optionsExtra.text14"), "Running campaigns")}</span>
-            {!campaignsReady ? <Skeleton width="25%" height={24} style={{ marginTop: 6 }} /> : <strong>{activeCampaigns.length}</strong>}
+            {!campaignsReady ? <Skeleton width="25%" height={24} style={{ marginTop: 6 }} /> : campaignCountUnavailable ? <strong>—</strong> : <strong>{runningCampaignsCount}</strong>}
           </div>
         </div>
       </section>
