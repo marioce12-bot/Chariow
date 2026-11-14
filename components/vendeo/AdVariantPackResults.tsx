@@ -5,6 +5,7 @@ import { useI18n } from "@/lib/i18n/i18n";
 import { recommendPackAction, type VariantPerformance } from "@/lib/ad-variant-pack";
 const PACKS_KEY = "vendeo_ad_variant_packs_v1";
 type PackRecord = { id: string; status: string; storeId: string; accountId: string; productName: string; createdAt: string; variants: { id: string; angle: string; format: string; campaignId: string }[] };
+type StoredPack = { id: string; status: string; product_name: string; external_campaign_id?: string | null; last_error?: string | null; variants?: { id: string; angle: string; format: string }[]; checkpoints?: { campaignId?: string; adsets?: (string | null)[]; creatives?: (string | null)[]; ads?: (string | null)[]; activated?: boolean } };
 type Campaign = { id: string; status: string; platform?: string; external_campaign_id?: string | null; external_adset_id?: string | null; external_ad_id?: string | null; external_error?: string | null };
 type Performance = { id: string; impressions: number; clicks: number; spend: number; realSales: number | null; attributionReliable: boolean };
 const statusLabels: Record<string, { fr: string; en: string }> = {
@@ -17,6 +18,8 @@ const pauseEligible = (campaign?: Campaign) => Boolean(campaign?.platform === "m
 export function AdVariantPackResults({ storeId, onActionComplete }: { storeId: string | null; onActionComplete?: () => void }) {
   const { locale } = useI18n(); const en = locale === "en";
   const [packs, setPacks] = useState<PackRecord[]>([]);
+  const [storedPacks, setStoredPacks] = useState<StoredPack[]>([]);
+  const [storeError, setStoreError] = useState("");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [performance, setPerformance] = useState<Performance[]>([]);
   const [loading, setLoading] = useState(false);
@@ -27,8 +30,10 @@ export function AdVariantPackResults({ storeId, onActionComplete }: { storeId: s
     let cancelled = false;
     let saved: PackRecord[] = [];
     try { const all = JSON.parse(localStorage.getItem(PACKS_KEY) || "[]"); saved = Array.isArray(all) ? all.filter((p) => p.status === "done" && (!storeId || p.storeId === storeId)) : []; } catch { saved = []; }
-    setPacks(saved); setPerformance([]);
-    if (!storeId || !saved.length) return () => { cancelled = true; };
+    setPacks(saved); setPerformance([]); setStoredPacks([]); setStoreError("");
+    if (!storeId) return () => { cancelled = true; };
+    void fetch(`/api/ad-variant-packs?store_id=${encodeURIComponent(storeId)}`, { cache: "no-store" }).then(async (r) => { if (!r.ok) throw new Error("Pack data unavailable"); return r.json(); }).then((data) => { if (!cancelled) setStoredPacks(Array.isArray(data.packs) ? data.packs : []); }).catch(() => { if (!cancelled) setStoreError(en ? "New packs could not be loaded. Standard campaigns remain available." : "Les nouveaux packs n’ont pas pu être chargés. Les campagnes standard restent disponibles."); });
+    if (!saved.length) return () => { cancelled = true; };
     setLoading(true);
     const from = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
     const to = new Date().toISOString().slice(0, 10);
@@ -64,14 +69,28 @@ export function AdVariantPackResults({ storeId, onActionComplete }: { storeId: s
     } finally { setPauseBusy(null); }
   };
 
-  if (!packs.length) return null;
+  if (!packs.length && !storedPacks.length && !storeError) return null;
   const campaignById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
   const performanceById = new Map(performance.map((row) => [row.id, row]));
   return <section className="app-card" aria-labelledby="variant-packs-heading">
-    <div className="card-head"><div><span className="eyebrow">META ADS</span><h2 id="variant-packs-heading" className="flex items-center gap-2"><Layers size={18}/>{en ? "Variant packs" : "Packs de variantes"}</h2><p className="hint-line">{en ? "Packs are distinct from single campaigns; each variant has its own Meta status and results." : "Les packs sont séparés des campagnes simples; chaque variante garde son statut et ses résultats Meta."}</p></div></div>
+    <div className="card-head"><div><span className="eyebrow">META ADS</span><h2 id="variant-packs-heading" className="flex items-center gap-2"><Layers size={18}/>{en ? "Variant packs" : "Packs de variantes"}</h2><p className="hint-line">{en ? "Find your packs and check their launch status." : "Retrouve tes packs et vérifie leur état de lancement."}</p></div></div>
+    {storeError ? <p role="alert" className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{storeError}</p> : null}
     {actionError ? <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{actionError}</p> : null}
     {actionMessage ? <p role="status" className="mb-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">{actionMessage}</p> : null}
-    <div className="grid gap-3">{packs.map((pack) => {
+    <div className="grid gap-3">{storedPacks.map((pack) => {
+      const variants = Array.isArray(pack.variants) ? pack.variants : [];
+      const cp = pack.checkpoints ?? {};
+      const sent = pack.status === "completed" && cp.activated === true;
+      const blocked = pack.status === "blocked";
+      const draft = pack.status === "draft";
+      const partial = !sent && !blocked && !draft;
+      return <article key={`stored-${pack.id}`} className="min-w-0 rounded-xl border border-gray-200 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><strong className="break-words">{pack.product_name}</strong><span className="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-800">{en ? "Variant pack" : "Pack de variantes"}</span></div>
+        <p className="mt-2 text-sm font-semibold text-gray-800">{sent ? (en ? "Campaign sent" : "Campagne envoyée") : draft ? (en ? "Draft" : "Brouillon") : blocked ? (en ? "Checks blocked" : "Vérifications bloquées") : (en ? "Campaign delivery status unknown" : "Statut de diffusion inconnu")}</p>
+        {draft || blocked ? <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{en ? "No campaign was created in Meta for this pack." : "Aucune campagne n’a été créée dans Meta pour ce pack."}</p> : partial ? <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{en ? "Partial or ambiguous launch state. Verify the campaign and ad sets in Meta before taking any action. No automatic retry is performed." : "État de lancement partiel ou ambigu. Vérifie la campagne et les ensembles de publicités dans Meta avant toute action. Aucune relance automatique n’est effectuée."}</p> : <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{en ? "Verify delivery and ad-set results in Meta; results are not available here, so no delivery status or pause recommendation can be confirmed." : "Vérifie la diffusion et les résultats par ensemble dans Meta ; ces résultats ne sont pas disponibles ici, le statut de diffusion et toute recommandation de pause restent donc non confirmés."}</p>}
+        {pack.last_error ? <p className="mt-2 break-words text-xs text-gray-600">{pack.last_error}</p> : null}
+        <div className="mt-3 grid gap-2">{variants.map((variant) => <div key={variant.id} className="min-w-0 rounded-lg bg-gray-50 px-3 py-2 text-sm"><div className="flex flex-wrap items-start justify-between gap-2"><strong className="break-words">{variant.angle}</strong><small className="shrink-0 uppercase text-gray-500">{variant.format}</small></div><p className="mt-1 text-xs text-gray-600">{en ? "Ad-set results not available — verify in Meta" : "Résultats par ensemble indisponibles — vérifie dans Meta"}</p></div>)}</div>
+      </article>;
+    })}{packs.map((pack) => {
       const rows = pack.variants.map((variant) => {
         const campaign = campaignById.get(variant.campaignId);
         const stats = campaign?.external_campaign_id ? performanceById.get(campaign.external_campaign_id) : undefined;
