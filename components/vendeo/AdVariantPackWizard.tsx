@@ -1,35 +1,39 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowRight, ImagePlus, Loader2, RotateCcw, Search, Sparkles, X } from "lucide-react";
+import { LaunchProgress } from "@/components/chat/LaunchProgress";
+import { splitPackBudgetCents } from "@/lib/ad-variant-packs";
 import { buildGeoTargeting, deriveCountries, type ChariowProductLite, type GeoLocation } from "@/components/vendeo/wizard/types";
 import { LocationSearchInput } from "@/components/vendeo/wizard/LocationSearchInput";
 import type { MetaGenderTarget, MetaInterestTarget } from "@/lib/ad-campaigns/meta-targeting";
+import { DEFAULT_META_CTA, META_CTA_LABELS, META_CTA_TYPES, normalizeMetaCta, type MetaCtaType } from "@/lib/meta/cta";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import { useI18n } from "@/lib/i18n/i18n";
 import { getConnectedVariantPackStores, getVariantPackDraftStep, hasVariantPackDraftProgress, haveThreeChosenFormats, type AdAngle, type VariantFormat } from "@/lib/ad-variant-pack";
 
 const DRAFT_KEY = "vendeo_ad_variant_pack_draft_v1";
-const PACKS_KEY = "vendeo_ad_variant_packs_v1";
 const IMAGE_COST = imageCreditCost("hd", "medium");
 type Store = { id: string; store_name: string | null; platform: string; connection_status: string | null; is_active?: boolean };
-type Variant = { angleId: string; format: VariantFormat | ""; media: string[]; copy: string; generating?: boolean; error?: string };
+type Variant = { angleId: string; format: VariantFormat | ""; media: string[]; copy: string; callToAction?: MetaCtaType; generating?: boolean; error?: string };
+type UploadPreview = { id: string; urls: string[]; done: number; total: number; percent: number };
 type Draft = {
   storeId: string; productId: string; objective: string; locations: GeoLocation[];
   minAge: number; maxAge: number; gender: MetaGenderTarget | null;
   interests: MetaInterestTarget[]; advantageAudience: boolean;
   dailyBudget: number; durationDays: number; angles: AdAngle[]; selected: string[];
-  variants: Record<string, Variant>; step: number; packId?: string; metaAdAccountId?: string;
+  variants: Record<string, Variant>; step: number; packId?: string; metaAdAccountId?: string; metaPageId?: string;
+  serverPackId?: string; launchRequested?: boolean; dsaBeneficiary: string; dsaPayor: string;
   campaignIds?: Record<string, string>; launched?: Record<string, boolean>; started?: boolean;
 };
 const defaultLocation: GeoLocation = { key: "BJ", name: "Bénin", type: "country", countryCode: "BJ" };
 const DEFAULT: Draft = {
   storeId: "", productId: "", objective: "sales", locations: [defaultLocation],
   minAge: 18, maxAge: 45, gender: null, interests: [], advantageAudience: false,
-  dailyBudget: 5, durationDays: 5, angles: [], selected: [], variants: {}, step: 1,
+  dailyBudget: 5, durationDays: 5, angles: [], selected: [], variants: {}, step: 1, dsaBeneficiary: "", dsaPayor: "",
 };
-const uid = () => `pack-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const uid = () => crypto.randomUUID();
 function isWebUrl(value: unknown): value is string { try { const url = new URL(String(value)); return url.protocol === "https:" || url.protocol === "http:"; } catch { return false; } }
 
 export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: string; onClose: () => void; onLaunched: () => void }) {
@@ -46,7 +50,7 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
         localStorage.removeItem(DRAFT_KEY);
         return { ...DEFAULT, storeId };
       }
-      return { ...DEFAULT, ...saved, storeId: saved.storeId || storeId, step: getVariantPackDraftStep(saved.step), started: true };
+      return { ...DEFAULT, ...saved, dsaBeneficiary: saved.dsaBeneficiary ?? "", dsaPayor: saved.dsaPayor ?? "", objective: "sales", storeId: saved.storeId || storeId, step: getVariantPackDraftStep(saved.step), started: true };
     }
     catch { return { ...DEFAULT, storeId }; }
   });
@@ -55,7 +59,7 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
   const [accounts, setAccounts] = useState<{ id: string; name?: string | null }[]>([]);
   const [pages, setPages] = useState<{ id: string; name: string }[]>([]);
   const [accountId, setAccountId] = useState(() => draft.metaAdAccountId ?? "");
-  const [pageId, setPageId] = useState("");
+  const [pageId, setPageId] = useState(() => draft.metaPageId ?? "");
   const [interestQuery, setInterestQuery] = useState("");
   const [interestResults, setInterestResults] = useState<MetaInterestTarget[]>([]);
   const [interestLoading, setInterestLoading] = useState(false);
@@ -63,15 +67,67 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
+  const [uploadPreview, setUploadPreview] = useState<UploadPreview | null>(null);
+  const [launching, setLaunching] = useState(false);
+  const [launchPercent, setLaunchPercent] = useState<number | null>(null);
+  const [launchState, setLaunchState] = useState<string | null>(null);
+  const localObjectUrls = useRef(new Set<string>());
+  const launchInFlight = useRef(false);
+  const notifiedCompletion = useRef(false);
+  const onLaunchedRef = useRef(onLaunched);
+  onLaunchedRef.current = onLaunched;
   const product = useMemo(() => products.find((row) => row.id === draft.productId) ?? null, [products, draft.productId]);
   const selectedInterests = draft.interests;
+  const legacyPackStarted = Object.keys(draft.campaignIds ?? {}).length > 0 || Object.values(draft.launched ?? {}).some(Boolean);
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const urls = localObjectUrls.current;
+    return () => { urls.forEach((url) => URL.revokeObjectURL(url)); urls.clear(); };
+  }, []);
   useEffect(() => {
     try {
       if (ready || !hasVariantPackDraftProgress(draft)) localStorage.removeItem(DRAFT_KEY);
       else localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, started: true }));
     } catch { /* storage unavailable */ }
   }, [draft, ready]);
+
+  useEffect(() => {
+    if (!draft.serverPackId || !draft.launchRequested || ready) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check = async () => {
+      try {
+        const response = await fetch(`/api/ad-variant-packs/${encodeURIComponent(draft.serverPackId!)}`, { cache: "no-store" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.pack?.status) throw new Error("status unavailable");
+        if (cancelled) return;
+        setLaunchState(data.pack.status);
+        const completed = data.pack.status === "completed" && data.pack.checkpoints?.activated === true && data.progress === 100;
+        if (typeof data.progress === "number" && Number.isFinite(data.progress)) setLaunchPercent(completed ? 100 : Math.max(0, Math.min(99, data.progress)));
+        if (completed) {
+          setLaunching(false); setReady(true); setError("");
+          if (!notifiedCompletion.current) { notifiedCompletion.current = true; onLaunchedRef.current(); }
+          return;
+        }
+        if (data.pack.status === "claimed" || (data.pack.status === "draft" && launchInFlight.current)) {
+          setLaunching(true); timer = setTimeout(() => void check(), 2000); return;
+        }
+        setLaunching(false);
+        if (data.pack.status === "blocked") {
+          setError(typeof data.pack.last_error === "string" && data.pack.last_error ? data.pack.last_error : (en ? "The checks failed before anything was created in Meta. You can correct your pack." : "Les vérifications ont échoué avant toute création dans Meta. Tu peux corriger ton pack."));
+        } else {
+          setError(en ? "The launch is not confirmed. Check Meta before any new attempt; Vendeo will not resend it automatically." : "Le lancement n’est pas confirmé. Vérifie Meta avant toute nouvelle tentative ; Vendeo ne le renverra pas automatiquement.");
+        }
+      } catch {
+        if (!cancelled) {
+          setLaunching(false);
+          setError(en ? "The pack status could not be verified. Check Meta before any new attempt." : "L’état du pack n’a pas pu être vérifié. Consulte Meta avant toute nouvelle tentative.");
+        }
+      }
+    };
+    void check();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [draft.serverPackId, draft.launchRequested, en, ready]);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,7 +161,7 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
           ?? (availableAccounts.length === 1 ? availableAccounts[0] : null);
         if (selectedAccount) {
           setAccountId(selectedAccount.id);
-          setDraft((d) => ({ ...d, metaAdAccountId: selectedAccount.id }));
+          setDraft((d) => ({ ...d, metaAdAccountId: selectedAccount.id, dsaBeneficiary: d.dsaBeneficiary || selectedAccount.name || "", dsaPayor: d.dsaPayor || selectedAccount.name || "" }));
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : (en ? "Unable to load the Meta account." : "Impossible de charger le compte Meta."));
@@ -162,7 +218,7 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
 
   const patch = (change: Partial<Draft>) => setDraft((d) => ({ ...d, ...change, started: true }));
   const selectAccount = (id: string) => {
-    setAccountId(id); setPageId(""); setDraft((d) => ({ ...d, metaAdAccountId: id, interests: [], started: true }));
+    setAccountId(id); setPageId(""); const name = accounts.find((account) => account.id === id)?.name ?? ""; setDraft((d) => ({ ...d, metaAdAccountId: id, metaPageId: "", interests: [], dsaBeneficiary: name, dsaPayor: name, started: true }));
   };
   const addInterest = (option: MetaInterestTarget) => {
     if (selectedInterests.some((interest) => interest.id === option.id) || selectedInterests.length >= 10) return;
@@ -180,7 +236,7 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
       if (!res.ok || !Array.isArray(data.angles) || data.angles.length !== 5) throw new Error(data.error || (en ? "Could not analyze this product." : "Impossible d’analyser ce produit."));
       const angles = data.angles as AdAngle[];
       const selected = angles.filter((a) => a.recommended).slice(0, 3).map((a) => a.id);
-      patch({ angles, selected, variants: Object.fromEntries(angles.filter((a) => selected.includes(a.id)).map((a) => [a.id, { angleId: a.id, format: "", media: [], copy: a.copy }])), step: 2 });
+      patch({ angles, selected, variants: Object.fromEntries(angles.filter((a) => selected.includes(a.id)).map((a) => [a.id, { angleId: a.id, format: "", media: [], copy: a.copy, callToAction: DEFAULT_META_CTA }])), step: 2 });
     } catch (e) { setError(e instanceof Error ? e.message : "Erreur d’analyse."); }
     finally { setLoading(false); }
   };
@@ -188,24 +244,48 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
     const selected = draft.selected.includes(id) ? draft.selected.filter((x) => x !== id) : draft.selected.length < 3 ? [...draft.selected, id] : draft.selected;
     const variants = { ...draft.variants };
     if (selected.includes(id) && !variants[id]) {
-      variants[id] = { angleId: id, format: "", media: [], copy: draft.angles.find((a) => a.id === id)?.copy ?? "" };
+      variants[id] = { angleId: id, format: "", media: [], copy: draft.angles.find((a) => a.id === id)?.copy ?? "", callToAction: DEFAULT_META_CTA };
     }
     if (!selected.includes(id)) delete variants[id];
     patch({ selected, variants });
   };
   const updateVariant = (id: string, change: Partial<Variant>) => setDraft((d) => ({ ...d, variants: { ...d.variants, [id]: { ...d.variants[id], ...change } }, started: true }));
-  const upload = async (id: string, files: FileList | null) => {
-    if (!files?.length) return;
+  const upload = async (id: string, files: File[]) => {
+    if (!files.length || busy) return;
     const variant = draft.variants[id];
-    if (!variant.format) return;
+    if (!variant?.format) return;
     if (variant.format === "video" && files.length > 1) { setError(en ? "Choose one video." : "Choisis une seule vidéo."); return; }
+    const video = variant.format === "video";
+    if (files.some((file) => ![...(video ? ["video/mp4", "video/quicktime"] : ["image/jpeg", "image/png"])].includes(file.type) || file.size <= 0 || file.size > (video ? 100 : 8) * 1024 * 1024)) { setError(video ? (en ? "Choose an MP4 or MOV video up to 100 MB." : "Choisis une vidéo MP4 ou MOV de 100 Mo maximum.") : (en ? "Choose JPEG or PNG images up to 8 MB each." : "Choisis des images JPEG ou PNG de 8 Mo maximum chacune.")); return; }
+    const slots = variant.format === "carousel" ? 5 - variant.media.length : 1;
+    if (slots <= 0) { setError(en ? "A carousel can contain up to 5 images." : "Un carrousel peut contenir jusqu’à 5 images."); return; }
+    const selectedFiles = files.slice(0, slots);
+    const previews = selectedFiles.map((file) => URL.createObjectURL(file));
+    previews.forEach((url) => localObjectUrls.current.add(url));
     setBusy(true); setError("");
+    setUploadPreview({ id, urls: previews, done: 0, total: selectedFiles.length, percent: 0 });
     try {
-      const urls = await Promise.all(Array.from(files).map((file) => uploadCampaignMedia(file)));
-      const nextMedia = variant.format === "carousel" ? [...variant.media, ...urls.map((u) => String(u.secure_url))].slice(0, 5) : [String(urls[0].secure_url)];
-      updateVariant(id, { media: nextMedia });
+      let nextMedia = variant.format === "carousel" ? [...variant.media] : [];
+      for (let index = 0; index < selectedFiles.length; index++) {
+        setUploadPreview({ id, urls: previews.slice(index), done: index, total: selectedFiles.length, percent: 0 });
+        const uploaded = await uploadCampaignMedia(selectedFiles[index], (percent) => {
+          setUploadPreview({ id, urls: previews.slice(index), done: index, total: selectedFiles.length, percent });
+        });
+        if (uploaded.fingerprinted !== true || typeof uploaded.media_asset_id !== "string") throw new Error(en ? "The file was sent but could not be securely registered. Please try again." : "Le fichier a été envoyé mais son enregistrement sécurisé a échoué. Essaie de nouveau.");
+        const url = uploaded.secure_url;
+        if (typeof url !== "string" || !isWebUrl(url) || !url.startsWith("https://")) throw new Error(en ? "The uploaded media could not be verified." : "Le visuel envoyé n’a pas pu être vérifié.");
+        nextMedia = variant.format === "carousel" ? [...nextMedia, url] : [url];
+        updateVariant(id, { media: nextMedia });
+        URL.revokeObjectURL(previews[index]);
+        localObjectUrls.current.delete(previews[index]);
+      }
+      if (selectedFiles.length < files.length) setError(en ? `Only ${slots} image(s) fit in this carousel.` : `Il ne restait que ${slots} place(s) dans ce carrousel.`);
     } catch (e) { setError(e instanceof Error ? e.message : "Échec de l’envoi du visuel."); }
-    finally { setBusy(false); }
+    finally {
+      previews.forEach((url) => { if (localObjectUrls.current.delete(url)) URL.revokeObjectURL(url); });
+      setUploadPreview(null);
+      setBusy(false);
+    }
   };
   const generate = async (id: string) => {
     const angle = draft.angles.find((a) => a.id === id);
@@ -221,56 +301,50 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
   };
 
   const saveAndLaunch = async () => {
-    if (!product || !isWebUrl(product.url) || !accountId || !pageId || draft.selected.length !== 3) return;
+    if (launchInFlight.current || draft.launchRequested || legacyPackStarted || !product || !isWebUrl(product.url) || !product.url.startsWith("https://") || !accountId || !pageId || draft.selected.length !== 3) return;
     if (!haveThreeChosenFormats(draft.selected.map((id) => draft.variants[id]?.format))) return;
-    if (draft.selected.some((id) => !draft.variants[id]?.media.length || (draft.variants[id].format === "carousel" && draft.variants[id].media.length < 2))) return;
-    setBusy(true); setError("");
-    const packId = draft.packId ?? uid();
-    const campaignIds = { ...(draft.campaignIds ?? {}) };
-    const launched = { ...(draft.launched ?? {}) };
+    if (!draft.dsaBeneficiary.trim() || draft.dsaBeneficiary.length > 200 || !draft.dsaPayor.trim() || draft.dsaPayor.length > 200) return;
+    if (draft.selected.some((id) => !draft.variants[id]?.copy.trim() || !draft.variants[id]?.media.length || (draft.variants[id].format === "carousel" && draft.variants[id].media.length < 2) || draft.variants[id].media.some((url) => !isWebUrl(url) || !url.startsWith("https://")))) return;
+    launchInFlight.current = true;
+    setBusy(true); setLaunching(true); setLaunchPercent(0); setError("");
+    let nextDraft: Draft = { ...draft, packId: draft.packId ?? uid(), metaPageId: pageId, started: true };
+    const persist = (next: Draft) => {
+      // Refuse launch if the key cannot survive a refresh: otherwise a retry may duplicate a campaign.
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+      setDraft(next);
+    };
     try {
-      patch({ packId });
-      for (const id of draft.selected) {
-        const angle = draft.angles.find((a) => a.id === id)!;
-        const variant = draft.variants[id];
-        if (!campaignIds[id]) {
-          const body = {
-            store_id: draft.storeId, product_id: product.id, product_name: product.name,
-            platform: "meta", objective: draft.objective,
-            ad_set_name: `Pack ${packId} · ${angle.title}`, ad_name: angle.title,
-            text: variant.copy, title: angle.title, link: product.url,
-            media_url: variant.media[0], carousel_urls: variant.format === "carousel" ? variant.media.slice(1) : [],
-            countries: deriveCountries(draft.locations).join(","), geo_targeting: buildGeoTargeting(draft.locations),
-            meta_targeting: { gender: draft.gender, interests: draft.interests },
-            advantage_audience: draft.advantageAudience,
-            minAge: draft.minAge, maxAge: draft.maxAge,
-            daily_budget: Number((draft.dailyBudget / 3).toFixed(2)), duration_days: draft.durationDays,
-            meta_ad_account_id: accountId, meta_page_id: pageId,
-            variant_label: angle.title, pack_id: packId,
-          };
-          const create = await fetch("/api/ad-campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-          const created = await create.json();
-          if (!create.ok || !created.campaign?.id) throw new Error(created.error || "Impossible d’enregistrer cette variante.");
-          campaignIds[id] = created.campaign.id;
-          patch({ campaignIds: { ...campaignIds } });
-        }
-        if (!launched[id]) {
-          const launch = await fetch(`/api/ad-campaigns/${campaignIds[id]}/launch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ meta_ad_account_id: accountId, page_id: pageId }) });
-          const result = await launch.json();
-          if (!launch.ok) throw new Error(result.error || (en ? `Meta did not launch “${angle.title}”.` : `Meta n’a pas lancé « ${angle.title} ».`));
-          launched[id] = true;
-          patch({ launched: { ...launched } });
-        }
+      persist(nextDraft);
+      const body = {
+        client_request_id: nextDraft.packId, store_id: draft.storeId, product_id: product.id, product_name: product.name,
+        destination_url: product.url, meta_ad_account_id: accountId, meta_page_id: pageId, dsa_beneficiary: draft.dsaBeneficiary, dsa_payor: draft.dsaPayor,
+        countries: deriveCountries(draft.locations), geo_targeting: { ...buildGeoTargeting(draft.locations), countries: [...new Set(draft.locations.filter((location) => location.type === "country").map((location) => location.countryCode).filter(Boolean))] },
+        meta_targeting: { gender: draft.gender, interests: draft.interests }, advantage_audience: draft.advantageAudience,
+        min_age: draft.minAge, max_age: draft.maxAge, daily_budget: draft.dailyBudget, duration_days: draft.durationDays,
+        variants: draft.selected.map((id) => ({ id, angle: draft.angles.find((a) => a.id === id)?.title ?? "", format: draft.variants[id].format, text: draft.variants[id].copy, media: draft.variants[id].media, call_to_action: draft.variants[id].callToAction ?? DEFAULT_META_CTA })),
+      };
+      const create = await fetch("/api/ad-variant-packs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const created = await create.json().catch(() => ({}));
+      if (!create.ok || !created.pack?.id) throw new Error(created.error || (en ? "Could not save the pack." : "Impossible d’enregistrer le pack."));
+      nextDraft = { ...nextDraft, serverPackId: created.pack.id };
+      if (created.pack.status !== "draft") {
+        persist({ ...nextDraft, launchRequested: true });
+        throw new Error(en ? "This pack was already submitted. Check its status before taking further action." : "Ce pack a déjà été envoyé. Vérifie son état avant toute autre action.");
       }
-      try {
-        const all = JSON.parse(localStorage.getItem(PACKS_KEY) || "[]");
-        all.unshift({ id: packId, status: "done", storeId: draft.storeId, accountId, productName: product.name, createdAt: new Date().toISOString(), variants: draft.selected.map((id) => ({ id, angle: draft.angles.find((a) => a.id === id)?.title, format: draft.variants[id]?.format, campaignId: campaignIds[id] })) });
-        localStorage.setItem(PACKS_KEY, JSON.stringify(all.slice(0, 30)));
-        localStorage.removeItem(DRAFT_KEY);
-      } catch { /* keep completed launches */ }
-      setReady(true); onLaunched();
-    } catch (e) { setError(e instanceof Error ? e.message : "Le lancement n’a pas pu être vérifié. Reprends-le depuis le récapitulatif."); }
-    finally { setBusy(false); }
+      // This durable marker is written before the request. A lost response never triggers an automatic retry.
+      nextDraft = { ...nextDraft, launchRequested: true };
+      persist(nextDraft);
+      const launch = await fetch(`/api/ad-variant-packs/${encodeURIComponent(created.pack.id)}/launch`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const result = await launch.json().catch(() => ({}));
+      if (!launch.ok) {
+        if (result.code === "PACK_LAUNCH_UNAVAILABLE") persist({ ...nextDraft, packId: undefined, serverPackId: undefined, launchRequested: false });
+        throw new Error(result.error || (en ? "The launch could not be confirmed. Check Meta before trying again." : "Le lancement n’a pas pu être confirmé. Vérifie Meta avant toute nouvelle tentative."));
+      }
+      if (result.pack?.status !== "completed" || result.pack?.checkpoints?.activated !== true || result.progress !== 100) throw new Error(en ? "The launch is not yet confirmed. Check its status before taking further action." : "Le lancement n’est pas encore confirmé. Vérifie son état avant toute autre action.");
+      setLaunchPercent(100); setReady(true);
+      if (!notifiedCompletion.current) { notifiedCompletion.current = true; onLaunchedRef.current(); }
+    } catch (e) { setError(e instanceof Error ? e.message : (en ? "The launch could not be confirmed. Check Meta before retrying." : "Le lancement n’a pas pu être vérifié. Vérifie Meta avant de réessayer.")); }
+    finally { launchInFlight.current = false; setLaunching(false); setBusy(false); }
   };
 
   const close = () => {
@@ -280,33 +354,53 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
     } catch { /* ignore */ }
     onClose();
   };
+  const editBlockedPack = () => {
+    if (launchState !== "blocked" || busy) return;
+    const next = { ...draft, serverPackId: undefined, packId: undefined, launchRequested: false };
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(next)); }
+    catch { setError(en ? "Local storage is unavailable; the pack cannot be safely resumed." : "Le stockage local est indisponible ; impossible de reprendre le pack en sécurité."); return; }
+    setDraft(next); setLaunchState(null); setLaunchPercent(null); setError("");
+  };
   const selectedCountries = deriveCountries(draft.locations);
+  const budgetValid = Number.isFinite(draft.dailyBudget) && draft.dailyBudget >= 3 && draft.dailyBudget <= 1000000 && Math.abs(Math.round(draft.dailyBudget * 100) - draft.dailyBudget * 100) < 0.000001;
+  const budgetShares = budgetValid ? splitPackBudgetCents(draft.dailyBudget).map((cents) => (cents / 100).toFixed(2)) : [];
+  const variantsValid = haveThreeChosenFormats(draft.selected.map((id) => draft.variants[id]?.format)) && draft.selected.every((id) => {
+    const variant = draft.variants[id];
+    return Boolean(variant?.copy.trim() && !variant.generating && variant.media.length && variant.media.every((url) => isWebUrl(url) && url.startsWith("https://")) && (variant.format === "carousel" ? variant.media.length >= 2 && variant.media.length <= 5 : variant.media.length === 1));
+  });
+  const dsaNamesValid = Boolean(draft.dsaBeneficiary.trim() && draft.dsaBeneficiary.length <= 200 && draft.dsaPayor.trim() && draft.dsaPayor.length <= 200);
+  const settingsValid = Boolean(dsaNamesValid && product && isWebUrl(product.url) && product.url.startsWith("https://") && accountId && draft.locations.length && selectedCountries.length && Number.isInteger(draft.minAge) && draft.minAge >= 18 && Number.isInteger(draft.maxAge) && draft.maxAge >= draft.minAge && draft.maxAge <= 65 && budgetValid && Number.isInteger(draft.durationDays) && draft.durationDays >= 1 && draft.durationDays <= 90);
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex flex-col bg-black/40 sm:items-center sm:justify-center">
-      <div role="dialog" aria-modal="true" aria-labelledby="pack-title" className="flex h-full w-full flex-col overflow-hidden bg-white text-gray-900 sm:h-auto sm:max-h-[92vh] sm:max-w-3xl sm:rounded-2xl">
-        <header className="flex items-center justify-between border-b px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-[#6366F1]">VENDEO · META ADS</p><h2 id="pack-title" className="text-lg font-bold">{en ? "Variant pack" : "Pack de variantes"}</h2></div><button type="button" disabled={busy} aria-label={en ? "Close" : "Fermer"} onClick={close} className="rounded-full p-2 text-gray-500 disabled:opacity-40"><X size={18}/></button></header>
-        <div className="flex shrink-0 gap-2 border-b px-5 py-3 text-xs">{[en ? "Setup" : "Réglages", "Angles", en ? "Creatives" : "Visuels", en ? "Review" : "Récapitulatif"].map((label, i) => <span key={label} className={`rounded-full px-3 py-1 ${draft.step === i + 1 ? "bg-[#EEF2FF] font-bold text-[#3730A3]" : "bg-gray-100 text-gray-500"}`}>{i + 1}. {label}</span>)}</div>
-        <main className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+    <div className="fixed inset-0 z-[10000] flex min-w-0 flex-col bg-black/40 sm:items-center sm:justify-center">
+      <div role="dialog" aria-modal="true" aria-labelledby="pack-title" className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-white text-gray-900 sm:h-auto sm:max-h-[92vh] sm:max-w-3xl sm:rounded-2xl">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-4 sm:px-5"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-[#6366F1]">VENDEO · META ADS</p><h2 id="pack-title" className="break-words text-lg font-bold">{en ? "Variant pack" : "Pack de variantes"}</h2></div><button type="button" disabled={busy && !draft.launchRequested} aria-label={en ? "Close" : "Fermer"} onClick={close} className="shrink-0 rounded-full p-2 text-gray-500 disabled:opacity-40"><X size={18}/></button></header>
+        <div className="grid shrink-0 grid-cols-2 gap-2 border-b px-4 py-3 text-xs sm:grid-cols-4 sm:px-5">{[en ? "Setup" : "Réglages", "Angles", en ? "Creatives" : "Visuels", en ? "Review" : "Récapitulatif"].map((label, i) => <span key={label} aria-current={draft.step === i + 1 ? "step" : undefined} className={`min-w-0 rounded-full px-3 py-1.5 ${draft.step === i + 1 ? "bg-[#EEF2FF] font-bold text-[#3730A3]" : "bg-gray-100 text-gray-500"}`}>{i + 1}. {label}</span>)}</div>
+        <main className="min-h-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5">
           {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-          {ready ? <div className="rounded-2xl bg-emerald-50 p-5 text-emerald-900"><h3 className="font-bold">{en ? "Pack launched" : "Pack lancé"}</h3><p className="mt-1 text-sm">{en ? "The three Meta variants were sent. Their individual status and results are visible in Ads." : "Les trois variantes Meta ont été envoyées. Leur statut et leurs résultats individuels sont visibles dans Pub."}</p><button type="button" className="mt-4 rounded-lg bg-[#6366F1] px-4 py-2 font-semibold text-white" onClick={onClose}>{en ? "Close" : "Fermer"}</button></div> : null}
+          {launchState === "blocked" && !busy && <button type="button" onClick={editBlockedPack} className="rounded-lg border border-indigo-300 px-3 py-2 text-sm font-semibold text-indigo-800">{en ? "Correct my pack" : "Corriger mon pack"}</button>}
+          {legacyPackStarted && !ready && <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{en ? "An older version of this pack already created campaign drafts. Check Meta before creating a new pack; this draft cannot be relaunched automatically." : "Une ancienne version de ce pack a déjà créé des brouillons de campagne. Vérifie Meta avant de créer un nouveau pack ; ce brouillon ne sera pas relancé automatiquement."}</p>}
+          {ready ? <div className="space-y-3 rounded-2xl bg-emerald-50 p-5 text-emerald-900"><LaunchProgress complete label={en ? "Campaign sent to Meta" : "Campagne envoyée à Meta"}/><h3 className="font-bold">{en ? "Pack launched" : "Pack lancé"}</h3><p className="text-sm">{en ? "One Meta campaign with three ad sets was sent. Check its delivery status in Meta." : "Une campagne Meta avec trois ensembles de publicités a été envoyée. Vérifie son statut de diffusion dans Meta."}</p><button type="button" className="rounded-lg bg-[#6366F1] px-4 py-2 font-semibold text-white" onClick={onClose}>{en ? "Close" : "Fermer"}</button></div> : null}
 
           {!ready && draft.step === 1 && <>
             <p className="text-sm text-gray-600">{en ? "Choose your connected Shopify or Chariow store, product and Meta campaign settings. Nothing is created until you confirm the final review." : "Choisis une boutique Shopify ou Chariow connectée, un produit et les paramètres Meta. Rien n’est créé avant ta confirmation finale."}</p>
-            <label className="grid gap-1 text-sm font-semibold">{en ? "Store" : "Boutique"}<select className="rounded-lg border p-2" value={draft.storeId} onChange={(e) => patch({ storeId: e.target.value, productId: "" })}>{stores.map((store) => <option key={store.id} value={store.id}>{store.store_name || store.id} · {store.platform === "shopify" ? "Shopify" : "Chariow"}</option>)}</select></label>
+            <label className="grid min-w-0 gap-1 text-sm font-semibold">{en ? "Store" : "Boutique"}<select className="w-full min-w-0 rounded-lg border p-2" value={draft.storeId} onChange={(e) => patch({ storeId: e.target.value, productId: "" })}>{stores.map((store) => <option key={store.id} value={store.id}>{store.store_name || store.id} · {store.platform === "shopify" ? "Shopify" : "Chariow"}</option>)}</select></label>
             {!stores.length && <p role="status" className="text-sm text-amber-800">{en ? "Connect a Shopify or Chariow store before continuing." : "Connecte une boutique Shopify ou Chariow avant de continuer."}</p>}
-            <label className="grid gap-1 text-sm font-semibold">{en ? "Product" : "Produit"}<select className="rounded-lg border p-2" value={draft.productId} onChange={(e) => patch({ productId: e.target.value })}><option value="">{en ? "Choose a product" : "Choisir un produit"}</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-            {product && !isWebUrl(product.url) && <p role="alert" className="text-xs text-amber-800">{en ? "This product has no valid public URL and cannot be sent to Meta." : "Ce produit n’a pas d’URL publique valide et ne peut pas être envoyé à Meta."}</p>}
-            <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm">{en ? "Objective" : "Objectif"}<select className="rounded-lg border p-2" value={draft.objective} onChange={(e) => patch({ objective: e.target.value })}><option value="sales">{en ? "Sales" : "Ventes"}</option><option value="traffic">{en ? "Traffic" : "Trafic"}</option><option value="engagement">{en ? "Engagement" : "Interactions"}</option><option value="leads">{en ? "Leads" : "Prospects"}</option></select></label><label className="grid gap-1 text-sm">{en ? "Meta ad account" : "Compte publicitaire Meta"}<select className="rounded-lg border p-2" value={accountId} onChange={(e) => selectAccount(e.target.value)}><option value="">{en ? "Choose an account" : "Choisir un compte"}</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label></div>
+            <label className="grid min-w-0 gap-1 text-sm font-semibold">{en ? "Product" : "Produit"}<select className="w-full min-w-0 rounded-lg border p-2" value={draft.productId} onChange={(e) => patch({ productId: e.target.value })}><option value="">{en ? "Choose a product" : "Choisir un produit"}</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+            {product && (!isWebUrl(product.url) || !product.url.startsWith("https://")) && <p role="alert" className="text-xs text-amber-800">{en ? "This product needs a valid public HTTPS URL before it can be sent to Meta." : "Ce produit doit avoir une URL publique HTTPS valide avant d’être envoyé à Meta."}</p>}
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2"><div className="min-w-0 text-sm"><span className="block font-semibold">{en ? "Objective" : "Objectif"}</span><p className="mt-1 rounded-lg bg-gray-50 p-2">{en ? "Sales" : "Ventes"}</p><p className="mt-1 text-xs text-gray-500">{en ? "Traffic is used automatically only if this ad account has no pixel." : "Trafic est utilisé automatiquement uniquement si ce compte publicitaire n’a pas de pixel."}</p></div><label className="grid min-w-0 gap-1 text-sm">{en ? "Meta ad account" : "Compte publicitaire Meta"}<select className="w-full min-w-0 rounded-lg border p-2" value={accountId} onChange={(e) => selectAccount(e.target.value)}><option value="">{en ? "Choose an account" : "Choisir un compte"}</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name ?? account.id}</option>)}</select></label></div>
             <div className="space-y-2"><p className="text-sm font-semibold">{en ? "Audience locations" : "Lieux de l’audience"}</p><LocationSearchInput value={draft.locations} onChange={(locations) => patch({ locations })} metaAccountId={accountId} platform="meta"/><p className="text-xs text-gray-500">{en ? "Search countries, regions and cities supported by Meta." : "Recherche des pays, régions et villes proposés par Meta."}</p></div>
-            <div className="grid grid-cols-2 gap-3"><label className="grid gap-1 text-sm">{en ? "Age from" : "Âge de"}<input className="rounded-lg border p-2" type="number" min="18" max="65" value={draft.minAge} onChange={(e) => patch({ minAge: Math.min(65, Math.max(18, Number(e.target.value))) })}/></label><label className="grid gap-1 text-sm">{en ? "to" : "à"}<input className="rounded-lg border p-2" type="number" min={draft.minAge} max="65" value={draft.maxAge} onChange={(e) => patch({ maxAge: Math.min(65, Math.max(draft.minAge, Number(e.target.value))) })}/></label></div>
+            <div className="grid grid-cols-2 gap-3"><label className="grid min-w-0 gap-1 text-sm">{en ? "Age from" : "Âge de"}<input className="w-full min-w-0 rounded-lg border p-2" type="number" min="18" max="65" value={draft.minAge} onChange={(e) => patch({ minAge: Math.min(65, Math.max(18, Number(e.target.value))) })}/></label><label className="grid min-w-0 gap-1 text-sm">{en ? "to" : "à"}<input className="w-full min-w-0 rounded-lg border p-2" type="number" min={draft.minAge} max="65" value={draft.maxAge} onChange={(e) => patch({ maxAge: Math.min(65, Math.max(draft.minAge, Number(e.target.value))) })}/></label></div>
             <fieldset className="space-y-2"><legend className="text-sm font-semibold">{en ? "Gender (optional)" : "Genre (facultatif)"}</legend><div className="flex flex-wrap gap-2">{([{ value: null, label: en ? "All genders" : "Femmes et hommes" }, { value: "female", label: en ? "Women only" : "Femmes uniquement" }, { value: "male", label: en ? "Men only" : "Hommes uniquement" }] as const).map((option) => <label key={option.value ?? "all"} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${draft.gender === option.value ? "border-indigo-500 bg-indigo-50" : "border-gray-200"}`}><input type="radio" name="variant-pack-gender" checked={draft.gender === option.value} onChange={() => patch({ gender: option.value })}/>{option.label}</label>)}</div><p className="text-xs text-gray-500">{en ? "Meta does not offer sexual-orientation targeting." : "Meta ne propose pas de ciblage publicitaire par orientation sexuelle."}</p></fieldset>
             <div className="space-y-2"><label htmlFor="pack-interest-search" className="block text-sm font-semibold">{en ? "Meta interests (optional, up to 10)" : "Centres d’intérêt Meta (facultatif, jusqu’à 10)"}</label><p className="text-xs text-gray-500">{en ? "Search and select only interests returned by Meta’s catalog." : "Recherche et sélectionne uniquement des intérêts renvoyés par le catalogue Meta."}</p><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/><input id="pack-interest-search" type="search" autoComplete="off" disabled={!accountId} value={interestQuery} onChange={(e) => setInterestQuery(e.target.value)} placeholder={en ? "Search Meta interests" : "Rechercher dans le catalogue Meta"} className="w-full rounded-lg border py-2 pl-9 pr-3 text-sm disabled:bg-gray-100"/></div>{!accountId && <p className="text-xs text-gray-500">{en ? "Select a Meta account to search its catalog." : "Choisis un compte Meta pour rechercher dans son catalogue."}</p>}{interestQuery.trim().length >= 2 && <div className="max-h-48 overflow-y-auto rounded-lg border">{interestLoading ? <p className="p-2 text-sm text-gray-500">{en ? "Searching Meta…" : "Recherche auprès de Meta…"}</p> : interestResults.filter((item) => !selectedInterests.some((selected) => selected.id === item.id)).map((item) => <button key={item.id} type="button" onClick={() => addInterest(item)} disabled={selectedInterests.length >= 10} className="block w-full border-b px-3 py-2 text-left text-sm last:border-0 hover:bg-indigo-50 disabled:opacity-50">{item.name}</button>)}</div>}{selectedInterests.length > 0 && <div className="flex flex-wrap gap-2">{selectedInterests.map((item) => <span key={item.id} className="inline-flex items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs text-indigo-800">{item.name}<button type="button" onClick={() => removeInterest(item.id)} aria-label={`${en ? "Remove" : "Retirer"} ${item.name}`} className="font-bold">×</button></span>)}</div>}</div>
             <label className="flex items-start gap-3 rounded-lg border p-3"><input type="checkbox" checked={draft.advantageAudience} onChange={(e) => patch({ advantageAudience: e.target.checked, ...(e.target.checked ? { maxAge: 65 } : {}) })} className="mt-0.5"/><span><strong className="block text-sm">{en ? "Advantage+ audience" : "Audience Advantage+"}</strong><span className="text-xs text-gray-500">{draft.advantageAudience ? (en ? "Meta may expand beyond selected audience settings; max age is 65." : "Meta peut élargir l’audience au-delà de tes critères; l’âge maximal est fixé à 65 ans.") : (en ? "Off: Meta uses your selected locations, age and interests." : "Désactivée : Meta utilise les lieux, l’âge et les intérêts choisis.")}</span></span></label>
-            <div className="grid grid-cols-2 gap-3"><label className="grid gap-1 text-sm">{en ? "Total daily budget for pack (USD)" : "Budget quotidien total du pack (USD)"}<input className="rounded-lg border p-2" type="number" min="3" value={draft.dailyBudget} onChange={(e) => patch({ dailyBudget: Number(e.target.value) })}/></label><label className="grid gap-1 text-sm">{en ? "Duration (days)" : "Durée (jours)"}<input className="rounded-lg border p-2" type="number" min="1" max="90" value={draft.durationDays} onChange={(e) => patch({ durationDays: Number(e.target.value) })}/></label></div>
-            <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900"><strong>{en ? "Placements: automatic" : "Placements : automatiques"}</strong><p className="mt-1">{en ? "The existing Meta campaign API omits publisher_platforms and placement positions, so Meta chooses eligible placements automatically. Manual placement selection is not available in Vendeo yet." : "L’API de campagne Meta existante n’envoie ni publisher_platforms ni positions; Meta choisit automatiquement les placements admissibles. Le choix manuel des placements n’est pas encore disponible dans Vendeo."}</p></div>
-            {draft.objective === "sales" && stores.find((s) => s.id === draft.storeId)?.platform === "shopify" && <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-900">{en ? "Shopify products are supported. A Meta pixel is still required for Sales; if Meta reports no pixel, the launch flow will ask before any Traffic fallback." : "Les produits Shopify sont pris en charge. Un pixel Meta reste requis pour l’objectif Ventes; s’il manque, le parcours demandera confirmation avant tout repli vers Trafic."}</p>}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="grid min-w-0 gap-1 text-sm">{en ? "Total daily budget for pack (USD)" : "Budget quotidien total du pack (USD)"}<input className="w-full min-w-0 rounded-lg border p-2" type="number" min="3" step="0.01" value={draft.dailyBudget} onChange={(e) => patch({ dailyBudget: Number(e.target.value) })}/></label><label className="grid min-w-0 gap-1 text-sm">{en ? "Duration (days)" : "Durée (jours)"}<input className="w-full min-w-0 rounded-lg border p-2" type="number" min="1" max="90" value={draft.durationDays} onChange={(e) => patch({ durationDays: Number(e.target.value) })}/></label></div>
+            {!budgetValid && <p role="alert" className="text-xs text-amber-800">{en ? "Enter a total daily budget of at least USD 3 with at most two decimal places." : "Indique un budget quotidien total d’au moins 3 USD, avec deux décimales au maximum."}</p>}
+            <p className="text-xs text-gray-600">{en ? "Check the person or business benefiting from the ad and the one paying for it. Meta receives these names." : "Vérifie les noms de la personne ou de l’entreprise qui bénéficie de la publicité et de celle qui la finance. Ils seront transmis à Meta."}</p>
+            <div className="grid gap-3 sm:grid-cols-2"><label className="grid min-w-0 gap-1 text-sm font-semibold">{en ? "Ad beneficiary" : "Bénéficiaire de la publicité"}<input required maxLength={200} className="w-full min-w-0 rounded-lg border p-2 font-normal" value={draft.dsaBeneficiary} onChange={(e) => patch({ dsaBeneficiary: e.target.value })}/></label><label className="grid min-w-0 gap-1 text-sm font-semibold">{en ? "Ad payer" : "Personne ou entreprise qui paie"}<input required maxLength={200} className="w-full min-w-0 rounded-lg border p-2 font-normal" value={draft.dsaPayor} onChange={(e) => patch({ dsaPayor: e.target.value })}/></label></div>
+            {!dsaNamesValid && <p role="alert" className="text-xs text-amber-800">{en ? "Enter both names (1–200 characters)." : "Saisis les deux noms (1 à 200 caractères)."}</p>}
+            {draft.durationDays === 1 && <p className="text-xs text-gray-600">{en ? "For one day, Vendeo schedules 25 hours to satisfy Meta’s minimum duration." : "Pour un jour, Vendeo prévoit 25 heures afin de respecter la durée minimale de Meta."}</p>}
           </>}
 
           {!ready && draft.step === 2 && <>
@@ -320,11 +414,12 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
             {draft.selected.map((id) => {
               const angle = draft.angles.find((a) => a.id === id)!;
               const variant = draft.variants[id];
-              return <section key={id} className="space-y-3 rounded-xl border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-bold">{angle.title}</h3>
-                  <label className="text-xs">{en ? "Format" : "Format"}
-                    <select className="ml-2 rounded-lg border p-2" value={variant.format} onChange={(e) => updateVariant(id, { format: e.target.value as Variant["format"], media: [] })}>
+              if (!angle || !variant) return null;
+              return <section key={id} className="min-w-0 space-y-3 rounded-xl border p-3" aria-busy={uploadPreview?.id === id}>
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="min-w-0 break-words font-bold">{angle.title}</h3>
+                  <label className="grid min-w-0 gap-1 text-xs sm:w-48">{en ? "Format" : "Format"}
+                    <select className="w-full min-w-0 rounded-lg border p-2" disabled={busy || variant.generating} value={variant.format} onChange={(e) => updateVariant(id, { format: e.target.value as Variant["format"], media: [] })}>
                       <option value="" disabled>{en ? "Choose a format" : "Choisir un format"}</option>
                       <option value="image">Image</option>
                       <option value="video">Vidéo</option>
@@ -332,13 +427,15 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
                     </select>
                   </label>
                 </div>
-                <label className="grid gap-1 text-xs font-semibold">{en ? "Ad text (editable)" : "Texte publicitaire (modifiable)"}<textarea className="rounded-lg border p-2 text-sm" rows={3} value={variant.copy} onChange={(e) => updateVariant(id, { copy: e.target.value })}/></label>
+                <label className="grid min-w-0 gap-1 text-xs font-semibold">{en ? "Ad text (editable)" : "Texte publicitaire (modifiable)"}<textarea className="w-full min-w-0 rounded-lg border p-2 text-sm" rows={3} value={variant.copy} onChange={(e) => updateVariant(id, { copy: e.target.value })}/></label>
+                <label className="grid min-w-0 gap-1 text-xs font-semibold">{en ? "Call to action button" : "Bouton d’appel à l’action"}<select aria-label={`${en ? "Call to action" : "Bouton d’appel à l’action"} — ${angle.title}`} disabled={busy || draft.launchRequested} className="w-full min-w-0 rounded-lg border p-2 text-sm font-normal" value={variant.callToAction ?? DEFAULT_META_CTA} onChange={(e) => { const cta = normalizeMetaCta(e.target.value); if (cta) updateVariant(id, { callToAction: cta }); }}>{META_CTA_TYPES.map((cta) => <option key={cta} value={cta}>{META_CTA_LABELS[cta][en ? "en" : "fr"]}</option>)}</select><span className="font-normal text-gray-500">{en ? "Shown under this ad and opens your product link." : "Affiché sous cette publicité et ouvre le lien de ton produit."}</span></label>
                 {!variant.format ? <p className="text-xs text-gray-500">{en ? "Choose this variant’s format before adding media." : "Choisis le format de cette variante avant d’ajouter un visuel."}</p> : <>
                   <div className="flex flex-wrap items-center gap-2">
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold"><ImagePlus size={14}/>{en ? "Add your media" : "Ajouter tes visuels"}<input className="sr-only" type="file" accept={variant.format === "video" ? "video/mp4,video/quicktime" : "image/jpeg,image/png,image/webp"} multiple={variant.format === "carousel"} onChange={(e) => void upload(id, e.target.files)}/></label>
-                    {variant.format !== "video" && <button type="button" disabled={variant.generating} onClick={() => void generate(id)} className="inline-flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 disabled:opacity-50">{variant.generating ? <Loader2 size={14} className="animate-spin"/> : <Sparkles size={14}/>} {en ? `Generate image · ${IMAGE_COST} credits` : `Générer une image · ${IMAGE_COST} crédits`}</button>}
+                    <label className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${busy || variant.generating ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}><ImagePlus size={14}/>{en ? "Add your media" : "Ajouter tes visuels"}<input className="sr-only" type="file" disabled={busy || variant.generating} accept={variant.format === "video" ? "video/mp4,video/quicktime" : "image/jpeg,image/png"} multiple={variant.format === "carousel"} onChange={(e) => { const files = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ""; void upload(id, files); }}/></label>
+                    {variant.format !== "video" && <button type="button" disabled={busy || variant.generating} onClick={() => void generate(id)} className="inline-flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 disabled:opacity-50">{variant.generating ? <Loader2 size={14} className="animate-spin"/> : <Sparkles size={14}/>} {en ? `Generate image · ${IMAGE_COST} credits` : `Générer une image · ${IMAGE_COST} crédits`}</button>}
                   </div>
-                  {variant.media.length > 0 && <div className="flex gap-2 overflow-auto">{variant.media.map((url, i) => <div key={`${url}-${i}`} className="flex min-w-[110px] items-center gap-2 rounded bg-gray-50 p-2 text-xs">{variant.format === "video" ? <video src={url} className="h-14 w-14 object-cover"/> : <img src={url} alt="" className="h-14 w-14 object-cover"/>}<button type="button" onClick={() => updateVariant(id, { media: variant.media.filter((_, j) => j !== i) })}>{en ? "Remove" : "Retirer"}</button></div>)}</div>}
+                  {uploadPreview?.id === id && <div className="rounded-lg bg-indigo-50 p-3"><div className="flex flex-wrap gap-2">{uploadPreview.urls.map((url, index) => variant.format === "video" ? <video key={url} src={url} className="h-20 w-20 rounded object-cover" muted/> : <img key={url} src={url} alt={`${en ? "Selected preview" : "Aperçu sélectionné"} ${uploadPreview.done + index + 1}`} className="h-20 w-20 rounded object-cover"/>)}</div><p role="status" className="mt-2 flex items-center gap-2 text-xs font-medium text-indigo-900"><Loader2 size={14} className="shrink-0 animate-spin"/>{uploadPreview.percent >= 100 ? (en ? "Checking the uploaded file…" : "Vérification du fichier envoyé…") : `${en ? "Uploading" : "Envoi en cours"} ${uploadPreview.done + 1}/${uploadPreview.total}${uploadPreview.percent > 0 ? ` · ${uploadPreview.percent} %` : "…"}`}</p></div>}
+                  {variant.media.length > 0 && <div className="flex min-w-0 flex-wrap gap-2">{variant.media.map((url, i) => <div key={`${url}-${i}`} className="flex min-w-0 items-center gap-2 rounded bg-gray-50 p-2 text-xs">{variant.format === "video" ? <video src={url} className="h-16 w-16 rounded object-cover" muted/> : <img src={url} alt={`${en ? "Ad image" : "Visuel publicitaire"} ${i + 1}`} className="h-16 w-16 rounded object-cover"/>}<button type="button" disabled={busy || variant.generating} className="disabled:opacity-50" onClick={() => updateVariant(id, { media: variant.media.filter((_, j) => j !== i) })}>{en ? "Remove" : "Retirer"}</button></div>)}</div>}
                   {variant.format === "carousel" && <p className="text-xs text-gray-500">{variant.media.length}/5 {en ? "images" : "images"}{variant.media.length < 2 ? (en ? " — add at least one more." : " — ajoute au moins une image de plus.") : null}</p>}
                 </>}
                 {variant.error && <p role="alert" className="text-xs text-red-700">{variant.error}</p>}
@@ -348,16 +445,19 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
 
           {!ready && draft.step === 4 && <>
             <h3 className="font-bold">{en ? "Review your pack" : "Vérifie ton pack"}</h3><p className="text-sm text-gray-600">{en ? "Nothing is sent to Meta until you explicitly confirm. The platform bills the ad account, separately from Studio credits." : "Rien ne sera envoyé à Meta sans ta confirmation explicite. La plateforme facture le compte publicitaire, séparément des crédits Studio."}</p>
-            <div className="rounded-xl bg-gray-50 p-3 text-sm"><p><strong>{product?.name}</strong> · {draft.objective}</p><p>{draft.locations.map((l) => l.name).join(", ")} · {draft.minAge}–{draft.maxAge}{draft.gender ? ` · ${draft.gender}` : ""}</p><p>{selectedInterests.length ? selectedInterests.map((i) => i.name).join(", ") : (en ? "No interest filter" : "Sans filtre par intérêt")} · {draft.advantageAudience ? "Advantage+" : (en ? "Audience fixed" : "Audience définie")}</p><p>{draft.dailyBudget} USD/jour total ({(draft.dailyBudget / 3).toFixed(2)} USD/variante) × {draft.durationDays} jours · {accountId ? (accounts.find((a) => a.id === accountId)?.name ?? "Meta") : (en ? "Meta account required" : "Compte Meta requis")}</p><p className="text-xs text-amber-800">{en ? "Placements: automatic (Meta chooses)." : "Placements : automatiques (choisis par Meta)."}</p></div>
-            {draft.selected.map((id) => { const angle = draft.angles.find((a) => a.id === id)!; const variant = draft.variants[id]; return <article key={id} className="rounded-xl border p-3"><div className="flex justify-between"><strong>{angle.title}</strong><span className="text-xs uppercase">{variant.format}</span></div><p className="mt-2 text-sm">{variant.copy}</p><p className="mt-2 text-xs text-gray-500">{variant.media.length} {en ? "media item(s)" : "visuel(s)"}</p></article>; })}
+            {launching && <LaunchProgress label={en ? "Sending your campaign to Meta…" : "Envoi de ta campagne à Meta…"} indeterminate={launchPercent === null} progress={launchPercent ?? undefined} subtitle={en ? "Confirmed creation steps" : "Étapes de création confirmées"}/>}
+            <div className="min-w-0 break-words rounded-xl bg-gray-50 p-3 text-sm"><p><strong>{product?.name}</strong> · {en ? "Sales (Traffic if no pixel)" : "Ventes (Trafic si aucun pixel)"}</p><p>{draft.locations.map((l) => l.name).join(", ")} · {draft.minAge}–{draft.maxAge}{draft.gender ? ` · ${draft.gender === "female" ? (en ? "Women" : "Femmes") : (en ? "Men" : "Hommes")}` : ""}</p><p>{selectedInterests.length ? selectedInterests.map((i) => i.name).join(", ") : (en ? "No interest filter" : "Sans filtre par intérêt")} · {draft.advantageAudience ? "Advantage+" : (en ? "Audience fixed" : "Audience définie")}</p><p>{draft.dailyBudget} USD/{en ? "day total, split across 3 ad sets" : "jour au total, répartis sur 3 ensembles"} × {draft.durationDays} {en ? "days" : "jours"} · {accountId ? (accounts.find((a) => a.id === accountId)?.name ?? "Meta") : (en ? "Meta account required" : "Compte Meta requis")}</p>{budgetShares.length > 0 && <p>{en ? "Per ad set" : "Par ensemble"} : {budgetShares.join(" + ")} USD/{en ? "day" : "jour"}</p>}</div>
+            <p className="break-words text-xs text-gray-600">{en ? "Ad beneficiary" : "Bénéficiaire de la publicité"} : {draft.dsaBeneficiary} · {en ? "Ad payer" : "Personne ou entreprise qui paie"} : {draft.dsaPayor}</p>
+            {draft.durationDays === 1 && <p className="text-xs text-gray-600">{en ? "The one-day schedule lasts 25 hours to satisfy Meta’s minimum duration." : "Pour respecter le minimum de Meta, la durée prévue pour un jour est de 25 heures."}</p>}
+            {draft.selected.map((id) => { const angle = draft.angles.find((a) => a.id === id); const variant = draft.variants[id]; if (!angle || !variant) return null; return <article key={id} className="min-w-0 rounded-xl border p-3"><div className="flex min-w-0 flex-wrap items-start justify-between gap-2"><strong className="min-w-0 break-words">{angle.title}</strong><span className="shrink-0 text-xs uppercase text-gray-500">{variant.format}</span></div><p className="mt-2 whitespace-pre-wrap break-words text-sm">{variant.copy}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{variant.media.map((url, i) => <div key={`${url}-${i}`} className="overflow-hidden rounded-lg bg-gray-100">{variant.format === "video" ? <video src={url} controls preload="metadata" aria-label={`${en ? "Video preview" : "Aperçu vidéo"} — ${angle.title}`} className="aspect-square w-full object-contain"/> : <img src={url} alt={`${en ? "Ad preview" : "Aperçu de la publicité"} — ${angle.title} ${i + 1}`} className="aspect-square w-full object-contain"/>}</div>)}</div><p className="mt-2 inline-flex rounded-md bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-800">{META_CTA_LABELS[variant.callToAction ?? DEFAULT_META_CTA][en ? "en" : "fr"]}</p></article>; })}
             {draft.angles.some((a) => a.recommended && !draft.selected.includes(a.id)) && <p className="text-xs text-gray-500">{en ? "You changed Vendeo’s recommended angles." : "Tu as modifié les angles recommandés par Vendeo."}</p>}
-            <label className="grid gap-1 text-sm font-semibold">{en ? "Facebook page" : "Page Facebook"}<select className="rounded-lg border p-2" value={pageId} onChange={(e) => setPageId(e.target.value)}><option value="">{en ? "Choose a page" : "Choisir une page"}</option>{pages.map((page) => <option key={page.id} value={page.id}>{page.name}</option>)}</select></label>
-            <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{en ? "If the Meta pixel is missing for Sales, launch stops and asks before switching to Traffic. Underperforming ads can only be paused after a separate confirmation; none are deleted." : "Si le pixel Meta manque pour Ventes, le lancement s’arrête et demande confirmation avant de passer en Trafic. Les publicités moins performantes peuvent seulement être mises en pause après confirmation séparée; aucune n’est supprimée."}</p>
+            <label className="grid min-w-0 gap-1 text-sm font-semibold">{en ? "Facebook page" : "Page Facebook"}<select disabled={busy || draft.launchRequested} className="w-full min-w-0 rounded-lg border p-2" value={pageId} onChange={(e) => { setPageId(e.target.value); patch({ metaPageId: e.target.value }); }}><option value="">{en ? "Choose a page" : "Choisir une page"}</option>{pages.map((page) => <option key={page.id} value={page.id}>{page.name}</option>)}</select></label>
+            <p className="rounded-lg bg-indigo-50 p-3 text-xs text-indigo-900">{en ? "One campaign will contain three ad sets. If this ad account has no pixel, its objective automatically becomes Traffic." : "Une seule campagne contiendra trois ensembles de publicités. Si ce compte publicitaire n’a aucun pixel, l’objectif devient automatiquement Trafic."}</p>
           </>}
         </main>
-        {!ready && <footer className="flex shrink-0 items-center justify-between border-t bg-white px-5 py-3">
-          <button type="button" className="text-sm text-gray-600" onClick={() => draft.step === 1 ? close() : patch({ step: draft.step - 1 })}>{en ? "Back" : "Retour"}</button>
-          {draft.step < 4 ? <button type="button" disabled={busy || loading || (draft.step === 1 ? (!product || !isWebUrl(product.url) || !accountId || draft.minAge < 18 || draft.maxAge < draft.minAge || draft.dailyBudget < 3 || draft.durationDays < 1) : draft.step === 2 ? draft.selected.length !== 3 : (!haveThreeChosenFormats(draft.selected.map((id) => draft.variants[id]?.format)) || draft.selected.some((id) => !draft.variants[id]?.media.length || (draft.variants[id].format === "carousel" && draft.variants[id].media.length < 2))))} onClick={() => draft.step === 1 ? (patch({ step: 2 }), void analyze()) : patch({ step: draft.step + 1 })} className="rounded-lg bg-[#6366F1] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{loading ? (en ? "Analyzing…" : "Analyse…") : (en ? "Continue" : "Continuer")}</button> : <button type="button" disabled={busy || !product || !accountId || !pageId || draft.selected.length !== 3 || !haveThreeChosenFormats(draft.selected.map((id) => draft.variants[id]?.format)) || draft.selected.some((id) => !draft.variants[id]?.media.length || (draft.variants[id].format === "carousel" && draft.variants[id].media.length < 2))} onClick={() => void saveAndLaunch()} className="rounded-lg bg-[#6366F1] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{busy ? (en ? "Launching…" : "Lancement…") : (en ? "Confirm and launch" : "Confirmer et lancer")}</button>}
+        {!ready && <footer className="flex shrink-0 items-center justify-between gap-3 border-t bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
+          <button type="button" disabled={busy || loading || draft.launchRequested} className="shrink-0 text-sm text-gray-600 disabled:opacity-40" onClick={() => draft.step === 1 ? close() : patch({ step: draft.step - 1 })}>{en ? "Back" : "Retour"}</button>
+          {draft.step < 4 ? <button type="button" disabled={busy || loading || draft.launchRequested || (draft.step === 1 ? !settingsValid : draft.step === 2 ? draft.selected.length !== 3 : !variantsValid)} onClick={() => draft.step === 1 ? (patch({ step: 2 }), void analyze()) : patch({ step: draft.step + 1 })} className="min-w-0 rounded-lg bg-[#6366F1] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{loading ? (en ? "Analyzing…" : "Analyse…") : (en ? "Continue" : "Continuer")}</button> : <button type="button" disabled={busy || Boolean(draft.launchRequested) || legacyPackStarted || !settingsValid || !pageId || draft.selected.length !== 3 || !variantsValid} onClick={() => void saveAndLaunch()} className="min-w-0 rounded-lg bg-[#6366F1] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{busy ? (en ? "Launching…" : "Lancement…") : (en ? "Confirm and launch" : "Confirmer et lancer")}</button>}
         </footer>}
       </div>
     </div>, document.body,
