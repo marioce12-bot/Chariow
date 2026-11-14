@@ -58,6 +58,15 @@ afterEach(() => {
 });
 
 describe("Pack de variantes — interface", () => {
+  it("explains beneficiary and payer without removing either Meta transparency field", async () => {
+    await mount(1);
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain("Le bénéficiaire est la personne ou l’entreprise dont l’offre est mise en avant");
+    expect(dialog.textContent).toContain("le payeur est celle qui finance la publicité");
+    expect(dialog.textContent).toContain("Bénéficiaire de la publicité");
+    expect(dialog.textContent).toContain("Personne ou entreprise qui paie");
+  });
+
   it("garde Ventes sans sélecteur d'objectif et retire l’explication des placements", async () => {
     await mount(1);
     const dialog = document.querySelector('[role="dialog"]')!;
@@ -97,6 +106,22 @@ describe("Pack de variantes — interface", () => {
     for (const id of ids) expect(document.querySelector(`img[src="https://example.com/${id}.jpg"]`)).not.toBeNull();
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Acheter");
     expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("Placements : automatiques");
+    const creatives = document.querySelector('section[aria-labelledby="pack-review-creatives"]');
+    expect(creatives?.querySelectorAll("img")).toHaveLength(3);
+    expect(document.querySelector('section[aria-labelledby="pack-review-audience"]')).not.toBeNull();
+    expect(document.querySelector('section[aria-labelledby="pack-review-budget"]')).not.toBeNull();
+    expect(document.querySelector('section[aria-labelledby="pack-review-transparency"]')?.textContent).toContain("Bénéficiaire — offre mise en avant");
+    expect(document.querySelector("main")?.textContent).toContain("Sans filtre par intérêt");
+    expect(document.querySelector("main")?.textContent).toContain("Budget quotidien de l’ensemble unique");
+  });
+
+  it("scrolls to the top when the user moves to the previous step", async () => {
+    await mount(3);
+    const main = document.querySelector("main") as HTMLElement;
+    main.scrollTop = 280;
+    await act(async () => { button("Retour").click(); });
+    await settle();
+    expect(main.scrollTop).toBe(0);
   });
 
   it("suit les étapes confirmées, puis affiche 100 % seulement après succès et ne lance qu’une fois", async () => {
@@ -114,6 +139,11 @@ describe("Pack de variantes — interface", () => {
     await act(async () => { launchButton.click(); });
     await settle();
     expect(document.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("37");
+    const launchOverlay = document.querySelector<HTMLElement>('[data-testid="pack-launch-overlay"]');
+    expect(launchOverlay).not.toBeNull();
+    expect(launchOverlay?.className).toMatch(/fixed.*inset-0.*grid.*place-items-center/);
+    expect(launchOverlay?.className).toContain("pointer-events-none");
+    expect(launchOverlay?.querySelector('[role="progressbar"]')).not.toBeNull();
     expect(button("Lancement").disabled).toBe(true);
     expect((document.querySelector('[aria-label="Fermer"]') as HTMLButtonElement).disabled).toBe(false);
     const launchCalls = fetchMock.mock.calls.filter(([url]) => url === "/api/ad-variant-packs/pack-server/launch");
@@ -124,7 +154,7 @@ describe("Pack de variantes — interface", () => {
     expect(JSON.parse((createCall[1] as RequestInit).body as string).variants.map((v: { call_to_action: string }) => v.call_to_action)).toEqual(["SHOP_NOW", "SHOP_NOW", "SHOP_NOW"]);
     await act(async () => { resolveLaunch({ ok: true, json: async () => ({ pack: { status: "completed", checkpoints: { activated: true } }, progress: 100 }) }); });
     expect(document.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("100");
-    expect(document.body.textContent).toContain("Une campagne Meta avec trois ensembles");
+    expect(document.body.textContent).toContain("Une campagne Meta avec un seul ensemble de publicités contenant trois publicités");
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes("/api/ad-campaigns/"))).toHaveLength(0);
   });
 

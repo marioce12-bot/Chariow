@@ -158,3 +158,113 @@
     min-height: 36px;
   }
 }
+
+.ad-campaign-group-title {
+  margin: 4px 0 0;
+  color: var(--ink, #111827);
+  font-size: 13px;
+  font-weight: 700;
+}
+.ad-variant-pack-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+.ad-variant-pack-card {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.ad-variant-pack-header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ad-variant-pack-heading {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.ad-variant-pack-heading > strong,
+.ad-variant-pack-variant-copy > strong {
+  overflow-wrap: anywhere;
+}
+.ad-variant-pack-kicker {
+  color: #4f46e5;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.ad-variant-pack-status {
+  max-width: 48%;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #eef2ff;
+  padding: 5px 9px;
+  color: #3730a3;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.ad-variant-pack-variants {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.ad-variant-pack-variant {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  border-radius: 9px;
+  background: #f9fafb;
+  padding: 8px;
+}
+.ad-variant-pack-variant > img,
+.ad-variant-pack-variant > video,
+.ad-variant-pack-no-media {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  place-items: center;
+  border-radius: 7px;
+  background: #f3f4f6;
+  object-fit: cover;
+}
+.ad-variant-pack-no-media {
+  color: #6b7280;
+  font-size: 9px;
+  text-align: center;
+}
+.ad-variant-pack-variant-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  font-size: 12px;
+}
+.ad-variant-pack-variant-copy small,
+.ad-variant-pack-footnote {
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.ad-variant-pack-footnote {
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .ad-variant-pack-variants {
+    grid-template-columns: 1fr;
+  }
+  .ad-variant-pack-status {
+    max-width: 45%;
+  }
+}

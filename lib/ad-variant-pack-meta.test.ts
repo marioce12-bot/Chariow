@@ -64,13 +64,15 @@ describe("createPackMetaOperations", () => {
   it("uses exact cents, WEBSITE, active ad set and exact CTA", async () => {
     const calls = setupFetch(); const ops = createPackMetaOperations({ supabase: supabase(), userId: "user-1", pack: basePack });
     await ops.verify(); const campaign = await ops.createCampaign({ objective: "traffic", status: "PAUSED" });
-    await ops.createAdSet({ campaignId: campaign, budgetCents: 321, variant: basePack.variants[0] });
-    const creative = await ops.createCreative({ variant: basePack.variants[0], pageId: "456" }); await ops.createAd({ adsetId: "set", creativeId: creative });
+    await ops.createAdSet({ campaignId: campaign, budgetCents: 321 });
+    const creative = await ops.createCreative({ variant: basePack.variants[0], pageId: "456" }); await ops.createAd({ adsetId: "set", creativeId: creative, variant: basePack.variants[0] });
     const adset = new URLSearchParams(calls.find(c => c.url.includes("/adsets") && c.method === "POST")!.body);
-    expect(adset.get("daily_budget")).toBe("321"); expect(adset.get("destination_type")).toBe("WEBSITE"); expect(adset.get("status")).toBe("ACTIVE");
+    expect(adset.get("name")).toBe("Pack — Item (3 publicités)"); expect(adset.get("daily_budget")).toBe("321"); expect(adset.get("destination_type")).toBe("WEBSITE"); expect(adset.get("status")).toBe("ACTIVE");
     expect(adset.get("dsa_beneficiary")).toBe("Approved beneficiary"); expect(adset.get("dsa_payor")).toBe("Approved payer");
     const spec = JSON.parse(new URLSearchParams(calls.find(c => c.url.includes("/adcreatives") && c.method === "POST")!.body).get("object_story_spec")!);
     expect(spec.link_data.call_to_action.type).toBe("SHOP_NOW"); expect(spec.link_data.image_hash).toBe("img-hash");
+    const ad = new URLSearchParams(calls.find(c => c.url.endsWith("/ads") && c.method === "POST")!.body);
+    expect(ad.get("name")).toBe("Angle"); expect(ad.get("adset_id")).toBe("set");
   });
   it("preserves a city-only audience, gender and Meta catalog interest", async () => {
     const calls = setupFetch();
@@ -78,7 +80,7 @@ describe("createPackMetaOperations", () => {
     const ops = createPackMetaOperations({ supabase: supabase(), userId: "user-1", pack });
     await ops.verify();
     const campaignId = await ops.createCampaign({ objective: "traffic", status: "PAUSED" });
-    await ops.createAdSet({ campaignId, budgetCents: 100, variant: pack.variants[0] });
+    await ops.createAdSet({ campaignId, budgetCents: 100 });
     const params = new URLSearchParams(calls.find(c => c.url.includes("/adsets") && c.method === "POST")!.body);
     const targeting = JSON.parse(params.get("targeting")!);
     expect(targeting.geo_locations).toEqual({ cities: [{ key: "1234", radius: 25, distance_unit: "mile" }] });

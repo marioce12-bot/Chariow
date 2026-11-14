@@ -55,12 +55,30 @@ type AdCampaign = {
   autopilot_pause_reason?: string | null;
 };
 
+type AdVariantPackSummary = {
+  id: string;
+  product_name: string;
+  status: string;
+  daily_budget?: number | string | null;
+  duration_days?: number | null;
+  created_at: string;
+  checkpoints?: { activated?: boolean | null; adsets?: Array<string | null> } | null;
+  variants?: { id: string; angle: string; format: string; media?: string[] }[] | null;
+};
+
 function getMetaControlAction(campaign: AdCampaign): "pause" | "activate" | null {
   if (campaign.platform !== "meta" || !campaign.external_campaign_id || !campaign.external_adset_id || !campaign.external_ad_id) return null;
   if (getMetaCampaignLifecycle(campaign.status, campaign.external_error)) return null;
   if (["paused", "autopilot_paused"].includes(campaign.status)) return "activate";
   if (["active", "review", "preparing", "unknown"].includes(campaign.status)) return "pause";
   return null;
+}
+
+function getVariantPackStatus(pack: AdVariantPackSummary, en: boolean): string {
+  if (pack.status === "completed" && pack.checkpoints?.activated === true) return en ? "Launch confirmed" : "Lancement confirmé";
+  if (pack.status === "blocked") return en ? "Checks blocked" : "Vérifications bloquées";
+  if (pack.status === "claimed" || pack.status === "ambiguous") return en ? "Needs verification" : "À vérifier";
+  return en ? "Launch status unavailable" : "Statut de lancement indisponible";
 }
 
 const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
@@ -93,8 +111,9 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
  * statut, et un bouton permet de relancer une campagne sans repasser par le wizard.
  *
  */
-export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { storeId: string | null; plan?: PlanId; onNewCampaign: () => void }) {
+export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includeVariantPacks = false }: { storeId: string | null; plan?: PlanId; onNewCampaign: () => void; includeVariantPacks?: boolean }) {
   const { locale, t } = useI18n();
+  const en = locale === "en";
   const statusLabels: Record<string, string> = Object.fromEntries(Object.keys(STATUS_META).map((key) => [key, t(`adsExtra.status.${key}`)]));
   // Le plan sert au wizard de modification (ex. placement WhatsApp) : repris de la
   // prop si le parent le fournit, sinon lu une fois depuis /api/subscription.
@@ -112,11 +131,16 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
   // filters this optional parameter, so the overview and this list deduplicate.
   const campaignsUrl = storeId ? `/api/ad-campaigns?store_id=${encodeURIComponent(storeId)}` : null;
   const campaignsQuery = useNavigationData<{ campaigns?: AdCampaign[] }>(campaignsUrl, { freshMs: 5 * 60_000, refreshIntervalMs: 5 * 60_000, visibleOnly: true });
+  const variantPacksUrl = includeVariantPacks && storeId ? `/api/ad-variant-packs?store_id=${encodeURIComponent(storeId)}` : null;
+  const variantPacksQuery = useNavigationData<{ packs?: AdVariantPackSummary[] }>(variantPacksUrl, { freshMs: 5 * 60_000, refreshIntervalMs: 5 * 60_000, visibleOnly: true });
   const navigationCache = useNavigationCache();
   const campaigns = Array.isArray(campaignsQuery.data?.campaigns) ? campaignsQuery.data.campaigns : [];
   const currentCampaigns = campaigns
     .filter((campaign) => !["archived", "deleted"].includes(getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? ""))
     .sort((a, b) => Number(b.status === "active") - Number(a.status === "active") || b.created_at.localeCompare(a.created_at));
+  const currentVariantPacks = (Array.isArray(variantPacksQuery.data?.packs) ? variantPacksQuery.data.packs : [])
+    .filter((pack) => pack.status !== "draft")
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
   const loading = campaignsQuery.loading;
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
   const [correcting, setCorrecting] = useState<AdCampaign | null>(null);
@@ -200,8 +224,11 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
     }
   }, [campaigns, selected, editing]);
   const load = useCallback(async () => {
-    if (campaignsUrl) await navigationCache.load(campaignsUrl, 0, true);
-  }, [campaignsUrl, navigationCache]);
+    await Promise.all([
+      ...(campaignsUrl ? [navigationCache.load(campaignsUrl, 0, true)] : []),
+      ...(variantPacksUrl ? [navigationCache.load(variantPacksUrl, 0, true)] : []),
+    ]);
+  }, [campaignsUrl, navigationCache, variantPacksUrl]);
   const runMetaAction = useCallback(async (campaign: AdCampaign, action: "pause" | "activate") => {
     if (metaActionBusy) return;
     setMetaActionBusy(campaign.id);
@@ -319,12 +346,11 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
 
       {/* Skeleton uniquement au premier chargement : lors d'un rafraîchissement (bouton ou auto-sync
           des campagnes en revue), la liste déjà affichée reste en place au lieu de clignoter. */}
-      {loading && campaigns.length === 0 ? (
+      {campaigns.length === 0 && currentVariantPacks.length === 0 && (loading || (includeVariantPacks && variantPacksQuery.loading)) ? (
         <SkeletonRows count={2} label={t("campaigns.loading")} />
-      ) : currentCampaigns.length === 0 ? (
-        <p className="hint-line">{t("campaigns.empty")}</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
+          {currentCampaigns.length > 0 && currentVariantPacks.length > 0 ? <h3 className="ad-campaign-group-title">{en ? "Standard campaigns" : "Campagnes standard"}</h3> : null}
           {currentCampaigns.slice(0, showAll ? currentCampaigns.length : 3).map((c) => {
             const metaPausedMessage = getMetaPausedReason(c.external_error);
             const lifecycle = getMetaCampaignLifecycle(c.status, c.external_error);
@@ -397,6 +423,36 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign }: { st
             );
           })}
           {currentCampaigns.length > 3 ? <button type="button" className="btn btn-ghost" onClick={() => setShowAll((value) => !value)}>{showAll ? t("campaigns.reduce") : t("campaigns.more", { count: currentCampaigns.length - 3 })}</button> : null}
+          {includeVariantPacks && currentVariantPacks.length > 0 ? <section className="ad-variant-pack-list" aria-label={en ? "Variant packs" : "Packs de variantes"}>
+            <h3 className="ad-campaign-group-title">{en ? "Variant packs" : "Packs de variantes"}</h3>
+            {currentVariantPacks.map((pack) => {
+              const variants = Array.isArray(pack.variants) ? pack.variants : [];
+              const adSetCount = Array.isArray(pack.checkpoints?.adsets) ? pack.checkpoints.adsets.length : null;
+              const structure = adSetCount === null
+                ? `${variants.length} ${en ? "ads" : "publicités"}`
+                : `${adSetCount} ${en ? (adSetCount === 1 ? "ad set" : "ad sets") : (adSetCount === 1 ? "ensemble" : "ensembles")} · ${variants.length} ${en ? (variants.length === 1 ? "ad" : "ads") : (variants.length === 1 ? "publicité" : "publicités")}`;
+              const budget = Number(pack.daily_budget);
+              const status = getVariantPackStatus(pack, en);
+              return <article key={pack.id} className="ad-variant-pack-card">
+                <div className="ad-variant-pack-header"><div className="ad-variant-pack-heading"><span className="ad-variant-pack-kicker">{en ? "Grouped campaign" : "Campagne groupée"}</span><strong>{pack.product_name}</strong><span className="hint-line">{structure}{Number.isFinite(budget) ? ` · ${en ? "total" : "budget total"} ${budget.toFixed(2)} USD/${en ? "day" : "jour"}` : ""}{Number.isInteger(pack.duration_days) ? ` · ${pack.duration_days} ${en ? "days" : "jours"}` : ""}</span></div><span className="ad-variant-pack-status">{status}</span></div>
+                <div className="ad-variant-pack-variants">{variants.map((variant, index) => {
+                  const media = Array.isArray(variant.media) ? variant.media : [];
+                  const format = variant.format === "carousel" ? (en ? "Carousel" : "Carrousel") : variant.format === "video" ? "Vidéo" : (en ? "Image" : "Image");
+                  return <div key={variant.id} className="ad-variant-pack-variant">
+                    {media[0] ? variant.format === "video" ? <video src={media[0]} muted playsInline preload="metadata" aria-label={`${en ? "Preview" : "Aperçu"} — ${variant.angle}`} /> : <img src={media[0]} alt={`${en ? "Creative" : "Visuel"} — ${variant.angle}`} loading="lazy" /> : <span className="ad-variant-pack-no-media">{en ? "No preview" : "Sans visuel"}</span>}
+                    <span className="ad-variant-pack-variant-copy"><strong>{variant.angle || (en ? `Variant ${index + 1}` : `Variante ${index + 1}`)}</strong><small>{format}{media.length > 1 ? ` · ${media.length} images` : ""}</small></span>
+                  </div>;
+                })}</div>
+                <p className="ad-variant-pack-footnote">{pack.status === "completed" && pack.checkpoints?.activated === true
+                  ? (en ? "Vendeo confirms the launch. Current delivery status is not synchronized in this list." : "Vendeo confirme le lancement. Le statut actuel de diffusion n’est pas synchronisé dans cette liste.")
+                  : pack.status === "blocked"
+                    ? (en ? "Vendeo blocked this pack before confirming its launch." : "Vendeo indique que ce Pack a été bloqué avant confirmation de son lancement.")
+                    : (en ? "Vendeo has no confirmed delivery status for this pack yet." : "Vendeo n’a pas encore de statut de diffusion confirmé pour ce Pack.")}</p>
+              </article>;
+            })}
+          </section> : null}
+          {currentCampaigns.length === 0 && currentVariantPacks.length === 0 && !variantPacksQuery.error ? <p className="hint-line">{t("campaigns.empty")}</p> : null}
+          {includeVariantPacks && variantPacksQuery.error ? <p role="status" className="hint-line">{en ? "Variant packs could not be loaded. Standard campaigns are still available." : "Les Packs de variantes n’ont pas pu être chargés. Les campagnes standard restent disponibles."}</p> : null}
         </div>
       )}
       {resuming ? (

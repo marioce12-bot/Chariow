@@ -24,6 +24,10 @@ async function post(id: string, params: Record<string, string>, token: string, a
   return (typeof j.id === "string" ? j.id : "") as string;
 }
 function accountNode(id: string) { return id.startsWith("act_") ? id : `act_${id}`; }
+function packAdSetName(productName: string) {
+  const suffix = " (3 publicités)";
+  return `${`Pack — ${productName}`.slice(0, 200 - suffix.length)}${suffix}`;
+}
 function validHttps(raw: string) { try { const u = new URL(raw); return u.protocol === "https:" && !u.username && !u.password && !u.port; } catch { return false; } }
 function checkedNext(raw: unknown, host: string): string | null { if (raw == null) return null; if (typeof raw !== "string") throw new Error("Pagination Meta invalide"); const u = new URL(raw); if (u.protocol !== "https:" || u.hostname !== host || u.port || u.username || u.password) throw new Error("URL de pagination Meta non autorisée"); return u.toString(); }
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -158,10 +162,9 @@ export function createPackMetaOperations({ supabase, userId, pack }: Context): P
     },
     async createAdSet(input) {
       const a = requireAuth(); if (!campaignId || input.campaignId !== campaignId) throw new Error("Campagne parent invalide");
-      const variant = input.variant;
       if (!targeting) throw new Error("Ciblage Meta non vérifié");
       const end = new Date(Date.now() + Math.max(pack.duration_days, 25/24) * 86400000).toISOString().replace(/\.\d{3}Z$/, "+0000");
-      return post(`${a.accountId}/adsets`, { name: `Pack — ${variant.angle}`.slice(0, 200), campaign_id: campaignId, daily_budget: String(input.budgetCents), billing_event: "IMPRESSIONS", optimization_goal: a.objective === "sales" ? "OFFSITE_CONVERSIONS" : "LANDING_PAGE_VIEWS", bid_strategy: "LOWEST_COST_WITHOUT_CAP", targeting: JSON.stringify(targeting), destination_type: "WEBSITE", status: "ACTIVE", end_time: end, dsa_beneficiary: pack.dsa_beneficiary, dsa_payor: pack.dsa_payor, ...(a.pixelId ? { promoted_object: JSON.stringify({ pixel_id: a.pixelId, custom_event_type: "PURCHASE" }) } : {}) }, a.token);
+      return post(`${a.accountId}/adsets`, { name: packAdSetName(pack.product_name), campaign_id: campaignId, daily_budget: String(input.budgetCents), billing_event: "IMPRESSIONS", optimization_goal: a.objective === "sales" ? "OFFSITE_CONVERSIONS" : "LANDING_PAGE_VIEWS", bid_strategy: "LOWEST_COST_WITHOUT_CAP", targeting: JSON.stringify(targeting), destination_type: "WEBSITE", status: "ACTIVE", end_time: end, dsa_beneficiary: pack.dsa_beneficiary, dsa_payor: pack.dsa_payor, ...(a.pixelId ? { promoted_object: JSON.stringify({ pixel_id: a.pixelId, custom_event_type: "PURCHASE" }) } : {}) }, a.token);
     },
     async createCreative({ variant, pageId }) {
       const a = requireAuth(); if (pageId !== pack.meta_page_id) throw new Error("Page créative différente de la page vérifiée");
@@ -189,7 +192,7 @@ export function createPackMetaOperations({ supabase, userId, pack }: Context): P
       const spec=variant.format==="carousel"?buildCarouselObjectStorySpec({pageId,link,message:variant.text,headline:variant.angle,callToAction:cta,cards:hashes.map(hash=>({url:link,hash})),withTopLevelCallToAction:true}):{page_id:pageId,link_data:{link,message:variant.text,image_hash:hashes[0],call_to_action:{type:cta,value:{link}}}};
       return post(`${a.accountId}/adcreatives`,{name:`Pack — ${variant.angle}`.slice(0,200),object_story_spec:JSON.stringify(spec)},a.token);
     },
-    async createAd({ adsetId, creativeId }) { const a = requireAuth(); if (!campaignId) throw new Error("Parent manquant"); return post(`${a.accountId}/ads`, { name: `Pack — ${pack.product_name}`.slice(0, 200), adset_id: adsetId, creative: JSON.stringify({ creative_id: creativeId }), status: "ACTIVE" }, a.token); },
+    async createAd({ adsetId, creativeId, variant }) { const a = requireAuth(); if (!campaignId || !variant.angle.trim()) throw new Error("Parent ou nom d’angle manquant"); return post(`${a.accountId}/ads`, { name: variant.angle.trim().slice(0, 200), adset_id: adsetId, creative: JSON.stringify({ creative_id: creativeId }), status: "ACTIVE" }, a.token); },
     async activateParent(id) { const a = requireAuth(); if (id !== campaignId) throw new Error("Parent invalide"); await post(id, { status: "ACTIVE" }, a.token, true); },
   };
 }

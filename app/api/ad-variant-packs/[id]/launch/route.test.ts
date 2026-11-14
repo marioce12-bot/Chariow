@@ -65,16 +65,21 @@ beforeEach(() => {
 });
 
 describe("Pack launch endpoint — simulated only", () => {
-  it("atomically accepts only one concurrent launch and checkpoints one parent with three ad sets", async () => {
+  it("atomically accepts one launch with one full-budget ad set and three ads", async () => {
     const responses = await Promise.all([POST(req(), ctx()), POST(req(), ctx())]);
     expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
     expect(mocks.db.calls.filter((x: any) => x[0] === "campaign")).toHaveLength(1);
     const sets = mocks.db.calls.filter((x: any) => x[0] === "adset");
-    expect(sets).toHaveLength(3);
-    expect(sets.map((x: any) => x[1].campaignId)).toEqual(["meta-campaign", "meta-campaign", "meta-campaign"]);
-    expect(sets.reduce((sum: number, x: any) => sum + x[1].budgetCents, 0)).toBe(700);
+    expect(sets).toHaveLength(1);
+    expect(sets[0][1]).toMatchObject({ campaignId: "meta-campaign", budgetCents: 700 });
+    const ads = mocks.db.calls.filter((x: any) => x[0] === "ad");
+    expect(ads).toHaveLength(3);
+    expect(ads.map((x: any) => x[1].adsetId)).toEqual(["set-1", "set-1", "set-1"]);
+    expect(ads.map((x: any) => x[1].variant.angle)).toEqual(["a", "b", "c"]);
     expect(mocks.db.pack.status).toBe("completed");
     expect(mocks.db.pack.checkpoints.activated).toBe(true);
+    expect(mocks.db.pack.checkpoints.adsets).toEqual(["set-1"]);
+    expect(mocks.db.pack.checkpoints.ads).toEqual(["ad-1", "ad-2", "ad-3"]);
     expect(mocks.db.calls.at(-1)).toEqual(["activate", "meta-campaign"]);
   });
   it("does not repeat an external creation when the subsequent checkpoint fails", async () => {

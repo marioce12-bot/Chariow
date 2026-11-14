@@ -33,7 +33,7 @@ export async function POST(_request: Request, context: Context) {
     if (error || !Array.isArray(data) || data.length !== 1) throw new Error("Checkpoint CAS refusé ou résultat ambigu; aucune relance autorisée");
   };
   try {
-    await save({ adsets: [null, null, null], creatives: [null, null, null], ads: [null, null, null] });
+    await save({ adsets: [null], creatives: [null, null, null], ads: [null, null, null] });
     const adapter = createPackMetaOperations({ supabase: admin, userId: user.id, pack });
     const checkpoint = await launchPack({ pack, pageId: pack.meta_page_id, adapter: { ...adapter, claim: async () => true, save } });
     const { data: done, error } = await admin.from("ad_variant_packs").select("id,status,checkpoints").eq("id", id).eq("user_id", user.id).eq("claim_token", claimToken).single();
