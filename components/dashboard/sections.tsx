@@ -24,6 +24,7 @@ import { isAdPlatformAllowed, planMaxStores, type AdPlatform, type PlanId } from
 import { CampaignCrossTable, DiagnosticBoutique, type CampaignRow, type CampaignVerdictBadge, type DiagnosticCard } from "@/components/vendeo";
 import { DiagnosticFunnel } from "@/components/vendeo/DiagnosticFunnel";
 import { AdCampaignsList } from "@/components/vendeo/AdCampaignsList";
+import { AdVariantPackResults } from "@/components/vendeo/AdVariantPackResults";
 import { AutopilotView } from "@/components/vendeo/AutopilotView";
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
 import { CREDIT_PRICE_XOF, IMAGE_COSTS, imageCreditCost, videoCreditCost } from "@/lib/studio/credits";
@@ -1988,7 +1989,7 @@ function TikTokSkeleton() {
 }
 
 // Vue des performances publicitaires et des campagnes liées au compte sélectionné.
-export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, campaignsVersion }: { plan: PlanId; onGoToAI: () => void; onGoToAccounts: () => void; onLaunchAd: () => void; storeId: string | null; campaignsVersion: number }) {
+export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, onCampaignsChanged, storeId, campaignsVersion }: { plan: PlanId; onGoToAI: () => void; onGoToAccounts: () => void; onLaunchAd: () => void; onCampaignsChanged?: () => void; storeId: string | null; campaignsVersion: number }) {
   const { t, locale } = useI18n();
   const en = locale === "en";
   const openAI = (prompt: string) => { sessionStorage.setItem(SESSION_STORAGE_PROMPT_KEY, prompt); onGoToAI(); };
@@ -2277,7 +2278,7 @@ export function AdsView({ plan, onGoToAI, onGoToAccounts, onLaunchAd, storeId, c
 
       {message && <p className="store-error" role="status">{message}</p>}
 
-      {channel === "overview" ? <AdCampaignsList storeId={storeId} onNewCampaign={onLaunchAd} key={campaignsVersion} /> : null}
+      {channel === "overview" ? <><AdVariantPackResults key={`${storeId ?? "no-store"}:${campaignsVersion}`} storeId={storeId} onActionComplete={onCampaignsChanged} /><AdCampaignsList storeId={storeId} onNewCampaign={onLaunchAd} key={campaignsVersion} /></> : null}
 
       {channel === "pinterest" ? <section className="ads-accounts-panel">
         {pinterestAccounts.length ? <div className="app-card ads-accounts"><div className="card-head"><div><span className="eyebrow">{t("finalExtra.text42")}</span><h2>{t("finalExtra.text43")}</h2></div></div>{pinterestAccounts.map((account) => <div className="ads-account-row" key={account.id}><div><strong>{account.name || account.advertiser_id}</strong><small>{account.advertiser_id}{account.currency ? ` · ${account.currency}` : ""}{account.country ? ` · ${account.country}` : ""}</small></div><span className="status-positive">{t("settings.connected")}</span></div>)}</div> : <div className="empty-state"><FaPinterestP size={28} style={{ color: "#E60023" }} /><strong>{t("sweep1.text300")}</strong><span>{t("sweep2.text301")}</span><button type="button" className="btn btn-dark" onClick={connectPinterest}>{t("finalExtra.text44")}</button></div>}

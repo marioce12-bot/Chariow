@@ -29,6 +29,7 @@ import {
 
 
 import { LaunchAdWizard } from "@/components/vendeo/wizard";
+import { CampaignModeDialog, VariantPackWizard } from "@/components/vendeo/AdVariantPackWizard";
 
 
 import type { EditableCampaign } from "@/components/vendeo/wizard/types";
@@ -324,6 +325,8 @@ function DashboardWorkspace() {
     return () => window.removeEventListener(OPEN_SUBSCRIPTION_SECTION_EVENT, openSubscription);
   }, []);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [campaignModeOpen, setCampaignModeOpen] = useState(false);
+  const [variantPackOpen, setVariantPackOpen] = useState(false);
   // Produit choisi via le bouton « Promouvoir » du catalogue : le formulaire de pub saute alors l'étape « Produit ».
   const [wizardProduct, setWizardProduct] = useState<ProductData | null>(null);
   const [wizardDuplicateCampaign, setWizardDuplicateCampaign] = useState<EditableCampaign | null>(null);
@@ -348,10 +351,24 @@ function DashboardWorkspace() {
       setActive("Mes boutiques");
       return;
     }
-    // Lancement classique (sans produit précis) : l'utilisateur choisit le produit à l'étape 1.
+    setCampaignModeOpen(true);
+  }
+  function startSimpleCampaign() {
+    setCampaignModeOpen(false);
     setWizardProduct(null);
     setWizardDuplicateCampaign(null);
     setWizardOpen(true);
+  }
+  function startVariantPack() {
+    setCampaignModeOpen(false);
+    setVariantPackOpen(true);
+  }
+  function resumeVariantPack() {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("vendeo_ad_variant_pack_draft_v1") ?? "{}");
+      window.localStorage.setItem("vendeo_ad_variant_pack_draft_v1", JSON.stringify({ ...saved, step: 4 }));
+    } catch { /* Le composant de pack affichera un brouillon vierge si le stockage est illisible. */ }
+    startVariantPack();
   }
 
   // Bouton « Promouvoir » d'un produit du catalogue : on ouvre le même formulaire, produit déjà choisi.
@@ -673,7 +690,7 @@ function DashboardWorkspace() {
           ) : active === "Performance publicitaire" ? (
             <AdPerformanceView key={activeStoreId ?? "no-store"} storeId={activeStoreId} onApplyCampaign={applyRecommendedCampaign} onRecommendationChange={reportCampaignRecommendation} products={analytics?.products ?? []} locale={locale} />
           ) : active === "Pub" ? (
-             <AdsView key={activeStoreId} plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => navigateToSection("Vendeo AI")} onGoToAccounts={() => navigateToSection("Comptes publicitaires")} onLaunchAd={launchAd} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
+             <AdsView key={activeStoreId} plan={(subscription?.plan ?? "starter") as PlanId} onGoToAI={() => navigateToSection("Vendeo AI")} onGoToAccounts={() => navigateToSection("Comptes publicitaires")} onLaunchAd={launchAd} onCampaignsChanged={() => setCampaignsVersion((version) => version + 1)} storeId={activeStoreId} campaignsVersion={campaignsVersion} />
            ) : active === "Comptes publicitaires" ? (
             <MobileSettingsView onNavigate={navigateToSection} onSignOut={signOut} plan={(subscription?.plan ?? "starter") as PlanId} focus="channels" />
           ) : active === "Radar marché" ? (
@@ -720,6 +737,8 @@ function DashboardWorkspace() {
             </>
           )}
          </section>
+         {campaignModeOpen && activeStoreId ? <CampaignModeDialog onClose={() => setCampaignModeOpen(false)} onSimple={startSimpleCampaign} onPack={startVariantPack} onResume={resumeVariantPack} /> : null}
+         {variantPackOpen && activeStoreId ? <VariantPackWizard storeId={activeStoreId} onClose={() => setVariantPackOpen(false)} onLaunched={() => { navigationCache.invalidate(); setCampaignsVersion((v) => v + 1); }} /> : null}
          {wizardOpen && activeStoreId ? (
            <LaunchAdWizard
              key={`${activeStoreId}:${wizardProduct?.id ?? ""}:${wizardDuplicateCampaign?.id ?? ""}`}
