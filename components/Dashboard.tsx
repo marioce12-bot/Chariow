@@ -364,10 +364,6 @@ function DashboardWorkspace() {
     setVariantPackOpen(true);
   }
   function resumeVariantPack() {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem("vendeo_ad_variant_pack_draft_v1") ?? "{}");
-      window.localStorage.setItem("vendeo_ad_variant_pack_draft_v1", JSON.stringify({ ...saved, step: 4 }));
-    } catch { /* Le composant de pack affichera un brouillon vierge si le stockage est illisible. */ }
     startVariantPack();
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { haveThreeChosenFormats, isVariantPackStore, recommendPackAction, selectRecommendedAngles } from "../lib/ad-variant-pack";
+import { getConnectedVariantPackStores, getVariantPackDraftStep, hasVariantPackDraftProgress, haveThreeChosenFormats, isVariantPackStore, recommendPackAction, selectRecommendedAngles } from "../lib/ad-variant-pack";
 
 describe("ad variant pack", () => {
   it("accepts connected Chariow and Shopify stores only", () => {
@@ -7,6 +7,37 @@ describe("ad variant pack", () => {
     expect(isVariantPackStore({ platform: "shopify", connection_status: "connected" })).toBe(true);
     expect(isVariantPackStore({ platform: "shopify", connection_status: "pending" })).toBe(false);
     expect(isVariantPackStore({ platform: "selar", connection_status: "connected" })).toBe(false);
+  });
+
+  it("shows a Chariow store as soon as its refreshed status is connected", () => {
+    const stores = [
+      { id: "new-chariow", platform: "chariow", connection_status: "connected" },
+      { id: "still-pending", platform: "chariow", connection_status: "pending" },
+      { id: "inactive", platform: "chariow", connection_status: "connected", is_active: false },
+    ];
+    expect(getConnectedVariantPackStores(stores).map((store) => store.id)).toEqual(["new-chariow"]);
+  });
+
+  it("does not treat untouched defaults or auto-selected stores/accounts as a draft", () => {
+    const untouched = {
+      storeId: "auto-selected-store", metaAdAccountId: "auto-selected-account", productId: "",
+      objective: "sales", locations: [{ key: "BJ" }], minAge: 18, maxAge: 45,
+      gender: null, interests: [], advantageAudience: false, dailyBudget: 5,
+      durationDays: 5, angles: [], selected: [], variants: {}, step: 1,
+    };
+    expect(hasVariantPackDraftProgress(untouched)).toBe(false);
+    expect(hasVariantPackDraftProgress({ ...untouched, storeId: "another-auto-selected-store" })).toBe(false);
+    expect(hasVariantPackDraftProgress({ ...untouched, productId: "product-1" })).toBe(true);
+    expect(hasVariantPackDraftProgress({ ...untouched, dailyBudget: 8 })).toBe(true);
+    expect(hasVariantPackDraftProgress({ ...untouched, step: 3 })).toBe(true);
+    expect(hasVariantPackDraftProgress({ ...untouched, started: true })).toBe(true);
+  });
+
+  it("preserves a valid saved step and falls back to setup for invalid values", () => {
+    expect(getVariantPackDraftStep(2)).toBe(2);
+    expect(getVariantPackDraftStep("3")).toBe(3);
+    expect(getVariantPackDraftStep(0)).toBe(1);
+    expect(getVariantPackDraftStep(5)).toBe(1);
   });
 
   it("allows the user to repeat the same format across all three variants", () => {

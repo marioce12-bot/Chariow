@@ -1,14 +1,14 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { ImagePlus, Loader2, Search, Sparkles, X } from "lucide-react";
+import { ArrowRight, ImagePlus, Loader2, RotateCcw, Search, Sparkles, X } from "lucide-react";
 import { buildGeoTargeting, deriveCountries, type ChariowProductLite, type GeoLocation } from "@/components/vendeo/wizard/types";
 import { LocationSearchInput } from "@/components/vendeo/wizard/LocationSearchInput";
 import type { MetaGenderTarget, MetaInterestTarget } from "@/lib/ad-campaigns/meta-targeting";
 import { imageCreditCost } from "@/lib/studio/credits";
 import { uploadCampaignMedia } from "@/lib/media/direct-upload";
 import { useI18n } from "@/lib/i18n/i18n";
-import { haveThreeChosenFormats, isVariantPackStore, type AdAngle, type VariantFormat } from "@/lib/ad-variant-pack";
+import { getConnectedVariantPackStores, getVariantPackDraftStep, hasVariantPackDraftProgress, haveThreeChosenFormats, type AdAngle, type VariantFormat } from "@/lib/ad-variant-pack";
 
 const DRAFT_KEY = "vendeo_ad_variant_pack_draft_v1";
 const PACKS_KEY = "vendeo_ad_variant_packs_v1";
@@ -21,7 +21,7 @@ type Draft = {
   interests: MetaInterestTarget[]; advantageAudience: boolean;
   dailyBudget: number; durationDays: number; angles: AdAngle[]; selected: string[];
   variants: Record<string, Variant>; step: number; packId?: string; metaAdAccountId?: string;
-  campaignIds?: Record<string, string>; launched?: Record<string, boolean>;
+  campaignIds?: Record<string, string>; launched?: Record<string, boolean>; started?: boolean;
 };
 const defaultLocation: GeoLocation = { key: "BJ", name: "Bénin", type: "country", countryCode: "BJ" };
 const DEFAULT: Draft = {
@@ -38,7 +38,16 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
   const [mounted, setMounted] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => {
     if (typeof window === "undefined") return { ...DEFAULT, storeId };
-    try { const saved = localStorage.getItem(DRAFT_KEY); return saved ? { ...DEFAULT, ...JSON.parse(saved), storeId: JSON.parse(saved).storeId || storeId } : { ...DEFAULT, storeId }; }
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return { ...DEFAULT, storeId };
+      const saved = JSON.parse(raw) as Partial<Draft>;
+      if (!hasVariantPackDraftProgress(saved)) {
+        localStorage.removeItem(DRAFT_KEY);
+        return { ...DEFAULT, storeId };
+      }
+      return { ...DEFAULT, ...saved, storeId: saved.storeId || storeId, step: getVariantPackDraftStep(saved.step), started: true };
+    }
     catch { return { ...DEFAULT, storeId }; }
   });
   const [stores, setStores] = useState<Store[]>([]);
@@ -57,28 +66,41 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
   const product = useMemo(() => products.find((row) => row.id === draft.productId) ?? null, [products, draft.productId]);
   const selectedInterests = draft.interests;
   useEffect(() => setMounted(true), []);
-  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* storage unavailable */ } }, [draft]);
+  useEffect(() => {
+    try {
+      if (ready || !hasVariantPackDraftProgress(draft)) localStorage.removeItem(DRAFT_KEY);
+      else localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, started: true }));
+    } catch { /* storage unavailable */ }
+  }, [draft, ready]);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const loadStores = async () => {
       try {
-        const [storeResponse, accountsResponse] = await Promise.all([
-          fetch("/api/stores", { cache: "no-store" }),
-          fetch("/api/integrations/meta/accounts", { cache: "no-store" }),
-        ]);
+        const storeResponse = await fetch("/api/stores", { cache: "no-store" });
         const storeData = await storeResponse.json();
-        const accountData = await accountsResponse.json();
         if (!storeResponse.ok) throw new Error(storeData.error || "Boutiques indisponibles");
         if (cancelled) return;
-        const connected = (storeData.stores ?? []).filter(isVariantPackStore);
-        const availableAccounts = accountData.accounts ?? [];
+        const connected = getConnectedVariantPackStores<Store>(storeData.stores ?? []);
         setStores(connected);
+        setDraft((currentDraft) => {
+          const chosen = connected.find((s) => s.id === currentDraft.storeId)
+            ?? connected.find((s) => s.id === storeId)
+            ?? connected[0];
+          if (!chosen || chosen.id === currentDraft.storeId) return currentDraft;
+          return { ...currentDraft, storeId: chosen.id, productId: "" };
+        });
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : (en ? "Unable to load stores." : "Impossible de charger les boutiques."));
+      }
+    };
+    const loadAccounts = async () => {
+      try {
+        const accountsResponse = await fetch("/api/integrations/meta/accounts", { cache: "no-store" });
+        const accountData = await accountsResponse.json();
+        if (cancelled) return;
+        const availableAccounts = accountData.accounts ?? [];
         setAccounts(availableAccounts);
-        const chosen = connected.find((s: Store) => s.id === draft.storeId)
-          ?? connected.find((s: Store) => s.id === storeId)
-          ?? connected[0];
-        if (chosen) setDraft((d) => ({ ...d, storeId: chosen.id }));
         const selectedAccount = availableAccounts.find((a: { id: string }) => a.id === draft.metaAdAccountId)
           ?? (availableAccounts.length === 1 ? availableAccounts[0] : null);
         if (selectedAccount) {
@@ -86,11 +108,22 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
           setDraft((d) => ({ ...d, metaAdAccountId: selectedAccount.id }));
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : (en ? "Unable to load stores or Meta account." : "Impossible de charger les boutiques ou le compte Meta."));
+        if (!cancelled) setError(e instanceof Error ? e.message : (en ? "Unable to load the Meta account." : "Impossible de charger le compte Meta."));
       }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+    };
+    void loadStores();
+    void loadAccounts();
+    const refreshStoresOnReturn = () => {
+      if (document.visibilityState === "visible" && navigator.onLine) void loadStores();
+    };
+    window.addEventListener("focus", refreshStoresOnReturn);
+    document.addEventListener("visibilitychange", refreshStoresOnReturn);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", refreshStoresOnReturn);
+      document.removeEventListener("visibilitychange", refreshStoresOnReturn);
+    };
+  }, [draft.metaAdAccountId, en, storeId]);
 
   useEffect(() => {
     if (!draft.storeId) return;
@@ -127,9 +160,9 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [interestQuery, accountId]);
 
-  const patch = (change: Partial<Draft>) => setDraft((d) => ({ ...d, ...change }));
+  const patch = (change: Partial<Draft>) => setDraft((d) => ({ ...d, ...change, started: true }));
   const selectAccount = (id: string) => {
-    setAccountId(id); setPageId(""); setDraft((d) => ({ ...d, metaAdAccountId: id, interests: [] }));
+    setAccountId(id); setPageId(""); setDraft((d) => ({ ...d, metaAdAccountId: id, interests: [], started: true }));
   };
   const addInterest = (option: MetaInterestTarget) => {
     if (selectedInterests.some((interest) => interest.id === option.id) || selectedInterests.length >= 10) return;
@@ -160,7 +193,7 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
     if (!selected.includes(id)) delete variants[id];
     patch({ selected, variants });
   };
-  const updateVariant = (id: string, change: Partial<Variant>) => setDraft((d) => ({ ...d, variants: { ...d.variants, [id]: { ...d.variants[id], ...change } } }));
+  const updateVariant = (id: string, change: Partial<Variant>) => setDraft((d) => ({ ...d, variants: { ...d.variants, [id]: { ...d.variants[id], ...change } }, started: true }));
   const upload = async (id: string, files: FileList | null) => {
     if (!files?.length) return;
     const variant = draft.variants[id];
@@ -240,7 +273,13 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
     finally { setBusy(false); }
   };
 
-  const close = () => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* ignore */ } onClose(); };
+  const close = () => {
+    try {
+      if (hasVariantPackDraftProgress(draft)) localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, started: true }));
+      else localStorage.removeItem(DRAFT_KEY);
+    } catch { /* ignore */ }
+    onClose();
+  };
   const selectedCountries = deriveCountries(draft.locations);
   if (!mounted) return null;
 
@@ -327,7 +366,41 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
 
 export function CampaignModeDialog({ onClose, onSimple, onPack, onResume }: { onClose: () => void; onSimple: () => void; onPack: () => void; onResume: () => void }) {
   const { locale } = useI18n(); const en = locale === "en";
-  const [hasDraft, setHasDraft] = useState(false);
-  useEffect(() => { try { setHasDraft(Boolean(localStorage.getItem(DRAFT_KEY))); } catch { /* no storage */ } }, []);
-  return createPortal(<div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="campaign-mode-title" className="w-full max-w-lg rounded-2xl bg-white p-5 text-gray-900 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-wide text-[#6366F1]">VENDEO · PUB</p><h2 id="campaign-mode-title" className="mt-1 text-xl font-bold">{en ? "Create an ad" : "Créer une publicité"}</h2></div><button type="button" onClick={onClose} aria-label={en ? "Close" : "Fermer"}><X size={18}/></button></div><div className="mt-4 grid gap-3"><button type="button" onClick={onSimple} className="rounded-xl border p-4 text-left hover:border-[#6366F1]"><strong>{en ? "Simple campaign" : "Campagne simple"}</strong><p className="mt-1 text-sm text-gray-600">{en ? "Prepare one ad for one product." : "Prépare une publicité pour un produit."}</p></button><button type="button" onClick={onPack} className="rounded-xl border p-4 text-left hover:border-[#6366F1]"><strong>{en ? "Variant pack" : "Pack de variantes"}</strong><p className="mt-1 text-sm text-gray-600">{en ? "Compare three distinct creative angles for one product." : "Compare trois angles créatifs distincts pour un même produit."}</p></button>{hasDraft && <button type="button" onClick={onResume} className="rounded-xl bg-indigo-50 p-3 text-left text-sm font-bold text-indigo-900">{en ? "Resume launch" : "Reprendre le lancement"}<span className="block font-normal">{en ? "Your saved draft reopens at the review; if anything is missing, go back and complete it before explicit launch confirmation." : "Ton brouillon rouvre au récapitulatif; s’il manque un élément, retourne le compléter avant la confirmation explicite."}</span></button>}</div></section></div>, document.body);
+  const [resumeStep, setResumeStep] = useState<number | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { step?: unknown };
+      if (!hasVariantPackDraftProgress(saved)) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      setResumeStep(getVariantPackDraftStep(saved.step));
+    } catch { /* storage unavailable or invalid JSON */ }
+  }, []);
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4">
+      <section role="dialog" aria-modal="true" aria-labelledby="campaign-mode-title" className="w-full max-w-lg rounded-2xl bg-white p-5 text-gray-900 shadow-2xl">
+        <div className="flex items-start justify-between">
+          <div><p className="text-xs font-bold uppercase tracking-wide text-[#6366F1]">VENDEO · PUB</p><h2 id="campaign-mode-title" className="mt-1 text-xl font-bold">{en ? "Create an ad" : "Créer une publicité"}</h2></div>
+          <button type="button" onClick={onClose} aria-label={en ? "Close" : "Fermer"}><X size={18}/></button>
+        </div>
+        <div className="mt-4 grid gap-3">
+          <button type="button" onClick={onSimple} className="rounded-xl border p-4 text-left hover:border-[#6366F1]"><strong>{en ? "Simple campaign" : "Campagne simple"}</strong><p className="mt-1 text-sm text-gray-600">{en ? "Prepare one ad for one product." : "Prépare une publicité pour un produit."}</p></button>
+          <button type="button" onClick={onPack} className="rounded-xl border p-4 text-left hover:border-[#6366F1]"><strong>{en ? "Variant pack" : "Pack de variantes"}</strong><p className="mt-1 text-sm text-gray-600">{en ? "Compare three distinct creative angles for one product." : "Compare trois angles créatifs distincts pour un même produit."}</p></button>
+          {resumeStep !== null && <button type="button" onClick={onResume} className="group relative overflow-hidden rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+            <span className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-indigo-700 shadow-sm ring-1 ring-indigo-100"><RotateCcw size={18}/></span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-bold text-indigo-950">{en ? "Resume my draft" : "Reprendre mon brouillon"}</span><span className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-indigo-700 ring-1 ring-indigo-100">{en ? `Step ${resumeStep} / 4` : `Étape ${resumeStep} / 4`}</span></span>
+                <span className="mt-1 block text-sm leading-relaxed text-indigo-950/75">{en ? "Pick up where you left off. Nothing is sent to Meta before you confirm." : "Retrouve tes réglages à l’étape enregistrée. Rien n’est envoyé à Meta avant ta confirmation."}</span>
+                <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700">{en ? "Continue setup" : "Continuer la configuration"}<ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5"/></span>
+              </span>
+            </span>
+          </button>}
+        </div>
+      </section>
+    </div>, document.body,
+  );
 }

@@ -37,6 +37,51 @@ export function isVariantPackStore(store: { platform?: string; connection_status
   return store.is_active !== false && store.connection_status === "connected" && (store.platform === "chariow" || store.platform === "shopify");
 }
 
+export type VariantPackStore = { id: string; platform?: string; connection_status?: string | null; is_active?: boolean };
+
+/** Keep the wizard's store picker aligned with sources usable by campaign creation. */
+export function getConnectedVariantPackStores<T extends VariantPackStore>(stores: readonly T[]): T[] {
+  return stores.filter(isVariantPackStore);
+}
+
+/** Empty defaults and auto-selected accounts/stores are not user-created drafts. */
+export function hasVariantPackDraftProgress(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const draft = value as Record<string, unknown>;
+  if (draft.started === true) return true;
+
+  const hasItems = (items: unknown) => Array.isArray(items) && items.length > 0;
+  const variants = draft.variants && typeof draft.variants === "object" && !Array.isArray(draft.variants)
+    ? Object.values(draft.variants as Record<string, { format?: unknown; media?: unknown }>)
+    : [];
+  const changedLocations = Array.isArray(draft.locations) && (
+    draft.locations.length !== 1 ||
+    !draft.locations[0] || typeof draft.locations[0] !== "object" ||
+    (draft.locations[0] as { key?: unknown }).key !== "BJ"
+  );
+
+  return Boolean(
+    (typeof draft.productId === "string" && draft.productId.trim()) ||
+    (typeof draft.step === "number" && draft.step > 1) ||
+    hasItems(draft.angles) || hasItems(draft.selected) ||
+    variants.some((variant) => Boolean(variant?.format) || hasItems(variant?.media)) ||
+    (typeof draft.objective === "string" && draft.objective !== "sales") ||
+    (draft.minAge !== undefined && Number(draft.minAge) !== 18) ||
+    (draft.maxAge !== undefined && Number(draft.maxAge) !== 45) ||
+    draft.gender != null || hasItems(draft.interests) || draft.advantageAudience === true ||
+    (draft.dailyBudget !== undefined && Number(draft.dailyBudget) !== 5) ||
+    (draft.durationDays !== undefined && Number(draft.durationDays) !== 5) || changedLocations ||
+    Boolean(draft.packId) || hasItems(Object.values((draft.campaignIds ?? {}) as object)) ||
+    hasItems(Object.values((draft.launched ?? {}) as object).filter(Boolean))
+  );
+}
+
+/** Invalid saved step values safely return to the first setup screen. */
+export function getVariantPackDraftStep(value: unknown): number {
+  const step = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(step) && step >= 1 && step <= 4 ? step : 1;
+}
+
 /**
  * Be deliberately conservative: no performance winner is named until every
  * compared variant has enough delivery and purchase observations.
