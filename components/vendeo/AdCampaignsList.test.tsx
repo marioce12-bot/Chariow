@@ -7,6 +7,7 @@ import { NavigationDataProvider } from "@/components/dashboard/NavigationDataCac
 
 vi.mock("./wizard/ResumeCampaignModal", () => ({ ResumeCampaignModal: () => createElement("div", null, "Resume modal") }));
 vi.mock("./wizard/LaunchAdWizard", () => ({ LaunchAdWizard: ({ duplicateCampaign }: { duplicateCampaign?: { id: string } }) => createElement("div", { "data-testid": "wizard" }, duplicateCampaign ? `New draft from ${duplicateCampaign.id}` : "Wizard") }));
+vi.mock("./AdVariantPackWizard", () => ({ VariantPackWizard: ({ duplicatePack }: { duplicatePack: { product_name: string } }) => createElement("div", { "data-testid": "pack-wizard" }, `Pack draft from ${duplicatePack.product_name}`) }));
 vi.mock("@/lib/i18n/i18n", () => ({ useI18n: () => ({ locale: "fr", t: (key: string, vars?: Record<string, string | number>) => ({ "campaigns.title": "Campagnes", "campaigns.empty": "Aucune campagne", "campaigns.loading": "Chargement", "campaigns.refresh": "Actualiser", "campaigns.launch": "Lancer", "campaigns.duplicate": "Dupliquer", "campaigns.more": "Plus", "campaigns.reduce": "Réduire", "adsExtra.status.paused": "Suspendue", "adsExtra.status.active": "Active", "adsExtra.status.archived": "Archivée", "adsExtra.status.deleted": "Supprimée chez Meta", "adsExtra.duplicate": "Dupliquer", "adsExtra.resume": "Reprendre", "adsExtra.poster_alt": "Affiche de la campagne", "adsExtra.traffic_without_pixel": "Trafic (sans pixel)", "adsExtra.history": `Historique des campagnes (${vars?.count})` }[key] ?? key) }) }));
 
 const campaign = (id: string, status: string, external_error: string | null = null, created_at = "2026-01-01") => ({ id, product_id: id, platform: "meta", status, objective: "sales", title: id, daily_budget: 5, duration_days: 3, estimated_budget: 15, external_error, created_at });
@@ -19,7 +20,7 @@ const fixtures = [
 ];
 const completedPack = {
   id: "pack-1", product_name: "Produit pack test", status: "completed", daily_budget: 7, duration_days: 5,
-  created_at: "2026-01-05", checkpoints: { activated: true, adsets: ["set-1"], ads: ["ad-1", "ad-2", "ad-3"] },
+  created_at: "2026-01-05", checkpoints: { activated: true, adsets: ["set-1"], ads: ["ad-1", "ad-2", "ad-3"], meta_state: { status: "active", synced_at: "2026-11-14T08:00:00.000Z", ads: [{ id: "ad-1", status: "active" }, { id: "ad-2", status: "active" }, { id: "ad-3", status: "paused" }] } },
   variants: [
     { id: "v1", angle: "Angle image", format: "image", media: ["https://example.test/one.jpg"] },
     { id: "v2", angle: "Angle vidéo", format: "video", media: ["https://example.test/two.mp4"] },
@@ -69,14 +70,63 @@ describe("AdCampaignsList lifecycle UI", () => {
     expect(container.textContent).toContain("Produit pack test");
     expect(container.textContent).toContain("Campagne groupée");
     expect(container.textContent).toContain("1 ensemble · 3 publicités");
-    expect(container.textContent).toContain("Lancement confirmé");
-    expect(container.textContent).toContain("Le statut actuel de diffusion n’est pas synchronisé");
+    expect(container.textContent).toContain("Active");
+    expect(container.textContent).toContain("Statut actuel synchronisé depuis Meta.");
     expect(container.querySelector<HTMLImageElement>('.ad-variant-pack-variant img')?.src).toBe("https://example.test/one.jpg");
-    expect(container.querySelector(".ad-variant-pack-status")?.textContent).not.toContain("Active");
+    expect(container.querySelector(".ad-variant-pack-status")?.textContent).toBe("Active");
     expect([...container.querySelectorAll(".ad-campaign-row")].map((row) => row.textContent?.match(/active(?:-old)?|paused/)?.[0])).toEqual(["active", "active-old", "paused"]);
     const packCalls = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/ad-variant-packs"));
     expect(packCalls.length).toBeGreaterThan(0);
     expect(packCalls.every(([, options]) => !options?.method || options.method === "GET")).toBe(true);
+  });
+
+  it("prepares and confirms a pause for one Pack ad only", async () => {
+    backendPacks = [completedPack];
+    const confirmation = vi.fn(() => true);
+    dom.window.confirm = confirmation;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/ad-variant-packs/pack-1/actions") {
+        const body = JSON.parse(String(init?.body));
+        return body.phase === "prepare"
+          ? { ok: true, json: async () => ({ token: "pack-confirmation", preview: { name: "Produit pack test", warning: "Mettre en pause uniquement « Angle image » (ad-1). Les autres publicités ne seront pas modifiées." } }) }
+          : { ok: true, json: async () => ({ meta_state: { status: "active" } }) };
+      }
+      if (url === "/api/subscription") return { ok: true, json: async () => ({ subscription: { plan: "starter" } }) };
+      return url.startsWith("/api/ad-variant-packs") ? { ok: true, json: async () => ({ packs: backendPacks }) } : { ok: true, json: async () => ({ campaigns: backendCampaigns }) };
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Actualiser"]')!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const pauseAd = container.querySelector<HTMLButtonElement>(".ad-variant-pack-variant button")!;
+    await act(async () => {
+      pauseAd.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const actionCalls = fetchMock.mock.calls.filter(([url]) => url === "/api/ad-variant-packs/pack-1/actions") as unknown as Array<[string, RequestInit]>;
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining("uniquement « Angle image »"));
+    expect(actionCalls.map(([, init]) => JSON.parse(String(init.body)).phase)).toEqual(["prepare", "execute"]);
+    expect(JSON.parse(String(actionCalls[1][1].body))).toMatchObject({ action: "pause-ad", adIndex: 0, token: "pack-confirmation", confirmed: true });
+  });
+
+  it("opens a Pack copy as a draft without creating or launching Meta objects", async () => {
+    backendPacks = [completedPack];
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === "/api/ad-variant-packs/pack-1") return { ok: true, json: async () => ({ pack: { ...completedPack, meta_ad_account_id: "account-1", meta_page_id: "page-1" } }) };
+      if (url === "/api/subscription") return { ok: true, json: async () => ({ subscription: { plan: "starter" } }) };
+      return url.startsWith("/api/ad-variant-packs") ? { ok: true, json: async () => ({ packs: backendPacks }) } : { ok: true, json: async () => ({ campaigns: backendCampaigns }) };
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Actualiser"]')!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const duplicate = [...container.querySelectorAll<HTMLButtonElement>(".ad-variant-pack-actions button")].find((button) => button.textContent?.includes("Dupliquer"))!;
+    await act(async () => { duplicate.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    expect(container.querySelector('[data-testid="pack-wizard"]')?.textContent).toBe("Pack draft from Produit pack test");
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/launch"))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/actions"))).toBe(false);
   });
 
   it("shows active campaigns first in launch order and omits historical campaigns from the UI", () => {

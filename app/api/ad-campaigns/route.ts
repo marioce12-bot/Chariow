@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { MIN_META_AD_AGE, MIN_AGE_ERROR_FR } from "@/lib/ad-campaigns/age";
 import { requireUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { sanitizeGeoTargeting } from "@/lib/ad-campaigns/geo";
 import { sanitizeMetaTargeting } from "@/lib/ad-campaigns/meta-targeting";
@@ -9,6 +10,7 @@ import { normalizeMetaCta } from "@/lib/meta/cta";
 import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { getMetaCampaignLifecycle } from "@/lib/meta/status";
 import { linkCampaignMedia } from "@/lib/creative-performance/placements";
+import { markLinkedVariantPacksDeleted } from "@/lib/ad-variant-pack-lifecycle";
 
 const objectives = new Set(["sales", "traffic", "engagement", "leads"]);
 
@@ -214,5 +216,18 @@ export async function DELETE(request: Request) {
     external_campaign_id: campaign.external_campaign_id,
     external_ad_id: campaign.external_ad_id,
   }).eq("user_id", user.id).eq("campaign_key", campaign.id);
+  if (campaign.platform === "meta" && campaign.external_campaign_id) {
+    try {
+      await markLinkedVariantPacksDeleted({
+        client: createAdminClient(),
+        userId: user.id,
+        metaAdAccountId: campaign.meta_ad_account_id,
+        externalCampaignId: campaign.external_campaign_id,
+        source: "vendeo",
+      });
+    } catch {
+      return NextResponse.json({ error: "La suppression Meta est confirmée et la campagne est conservée comme supprimée, mais son Pack lié n’a pas pu être synchronisé." }, { status: 502 });
+    }
+  }
   return NextResponse.json({ ok: true });
 }
