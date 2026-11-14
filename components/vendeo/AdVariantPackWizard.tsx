@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowRight, ImagePlus, Loader2, RotateCcw, Search, Sparkles, X } from "lucide-react";
 import { LaunchProgress } from "@/components/chat/LaunchProgress";
-import { packBudgetCents } from "@/lib/ad-variant-packs";
-import { buildGeoTargeting, deriveCountries, type ChariowProductLite, type GeoLocation } from "@/components/vendeo/wizard/types";
+import { packBudgetCents, type PackInput } from "@/lib/ad-variant-packs";
+import { buildGeoTargeting, COUNTRY_OPTIONS, deriveCountries, type ChariowProductLite, type GeoLocation } from "@/components/vendeo/wizard/types";
 import { LocationSearchInput } from "@/components/vendeo/wizard/LocationSearchInput";
 import type { MetaGenderTarget, MetaInterestTarget } from "@/lib/ad-campaigns/meta-targeting";
 import { DEFAULT_META_CTA, META_CTA_LABELS, META_CTA_TYPES, normalizeMetaCta, type MetaCtaType } from "@/lib/meta/cta";
@@ -36,23 +36,72 @@ const DEFAULT: Draft = {
 const uid = () => crypto.randomUUID();
 function isWebUrl(value: unknown): value is string { try { const url = new URL(String(value)); return url.protocol === "https:" || url.protocol === "http:"; } catch { return false; } }
 
-export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: string; onClose: () => void; onLaunched: () => void }) {
+type DuplicatePack = PackInput & { id: string };
+
+function draftFromPack(pack: DuplicatePack, storeId: string): Draft {
+  const geo = pack.geo_targeting && typeof pack.geo_targeting === "object" ? pack.geo_targeting as { countries?: string[]; regions?: { key: string; name: string }[]; cities?: { key: string; name: string }[] } : {};
+  const countryCodes = (geo.countries?.length ? geo.countries : pack.countries?.length ? pack.countries : ["BJ"]).map((code) => code.toUpperCase());
+  const fallbackCountry = countryCodes[0] ?? "BJ";
+  const locations: GeoLocation[] = [
+    ...(geo.regions ?? []).map((region) => ({ key: region.key, name: region.name, type: "region" as const, countryCode: fallbackCountry })),
+    ...(geo.cities ?? []).map((city) => ({ key: city.key, name: city.name, type: "city" as const, countryCode: fallbackCountry })),
+  ];
+  if (!locations.length) locations.push(...countryCodes.map((code) => ({ key: code, name: COUNTRY_OPTIONS.find((option) => option.code === code)?.label ?? code, type: "country" as const, countryCode: code })));
+  const target = pack.meta_targeting && typeof pack.meta_targeting === "object" ? pack.meta_targeting as { gender?: MetaGenderTarget | null; interests?: MetaInterestTarget[] } : {};
+  const variants = pack.variants.map((variant) => ({
+    variant,
+    angle: { id: variant.id, title: variant.angle, rationale: "", copy: variant.text, recommended: true } satisfies AdAngle,
+  }));
+  return {
+    ...DEFAULT,
+    storeId,
+    productId: pack.product_id,
+    objective: "sales",
+    locations,
+    minAge: pack.min_age,
+    maxAge: pack.max_age,
+    gender: target.gender ?? null,
+    interests: Array.isArray(target.interests) ? target.interests : [],
+    advantageAudience: pack.advantage_audience,
+    dailyBudget: Number(pack.daily_budget),
+    durationDays: pack.duration_days,
+    angles: variants.map((item) => item.angle),
+    selected: variants.map((item) => item.variant.id),
+    variants: Object.fromEntries(variants.map(({ variant }) => [variant.id, {
+      angleId: variant.id,
+      format: variant.format,
+      media: [...variant.media],
+      copy: variant.text,
+      callToAction: normalizeMetaCta(variant.call_to_action) ?? DEFAULT_META_CTA,
+    }])),
+    step: 1,
+    metaAdAccountId: pack.meta_ad_account_id,
+    metaPageId: pack.meta_page_id,
+    dsaBeneficiary: pack.dsa_beneficiary,
+    dsaPayor: pack.dsa_payor,
+    started: true,
+  };
+}
+
+export function VariantPackWizard({ storeId, onClose, onLaunched, duplicatePack, draftStorageKey }: { storeId: string; onClose: () => void; onLaunched: () => void; duplicatePack?: DuplicatePack; draftStorageKey?: string }) {
   const { locale } = useI18n();
   const en = locale === "en";
+  const storageKey = draftStorageKey ?? DRAFT_KEY;
   const [mounted, setMounted] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => {
-    if (typeof window === "undefined") return { ...DEFAULT, storeId };
+    const initial = () => duplicatePack ? draftFromPack(duplicatePack, storeId) : { ...DEFAULT, storeId };
+    if (typeof window === "undefined") return initial();
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return { ...DEFAULT, storeId };
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return initial();
       const saved = JSON.parse(raw) as Partial<Draft>;
       if (!hasVariantPackDraftProgress(saved)) {
-        localStorage.removeItem(DRAFT_KEY);
-        return { ...DEFAULT, storeId };
+        localStorage.removeItem(storageKey);
+        return initial();
       }
       return { ...DEFAULT, ...saved, dsaBeneficiary: saved.dsaBeneficiary ?? "", dsaPayor: saved.dsaPayor ?? "", objective: "sales", storeId: saved.storeId || storeId, step: getVariantPackDraftStep(saved.step), started: true };
     }
-    catch { return { ...DEFAULT, storeId }; }
+    catch { return initial(); }
   });
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<ChariowProductLite[]>([]);
@@ -90,8 +139,8 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
   }, []);
   useEffect(() => {
     try {
-      if (ready || !hasVariantPackDraftProgress(draft)) localStorage.removeItem(DRAFT_KEY);
-      else localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, started: true }));
+      if (ready || !hasVariantPackDraftProgress(draft)) localStorage.removeItem(storageKey);
+      else localStorage.setItem(storageKey, JSON.stringify({ ...draft, started: true }));
     } catch { /* storage unavailable */ }
   }, [draft, ready]);
 
@@ -314,7 +363,7 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
     let nextDraft: Draft = { ...draft, packId: draft.packId ?? uid(), metaPageId: pageId, started: true };
     const persist = (next: Draft) => {
       // Refuse launch if the key cannot survive a refresh: otherwise a retry may duplicate a campaign.
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+      localStorage.setItem(storageKey, JSON.stringify(next));
       setDraft(next);
     };
     try {
@@ -353,15 +402,15 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
 
   const close = () => {
     try {
-      if (hasVariantPackDraftProgress(draft)) localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, started: true }));
-      else localStorage.removeItem(DRAFT_KEY);
+      if (hasVariantPackDraftProgress(draft)) localStorage.setItem(storageKey, JSON.stringify({ ...draft, started: true }));
+      else localStorage.removeItem(storageKey);
     } catch { /* ignore */ }
     onClose();
   };
   const editBlockedPack = () => {
     if (launchState !== "blocked" || busy) return;
     const next = { ...draft, serverPackId: undefined, packId: undefined, launchRequested: false };
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(next)); }
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); }
     catch { setError(en ? "Local storage is unavailable; the pack cannot be safely resumed." : "Le stockage local est indisponible ; impossible de reprendre le pack en sécurité."); return; }
     setDraft(next); setLaunchState(null); setLaunchPercent(null); setError("");
   };
@@ -379,7 +428,7 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex min-w-0 flex-col bg-black/40 sm:items-center sm:justify-center">
       <div role="dialog" aria-modal="true" aria-labelledby="pack-title" className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-white text-gray-900 sm:h-auto sm:max-h-[92vh] sm:max-w-3xl sm:rounded-2xl">
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-4 sm:px-5"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-[#6366F1]">VENDEO · META ADS</p><h2 id="pack-title" className="break-words text-lg font-bold">{en ? "Variant pack" : "Pack de variantes"}</h2></div><button type="button" disabled={busy && !draft.launchRequested} aria-label={en ? "Close" : "Fermer"} onClick={close} className="shrink-0 rounded-full p-2 text-gray-500 disabled:opacity-40"><X size={18}/></button></header>
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-4 sm:px-5"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-[#6366F1]">VENDEO · META ADS</p><h2 id="pack-title" className="break-words text-lg font-bold">{duplicatePack ? (en ? "Duplicate variant pack" : "Copie du Pack de variantes") : en ? "Variant pack" : "Pack de variantes"}</h2></div><button type="button" disabled={busy && !draft.launchRequested} aria-label={en ? "Close" : "Fermer"} onClick={close} className="shrink-0 rounded-full p-2 text-gray-500 disabled:opacity-40"><X size={18}/></button></header>
         <div className="grid shrink-0 grid-cols-2 gap-2 border-b px-4 py-3 text-xs sm:grid-cols-4 sm:px-5">{[en ? "Setup" : "Réglages", "Angles", en ? "Creatives" : "Visuels", en ? "Review" : "Récapitulatif"].map((label, i) => <span key={label} aria-current={draft.step === i + 1 ? "step" : undefined} className={`min-w-0 rounded-full px-3 py-1.5 ${draft.step === i + 1 ? "bg-[#EEF2FF] font-bold text-[#3730A3]" : "bg-gray-100 text-gray-500"}`}>{i + 1}. {label}</span>)}</div>
         <main ref={stepContentRef} className="min-h-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5">
           {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
@@ -388,7 +437,7 @@ export function VariantPackWizard({ storeId, onClose, onLaunched }: { storeId: s
           {ready ? <div className="space-y-3 rounded-2xl bg-emerald-50 p-5 text-emerald-900"><LaunchProgress complete label={en ? "Campaign sent to Meta" : "Campagne envoyée à Meta"}/><h3 className="font-bold">{en ? "Pack launched" : "Pack lancé"}</h3><p className="text-sm">{en ? "One Meta campaign with one ad set and three ads was sent. Check its delivery status in Meta." : "Une campagne Meta avec un seul ensemble de publicités contenant trois publicités a été envoyée. Vérifie son statut de diffusion dans Meta."}</p><button type="button" className="rounded-lg bg-[#6366F1] px-4 py-2 font-semibold text-white" onClick={onClose}>{en ? "Close" : "Fermer"}</button></div> : null}
 
           {!ready && draft.step === 1 && <>
-            <p className="text-sm text-gray-600">{en ? "Choose your connected Shopify or Chariow store, product and Meta campaign settings. Nothing is created until you confirm the final review." : "Choisis une boutique Shopify ou Chariow connectée, un produit et les paramètres Meta. Rien n’est créé avant ta confirmation finale."}</p>
+            <p className="text-sm text-gray-600">{duplicatePack ? (en ? "This is a separate draft copied from an existing Pack. Nothing is sent to Meta and no creative credits are used until you make a new confirmation." : "C’est un brouillon distinct, copié depuis un Pack existant. Rien n’est envoyé à Meta et aucun crédit de création n’est utilisé avant une nouvelle confirmation.") : en ? "Choose your connected Shopify or Chariow store, product and Meta campaign settings. Nothing is created until you confirm the final review." : "Choisis une boutique Shopify ou Chariow connectée, un produit et les paramètres Meta. Rien n’est créé avant ta confirmation finale."}</p>
             <label className="grid min-w-0 gap-1 text-sm font-semibold">{en ? "Store" : "Boutique"}<select className="w-full min-w-0 rounded-lg border p-2" value={draft.storeId} onChange={(e) => patch({ storeId: e.target.value, productId: "" })}>{stores.map((store) => <option key={store.id} value={store.id}>{store.store_name || store.id} · {store.platform === "shopify" ? "Shopify" : "Chariow"}</option>)}</select></label>
             {!stores.length && <p role="status" className="text-sm text-amber-800">{en ? "Connect a Shopify or Chariow store before continuing." : "Connecte une boutique Shopify ou Chariow avant de continuer."}</p>}
             <label className="grid min-w-0 gap-1 text-sm font-semibold">{en ? "Product" : "Produit"}<select className="w-full min-w-0 rounded-lg border p-2" value={draft.productId} onChange={(e) => patch({ productId: e.target.value })}><option value="">{en ? "Choose a product" : "Choisir un produit"}</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>

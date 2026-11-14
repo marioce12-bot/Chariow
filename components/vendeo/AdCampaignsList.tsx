@@ -4,9 +4,10 @@ import "./ad-campaigns-list.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CopyPlus, PauseCircle, PlayCircle, RefreshCw, X } from "lucide-react";
+import { CopyPlus, PauseCircle, PlayCircle, RefreshCw, Trash2, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
 import { LaunchAdWizard } from "./wizard/LaunchAdWizard";
+import { VariantPackWizard } from "./AdVariantPackWizard";
 import type { Platform } from "./wizard/types";
 import { SkeletonRows } from "@/components/dashboard/Skeleton";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -59,10 +60,17 @@ type AdVariantPackSummary = {
   id: string;
   product_name: string;
   status: string;
+  external_campaign_id?: string | null;
   daily_budget?: number | string | null;
   duration_days?: number | null;
   created_at: string;
-  checkpoints?: { activated?: boolean | null; adsets?: Array<string | null> } | null;
+  checkpoints?: {
+    activated?: boolean | null;
+    campaignId?: string | null;
+    adsets?: Array<string | null>;
+    ads?: Array<string | null>;
+    meta_state?: { status?: string; synced_at?: string; sync_error?: string; ads?: { id: string; status: string }[] } | null;
+  } | null;
   variants?: { id: string; angle: string; format: string; media?: string[] }[] | null;
 };
 
@@ -74,8 +82,12 @@ function getMetaControlAction(campaign: AdCampaign): "pause" | "activate" | null
   return null;
 }
 
-function getVariantPackStatus(pack: AdVariantPackSummary, en: boolean): string {
-  if (pack.status === "completed" && pack.checkpoints?.activated === true) return en ? "Launch confirmed" : "Lancement confirmé";
+function getVariantPackStatus(pack: AdVariantPackSummary, en: boolean, statusLabels: Record<string, string>): string {
+  if (pack.status === "completed" && pack.checkpoints?.activated === true) {
+    const metaStatus = pack.checkpoints?.meta_state?.status;
+    if (metaStatus) return statusLabels[metaStatus] ?? STATUS_META[metaStatus]?.label ?? (en ? "Status unknown" : "Statut inconnu");
+    return en ? "Syncing Meta status…" : "Synchronisation du statut Meta…";
+  }
   if (pack.status === "blocked") return en ? "Checks blocked" : "Vérifications bloquées";
   if (pack.status === "claimed" || pack.status === "ambiguous") return en ? "Needs verification" : "À vérifier";
   return en ? "Launch status unavailable" : "Statut de lancement indisponible";
@@ -139,8 +151,8 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
     .filter((campaign) => !["archived", "deleted"].includes(getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? ""))
     .sort((a, b) => Number(b.status === "active") - Number(a.status === "active") || b.created_at.localeCompare(a.created_at));
   const currentVariantPacks = (Array.isArray(variantPacksQuery.data?.packs) ? variantPacksQuery.data.packs : [])
-    .filter((pack) => pack.status !== "draft")
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    .filter((pack) => pack.status !== "draft" && !["archived", "deleted"].includes(pack.checkpoints?.meta_state?.status ?? ""))
+    .sort((a, b) => Number(b.checkpoints?.meta_state?.status === "active") - Number(a.checkpoints?.meta_state?.status === "active") || b.created_at.localeCompare(a.created_at));
   const loading = campaignsQuery.loading;
   const [resuming, setResuming] = useState<AdCampaign | null>(null);
   const [correcting, setCorrecting] = useState<AdCampaign | null>(null);
@@ -153,10 +165,16 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
   const [saving, setSaving] = useState(false);
   const [metaActionBusy, setMetaActionBusy] = useState<string | null>(null);
   const [metaActionError, setMetaActionError] = useState<string | null>(null);
+  const [packActionBusy, setPackActionBusy] = useState<string | null>(null);
+  const [packActionError, setPackActionError] = useState<string | null>(null);
+  const [duplicatingPack, setDuplicatingPack] = useState<Record<string, any> | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const refreshInFlight = useRef(false);
+  const refreshRequested = useRef(false);
+  const latestRefresh = useRef<(() => Promise<void>) | null>(null);
   const lastAutoRefreshAt = useRef(0);
+  const lastAutoRefreshKey = useRef("");
   const detailHistoryEntry = useRef(false);
   const openDetail = useCallback((campaign: AdCampaign) => {
     setMetaActionError(null);
@@ -266,6 +284,54 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
       setMetaActionBusy(null);
     }
   }, [locale, load, metaActionBusy, navigationCache]);
+  const runPackAction = useCallback(async (pack: AdVariantPackSummary, action: "pause" | "activate" | "delete" | "pause-ad" | "activate-ad", adIndex?: number) => {
+    if (packActionBusy) return;
+    const busyKey = `${pack.id}:${action}:${adIndex ?? ""}`;
+    setPackActionBusy(busyKey);
+    setPackActionError(null);
+    const endpoint = `/api/ad-variant-packs/${encodeURIComponent(pack.id)}/actions`;
+    try {
+      const actionBody = { action, ...(adIndex !== undefined ? { adIndex } : {}) };
+      const preparedResponse = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phase: "prepare", ...actionBody }) });
+      const prepared = await preparedResponse.json().catch(() => null) as { error?: string; token?: string; preview?: { name?: string; warning?: string } } | null;
+      if (!preparedResponse.ok || !prepared?.token || !prepared.preview) {
+        setPackActionError(prepared?.error ?? (en ? "Meta status could not be verified." : "Impossible de vérifier le statut Meta."));
+        return;
+      }
+      const confirmation = `${prepared.preview.name ?? pack.product_name ?? pack.id}\n\n${prepared.preview.warning ?? ""}\n\n${en ? "Confirm this Meta action?" : "Confirmer cette action sur Meta ?"}`;
+      if (!window.confirm(confirmation)) return;
+      const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phase: "execute", ...actionBody, token: prepared.token, confirmed: true }) });
+      const result = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) {
+        setPackActionError(result?.error ?? (en ? "Meta did not confirm the action. Check the Pack in Meta before trying again." : "Meta n’a pas confirmé l’action. Vérifie le Pack dans Meta avant de réessayer."));
+        return;
+      }
+      navigationCache.invalidate();
+      await load();
+    } catch {
+      setPackActionError(en ? "The result is ambiguous. Check the affected Meta objects before retrying; Vendeo did not repeat the action." : "Le résultat est ambigu. Vérifie les objets concernés dans Meta avant de réessayer ; Vendeo n’a pas répété l’action.");
+    } finally {
+      setPackActionBusy(null);
+    }
+  }, [en, load, navigationCache, packActionBusy]);
+  const openPackDuplicate = useCallback(async (pack: AdVariantPackSummary) => {
+    if (packActionBusy) return;
+    setPackActionBusy(`${pack.id}:duplicate`);
+    setPackActionError(null);
+    try {
+      const response = await fetch(`/api/ad-variant-packs/${encodeURIComponent(pack.id)}`, { cache: "no-store" });
+      const data = await response.json().catch(() => null) as { error?: string; pack?: Record<string, any> } | null;
+      if (!response.ok || !data?.pack) {
+        setPackActionError(data?.error ?? (en ? "The source Pack could not be loaded." : "Impossible de charger le Pack source."));
+        return;
+      }
+      setDuplicatingPack(data.pack);
+    } catch {
+      setPackActionError(en ? "The source Pack could not be loaded." : "Impossible de charger le Pack source.");
+    } finally {
+      setPackActionBusy(null);
+    }
+  }, [en, packActionBusy]);
   const deleteSelectedCampaign = useCallback(async () => {
     if (!selected || deleting) return;
     const confirmation = locale === "en"
@@ -297,28 +363,39 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
     await load();
   };
 
-  // Revalidate every linked Meta campaign, including paused ones, for remote
-  // status/creative changes. IDs are stable so
-  // list cache refreshes do not continuously restart polling.
+  // Revalidate linked campaigns and Packs for remote status/creative changes.
+  // IDs are stable so cache refreshes do not continuously restart polling.
   const monitoredIds = [...new Set(campaigns.filter((campaign) => campaign.platform === "meta" && campaign.external_campaign_id && !["archived", "deleted"].includes(getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? "")).map((campaign) => campaign.id))].sort();
+  const monitoredPackIds = [...new Set(currentVariantPacks.filter((pack) => pack.status === "completed" && pack.checkpoints?.activated === true).map((pack) => pack.id))].sort();
+  const monitoredKey = `campaigns:${monitoredIds.join(",")}|packs:${monitoredPackIds.join(",")}`;
   const refresh = useCallback(async () => {
-    if (refreshInFlight.current) return;
+    if (refreshInFlight.current) { refreshRequested.current = true; return; }
     refreshInFlight.current = true;
     try {
       for (let i = 0; i < monitoredIds.length; i += 5) {
         await Promise.all(monitoredIds.slice(i, i + 5).map((id) => fetch(`/api/ad-campaigns/${id}/status`, { cache: "no-store" }).catch(() => null)));
       }
+      for (let i = 0; i < monitoredPackIds.length; i += 5) {
+        await Promise.all(monitoredPackIds.slice(i, i + 5).map((id) => fetch(`/api/ad-variant-packs/${id}/status`, { cache: "no-store" }).catch(() => null)));
+      }
       await load();
     } finally {
       refreshInFlight.current = false;
+      if (refreshRequested.current) {
+        refreshRequested.current = false;
+        window.setTimeout(() => { if (latestRefresh.current) void latestRefresh.current(); }, 0);
+      }
     }
-  }, [load, monitoredIds.join(",")]);
+  }, [load, monitoredIds.join(","), monitoredPackIds.join(",")]);
+  latestRefresh.current = refresh;
   useEffect(() => {
-    if (!monitoredIds.length) return;
+    if (!monitoredIds.length && !monitoredPackIds.length) return;
     let disposed = false;
     const intervalMs = 10 * 60_000;
     const refreshWhenDue = () => {
-      if (disposed || document.visibilityState !== "visible" || !document.hasFocus() || Date.now() - lastAutoRefreshAt.current < intervalMs) return;
+      const hasNewObjects = monitoredKey !== lastAutoRefreshKey.current;
+      if (disposed || document.visibilityState !== "visible" || !document.hasFocus() || (!hasNewObjects && Date.now() - lastAutoRefreshAt.current < intervalMs)) return;
+      lastAutoRefreshKey.current = monitoredKey;
       lastAutoRefreshAt.current = Date.now();
       void refresh();
     };
@@ -327,7 +404,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
     document.addEventListener("visibilitychange", refreshWhenDue);
     window.addEventListener("focus", refreshWhenDue);
     return () => { disposed = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", refreshWhenDue); window.removeEventListener("focus", refreshWhenDue); };
-  }, [monitoredIds.length, refresh]);
+  }, [monitoredKey, refresh]);
 
   const selectedMetaAction = selected ? getMetaControlAction(selected) : null;
   if (!storeId) return null;
@@ -423,6 +500,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
             );
           })}
           {currentCampaigns.length > 3 ? <button type="button" className="btn btn-ghost" onClick={() => setShowAll((value) => !value)}>{showAll ? t("campaigns.reduce") : t("campaigns.more", { count: currentCampaigns.length - 3 })}</button> : null}
+          {packActionError ? <p role="alert" className="hint-line" style={{ color: "#991B1B" }}>{packActionError}</p> : null}
           {includeVariantPacks && currentVariantPacks.length > 0 ? <section className="ad-variant-pack-list" aria-label={en ? "Variant packs" : "Packs de variantes"}>
             <h3 className="ad-campaign-group-title">{en ? "Variant packs" : "Packs de variantes"}</h3>
             {currentVariantPacks.map((pack) => {
@@ -432,22 +510,43 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
                 ? `${variants.length} ${en ? "ads" : "publicités"}`
                 : `${adSetCount} ${en ? (adSetCount === 1 ? "ad set" : "ad sets") : (adSetCount === 1 ? "ensemble" : "ensembles")} · ${variants.length} ${en ? (variants.length === 1 ? "ad" : "ads") : (variants.length === 1 ? "publicité" : "publicités")}`;
               const budget = Number(pack.daily_budget);
-              const status = getVariantPackStatus(pack, en);
+              const metaState = pack.checkpoints?.meta_state;
+              const status = getVariantPackStatus(pack, en, statusLabels);
+              const hasRejectedAd = Boolean(metaState?.ads?.some((ad) => ad.status === "rejected"));
+              const groupAction = metaState?.status === "active" || metaState?.status === "review" || metaState?.status === "preparing" ? "pause" : metaState?.status === "paused" && !hasRejectedAd ? "activate" : null;
+              const packBusy = Boolean(packActionBusy?.startsWith(`${pack.id}:`));
               return <article key={pack.id} className="ad-variant-pack-card">
                 <div className="ad-variant-pack-header"><div className="ad-variant-pack-heading"><span className="ad-variant-pack-kicker">{en ? "Grouped campaign" : "Campagne groupée"}</span><strong>{pack.product_name}</strong><span className="hint-line">{structure}{Number.isFinite(budget) ? ` · ${en ? "total" : "budget total"} ${budget.toFixed(2)} USD/${en ? "day" : "jour"}` : ""}{Number.isInteger(pack.duration_days) ? ` · ${pack.duration_days} ${en ? "days" : "jours"}` : ""}</span></div><span className="ad-variant-pack-status">{status}</span></div>
                 <div className="ad-variant-pack-variants">{variants.map((variant, index) => {
                   const media = Array.isArray(variant.media) ? variant.media : [];
                   const format = variant.format === "carousel" ? (en ? "Carousel" : "Carrousel") : variant.format === "video" ? "Vidéo" : (en ? "Image" : "Image");
-                  return <div key={variant.id} className="ad-variant-pack-variant">
+                  const adStatus = metaState?.ads?.[index]?.status;
+                  const adAction = adStatus === "active" || adStatus === "review" || adStatus === "preparing" ? "pause-ad" : adStatus === "paused" ? "activate-ad" : null;
+                  const adActionLabel = adAction === "pause-ad" ? (en ? "Pause ad" : "Mettre en pause") : (en ? "Activate ad" : "Activer la pub");
+                  return <div key={variant.id} className="ad-variant-pack-variant" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     {media[0] ? variant.format === "video" ? <video src={media[0]} muted playsInline preload="metadata" aria-label={`${en ? "Preview" : "Aperçu"} — ${variant.angle}`} /> : <img src={media[0]} alt={`${en ? "Creative" : "Visuel"} — ${variant.angle}`} loading="lazy" /> : <span className="ad-variant-pack-no-media">{en ? "No preview" : "Sans visuel"}</span>}
-                    <span className="ad-variant-pack-variant-copy"><strong>{variant.angle || (en ? `Variant ${index + 1}` : `Variante ${index + 1}`)}</strong><small>{format}{media.length > 1 ? ` · ${media.length} images` : ""}</small></span>
+                    <span className="ad-variant-pack-variant-copy"><strong>{variant.angle || (en ? `Variant ${index + 1}` : `Variante ${index + 1}`)}</strong><small>{format}{media.length > 1 ? ` · ${media.length} images` : ""}{adStatus ? ` · ${statusLabels[adStatus] ?? STATUS_META[adStatus]?.label ?? adStatus}` : ""}</small></span>
+                    {adAction ? <button type="button" className="btn btn-ghost" disabled={packBusy} aria-label={`${adActionLabel} — ${variant.angle || index + 1}`} onClick={() => void runPackAction(pack, adAction, index)}>{adAction === "pause-ad" ? <PauseCircle size={14} /> : <PlayCircle size={14} />}{adActionLabel}</button> : null}
                   </div>;
                 })}</div>
                 <p className="ad-variant-pack-footnote">{pack.status === "completed" && pack.checkpoints?.activated === true
-                  ? (en ? "Vendeo confirms the launch. Current delivery status is not synchronized in this list." : "Vendeo confirme le lancement. Le statut actuel de diffusion n’est pas synchronisé dans cette liste.")
+                  ? metaState?.sync_error
+                    ? (en ? "Meta status could not be verified. Refresh before relying on the displayed state." : "Le statut Meta n’a pas pu être vérifié. Actualise avant de te fier à l’état affiché.")
+                    : !metaState?.status
+                      ? (en ? "Meta delivery status is synchronizing. A confirmed launch does not mean the ads are currently delivering." : "Le statut de diffusion Meta est en cours de synchronisation. Un lancement confirmé ne signifie pas que les publicités diffusent actuellement.")
+                    : metaState.status === "unknown"
+                      ? (en ? "Meta’s current status is unknown; no active delivery is assumed." : "Le statut actuel chez Meta est inconnu ; aucune diffusion active n’est supposée.")
+                      : metaState.status === "paused" && hasRejectedAd
+                        ? (en ? "At least one Pack ad was rejected by Meta; correct it before reactivating the whole Pack." : "Meta a refusé au moins une publicité du Pack ; corrige-la avant de réactiver tout le Pack.")
+                      : (en ? "Current status synchronized from Meta." : "Statut actuel synchronisé depuis Meta.")
                   : pack.status === "blocked"
                     ? (en ? "Vendeo blocked this pack before confirming its launch." : "Vendeo indique que ce Pack a été bloqué avant confirmation de son lancement.")
                     : (en ? "Vendeo has no confirmed delivery status for this pack yet." : "Vendeo n’a pas encore de statut de diffusion confirmé pour ce Pack.")}</p>
+                <div className="ad-variant-pack-actions" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                  {groupAction ? <button type="button" className="btn btn-ghost" disabled={packBusy} onClick={() => void runPackAction(pack, groupAction)}>{groupAction === "pause" ? <PauseCircle size={14} /> : <PlayCircle size={14} />}{groupAction === "pause" ? (en ? "Pause Pack" : "Mettre le Pack en pause") : (en ? "Resume Pack" : "Réactiver le Pack")}</button> : null}
+                  <button type="button" className="btn btn-ghost" disabled={packBusy} onClick={() => void openPackDuplicate(pack)}><CopyPlus size={14} />{en ? "Duplicate" : "Dupliquer"}</button>
+                  {pack.status === "completed" && pack.checkpoints?.activated === true ? <button type="button" className="btn btn-danger-ghost" disabled={packBusy} onClick={() => void runPackAction(pack, "delete")}><Trash2 size={14} />{en ? "Delete from Vendeo & Meta" : "Supprimer dans Vendeo et Meta"}</button> : null}
+                </div>
               </article>;
             })}
           </section> : null}
@@ -482,6 +581,16 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
           plan={plan}
           duplicateCampaign={duplicating}
           onClose={() => setDuplicating(null)}
+          onLaunched={() => { navigationCache.invalidate(); void load(); }}
+        />
+      ) : null}
+      {duplicatingPack && storeId ? (
+        <VariantPackWizard
+          key={`duplicate-pack:${duplicatingPack.id}`}
+          storeId={storeId}
+          duplicatePack={duplicatingPack as any}
+          draftStorageKey={`vendeo_ad_variant_pack_duplicate_${duplicatingPack.id}`}
+          onClose={() => setDuplicatingPack(null)}
           onLaunched={() => { navigationCache.invalidate(); void load(); }}
         />
       ) : null}

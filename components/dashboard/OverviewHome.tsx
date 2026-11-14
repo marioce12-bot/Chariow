@@ -37,7 +37,7 @@ type VariantPackSummary = {
   id: string;
   status: string;
   external_campaign_id?: string | null;
-  checkpoints?: { activated?: boolean } | null;
+  checkpoints?: { activated?: boolean; campaignId?: string | null; meta_state?: { status?: string; synced_at?: string } | null } | null;
   variants?: unknown[];
 };
 type SaleGroup = "success" | "pending" | "failed";

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { requireUser } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto";
 import { activateMetaCampaign, deleteMetaCampaign, pauseMetaCampaign } from "@/lib/meta/campaigns";
 import { META_GRAPH_BASE_URL } from "@/lib/meta/api";
 import { issueConfirmation, normalizeChanges, platformStatusFromMeta, verifyConfirmation, type CampaignAction } from "@/lib/chat/campaign-actions";
+import { markLinkedVariantPacksDeleted, syncLinkedStandardCampaignStatus } from "@/lib/ad-variant-pack-lifecycle";
 
 const copyFields = ["store_id", "product_id", "product_name", "platform", "objective", "ad_set_name", "ad_name", "ad_text", "destination_url", "media_url", "carousel_urls", "countries", "geo_targeting", "meta_targeting", "min_age", "max_age", "meta_ad_account_id", "tiktok_ad_account_id", "pinterest_ad_account_id", "meta_page_id", "call_to_action", "advantage_creative", "advantage_audience", "daily_budget", "duration_days"] as const;
 const fields = "id,user_id,title,status,external_campaign_id,external_adset_id,external_ad_id,external_creative_id,autopilot_enabled,updated_at,store_id,product_id,product_name,platform,objective,ad_set_name,ad_name,ad_text,destination_url,media_url,carousel_urls,countries,geo_targeting,meta_targeting,min_age,max_age,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,meta_page_id,call_to_action,advantage_creative,advantage_audience,daily_budget,duration_days";
@@ -153,5 +155,14 @@ export async function POST(request: Request) {
   const updates = { status, autopilot_enabled: false, ...(action === "pause" ? { autopilot_paused_at: new Date().toISOString(), autopilot_pause_reason: "user_requested" } : {}) };
   const { data, error } = await supabase.from("ad_campaigns").update(updates).eq("id", campaign.id).eq("user_id", user.id).eq("updated_at", claimed.updated_at).select("id,title,status,platform").maybeSingle();
   if (error || !data) return fail("Meta a accepté l’action, mais l’état Vendeo n’a pas été enregistré. Vérifie la campagne avant toute nouvelle action.", 502);
+  if (action === "delete") {
+    try {
+      const admin = createAdminClient();
+      await markLinkedVariantPacksDeleted({ client: admin, userId: user.id, metaAdAccountId: campaign.meta_ad_account_id, externalCampaignId: campaign.external_campaign_id, source: "vendeo" });
+      await syncLinkedStandardCampaignStatus({ client: admin, userId: user.id, metaAdAccountId: campaign.meta_ad_account_id, externalCampaignId: campaign.external_campaign_id, status: "deleted" });
+    } catch {
+      return fail("La suppression Meta est confirmée et la campagne est marquée supprimée, mais le Pack lié n’a pas pu être synchronisé.", 502);
+    }
+  }
   return NextResponse.json({ message: action === "delete" ? "Suppression confirmée par Meta; campagne marquée supprimée dans Vendeo." : action === "pause" ? "Pause configurée et vérifiée chez Meta sur la campagne, l’ensemble et la publicité; les règles automatiques de budget ont été désactivées." : "Statut ACTIVE configuré et vérifié chez Meta. La diffusion reste soumise à l’examen et aux restrictions Meta; les règles automatiques de budget ont été désactivées.", campaign: data });
 }
