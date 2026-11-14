@@ -17,8 +17,12 @@ export function validatePackInput(x: any): string | null {
   if (!uuid.test(x.store_id) || !uuid.test(x.meta_ad_account_id)) return "Identifiant store/compte invalide";
   if (!validUrl(x.destination_url)) return "URL de destination HTTPS requise";
   if (!Array.isArray(x.variants) || x.variants.length !== 3 || new Set(x.variants.map((v: any) => v?.id)).size !== 3) return "Exactement trois variantes uniques sont requises";
+  const angleNames = new Set<string>();
   for (const v of x.variants) {
-    if (!v || typeof v.id !== "string" || typeof v.angle !== "string" || !v.angle.trim() || typeof v.text !== "string" || !v.text.trim() || v.text.length > 5000) return "Contenu de variante invalide";
+    if (!v || typeof v.id !== "string" || typeof v.angle !== "string" || !v.angle.trim() || v.angle.trim().length > 200 || typeof v.text !== "string" || !v.text.trim() || v.text.length > 5000) return "Contenu de variante invalide";
+    const angleKey = v.angle.trim().toLocaleLowerCase();
+    if (angleNames.has(angleKey)) return "Les trois angles doivent avoir des noms distincts";
+    angleNames.add(angleKey);
     if (!["image", "video", "carousel"].includes(v.format) || !Array.isArray(v.media) || !v.media.every(validUrl)) return "Format ou médias invalides";
     if ((v.format === "image" || v.format === "video") && v.media.length !== 1) return "Une image ou vidéo exactement est requise";
     if (v.format === "carousel" && (v.media.length < 2 || v.media.length > 5)) return "Un carrousel doit contenir de 2 à 5 médias";
@@ -29,12 +33,10 @@ export function validatePackInput(x: any): string | null {
   if (!Number.isFinite(x.daily_budget) || x.daily_budget < 3 || x.daily_budget > 1000000 || Math.abs(Math.round(x.daily_budget * 100) - x.daily_budget * 100) >= 0.000001 || !Number.isInteger(x.duration_days) || x.duration_days < 1 || x.duration_days > 90) return "Budget ou durée invalides";
   return null;
 }
-export function splitPackBudgetCents(total: number): [number, number, number] {
+export function packBudgetCents(total: number): number {
   if (!Number.isFinite(total) || total < 3) throw new Error("Le budget total doit être au moins 3");
-  const cents = Math.round(total * 100), base = Math.floor(cents / 3), remainder = cents - base * 3;
-  return [base + (remainder > 0 ? 1 : 0), base + (remainder > 1 ? 1 : 0), base];
+  return Math.round(total * 100);
 }
-export function splitPackBudget(total: number): [number, number, number] { return splitPackBudgetCents(total).map(v => v / 100) as [number, number, number]; }
 
 export type PackCheckpoint = { campaignId?: string; adsets?: Array<string | null>; creatives?: Array<string | null>; ads?: Array<string | null>; activated?: boolean; intent?: { operation: string; index?: number; startedAt: string } | null };
 export type PackAdapter = {
@@ -42,46 +44,53 @@ export type PackAdapter = {
   verify(): Promise<{ store: boolean; account: boolean; page: boolean; media: boolean; pixelCheck: "present" | "none"; pixelId?: string; exhaustivePixelList: boolean }>;
   save(checkpoints: PackCheckpoint, patch?: Record<string, unknown>): Promise<void>;
   createCampaign(input: { objective: "sales" | "traffic"; status: "PAUSED" }): Promise<string>;
-  createAdSet(input: { campaignId: string; budgetCents: number; variant: PackVariant; pixelId?: string }): Promise<string>;
+  createAdSet(input: { campaignId: string; budgetCents: number; pixelId?: string }): Promise<string>;
   createCreative(input: { variant: PackVariant; pageId: string }): Promise<string>;
-  createAd(input: { adsetId: string; creativeId: string }): Promise<string>;
+  createAd(input: { adsetId: string; creativeId: string; variant: PackVariant }): Promise<string>;
   activateParent(campaignId: string): Promise<void>;
 };
 /** Single attempt only. Any exception (including persistence or timeout) leaves the claim blocking future calls. */
 export async function launchPack(input: { pack: PackInput; pageId: string; adapter: PackAdapter }): Promise<PackCheckpoint> {
   const { pack, adapter } = input;
   if (await adapter.claim() !== true) throw new Error("Pack déjà réclamé; aucun nouvel essai autorisé");
-  let cp: PackCheckpoint = { adsets: [null, null, null], creatives: [null, null, null], ads: [null, null, null] };
+  let cp: PackCheckpoint = { adsets: [null], creatives: [null, null, null], ads: [null, null, null] };
   let preflightComplete = false;
   try {
     const verified = await adapter.verify();
     if (!verified.store || !verified.account || !verified.page || !verified.media || !verified.exhaustivePixelList || (verified.pixelCheck === "present" && !verified.pixelId)) throw new Error("Vérifications boutique/compte/page/médias/pixels non concluantes; bloqué avant création");
     const objective = verified.pixelCheck === "none" ? "traffic" : "sales";
     if (objective === "sales" && !verified.pixelId) throw new Error("Pixel non vérifié");
-    const cents = splitPackBudgetCents(pack.daily_budget);
+    const budgetCents = packBudgetCents(pack.daily_budget);
     preflightComplete = true;
     cp.intent = { operation: "createCampaign", startedAt: new Date().toISOString() };
     await adapter.save(cp);
     cp.campaignId = await adapter.createCampaign({ objective, status: "PAUSED" });
     cp.intent = null;
     await adapter.save(cp, { objective, external_campaign_id: cp.campaignId });
+
+    cp.intent = { operation: "createAdSet", index: 0, startedAt: new Date().toISOString() };
+    await adapter.save(cp);
+    cp.adsets![0] = await adapter.createAdSet({ campaignId: cp.campaignId, budgetCents, ...(verified.pixelId ? { pixelId: verified.pixelId } : {}) });
+    cp.intent = null;
+    await adapter.save(cp);
+
     for (let i = 0; i < 3; i++) {
-      const adsets = cp.adsets!, creatives = cp.creatives!, ads = cp.ads!;
-      cp.intent = { operation: "createAdSet", index: i, startedAt: new Date().toISOString() }; await adapter.save(cp);
-      adsets[i] = await adapter.createAdSet({ campaignId: cp.campaignId, budgetCents: cents[i], variant: pack.variants[i], ...(verified.pixelId ? { pixelId: verified.pixelId } : {}) });
+      const creatives = cp.creatives!, ads = cp.ads!;
+      const variant = { ...pack.variants[i], call_to_action: normalizeMetaCta(pack.variants[i].call_to_action)! };
+      cp.intent = { operation: "createCreative", index: i, startedAt: new Date().toISOString() };
+      await adapter.save(cp);
+      creatives[i] = await adapter.createCreative({ variant, pageId: input.pageId });
       cp.intent = null;
       await adapter.save(cp);
-      cp.intent = { operation: "createCreative", index: i, startedAt: new Date().toISOString() }; await adapter.save(cp);
-      creatives[i] = await adapter.createCreative({ variant: { ...pack.variants[i], call_to_action: normalizeMetaCta(pack.variants[i].call_to_action)! }, pageId: input.pageId });
-      cp.intent = null;
+      cp.intent = { operation: "createAd", index: i, startedAt: new Date().toISOString() };
       await adapter.save(cp);
-      cp.intent = { operation: "createAd", index: i, startedAt: new Date().toISOString() }; await adapter.save(cp);
-      ads[i] = await adapter.createAd({ adsetId: adsets[i]!, creativeId: creatives[i]! });
+      ads[i] = await adapter.createAd({ adsetId: cp.adsets![0]!, creativeId: creatives[i]!, variant });
       cp.intent = null;
       await adapter.save(cp);
     }
-    if (!cp.campaignId || cp.adsets!.some(x => !x) || cp.creatives!.some(x => !x) || cp.ads!.some(x => !x)) throw new Error("Enfants incomplets; parent laissé en pause");
-    cp.intent = { operation: "activateParent", startedAt: new Date().toISOString() }; await adapter.save(cp);
+    if (!cp.campaignId || cp.adsets!.length !== 1 || cp.adsets!.some((x) => !x) || cp.creatives!.length !== 3 || cp.creatives!.some((x) => !x) || cp.ads!.length !== 3 || cp.ads!.some((x) => !x)) throw new Error("Enfants incomplets; parent laissé en pause");
+    cp.intent = { operation: "activateParent", startedAt: new Date().toISOString() };
+    await adapter.save(cp);
     await adapter.activateParent(cp.campaignId);
     cp.activated = true;
     cp.intent = null;
@@ -98,5 +107,5 @@ export function packProgress(checkpoints: PackCheckpoint | null | undefined, sta
   const c = checkpoints ?? {};
   if (c.activated === true && status === "completed") return 100;
   const count = [Boolean(c.campaignId), ...(c.adsets ?? []).map(Boolean), ...(c.creatives ?? []).map(Boolean), ...(c.ads ?? []).map(Boolean)].filter(Boolean).length;
-  return Math.floor(count / 10 * 99);
+  return Math.min(99, Math.floor(count / 8 * 99));
 }

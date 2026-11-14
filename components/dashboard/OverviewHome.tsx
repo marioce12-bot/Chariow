@@ -422,7 +422,7 @@ export function OverviewHome({
       ) : null}
 
       {/* 2. Liste des campagnes publicitaires */}
-      <AdCampaignsList key={campaignsVersion} storeId={storeId ?? null} plan={plan} onNewCampaign={onLaunchAd} />
+      <AdCampaignsList key={campaignsVersion} storeId={storeId ?? null} plan={plan} onNewCampaign={onLaunchAd} includeVariantPacks />
 
       {/* 3. Dépenses pub par canal */}
       <AdSpendByChannel plan={plan} storeId={storeId ?? null} periodDays={periodDays} refreshKey={campaignsVersion} />

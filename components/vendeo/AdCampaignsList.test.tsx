@@ -17,12 +17,22 @@ const fixtures = [
   campaign("active-old", "active", null, "2026-01-02"),
   campaign("active", "active", null, "2026-01-04"),
 ];
+const completedPack = {
+  id: "pack-1", product_name: "Produit pack test", status: "completed", daily_budget: 7, duration_days: 5,
+  created_at: "2026-01-05", checkpoints: { activated: true, adsets: ["set-1"], ads: ["ad-1", "ad-2", "ad-3"] },
+  variants: [
+    { id: "v1", angle: "Angle image", format: "image", media: ["https://example.test/one.jpg"] },
+    { id: "v2", angle: "Angle vidéo", format: "video", media: ["https://example.test/two.mp4"] },
+    { id: "v3", angle: "Angle carrousel", format: "carousel", media: ["https://example.test/three.jpg", "https://example.test/four.jpg"] },
+  ],
+};
 
 let dom: any;
 let container: HTMLElement;
 let root: Root;
 let fetchMock: ReturnType<typeof vi.fn>;
 let backendCampaigns: typeof fixtures;
+let backendPacks: typeof completedPack[];
 
 beforeEach(async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -34,14 +44,41 @@ beforeEach(async () => {
   container = dom.window.document.getElementById("root")!;
   root = createRoot(container);
   backendCampaigns = fixtures;
-  fetchMock = vi.fn(async (url: string) => url === "/api/subscription" ? { ok: true, json: async () => ({ subscription: { plan: "starter" } }) } : { ok: true, json: async () => ({ campaigns: backendCampaigns }) });
+  backendPacks = [];
+  fetchMock = vi.fn(async (url: string) => url === "/api/subscription"
+    ? { ok: true, json: async () => ({ subscription: { plan: "starter" } }) }
+    : url.startsWith("/api/ad-variant-packs")
+      ? { ok: true, json: async () => ({ packs: backendPacks }) }
+      : { ok: true, json: async () => ({ campaigns: backendCampaigns }) });
   vi.stubGlobal("fetch", fetchMock);
   const { AdCampaignsList } = await import("./AdCampaignsList");
-  await act(async () => { root.render(createElement(NavigationDataProvider, { children: createElement(AdCampaignsList, { storeId: "store", onNewCampaign: vi.fn() }) })); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => { root.render(createElement(NavigationDataProvider, { children: createElement(AdCampaignsList, { storeId: "store", onNewCampaign: vi.fn(), includeVariantPacks: true }) })); await new Promise((resolve) => setTimeout(resolve, 0)); });
 });
 afterEach(async () => { await act(async () => root.unmount()); vi.unstubAllGlobals(); dom.window.close(); });
 
 describe("AdCampaignsList lifecycle UI", () => {
+  it("shows a launched Pack as one distinct group with its three visual variants", async () => {
+    backendPacks = [completedPack];
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="Actualiser"]')!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelectorAll(".ad-variant-pack-card")).toHaveLength(1);
+    expect(container.querySelectorAll(".ad-variant-pack-variant")).toHaveLength(3);
+    expect(container.textContent).toContain("Produit pack test");
+    expect(container.textContent).toContain("Campagne groupée");
+    expect(container.textContent).toContain("1 ensemble · 3 publicités");
+    expect(container.textContent).toContain("Lancement confirmé");
+    expect(container.textContent).toContain("Le statut actuel de diffusion n’est pas synchronisé");
+    expect(container.querySelector<HTMLImageElement>('.ad-variant-pack-variant img')?.src).toBe("https://example.test/one.jpg");
+    expect(container.querySelector(".ad-variant-pack-status")?.textContent).not.toContain("Active");
+    expect([...container.querySelectorAll(".ad-campaign-row")].map((row) => row.textContent?.match(/active(?:-old)?|paused/)?.[0])).toEqual(["active", "active-old", "paused"]);
+    const packCalls = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/ad-variant-packs"));
+    expect(packCalls.length).toBeGreaterThan(0);
+    expect(packCalls.every(([, options]) => !options?.method || options.method === "GET")).toBe(true);
+  });
+
   it("shows active campaigns first in launch order and omits historical campaigns from the UI", () => {
     expect(getMetaCampaignLifecycle("paused", fixtures[0].external_error)).toBe("archived");
     expect(getMetaCampaignLifecycle("deleted", fixtures[1].external_error)).toBe("deleted");
