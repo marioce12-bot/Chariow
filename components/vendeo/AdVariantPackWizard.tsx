@@ -371,7 +371,7 @@ export function VariantPackWizard({ storeId, onClose, onLaunched, duplicatePack,
       const body = {
         client_request_id: nextDraft.packId, store_id: draft.storeId, product_id: product.id, product_name: product.name,
         destination_url: product.url, meta_ad_account_id: accountId, meta_page_id: pageId, dsa_beneficiary: draft.dsaBeneficiary, dsa_payor: draft.dsaPayor,
-        countries: deriveCountries(draft.locations), geo_targeting: { ...buildGeoTargeting(draft.locations), countries: [...new Set(draft.locations.filter((location) => location.type === "country").map((location) => location.countryCode).filter(Boolean))] },
+        countries: deriveCountries(draft.locations), geo_targeting: { ...buildGeoTargeting(draft.locations), countries: [...new Set(draft.locations.flatMap((location) => location.type === "country" ? [location.countryCode] : []).filter(Boolean))] },
         meta_targeting: { gender: draft.gender, interests: draft.interests }, advantage_audience: draft.advantageAudience,
         min_age: draft.minAge, max_age: draft.maxAge, daily_budget: draft.dailyBudget, duration_days: draft.durationDays,
         variants: draft.selected.map((id) => ({ id, angle: draft.angles.find((a) => a.id === id)?.title ?? "", format: draft.variants[id].format, text: draft.variants[id].copy, media: draft.variants[id].media, call_to_action: draft.variants[id].callToAction ?? DEFAULT_META_CTA })),

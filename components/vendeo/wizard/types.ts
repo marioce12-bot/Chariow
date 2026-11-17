@@ -21,14 +21,11 @@ export interface ChariowProductLite {
 }
 
 // Un lieu ciblé par le widget de recherche d'audience (étape 3). "key" est
-// soit un code pays ISO 3166-1 alpha-2 (type "country"), soit une clé de lieu
-// Meta (type "region"/"city", renvoyée par /api/integrations/meta/geo-search).
-export interface GeoLocation {
-  key: string;
-  name: string;
-  type: "country" | "region" | "city";
-  countryCode: string;
-}
+// soit un code pays ISO 3166-1 alpha-2, une clé de région/ville Meta, soit le
+// code d'un groupe géographique Meta (ex. "africa").
+export type GeoLocation =
+  | { key: string; name: string; type: "country" | "region" | "city"; countryCode: string }
+  | { key: string; name: string; type: "country_group"; countryCodes?: string[] };
 
 export interface WizardState {
   // Étape 1
@@ -109,7 +106,7 @@ export interface EditableCampaign {
   advantage_audience?: boolean | null;
   meta_targeting?: { gender?: MetaGenderTarget | null; interests?: MetaInterestTarget[] } | null;
   countries?: string[] | null;
-  geo_targeting?: { countries?: string[]; regions?: { key: string; name: string }[]; cities?: { key: string; name: string }[] } | null;
+  geo_targeting?: { countries?: string[]; country_groups?: string[]; regions?: { key: string; name: string }[]; cities?: { key: string; name: string }[] } | null;
   min_age?: number | null;
   max_age?: number | null;
   daily_budget: number | string;
@@ -164,22 +161,21 @@ export function wizardStateForProductSelection(state: WizardState, product: Char
 /** Liste des pays proposés par le widget de recherche d'audience (voir lib/geo/countries.ts). */
 export const COUNTRY_OPTIONS = WORLD_COUNTRIES.map((c) => ({ code: c.code, label: c.label }));
 
-/** Dérive la liste dédupliquée des codes pays à partir des lieux sélectionnés
- *  (une ville/région "appartient" toujours à un pays via countryCode). Ne
- *  renvoie jamais un tableau vide : c'est ce qui alimente `countries`, requis
- *  par Meta/TikTok et par la colonne `countries text[] not null`. */
+/** Dérive les codes pays associés aux lieux. Un groupe Meta peut légitimement
+ *  ne pas avoir de codes individuels : le groupe est alors stocké séparément. */
 export function deriveCountries(locations: GeoLocation[]): string[] {
-  const codes = Array.from(new Set(locations.map((l) => l.countryCode).filter(Boolean)));
-  return codes.length ? codes : ["BJ"];
+  const codes = Array.from(new Set(locations.flatMap((location) => location.type === "country_group" ? location.countryCodes ?? [] : [location.countryCode]).filter(Boolean)));
+  return codes.length ? codes : locations.some((location) => location.type === "country_group") ? [] : ["BJ"];
 }
 
-/** Construit le payload de ciblage géographique détaillé (pays/régions/villes)
+/** Construit le payload de ciblage géographique détaillé (pays/groupes/régions/villes)
  *  envoyé à la création du brouillon, pour que Meta puisse cibler des
  *  villes/régions précises au lancement (voir lib/meta/campaigns.ts). TikTok
  *  ignore ce payload et continue de cibler uniquement par pays. */
 export function buildGeoTargeting(locations: GeoLocation[]) {
   return {
     countries: deriveCountries(locations),
+    country_groups: locations.filter((location) => location.type === "country_group").map((location) => location.key),
     regions: locations.filter((l) => l.type === "region").map((l) => ({ key: l.key, name: l.name })),
     cities: locations.filter((l) => l.type === "city").map((l) => ({ key: l.key, name: l.name, radius: 25, distance_unit: "mile" as const })),
   };
@@ -193,9 +189,12 @@ export function buildMetaTargeting(state: Pick<WizardState, "metaGender" | "meta
  *  enregistrées, sinon les pays). */
 export function locationsFromCampaign(campaign: EditableCampaign): GeoLocation[] {
   const geo = campaign.geo_targeting;
-  const countryCodes = (geo?.countries?.length ? geo.countries : campaign.countries?.length ? campaign.countries : ["BJ"]).map((code) => code.toUpperCase());
+  const countryGroups = (geo?.country_groups ?? []).filter((group): group is "africa" => group === "africa");
+  const rawCountryCodes = geo?.countries?.length ? geo.countries : campaign.countries?.length ? campaign.countries : countryGroups.length ? [] : ["BJ"];
+  const countryCodes = rawCountryCodes.map((code) => code.toUpperCase());
   const fallbackCountry = countryCodes[0] ?? "BJ";
   const locations: GeoLocation[] = [
+    ...countryGroups.map((group) => ({ key: group, name: group === "africa" ? "Afrique" : group, type: "country_group" as const })),
     ...(geo?.regions ?? []).map((r) => ({ key: r.key, name: r.name, type: "region" as const, countryCode: fallbackCountry })),
     ...(geo?.cities ?? []).map((c) => ({ key: c.key, name: c.name, type: "city" as const, countryCode: fallbackCountry })),
   ];

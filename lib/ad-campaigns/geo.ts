@@ -1,5 +1,6 @@
 export interface GeoTargetingInput {
   countries: string[];
+  country_groups?: string[];
   regions: { key: string; name: string }[];
   cities: { key: string; name: string; radius: number; distance_unit: string }[];
 }
@@ -19,6 +20,7 @@ export function sanitizeGeoTargeting(input: unknown): GeoTargetingInput | null {
         .map((c) => ({ key: c.key, name: c.name, radius: Number((c as any).radius) > 0 ? Number((c as any).radius) : 25, distance_unit: typeof (c as any).distance_unit === "string" ? (c as any).distance_unit : "mile" }))
     : [];
   const countries = Array.isArray(raw.countries) ? raw.countries.filter((c): c is string => typeof c === "string") : [];
-  if (!regions.length && !cities.length && !countries.length) return null;
-  return { countries, regions, cities };
+  const countryGroups = Array.isArray(raw.country_groups) ? raw.country_groups.filter((group): group is "africa" => group === "africa") : [];
+  if (!regions.length && !cities.length && !countries.length && !countryGroups.length) return null;
+  return { countries, ...(countryGroups.length ? { country_groups: countryGroups } : {}), regions, cities };
 }

@@ -14,19 +14,23 @@ interface LocationSearchInputProps {
    *  la recherche par pays reste proposée. */
   metaAccountId?: string | null;
   platform: "meta" | "tiktok" | "pinterest";
+  /** Les groupes géographiques Meta sont activés dans le lancement manuel, pas dans les Packs. */
+  allowCountryGroups?: boolean;
 }
 
 interface Suggestion {
   key: string;
   name: string;
-  type: "country" | "region" | "city";
-  countryCode: string;
+  type: "country" | "region" | "city" | "country_group";
+  countryCode?: string;
+  countryCodes?: string[];
 }
 
 const TYPE_ICON: Record<Suggestion["type"], typeof Globe2> = {
   country: Globe2,
   region: MapPin,
   city: Building2,
+  country_group: Globe2,
 };
 
 /**
@@ -40,13 +44,14 @@ const TYPE_ICON: Record<Suggestion["type"], typeof Globe2> = {
  * (/api/integrations/meta/geo-search), interrogée uniquement si un compte
  * Meta Ads est connecté — sinon (ou sur TikTok) seuls les pays remontent.
  */
-export function LocationSearchInput({ value, onChange, metaAccountId, platform }: LocationSearchInputProps) {
+export function LocationSearchInput({ value, onChange, metaAccountId, platform, allowCountryGroups = false }: LocationSearchInputProps) {
   const { locale, t } = useI18n();
   const en = locale === "en";
   const typeLabel: Record<Suggestion["type"], string> = {
     country: t("wizardExtra.location.country"),
     region: t("wizardExtra.location.region"),
     city: t("wizardExtra.location.city"),
+    country_group: en ? "Region" : "Zone",
   };
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -97,15 +102,24 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform }
     countryCode: c.code,
   }));
 
-  // Les pays locaux d'abord (recherche instantanée), puis les régions/villes
+  const normalizedQuery = query.trim().toLocaleLowerCase("fr-FR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const matchesAfrica = ["afrique", "africa"].some((label) => label.includes(normalizedQuery) || normalizedQuery.includes(label));
+  const localCountryGroupSuggestions: Suggestion[] = allowCountryGroups && platform === "meta" && matchesAfrica
+    ? [{ key: "africa", name: en ? "Africa" : "Afrique", type: "country_group", countryCodes: [] }]
+    : [];
+
+  // Les groupes et pays locaux d'abord (recherche instantanée), puis les régions/villes
   // Meta ; on retire les doublons (une ville dont le nom matche aussi un pays).
   const selectedKeys = new Set(value.map((l) => l.key));
-  const suggestions = [...localCountrySuggestions, ...remoteSuggestions]
+  const suggestions = [...localCountryGroupSuggestions, ...localCountrySuggestions, ...remoteSuggestions]
     .filter((s, i, arr) => arr.findIndex((o) => o.key === s.key) === i)
     .filter((s) => !selectedKeys.has(s.key));
 
   const addLocation = (s: Suggestion) => {
-    onChange([...value, { key: s.key, name: s.name, type: s.type, countryCode: s.countryCode }]);
+    const location: GeoLocation = s.type === "country_group"
+      ? { key: s.key, name: s.name, type: s.type, countryCodes: s.countryCodes ?? [] }
+      : { key: s.key, name: s.name, type: s.type, countryCode: s.countryCode ?? "" };
+    onChange([...value, location]);
     setQuery("");
     setRemoteSuggestions([]);
   };
@@ -163,17 +177,18 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform }
       <div className="mt-2.5 flex flex-wrap gap-2">
         {value.map((loc) => {
           const Icon = TYPE_ICON[loc.type];
+          const locationName = loc.type === "country_group" && loc.key === "africa" ? (en ? "Africa" : "Afrique") : loc.name;
           return (
             <span
               key={loc.key}
               className="flex items-center gap-1.5 rounded-full border border-[#6366F1] bg-[#EEF2FF] px-3 py-1 text-xs font-medium text-[#3730A3]"
             >
               <Icon className="h-3 w-3" />
-              {loc.name}
+              {locationName}
               <button
                 type="button"
                 onClick={() => removeLocation(loc.key)}
-                aria-label={t("wizardExtra.location.remove", { name: loc.name })}
+                aria-label={t("wizardExtra.location.remove", { name: locationName })}
                 className="ml-0.5 rounded-full p-0.5 hover:bg-[#C7D2FE]"
               >
                 <X className="h-3 w-3" />

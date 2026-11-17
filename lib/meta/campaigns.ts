@@ -119,6 +119,7 @@ export async function createMetaCampaign(input: {
 
 export interface MetaGeoTargeting {
   countries: string[];
+  country_groups?: string[];
   regions?: { key: string; name?: string }[];
   cities?: { key: string; name?: string; radius?: number; distance_unit?: string }[];
 }
@@ -225,13 +226,15 @@ export async function createMetaAdSet(input: {
   interests?: Array<{ id: string; name: string }>;
   gender?: "male" | "female" | null;
 }) {
-  const hasPreciseTargeting = !!(input.geoTargeting && ((input.geoTargeting.regions?.length ?? 0) > 0 || (input.geoTargeting.cities?.length ?? 0) > 0));
+  const countryGroups = (input.geoTargeting?.country_groups ?? []).filter((group) => group === "africa");
+  const hasPreciseTargeting = !!(input.geoTargeting && (countryGroups.length > 0 || (input.geoTargeting.regions?.length ?? 0) > 0 || (input.geoTargeting.cities?.length ?? 0) > 0));
   const geoLocations: Record<string, unknown> = hasPreciseTargeting
     ? {
         // Meta exige un objet par entrée ({key}), avec radius/distance_unit pour
         // les villes (rayon indicatif de 25 miles autour du centre-ville, cohérent
         // avec ce que propose Meta Ads Manager par défaut pour un ciblage ville).
         ...(input.geoTargeting!.countries.length ? { countries: input.geoTargeting!.countries } : {}),
+        ...(countryGroups.length ? { country_groups: countryGroups } : {}),
         ...(input.geoTargeting!.regions?.length ? { regions: input.geoTargeting!.regions.map((r) => ({ key: r.key })) } : {}),
         ...(input.geoTargeting!.cities?.length ? { cities: input.geoTargeting!.cities.map((c) => ({ key: c.key, radius: c.radius ?? 25, distance_unit: c.distance_unit ?? "mile" })) } : {}),
       }

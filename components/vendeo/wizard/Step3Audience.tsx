@@ -73,6 +73,7 @@ export function Step3Audience({ state, patch, onNext, onBack }: StepProps) {
           onChange={updateLocations}
           metaAccountId={state.metaAdAccountId}
           platform={state.platform}
+          allowCountryGroups={state.platform === "meta"}
         />
       </div>
 
