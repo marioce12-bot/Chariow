@@ -41,8 +41,9 @@ export function LegalDocumentShell({
 
   const en = locale === "en";
   const isAbout = variant === "about";
+  const isLegalVisualRefresh = path === "/terms" || path === "/privacy";
   return (
-    <main className="legal-document-page">
+    <main className={`legal-document-page${isLegalVisualRefresh ? " legal-document-page-visual-refresh" : ""}`}>
       <div className="legal-document-layout">
         <aside className="legal-document-sidebar">
           <Link href="/" className="legal-document-brand" aria-label="Vendeo — accueil">
