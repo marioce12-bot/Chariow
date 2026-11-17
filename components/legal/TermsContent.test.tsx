@@ -19,3 +19,13 @@ describe.each(["fr", "en"] as const)("Shopify terms in %s", language => {
     expect(html).toContain(language === "fr" ? "L’import par défaut des 60 derniers jours" : "default import of the last 60 days");
   });
 });
+
+describe.each(["fr", "en"] as const)("Refund terms in %s", language => {
+  it("includes the exact approved change-of-mind refund clause", () => {
+    locale = language;
+    const html = renderToStaticMarkup(createElement(TermsContent));
+    expect(html).toContain(language === "fr"
+      ? "Après paiement, aucun remboursement n’est accordé en cas de simple changement d’avis, sous réserve des droits impératifs prévus par le droit applicable."
+      : "After payment, no refund is provided for a simple change of mind, subject to any mandatory rights under applicable law.");
+  });
+});

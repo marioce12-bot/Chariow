@@ -55,8 +55,8 @@ export function SubscriptionPurchaseConfirmation({
         <label className="studio-credit-confirm-check">
           <input type="checkbox" checked={accepted} onChange={(event) => onAcceptedChange(event.target.checked)} disabled={submitting} />
           <span>{en
-            ? <>I confirm that I want to continue to the Vendeo subscription checkout at the displayed price and have reviewed the <Link href="/terms" target="_blank">Terms</Link>.</>
-            : <>Je confirme vouloir poursuivre vers le paiement de l’abonnement Vendeo au tarif affiché et avoir consulté les <Link href="/terms" target="_blank">Conditions</Link>.</>}</span>
+            ? <>I confirm that I have read and accept Vendeo’s <Link href="/terms" target="_blank">Terms of Use</Link> and wish to continue to payment at the displayed price.</>
+            : <>Je confirme avoir lu et accepter les <Link href="/terms" target="_blank">Conditions d’utilisation</Link> de Vendeo et souhaite poursuivre vers le paiement au tarif affiché.</>}</span>
         </label>
         <p className="studio-credit-confirm-payment-note">{en
           ? "This opens SasPay. This confirmation alone does not charge you; review and complete or cancel payment with the provider."

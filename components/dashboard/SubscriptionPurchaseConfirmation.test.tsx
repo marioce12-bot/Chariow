@@ -10,11 +10,11 @@ let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 afterEach(() => { act(() => root?.unmount()); container?.remove(); });
 
-function renderConfirmation(onConfirm = vi.fn()) {
+function renderConfirmation(onConfirm = vi.fn(), locale: "fr" | "en" = "fr") {
   function Harness() {
     const [accepted, setAccepted] = useState(false);
     return createElement(SubscriptionPurchaseConfirmation, {
-      locale: "fr",
+      locale,
       price: "3,50 $",
       perMonth: "/mois",
       billingNote: "Équivalent approximatif ; paiement facturé en XOF.",
@@ -34,8 +34,9 @@ function renderConfirmation(onConfirm = vi.fn()) {
 }
 
 describe("SubscriptionPurchaseConfirmation", () => {
-  it("shows the displayed price and manual renewal and requires explicit consent before checkout", () => {
+  it("shows the French read-and-accept wording and requires consent before checkout", () => {
     const { onConfirm } = renderConfirmation();
+    expect(container.textContent).toContain("Je confirme avoir lu et accepter les Conditions d’utilisation de Vendeo et souhaite poursuivre vers le paiement au tarif affiché.");
     expect(container.textContent).toContain("3,50 $ /mois");
     expect(container.textContent).toContain("renouvellement est manuel");
     expect(container.textContent).toContain("facturé en XOF");
@@ -48,5 +49,14 @@ describe("SubscriptionPurchaseConfirmation", () => {
     expect(onConfirm).not.toHaveBeenCalled();
     act(() => button.click());
     expect(onConfirm).toHaveBeenCalledTimes(1);
+    act(() => checkbox.click());
+    expect(button.disabled).toBe(true);
+  });
+
+  it("shows the English read-and-accept wording and keeps checkout disabled until consent", () => {
+    renderConfirmation(vi.fn(), "en");
+    expect(container.textContent).toContain("I confirm that I have read and accept Vendeo’s Terms of Use and wish to continue to payment at the displayed price.");
+    const button = container.querySelector<HTMLButtonElement>(".studio-credit-modal-actions .btn-dark")!;
+    expect(button.disabled).toBe(true);
   });
 });
