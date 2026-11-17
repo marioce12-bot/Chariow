@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { readStudioHistory } from "@/lib/studio/history";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const url = new URL(request.url);
   try {

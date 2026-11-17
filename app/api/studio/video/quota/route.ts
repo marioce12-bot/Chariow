@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const maxDuration = 10;
 
 export async function GET() {
-  const { user, response } = await requireUser();
+  const { user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { data, error } = await createAdminClient().rpc("get_studio_generation_quota", {
     p_user_id: user.id,

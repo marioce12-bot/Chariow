@@ -6,7 +6,7 @@ import { getShopifyConfigStatus, normalizeShopDomain, SHOPIFY_SCOPES, SHOPIFY_ST
 import { invalidateUserStoreList } from "@/lib/shop/cache";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const config = getShopifyConfigStatus();
   if (!config.configured) return NextResponse.json({ error: "Shopify OAuth n'est pas configuré" }, { status: 503 });

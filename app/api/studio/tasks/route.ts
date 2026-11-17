@@ -24,7 +24,7 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export async function GET(request: Request) {
-  const { user, response } = await requireUser();
+  const { user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const requestedId = new URL(request.url).searchParams.get("id");
   if (requestedId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedId))
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ tasks }, { headers: { "Cache-Control": "no-store" } });
 }
 export async function POST(request: Request) {
-  const { user, response } = await requireUser();
+  const { user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const body = await request.json().catch(() => null);
   if (

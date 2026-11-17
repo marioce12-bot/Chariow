@@ -4,7 +4,7 @@ import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { exchangeRedditAuthCode, fetchRedditBusinesses, fetchRedditAdAccounts } from "@/lib/reddit/api";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const url = new URL(request.url);
   const redirect = (status: string) => NextResponse.redirect(new URL(`/dashboard?reddit=${status}`, request.url));

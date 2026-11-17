@@ -62,7 +62,7 @@ describe("Studio video content lookup", () => {
     });
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://storage.example/signed-final-video");
-    expect(mocks.signedStudioUrl).toHaveBeenCalledWith("private/video/final.mp4");
+    expect(mocks.signedStudioUrl).toHaveBeenCalledWith("private/video/final.mp4", userId);
   });
 
   it("resolves a request_id-only result lookup from the legacy composite reference", async () => {
@@ -73,7 +73,7 @@ describe("Studio video content lookup", () => {
     });
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://storage.example/signed-final-video");
-    expect(mocks.signedStudioUrl).toHaveBeenCalledWith("private/video/final.mp4");
+    expect(mocks.signedStudioUrl).toHaveBeenCalledWith("private/video/final.mp4", userId);
   });
 
   it("does not resolve provider references belonging to another user", async () => {

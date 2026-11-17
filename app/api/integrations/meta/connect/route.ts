@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const clientId = process.env.META_APP_ID;
   const redirectUri = process.env.META_OAUTH_REDIRECT_URI;

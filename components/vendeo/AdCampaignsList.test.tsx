@@ -105,9 +105,19 @@ describe("AdCampaignsList lifecycle UI", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     const actionCalls = fetchMock.mock.calls.filter(([url]) => url === "/api/ad-variant-packs/pack-1/actions") as unknown as Array<[string, RequestInit]>;
-    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining("uniquement « Angle image »"));
-    expect(actionCalls.map(([, init]) => JSON.parse(String(init.body)).phase)).toEqual(["prepare", "execute"]);
-    expect(JSON.parse(String(actionCalls[1][1].body))).toMatchObject({ action: "pause-ad", adIndex: 0, token: "pack-confirmation", confirmed: true });
+    const dialog = document.body.querySelector<HTMLElement>('[role="alertdialog"]');
+    expect(dialog?.textContent).toContain("uniquement « Angle image »");
+    expect(confirmation).not.toHaveBeenCalled();
+    expect(actionCalls).toHaveLength(1);
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>(".meta-action-confirm-submit")!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const confirmedActionCalls = fetchMock.mock.calls.filter(([url]) => url === "/api/ad-variant-packs/pack-1/actions") as unknown as Array<[string, RequestInit]>;
+    expect(confirmedActionCalls.map(([, init]) => JSON.parse(String(init.body)).phase)).toEqual(["prepare", "execute"]);
+    expect(JSON.parse(String(confirmedActionCalls[1][1].body))).toMatchObject({ action: "pause-ad", adIndex: 0, token: "pack-confirmation", confirmed: true });
+    expect(confirmation).not.toHaveBeenCalled();
   });
 
   it("opens a Pack copy as a draft without creating or launching Meta objects", async () => {
@@ -204,7 +214,7 @@ describe("AdCampaignsList lifecycle UI", () => {
       if (url === "/api/chat/campaign-actions") {
         const body = JSON.parse(String(init?.body));
         return body.phase === "prepare"
-          ? { ok: true, json: async () => ({ token: "mock-confirmation", preview: { name: "Active Meta", warning: "Pause on all three Meta objects" } }) }
+          ? { ok: true, json: async () => ({ token: "mock-confirmation", preview: { name: "Active Meta", platform: "meta", action: "pause", currentStatus: "ACTIVE", warning: "Cible Meta : campagne meta-campaign, ensemble meta-adset, publicité meta-ad. Statut demandé sur les trois : PAUSED. Budget Meta quotidien : 100 unités mineures USD. Les règles automatiques de budget associées seront désactivées." } }) }
           : { ok: true, json: async () => ({ campaign: { id: "active", status: "paused" } }) };
       }
       return url === "/api/subscription" ? { ok: true, json: async () => ({ subscription: { plan: "starter" } }) } : { ok: true, json: async () => ({ campaigns: backendCampaigns }) };
@@ -220,10 +230,21 @@ describe("AdCampaignsList lifecycle UI", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
+    const dialog = document.body.querySelector<HTMLElement>('[role="alertdialog"]');
+    expect(dialog?.textContent).toContain("meta-campaign");
+    expect(dialog?.textContent).toContain("Budget Meta quotidien");
     const actionCalls = fetchMock.mock.calls.filter(([url]) => url === "/api/chat/campaign-actions") as unknown as Array<[string, RequestInit]>;
-    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining("Pause on all three Meta objects"));
-    expect(actionCalls.map(([, init]) => JSON.parse(String(init.body)).phase)).toEqual(["prepare", "execute"]);
-    expect(JSON.parse(String(actionCalls[1][1].body))).toMatchObject({ action: "pause", token: "mock-confirmation", confirmed: true });
+    expect(actionCalls.map(([, init]) => JSON.parse(String(init.body)).phase)).toEqual(["prepare"]);
+    expect(confirmation).not.toHaveBeenCalled();
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>(".meta-action-confirm-submit")!.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const confirmedActionCalls = fetchMock.mock.calls.filter(([url]) => url === "/api/chat/campaign-actions") as unknown as Array<[string, RequestInit]>;
+    expect(confirmedActionCalls.map(([, init]) => JSON.parse(String(init.body)).phase)).toEqual(["prepare", "execute"]);
+    expect(JSON.parse(String(confirmedActionCalls[1][1].body))).toMatchObject({ action: "pause", token: "mock-confirmation", confirmed: true });
+    expect(confirmation).not.toHaveBeenCalled();
   });
   it("does not execute the Meta action when the confirmation is declined", async () => {
     backendCampaigns = fixtures.map((item) => item.id === "active"
@@ -244,7 +265,14 @@ describe("AdCampaignsList lifecycle UI", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     const phases = fetchMock.mock.calls.filter(([url]) => url === "/api/chat/campaign-actions").map(([, init]) => JSON.parse(String((init as RequestInit).body)).phase);
+    expect(document.body.querySelector('[role="alertdialog"]')).not.toBeNull();
+    await act(async () => {
+      document.body.querySelector<HTMLButtonElement>(".meta-action-confirm-cancel")!.click();
+    });
+    const phasesAfterCancel = fetchMock.mock.calls.filter(([url]) => url === "/api/chat/campaign-actions").map(([, init]) => JSON.parse(String((init as RequestInit).body)).phase);
     expect(phases).toEqual(["prepare"]);
+    expect(phasesAfterCancel).toEqual(["prepare"]);
+    expect(dom.window.confirm).not.toHaveBeenCalled();
   });
   it("keeps the campaign detail open and shows the error when Meta refuses deletion", async () => {
     dom.window.confirm = vi.fn(() => true);

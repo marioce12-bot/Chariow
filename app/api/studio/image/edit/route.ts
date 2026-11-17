@@ -10,7 +10,7 @@ import { buildImageEditInstruction } from "@/lib/studio/image-edit-prompt";
 import { confirmCreditTransition } from "@/lib/studio/credit-rpc";
 
 export async function POST(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const subscriptionBlock = await requireActiveSubscription(user.id);
   if (subscriptionBlock) return subscriptionBlock;

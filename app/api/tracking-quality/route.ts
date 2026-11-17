@@ -6,7 +6,7 @@ import { assessTrackingQuality } from "@/lib/tracking-quality";
 
 type Sale = { chariow_sale_id: string; product_id: string | null; chariow_campaign_id: string | null; status: string; amount: number | null; net_amount: number | null; currency: string | null };
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const params = new URL(request.url).searchParams;
   const storeId = params.get("store_id");

@@ -5,7 +5,7 @@ import { getChariowGeography } from "@/lib/chariow/geography";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 function validDate(value: string) { return DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)) && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value; }
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const params = new URL(request.url).searchParams;
   const storeId = params.get("store_id");

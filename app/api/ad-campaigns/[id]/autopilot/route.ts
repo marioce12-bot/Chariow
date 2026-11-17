@@ -9,7 +9,7 @@ type Context = { params: Promise<{ id: string }> };
 const campaignColumns = "id,status,external_error,platform,external_campaign_id,external_adset_id,external_ad_id,meta_delivery_observation,meta_ad_account_id,tiktok_ad_account_id,autopilot_enabled,autopilot_budget_limit,autopilot_budget_limit_currency";
 
 export async function GET(_request: Request, context: Context) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { id } = await context.params;
   const { data: campaign, error } = await supabase.from("ad_campaigns").select(campaignColumns).eq("id", id).eq("user_id", user.id).maybeSingle();

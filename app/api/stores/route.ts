@@ -8,7 +8,7 @@ import { invalidateUserStoreList } from "@/lib/shop/cache";
 const platforms = ["chariow", "selar", "gumroad"] as const;
 
 export async function GET() {
-  const { user, response } = await requireUser();
+  const { user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   try {
     const result = NextResponse.json({ stores: await getCachedActiveStores(user.id) });

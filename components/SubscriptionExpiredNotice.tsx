@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, ShieldCheck } from "lucide-react";
-import { SUBSCRIPTION_EXPIRED_MODAL_EVENT } from "@/lib/subscription/ui";
-import { createSubscriptionCheckout } from "@/lib/subscription/checkout";
+import { CreditCard } from "lucide-react";
+import { OPEN_SUBSCRIPTION_SECTION_EVENT, SUBSCRIPTION_EXPIRED_MODAL_EVENT } from "@/lib/subscription/ui";
 import { useI18n } from "@/lib/i18n/i18n";
 
 type SubscriptionStatus = { status: string; trial_active?: boolean; trial_ends_at?: string | null } | null;
@@ -11,77 +10,54 @@ type SubscriptionStatus = { status: string; trial_active?: boolean; trial_ends_a
 const COPY = {
   fr: {
     trial: {
-      bannerTitle: "Ton essai gratuit est terminé",
-      bannerText: "Active Vendeo pour retrouver l’accès à l’Assistant, aux publicités et au Studio.",
       dialogTitle: "La période d’essai gratuite est terminée",
-      dialogText: "Active Vendeo pour continuer à utiliser les sections métier. Notifications, Paramètres et Abonnement restent accessibles.",
+      dialogText: "Cette action nécessite un abonnement actif. Tu peux consulter tes sections, tes données et tes paramètres, puis choisir un abonnement si tu souhaites continuer.",
     },
     paid: {
-      bannerTitle: "Ton abonnement Vendeo a expiré",
-      bannerText: "Réactive Vendeo pour retrouver l’accès à l’Assistant, aux publicités et au Studio.",
       dialogTitle: "Ton abonnement Vendeo a expiré",
-      dialogText: "Réactive ton abonnement pour retrouver l’accès aux sections métier. Notifications, Paramètres et Abonnement restent accessibles.",
+      dialogText: "Cette action nécessite un abonnement actif. Tes sections, données, paramètres et menus restent accessibles ; tu peux réactiver ton abonnement depuis sa page.",
     },
-    bannerAction: "Activer l’abonnement",
-    dialogAction: "Continuer vers le paiement",
-    redirecting: "Ouverture du paiement…",
-    securePayment: "Paiement sécurisé · Accès rétabli après confirmation",
-    paymentError: "Le paiement n’a pas pu démarrer. Vérifie ta connexion puis réessaie.",
+    required: {
+      dialogTitle: "Cette action nécessite un abonnement actif",
+      dialogText: "Tes sections, données et paramètres restent accessibles. Consulte la page Abonnement pour voir les options avant de continuer.",
+    },
+    dialogAction: "Voir les options d’abonnement",
     close: "Fermer",
   },
   en: {
     trial: {
-      bannerTitle: "Your free trial has ended",
-      bannerText: "Activate the Vendeo subscription to regain access to Assistant, Ads, and Studio.",
       dialogTitle: "Your free trial has ended",
-      dialogText: "Activate the Vendeo subscription to keep using business sections. Notifications, Settings, and Subscription remain available.",
+      dialogText: "This action requires an active subscription. You can still view your sections, data, and settings, then choose a subscription if you want to continue.",
     },
     paid: {
-      bannerTitle: "Your Vendeo subscription has expired",
-      bannerText: "Reactivate your subscription to keep using Assistant, Ads, and Studio.",
       dialogTitle: "Your Vendeo subscription has expired",
-      dialogText: "Reactivate your subscription to regain access to business sections. Notifications, Settings, and Subscription remain available.",
+      dialogText: "This action requires an active subscription. Your sections, data, settings, and menus remain available; you can reactivate your subscription from its page.",
     },
-    bannerAction: "Activate subscription",
-    dialogAction: "Continue to payment",
-    redirecting: "Opening payment…",
-    securePayment: "Secure payment · Access returns after payment is confirmed",
-    paymentError: "Payment could not be started. Check your connection and try again.",
+    required: {
+      dialogTitle: "An active subscription is required for this action",
+      dialogText: "Your sections, data, and settings remain available. Visit the Subscription page to review your options before continuing.",
+    },
+    dialogAction: "View subscription options",
     close: "Close",
   },
 } as const;
 
 export function getSubscriptionExpiredCopy(locale: "fr" | "en", subscription: SubscriptionStatus) {
   const group = locale === "en" ? COPY.en : COPY.fr;
-  return { ...group[subscription?.trial_active === true ? "trial" : "paid"], bannerAction: group.bannerAction, dialogAction: group.dialogAction, redirecting: group.redirecting, securePayment: group.securePayment, paymentError: group.paymentError, close: group.close };
+  const status = subscription?.trial_active === true ? "trial" : subscription?.status === "past_due" ? "paid" : "required";
+  return { ...group[status], dialogAction: group.dialogAction, close: group.close };
 }
 
 export function SubscriptionExpiredNotice({ subscription }: { subscription: SubscriptionStatus }) {
   const { locale } = useI18n();
-  const [expiredFromAction, setExpiredFromAction] = useState(false);
-  const expired = subscription?.status === "past_due" || expiredFromAction;
   const copy = getSubscriptionExpiredCopy(locale, subscription);
   const [modalOpen, setModalOpen] = useState(false);
-  const [checkoutPending, setCheckoutPending] = useState(false);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (subscription?.status === "active") setExpiredFromAction(false);
-  }, [subscription?.status]);
-
-  useEffect(() => {
-    const showModal = () => {
-      setExpiredFromAction(true);
-      setCheckoutError(null);
-      setModalOpen(true);
-    };
+    const showModal = () => setModalOpen(true);
     window.addEventListener(SUBSCRIPTION_EXPIRED_MODAL_EVENT, showModal);
     return () => window.removeEventListener(SUBSCRIPTION_EXPIRED_MODAL_EVENT, showModal);
   }, []);
-
-  useEffect(() => {
-    if (!expired) setModalOpen(false);
-  }, [expired]);
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -100,59 +76,34 @@ export function SubscriptionExpiredNotice({ subscription }: { subscription: Subs
     };
   }, [modalOpen]);
 
-  async function activateSubscription() {
-    if (checkoutPending) return;
-    setCheckoutPending(true);
-    setCheckoutError(null);
-    try {
-      const checkoutUrl = await createSubscriptionCheckout();
-      window.location.assign(checkoutUrl);
-    } catch {
-      setCheckoutError(copy.paymentError);
-      setModalOpen(true);
-      setCheckoutPending(false);
-    }
+  function openSubscriptionSection() {
+    setModalOpen(false);
+    window.dispatchEvent(new Event(OPEN_SUBSCRIPTION_SECTION_EVENT));
   }
 
-  if (!expired) return null;
+  if (!modalOpen) return null;
 
   return (
-    <>
-      <div className="vendeo-expired-banner" role="alert" aria-live="polite">
-        <span className="vendeo-expired-symbol" aria-hidden="true"><CreditCard size={18} /></span>
-        <div className="vendeo-expired-banner-copy">
-          <strong>{copy.bannerTitle}</strong>
-          <span>{copy.bannerText}</span>
-        </div>
-        <button type="button" className="vendeo-expired-banner-action" onClick={() => void activateSubscription()} disabled={checkoutPending}>
-          {checkoutPending ? copy.redirecting : copy.bannerAction}
+    <div className="vendeo-expired-backdrop" role="presentation" onClick={() => setModalOpen(false)}>
+      <section
+        className="vendeo-expired-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="vendeo-expired-title"
+        aria-describedby="vendeo-expired-description"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button type="button" className="vendeo-expired-close" aria-label={copy.close} onClick={() => setModalOpen(false)}>
+          ×
         </button>
-      </div>
-      {modalOpen ? (
-        <div className="vendeo-expired-backdrop" role="presentation" onClick={() => setModalOpen(false)}>
-          <section
-            className="vendeo-expired-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="vendeo-expired-title"
-            aria-describedby="vendeo-expired-description"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button type="button" className="vendeo-expired-close" aria-label={copy.close} onClick={() => setModalOpen(false)}>
-              ×
-            </button>
-            <span className="vendeo-expired-dialog-symbol" aria-hidden="true"><CreditCard size={24} /></span>
-            <span className="vendeo-expired-eyebrow">Vendeo · Abonnement</span>
-            <h2 id="vendeo-expired-title">{copy.dialogTitle}</h2>
-            <p id="vendeo-expired-description">{copy.dialogText}</p>
-            {checkoutError ? <p className="vendeo-expired-error" role="alert">{checkoutError}</p> : null}
-            <button type="button" className="vendeo-expired-dialog-action" onClick={() => void activateSubscription()} disabled={checkoutPending}>
-              {checkoutPending ? copy.redirecting : copy.dialogAction}
-            </button>
-            <span className="vendeo-expired-reassurance"><ShieldCheck size={15} aria-hidden="true" />{copy.securePayment}</span>
-          </section>
-        </div>
-      ) : null}
-    </>
+        <span className="vendeo-expired-dialog-symbol" aria-hidden="true"><CreditCard size={24} /></span>
+        <span className="vendeo-expired-eyebrow">Vendeo · Abonnement</span>
+        <h2 id="vendeo-expired-title">{copy.dialogTitle}</h2>
+        <p id="vendeo-expired-description">{copy.dialogText}</p>
+        <button type="button" className="vendeo-expired-dialog-action" onClick={openSubscriptionSection}>
+          {copy.dialogAction}
+        </button>
+      </section>
+    </div>
   );
 }

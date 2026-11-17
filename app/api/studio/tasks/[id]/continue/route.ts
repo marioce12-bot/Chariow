@@ -17,7 +17,7 @@ async function ownedTask(id: string, userId: string) {
   return error ? null : data;
 }
 export async function GET(_request: Request, context: Context) {
-  const { user, response } = await requireUser();
+  const { user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { id } = await context.params;
   const row = await ownedTask(id, user.id);
@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: Context) {
   return NextResponse.json({ task: { ...task, resume: continuationQuote(row, task) } }, { headers: { "Cache-Control": "no-store" } });
 }
 export async function POST(request: Request, context: Context) {
-  const { user, response } = await requireUser();
+  const { user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { id } = await context.params;
   const body = await request.json().catch(() => null);

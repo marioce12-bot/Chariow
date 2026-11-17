@@ -7,7 +7,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Stats Pinterest Ads (lecture seule) : dépenses, clics, conversions et CPA par campagne.
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const params = new URL(request.url).searchParams;
   const accountId = params.get("account_id");

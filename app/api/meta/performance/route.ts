@@ -54,7 +54,7 @@ function decisionStatus(decision: string): MetaEntityPerformance["status"] {
 }
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const params = new URL(request.url).searchParams;
   const accountId = params.get("account_id");

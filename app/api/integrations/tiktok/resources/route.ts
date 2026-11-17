@@ -4,7 +4,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { fetchTikTokIdentities } from "@/lib/tiktok/api";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const accountId = new URL(request.url).searchParams.get("account_id");
   if (!accountId) return NextResponse.json({ error: "account_id manquant" }, { status: 400 });

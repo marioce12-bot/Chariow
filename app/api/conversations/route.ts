@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 
 // Liste les conversations de l'assistant, de la plus récente à la plus ancienne.
 export async function GET() {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { data, error } = await supabase
     .from("conversations")

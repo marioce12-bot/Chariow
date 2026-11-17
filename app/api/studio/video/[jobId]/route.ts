@@ -11,7 +11,7 @@ const STALE_AFTER_MS = 30 * 60 * 1000;
 type Context = { params: Promise<{ jobId: string }> };
 
 export async function GET(_request: Request, { params }: Context) {
-  const { user, response } = await requireUser();
+  const { user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { jobId } = await params;
   if (jobId.length > 256 || !isStudioVideoTaskReference(jobId)) return NextResponse.json({ error: "Tâche vidéo introuvable. Vérifie l’historique et les crédits avant toute nouvelle demande.", code: "STUDIO_VIDEO_TASK_NOT_FOUND" }, { status: 404, headers: { "Cache-Control": "no-store" } });

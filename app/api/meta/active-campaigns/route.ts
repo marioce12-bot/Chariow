@@ -8,7 +8,7 @@ import { fetchMetaCampaignList } from "@/lib/meta/campaign-list";
 const RUNNING_STATUSES = new Set(["ACTIVE", "IN_PROCESS"]);
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const accountId = new URL(request.url).searchParams.get("account_id");
   if (!accountId) return NextResponse.json({ error: "account_id requis" }, { status: 400 });

@@ -5,7 +5,7 @@ import { encryptSecret } from "@/lib/crypto";
 import { REDDIT_OAUTH_AUTHORIZE_URL } from "@/lib/reddit/api";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const appId = process.env.REDDIT_APP_ID;
   const redirectUri = process.env.REDDIT_OAUTH_REDIRECT_URI;

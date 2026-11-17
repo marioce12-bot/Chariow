@@ -26,7 +26,7 @@ function generatePkce() {
 }
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
 
   const redirectUri = process.env.CHARIOW_OAUTH_REDIRECT_URI;

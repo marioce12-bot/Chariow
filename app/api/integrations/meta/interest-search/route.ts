@@ -4,7 +4,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { searchMetaInterests } from "@/lib/meta/api";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const url = new URL(request.url);
   const query = url.searchParams.get("q")?.trim() ?? "";

@@ -9,7 +9,7 @@ type Context = { params: Promise<{ id: string }> };
 const UUID = /^[0-9a-f-]{36}$/i;
 
 export async function GET(_request: Request, { params }: Context) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { id } = await params;
   if (!UUID.test(id)) return NextResponse.json({ error: "Vitrine introuvable" }, { status: 404 });

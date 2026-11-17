@@ -5,7 +5,7 @@ import { isPreviewEnabled, makeMusicPreview } from "@/lib/studio/slideshow-serve
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
- const { user, response } = await requireUser(); if (!user) return response;
+ const { user, response } = await requireUser({ allowUnsubscribed: true }); if (!user) return response;
  if (!isPreviewEnabled()) return NextResponse.json({ error: "Diaporama indisponible dans cet environnement." }, { status: 404 });
  if (rateLimit(`music-preview:${user.id}`, 15)) return NextResponse.json({ error: "Trop de demandes." }, { status: 429 });
  const { id } = await params;

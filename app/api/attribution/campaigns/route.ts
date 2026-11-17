@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { getChariowSnapshot, normalizeChariowSnapshot } from "@/lib/chariow/analytics";
 
 export async function GET() {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
 
   const { data: accounts } = await supabase.from("meta_ad_accounts").select("id").eq("user_id", user.id).eq("is_active", true);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 
 export async function GET() {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { data, error } = await supabase.from("vendeo_alerts").select("id,store_id,alert_key,severity,title,description,status,metadata,created_at,updated_at").eq("user_id", user.id).neq("status", "resolved").order("created_at", { ascending: false }).limit(50);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -10,7 +10,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const body = await request.json().catch(() => null);
   const id = typeof body?.id === "string" ? body.id : "";

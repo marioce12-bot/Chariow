@@ -16,7 +16,7 @@ const isPlatform = (value: unknown): value is Platform => value === "meta" || va
 // Liste les rattachements de l'utilisateur + les campagnes Chariow vues dans ses
 // ventes (pour proposer un choix dans l'interface).
 export async function GET() {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
 
   const [meta, tiktok, stores] = await Promise.all([

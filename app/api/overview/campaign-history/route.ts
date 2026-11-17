@@ -10,7 +10,7 @@ function isIsoDate(value: string) {
 }
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
 
   const params = new URL(request.url).searchParams;

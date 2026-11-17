@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { resolveUserMaxStores } from "@/lib/plans";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
 
   const requestedStoreId = new URL(request.url).searchParams.get("store_id");

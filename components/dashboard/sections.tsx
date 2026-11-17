@@ -14,6 +14,7 @@ import { OverviewDetails } from "@/components/dashboard/OverviewDetails";
 import { ReferralSettingsPanel } from "@/components/dashboard/ReferralSettingsPanel";
 import { SlideshowStudio } from "@/components/studio/SlideshowStudio";
 import { CreditPurchaseConfirmation } from "@/components/dashboard/CreditPurchaseConfirmation";
+import { SubscriptionPurchaseConfirmation } from "@/components/dashboard/SubscriptionPurchaseConfirmation";
 import { VideoDownloadButton } from "@/components/studio/VideoDownloadButton";
 import { resolveStudioPreviewMedia } from "@/components/studio/preview-media";
 import { StorePlatformDialog } from "@/components/dashboard/StorePlatformDialog";
@@ -35,6 +36,7 @@ import { isTerminalStudioVideoStatus, normalizeStudioVideoStatus, startStudioVid
 import { STUDIO_VIDEO_RESOLUTIONS } from "@/lib/studio/creative-workflows";
 import { STUDIO_VIDEO_DURATION } from "@/lib/studio/video-plan";
 import { useI18n } from "@/lib/i18n/i18n";
+import { hasSubscriptionRequiredPayload } from "@/lib/subscription/ui";
 import { MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY } from "./shared";
 import { useNavigationCache } from "./NavigationDataCache";
 import type { StoreData, SubscriptionData, ProductData, AnalyticsData } from "./shared";
@@ -728,7 +730,8 @@ export function StudioView({ products, creditRechargeRequest = 0, onCreditRechar
         videoRequestIdRef.current = null;
         persistStudioSession({ videoJobId: null, videoRequestId: null });
       }
-      if (!response.ok && (response.status === 402 || result.code === "INSUFFICIENT_CREDITS")) {
+      if (!response.ok && hasSubscriptionRequiredPayload(result)) return;
+      if (!response.ok && result.code === "INSUFFICIENT_CREDITS") {
         const required = typeof result.required === "number" ? result.required : requiredCredits;
         const available = typeof result.balance === "number" ? result.balance : currentAvailable;
         showInsufficientCredits(required, available);
@@ -846,6 +849,7 @@ export function StudioView({ products, creditRechargeRequest = 0, onCreditRechar
     try {
       const response = await fetch("/api/studio/image/edit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ generationId: selectedGenerationId, instruction: editInstruction }) });
       const result = await response.json();
+      if (!response.ok && hasSubscriptionRequiredPayload(result)) return;
       if (!response.ok) throw new Error(result.error || "Modification impossible.");
       setImageUrl(result.imageUrl); setSelectedGenerationId(result.generationId); setEditInstruction(""); setEditOpen(false); setHistoryCursor(null); await loadHistory(true);
       const credits = await fetch("/api/studio/credits").then((r) => r.ok ? r.json() : null).catch(() => null); if (credits) { setBalance(credits.balance ?? 0); setReservedCredits(credits.reserved ?? 0); }
@@ -2564,14 +2568,18 @@ export function StoresView({ stores, subscription, onStoresChange, onBackToSetti
 
 export function SubscriptionView({ subscription, onBackToSettings }: { subscription: SubscriptionData | null; onBackToSettings?: () => void }) {
   const { t, locale } = useI18n();
-  const trial = subscription?.trial_active ?? true;
+  const trial = subscription?.trial_active === true;
   const isActive = subscription?.status === "active" && !trial;
   const currentPlan: PlanId = "starter";
   const trialEndsAt = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null;
   const trialDaysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / 86400000)) : null;
   const [changingPlan, setChangingPlan] = useState<PlanId | null>(null);
+  const [purchaseConfirmOpen, setPurchaseConfirmOpen] = useState(false);
+  const [purchaseAccepted, setPurchaseAccepted] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
 
   async function subscribe(plan: PlanId) {
+    if (!purchaseAccepted) return;
     setChangingPlan(plan);
     try {
       const response = await fetch("/api/subscription/checkout", {
@@ -2579,15 +2587,15 @@ export function SubscriptionView({ subscription, onBackToSettings }: { subscript
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const data = await response.json();
-      if (response.ok && data.payment?.url) {
+      const data = await response.json().catch(() => null);
+      if (response.ok && typeof data?.payment?.url === "string") {
         window.location.href = data.payment.url;
       } else {
-        window.alert(data.error ?? t("sectionsExtra.subscription.paymentError"));
+        setCheckoutError(typeof data?.error === "string" ? data.error : (locale === "en" ? "Unable to prepare the payment link. No payment has been confirmed." : "Impossible de préparer le lien de paiement. Aucun paiement n’a été confirmé."));
         setChangingPlan(null);
       }
     } catch {
-      window.alert(t("sectionsExtra.subscription.paymentError"));
+      setCheckoutError(locale === "en" ? "Unable to prepare the payment link. No payment has been confirmed; try again later." : "Impossible de préparer le lien de paiement. Aucun paiement n’a été confirmé ; réessaie plus tard.");
       setChangingPlan(null);
     }
   }
@@ -2624,6 +2632,10 @@ export function SubscriptionView({ subscription, onBackToSettings }: { subscript
         </div>
 
       </div>
+      <div className="app-card" role="status" style={{ maxWidth: 820, margin: "0 auto 18px", border: "1px solid #dddaf8", background: "linear-gradient(120deg, #f6f5ff, #fff)", padding: 16 }}>
+        <strong>{subscription?.status === "past_due" ? (locale === "en" ? "No active subscription" : "Aucun abonnement actif") : trial ? (locale === "en" ? "Your free trial" : "Ton essai gratuit") : (locale === "en" ? "No active subscription" : "Aucun abonnement actif")}</strong>
+        <p style={{ margin: "5px 0 0", color: "#626b80", lineHeight: 1.5 }}>{subscription?.status === "past_due" || !trial ? (locale === "en" ? "Your sections, data, settings, navigation, and account menus remain available. An active subscription is requested only when you start an action that requires it." : "Tes sections, données, paramètres, navigation et menus de compte restent accessibles. Un abonnement actif est demandé seulement lorsque tu lances une action qui en a besoin.") : (locale === "en" ? "Your trial remains available until the date shown above. You can explore the workspace without opening a payment." : "Ton essai reste disponible jusqu’à la date indiquée ci-dessus. Tu peux explorer ton espace sans ouvrir de paiement.")}</p>
+      </div>
       <div className="pricing-wrap" style={{ maxWidth: 820 }}>
         <article className="price-card">
           <span className="eyebrow">{trial ? t("landing.pricing.pill") : t("optionsExtra.text61")}</span>
@@ -2636,11 +2648,23 @@ export function SubscriptionView({ subscription, onBackToSettings }: { subscript
             <li>{t("sweep1.text327")}</li>
             <li>{t("sweep2.text328")}</li>
           </ul>
-          <button className="btn btn-ghost" onClick={() => void subscribe("starter")} disabled={changingPlan === "starter"} style={{ width: "100%" }}>
-            {changingPlan === "starter" ? t("workspaceExtra.redirecting") : t("workspaceExtra.subscribe")}
+          <button className="btn btn-ghost" onClick={() => { setCheckoutError(""); setPurchaseAccepted(false); setPurchaseConfirmOpen(true); }} disabled={changingPlan === "starter"} style={{ width: "100%" }}>
+            {t("workspaceExtra.subscribe")}
           </button>
         </article>
       </div>
+      {purchaseConfirmOpen ? <SubscriptionPurchaseConfirmation
+        locale={locale}
+        price={t("landing.pricing.price")}
+        perMonth={t("landing.pricing.perMonth")}
+        billingNote={t("landing.pricing.billingNote")}
+        accepted={purchaseAccepted}
+        submitting={changingPlan === "starter"}
+        error={checkoutError}
+        onAcceptedChange={setPurchaseAccepted}
+        onCancel={() => { if (changingPlan !== "starter") setPurchaseConfirmOpen(false); }}
+        onConfirm={() => void subscribe("starter")}
+      /> : null}
     </>
   );
 }

@@ -5,7 +5,7 @@ import { rateLimit } from "@/lib/shop/rate-limit";
 
 export const runtime = "nodejs";
 export async function GET(request: Request) {
-  const { user, response } = await requireUser();
+  const { user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   if (rateLimit(`studio-music:${user.id}`, 20)) return NextResponse.json({ error: "Trop de recherches. Réessaie dans une minute." }, { status: 429 });
   const query = new URL(request.url).searchParams.get("q")?.trim() || "";

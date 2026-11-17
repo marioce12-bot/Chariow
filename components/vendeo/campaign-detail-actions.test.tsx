@@ -47,7 +47,7 @@ describe("campaign detail actions", () => {
     expect(document.body.querySelectorAll(".ad-campaign-modal-actions button")).toHaveLength(4);
     for (const key of ["ads.correction.edit", "adsExtra.duplicate", "adsExtra.resume", "ads.correction.deleteCampaign"]) button(key);
     await act(async () => button("ads.correction.deleteCampaign").click());
-    expect(confirmMock).toHaveBeenCalledWith("Supprimer cette campagne ?"); noWrites();
+    expect(confirmMock).toHaveBeenCalledWith(locale === "fr" ? "Supprimer cette campagne ? Si elle est liée à Meta, la suppression sera aussi demandée là-bas. Cette action est irréversible." : "Delete this campaign? If linked to Meta, deletion will also be requested there. This action cannot be undone."); noWrites();
     expect(document.body.querySelector(".ad-campaign-detail")).not.toBeNull();
   });
   it.each(["draft", "paid", "paused", "autopilot_paused"])("opens resume/launch for %s without operations", async status => {

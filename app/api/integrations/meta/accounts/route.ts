@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { isMetaReconnectRequired } from "@/lib/meta/connection-state";
 
 export async function GET() {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { data, error } = await supabase.from("meta_ad_accounts").select("id,meta_account_id,name,currency,last_synced_at,is_active,account_status,is_selected,last_backfill_at,backfill_status,backfill_next_from,last_sync_error").eq("user_id", user.id).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

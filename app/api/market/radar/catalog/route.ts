@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { getCachedStoreProducts } from "@/lib/shop/products";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
 
   const storeId = new URL(request.url).searchParams.get("store_id")?.trim() ?? "";

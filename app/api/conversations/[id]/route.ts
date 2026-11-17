@@ -5,7 +5,7 @@ type Context = { params: Promise<{ id: string }> };
 
 // Renvoie une conversation précise et ses messages, pour la reprise dans l'historique.
 export async function GET(_request: Request, context: Context) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { id } = await context.params;
 

@@ -3,14 +3,37 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { SubscriptionExpiredNotice } from "@/components/SubscriptionExpiredNotice";
+import { hasSubscriptionRequiredPayload, requestSubscriptionActivation } from "@/lib/subscription/ui";
 
 // Garde monté dans app/dashboard/layout.tsx : lit l'état réel de l'abonnement côté serveur
-// (GET /api/subscription) et affiche une bannière si le plan Vendeo est expiré.
+// (GET /api/subscription) pour adapter le texte d'une demande d'activation.
 // Il revérifie à chaque changement de page et au retour sur l'onglet
 // pour éviter un accès prolongé.
 export function SubscriptionPaywallGate() {
   const pathname = usePathname();
   const [subscription, setSubscription] = useState<{ status: string; trial_active?: boolean; trial_ends_at?: string | null } | null>(null);
+
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    const monitoredFetch: typeof fetch = async (input, init) => {
+      const response = await originalFetch(input, init);
+      try {
+        const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const url = new URL(rawUrl, window.location.href);
+        if (response.status === 402 && url.origin === window.location.origin && url.pathname.startsWith("/api/")) {
+          const payload = await response.clone().json().catch(() => null);
+          if (hasSubscriptionRequiredPayload(payload)) requestSubscriptionActivation();
+        }
+      } catch {
+        // Monitoring must not change the behavior of the original request.
+      }
+      return response;
+    };
+    window.fetch = monitoredFetch;
+    return () => {
+      if (window.fetch === monitoredFetch) window.fetch = originalFetch;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

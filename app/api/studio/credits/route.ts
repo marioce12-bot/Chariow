@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET() {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   // Les ecritures passent par le client service-role : RLS n'autorise que la lecture
   // cote utilisateur sur credit_accounts / credit_transactions.

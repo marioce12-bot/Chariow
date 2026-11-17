@@ -6,7 +6,7 @@ import { presentStorefront } from "@/lib/shop/present";
 import { STOREFRONT_COLUMNS, saveStorefront, type StorefrontRow } from "@/lib/shop/service";
 
 export async function GET() {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { data, error } = await supabase.from("shop_storefronts").select(STOREFRONT_COLUMNS).eq("user_id", user.id).order("created_at", { ascending: false }).limit(20);
   if (error) return NextResponse.json({ error: "Impossible de charger les vitrines" }, { status: 500 });

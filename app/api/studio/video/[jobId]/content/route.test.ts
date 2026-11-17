@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => {
   const query: any = {};
   query.select = vi.fn(() => query);
   query.eq = vi.fn(() => query);
+  query.like = vi.fn(() => query);
   query.maybeSingle = vi.fn();
   return { requireUser: vi.fn(), query, signedUrl: vi.fn() };
 });
@@ -14,8 +15,9 @@ vi.mock("@/lib/studio/media", () => ({ signedStudioUrl: mocks.signedUrl }));
 import { GET } from "./route";
 
 const userId = "00000000-0000-4000-8000-000000000001";
-const request = () => new Request("https://preview.example/api/studio/video/job-1/content");
-const call = (jobId = "job-1") => GET(request(), { params: Promise.resolve({ jobId }) });
+const jobId = "11111111-1111-4111-8111-111111111111";
+const request = () => new Request(`https://preview.example/api/studio/video/${jobId}/content`);
+const call = (requestedJobId = jobId) => GET(request(), { params: Promise.resolve({ jobId: requestedJobId }) });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -37,7 +39,7 @@ describe("private Studio video content route", () => {
   });
 
   it("rejects an invalid job identifier before querying", async () => {
-    expect((await call("x".repeat(513))).status).toBe(400);
+    expect((await call("x".repeat(513))).status).toBe(404);
     expect(mocks.query.maybeSingle).not.toHaveBeenCalled();
     expect(mocks.signedUrl).not.toHaveBeenCalled();
   });
@@ -47,9 +49,9 @@ describe("private Studio video content route", () => {
 
     const response = await call();
     expect(response.status).toBe(404);
-    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(mocks.requireUser).toHaveBeenCalledWith({ allowUnsubscribed: true });
     expect(mocks.query.eq).toHaveBeenNthCalledWith(1, "user_id", userId);
-    expect(mocks.query.eq).toHaveBeenNthCalledWith(2, "video_job_id", "job-1");
+    expect(mocks.query.eq).toHaveBeenNthCalledWith(2, "video_job_id", jobId);
     expect(mocks.signedUrl).not.toHaveBeenCalled();
   });
 
@@ -68,9 +70,9 @@ describe("private Studio video content route", () => {
   it("redirects completed media to a signed private URL without caching it", async () => {
     const response = await call();
 
-    expect(response.status).toBe(302);
+    expect(response.status).toBe(307);
     expect(response.headers.get("Location")).toBe("https://signed.example/video.mp4");
-    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(mocks.signedUrl).toHaveBeenCalledOnce();
     expect(mocks.signedUrl).toHaveBeenCalledWith(`${userId}/video.mp4`, userId);
   });

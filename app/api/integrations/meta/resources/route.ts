@@ -5,7 +5,7 @@ import { fetchMetaResources } from "@/lib/meta/api";
 import { loadStoredMetaPixels, saveMetaPixels } from "@/lib/meta/pixels";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const accountId = new URL(request.url).searchParams.get("account_id");
   const query = supabase.from("meta_ad_accounts").select("id,meta_account_id,access_token_encrypted,account_status").eq("user_id", user.id).eq("is_active", true);

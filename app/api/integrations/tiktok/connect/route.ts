@@ -22,7 +22,7 @@ function prerequisitesPage(continueHref: string) {
 }
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const requestUrl = new URL(request.url);
   if (requestUrl.searchParams.get("confirmed") !== "1") return prerequisitesPage(`${requestUrl.pathname}?confirmed=1`);

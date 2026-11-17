@@ -26,43 +26,38 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
-describe("Vendeo subscription expiry notice", () => {
-  it("shows a clear persistent banner but does not open a modal automatically", async () => {
+describe("Vendeo subscription activation notice", () => {
+  it("does not show a persistent banner or a modal automatically when the plan is expired", async () => {
     await act(async () => root!.render(createElement(SubscriptionExpiredNotice, { subscription: { status: "past_due" } })));
-
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain("Ton abonnement Vendeo a expiré");
+    expect(host.querySelector('[role="alert"]')).toBeNull();
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(host.querySelector(".vendeo-expired-banner")).toBeNull();
   });
 
-  it("opens on a gated-action event and launches the payment checkout from its CTA", async () => {
+  it("opens only after a gated action and routes the user to subscription options, without starting payment", async () => {
     const navigate = vi.fn();
-    const paymentFetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "gateway unavailable" }) });
+    const paymentFetch = vi.fn();
     vi.stubGlobal("fetch", paymentFetch);
     window.addEventListener(OPEN_SUBSCRIPTION_SECTION_EVENT, navigate);
-    await act(async () => root!.render(createElement(SubscriptionExpiredNotice, { subscription: { status: "past_due" } })));
+    await act(async () => root!.render(createElement(SubscriptionExpiredNotice, { subscription: { status: "past_due", trial_active: false } })));
 
     await act(async () => window.dispatchEvent(new Event(SUBSCRIPTION_EXPIRED_MODAL_EVENT)));
     expect(host.querySelector('[role="alertdialog"]')?.textContent).toContain("Ton abonnement Vendeo a expiré");
-    expect(host.querySelector("#vendeo-expired-description")?.textContent).toBe("Réactive ton abonnement pour retrouver l’accès aux sections métier. Notifications, Paramètres et Abonnement restent accessibles.");
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain("l’Assistant, aux publicités et au Studio");
-    const action = [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("Continuer vers le paiement"));
+    expect(host.querySelector("#vendeo-expired-description")?.textContent).toContain("Tes sections, données, paramètres et menus restent accessibles");
+    const action = [...host.querySelectorAll("button")].find((button) => button.textContent?.includes("Voir les options d’abonnement"));
     expect(action).toBeTruthy();
-    await act(async () => {
-      action!.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    await act(async () => action!.click());
 
-    expect(paymentFetch).toHaveBeenCalledOnce();
-    expect(paymentFetch).toHaveBeenCalledWith("/api/subscription/checkout", expect.objectContaining({ method: "POST" }));
-    expect(navigate).not.toHaveBeenCalled();
-    expect(host.querySelector('[role="alertdialog"]')).not.toBeNull();
-    expect(host.querySelector(".vendeo-expired-error")?.textContent).toBe("Le paiement n’a pas pu démarrer. Vérifie ta connexion puis réessaie.");
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(paymentFetch).not.toHaveBeenCalled();
+    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
     window.removeEventListener(OPEN_SUBSCRIPTION_SECTION_EVENT, navigate);
   });
 
   it("does not describe an active Vendeo subscription as expired", async () => {
     await act(async () => root!.render(createElement(SubscriptionExpiredNotice, { subscription: { status: "active" } })));
     expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(host.querySelector('[role="alertdialog"]')).toBeNull();
     expect(isVendeoSubscriptionExpired({ status: "active" })).toBe(false);
     expect(isVendeoSubscriptionExpired({ status: "past_due" })).toBe(true);
   });

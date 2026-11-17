@@ -8,7 +8,7 @@ import { getMetaCreativePatch } from "@/lib/meta/creative-sync";
 
 type Context = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, context: Context) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const { id } = await context.params;
   const { data: campaign, error: campaignError } = await supabase.from("ad_campaigns")

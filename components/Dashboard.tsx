@@ -55,7 +55,7 @@ import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
 
 import { NavigationDataProvider, useNavigationData, useNavigationCache } from "./dashboard/NavigationDataCache";
 import { DASHBOARD_ANALYTICS_REFRESH_MS, getDashboardAnalyticsUrl } from "@/lib/dashboard-analytics-periods";
-import { isVendeoSubscriptionExpired, OPEN_SUBSCRIPTION_SECTION_EVENT, SUBSCRIPTION_EXPIRED_MODAL_EVENT, SUBSCRIPTION_GATED_SECTIONS } from "@/lib/subscription/ui";
+import { isVendeoSubscriptionExpired, OPEN_SUBSCRIPTION_SECTION_EVENT, SUBSCRIPTION_EXPIRED_MODAL_EVENT } from "@/lib/subscription/ui";
 import type { DashboardTourStep } from "./dashboard/tour-steps";
 type DashboardAnalyticsResponse = { snapshot: AnalyticsData; rolling30Snapshot: AnalyticsData; periodSnapshot: AnalyticsData };
 type StoredDashboardAnalyticsResponse = { storeId: string; data: DashboardAnalyticsResponse };
@@ -297,10 +297,6 @@ function DashboardWorkspace() {
       setMoreOpen(false);
       setGuideMenuTarget(null);
       setActive("Paramètres");
-      return;
-    }
-    if (subscriptionExpired && SUBSCRIPTION_GATED_SECTIONS.has(section)) {
-      showExpiredSubscriptionModal();
       return;
     }
     setActive(section);
@@ -637,25 +633,11 @@ function DashboardWorkspace() {
           <DashboardPrimaryNavigation active={active} onChange={navigateToSection} />
           <button type="button" className="dashboard-plan-status" onClick={() => setActive("Abonnement")}>
             <span className="dashboard-plan-dot" aria-hidden="true" />
-            <span><strong>{isActivePlan ? w("planActive") : subscription?.status === "past_due" ? w("planExpired") : w("freeTrial")}</strong><small>{isActivePlan ? w("managePlan") : w("viewPlan")}</small></span>
+            <span><strong>{isActivePlan ? w("planActive") : subscription?.status === "past_due" ? w("planExpired") : subscription?.trial_active === true ? w("freeTrial") : (locale === "en" ? "No active subscription" : "Aucun abonnement actif")}</strong><small>{isActivePlan ? w("managePlan") : w("viewPlan")}</small></span>
             <CreditCard size={16} aria-hidden="true" />
           </button>
         </aside>
-        <section
-          className={`app-main${active === "Vendeo AI" ? " chat-page" : ""}${active === "Performance publicitaire" ? " app-performance-main" : ""}`}
-          onClickCapture={(event) => {
-            if (!subscriptionExpired || !SUBSCRIPTION_GATED_SECTIONS.has(active)) return;
-            const target = event.target;
-            if (!(target instanceof Element)) return;
-            const action = target.closest("button, a[href], [role='button'], input[type='submit'], form");
-            if (!action || action.hasAttribute("data-subscription-gate-allow")) return;
-            const label = `${action.getAttribute("aria-label") ?? ""} ${action.getAttribute("title") ?? ""} ${action.textContent ?? ""}`.toLowerCase();
-            if (/(^|\s)(back|retour|close|fermer|cancel|annuler)(\s|$)/.test(label)) return;
-            event.preventDefault();
-            event.stopPropagation();
-            showExpiredSubscriptionModal();
-          }}
-        >
+        <section className={`app-main${active === "Vendeo AI" ? " chat-page" : ""}${active === "Performance publicitaire" ? " app-performance-main" : ""}`}>
           {loadingData ? (
             <DashboardSkeleton />
           ) : dashboardDataUnavailable ? (

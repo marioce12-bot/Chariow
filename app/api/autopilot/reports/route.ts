@@ -8,7 +8,7 @@ import { selectLiveAutopilotCampaigns } from "@/lib/autopilot-eligibility";
 // au plus ancien. Chaque rapport relie la dépense pub aux ventes réelles et à la
 // décision prise (laisser tourner / mettre en pause / en apprentissage).
 export async function GET() {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
 
   const { data: reports, error } = await supabase

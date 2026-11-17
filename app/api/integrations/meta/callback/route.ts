@@ -8,7 +8,7 @@ import { fetchMetaGraph } from "@/lib/meta/graph";
 import { recoverUnlistedMetaAccountReconnects } from "@/lib/meta/reauth-recovery";
 
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const url = new URL(request.url);
   const redirect = (status: string) => NextResponse.redirect(new URL(`/dashboard?meta=${status}`, request.url));

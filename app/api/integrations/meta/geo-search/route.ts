@@ -15,7 +15,7 @@ import { searchMetaGeoLocations } from "@/lib/meta/api";
  * alors sur les seules suggestions de pays, sans bloquer la recherche.
  */
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
 
   const url = new URL(request.url);

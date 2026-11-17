@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { exchangePinterestCode, fetchPinterestAdAccounts } from "@/lib/pinterest/api";
 export async function GET(request: Request) {
-  const { supabase, user, response } = await requireUser();
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true });
   if (!user) return response;
   const url = new URL(request.url);
   const redirect = (status: string) => NextResponse.redirect(new URL(`/dashboard?pinterest=${status}`, request.url));

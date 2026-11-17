@@ -15,7 +15,7 @@ async function load(supabase: any, id: string, userId: string) {
   return { data: { budget_limit: data.autopilot_budget_limit_currency?.toUpperCase() === currency ? cap : null, currency, autopilot_enabled: Boolean(data.autopilot_enabled) } };
 }
 export async function GET(_request: Request, context: Context) {
-  const { supabase, user, response } = await requireUser(); if (!user) return response;
+  const { supabase, user, response } = await requireUser({ allowUnsubscribed: true }); if (!user) return response;
   const { id } = await context.params; const result = await load(supabase, id, user.id);
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.error === "CAMPAIGN_NOT_FOUND" ? 404 : 400 });
   return NextResponse.json(result.data);

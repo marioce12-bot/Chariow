@@ -4,7 +4,7 @@ import "./ad-campaigns-list.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CopyPlus, PauseCircle, PlayCircle, RefreshCw, Trash2, X } from "lucide-react";
+import { CopyPlus, Info, PauseCircle, PlayCircle, RefreshCw, Trash2, X } from "lucide-react";
 import { ResumeCampaignModal } from "./wizard/ResumeCampaignModal";
 import { LaunchAdWizard } from "./wizard/LaunchAdWizard";
 import { VariantPackWizard } from "./AdVariantPackWizard";
@@ -73,6 +73,26 @@ type AdVariantPackSummary = {
   } | null;
   variants?: { id: string; angle: string; format: string; media?: string[] }[] | null;
 };
+
+type PackAction = "pause" | "activate" | "delete" | "pause-ad" | "activate-ad";
+type MetaActionPreview = { name?: string; platform?: string; action?: string; currentStatus?: string; warning?: string };
+type PendingMetaConfirmation =
+  | { kind: "campaign"; campaignId: string; campaignName: string; action: "pause" | "activate"; token: string; preview: MetaActionPreview }
+  | { kind: "pack"; packId: string; packName: string; action: PackAction; adIndex?: number; token: string; preview: MetaActionPreview };
+
+function parseMetaActionWarning(warning: string | undefined) {
+  const match = warning?.match(/^Cible Meta : campagne ([^,]+), ensemble ([^,]+), publicité ([^.]+)\. Statut demandé sur les trois : ([^.]+)\. (.+?) Les règles automatiques de budget associées seront désactivées\.$/);
+  if (!match) return null;
+  return {
+    targets: [
+      { label: "Campagne", value: match[1] },
+      { label: "Ensemble", value: match[2] },
+      { label: "Publicité", value: match[3] },
+    ],
+    requestedStatus: match[4],
+    budget: match[5],
+  };
+}
 
 function getMetaControlAction(campaign: AdCampaign): "pause" | "activate" | null {
   if (campaign.platform !== "meta" || !campaign.external_campaign_id || !campaign.external_adset_id || !campaign.external_ad_id) return null;
@@ -167,6 +187,9 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
   const [metaActionError, setMetaActionError] = useState<string | null>(null);
   const [packActionBusy, setPackActionBusy] = useState<string | null>(null);
   const [packActionError, setPackActionError] = useState<string | null>(null);
+  const [pendingMetaConfirmation, setPendingMetaConfirmation] = useState<PendingMetaConfirmation | null>(null);
+  const metaActionConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
+  const metaActionTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [duplicatingPack, setDuplicatingPack] = useState<Record<string, any> | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -208,6 +231,10 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        if (pendingMetaConfirmation) {
+          setPendingMetaConfirmation(null);
+          return;
+        }
         closeDetail();
       }
     };
@@ -225,7 +252,17 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
       body.style.overscrollBehavior = previousOverscrollBehavior;
       root.style.overflow = previousRootOverflow;
     };
-  }, [selected?.id, closeDetail]);
+  }, [selected?.id, closeDetail, pendingMetaConfirmation]);
+  useEffect(() => {
+    if (pendingMetaConfirmation) {
+      metaActionConfirmButtonRef.current?.focus();
+      return;
+    }
+    if (metaActionBusy === null && packActionBusy === null && metaActionTriggerRef.current?.isConnected) {
+      metaActionTriggerRef.current.focus();
+      metaActionTriggerRef.current = null;
+    }
+  }, [pendingMetaConfirmation, metaActionBusy, packActionBusy]);
   useEffect(() => () => {
     if (detailHistoryEntry.current) {
       detailHistoryEntry.current = false;
@@ -257,34 +294,26 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phase: "prepare", action, campaignId: campaign.id }),
       });
-      const prepared = await preparedResponse.json().catch(() => null) as { error?: string; token?: string; preview?: { name?: string; warning?: string } } | null;
+      const prepared = await preparedResponse.json().catch(() => null) as { error?: string; token?: string; preview?: MetaActionPreview } | null;
       if (!preparedResponse.ok || !prepared?.token || !prepared.preview) {
         setMetaActionError(prepared?.error ?? (locale === "en" ? "Could not verify this campaign with Meta." : "Impossible de vérifier cette campagne auprès de Meta."));
         return;
       }
-      const confirmation = `${prepared.preview.name ?? campaign.title ?? campaign.id}\n\n${prepared.preview.warning ?? ""}\n\n${locale === "en" ? "Confirm this Meta action?" : "Confirmer cette action sur Meta ?"}`;
-      if (!window.confirm(confirmation)) return;
-
-      const response = await fetch("/api/chat/campaign-actions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phase: "execute", action, campaignId: campaign.id, token: prepared.token, confirmed: true }),
+      setPendingMetaConfirmation({
+        kind: "campaign",
+        campaignId: campaign.id,
+        campaignName: campaign.title || campaign.product_name || campaign.id,
+        action,
+        token: prepared.token,
+        preview: prepared.preview,
       });
-      const result = await response.json().catch(() => null) as { error?: string; campaign?: Partial<AdCampaign> } | null;
-      if (!response.ok) {
-        setMetaActionError(result?.error ?? (locale === "en" ? "Meta did not confirm this action." : "Meta n’a pas confirmé cette action."));
-        return;
-      }
-      if (result?.campaign) setSelected((current) => current?.id === campaign.id ? { ...current, ...result.campaign } : current);
-      navigationCache.invalidate();
-      void load();
     } catch {
       setMetaActionError(locale === "en" ? "The result could not be verified. Check the campaign in Meta before retrying." : "Le résultat n’a pas pu être vérifié. Vérifie la campagne dans Meta avant de réessayer.");
     } finally {
       setMetaActionBusy(null);
     }
-  }, [locale, load, metaActionBusy, navigationCache]);
-  const runPackAction = useCallback(async (pack: AdVariantPackSummary, action: "pause" | "activate" | "delete" | "pause-ad" | "activate-ad", adIndex?: number) => {
+  }, [locale, metaActionBusy]);
+  const runPackAction = useCallback(async (pack: AdVariantPackSummary, action: PackAction, adIndex?: number) => {
     if (packActionBusy) return;
     const busyKey = `${pack.id}:${action}:${adIndex ?? ""}`;
     setPackActionBusy(busyKey);
@@ -293,14 +322,64 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
     try {
       const actionBody = { action, ...(adIndex !== undefined ? { adIndex } : {}) };
       const preparedResponse = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phase: "prepare", ...actionBody }) });
-      const prepared = await preparedResponse.json().catch(() => null) as { error?: string; token?: string; preview?: { name?: string; warning?: string } } | null;
+      const prepared = await preparedResponse.json().catch(() => null) as { error?: string; token?: string; preview?: MetaActionPreview } | null;
       if (!preparedResponse.ok || !prepared?.token || !prepared.preview) {
         setPackActionError(prepared?.error ?? (en ? "Meta status could not be verified." : "Impossible de vérifier le statut Meta."));
         return;
       }
-      const confirmation = `${prepared.preview.name ?? pack.product_name ?? pack.id}\n\n${prepared.preview.warning ?? ""}\n\n${en ? "Confirm this Meta action?" : "Confirmer cette action sur Meta ?"}`;
-      if (!window.confirm(confirmation)) return;
-      const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phase: "execute", ...actionBody, token: prepared.token, confirmed: true }) });
+      setPendingMetaConfirmation({
+        kind: "pack",
+        packId: pack.id,
+        packName: pack.product_name || pack.id,
+        action,
+        ...(adIndex !== undefined ? { adIndex } : {}),
+        token: prepared.token,
+        preview: prepared.preview,
+      });
+    } catch {
+      setPackActionError(en ? "The result is ambiguous. Check the affected Meta objects before retrying; Vendeo did not repeat the action." : "Le résultat est ambigu. Vérifie les objets concernés dans Meta avant de réessayer ; Vendeo n’a pas répété l’action.");
+    } finally {
+      setPackActionBusy(null);
+    }
+  }, [en, packActionBusy]);
+  const confirmPendingMetaAction = useCallback(async () => {
+    const pending = pendingMetaConfirmation;
+    if (!pending) return;
+    if (pending.kind === "campaign") {
+      if (metaActionBusy) return;
+      setMetaActionBusy(pending.campaignId);
+      setMetaActionError(null);
+      setPendingMetaConfirmation(null);
+      try {
+        const response = await fetch("/api/chat/campaign-actions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phase: "execute", action: pending.action, campaignId: pending.campaignId, token: pending.token, confirmed: true }),
+        });
+        const result = await response.json().catch(() => null) as { error?: string; campaign?: Partial<AdCampaign> } | null;
+        if (!response.ok) {
+          setMetaActionError(result?.error ?? (locale === "en" ? "Meta did not confirm this action." : "Meta n’a pas confirmé cette action."));
+          return;
+        }
+        if (result?.campaign) setSelected((current) => current?.id === pending.campaignId ? { ...current, ...result.campaign } : current);
+        navigationCache.invalidate();
+        void load();
+      } catch {
+        setMetaActionError(locale === "en" ? "The result could not be verified. Check the campaign in Meta before retrying." : "Le résultat n’a pas pu être vérifié. Vérifie la campagne dans Meta avant de réessayer.");
+      } finally {
+        setMetaActionBusy(null);
+      }
+      return;
+    }
+    if (packActionBusy) return;
+    const busyKey = `${pending.packId}:${pending.action}:${pending.adIndex ?? ""}`;
+    setPackActionBusy(busyKey);
+    setPackActionError(null);
+    setPendingMetaConfirmation(null);
+    const endpoint = `/api/ad-variant-packs/${encodeURIComponent(pending.packId)}/actions`;
+    const actionBody = { action: pending.action, ...(pending.adIndex !== undefined ? { adIndex: pending.adIndex } : {}) };
+    try {
+      const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phase: "execute", ...actionBody, token: pending.token, confirmed: true }) });
       const result = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) {
         setPackActionError(result?.error ?? (en ? "Meta did not confirm the action. Check the Pack in Meta before trying again." : "Meta n’a pas confirmé l’action. Vérifie le Pack dans Meta avant de réessayer."));
@@ -313,7 +392,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
     } finally {
       setPackActionBusy(null);
     }
-  }, [en, load, navigationCache, packActionBusy]);
+  }, [en, load, locale, metaActionBusy, navigationCache, packActionBusy, pendingMetaConfirmation]);
   const openPackDuplicate = useCallback(async (pack: AdVariantPackSummary) => {
     if (packActionBusy) return;
     setPackActionBusy(`${pack.id}:duplicate`);
@@ -526,7 +605,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
                   return <div key={variant.id} className="ad-variant-pack-variant" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     {media[0] ? variant.format === "video" ? <video src={media[0]} muted playsInline preload="metadata" aria-label={`${en ? "Preview" : "Aperçu"} — ${variant.angle}`} /> : <img src={media[0]} alt={`${en ? "Creative" : "Visuel"} — ${variant.angle}`} loading="lazy" /> : <span className="ad-variant-pack-no-media">{en ? "No preview" : "Sans visuel"}</span>}
                     <span className="ad-variant-pack-variant-copy"><strong>{variant.angle || (en ? `Variant ${index + 1}` : `Variante ${index + 1}`)}</strong><small>{format}{media.length > 1 ? ` · ${media.length} images` : ""}{adStatus ? ` · ${statusLabels[adStatus] ?? STATUS_META[adStatus]?.label ?? adStatus}` : ""}</small></span>
-                    {adAction ? <button type="button" className="btn btn-ghost" disabled={packBusy} aria-label={`${adActionLabel} — ${variant.angle || index + 1}`} onClick={() => void runPackAction(pack, adAction, index)}>{adAction === "pause-ad" ? <PauseCircle size={14} /> : <PlayCircle size={14} />}{adActionLabel}</button> : null}
+                    {adAction ? <button type="button" className="btn btn-ghost" disabled={packBusy} aria-label={`${adActionLabel} — ${variant.angle || index + 1}`} onClick={(event) => { metaActionTriggerRef.current = event.currentTarget; void runPackAction(pack, adAction, index); }}>{adAction === "pause-ad" ? <PauseCircle size={14} /> : <PlayCircle size={14} />}{adActionLabel}</button> : null}
                   </div>;
                 })}</div>
                 <p className="ad-variant-pack-footnote">{pack.status === "completed" && pack.checkpoints?.activated === true
@@ -543,9 +622,9 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
                     ? (en ? "Vendeo blocked this pack before confirming its launch." : "Vendeo indique que ce Pack a été bloqué avant confirmation de son lancement.")
                     : (en ? "Vendeo has no confirmed delivery status for this pack yet." : "Vendeo n’a pas encore de statut de diffusion confirmé pour ce Pack.")}</p>
                 <div className="ad-variant-pack-actions" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                  {groupAction ? <button type="button" className="btn btn-ghost" disabled={packBusy} onClick={() => void runPackAction(pack, groupAction)}>{groupAction === "pause" ? <PauseCircle size={14} /> : <PlayCircle size={14} />}{groupAction === "pause" ? (en ? "Pause Pack" : "Mettre le Pack en pause") : (en ? "Resume Pack" : "Réactiver le Pack")}</button> : null}
+                  {groupAction ? <button type="button" className="btn btn-ghost" disabled={packBusy} onClick={(event) => { metaActionTriggerRef.current = event.currentTarget; void runPackAction(pack, groupAction); }}>{groupAction === "pause" ? <PauseCircle size={14} /> : <PlayCircle size={14} />}{groupAction === "pause" ? (en ? "Pause Pack" : "Mettre le Pack en pause") : (en ? "Resume Pack" : "Réactiver le Pack")}</button> : null}
                   <button type="button" className="btn btn-ghost" disabled={packBusy} onClick={() => void openPackDuplicate(pack)}><CopyPlus size={14} />{en ? "Duplicate" : "Dupliquer"}</button>
-                  {pack.status === "completed" && pack.checkpoints?.activated === true ? <button type="button" className="btn btn-danger-ghost" disabled={packBusy} onClick={() => void runPackAction(pack, "delete")}><Trash2 size={14} />{en ? "Delete from Vendeo & Meta" : "Supprimer dans Vendeo et Meta"}</button> : null}
+                  {pack.status === "completed" && pack.checkpoints?.activated === true ? <button type="button" className="btn btn-danger-ghost" disabled={packBusy} onClick={(event) => { metaActionTriggerRef.current = event.currentTarget; void runPackAction(pack, "delete"); }}><Trash2 size={14} />{en ? "Delete from Vendeo & Meta" : "Supprimer dans Vendeo et Meta"}</button> : null}
                 </div>
               </article>;
             })}
@@ -636,7 +715,7 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
             {deleteError ? <div role="alert" style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "#FEE2E2", color: "#991B1B", fontSize: 13 }}>{deleteError}</div> : null}
             {selectedMetaAction ? (
               <div className="ad-campaign-modal-actions">
-                <button type="button" className="btn btn-ghost" disabled={metaActionBusy === selected.id} onClick={() => void runMetaAction(selected, selectedMetaAction)}>
+                <button type="button" className="btn btn-ghost" disabled={metaActionBusy === selected.id} onClick={(event) => { metaActionTriggerRef.current = event.currentTarget; void runMetaAction(selected, selectedMetaAction); }}>
                   {selectedMetaAction === "pause" ? <PauseCircle size={15} /> : <PlayCircle size={15} />}
                   {metaActionBusy === selected.id
                     ? t("adsExtra.actionInProgress")
@@ -655,8 +734,162 @@ export function AdCampaignsList({ storeId, plan: planProp, onNewCampaign, includ
         </div>,
         document.body,
       ) : null}
+      {pendingMetaConfirmation ? createPortal(
+        <MetaActionConfirmationDialog
+          locale={locale}
+          pending={pendingMetaConfirmation}
+          busy={pendingMetaConfirmation.kind === "campaign"
+            ? metaActionBusy === pendingMetaConfirmation.campaignId
+            : packActionBusy === `${pendingMetaConfirmation.packId}:${pendingMetaConfirmation.action}:${pendingMetaConfirmation.adIndex ?? ""}`}
+          confirmButtonRef={metaActionConfirmButtonRef}
+          onCancel={() => setPendingMetaConfirmation(null)}
+          onConfirm={() => void confirmPendingMetaAction()}
+        />,
+        document.body,
+      ) : null}
     </section>
     </>
+  );
+}
+
+function MetaActionConfirmationDialog({
+  locale,
+  pending,
+  busy,
+  confirmButtonRef,
+  onCancel,
+  onConfirm,
+}: {
+  locale: string;
+  pending: PendingMetaConfirmation;
+  busy: boolean;
+  confirmButtonRef: { current: HTMLButtonElement | null };
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const en = locale === "en";
+  const parsed = pending.kind === "campaign" ? parseMetaActionWarning(pending.preview.warning) : null;
+  const isPause = pending.action === "pause" || pending.action === "pause-ad";
+  const isActivate = pending.action === "activate" || pending.action === "activate-ad";
+  const isDelete = pending.action === "delete";
+  const requestedStatus = parsed?.requestedStatus ?? (isPause ? "PAUSED" : isActivate ? "ACTIVE" : (en ? "DELETE" : "SUPPRESSION"));
+  const title = pending.kind === "campaign"
+    ? (isPause ? (en ? "Pause this campaign?" : "Mettre cette campagne en pause ?") : (en ? "Activate this campaign?" : "Activer cette campagne ?"))
+    : isDelete
+      ? (en ? "Delete this Pack from Vendeo and Meta?" : "Supprimer ce Pack de Vendeo et Meta ?")
+      : pending.action === "pause-ad" || pending.action === "activate-ad"
+        ? (isPause ? (en ? "Pause this Pack ad?" : "Mettre cette publicité du Pack en pause ?") : (en ? "Activate this Pack ad?" : "Réactiver cette publicité du Pack ?"))
+        : (isPause ? (en ? "Pause this Pack?" : "Mettre ce Pack en pause ?") : (en ? "Activate this Pack?" : "Réactiver ce Pack ?"));
+  const actionLabel = isDelete
+    ? (en ? "Confirm deletion" : "Confirmer la suppression")
+    : isPause
+      ? (en ? "Confirm pause" : "Confirmer la pause")
+      : (en ? "Confirm activation" : "Confirmer l’activation");
+  const entityLabel = pending.kind === "campaign"
+    ? (en ? "Campaign" : "Campagne")
+    : pending.action === "pause-ad" || pending.action === "activate-ad"
+      ? (en ? "Variant pack" : "Pack de variantes")
+      : (en ? "Variant pack" : "Pack de variantes");
+  const currentStatusLabel = pending.kind === "pack" && (pending.action === "pause-ad" || pending.action === "activate-ad")
+    ? (en ? "Pack status" : "Statut du Pack")
+    : (en ? "Current status" : "Statut actuel");
+  const requestedStatusLabel = isDelete ? (en ? "Requested action" : "Action demandée") : (en ? "Requested status" : "Statut demandé");
+  const entityName = pending.preview.name || (pending.kind === "campaign" ? pending.campaignName : pending.packName);
+
+  return (
+    <div className="meta-action-confirm-backdrop" onClick={onCancel}>
+      <section
+        className="meta-action-confirm-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="meta-action-confirm-title"
+        aria-describedby="meta-action-confirm-description"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            onCancel();
+            return;
+          }
+          if (event.key !== "Tab") return;
+          const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])"));
+          const first = buttons[0];
+          const last = buttons[buttons.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }}
+      >
+        <div className="meta-action-confirm-heading">
+          <span className="meta-action-confirm-icon" aria-hidden="true">
+            {isDelete ? <Trash2 size={23} /> : isPause ? <PauseCircle size={23} /> : <PlayCircle size={23} />}
+          </span>
+          <div>
+            <span className="meta-action-confirm-kicker">Vendeo · Meta</span>
+            <h2 id="meta-action-confirm-title">{title}</h2>
+          </div>
+        </div>
+        <p id="meta-action-confirm-description" className="meta-action-confirm-description">
+          {en ? "Review the exact changes before continuing." : "Vérifie les changements exacts avant de continuer."}
+        </p>
+        <div className="meta-action-confirm-campaign">
+          <span>{entityLabel}</span>
+          <strong>{entityName}</strong>
+          <span className="meta-action-confirm-platform">Meta</span>
+        </div>
+        <div className="meta-action-confirm-statuses">
+          <div>
+            <span>{currentStatusLabel}</span>
+            <strong>{pending.preview.currentStatus || (en ? "Not reported" : "Non renseigné")}</strong>
+          </div>
+          <div className="is-requested">
+            <span>{requestedStatusLabel}</span>
+            <strong>{requestedStatus}</strong>
+          </div>
+        </div>
+        {parsed ? (
+          <>
+            <div className="meta-action-confirm-targets">
+              <span className="meta-action-confirm-label">{en ? "Meta objects affected" : "Objets Meta concernés"}</span>
+              <dl>
+                {parsed.targets.map((target) => (
+                  <div key={target.label}>
+                    <dt>{en ? ({ Campagne: "Campaign", Ensemble: "Ad set", Publicité: "Ad" }[target.label] ?? target.label) : target.label}</dt>
+                    <dd><code>{target.value}</code></dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+            <div className="meta-action-confirm-budget">
+              <span className="meta-action-confirm-label">Budget</span>
+              <p>{parsed.budget}</p>
+            </div>
+            <div className="meta-action-confirm-rules">
+              <Info size={18} aria-hidden="true" />
+              <p>{en ? "Associated automatic budget rules will be disabled." : "Les règles automatiques de budget associées seront désactivées."}</p>
+            </div>
+          </>
+        ) : pending.preview.warning ? (
+          <div className="meta-action-confirm-fallback">
+            <span className="meta-action-confirm-label">{en ? "Action details" : "Détails de l’action"}</span>
+            <p>{pending.preview.warning}</p>
+          </div>
+        ) : null}
+        <div className="meta-action-confirm-actions">
+          <button type="button" className="meta-action-confirm-cancel" onClick={onCancel} disabled={busy}>
+            {en ? "Cancel" : "Annuler"}
+          </button>
+          <button type="button" className={`meta-action-confirm-submit${isDelete ? " is-danger" : ""}`} onClick={onConfirm} disabled={busy} ref={confirmButtonRef}>
+            {busy ? (en ? "Working…" : "En cours…") : actionLabel}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
