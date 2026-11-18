@@ -5,6 +5,7 @@ import { buildPlacementCreativeParams, placementVariantsEnabled } from "./placem
 import { LEGACY_META_CTA, normalizeMetaCta } from "./cta";
 import { buildCarouselObjectStorySpec, type CarouselCard } from "./carousel";
 import { buildMetaAudienceFields } from "@/lib/ad-campaigns/meta-targeting";
+import { isMetaCountryGroup } from "@/lib/ad-campaigns/geo";
 
 type GraphResponse = Record<string, unknown>;
 
@@ -226,7 +227,7 @@ export async function createMetaAdSet(input: {
   interests?: Array<{ id: string; name: string }>;
   gender?: "male" | "female" | null;
 }) {
-  const countryGroups = (input.geoTargeting?.country_groups ?? []).filter((group) => group === "africa");
+  const countryGroups = (input.geoTargeting?.country_groups ?? []).filter(isMetaCountryGroup);
   const hasPreciseTargeting = !!(input.geoTargeting && (countryGroups.length > 0 || (input.geoTargeting.regions?.length ?? 0) > 0 || (input.geoTargeting.cities?.length ?? 0) > 0));
   const geoLocations: Record<string, unknown> = hasPreciseTargeting
     ? {

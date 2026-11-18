@@ -1,3 +1,27 @@
+export const META_COUNTRY_GROUPS = ["africa", "europe"] as const;
+export type MetaCountryGroup = (typeof META_COUNTRY_GROUPS)[number];
+
+export function isMetaCountryGroup(value: unknown): value is MetaCountryGroup {
+  return value === "africa" || value === "europe";
+}
+
+export function metaCountryGroupLabel(group: string, locale: string): string | null {
+  if (group === "africa") return locale === "en" ? "Africa" : "Afrique";
+  if (group === "europe") return "Europe";
+  return null;
+}
+
+export function formatGeoTargetingSummary(
+  countryGroups: string[] | null | undefined,
+  countries: string[] | null | undefined,
+  locale: string,
+): string {
+  const groupLabels = (countryGroups ?? [])
+    .map((group) => metaCountryGroupLabel(group, locale))
+    .filter((label): label is string => label !== null);
+  return groupLabels.join(", ") || (countries ?? []).join(", ") || (locale === "en" ? "Not specified" : "Non renseignée");
+}
+
 export interface GeoTargetingInput {
   countries: string[];
   country_groups?: string[];
@@ -20,7 +44,7 @@ export function sanitizeGeoTargeting(input: unknown): GeoTargetingInput | null {
         .map((c) => ({ key: c.key, name: c.name, radius: Number((c as any).radius) > 0 ? Number((c as any).radius) : 25, distance_unit: typeof (c as any).distance_unit === "string" ? (c as any).distance_unit : "mile" }))
     : [];
   const countries = Array.isArray(raw.countries) ? raw.countries.filter((c): c is string => typeof c === "string") : [];
-  const countryGroups = Array.isArray(raw.country_groups) ? raw.country_groups.filter((group): group is "africa" => group === "africa") : [];
+  const countryGroups = Array.isArray(raw.country_groups) ? raw.country_groups.filter(isMetaCountryGroup) : [];
   if (!regions.length && !cities.length && !countries.length && !countryGroups.length) return null;
   return { countries, ...(countryGroups.length ? { country_groups: countryGroups } : {}), regions, cities };
 }

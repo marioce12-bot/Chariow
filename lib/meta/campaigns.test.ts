@@ -19,7 +19,7 @@ describe("isMetaObjectMissingError", () => {
 });
 
 describe("createMetaAdSet country groups", () => {
-  it("sends Meta's Africa group without falling back to a country code", async () => {
+  it("sends Meta's Africa and Europe groups without falling back to country codes", async () => {
     const responses = [
       new Response(JSON.stringify({ id: "adset-1" }), { status: 200 }),
       new Response(JSON.stringify({ destination_type: "WEBSITE" }), { status: 200 }),
@@ -31,10 +31,10 @@ describe("createMetaAdSet country groups", () => {
       accountId: "act_1",
       accessToken: "token",
       campaignId: "campaign-1",
-      name: "Audience Afrique",
+      name: "Audiences Afrique et Europe",
       dailyBudget: 5,
       countries: ["BJ"],
-      geoTargeting: { countries: [], country_groups: ["africa"] },
+      geoTargeting: { countries: [], country_groups: ["africa", "europe"] },
       minAge: 18,
       maxAge: 45,
       advertiserName: "Boutique test",
@@ -43,6 +43,6 @@ describe("createMetaAdSet country groups", () => {
     const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
     const params = new URLSearchParams(String(init.body));
     const targeting = JSON.parse(params.get("targeting") ?? "{}");
-    expect(targeting.geo_locations).toEqual({ country_groups: ["africa"] });
+    expect(targeting.geo_locations).toEqual({ country_groups: ["africa", "europe"] });
   });
 });

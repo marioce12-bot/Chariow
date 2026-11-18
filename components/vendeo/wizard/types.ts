@@ -4,6 +4,7 @@ import { WORLD_COUNTRIES } from "@/lib/geo/countries";
 import { DEFAULT_META_CTA, LEGACY_META_CTA, normalizeMetaCta, type MetaCtaType } from "@/lib/meta/cta";
 import { stripVendeoCampaignTracking } from "@/lib/meta/tracking";
 import type { MetaGenderTarget, MetaInterestTarget } from "@/lib/ad-campaigns/meta-targeting";
+import { isMetaCountryGroup, metaCountryGroupLabel } from "@/lib/ad-campaigns/geo";
 
 export type Platform = "meta" | "tiktok" | "pinterest";
 export type Objective = "sales" | "traffic" | "engagement" | "leads";
@@ -189,12 +190,12 @@ export function buildMetaTargeting(state: Pick<WizardState, "metaGender" | "meta
  *  enregistrées, sinon les pays). */
 export function locationsFromCampaign(campaign: EditableCampaign): GeoLocation[] {
   const geo = campaign.geo_targeting;
-  const countryGroups = (geo?.country_groups ?? []).filter((group): group is "africa" => group === "africa");
+  const countryGroups = (geo?.country_groups ?? []).filter(isMetaCountryGroup);
   const rawCountryCodes = geo?.countries?.length ? geo.countries : campaign.countries?.length ? campaign.countries : countryGroups.length ? [] : ["BJ"];
   const countryCodes = rawCountryCodes.map((code) => code.toUpperCase());
   const fallbackCountry = countryCodes[0] ?? "BJ";
   const locations: GeoLocation[] = [
-    ...countryGroups.map((group) => ({ key: group, name: group === "africa" ? "Afrique" : group, type: "country_group" as const })),
+    ...countryGroups.map((group) => ({ key: group, name: metaCountryGroupLabel(group, "fr") ?? group, type: "country_group" as const })),
     ...(geo?.regions ?? []).map((r) => ({ key: r.key, name: r.name, type: "region" as const, countryCode: fallbackCountry })),
     ...(geo?.cities ?? []).map((c) => ({ key: c.key, name: c.name, type: "city" as const, countryCode: fallbackCountry })),
   ];

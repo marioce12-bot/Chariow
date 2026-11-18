@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X, Search, Globe2, MapPin, Building2 } from "lucide-react";
 import { searchCountries } from "@/lib/geo/countries";
+import { metaCountryGroupLabel } from "@/lib/ad-campaigns/geo";
 import type { GeoLocation } from "./types";
 import { useI18n } from "@/lib/i18n/i18n";
 
@@ -32,6 +33,11 @@ const TYPE_ICON: Record<Suggestion["type"], typeof Globe2> = {
   city: Building2,
   country_group: Globe2,
 };
+
+const COUNTRY_GROUP_SEARCH_TERMS = {
+  africa: ["afrique", "africa"],
+  europe: ["europe"],
+} as const;
 
 /**
  * Widget de recherche d'audience façon Meta Ads Manager : on tape un pays ou
@@ -103,9 +109,10 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform, 
   }));
 
   const normalizedQuery = query.trim().toLocaleLowerCase("fr-FR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const matchesAfrica = ["afrique", "africa"].some((label) => label.includes(normalizedQuery) || normalizedQuery.includes(label));
-  const localCountryGroupSuggestions: Suggestion[] = allowCountryGroups && platform === "meta" && matchesAfrica
-    ? [{ key: "africa", name: en ? "Africa" : "Afrique", type: "country_group", countryCodes: [] }]
+  const localCountryGroupSuggestions: Suggestion[] = allowCountryGroups && platform === "meta"
+    ? Object.entries(COUNTRY_GROUP_SEARCH_TERMS)
+        .filter(([, terms]) => terms.some((term) => term.includes(normalizedQuery) || normalizedQuery.includes(term)))
+        .map(([key, terms]) => ({ key, name: metaCountryGroupLabel(key, locale) ?? terms[0], type: "country_group" as const, countryCodes: [] }))
     : [];
 
   // Les groupes et pays locaux d'abord (recherche instantanée), puis les régions/villes
@@ -177,7 +184,7 @@ export function LocationSearchInput({ value, onChange, metaAccountId, platform, 
       <div className="mt-2.5 flex flex-wrap gap-2">
         {value.map((loc) => {
           const Icon = TYPE_ICON[loc.type];
-          const locationName = loc.type === "country_group" && loc.key === "africa" ? (en ? "Africa" : "Afrique") : loc.name;
+          const locationName = loc.type === "country_group" ? metaCountryGroupLabel(loc.key, locale) ?? loc.name : loc.name;
           return (
             <span
               key={loc.key}
