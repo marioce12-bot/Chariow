@@ -40,7 +40,7 @@ function client(isAdmin: boolean) {
       const ownerFilter = filters.some(([k, v]) => k === "user_id" && v === "user-1");
       if (operation === "select") {
         if (reqFilter) return { data: ownerFilter ? mocks.db.existing : null, error: mocks.db.lookupError };
-        return { data: ownerFilter ? mocks.db.packs : [], error: mocks.db.lookupError };
+        return { data: ownerFilter ? mocks.db.packs.slice(rangeStart, rangeEnd + 1) : [], error: mocks.db.lookupError };
       }
       if (operation === "insert") {
         mocks.db.insertValues = values;
@@ -112,6 +112,17 @@ describe("POST /api/ad-variant-packs", () => {
 });
 
 describe("GET /api/ad-variant-packs", () => {
+  it("pagine tous les packs de la boutique pour le calcul du bénéfice", async () => {
+    mocks.db.packs = Array.from({ length: 1001 }, (_, id) => ({ id: String(id), product_id: "p1" }));
+    const response = await GET(new Request(`http://local/api/ad-variant-packs?store_id=${input.store_id}&for_home_profit=1`));
+    expect(response.status).toBe(200);
+    expect((await response.json()).packs).toHaveLength(1001);
+    const calls = mocks.db.calls.filter((call: any) => call.table === "ad_variant_packs");
+    expect(calls).toHaveLength(2);
+    expect(calls.every((call: any) => call.filters.some(([key, value]: any[]) => key === "store_id" && value === input.store_id))).toBe(true);
+    expect((await GET(new Request("http://local/api/ad-variant-packs?for_home_profit=1"))).status).toBe(400);
+  });
+
   it("returns per-ad aggregates from owned, already-synchronized Insights only", async () => {
     mocks.db.packs = [{
       id: "pack-1", user_id: "user-1", store_id: input.store_id, meta_ad_account_id: input.meta_ad_account_id, created_at: "2026-11-10T10:00:00.000Z",

@@ -11,6 +11,7 @@ import { parseCarouselUrls } from "@/lib/meta/carousel";
 import { getMetaCampaignLifecycle } from "@/lib/meta/status";
 import { linkCampaignMedia } from "@/lib/creative-performance/placements";
 import { markLinkedVariantPacksDeleted } from "@/lib/ad-variant-pack-lifecycle";
+import { fetchAllPages } from "@/lib/paginated-query";
 
 const objectives = new Set(["sales", "traffic", "engagement", "leads"]);
 
@@ -138,6 +139,15 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const storeId = params.get("store_id");
   const includeHistory = params.get("include_history") === "1";
+  if (includeHistory) {
+    if (!storeId) return NextResponse.json({ error: "Boutique requise" }, { status: 400 });
+    const result = await fetchAllPages(async (from, to) => supabase.from("ad_campaigns")
+      .select("id,product_id,platform,external_campaign_id,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id")
+      .eq("user_id", user.id).eq("store_id", storeId)
+      .order("id", { ascending: true }).range(from, to));
+    if (result.error) return NextResponse.json({ error: "Impossible de lire toutes les campagnes" }, { status: 500 });
+    return NextResponse.json({ campaigns: result.rows }, { headers: { "Cache-Control": "private, no-store" } });
+  }
   let query = supabase.from("ad_campaigns").select("id,product_id,product_name,platform,status,objective,effective_objective,ad_set_name,ad_name,title,ad_text,media_url,carousel_urls,destination_url,countries,geo_targeting,meta_targeting,meta_page_id,call_to_action,advantage_creative,advantage_audience,min_age,max_age,daily_budget,duration_days,estimated_budget,external_campaign_id,external_adset_id,external_ad_id,external_error,meta_ad_account_id,tiktok_ad_account_id,pinterest_ad_account_id,autopilot_enabled,autopilot_paused_at,autopilot_pause_reason,created_at,updated_at").eq("user_id", user.id);
   if (storeId) query = query.eq("store_id", storeId);
   const { data, error } = await query.order("created_at", { ascending: false });
@@ -145,7 +155,7 @@ export async function GET(request: Request) {
   // This endpoint feeds the current-campaign UI, including older tabs/PWA clients
   // which still render a history drawer when terminal rows are present. Exclude
   // those rows from the response only: their records and reporting data stay intact.
-  const campaigns = includeHistory ? (data ?? []) : (data ?? []).filter((campaign) => !["archived", "deleted"].includes(
+  const campaigns = (data ?? []).filter((campaign) => !["archived", "deleted"].includes(
     getMetaCampaignLifecycle(campaign.status, campaign.external_error) ?? "",
   ));
   return NextResponse.json({ campaigns }, { headers: { "Cache-Control": "private, no-store" } });

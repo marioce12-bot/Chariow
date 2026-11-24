@@ -24,6 +24,24 @@ export type CampaignSpendTotal = {
   campaignCount: number;
 };
 
+export type HomeProfitPack = {
+  product_id?: string | null;
+  status?: string | null;
+  external_campaign_id?: string | null;
+  meta_ad_account_id?: string | null;
+  checkpoints?: { campaignId?: string | null } | null;
+};
+export function productPackCampaigns(packs: HomeProfitPack[]) {
+  const ambiguous = packs.some((pack) => pack.product_id && ["claimed", "ambiguous"].includes(pack.status ?? "") && !pack.external_campaign_id && !pack.checkpoints?.campaignId);
+  const campaigns: HomeProfitCampaign[] = packs.map((pack) => ({
+    platform: "meta",
+    product_id: pack.product_id,
+    meta_ad_account_id: pack.meta_ad_account_id,
+    external_campaign_id: pack.external_campaign_id || pack.checkpoints?.campaignId,
+  }));
+  return { campaigns, ambiguous };
+}
+
 const PLATFORMS = new Set(["meta", "tiktok", "pinterest"]);
 
 function accountIdFor(campaign: HomeProfitCampaign) {
@@ -67,8 +85,13 @@ export function calculateProductCampaignSpendUsd(
       complete = false;
       continue;
     }
-    for (const reportedCampaign of report.campaigns) {
-      if (reportedCampaign.id !== campaign.campaignId) continue;
+    const matches = report.campaigns.filter((reportedCampaign) => reportedCampaign.id === campaign.campaignId);
+    if (!matches.length) {
+      // Un rapport absent ne prouve pas que la campagne n'a rien dépensé.
+      complete = false;
+      continue;
+    }
+    for (const reportedCampaign of matches) {
       if (reportedCampaign.spendUsd === null || !Number.isFinite(reportedCampaign.spendUsd)) {
         complete = false;
       } else {

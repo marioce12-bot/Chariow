@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type Pointe
 import { useNavigationCache } from "./NavigationDataCache";
 import { BarChart3 } from "lucide-react";
 import { toUsd } from "@/lib/currency";
-import { calculateProductCampaignSpendUsd, type CampaignSpendReport } from "@/lib/home-financials";
+import { calculateProductCampaignSpendUsd, productPackCampaigns, type CampaignSpendReport, type HomeProfitPack } from "@/lib/home-financials";
 import { getDashboardAnalyticsRange } from "@/lib/dashboard-analytics-periods";
 import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
 import { useI18n } from "@/lib/i18n/i18n";
@@ -273,11 +273,12 @@ export function AdSpendByChannel({ plan, storeId, storePlatform = null, periodDa
     }
 
     loaderRef.current = async () => {
-      const [meta, tiktokResult, pinterestResult, campaignMapping] = await Promise.all([
+      const [meta, tiktokResult, pinterestResult, campaignMapping, packMapping] = await Promise.all([
       loadMeta(),
       isAdPlatformAllowed(plan, "tiktok") ? loadSimple(1, "/api/integrations/tiktok/accounts", "/api/tiktok/performance") : Promise.resolve({ stat: emptyStat(CHANNELS[1]), spendReports: [] as CampaignSpendReport[] }),
       loadSimple(2, "/api/integrations/pinterest/accounts", "/api/pinterest/performance"),
       storeId && storePlatform === "chariow" ? getJson(`/api/ad-campaigns?store_id=${encodeURIComponent(storeId)}&include_history=1`) : Promise.resolve(null),
+      storeId && storePlatform === "chariow" ? getJson(`/api/ad-variant-packs?store_id=${encodeURIComponent(storeId)}&for_home_profit=1`) : Promise.resolve(null),
       ]);
       const spendReports: CampaignSpendReport[] = [
         ...meta.readings.map((reading: MetaAccountReading) => ({
@@ -291,16 +292,17 @@ export function AdSpendByChannel({ plan, storeId, storePlatform = null, periodDa
         ...tiktokResult.spendReports,
         ...pinterestResult.spendReports,
       ];
-      const hasProductCampaignList = Boolean(storeId && storePlatform === "chariow" && Array.isArray(campaignMapping?.campaigns));
+      const hasProductCampaignList = Boolean(storeId && storePlatform === "chariow" && Array.isArray(campaignMapping?.campaigns) && Array.isArray(packMapping?.packs));
+      const packs = productPackCampaigns(hasProductCampaignList ? packMapping.packs as HomeProfitPack[] : []);
       const productSpend = hasProductCampaignList
-        ? calculateProductCampaignSpendUsd(campaignMapping.campaigns as VendeoCampaign[], spendReports)
+        ? calculateProductCampaignSpendUsd([...(campaignMapping.campaigns as VendeoCampaign[]), ...packs.campaigns], spendReports)
         : { spendUsd: null, complete: false, campaignCount: 0 };
       const productCampaignSpend: ProductCampaignSpendReading = {
         storeId,
         periodDays,
         ready: Boolean(storeId),
-        complete: hasProductCampaignList && productSpend.complete,
-        spendUsd: hasProductCampaignList ? productSpend.spendUsd : null,
+        complete: hasProductCampaignList && !packs.ambiguous && productSpend.complete,
+        spendUsd: hasProductCampaignList && !packs.ambiguous ? productSpend.spendUsd : null,
         campaignCount: hasProductCampaignList ? productSpend.campaignCount : 0,
       };
       return { stats: [meta.stat, tiktokResult.stat, pinterestResult.stat] as ChannelStat[], campaigns: meta.campaigns as CampaignStat[], readings: meta.readings as MetaAccountReading[], daily: meta.daily as DailyPoint[], productCampaignSpend };

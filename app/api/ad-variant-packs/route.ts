@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validatePackInput } from "@/lib/ad-variant-packs";
+import { fetchAllPages } from "@/lib/paginated-query";
 
 const payloadFields = ["store_id", "product_id", "product_name", "destination_url", "meta_ad_account_id", "meta_page_id", "dsa_beneficiary", "dsa_payor", "countries", "geo_targeting", "meta_targeting", "advantage_audience", "min_age", "max_age", "daily_budget", "duration_days", "variants"] as const;
 function canonical(value: unknown): string {
@@ -148,6 +149,15 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const storeId = params.get("store_id");
   const includeAdResults = params.get("include_ad_results") === "1";
+  if (params.get("for_home_profit") === "1") {
+    if (!storeId) return NextResponse.json({ error: "Boutique requise" }, { status: 400 });
+    const result = await fetchAllPages(async (from, to) => supabase.from("ad_variant_packs")
+      .select("id,product_id,status,meta_ad_account_id,external_campaign_id,checkpoints")
+      .eq("user_id", user.id).eq("store_id", storeId)
+      .order("id", { ascending: true }).range(from, to));
+    if (result.error) return NextResponse.json({ error: "Impossible de lire tous les Packs" }, { status: 500 });
+    return NextResponse.json({ packs: result.rows }, { headers: { "Cache-Control": "private, no-store" } });
+  }
   let query = supabase.from("ad_variant_packs").select("id,client_request_id,store_id,product_id,product_name,status,objective,daily_budget,duration_days,checkpoints,variants,meta_ad_account_id,external_campaign_id,last_error,created_at,updated_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
   if (storeId) query = query.eq("store_id", storeId);
   const { data, error } = await query;
