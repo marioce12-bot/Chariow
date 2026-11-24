@@ -384,7 +384,8 @@ html[data-theme="dark"] .adspend-trend-value { background:#172b50; color:#c4d9ff
 
 /* Home Studio onboarding: scoped to the new modal so the Studio chooser stays unchanged. */
 .studio-home-onboarding-backdrop { align-items:center; background:rgba(13,20,38,.66); display:flex; inset:0; justify-content:center; overscroll-behavior:contain; padding:20px; position:fixed; z-index:12000; }
-.studio-home-onboarding { background:var(--card); border:1px solid var(--line); border-radius:22px; box-shadow:0 24px 80px rgba(8,14,30,.28); box-sizing:border-box; color:var(--ink); max-height:min(90vh, 820px); max-height:min(90dvh, 820px); max-width:1040px; overflow-y:auto; padding:clamp(16px, 2.4vw, 28px); width:min(1040px, 100%); }
+.studio-home-onboarding { --bg:#f7f8fa; --card:#fff; --ink:#192434; --muted:#647184; --line:#e3e8ef; --green:#2563eb; background:var(--card); border:1px solid var(--line); border-radius:22px; box-shadow:0 24px 80px rgba(8,14,30,.28); box-sizing:border-box; color:var(--ink); max-height:min(90vh, 820px); max-height:min(90dvh, 820px); max-width:1040px; overflow-y:auto; padding:clamp(16px, 2.4vw, 28px); width:min(1040px, 100%); }
+html[data-theme="dark"] .studio-home-onboarding { --bg:#12224a; --card:#0b1734; --ink:#e7edfb; --muted:#b1bed9; --line:#31427a; }
 .studio-home-onboarding-header { align-items:flex-start; display:flex; gap:16px; justify-content:space-between; margin:0 0 18px; }
 .studio-home-onboarding-header h2 { color:var(--ink); font-size:clamp(20px, 2.6vw, 27px); letter-spacing:-.035em; line-height:1.15; margin:5px 0 6px; }
 .studio-home-onboarding-header p { color:var(--muted); font-size:14px; line-height:1.45; margin:0; }
