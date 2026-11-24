@@ -3,7 +3,7 @@ import { buildOverviewAggregates, buildOverviewFromPages, buildProductPerformanc
 import { mixedCurrencySales as mixedCurrencyFixtures, repeatBuyersSales as repeatBuyerFixtures, stateASales as stateAFixtures, stateDSales as stateDFixtures } from "@/tests/fixtures/unit-economics";
 
 // These aggregate fixtures also require the timestamp selected by the production query.
-const withDate = (rows: typeof stateAFixtures) => rows.map((row) => ({ ...row, status: row.status ?? null, net_amount: row.net_amount ?? null, currency: row.currency ?? null, customer_id: row.customer_id ?? null, occurred_at: "2026-10-01T12:00:00Z" }));
+const withDate = (rows: typeof stateAFixtures) => rows.map((row) => ({ ...row, status: row.status ?? null, amount: row.net_amount ?? null, net_amount: row.net_amount ?? null, currency: row.currency ?? null, customer_id: row.customer_id ?? null, occurred_at: "2026-10-01T12:00:00Z" }));
 const stateASales = withDate(stateAFixtures);
 const stateDSales = withDate(stateDFixtures);
 const mixedCurrencySales = withDate(mixedCurrencyFixtures);
@@ -40,6 +40,22 @@ describe("overview server aggregates", () => {
     expect(refund.sales).toBe(1);
     expect(refund.revenueNet).toBe(60);
     expect(refund.customerValue).toBe(60);
+  });
+  it("calcule le brut à partir de amount et le net à partir de net_amount, remboursements déduits", () => {
+    const base = { currency: "USD", occurred_at: "2026-10-01T12:00:00Z", customer_id: "c1" };
+    const result = buildOverviewAggregates([
+      { ...base, status: "completed", amount: 100, net_amount: 85 },
+      { ...base, status: "refunded", amount: 40, net_amount: 34 },
+    ], "USD", "2026-10-01", "2026-10-01");
+    expect(result.revenueGross).toBe(60);
+    expect(result.revenueNet).toBe(51);
+  });
+  it("masque le brut si un montant amount nécessaire manque", () => {
+    const result = buildOverviewAggregates([
+      { status: "completed", amount: null, net_amount: 85, currency: "USD", occurred_at: "2026-10-01T12:00:00Z", customer_id: "c1" },
+    ], "USD", "2026-10-01", "2026-10-01");
+    expect(result.revenueGross).toBeNull();
+    expect(result.revenueNet).toBe(85);
   });
   it("retourne null si la pagination de l’une des périodes échoue", () => {
     const error = new Error("query failed");

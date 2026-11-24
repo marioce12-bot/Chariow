@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type Pointe
 import { useNavigationCache } from "./NavigationDataCache";
 import { BarChart3 } from "lucide-react";
 import { toUsd } from "@/lib/currency";
+import { calculateProductCampaignSpendUsd, type CampaignSpendReport } from "@/lib/home-financials";
+import { getDashboardAnalyticsRange } from "@/lib/dashboard-analytics-periods";
 import { isAdPlatformAllowed, type AdPlatform, type PlanId } from "@/lib/plans";
 import { useI18n } from "@/lib/i18n/i18n";
 import { Skeleton } from "./Skeleton";
@@ -41,12 +43,14 @@ type CampaignStat = {
   clicks: number;
   impressions: number;
   spendUsd: number;
+  spendUsdExact?: number | null;
   conversions: number;
 };
 type DailyPoint = { date: string; spendUsd: number };
-type MetaAccountReading = { accountId: string; ok: boolean; spendUsd: number; clicks: number; conversions: number; campaigns: CampaignStat[]; stale: boolean; reconnectRequired?: boolean };
-type AdSpendData = { stats: ChannelStat[]; campaigns: CampaignStat[]; readings: MetaAccountReading[]; daily: DailyPoint[] };
-type VendeoCampaign = { platform?: string; title?: string | null; product_name?: string | null; external_campaign_id?: string | null };
+type MetaAccountReading = { accountId: string; ok: boolean; spendUsd: number; clicks: number; conversions: number; campaigns: CampaignStat[]; stale: boolean; convertible: boolean; reconnectRequired?: boolean };
+type ProductCampaignSpendReading = { storeId: string | null; periodDays: number; ready: boolean; complete: boolean; spendUsd: number | null; campaignCount: number };
+type AdSpendData = { stats: ChannelStat[]; campaigns: CampaignStat[]; readings: MetaAccountReading[]; daily: DailyPoint[]; productCampaignSpend: ProductCampaignSpendReading };
+type VendeoCampaign = { platform?: string; title?: string | null; product_name?: string | null; product_id?: string | null; external_campaign_id?: string | null; meta_ad_account_id?: string | null; tiktok_ad_account_id?: string | null; pinterest_ad_account_id?: string | null };
 type AccountRef = { id: string; currency?: string; is_selected?: boolean | null; needs_reconnect?: boolean };
 type DailyResponse = { currency?: string; days?: Array<{ date: string; spend: number }> } | null;
 
@@ -135,7 +139,7 @@ function mergeMeta(readings: MetaAccountReading[], vendeoCampaigns: VendeoCampai
   };
 }
 
-export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { plan: PlanId; storeId: string | null; periodDays: number; refreshKey: number }) {
+export function AdSpendByChannel({ plan, storeId, storePlatform = null, periodDays, refreshKey, onProductCampaignSpendChange }: { plan: PlanId; storeId: string | null; storePlatform?: string | null; periodDays: number; refreshKey: number; onProductCampaignSpendChange?: (reading: ProductCampaignSpendReading) => void }) {
   const { locale , t } = useI18n();
   const en = locale === "en";
   const tr = (fr: string, english: string) => (en ? english : fr);
@@ -154,29 +158,33 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
   const loaderRef = useRef<() => Promise<any>>(async () => ({}));
 
   useEffect(() => {
+    onProductCampaignSpendChange?.(cached.data?.productCampaignSpend ?? { storeId, periodDays, ready: false, complete: false, spendUsd: null, campaignCount: 0 });
+  }, [cached.data?.productCampaignSpend, onProductCampaignSpendChange, periodDays, storeId]);
+
+  useEffect(() => {
     let cancelled = false;
-    const to = new Date();
-    const from = new Date(to);
-    from.setDate(to.getDate() - periodDays + 1);
-    const fromDay = from.toISOString().slice(0, 10);
-    const toDay = to.toISOString().slice(0, 10);
+    const { from: fromDay, to: toDay } = getDashboardAnalyticsRange(periodDays);
     const range = `from=${fromDay}&to=${toDay}`;
 
     async function readMetaAccount(accountId: string, reconnectRequired = false): Promise<MetaAccountReading> {
-      if (reconnectRequired) return { accountId, ok: false, spendUsd: 0, clicks: 0, conversions: 0, campaigns: [], stale: false, reconnectRequired: true };
+      if (reconnectRequired) return { accountId, ok: false, spendUsd: 0, clicks: 0, conversions: 0, campaigns: [], stale: false, convertible: false, reconnectRequired: true };
       const perf = await getJson(`/api/meta/performance?account_id=${encodeURIComponent(accountId)}&store_id=${encodeURIComponent(storeId ?? "")}&${range}`);
-      if (!perf) return { accountId, ok: false, spendUsd: 0, clicks: 0, conversions: 0, campaigns: [], stale: false };
-      const performances: Array<{ id?: string; name?: string; clicks?: number; impressions?: number; spend?: number; conversions?: number }> = perf.performances ?? [];
+      if (!perf || !Array.isArray(perf.performances) || typeof perf.currency !== "string") return { accountId, ok: false, spendUsd: 0, clicks: 0, conversions: 0, campaigns: [], stale: false, convertible: false };
+      const performances: Array<{ id?: string; name?: string; clicks?: number; impressions?: number; spend?: number; conversions?: number }> = perf.performances;
       const lastSynced = perf.lastSyncedAt ? new Date(perf.lastSyncedAt).getTime() : 0;
       const campaigns: CampaignStat[] = performances
-        .map((item) => ({
-          id: String(item.id ?? ""),
-          name: String(item.name ?? item.id ?? ""),
-          clicks: Number(item.clicks ?? 0),
-          impressions: Number(item.impressions ?? 0),
-          spendUsd: toUsd(Number(item.spend ?? 0), perf.currency) ?? 0,
-          conversions: Number(item.conversions ?? 0),
-        }))
+        .map((item) => {
+          const spendUsdExact = toUsd(Number(item.spend ?? 0), perf.currency);
+          return {
+            id: String(item.id ?? ""),
+            name: String(item.name ?? item.id ?? ""),
+            clicks: Number(item.clicks ?? 0),
+            impressions: Number(item.impressions ?? 0),
+            spendUsd: spendUsdExact ?? 0,
+            spendUsdExact,
+            conversions: Number(item.conversions ?? 0),
+          };
+        })
         .filter((item) => item.id);
       return {
         accountId,
@@ -185,7 +193,8 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
         clicks: performances.reduce((total, item) => total + (item.clicks ?? 0), 0),
         conversions: Number(perf.overview?.conversions ?? 0),
         campaigns,
-        stale: !lastSynced || Date.now() - lastSynced > STALE_MS,
+        stale: Boolean(perf.lastSyncError) || !lastSynced || Date.now() - lastSynced > STALE_MS,
+        convertible: toUsd(1, perf.currency) !== null,
       };
     }
 
@@ -227,32 +236,74 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
       }
     }
 
-    // TikTok et Pinterest ont la même forme de réponse : on additionne tous les comptes connectés.
-    async function loadSimple(index: 1 | 2, accountsUrl: string, perfUrl: string): Promise<ChannelStat> {
+    // TikTok et Pinterest ont la même forme de rapport : additionner les comptes et garder les dépenses par campagne.
+    async function loadSimple(index: 1 | 2, accountsUrl: string, perfUrl: string): Promise<{ stat: ChannelStat; spendReports: CampaignSpendReport[] }> {
       const base = emptyStat(CHANNELS[index]);
       const accountsData = await getJson(accountsUrl);
       const accounts: AccountRef[] = accountsData?.accounts ?? [];
-      if (!accounts.length) return base;
-      const results = await Promise.all(accounts.map((account) => getJson(`${perfUrl}?account_id=${encodeURIComponent(account.id)}&${range}`)));
-      const valid = results.filter(Boolean) as Array<{ currency: string; overview: { spend: number; clicks: number; conversions: number } }>;
-      if (!valid.length) return { ...base, connected: true, failed: true };
+      if (!accounts.length) return { stat: base, spendReports: [] };
+      const results = await Promise.all(accounts.map(async (account) => {
+        const json = await getJson(`${perfUrl}?account_id=${encodeURIComponent(account.id)}&${range}`);
+        const currency = String(json?.currency ?? account.currency ?? "");
+        const performances: Array<{ id?: string | number; spend?: number }> = Array.isArray(json?.performances) ? json.performances : [];
+        const valid = Boolean(json && Array.isArray(json.performances) && json.overview && currency);
+        const report: CampaignSpendReport = {
+          platform: base.id,
+          accountId: account.id,
+          ok: valid,
+          convertible: valid && toUsd(1, currency) !== null,
+          campaigns: performances.map((item) => ({ id: String(item.id ?? ""), spendUsd: toUsd(Number(item.spend ?? 0), currency) })).filter((item) => item.id),
+        };
+        return { json: valid ? json : null, report };
+      }));
+      const valid = results.flatMap((result) => result.json ? [result.json] : []);
+      const spendReports = results.map((result) => result.report);
+      if (!valid.length) return { stat: { ...base, connected: true, failed: true }, spendReports };
       return {
-        ...base,
-        connected: true,
-        failed: valid.length < results.length,
-        spendUsd: sumUsd(valid.map((item) => ({ spend: item.overview.spend, currency: item.currency }))),
-        clicks: valid.reduce((total, item) => total + item.overview.clicks, 0),
-        conversions: valid.reduce((total, item) => total + item.overview.conversions, 0),
+        stat: {
+          ...base,
+          connected: true,
+          failed: valid.length < results.length,
+          spendUsd: sumUsd(valid.map((item) => ({ spend: Number(item.overview.spend ?? 0), currency: String(item.currency ?? "") }))),
+          clicks: valid.reduce((total, item) => total + Number(item.overview.clicks ?? 0), 0),
+          conversions: valid.reduce((total, item) => total + Number(item.overview.conversions ?? 0), 0),
+        },
+        spendReports,
       };
     }
 
     loaderRef.current = async () => {
-      const [meta, tiktok, pinterest] = await Promise.all([
+      const [meta, tiktokResult, pinterestResult, campaignMapping] = await Promise.all([
       loadMeta(),
-      isAdPlatformAllowed(plan, "tiktok") ? loadSimple(1, "/api/integrations/tiktok/accounts", "/api/tiktok/performance") : Promise.resolve(emptyStat(CHANNELS[1])),
+      isAdPlatformAllowed(plan, "tiktok") ? loadSimple(1, "/api/integrations/tiktok/accounts", "/api/tiktok/performance") : Promise.resolve({ stat: emptyStat(CHANNELS[1]), spendReports: [] as CampaignSpendReport[] }),
       loadSimple(2, "/api/integrations/pinterest/accounts", "/api/pinterest/performance"),
+      storeId && storePlatform === "chariow" ? getJson(`/api/ad-campaigns?store_id=${encodeURIComponent(storeId)}&include_history=1`) : Promise.resolve(null),
       ]);
-      return { stats: [meta.stat, tiktok, pinterest] as ChannelStat[], campaigns: meta.campaigns as CampaignStat[], readings: meta.readings as MetaAccountReading[], daily: meta.daily as DailyPoint[] };
+      const spendReports: CampaignSpendReport[] = [
+        ...meta.readings.map((reading: MetaAccountReading) => ({
+          platform: "meta",
+          accountId: reading.accountId,
+          ok: reading.ok,
+          stale: reading.stale,
+          convertible: reading.convertible,
+          campaigns: reading.campaigns.map((campaign) => ({ id: campaign.id, spendUsd: campaign.spendUsdExact ?? null })),
+        })),
+        ...tiktokResult.spendReports,
+        ...pinterestResult.spendReports,
+      ];
+      const hasProductCampaignList = Boolean(storeId && storePlatform === "chariow" && Array.isArray(campaignMapping?.campaigns));
+      const productSpend = hasProductCampaignList
+        ? calculateProductCampaignSpendUsd(campaignMapping.campaigns as VendeoCampaign[], spendReports)
+        : { spendUsd: null, complete: false, campaignCount: 0 };
+      const productCampaignSpend: ProductCampaignSpendReading = {
+        storeId,
+        periodDays,
+        ready: Boolean(storeId),
+        complete: hasProductCampaignList && productSpend.complete,
+        spendUsd: hasProductCampaignList ? productSpend.spendUsd : null,
+        campaignCount: hasProductCampaignList ? productSpend.campaignCount : 0,
+      };
+      return { stats: [meta.stat, tiktokResult.stat, pinterestResult.stat] as ChannelStat[], campaigns: meta.campaigns as CampaignStat[], readings: meta.readings as MetaAccountReading[], daily: meta.daily as DailyPoint[], productCampaignSpend };
     };
     void cache.loadComputed(cacheKey, () => loaderRef.current(), refreshKey).then(async () => {
       if (cancelled) return;
@@ -273,7 +324,7 @@ export function AdSpendByChannel({ plan, storeId, periodDays, refreshKey }: { pl
       if (!cancelled) setMetaSyncing(false);
     });
     return () => { cancelled = true; };
-  }, [cache, cacheKey, plan, storeId, periodDays, refreshKey]);
+  }, [cache, cacheKey, plan, storeId, storePlatform, periodDays, refreshKey]);
   useEffect(() => { void cache.loadComputed(cacheKey, () => loaderRef.current(), refreshKey); }, [cache, cacheKey, cached, refreshKey]);
   useEffect(() => {
     const refreshStale = () => { if (document.visibilityState === "visible" && document.hasFocus()) void cache.loadComputed(cacheKey, () => loaderRef.current(), refreshKey); };

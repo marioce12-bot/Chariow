@@ -1,4 +1,4 @@
-/* Vue d'ensemble (OverviewHome) : grille KPI 2×2, listes déroulantes lisibles en thème sombre, catalogue compact. */
+/* Vue d'ensemble (OverviewHome) : grille KPI à deux colonnes, listes déroulantes lisibles en thème sombre, catalogue compact. */
 
 /* Empêche tout débordement horizontal : les cartes de la grille peuvent rétrécir. */
 .dashboard-home { max-width: 100%; min-width: 0; }
@@ -51,12 +51,16 @@ html[data-theme="dark"] .dashboard-platform .ov-controls select { background: #1
 html[data-theme="dark"] .ov-select { background: #101f45; border-color: #31427a; color: #e7edfb; color-scheme: dark; }
 html[data-theme="dark"] .ov-select option { background: #101f45; color: #e7edfb; }
 
-/* Quatre cadres rectangulaires, deux par ligne. */
+/* Indicateurs de l’accueil disposés sur deux colonnes. */
 .ov-kpi-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
 .ov-kpi { border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: 6px; justify-content: space-between; min-height: 84px; min-width: 0; padding: 12px 14px; }
 .ov-kpi > span { font-size: 12px; line-height: 1.2; }
 .ov-kpi > strong { font-size: 20px; letter-spacing: -.02em; line-height: 1.15; overflow-wrap: anywhere; }
 .ov-kpi > small { font-size: 11px; }
+.ov-kpi--gross { background: #eff6ff; border-color: #bfdbfe; }
+.ov-kpi--profit { background: #ecfdf5; border-color: #a7f3d0; }
+html[data-theme="dark"] .ov-kpi--gross { background: #102044; border-color: #31427a; }
+html[data-theme="dark"] .ov-kpi--profit { background: #082e28; border-color: #166534; }
 
 /* Derniers achats : chaque ligne est un bouton qui ouvre la fenêtre de détail. */
 .ov-sales { display: grid; gap: 6px; list-style: none; margin: 12px 0 0; min-width: 0; padding: 0; }

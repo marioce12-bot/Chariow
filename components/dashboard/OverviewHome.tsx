@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowRight, BookOpen, CheckCircle2, Clock, Gift, Lightbulb, Megaphone, MessageSquare, Package, Sparkles, X, XCircle } from "lucide-react";
 import { formatMoney, formatMoneyInUSD } from "@/lib/format";
 import { getGreeting } from "@/lib/greetings";
@@ -17,6 +17,7 @@ import { useNavigationData } from "./NavigationDataCache";
 import { getDashboardAnalyticsRange } from "@/lib/dashboard-analytics-periods";
 import { OFFICIAL_WHATSAPP_CHANNEL_URL } from "@/components/dashboard/FirstStoreWelcome";
 import { countRunningCampaigns } from "@/lib/dashboard-running-campaigns";
+import { calculateHomeNetProfitUsd } from "@/lib/home-financials";
 
 /**
  * Nouvelle "Vue d'ensemble" : simple, accueillante et multi-canaux.
@@ -55,6 +56,7 @@ type SaleRow = {
   contact: SaleContact;
 };
 type PersistentAlert = { id: string; severity: string; title: string; description: string };
+type ProductSpendReading = { storeId: string | null; periodDays: number; ready: boolean; complete: boolean; spendUsd: number | null; campaignCount: number };
 
 const SUCCESS_STATUSES = ["completed", "settled", "paid", "succeeded", "success"];
 const PENDING_STATUSES = ["awaiting_payment", "pending", "processing"];
@@ -238,6 +240,8 @@ export function OverviewHome({
   const periodLoading = selectedPeriodLoading && periodDays !== 30;
   const alerts = alertReading.data?.alerts ?? [];
   const [selectedSale, setSelectedSale] = useState<SaleRow | null>(null);
+  const [productSpendReading, setProductSpendReading] = useState<ProductSpendReading | null>(null);
+  const handleProductCampaignSpendChange = useCallback((reading: ProductSpendReading) => setProductSpendReading(reading), []);
   const saleTriggerRef = useRef<HTMLButtonElement | null>(null);
   const saleCloseRef = useRef<HTMLButtonElement | null>(null);
   // Ce composant n'est monté qu'après le premier chargement (côté navigateur) : on lit donc
@@ -276,6 +280,18 @@ export function OverviewHome({
   const currency = overview?.currency ?? products[0]?.currency ?? "XOF";
   const salesCount = overview?.sales ?? data?.kpis.sales ?? 0;
   const money = (value: number | null | undefined) => (value === null || value === undefined ? "—" : formatMoneyInUSD(value, currency) ?? "—");
+  const moneyUsd = (value: number | null | undefined) => (value === null || value === undefined ? "—" : formatMoneyInUSD(value, "USD") ?? "—");
+  const campaignSpend = productSpendReading?.storeId === (storeId ?? null) && productSpendReading.periodDays === periodDays ? productSpendReading : null;
+  const netProfit = store?.platform === "chariow" && campaignSpend?.ready && campaignSpend.complete
+    ? calculateHomeNetProfitUsd({ revenueAfterChariowFees: overview?.revenueNet, revenueCurrency: currency, campaignSpendUsd: campaignSpend.spendUsd, campaignSpendComplete: campaignSpend.complete })
+    : null;
+  const netProfitHint = store?.platform !== "chariow"
+    ? tr("Disponible avec une boutique Chariow.", "Available for a Chariow store.")
+    : !campaignSpend?.ready
+      ? tr("Récupération des dépenses publicitaires…", "Loading ad spend…")
+      : !campaignSpend.complete
+        ? tr("Dépenses ou conversions de devise indisponibles; calcul masqué.", "Ad spend or currency conversion unavailable; calculation hidden.")
+        : tr("Après frais Chariow et publicité des campagnes liées aux produits.", "After Chariow fees and ads for product-linked campaigns.");
 
   const runningCampaignsCount = countRunningCampaigns(campaigns, variantPacks);
 
@@ -396,10 +412,15 @@ export function OverviewHome({
 
         {/* Indicateurs clés de la boutique active */}
         <div className="ov-kpi-grid" aria-busy={statsLoading || !campaignsReady}>
-          <div className="ov-kpi ov-kpi--revenue">
-            <span className="hint-line">{tr(t("overview.netRevenue"), "Net revenue")}</span>
-            {statsLoading ? <Skeleton width="50%" height={24} style={{ marginTop: 6 }} /> : <strong>{money(overview?.revenueNet)}</strong>}
-            {!statsLoading && overview?.revenueChangePct !== null && overview?.revenueChangePct !== undefined ? <small className="hint-line">{overview.revenueChangePct >= 0 ? "+" : ""}{overview.revenueChangePct.toFixed(1)} %</small> : null}
+          <div className="ov-kpi ov-kpi--gross">
+            <span className="hint-line">{tr("Ventes totales", "Gross sales")}</span>
+            {statsLoading ? <Skeleton width="50%" height={24} style={{ marginTop: 6 }} /> : <strong>{money(overview?.revenueGross)}</strong>}
+            <small className="hint-line">{tr("Avant frais Chariow et publicité.", "Before Chariow fees and ad spend.")}</small>
+          </div>
+          <div className="ov-kpi ov-kpi--profit">
+            <span className="hint-line">{tr("Bénéfices nets", "Net profit")}</span>
+            {statsLoading || !campaignSpend?.ready ? <Skeleton width="50%" height={24} style={{ marginTop: 6 }} /> : <strong>{moneyUsd(netProfit)}</strong>}
+            <small className="hint-line">{netProfitHint}</small>
           </div>
           <div className="ov-kpi ov-kpi--sales">
             <span className="hint-line">{tr(t("dashboard.sales"), "Sales")}</span>
@@ -437,7 +458,7 @@ export function OverviewHome({
       <AdCampaignsList key={campaignsVersion} storeId={storeId ?? null} plan={plan} onNewCampaign={onLaunchAd} includeVariantPacks />
 
       {/* 3. Dépenses pub par canal */}
-      <AdSpendByChannel plan={plan} storeId={storeId ?? null} periodDays={periodDays} refreshKey={campaignsVersion} />
+      <AdSpendByChannel plan={plan} storeId={storeId ?? null} storePlatform={store?.platform ?? null} periodDays={periodDays} refreshKey={campaignsVersion} onProductCampaignSpendChange={handleProductCampaignSpendChange} />
 
       {/* 4. Derniers événements Chariow de la période (réussis / en attente / échoués) */}
       <section className="app-card">
