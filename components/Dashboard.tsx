@@ -49,6 +49,7 @@ import { SaleCelebration } from "./dashboard/SaleCelebration";
 import { ReferralBonusPopup } from "./dashboard/ReferralBonusPopup";
 import { FirstStoreWelcome } from "./dashboard/FirstStoreWelcome";
 import { hasActivePaidTrainingSubscription, shouldShowRecurringTrainingWelcome, TrainingWelcome } from "./dashboard/TrainingWelcome";
+import { StudioHomeOnboarding, type StudioCreationMode } from "./dashboard/StudioHomeOnboarding";
 import { NotificationCenter } from "./NotificationCenter";
 import { NotificationsView } from "./NotificationsView";
 import { useFirstStoreOnboarding } from "./dashboard/useFirstStoreOnboarding";
@@ -67,6 +68,7 @@ const ACTIVE_SECTION_OWNER_STORAGE_KEY = "vendeo_dashboard_active_section_user";
 // sessionStorage) pour survivre à la fermeture de l'appli, quel que soit l'ordre
 // dans lequel les boutiques ont été connectées.
 const SELECTED_STORE_STORAGE_KEY = "vendeo_selected_store_id";
+const STUDIO_HOME_ONBOARDING_STORAGE_KEY = "vendeo_studio_home_onboarding_dismissed_v1";
 const DEFAULT_DASHBOARD_SECTION = "Vue d'ensemble";
 const PERSISTED_DASHBOARD_SECTIONS = new Set([
   DEFAULT_DASHBOARD_SECTION,
@@ -148,6 +150,8 @@ function DashboardWorkspace() {
   const { t, locale } = useI18n();
   const w = (key: string) => t(`workspaceExtra.${key}`);
   const [active, setActive] = useState(getInitialDashboardSection);
+  const [studioHomeOnboardingOpen, setStudioHomeOnboardingOpen] = useState(false);
+  const [studioHomeLaunchMode, setStudioHomeLaunchMode] = useState<StudioCreationMode | null>(null);
   const [studioCreditRechargeRequest, setStudioCreditRechargeRequest] = useState(0);
   const clearStudioCreditRechargeRequest = useCallback(() => setStudioCreditRechargeRequest(0), []);
   const initialSectionRef = useRef(active);
@@ -300,6 +304,18 @@ function DashboardWorkspace() {
       return;
     }
     setActive(section);
+  }
+  function dismissStudioHomeOnboarding() {
+    try { window.localStorage.setItem(STUDIO_HOME_ONBOARDING_STORAGE_KEY, "dismissed"); } catch { /* Local storage may be unavailable. */ }
+    setStudioHomeOnboardingOpen(false);
+  }
+  function selectStudioHomeMode(mode: StudioCreationMode) {
+    dismissStudioHomeOnboarding();
+    setStudioHomeLaunchMode(mode);
+    navigateToSection("Studio");
+  }
+  function clearStudioHomeLaunchMode() {
+    setStudioHomeLaunchMode(null);
   }
   function dismissFeatureCard(cardId: string) {
     setDismissedFeatureCards((current) => new Set(current).add(cardId));
@@ -572,6 +588,16 @@ function DashboardWorkspace() {
     dismissed: loginTrainingDismissed,
   });
   const trainingWelcomeOpen = (onboardingOpen && onboarding.stage === "training" && !hasActivePaidTrainingSubscription(subscription)) || recurringTrainingWelcome;
+  useEffect(() => {
+    if (active !== DEFAULT_DASHBOARD_SECTION || loadingData || needsStoreConnection || onboardingOpen || trainingWelcomeOpen || subscriptionExpired || dashboardDataUnavailable) {
+      setStudioHomeOnboardingOpen(false);
+      return;
+    }
+    try {
+      if (window.localStorage.getItem(STUDIO_HOME_ONBOARDING_STORAGE_KEY) === "dismissed") return;
+    } catch { /* Local storage may be unavailable. */ }
+    setStudioHomeOnboardingOpen(true);
+  }, [active, loadingData, needsStoreConnection, onboardingOpen, trainingWelcomeOpen, subscriptionExpired, dashboardDataUnavailable]);
   function openTrainingMessage(nextSection: string | null = null) {
     setTrainingNextSection(nextSection);
     onboarding.showTraining();
@@ -664,7 +690,7 @@ function DashboardWorkspace() {
               onBack={() => setActive(previousSection)}
             />
           ) : active === "Studio" ? (
-            <StudioView products={analytics?.products ?? []} creditRechargeRequest={studioCreditRechargeRequest} onCreditRechargeRequestHandled={clearStudioCreditRechargeRequest} />
+            <StudioView products={analytics?.products ?? []} creditRechargeRequest={studioCreditRechargeRequest} onCreditRechargeRequestHandled={clearStudioCreditRechargeRequest} initialHomeMode={studioHomeLaunchMode} onHomeModeHandled={clearStudioHomeLaunchMode} />
           ) : active === "Performance publicitaire" ? (
             <AdPerformanceView key={activeStoreId ?? "no-store"} storeId={activeStoreId} onApplyCampaign={applyRecommendedCampaign} onRecommendationChange={reportCampaignRecommendation} products={analytics?.products ?? []} locale={locale} />
           ) : active === "Pub" ? (
@@ -774,6 +800,12 @@ function DashboardWorkspace() {
         ) : null}
       </div>
     </main>
+    <StudioHomeOnboarding
+      open={studioHomeOnboardingOpen && active === DEFAULT_DASHBOARD_SECTION}
+      locale={locale}
+      onClose={dismissStudioHomeOnboarding}
+      onSelectMode={selectStudioHomeMode}
+    />
     {needsStoreConnection && <StoreConnectionGate stores={stores} failed={["failed", "expired", "revoked"].includes(searchParams.get("chariow") ?? "")} onSignOut={signOut} onConnectStart={onboarding.beginConnection} />}
     {trainingWelcomeOpen ? <TrainingWelcome subscription={subscription} onDismiss={onboarding.stage === "training" ? closeTrainingMessage : closeLoginTrainingMessage} /> : null}
     {onboardingOpen && onboarding.stage !== "training" && !recurringTrainingWelcome && <FirstStoreWelcome stage={onboarding.stage as "welcome" | "tour"} subscription={subscription} onTryStudio={() => { if (beginnerProfile && !hasActivePaidTrainingSubscription(subscription)) openTrainingMessage("Studio"); else { handleTourStepChange(null); setActive("Studio"); setMoreOpen(false); setGuideMenuTarget(null); onboarding.dismiss(); } }} onDismiss={() => { handleTourStepChange(null); if (beginnerProfile && !hasActivePaidTrainingSubscription(subscription) && onboarding.stage === "welcome") openTrainingMessage(); else onboarding.dismiss(); }} onTourStepChange={handleTourStepChange} />}

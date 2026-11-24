@@ -36,6 +36,7 @@ import { isTerminalStudioVideoStatus, normalizeStudioVideoStatus, startStudioVid
 import { STUDIO_VIDEO_RESOLUTIONS } from "@/lib/studio/creative-workflows";
 import { STUDIO_VIDEO_DURATION } from "@/lib/studio/video-plan";
 import { useI18n } from "@/lib/i18n/i18n";
+import type { StudioCreationMode } from "@/components/dashboard/StudioHomeOnboarding";
 import { hasSubscriptionRequiredPayload } from "@/lib/subscription/ui";
 import { MetricHelp, ChannelBadge, SESSION_STORAGE_PROMPT_KEY } from "./shared";
 import { useNavigationCache } from "./NavigationDataCache";
@@ -148,10 +149,12 @@ function StudioFormatPreviewVideo({ src, poster }: { src: string; poster: string
   );
 }
 
-export function StudioView({ products, creditRechargeRequest = 0, onCreditRechargeRequestHandled }: {
+export function StudioView({ products, creditRechargeRequest = 0, onCreditRechargeRequestHandled, initialHomeMode = null, onHomeModeHandled }: {
   products: Array<{ id: string; name: string; description?: string | null; content?: string | null; price?: number | string | null; currency?: string | null; image?: string | null; category?: string; type?: string; tags?: string[]; images?: string[]; shop?: string }>;
   creditRechargeRequest?: number;
   onCreditRechargeRequestHandled?: () => void;
+  initialHomeMode?: StudioCreationMode | null;
+  onHomeModeHandled?: () => void;
 }) {
   const { t, locale } = useI18n();
   const [promptGenerating, setPromptGenerating] = useState(false);
@@ -159,6 +162,7 @@ export function StudioView({ products, creditRechargeRequest = 0, onCreditRechar
   const [videoRenderLocked, setVideoRenderLocked] = useState(true);
   const [studioTab, setStudioTab] = useState<"photo" | "slideshow">("photo");
   const [mobileStudioMode, setMobileStudioMode] = useState<"image" | "slideshow" | "video" | null>(null);
+  const handledHomeModeRef = useRef<StudioCreationMode | null>(null);
   const [prompt, setPrompt] = useState("");
   const videoStyle = "ugc" as const;
   const [videoLanguage, setVideoLanguage] = useState("auto");
@@ -944,6 +948,12 @@ export function StudioView({ products, creditRechargeRequest = 0, onCreditRechar
     setKind(mode === "video" ? "video" : "image");
     setStudioTab(mode === "slideshow" ? "slideshow" : "photo");
   };
+  useEffect(() => {
+    if (!initialHomeMode || handledHomeModeRef.current === initialHomeMode) return;
+    handledHomeModeRef.current = initialHomeMode;
+    openStudioMode(initialHomeMode);
+    onHomeModeHandled?.();
+  }, [initialHomeMode, onHomeModeHandled]);
 
   return (
       <div className={`studio-page${mobileStudioMode ? " is-open" : ""}`} data-session={mobileStudioMode ?? undefined} data-history-expanded={desktopHistoryExpanded}>
